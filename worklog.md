@@ -324,3 +324,27 @@ Stage Summary:
 - Database now has: 46 WiFiUsers, 4 NAS, 200 radreply, 40 radcheck, 14 radacct, 51 radpostauth, 6 plans, 3 FUP policies
 - CoA disconnect end-to-end working
 - Lint passes clean, no dev server errors
+---
+Task ID: 7
+Agent: Main Agent
+Task: Fix Session History tab showing blank — endDate date-only comparison excluded today's data
+
+Work Log:
+- Diagnosed: User reported "Session history blank"
+- Confirmed database has 8 rows in v_session_history view and radacct table
+- Tested API with no date params → returned 8 rows (correct)
+- Tested API with frontend params (startDate=2026-04-20, endDate=2026-04-26) → returned 0 rows (BUG)
+- Root cause: `parseDateRange()` in session-history/route.ts passed endDate '2026-04-26' (date-only) directly to PostgreSQL
+  - PostgreSQL casts '2026-04-26' to '2026-04-26 00:00:00+00' (midnight)
+  - SQL condition `acctstarttime <= '2026-04-26'::timestamptz` excluded all sessions starting after midnight
+  - All 8 test sessions started at 00:24-01:09 UTC, so ALL were excluded
+- Fixed `parseDateRange()`: When endDate is date-only (10 chars, YYYY-MM-DD format), append ' 23:59:59' to include entire day
+- Also ensured startDate gets ' 00:00:00' appended for clarity
+- Verified: radius/route.ts already had this fix (appends ' 23:59:59' in all 4 date filter blocks)
+- Tested fix: API now returns 8 rows with both "7d" and "today" date filters
+- Verified all 10 WiFi GUI tabs return real data from PostgreSQL
+
+Stage Summary:
+- Session History tab now correctly displays all 8 sessions (3 active, 5 completed)
+- Date range filtering fixed for date-only endDate values
+- All 10 GUI tabs verified working: Active Sessions (3), RADIUS Users (46), Auth Logs (51), Session History (8), User Usage (7), NAS Clients (4), FUP Policies (3), WiFi Plans (6), Vouchers (10)

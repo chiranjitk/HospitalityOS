@@ -140,8 +140,17 @@ function parseDateRange(
     return null // Will use default
   }
 
-  const startDate = startDateStr || '2000-01-01'
-  const endDate = endDateStr || new Date().toISOString().slice(0, 10) + ' 23:59:59'
+  // startDate: if date-only (YYYY-MM-DD), ensure it starts at midnight
+  const startDate = startDateStr
+    ? (startDateStr.length === 10 ? startDateStr + ' 00:00:00' : startDateStr)
+    : '2000-01-01'
+
+  // endDate: if date-only (YYYY-MM-DD), extend to end of day (23:59:59)
+  // CRITICAL: Without this, PostgreSQL casts '2026-04-26' to '2026-04-26 00:00:00+00'
+  // which excludes all sessions that started after midnight on endDate.
+  const endDate = endDateStr
+    ? (endDateStr.length === 10 ? endDateStr + ' 23:59:59' : endDateStr)
+    : new Date().toISOString().slice(0, 10) + ' 23:59:59'
 
   return { startDate, endDate }
 }
