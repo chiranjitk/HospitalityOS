@@ -286,95 +286,43 @@ export async function GET(request: NextRequest) {
           const endDateStr = searchParams.get('endDate');
           const usernameFilter = searchParams.get('username');
 
-          // Query radpostauth — real RADIUS auth log (includes Accept AND Reject)
+          // Query v_auth_logs view — includes client IP from radacct
           const conditions: string[] = [];
           const sqlParams: unknown[] = [];
-          if (usernameFilter) { conditions.push(`p.username LIKE $${sqlParams.length + 1}`); sqlParams.push(`%${usernameFilter}%`); }
-          if (resultFilter) { conditions.push(`p.reply = $${sqlParams.length + 1}`); sqlParams.push(resultFilter); }
-          if (startDateStr) { conditions.push(`p.authdate >= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(startDateStr.length === 10 ? `${startDateStr} 00:00:00` : startDateStr); }
-          if (endDateStr) { conditions.push(`p.authdate <= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(endDateStr.length === 10 ? `${endDateStr} 23:59:59` : endDateStr); }
+          if (usernameFilter) { conditions.push(`"username" LIKE $${sqlParams.length + 1}`); sqlParams.push(`%${usernameFilter}%`); }
+          if (resultFilter) { conditions.push(`auth_result = $${sqlParams.length + 1}`); sqlParams.push(resultFilter); }
+          if (startDateStr) { conditions.push(`"timestamp" >= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(startDateStr.length === 10 ? `${startDateStr} 00:00:00` : startDateStr); }
+          if (endDateStr) { conditions.push(`"timestamp" <= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(endDateStr.length === 10 ? `${endDateStr} 23:59:59` : endDateStr); }
           const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
           sqlParams.push(limit);
 
-          const authEvents = await db.$queryRawUnsafe<{
-            id: number;
-            username: string;
-            reply: string;
-            authdate: string;
-            callingstationid: string;
-            calledstationid: string;
-            nasipaddress: string | null;
-            clientipaddress: string | null;
-            property_name: string | null;
-            guest_first_name: string | null;
-            guest_last_name: string | null;
-            room_number: string | null;
-            user_exists: boolean;
-          }[]>(`
-            SELECT p.id, p.username, p.reply, p.authdate,
-                   p.callingstationid, p.calledstationid,
-                   COALESCE(p.nasipaddress, '') as nasipaddress,
-                   COALESCE(p.clientipaddress, '') as clientipaddress,
-                   prop.name as property_name,
-                   g."firstName" as guest_first_name,
-                   g."lastName" as guest_last_name,
-                   rm.number as room_number,
-                   CASE WHEN wu.id IS NOT NULL THEN true ELSE false END as user_exists
-            FROM radpostauth p
-            LEFT JOIN "WiFiUser" wu ON wu.username = p.username
-            LEFT JOIN "Guest" g ON g.id = wu."guestId"
-            LEFT JOIN "Booking" b ON b.id = wu."bookingId"
-            LEFT JOIN "Room" rm ON rm.id = b."roomId"
-            LEFT JOIN "Property" prop ON prop.id = COALESCE(wu."propertyId", b."propertyId")
+          const authEvents = await db.$queryRawUnsafe<Record<string, unknown>[]>(`
+            SELECT id, "username", auth_result, "timestamp",
+                   client_ip_address, nas_ip_address, reply_message,
+                   guest_first_name, guest_last_name, room_number, property_name
+            FROM v_auth_logs
             ${whereClause}
-            ORDER BY p.authdate DESC
+            ORDER BY "timestamp" DESC
             LIMIT $${sqlParams.length}
           `, ...sqlParams);
 
-          const logs = JSON.parse(JSON.stringify(authEvents, (_, v) => typeof v === 'bigint' ? Number(v) : v));
-
-          const mapped = logs.map((e: Record<string, unknown>) => {
-            const reply = (e.reply || '').toLowerCase();
-            const isAccept = reply === 'access-accept';
-            const nasIp = (e.nasipaddress as string) || '';
-            const clientIp = (e.clientipaddress as string) || '';
-            const userExists = e.user_exists === true;
-
-            // Build contextual reply message — prioritize client IP, then NAS IP
-            let replyMessage = '';
-            if (isAccept) {
-              if (clientIp) {
-                replyMessage = `Authenticated — client IP: ${clientIp}`;
-              } else if (nasIp) {
-                replyMessage = `Authenticated from NAS ${nasIp}`;
-              } else {
-                replyMessage = 'Authenticated successfully';
-              }
-            } else {
-              if (!userExists) {
-                replyMessage = 'Invalid credentials — user not found';
-              } else {
-                replyMessage = 'Authentication rejected — invalid password';
-              }
-            }
-
-            return {
-              id: `auth_${e.id}`,
-              timestamp: e.authdate || '',
-              username: e.username || '',
-              authResult: e.reply || '',
-              authType: 'RADIUS',
-              nasIpAddress: nasIp,
-              clientIpAddress: clientIp,
-              callingStationId: e.callingstationid || '',
-              replyMessage,
-              // Enriched fields (no plan name)
-              propertyName: e.property_name || '',
-              guestName: [e.guest_first_name, e.guest_last_name].filter(Boolean).join(' ') || '',
-              roomNumber: e.room_number || '',
-              calledStationId: e.calledstationid || '',
-            };
-          });
+          const mapped = authEvents.map((e) => ({
+            id: e.id || `auth_${e.id}`,
+            timestamp: e.timestamp || '',
+            username: e.username || '',
+            authResult: e.auth_result || '',
+            authType: 'RADIUS',
+            // Client real IP — the user's assigned IP from pool/accounting
+            clientIpAddress: (e.client_ip_address as string) || '',
+            // NAS source IP (where auth request came from)
+            nasIpAddress: (e.nas_ip_address as string) || '',
+            // Reply message (already built in view with client IP priority)
+            replyMessage: e.reply_message || '',
+            // Enriched fields
+            propertyName: e.property_name || '',
+            guestName: [e.guest_first_name, e.guest_last_name].filter(Boolean).join(' ') || '',
+            roomNumber: e.room_number || '',
+          }));
 
           return NextResponse.json({ success: true, data: mapped });
         } catch (error) {
