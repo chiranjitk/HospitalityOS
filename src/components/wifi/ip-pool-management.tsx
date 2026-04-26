@@ -59,7 +59,6 @@ interface IpPool {
   name: string;
   description: string | null;
   gateway: string | null;
-  dnsServers: string | null;
   subnet: string | null;
   isDefault: boolean;
   enabled: boolean;
@@ -117,7 +116,6 @@ export default function IpPoolManagement() {
     name: '',
     description: '',
     gateway: '',
-    dnsServers: '8.8.8.8,8.8.4.4',
     subnet: '',
     isDefault: false,
     enabled: true,
@@ -270,7 +268,6 @@ export default function IpPoolManagement() {
       name: pool.name,
       description: pool.description || '',
       gateway: formatInet(pool.gateway),
-      dnsServers: pool.dnsServers || '8.8.8.8,8.8.4.4',
       subnet: formatInet(pool.subnet),
       isDefault: pool.isDefault,
       enabled: pool.enabled,
@@ -290,7 +287,6 @@ export default function IpPoolManagement() {
       name: '',
       description: '',
       gateway: '',
-      dnsServers: '8.8.8.8,8.8.4.4',
       subnet: '',
       isDefault: false,
       enabled: true,
@@ -557,11 +553,6 @@ export default function IpPoolManagement() {
                           Gateway: {formatInet(pool.gateway)}
                         </Badge>
                       )}
-                      {pool.dnsServers && (
-                        <Badge variant="outline" className="text-[10px]">
-                          DNS: {pool.dnsServers}
-                        </Badge>
-                      )}
                     </div>
                     {pool.ranges.length === 0 ? (
                       <p className="text-xs text-muted-foreground py-2">No ranges configured</p>
@@ -632,7 +623,7 @@ export default function IpPoolManagement() {
             </div>
 
             {/* Network Config */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="pool-subnet">Subnet (CIDR)</Label>
                 <Input
@@ -651,15 +642,7 @@ export default function IpPoolManagement() {
                   onChange={(e) => setFormData(prev => ({ ...prev, gateway: e.target.value }))}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="pool-dns">DNS Servers</Label>
-                <Input
-                  id="pool-dns"
-                  placeholder="8.8.8.8,8.8.4.4"
-                  value={formData.dnsServers}
-                  onChange={(e) => setFormData(prev => ({ ...prev, dnsServers: e.target.value }))}
-                />
-              </div>
+
             </div>
 
             {/* Flags */}
@@ -784,10 +767,6 @@ export default function IpPoolManagement() {
                 <div>
                   <span className="text-muted-foreground">Gateway</span>
                   <p className="font-mono">{formatInet(selectedPool.gateway)}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">DNS</span>
-                  <p className="font-mono text-xs">{selectedPool.dnsServers || '—'}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Status</span>

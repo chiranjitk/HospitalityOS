@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, description, gateway, dnsServers, subnet, isDefault, propertyId, enabled, ranges } = body;
+    const { name, description, gateway, subnet, isDefault, propertyId, enabled, ranges } = body;
 
     if (!name?.trim()) {
       return NextResponse.json(
@@ -101,8 +101,8 @@ export async function POST(request: NextRequest) {
 
     // Create pool
     const result = await db.$queryRawUnsafe(`
-      INSERT INTO "IpPool" ("tenantId", "propertyId", name, description, gateway, "dnsServers", subnet, "isDefault", enabled)
-      VALUES ($1::uuid, $2::uuid, $3, $4, $5::inet, $6, $7::inet, $8, $9)
+      INSERT INTO "IpPool" ("tenantId", "propertyId", name, description, gateway, subnet, "isDefault", enabled)
+      VALUES ($1::uuid, $2::uuid, $3, $4, $5::inet, $6::inet, $7, $8)
       RETURNING *
     `, 
       tenantId,
@@ -110,7 +110,6 @@ export async function POST(request: NextRequest) {
       name.trim(),
       description || null,
       gateway || null,
-      dnsServers || '8.8.8.8,8.8.4.4',
       subnet || null,
       isDefault ? true : false,
       enabled !== false
@@ -153,7 +152,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, name, description, gateway, dnsServers, subnet, isDefault, enabled, ranges } = body;
+    const { id, name, description, gateway, subnet, isDefault, enabled, ranges } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -176,14 +175,13 @@ export async function PUT(request: NextRequest) {
         name = $2,
         description = $3,
         gateway = $4::inet,
-        "dnsServers" = $5,
-        subnet = $6::inet,
-        "isDefault" = $7,
-        enabled = $8,
+        subnet = $5::inet,
+        "isDefault" = $6,
+        enabled = $7,
         "updatedAt" = now()
       WHERE id = $1::uuid
       RETURNING *
-    `, id, name, description || null, gateway || null, dnsServers || '8.8.8.8,8.8.4.4', subnet || null, isDefault ? true : false, enabled !== false) as any[];
+    `, id, name, description || null, gateway || null, subnet || null, isDefault ? true : false, enabled !== false) as any[];
 
     if (!result.length) {
       return NextResponse.json(

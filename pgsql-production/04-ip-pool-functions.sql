@@ -138,16 +138,16 @@ $function$;
 
 -- ============================================================================
 -- FUNCTION: fn_get_pool_attr
--- Returns a specific attribute (gateway or dns) from the user's effective
--- IP pool. Used by FreeRADIUS to push gateway and DNS via RADIUS reply.
+-- Returns a specific attribute (gateway) from the user's effective
+-- IP pool. Used by FreeRADIUS to push gateway via RADIUS reply.
 --
 -- Parameters:
 --   p_username  — WiFiUser.username
---   p_attr      — 'gateway' or 'dns'
+--   p_attr      — 'gateway'
 --
 -- Returns:
---   text value of the requested attribute (gateway as clean IP, dns as
---   comma-separated string), or NULL if no pool assigned
+--   text value of the requested attribute (gateway as clean IP),
+--   or NULL if no pool assigned
 -- ============================================================================
 CREATE OR REPLACE FUNCTION public.fn_get_pool_attr(p_username text, p_attr text)
  RETURNS text
@@ -173,8 +173,6 @@ BEGIN
 
     IF p_attr = 'gateway' THEN
         SELECT host(gateway) INTO v_value FROM "IpPool" WHERE id = v_pool_id;
-    ELSIF p_attr = 'dns' THEN
-        SELECT "dnsServers" INTO v_value FROM "IpPool" WHERE id = v_pool_id;
     END IF;
 
     RETURN v_value;
@@ -188,7 +186,6 @@ $function$;
 --
 -- Pool:     Default Pool (10.0.0.0/16, gateway 10.0.0.1)
 -- Range:    10.0.0.1 – 10.0.255.254 (65,534 usable IPs)
--- DNS:      8.8.8.8, 8.8.4.4 (Google Public DNS)
 -- ============================================================================
 DO $$
 BEGIN
@@ -199,7 +196,6 @@ BEGIN
         name,
         description,
         gateway,
-        "dnsServers",
         subnet,
         "isDefault",
         enabled,
@@ -211,7 +207,6 @@ BEGIN
         'Default Pool',
         'Default IP pool — 10.0.0.0/16 private subnet for guest WiFi',
         '10.0.0.1'::inet,
-        '8.8.8.8,8.8.4.4',
         '10.0.0.0/16'::inet,
         true,
         true,

@@ -6106,7 +6106,6 @@ model IpPool {
   name        String
   description String?
   gateway     String?  @db.Inet
-  dnsServers  String?  @default("8.8.8.8,8.8.4.4") // Comma-separated DNS
   subnet      String?  @db.Inet // CIDR subnet e.g. 10.0.0.0/24
   isDefault   Boolean  @default(false) // Default pool if no pool assigned
   enabled     Boolean  @default(true)
