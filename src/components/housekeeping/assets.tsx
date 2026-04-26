@@ -48,7 +48,6 @@ import {
   Wrench,
   CheckCircle2,
   Clock,
-  Building2,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -89,18 +88,7 @@ interface Asset {
   } | null;
 }
 
-interface Property {
-  id: string;
-  name: string;
-}
 
-interface Room {
-  id: string;
-  number: string;
-  roomType: {
-    name: string;
-  };
-}
 
 const assetCategories = [
   { value: 'furniture', label: 'Furniture' },
@@ -124,8 +112,6 @@ export default function Assets() {
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -156,26 +142,17 @@ export default function Assets() {
     status: 'active',
   });
 
-  // Fetch properties and assets
+  // Fetch assets
   const fetchInitialData = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      const [propertiesRes, assetsRes] = await Promise.all([
-        fetch('/api/properties'),
-        fetch('/api/assets'),
-      ]);
-      
-      const propertiesResult = await propertiesRes.json();
-      if (propertiesResult.success) {
-        setProperties(propertiesResult.data);
-      }
-      
+      const assetsRes = await fetch('/api/assets');
       const assetsResult = await assetsRes.json();
       if (assetsResult.success) {
         setAssets(assetsResult.data);
       }
     } catch (error) {
-      console.error('Error fetching initial data:', error);
+      console.error('Error fetching assets:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch assets',
@@ -343,6 +320,7 @@ export default function Assets() {
 
     setIsSaving(true);
     try {
+      // NOTE: /api/assets DELETE handler reads id from query params (not path params)
       const response = await fetch(`/api/assets?id=${selectedAsset.id}`, {
         method: 'DELETE',
       });
@@ -588,118 +566,210 @@ export default function Assets() {
               <p className="text-sm">Add a new asset to get started</p>
             </div>
           ) : (
-            <ScrollArea className="h-[500px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Asset</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead>Value</TableHead>
-                    <TableHead>Warranty</TableHead>
-                    <TableHead>Next Maintenance</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredAssets.map((asset) => {
-                    const warrantyExpiring = asset.warrantyExpiry && 
-                      isBefore(new Date(asset.warrantyExpiry), addDays(new Date(), 90));
-                    const maintenanceDueSoon = asset.nextMaintenanceAt && 
-                      isBefore(new Date(asset.nextMaintenanceAt), addDays(new Date(), 30));
-                    
-                    return (
-                      <TableRow key={asset.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-sm">{asset.name}</p>
-                            {asset.serialNumber && (
-                              <p className="text-xs text-muted-foreground">
-                                S/N: {asset.serialNumber}
-                              </p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>{getCategoryBadge(asset.category)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-sm">{asset.location || 'Not specified'}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-sm">{asset.currentValue ? formatCurrency(asset.currentValue) : '-'}</p>
-                            {asset.purchasePrice && asset.currentValue && asset.purchasePrice !== asset.currentValue && (
-                              <p className="text-xs text-muted-foreground line-through">
-                                {formatCurrency(asset.purchasePrice)}
-                              </p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {asset.warrantyExpiry ? (
-                            <div className={cn(
-                              'flex items-center gap-1',
-                              warrantyExpiring && 'text-amber-500 dark:text-amber-400'
-                            )}>
-                              <Calendar className="h-3 w-3" />
-                              <span className="text-sm">
-                                {format(new Date(asset.warrantyExpiry), 'MMM d, yyyy')}
-                              </span>
-                              {warrantyExpiring && (
-                                <AlertTriangle className="h-3 w-3 ml-1" />
+            <>
+              {/* Desktop Table */}
+              <div className="hidden md:block">
+                <ScrollArea className="h-[500px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Asset</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Value</TableHead>
+                        <TableHead>Warranty</TableHead>
+                        <TableHead>Next Maintenance</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAssets.map((asset) => {
+                        const warrantyExpiring = asset.warrantyExpiry && 
+                          isBefore(new Date(asset.warrantyExpiry), addDays(new Date(), 90));
+                        const maintenanceDueSoon = asset.nextMaintenanceAt && 
+                          isBefore(new Date(asset.nextMaintenanceAt), addDays(new Date(), 30));
+                        
+                        return (
+                          <TableRow key={asset.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium text-sm">{asset.name}</p>
+                                {asset.serialNumber && (
+                                  <p className="text-xs text-muted-foreground">
+                                    S/N: {asset.serialNumber}
+                                  </p>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>{getCategoryBadge(asset.category)}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-sm">{asset.location || 'Not specified'}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium text-sm">{asset.currentValue ? formatCurrency(asset.currentValue) : '-'}</p>
+                                {asset.purchasePrice && asset.currentValue && asset.purchasePrice !== asset.currentValue && (
+                                  <p className="text-xs text-muted-foreground line-through">
+                                    {formatCurrency(asset.purchasePrice)}
+                                  </p>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {asset.warrantyExpiry ? (
+                                <div className={cn(
+                                  'flex items-center gap-1',
+                                  warrantyExpiring && 'text-amber-500 dark:text-amber-400'
+                                )}>
+                                  <Calendar className="h-3 w-3" />
+                                  <span className="text-sm">
+                                    {format(new Date(asset.warrantyExpiry), 'MMM d, yyyy')}
+                                  </span>
+                                  {warrantyExpiring && (
+                                    <AlertTriangle className="h-3 w-3 ml-1" />
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">No warranty</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {asset.nextMaintenanceAt ? (
+                                <div className={cn(
+                                  'flex items-center gap-1',
+                                  maintenanceDueSoon && 'text-amber-500 dark:text-amber-400'
+                                )}>
+                                  <Wrench className="h-3 w-3" />
+                                  <span className="text-sm">
+                                    {format(new Date(asset.nextMaintenanceAt), 'MMM d, yyyy')}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">Not scheduled</span>
+                              )}
+                            </TableCell>
+                            <TableCell>{getStatusBadge(asset.status)}</TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => openEditDialog(asset)}>
+                                    <Pencil className="h-4 w-4 mr-2" />
+                                    Edit Asset
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onClick={() => { setSelectedAsset(asset); setIsDeleteOpen(true); }}
+                                    className="text-red-600 dark:text-red-400"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete Asset
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </div>
+              {/* Mobile Card Layout */}
+              <div className="md:hidden">
+                <ScrollArea className="h-[calc(100vh-520px)] min-h-[400px]">
+                  <div className="space-y-3">
+                    {filteredAssets.map((asset) => {
+                      const warrantyExpiring = asset.warrantyExpiry && 
+                        isBefore(new Date(asset.warrantyExpiry), addDays(new Date(), 90));
+                      const maintenanceDueSoon = asset.nextMaintenanceAt && 
+                        isBefore(new Date(asset.nextMaintenanceAt), addDays(new Date(), 30));
+                      return (
+                        <Card key={asset.id} className="hover:shadow-md transition-shadow">
+                          <CardContent className="p-3 space-y-3">
+                            {/* Row 1: Name + Status */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-medium text-sm truncate">{asset.name}</p>
+                                {asset.serialNumber && (
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    S/N: {asset.serialNumber}
+                                  </p>
+                                )}
+                              </div>
+                              {getStatusBadge(asset.status)}
+                            </div>
+                            {/* Row 2: Category + Value */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {getCategoryBadge(asset.category)}
+                              {asset.currentValue && (
+                                <span className="text-sm font-medium">{formatCurrency(asset.currentValue)}</span>
                               )}
                             </div>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">No warranty</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {asset.nextMaintenanceAt ? (
-                            <div className={cn(
-                              'flex items-center gap-1',
-                              maintenanceDueSoon && 'text-amber-500 dark:text-amber-400'
-                            )}>
-                              <Wrench className="h-3 w-3" />
-                              <span className="text-sm">
-                                {format(new Date(asset.nextMaintenanceAt), 'MMM d, yyyy')}
-                              </span>
+                            {/* Row 3: Location + Maintenance */}
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="bg-muted/50 rounded-lg px-2 py-1.5">
+                                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                  <MapPin className="h-3 w-3" />
+                                  <span>Location</span>
+                                </div>
+                                <p className="text-xs font-semibold mt-0.5 truncate">
+                                  {asset.location || 'Not specified'}
+                                </p>
+                              </div>
+                              <div className="bg-muted/50 rounded-lg px-2 py-1.5">
+                                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                  <Wrench className="h-3 w-3" />
+                                  <span>Maintenance</span>
+                                </div>
+                                <p className={cn('text-xs font-semibold mt-0.5', maintenanceDueSoon && 'text-amber-500 dark:text-amber-400')}>
+                                  {asset.nextMaintenanceAt ? format(new Date(asset.nextMaintenanceAt), 'MMM d, yyyy') : 'Not scheduled'}
+                                </p>
+                              </div>
                             </div>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">Not scheduled</span>
-                          )}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(asset.status)}</TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openEditDialog(asset)}>
-                                <Pencil className="h-4 w-4 mr-2" />
-                                Edit Asset
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                onClick={() => { setSelectedAsset(asset); setIsDeleteOpen(true); }}
-                                className="text-red-600 dark:text-red-400"
+                            {/* Row 4: Warranty */}
+                            {asset.warrantyExpiry && (
+                              <div className="flex items-center gap-1.5 text-xs">
+                                <Calendar className="h-3 w-3 text-muted-foreground" />
+                                <span className={cn(warrantyExpiring && 'text-amber-500 dark:text-amber-400')}>
+                                  Warranty: {format(new Date(asset.warrantyExpiry), 'MMM d, yyyy')}
+                                </span>
+                                {warrantyExpiring && <AlertTriangle className="h-3 w-3 text-amber-500" />}
+                              </div>
+                            )}
+                            {/* Row 5: Actions */}
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                className="flex-1 h-11"
+                                onClick={() => openEditDialog(asset)}
                               >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete Asset
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </ScrollArea>
+                                <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                                Edit
+                              </Button>
+                              <Button
+                                variant="outline"
+                                className="h-11 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => { setSelectedAsset(asset); setIsDeleteOpen(true); }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

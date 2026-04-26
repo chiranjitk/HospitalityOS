@@ -390,7 +390,7 @@ export default function Maintenance() {
   const openEditDialog = (task: Task) => {
     setSelectedTask(task);
     setFormData({
-      propertyId: task.room?.roomType ? (properties[0]?.id || '') : '',
+      propertyId: properties[0]?.id || '',
       roomId: task.room?.id || '',
       assignedTo: task.assignee?.id || '',
       title: task.title,

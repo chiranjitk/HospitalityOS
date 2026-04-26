@@ -30,7 +30,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 
-const CRON_SECRET = process.env.NEXT_PUBLIC_CRON_SECRET || '';
+// Cron secret is handled server-side via /api/housekeeping/trigger-cron proxy
 
 interface AutomationStats {
   recurringTasks: number;
@@ -91,13 +91,12 @@ export default function HousekeepingAutomation() {
   const triggerRecurringTasks = async (dryRun = false) => {
     setTriggeringRecurring(true);
     try {
-      const res = await fetch('/api/cron/recurring-tasks', {
+      const res = await fetch('/api/housekeeping/trigger-cron', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${CRON_SECRET}`,
         },
-        body: JSON.stringify({ dryRun }),
+        body: JSON.stringify({ action: 'recurring-tasks', dryRun }),
       });
       const result: CronResult = await res.json();
       setCronResults(result);
@@ -119,13 +118,12 @@ export default function HousekeepingAutomation() {
   const triggerPMAutoCheck = async (dryRun = false) => {
     setTriggeringPM(true);
     try {
-      const res = await fetch('/api/cron/pm-autotrigger', {
+      const res = await fetch('/api/housekeeping/trigger-cron', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${CRON_SECRET}`,
         },
-        body: JSON.stringify({ dryRun }),
+        body: JSON.stringify({ action: 'pm-autotrigger', dryRun }),
       });
       const result: CronResult = await res.json();
       setCronResults(result);
@@ -162,9 +160,10 @@ export default function HousekeepingAutomation() {
         </p>
       </div>
 
-      {!CRON_SECRET && (
+      {/* Cron proxy is available via /api/housekeeping/trigger-cron */}
+      {process.env.NODE_ENV !== 'production' && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 text-sm text-amber-800 dark:text-amber-200">
-          Cron is not configured. Set <code className="rounded bg-amber-100 dark:bg-amber-900 px-1.5 py-0.5">NEXT_PUBLIC_CRON_SECRET</code> in your environment to enable automated task triggers.
+          Cron is configured via server-side environment. Ensure <code className="rounded bg-amber-100 dark:bg-amber-900 px-1.5 py-0.5">CRON_SECRET</code> is set on the server.
         </div>
       )}
 

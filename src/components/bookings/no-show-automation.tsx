@@ -51,7 +51,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 // TYPES
 // =====================================================
 
-const CRON_SECRET = process.env.NEXT_PUBLIC_CRON_SECRET || '';
+// Cron secret is handled server-side via /api/housekeeping/trigger-cron proxy
 
 interface NoShowSettings {
   noShowBufferHours: number;
@@ -283,13 +283,12 @@ export default function NoShowAutomation() {
     setConfirmDialogOpen(false);
 
     try {
-      const res = await fetch('/api/cron/no-show-detection', {
+      const res = await fetch('/api/housekeeping/trigger-cron', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${CRON_SECRET}`,
         },
-        body: JSON.stringify({ dryRun }),
+        body: JSON.stringify({ action: 'no-show-detection', dryRun }),
       });
       if (!res.ok) {
         const errorText = await res.text().catch(() => 'Unknown error');
@@ -332,9 +331,9 @@ export default function NoShowAutomation() {
         </div>
       </div>
 
-      {!CRON_SECRET && (
+      {process.env.NODE_ENV !== 'production' && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 text-sm text-amber-800 dark:text-amber-200">
-          Cron is not configured. Set <code className="rounded bg-amber-100 dark:bg-amber-900 px-1.5 py-0.5">NEXT_PUBLIC_CRON_SECRET</code> in your environment to enable no-show detection triggers.
+          Cron is configured via server-side environment. Ensure <code className="rounded bg-amber-100 dark:bg-amber-900 px-1.5 py-0.5">CRON_SECRET</code> is set on the server.
         </div>
       )}
 

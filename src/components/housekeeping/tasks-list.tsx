@@ -251,10 +251,6 @@ export default function TasksList() {
     }
   }, [searchQuery, statusFilter, typeFilter, priorityFilter, toast]);
 
-  useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
-
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {

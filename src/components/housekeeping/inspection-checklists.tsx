@@ -281,17 +281,8 @@ function generateId(): string {
   return `item-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').substring(0, 9)}`;
 }
 
-// ──────────────── Custom Scrollbar Style ────────────────
-const scrollbarStyle = (
-  <>
-    <style>{`
-      .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-      .custom-scroll::-webkit-scrollbar-track { background: transparent; border-radius: 3px; }
-      .custom-scroll::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.3); border-radius: 3px; }
-      .custom-scroll::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); }
-    `}</style>
-  </>
-);
+// Tailwind utility class for custom thin scrollbar (replaces inline <style> tag)
+const customScrollClass = '[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-track]:rounded-sm [&::-webkit-scrollbar-thumb]:rounded-sm [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/50';
 
 // ═══════════════════════════════════════════════════════════
 // MAIN COMPONENT
@@ -302,7 +293,6 @@ export default function InspectionChecklists() {
 
   return (
     <div className="space-y-6">
-      {scrollbarStyle}
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
@@ -422,10 +412,6 @@ function TemplatesTab() {
       setIsLoading(false);
     }
   }, [searchQuery, roomTypeFilter, categoryFilter, toast]);
-
-  useEffect(() => {
-    fetchTemplates();
-  }, [fetchTemplates]);
 
   // Debounced search
   useEffect(() => {
@@ -910,7 +896,7 @@ function TemplateFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-2 max-h-[60vh] overflow-y-auto custom-scroll pr-2">
+        <div className={cn("grid gap-4 py-2 max-h-[60vh] overflow-y-auto pr-2", customScrollClass)}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="tpl-name">Template Name *</Label>
@@ -1119,7 +1105,7 @@ function ViewTemplateDialog({
             {template?.description || 'No description'}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 max-h-96 overflow-y-auto custom-scroll">
+        <div className={cn("space-y-4 max-h-96 overflow-y-auto", customScrollClass)}>
           <div className="flex flex-wrap gap-2">
             {template?.roomType && (
               <Badge variant="outline" className="gap-1">
@@ -1862,7 +1848,7 @@ function HistoryTab() {
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-4 max-h-[60vh] overflow-y-auto custom-scroll">
+              <div className={cn("space-y-4 max-h-[60vh] overflow-y-auto", customScrollClass)}>
                 {/* Summary */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="p-3 rounded-lg bg-muted/50 text-center">

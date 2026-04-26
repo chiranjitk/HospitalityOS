@@ -33,7 +33,6 @@ import {
   User,
   GripVertical,
   AlertTriangle,
-  Filter,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -76,9 +75,7 @@ interface Task {
   assignee: Assignee | null;
 }
 
-interface TaskWithDrag extends Task {
-  isDragging?: boolean;
-}
+// TaskWithDrag removed — unused
 
 const columns = [
   { id: 'pending', title: 'Pending', color: 'bg-gray-500', icon: Clock },
@@ -111,7 +108,7 @@ export default function KanbanBoard() {
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [priorityFilter, setPriorityFilter] = useState<string>('all');
 
   // Fetch properties for filter
   useEffect(() => {
@@ -252,12 +249,12 @@ export default function KanbanBoard() {
     setDragOverColumn(null);
   }, []);
 
-  // Filter tasks by status filter
-  const filteredTasks = statusFilter === 'all'
+  // Filter tasks by priority filter
+  const filteredTasks = priorityFilter === 'all'
     ? tasks
-    : statusFilter === 'high'
+    : priorityFilter === 'high'
     ? tasks.filter(t => t.priority === 'high' || t.priority === 'urgent')
-    : tasks.filter(t => t.priority === statusFilter);
+    : tasks.filter(t => t.priority === priorityFilter);
 
   // Group tasks by status
   const tasksByStatus = columns.reduce((acc, column) => {
@@ -461,12 +458,12 @@ export default function KanbanBoard() {
         </Card>
       </div>
 
-      {/* Status Filter */}
+      {/* Priority Filter */}
       <div className="flex gap-2 flex-wrap">
-        <Badge variant={statusFilter === 'all' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setStatusFilter('all')}>All ({tasks.length})</Badge>
-        <Badge variant={statusFilter === 'high' ? 'destructive' : 'outline'} className="cursor-pointer" onClick={() => setStatusFilter('high')}>High Priority</Badge>
-        <Badge variant={statusFilter === 'medium' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setStatusFilter('medium')}>Medium</Badge>
-        <Badge variant={statusFilter === 'low' ? 'secondary' : 'outline'} className="cursor-pointer" onClick={() => setStatusFilter('low')}>Low</Badge>
+        <Badge variant={priorityFilter === 'all' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setPriorityFilter('all')}>All ({tasks.length})</Badge>
+        <Badge variant={priorityFilter === 'high' ? 'destructive' : 'outline'} className="cursor-pointer" onClick={() => setPriorityFilter('high')}>High Priority</Badge>
+        <Badge variant={priorityFilter === 'medium' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setPriorityFilter('medium')}>Medium</Badge>
+        <Badge variant={priorityFilter === 'low' ? 'secondary' : 'outline'} className="cursor-pointer" onClick={() => setPriorityFilter('low')}>Low</Badge>
       </div>
 
       {/* Kanban Board */}
