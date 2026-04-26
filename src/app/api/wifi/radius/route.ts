@@ -984,7 +984,7 @@ export async function GET(request: NextRequest) {
                    h."changeReason" AS "reason", h."ipAddress",
                    h."createdAt" AS "timestamp", h."userId"
             FROM "WiFiUserStatusHistory" h
-            LEFT JOIN "User" u ON u.id = h."changedBy"
+            LEFT JOIN "User" u ON u.id::text = h."changedBy"
             ${whereClause}
             ORDER BY h."createdAt" DESC
             LIMIT $${sqlParams.length - 1} OFFSET $${sqlParams.length}
