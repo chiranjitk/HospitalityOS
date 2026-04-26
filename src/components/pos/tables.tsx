@@ -129,7 +129,7 @@ export default function Tables() {
   const fetchTables = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      params.append('propertyId', propertyId);
+      if (propertyId) params.append('propertyId', propertyId);
       if (areaFilter !== 'all') params.append('area', areaFilter);
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (search) params.append('search', search);

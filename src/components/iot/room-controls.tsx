@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import {
   Thermometer, Lightbulb, Lock, Tv, Blinds, AirVent, Wind,
   Power, PowerOff, Sun, Moon, ChevronUp, ChevronDown,
-  Volume2, VolumeX, Wifi, WifiOff, RefreshCw
+  Volume2, VolumeX, Wifi, WifiOff, RefreshCw, Loader2
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -28,7 +28,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
 
 interface Room {
   id: string;
@@ -60,6 +59,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
   const [loading, setLoading] = useState(true);
   const [controlling, setControlling] = useState<string | null>(null);
   const [unlockConfirmDeviceId, setUnlockConfirmDeviceId] = useState<string | null>(null);
+  const sliderTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     fetchRoomsWithDevices();
@@ -116,6 +116,15 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const debouncedSliderCommand = (deviceId: string, command: string, params: any = {}) => {
+    if (sliderTimerRef.current) {
+      clearTimeout(sliderTimerRef.current);
+    }
+    sliderTimerRef.current = setTimeout(() => {
+      executeCommand(deviceId, command, params);
+    }, 300);
   };
 
   const sendCommand = async (deviceId: string, command: string, params: any = {}) => {
@@ -297,7 +306,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
             <Slider
               value={[brightness]}
               onValueChange={([value]) => 
-                sendCommand(device.id, 'set_brightness', { brightness: value })
+                debouncedSliderCommand(device.id, 'set_brightness', { brightness: value })
               }
               max={100}
               step={10}
@@ -390,7 +399,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
             <Slider
               value={[volume]}
               onValueChange={([value]) => 
-                sendCommand(device.id, 'set_volume', { volume: value })
+                debouncedSliderCommand(device.id, 'set_volume', { volume: value })
               }
               max={100}
               step={5}
@@ -436,7 +445,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
             <Slider
               value={[position]}
               onValueChange={([value]) => 
-                sendCommand(device.id, 'set_position', { position: value })
+                debouncedSliderCommand(device.id, 'set_position', { position: value })
               }
               max={100}
               step={10}
@@ -732,9 +741,11 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
-                onClick={() => {
-                  lights.forEach(d => sendCommand(d.id, 'turn_on'));
-                  thermostats.forEach(d => sendCommand(d.id, 'set_temperature', { temperature: 22 }));
+                onClick={async () => {
+                  const lightPromises = lights.map(d => executeCommand(d.id, 'turn_on'));
+                  const thermoPromises = thermostats.map(d => executeCommand(d.id, 'set_temperature', { temperature: 22 }));
+                  await Promise.allSettled([...lightPromises, ...thermoPromises]);
+                  fetchRoomsWithDevices();
                 }}
               >
                 <Sun className="h-4 w-4 mr-2" />
@@ -742,12 +753,15 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => {
+                onClick={async () => {
+                  const promises: Promise<any>[] = [];
                   lights.forEach(d => {
-                    sendCommand(d.id, 'turn_on');
-                    sendCommand(d.id, 'set_brightness', { brightness: 30 });
+                    promises.push(executeCommand(d.id, 'turn_on'));
+                    promises.push(executeCommand(d.id, 'set_brightness', { brightness: 30 }));
                   });
-                  blinds.forEach(d => sendCommand(d.id, 'close', {}));
+                  blinds.forEach(d => promises.push(executeCommand(d.id, 'close', {})));
+                  await Promise.allSettled(promises);
+                  fetchRoomsWithDevices();
                 }}
               >
                 <Moon className="h-4 w-4 mr-2" />
@@ -755,8 +769,10 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => {
-                  devices.forEach(d => sendCommand(d.id, 'turn_off'));
+                onClick={async () => {
+                  const promises = devices.map(d => executeCommand(d.id, 'turn_off'));
+                  await Promise.allSettled(promises);
+                  fetchRoomsWithDevices();
                 }}
               >
                 <PowerOff className="h-4 w-4 mr-2" />

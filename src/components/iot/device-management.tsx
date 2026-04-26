@@ -30,11 +30,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Wifi, WifiOff, AlertCircle, Plus, Search, MoreHorizontal,
   Thermometer, Lightbulb, Lock, Tv, Blinds, AirVent, Activity,
-  Pencil, Trash2, Power, PowerOff, RefreshCw, Unlock
+  Pencil, Trash2, Power, PowerOff, RefreshCw, Unlock, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
 
 interface Device {
   id: string;

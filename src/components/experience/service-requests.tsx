@@ -277,10 +277,17 @@ export default function ServiceRequests() {
     );
   };
 
+  const priorityBorderClasses: Record<string, string> = {
+    urgent: 'border-red-500',
+    high: 'border-orange-500',
+    medium: 'border-amber-500',
+    low: 'border-gray-500',
+  };
+
   const getPriorityBadge = (priority: string) => {
     const option = priorities.find(o => o.value === priority);
     return (
-      <Badge variant="outline" className={cn('border-2', `border-${priority === 'urgent' ? 'red' : priority === 'high' ? 'orange' : priority === 'medium' ? 'amber' : 'gray'}-500`)}>
+      <Badge variant="outline" className={cn('border-2', priorityBorderClasses[priority] || 'border-gray-500')}>
         {option?.label || priority}
       </Badge>
     );

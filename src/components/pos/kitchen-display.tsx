@@ -15,7 +15,6 @@ import {
   CheckCircle, 
   AlertTriangle,
   Timer,
-  Volume2,
   RefreshCw
 } from 'lucide-react';
 
@@ -139,6 +138,7 @@ export default function KitchenDisplay() {
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
+      toast.error('Failed to load kitchen orders');
     } finally {
       setLoading(false);
     }

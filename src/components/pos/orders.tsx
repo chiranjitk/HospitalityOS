@@ -14,13 +14,13 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { 
-  Search, 
-  Plus, 
-  Loader2, 
-  UtensilsCrossed, 
-  Clock, 
-  ChefHat, 
+import {
+  Search,
+  Plus,
+  Loader2,
+  UtensilsCrossed,
+  Clock,
+  ChefHat,
   CheckCircle,
   XCircle,
   Eye,
@@ -28,6 +28,16 @@ import {
   Users,
   ShoppingBag
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface OrderItem {
   id: string;
@@ -132,6 +142,9 @@ export default function Orders() {
 
   // Order detail dialog state
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
+
+  // Cancel confirmation dialog state
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -670,7 +683,7 @@ export default function Orders() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => updateOrderStatus(order.id, 'cancelled')}
+                              onClick={() => setCancelOrderId(order.id)}
                             >
                               <XCircle className="h-4 w-4 mr-1" />
                               Cancel
@@ -802,6 +815,32 @@ export default function Orders() {
           ))
         )}
       </div>
+
+      {/* Cancel Order Confirmation Dialog */}
+      <AlertDialog open={!!cancelOrderId} onOpenChange={(open) => !open && setCancelOrderId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Order</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this order? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Order</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (cancelOrderId) {
+                  updateOrderStatus(cancelOrderId, 'cancelled');
+                  setCancelOrderId(null);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Cancel Order
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

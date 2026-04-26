@@ -819,8 +819,17 @@ export default function UnifiedInbox() {
                           Add Tags
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600 dark:text-red-400" onClick={() => {
+                        <DropdownMenuItem className="text-red-600 dark:text-red-400" onClick={async () => {
                           if (selectedConversation) {
+                            try {
+                              await fetch('/api/communication/conversations', {
+                                method: 'DELETE',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: selectedConversation.id }),
+                              });
+                            } catch (error) {
+                              console.error('Error deleting conversation:', error);
+                            }
                             setConversations(prev => prev.filter(c => c.id !== selectedConversation.id));
                             setSelectedConversation(null);
                             toast({ title: 'Deleted', description: 'Conversation deleted' });

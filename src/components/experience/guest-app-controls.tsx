@@ -257,10 +257,24 @@ export default function GuestAppControls() {
       ),
     });
 
-    toast({
-      title: 'Setting Updated',
-      description: `Notification setting ${enabled ? 'enabled' : 'disabled'}`,
-    });
+    try {
+      await fetch('/api/notifications/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: settingId, enabled }),
+      });
+      toast({
+        title: 'Setting Updated',
+        description: `Notification setting ${enabled ? 'enabled' : 'disabled'}`,
+      });
+    } catch (error) {
+      console.error('Error updating notification setting:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update notification setting',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleFeatureToggle = async (featureId: string, enabled: boolean) => {
@@ -273,10 +287,24 @@ export default function GuestAppControls() {
       ),
     });
 
-    toast({
-      title: 'Feature Updated',
-      description: `Feature ${enabled ? 'enabled' : 'disabled'}`,
-    });
+    try {
+      await fetch('/api/settings/feature-flags', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: featureId, enabled }),
+      });
+      toast({
+        title: 'Feature Updated',
+        description: `Feature ${enabled ? 'enabled' : 'disabled'}`,
+      });
+    } catch (error) {
+      console.error('Error updating feature flag:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update feature',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleRegenerateKey = async () => {

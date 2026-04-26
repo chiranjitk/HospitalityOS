@@ -50,7 +50,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
-import { toast as sonnerToast } from 'sonner';
+import { useRef } from 'react';
 
 interface RoomControl {
   id: string;
@@ -124,6 +124,7 @@ export default function InRoomPortal() {
   const [quantity, setQuantity] = useState(1);
   const [specialRequests, setSpecialRequests] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const sliderTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchPortalData = useCallback(async () => {
     setIsLoading(true);
@@ -134,11 +135,11 @@ export default function InRoomPortal() {
       if (result.success) {
         setPortalData(result.data);
       } else {
-        sonnerToast.error('Failed to load portal data');
+        toast({ title: 'Error', description: 'Failed to load portal data', variant: 'destructive' });
       }
     } catch (error) {
       console.error('Error fetching portal data:', error);
-      sonnerToast.error('Failed to load room portal data');
+      toast({ title: 'Error', description: 'Failed to load room portal data', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -150,6 +151,9 @@ export default function InRoomPortal() {
 
   const handleControlToggle = async (control: RoomControl, enabled: boolean) => {
     if (!portalData) return;
+
+    // Capture original state before optimistic update
+    const previousControls = portalData.controls;
 
     // Optimistic update
     setPortalData({
@@ -172,18 +176,21 @@ export default function InRoomPortal() {
       });
 
       if (!response.ok) {
-        // Revert on failure
+        // Revert on failure using captured original state
         setPortalData({
           ...portalData,
-          controls: portalData.controls.map(c =>
-            c.id === control.id ? { ...c, enabled: !enabled } : c
-          ),
+          controls: previousControls,
         });
-        sonnerToast.error('Failed to update control');
+        toast({ title: 'Error', description: 'Failed to update control', variant: 'destructive' });
       }
     } catch (error) {
       console.error('Error updating control:', error);
-      sonnerToast.error('Failed to update control');
+      // Revert on failure using captured original state
+      setPortalData({
+        ...portalData,
+        controls: previousControls,
+      });
+      toast({ title: 'Error', description: 'Failed to update control', variant: 'destructive' });
     }
   };
 
@@ -198,20 +205,26 @@ export default function InRoomPortal() {
       ),
     });
 
-    try {
-      await fetch('/api/portal/in-room', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deviceId: control.id.startsWith('ctrl-') ? undefined : control.id,
-          roomId: portalData.roomId,
-          controlType: control.type,
-          value,
-        }),
-      });
-    } catch (error) {
-      console.error('Error updating control value:', error);
+    // Debounce API call (400ms)
+    if (sliderTimerRef.current) {
+      clearTimeout(sliderTimerRef.current);
     }
+    sliderTimerRef.current = setTimeout(async () => {
+      try {
+        await fetch('/api/portal/in-room', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            deviceId: control.id.startsWith('ctrl-') ? undefined : control.id,
+            roomId: portalData.roomId,
+            controlType: control.type,
+            value,
+          }),
+        });
+      } catch (error) {
+        console.error('Error updating control value:', error);
+      }
+    }, 400);
   };
 
   const handleOrderService = async () => {
@@ -235,7 +248,7 @@ export default function InRoomPortal() {
       const result = await response.json();
 
       if (result.success) {
-        sonnerToast.success(`Order placed! Estimated delivery: ${selectedItem.preparationTime} minutes`);
+        toast({ title: 'Order Placed', description: `Estimated delivery: ${selectedItem.preparationTime} minutes` });
         setIsOrderDialogOpen(false);
         setSelectedItem(null);
         setQuantity(1);
@@ -246,7 +259,7 @@ export default function InRoomPortal() {
       }
     } catch (error) {
       console.error('Error placing order:', error);
-      sonnerToast.error('Failed to place order');
+      toast({ title: 'Error', description: 'Failed to place order', variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
