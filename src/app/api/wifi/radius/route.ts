@@ -1573,6 +1573,139 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(result);
       }
 
+      case 'change-user-status': {
+        const userId = data.id;
+        const newStatus = data.status; // 'active', 'suspended', 'deactivated'
+        const reason = data.reason || '';
+
+        if (!userId || !newStatus) {
+          return NextResponse.json({ success: false, error: 'User ID and new status are required' }, { status: 400 });
+        }
+
+        const validStatuses = ['active', 'suspended', 'deactivated'];
+        if (!validStatuses.includes(newStatus)) {
+          return NextResponse.json({ success: false, error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` }, { status: 400 });
+        }
+
+        try {
+          // Find the user to get current status + username
+          const user = await db.wiFiUser.findUnique({
+            where: { id: userId },
+            include: { property: { select: { id: true, name: true } } },
+          });
+
+          if (!user) {
+            return NextResponse.json({ success: false, error: 'WiFi user not found' }, { status: 404 });
+          }
+
+          const oldStatus = user.status;
+
+          // Prevent no-op
+          if (oldStatus === newStatus) {
+            return NextResponse.json({ success: true, message: `User already in "${newStatus}" status` });
+          }
+
+          // Handle the status change
+          if (newStatus === 'suspended' || newStatus === 'deactivated') {
+            // Delete RADIUS credentials to prevent login
+            await db.$transaction([
+              db.radCheck.deleteMany({ where: { username: user.username } }),
+              db.radReply.deleteMany({ where: { username: user.username } }),
+              db.radUserGroup.deleteMany({ where: { username: user.username } }),
+              db.wiFiUser.update({
+                where: { id: userId },
+                data: { status: newStatus, radiusSynced: false },
+              }),
+            ]);
+          } else if (newStatus === 'active') {
+            // Re-create RADIUS credentials from stored WiFiUser data
+            const plan = user.planId ? await db.wiFiPlan.findUnique({ where: { id: user.planId } }) : null;
+
+            await db.$transaction(async (tx) => {
+              // Re-create password check
+              const existingCheck = await tx.radCheck.findFirst({ where: { username: user.username } });
+              if (!existingCheck) {
+                await tx.radCheck.create({
+                  data: {
+                    username: user.username,
+                    attribute: 'Cleartext-Password',
+                    op: ':=',
+                    value: user.password,
+                  },
+                });
+              }
+
+              // Re-create reply attributes from plan if exists
+              if (plan) {
+                const existingReplies = await tx.radReply.findMany({ where: { username: user.username } });
+                if (existingReplies.length === 0) {
+                  if (plan.downloadSpeed > 0) {
+                    await tx.radReply.create({
+                      data: { username: user.username, attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: String(plan.downloadSpeed * 1000000) },
+                    });
+                  }
+                  if (plan.uploadSpeed > 0) {
+                    await tx.radReply.create({
+                      data: { username: user.username, attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: String(plan.uploadSpeed * 1000000) },
+                    });
+                  }
+                }
+              }
+
+              await tx.wiFiUser.update({
+                where: { id: userId },
+                data: { status: 'active', radiusSynced: true, radiusSyncedAt: new Date() },
+              });
+            });
+          }
+
+          // Log status change to audit trail
+          await db.wiFiUserStatusHistory.create({
+            data: {
+              tenantId: user.tenantId,
+              propertyId: user.propertyId,
+              username: user.username,
+              userId: user.id,
+              oldStatus,
+              newStatus,
+              changedBy: context.userId || null,
+              changeReason: reason || `Status changed from ${oldStatus} to ${newStatus}`,
+            },
+          });
+
+          // Try to disconnect active sessions if suspending/deactivating
+          if (newStatus === 'suspended' || newStatus === 'deactivated') {
+            try {
+              // Find active sessions for this user
+              const activeSessions = await db.$queryRawUnsafe<{ acctuniqueid: string; nasipaddress: string }[]>(
+                `SELECT acctuniqueid, nasipaddress FROM radacct WHERE username = $1 AND acctstoptime IS NULL LIMIT 10`,
+                user.username
+              );
+
+              if (activeSessions.length > 0) {
+                // Try CoA disconnect via adapter if available
+                const nasIps = [...new Set(activeSessions.map(s => s.nasipaddress?.replace(/\/\d+$/, '')))];
+                console.log(`[change-user-status] User ${user.username} has ${activeSessions.length} active sessions on ${nasIps.join(', ')}. RADIUS credentials deleted — sessions will be rejected on next auth.`);
+              }
+            } catch (sessionErr) {
+              console.warn('[change-user-status] Could not check active sessions:', sessionErr);
+            }
+          }
+
+          return NextResponse.json({
+            success: true,
+            message: `User "${user.username}" status changed: ${oldStatus} → ${newStatus}`,
+            data: { userId: user.id, username: user.username, oldStatus, newStatus },
+          });
+        } catch (error) {
+          console.error('[change-user-status] Error:', error);
+          return NextResponse.json(
+            { success: false, error: error instanceof Error ? error.message : 'Failed to change user status' },
+            { status: 500 }
+          );
+        }
+      }
+
       case 'create-user': {
         const result = await freeradiusRequest('/api/users', {
           method: 'POST',

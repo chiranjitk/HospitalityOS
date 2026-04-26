@@ -67,6 +67,9 @@ import {
   Upload,
   FileSpreadsheet,
   Network,
+  Ban,
+  UserX,
+  UserCheck,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -138,6 +141,7 @@ export default function RadiusUsersTab() {
   const [searchQuery, setSearchQuery] = useState('');
   const [groupFilter, setGroupFilter] = useState<string>('all');
   const [userTypeFilter, setUserTypeFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   // Import dialog state
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -334,6 +338,39 @@ export default function RadiusUsersTab() {
     }
   };
 
+  const handleStatusChange = async (user: RadiusUser, newStatus: 'active' | 'suspended' | 'deactivated') => {
+    const actionLabel = newStatus === 'active' ? 'Activate' : newStatus === 'suspended' ? 'Suspend' : 'Deactivate';
+    
+    try {
+      const res = await fetch('/api/wifi/radius', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'change-user-status',
+          id: user.id,
+          status: newStatus,
+          reason: `Manual ${actionLabel.toLowerCase()} by staff`,
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => 'Unknown error');
+        toast({ title: 'Error', description: `${actionLabel} failed (${res.status}): ${errText}`, variant: 'destructive' });
+        return;
+      }
+
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Status Changed', description: `${user.username}: ${data.message || `${actionLabel}d successfully`}` });
+        fetchUsers();
+      } else {
+        toast({ title: 'Error', description: data.error || `Failed to ${actionLabel.toLowerCase()} user`, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: `Failed to ${actionLabel.toLowerCase()} user`, variant: 'destructive' });
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteUserId) return;
     try {
@@ -375,6 +412,7 @@ export default function RadiusUsersTab() {
   const filteredUsers = users.filter(u => {
     if (groupFilter !== 'all' && u.group !== groupFilter) return false;
     if (userTypeFilter !== 'all' && (u.userType || 'guest') !== userTypeFilter) return false;
+    if (statusFilter !== 'all' && (u.status || 'active') !== statusFilter) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       return u.username.toLowerCase().includes(q) || (u.group || '').toLowerCase().includes(q);
@@ -661,11 +699,11 @@ export default function RadiusUsersTab() {
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-amber-500/10">
-              <Shield className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+              <Ban className="h-4 w-4 text-amber-500 dark:text-amber-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold tabular-nums">{wifiPlans.filter(p => p.status === 'active').length}</div>
-              <div className="text-xs text-muted-foreground">Active Plans</div>
+              <div className="text-2xl font-bold tabular-nums">{users.filter(u => u.status === 'suspended' || u.status === 'deactivated').length}</div>
+              <div className="text-xs text-muted-foreground">Suspended/Off</div>
             </div>
           </div>
         </Card>
@@ -717,6 +755,18 @@ export default function RadiusUsersTab() {
                 <SelectItem value="staff">👷 Staff</SelectItem>
                 <SelectItem value="admin">🛡️ Admin</SelectItem>
                 <SelectItem value="service">🔌 Service</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-36">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">🟢 Active</SelectItem>
+                <SelectItem value="suspended">🟡 Suspended</SelectItem>
+                <SelectItem value="deactivated">🔴 Deactivated</SelectItem>
+                <SelectItem value="expired">⚪ Expired</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -852,10 +902,24 @@ export default function RadiusUsersTab() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => openEdit(user)}>
+                            {user.status === 'active' ? (
+                              <>
+                                <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-50" title="Suspend User" onClick={() => handleStatusChange(user, 'suspended')}>
+                                  <Ban className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" title="Deactivate User" onClick={() => handleStatusChange(user, 'deactivated')}>
+                                  <UserX className="h-4 w-4" />
+                                </Button>
+                              </>
+                            ) : (
+                              <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" title="Activate User" onClick={() => handleStatusChange(user, 'active')}>
+                                <UserCheck className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(user)} title="Edit User">
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => setDeleteUserId(user.id)}>
+                            <Button variant="ghost" size="sm" onClick={() => setDeleteUserId(user.id)} title="Delete User">
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </div>
