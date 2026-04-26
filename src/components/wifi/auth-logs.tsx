@@ -64,6 +64,7 @@ interface AuthLogEntry {
   authResult: string;
   authType: string;
   nasIpAddress?: string;
+  clientIpAddress?: string;
   callingStationId?: string;
   calledStationId?: string;
   replyMessage?: string;
@@ -169,9 +170,10 @@ export default function AuthLogs() {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const matchesUsername = log.username.toLowerCase().includes(q);
-      const matchesIp = (log.nasIpAddress || '').toLowerCase().includes(q);
+      const matchesClientIp = (log.clientIpAddress || '').toLowerCase().includes(q);
+      const matchesNasIp = (log.nasIpAddress || '').toLowerCase().includes(q);
       const matchesMac = (log.callingStationId || '').toLowerCase().includes(q);
-      if (!matchesUsername && !matchesIp && !matchesMac) return false;
+      if (!matchesUsername && !matchesClientIp && !matchesNasIp && !matchesMac) return false;
     }
     return true;
   });
@@ -299,7 +301,7 @@ export default function AuthLogs() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by username, IP, or MAC..."
+                placeholder="Search by username, client IP, NAS IP, or MAC..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9"

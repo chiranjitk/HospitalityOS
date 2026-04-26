@@ -301,6 +301,7 @@ export async function GET(request: NextRequest) {
             callingstationid: string;
             calledstationid: string;
             nasipaddress: string | null;
+            clientipaddress: string | null;
             property_name: string | null;
             guest_first_name: string | null;
             guest_last_name: string | null;
@@ -310,6 +311,7 @@ export async function GET(request: NextRequest) {
             SELECT p.id, p.username, p.reply, p.authdate,
                    p.callingstationid, p.calledstationid,
                    COALESCE(p.nasipaddress, '') as nasipaddress,
+                   COALESCE(p.clientipaddress, '') as clientipaddress,
                    prop.name as property_name,
                    g."firstName" as guest_first_name,
                    g."lastName" as guest_last_name,
@@ -332,16 +334,20 @@ export async function GET(request: NextRequest) {
             const reply = (e.reply || '').toLowerCase();
             const isAccept = reply === 'access-accept';
             const nasIp = (e.nasipaddress as string) || '';
+            const clientIp = (e.clientipaddress as string) || '';
             const userExists = e.user_exists === true;
 
-            // Build contextual reply message
+            // Build contextual reply message — prioritize client IP, then NAS IP
             let replyMessage = '';
             if (isAccept) {
-              replyMessage = nasIp
-                ? `Authenticated successfully from ${nasIp}`
-                : 'Authenticated successfully';
+              if (clientIp) {
+                replyMessage = `Authenticated — client IP: ${clientIp}`;
+              } else if (nasIp) {
+                replyMessage = `Authenticated from NAS ${nasIp}`;
+              } else {
+                replyMessage = 'Authenticated successfully';
+              }
             } else {
-              // Provide reject reason based on context
               if (!userExists) {
                 replyMessage = 'Invalid credentials — user not found';
               } else {
@@ -356,6 +362,7 @@ export async function GET(request: NextRequest) {
               authResult: e.reply || '',
               authType: 'RADIUS',
               nasIpAddress: nasIp,
+              clientIpAddress: clientIp,
               callingStationId: e.callingstationid || '',
               replyMessage,
               // Enriched fields (no plan name)
