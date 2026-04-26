@@ -95,9 +95,9 @@ async function pollUsers(state: CounterState): Promise<number> {
     let updated = 0;
 
     for (const row of rows) {
-      // acctinputoctets = download, acctoutputoctets = upload
-      const dlBytes = Number(row.acctinputoctets) || 0;
-      const ulBytes = Number(row.acctoutputoctets) || 0;
+      // acctoutputoctets = NAS→user = download, acctinputoctets = user→NAS = upload
+      const dlBytes = Number(row.acctoutputoctets) || 0;
+      const ulBytes = Number(row.acctinputoctets) || 0;
       const prev = state.users[row.username];
 
       const rrdPath = userRRDPath(row.username);

@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
         COALESCE(wp."uploadSpeed", 0) AS "uploadSpeed",
         COALESCE(wp."dataLimit", 0) AS "dataLimit",
         COUNT(*)::text AS sessions,
-        COALESCE(SUM(r.acctinputoctets), 0)::text AS total_down,
-        COALESCE(SUM(r.acctoutputoctets), 0)::text AS total_up,
+        COALESCE(SUM(r.acctoutputoctets), 0)::text AS total_down,
+        COALESCE(SUM(r.acctinputoctets), 0)::text AS total_up,
         COALESCE(SUM(r.acctsessiontime), 0)::text AS total_duration,
         MAX(r.acctstarttime)::text AS last_seen
       FROM radacct r
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       WHERE 1=1
       ${search ? `AND (r.username ILIKE '%${search.replace(/'/g, "''")}%' OR r.framedipaddress ILIKE '%${search.replace(/'/g, "''")}%' OR r.callingstationid ILIKE '%${search.replace(/'/g, "''")}%')` : ''}
       GROUP BY r.username, wu."planId", wp.name, wp."downloadSpeed", wp."uploadSpeed", wp."dataLimit"
-      ORDER BY SUM(r.acctinputoctets) DESC NULLS LAST
+      ORDER BY SUM(r.acctoutputoctets) DESC NULLS LAST
       LIMIT ${limit}
     `;
 
@@ -50,8 +50,8 @@ export async function GET(request: NextRequest) {
           r."acctuniqueid"::text AS id,
           r.acctstarttime::text AS start,
           r.acctstoptime::text AS "end",
-          COALESCE(r.acctinputoctets, 0)::text AS download,
-          COALESCE(r.acctoutputoctets, 0)::text AS upload,
+          COALESCE(r.acctoutputoctets, 0)::text AS download,
+          COALESCE(r.acctinputoctets, 0)::text AS upload,
           COALESCE(r.acctsessiontime, 0)::text AS duration,
           r.nasipaddress::text AS nas
         FROM radacct r

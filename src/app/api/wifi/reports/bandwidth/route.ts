@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
     const dailyQuery = `
       SELECT
         DATE(r.acctstarttime) AS date,
-        COALESCE(SUM(r.acctinputoctets), 0)::text AS download_bytes,
-        COALESCE(SUM(r.acctoutputoctets), 0)::text AS upload_bytes,
+        COALESCE(SUM(r.acctoutputoctets), 0)::text AS download_bytes,
+        COALESCE(SUM(r.acctinputoctets), 0)::text AS upload_bytes,
         COUNT(DISTINCT r.username) AS unique_users
       FROM radacct r
       WHERE 1=1 ${whereClause}

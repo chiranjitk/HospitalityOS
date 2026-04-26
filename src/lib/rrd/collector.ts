@@ -114,10 +114,9 @@ class BandwidthCollector {
       const now = Math.floor(Date.now() / 1000);
 
       for (const row of rows) {
-        // acctinputoctets = user download (from NAS perspective = input from network),
-        // acctoutputoctets = user upload (from NAS perspective = output to network)
-        const inBytes = Number(row.acctinputoctets) || 0;    // download
-        const outBytes = Number(row.acctoutputoctets) || 0;   // upload
+        // acctoutputoctets = NAS→user = download, acctinputoctets = user→NAS = upload
+        const inBytes = Number(row.acctoutputoctets) || 0;   // download
+        const outBytes = Number(row.acctinputoctets) || 0;   // upload
         const prev = this.userCounters.get(row.username);
 
         if (isSeed) {
