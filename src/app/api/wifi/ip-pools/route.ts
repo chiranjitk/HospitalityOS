@@ -101,8 +101,8 @@ export async function POST(request: NextRequest) {
 
     // Create pool
     const result = await db.$queryRawUnsafe(`
-      INSERT INTO "IpPool" ("tenantId", "propertyId", name, description, gateway, subnet, "isDefault", enabled)
-      VALUES ($1::uuid, $2::uuid, $3, $4, $5::inet, $6::inet, $7, $8)
+      INSERT INTO "IpPool" (id, "tenantId", "propertyId", name, description, gateway, subnet, "isDefault", enabled, "createdAt", "updatedAt")
+      VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3, $4, $5::inet, $6::inet, $7, $8, NOW(), NOW())
       RETURNING *
     `, 
       tenantId,
@@ -122,8 +122,8 @@ export async function POST(request: NextRequest) {
       for (const range of ranges) {
         if (!range.startIp || !range.endIp) continue;
         await db.$queryRawUnsafe(`
-          INSERT INTO "IpPoolRange" ("poolId", "startIp", "endIp", comment)
-          VALUES ($1::uuid, $2::inet, $3::inet, $4)
+          INSERT INTO "IpPoolRange" (id, "poolId", "startIp", "endIp", comment, "createdAt")
+          VALUES (gen_random_uuid(), $1::uuid, $2::inet, $3::inet, $4, NOW())
         `, pool.id, range.startIp, range.endIp, range.comment || null);
       }
     }
@@ -196,8 +196,8 @@ export async function PUT(request: NextRequest) {
       for (const range of ranges) {
         if (!range.startIp || !range.endIp) continue;
         await db.$queryRawUnsafe(`
-          INSERT INTO "IpPoolRange" ("poolId", "startIp", "endIp", comment)
-          VALUES ($1::uuid, $2::inet, $3::inet, $4)
+          INSERT INTO "IpPoolRange" (id, "poolId", "startIp", "endIp", comment, "createdAt")
+          VALUES (gen_random_uuid(), $1::uuid, $2::inet, $3::inet, $4, NOW())
         `, id, range.startIp, range.endIp, range.comment || null);
       }
     }

@@ -64,42 +64,64 @@ echo "  ✓ Database connection verified"
 echo ""
 
 # Step 1: Push Prisma schema
-echo "[1/8] Pushing Prisma schema (226 tables)..."
+echo "[1/9] Pushing Prisma schema (226 tables)..."
 DATABASE_URL="$DB_URL" npx prisma db push --schema "$SCRIPT_DIR/schema.prisma" --accept-data-loss 2>&1
 echo "  ✓ Prisma tables created"
 
+# Step 1b: Fix missing gen_random_uuid() defaults on all UUID primary keys
+# Prisma @default(uuid()) generates UUIDs client-side but does NOT set a DB default.
+# Raw SQL INSERTs (e.g., in API routes using $queryRawUnsafe) fail with NOT NULL violations.
+echo "[1b/9] Adding gen_random_uuid() defaults to all UUID primary keys..."
+psql "$DB_URL" -c "
+DO \$\$
+DECLARE tbl RECORD;
+BEGIN
+  FOR tbl IN
+    SELECT table_name FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND column_name = 'id'
+      AND data_type = 'uuid'
+      AND column_default IS NULL
+      AND is_nullable = 'NO'
+  LOOP
+    EXECUTE format('ALTER TABLE %I ALTER COLUMN id SET DEFAULT gen_random_uuid();', tbl.table_name);
+  END LOOP;
+END \$\$;
+" 2>&1
+echo "  ✓ UUID defaults set on all primary key columns"
+
 # Step 2: FreeRADIUS schema
-echo "[2/8] Creating FreeRADIUS tables..."
+echo "[2/9] Creating FreeRADIUS tables..."
 psql "$DB_URL" -f "$SCRIPT_DIR/01-freeradius-schema.sql" 2>&1
 echo "  ✓ 7 FreeRADIUS tables + indexes created"
 
 # Step 3: Custom views + helper table
-echo "[3/8] Creating custom views..."
+echo "[3/9] Creating custom views..."
 psql "$DB_URL" -f "$SCRIPT_DIR/02-staysuite-views.sql" 2>&1
 echo "  ✓ 6 views + data_usage_by_period table created"
 
 # Step 4: IP Pool functions + default pool seed
-echo "[4/8] Creating IP pool functions & seeding default pool..."
+echo "[4/9] Creating IP pool functions & seeding default pool..."
 psql "$DB_URL" -f "$SCRIPT_DIR/04-ip-pool-functions.sql" 2>&1
 echo "  ✓ 3 IP pool functions + default pool seeded"
 
 # Step 5: FUP tables, views & functions
-echo "[5/8] Creating FUP tables & functions..."
+echo "[5/9] Creating FUP tables & functions..."
 psql "$DB_URL" -f "$SCRIPT_DIR/05-fup-tables-and-functions.sql" 2>&1
 echo "  ✓ fup_switch_log table + 5 FUP functions + v_fup_switch_logs view created"
 
 # Step 6: App seed
-echo "[6/8] Seeding application data..."
+echo "[6/9] Seeding application data..."
 (cd "$PROJECT_DIR" && DATABASE_URL="$DB_URL" bun run prisma/seed.ts) 2>&1
 echo "  ✓ App data seeded"
 
 # Step 7: WiFi module seed
-echo "[7/8] Seeding WiFi module data..."
+echo "[7/9] Seeding WiFi module data..."
 (cd "$PROJECT_DIR" && DATABASE_URL="$DB_URL" bun run prisma/wifi-seed.ts) 2>&1
 echo "  ✓ WiFi data seeded"
 
 # Step 8: FreeRADIUS native seed
-echo "[8/8] Seeding FreeRADIUS native tables..."
+echo "[8/9] Seeding FreeRADIUS native tables..."
 psql "$DB_URL" -f "$SCRIPT_DIR/03-radius-seed.sql" 2>&1
 echo "  ✓ RADIUS seed data inserted"
 
