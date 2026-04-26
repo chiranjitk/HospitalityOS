@@ -210,6 +210,7 @@ export default function RoomTypesManager() {
   const [propertyFilter, setPropertyFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [confirmDialog, setConfirmDialog] = useState<{open:boolean; title:string; message:string; onConfirm:()=>void}>({open:false, title:'', message:'', onConfirm:()=>{}});
   
   // Dialog states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -513,7 +514,7 @@ export default function RoomTypesManager() {
   // Bulk delete
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`Delete ${selectedIds.length} room types?`)) return;
+    setConfirmDialog({open:true, title:'Delete Room Types', message:`Delete ${selectedIds.length} room types?`, onConfirm: async () => {
     setIsSaving(true);
     try {
       // Process in chunks of 5
@@ -529,6 +530,8 @@ export default function RoomTypesManager() {
     } finally {
       setIsSaving(false);
     }
+    }});
+    return;
   };
 
   // Export as CSV
@@ -754,6 +757,7 @@ export default function RoomTypesManager() {
   };
 
   return (
+    <>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between gap-4">
@@ -1325,6 +1329,19 @@ export default function RoomTypesManager() {
         </DialogContent>
       </Dialog>
     </div>
+    {confirmDialog.open && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmDialog(prev => ({...prev, open: false}))}>
+        <div className="bg-background rounded-lg border p-6 max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+          <h3 className="text-lg font-semibold">{confirmDialog.title}</h3>
+          <p className="text-sm text-muted-foreground mt-2">{confirmDialog.message}</p>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" size="sm" onClick={() => setConfirmDialog(prev => ({...prev, open: false}))}>Cancel</Button>
+            <Button size="sm" onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(prev => ({...prev, open: false})); }}>Confirm</Button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

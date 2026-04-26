@@ -255,7 +255,7 @@ export default function PropertiesList() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  
+  const [confirmDialog, setConfirmDialog] = useState<{open:boolean; title:string; message:string; onConfirm:()=>void}>({open:false, title:'', message:'', onConfirm:()=>{}});
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -413,9 +413,7 @@ export default function PropertiesList() {
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} properties? This action cannot be undone.`)) {
-      return;
-    }
+    setConfirmDialog({open:true, title:'Delete Properties', message:`Are you sure you want to delete ${selectedIds.length} properties? This action cannot be undone.`, onConfirm: async () => {
     setIsSaving(true);
     try {
       await Promise.all(selectedIds.map(id => fetch(`/api/properties/${id}`, { method: 'DELETE' })));
@@ -427,6 +425,8 @@ export default function PropertiesList() {
     } finally {
       setIsSaving(false);
     }
+    }});
+    return;
   };
 
   const handleExport = () => {
@@ -600,6 +600,7 @@ export default function PropertiesList() {
   };
 
   return (
+    <>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between gap-4">
@@ -1172,6 +1173,19 @@ export default function PropertiesList() {
         </DialogContent>
       </Dialog>
     </div>
+    {confirmDialog.open && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmDialog(prev => ({...prev, open: false}))}>
+        <div className="bg-background rounded-lg border p-6 max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+          <h3 className="text-lg font-semibold">{confirmDialog.title}</h3>
+          <p className="text-sm text-muted-foreground mt-2">{confirmDialog.message}</p>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" size="sm" onClick={() => setConfirmDialog(prev => ({...prev, open: false}))}>Cancel</Button>
+            <Button size="sm" onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(prev => ({...prev, open: false})); }}>Confirm</Button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

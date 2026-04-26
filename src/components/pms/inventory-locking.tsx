@@ -168,6 +168,7 @@ export default function InventoryLocking() {
 
   // Bulk selection state
   const [selectedLocks, setSelectedLocks] = useState<Set<string>>(new Set());
+  const [confirmDialog, setConfirmDialog] = useState<{open:boolean; title:string; message:string; onConfirm:()=>void}>({open:false, title:'', message:'', onConfirm:()=>{}});
 
   // Fetch properties
   useEffect(() => {
@@ -441,7 +442,7 @@ export default function InventoryLocking() {
 
   // Remove lock (unlock)
   const handleUnlock = async (lock: InventoryLock) => {
-    if (!window.confirm('Unlock this inventory? This will make rooms available for booking.')) return;
+    setConfirmDialog({open:true, title:'Unlock Inventory', message:'Unlock this inventory? This will make rooms available for booking.', onConfirm: async () => {
     try {
       const response = await fetch(`/api/inventory-locks?ids=${lock.id}`, {
         method: 'DELETE',
@@ -473,6 +474,8 @@ export default function InventoryLocking() {
         variant: 'destructive',
       });
     }
+    }});
+    return;
   };
 
   const openEditDialog = (lock: InventoryLock) => {
@@ -507,7 +510,7 @@ export default function InventoryLocking() {
   // Bulk delete selected locks
   const handleBulkDelete = async () => {
     if (selectedLocks.size === 0) return;
-    if (!window.confirm(`Delete ${selectedLocks.size} selected lock(s)? This will make rooms available for booking.`)) return;
+    setConfirmDialog({open:true, title:'Delete Locks', message:`Delete ${selectedLocks.size} selected lock(s)? This will make rooms available for booking.`, onConfirm: async () => {
 
     try {
       const ids = Array.from(selectedLocks).join(',');
@@ -542,6 +545,8 @@ export default function InventoryLocking() {
         variant: 'destructive',
       });
     }
+    }});
+    return;
   };
 
   const toggleLockSelection = (lockId: string) => {
@@ -579,6 +584,7 @@ export default function InventoryLocking() {
   };
 
   return (
+    <>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between gap-4">
@@ -945,6 +951,19 @@ export default function InventoryLocking() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    {confirmDialog.open && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmDialog(prev => ({...prev, open: false}))}>
+        <div className="bg-background rounded-lg border p-6 max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+          <h3 className="text-lg font-semibold">{confirmDialog.title}</h3>
+          <p className="text-sm text-muted-foreground mt-2">{confirmDialog.message}</p>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" size="sm" onClick={() => setConfirmDialog(prev => ({...prev, open: false}))}>Cancel</Button>
+            <Button size="sm" onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(prev => ({...prev, open: false})); }}>Confirm</Button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

@@ -181,6 +181,8 @@ export default function UnifiedInbox() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -476,6 +478,7 @@ export default function UnifiedInbox() {
   }, [templates]);
 
   return (
+    <>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between gap-4">
@@ -933,10 +936,7 @@ export default function UnifiedInbox() {
                   <Button variant="ghost" size="icon" className="h-7 w-7" title="Italic" onClick={() => document.execCommand('italic')}>
                     <Italic className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Link" onClick={() => {
-                    const url = window.prompt('Enter URL:');
-                    if (url) document.execCommand('createLink', false, url);
-                  }}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Link" onClick={() => setLinkDialogOpen(true)}>
                     <Link2 className="h-4 w-4" />
                   </Button>
                   <Separator orientation="vertical" className="h-5 mx-1" />
@@ -1030,5 +1030,25 @@ export default function UnifiedInbox() {
         </Card>
       </div>
     </div>
+    {linkDialogOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setLinkDialogOpen(false)}>
+        <div className="bg-background rounded-lg border p-6 max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+          <h3 className="text-lg font-semibold">Insert Link</h3>
+          <Input
+            className="mt-2"
+            placeholder="Enter URL"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { document.execCommand('createLink', false, linkUrl); setLinkDialogOpen(false); setLinkUrl(''); } }}
+            autoFocus
+          />
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" size="sm" onClick={() => setLinkDialogOpen(false)}>Cancel</Button>
+            <Button size="sm" onClick={() => { document.execCommand('createLink', false, linkUrl); setLinkDialogOpen(false); setLinkUrl(''); }}>Insert</Button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

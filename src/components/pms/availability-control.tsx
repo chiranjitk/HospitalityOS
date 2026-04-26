@@ -126,8 +126,7 @@ export default function AvailabilityControl() {
     available: number;
   } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-
-  // Calendar popover state
+  const [confirmDialog, setConfirmDialog] = useState<{open:boolean; title:string; message:string; onConfirm:()=>void}>({open:false, title:'', message:'', onConfirm:()=>{}});
   const [isStartCalendarOpen, setIsStartCalendarOpen] = useState(false);
   const [isEndCalendarOpen, setIsEndCalendarOpen] = useState(false);
 
@@ -351,7 +350,7 @@ export default function AvailabilityControl() {
   // Save availability edit
   const handleSaveAvailability = async () => {
     if (!editData) return;
-    if (!window.confirm('Update availability?')) return;
+    setConfirmDialog({open:true, title:'Update Availability', message:'Update availability?', onConfirm: async () => {
     setIsSaving(true);
 
     try {
@@ -395,6 +394,8 @@ export default function AvailabilityControl() {
     } finally {
       setIsSaving(false);
     }
+    }});
+    return;
   };
 
   // Refresh data
@@ -453,6 +454,7 @@ export default function AvailabilityControl() {
   }, [startDate, endDate]);
 
   return (
+    <>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between gap-4">
@@ -844,5 +846,18 @@ export default function AvailabilityControl() {
         </CardContent>
       </Card>
     </div>
+    {confirmDialog.open && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmDialog(prev => ({...prev, open: false}))}>
+        <div className="bg-background rounded-lg border p-6 max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+          <h3 className="text-lg font-semibold">{confirmDialog.title}</h3>
+          <p className="text-sm text-muted-foreground mt-2">{confirmDialog.message}</p>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" size="sm" onClick={() => setConfirmDialog(prev => ({...prev, open: false}))}>Cancel</Button>
+            <Button size="sm" onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(prev => ({...prev, open: false})); }}>Confirm</Button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

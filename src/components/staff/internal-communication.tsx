@@ -633,7 +633,7 @@ export default function InternalCommunication() {
                     placeholder="Type a message..."
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
-                    onKeyPress={handleKeyPress}
+                    onKeyDown={handleKeyPress}
                     className="flex-1"
                   />
                   <Button variant="ghost" size="icon" title="Emoji" onClick={() => toast.info('Emoji picker coming soon')}>

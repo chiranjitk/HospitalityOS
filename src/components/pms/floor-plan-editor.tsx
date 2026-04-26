@@ -138,6 +138,7 @@ export function FloorPlanEditor({
   // Dialog state
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
   const [roomSearch, setRoomSearch] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState<{open:boolean; title:string; message:string; onConfirm:()=>void}>({open:false, title:'', message:'', onConfirm:()=>{}});
   
   const editorRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -210,10 +211,8 @@ export function FloorPlanEditor({
       }
       if (selectedRooms.length > 0 && (e.key === 'Delete' || e.key === 'Backspace')) {
         e.preventDefault();
-        const confirmed = window.confirm(`Remove ${selectedRooms.length} room(s) from floor plan?`);
-        if (confirmed) {
-          removeSelectedRoomsRef.current?.();
-        }
+        setConfirmDialog({open:true, title:'Confirm Removal', message:`Remove ${selectedRooms.length} room(s) from floor plan?`, onConfirm:() => { removeSelectedRoomsRef.current?.(); }});
+        return;
       }
       if (e.key === 'Escape') {
         setSelectedRooms([]);
@@ -687,6 +686,7 @@ export function FloorPlanEditor({
   };
 
   return (
+    <>
     <div className="h-full flex flex-col">
       {/* Toolbar */}
       <div className="flex items-center gap-2 p-2 border-b bg-background flex-wrap">
@@ -1210,5 +1210,18 @@ export function FloorPlanEditor({
         </DialogContent>
       </Dialog>
     </div>
+    {confirmDialog.open && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmDialog(prev => ({...prev, open: false}))}>
+        <div className="bg-background rounded-lg border p-6 max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+          <h3 className="text-lg font-semibold">{confirmDialog.title}</h3>
+          <p className="text-sm text-muted-foreground mt-2">{confirmDialog.message}</p>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" size="sm" onClick={() => setConfirmDialog(prev => ({...prev, open: false}))}>Cancel</Button>
+            <Button size="sm" onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(prev => ({...prev, open: false})); }}>Confirm</Button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

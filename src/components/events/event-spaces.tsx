@@ -612,7 +612,7 @@ export default function EventSpaces() {
                   value={amenityInput}
                   onChange={(e) => setAmenityInput(e.target.value)}
                   placeholder="Add amenity"
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addAmenity())}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addAmenity())}
                 />
                 <Button type="button" variant="outline" onClick={addAmenity}>Add</Button>
               </div>
@@ -747,7 +747,7 @@ export default function EventSpaces() {
                   value={amenityInput}
                   onChange={(e) => setAmenityInput(e.target.value)}
                   placeholder="Add amenity"
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addAmenity())}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addAmenity())}
                 />
                 <Button type="button" variant="outline" onClick={addAmenity}>Add</Button>
               </div>
