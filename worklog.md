@@ -456,3 +456,48 @@ Stage Summary:
 - Reject with wrong password: "Authentication rejected — invalid password" (red)
 - Plan names completely removed from Auth Logs GUI and API
 - FreeRADIUS postauth query updated to capture NAS IP, called/calling station IDs for all future auth events
+
+---
+Task ID: 11
+Agent: Main Agent
+Task: Add client Framed-IP-Address to Auth Logs — show user's assigned IP from RADIUS
+
+Work Log:
+- User requested: Auth log should capture the user's Framed-IP-Address (client IP assigned by NAS), not just NAS source IP
+- This is the IP the auth request is "coming from" — the user's assigned IP captured by FR
+
+Changes made:
+1. **Database**: `ALTER TABLE radpostauth ADD COLUMN clientipaddress text` — captures Framed-IP-Address
+2. **FreeRADIUS postauth_query** (queries.conf): 
+   - Added `clientipaddress` column to INSERT
+   - Captures `%{request:Framed-IP-Address}` — the user's assigned IP from the RADIUS request packet
+   - Note: In production, NAS/AP sends Framed-IP-Address in the Access-Request; sqlippool or DHCP assigns it
+3. **PostgreSQL view** (`v_auth_logs`):
+   - Added `client_ip_address` column reading from `radpostauth.clientipaddress`
+   - `reply_message` priority: client IP first → NAS IP fallback → generic success
+   - Accept+client: "Authenticated — client IP: 10.10.1.55"
+   - Accept+NAS only: "Authenticated from NAS 192.168.1.100"
+   - Accept+no IP: "Authenticated successfully"
+   - Reject: "user not found" or "invalid password"
+4. **API** (`auth-logs` handler):
+   - Added `clientipaddress` to SQL SELECT
+   - Returns `clientIpAddress` field in response
+   - Reply message builder prioritizes client IP over NAS IP
+5. **GUI** (`auth-logs.tsx`):
+   - Table: Added "Client IP" column (font-mono, prominent), renamed "Reply / Source" to "Message"
+   - Removed "Auth Type" column (redundant — always RADIUS)
+   - Detail dialog: "IP & Reply" section shows Client IP (User) + NAS IP (Source) + Reply Message
+   - Mobile cards: Shows client IP badge with Monitor icon + timestamp
+   - Search: matches client IP, NAS IP, MAC, username
+
+Verified with test data:
+- Inserted 3 test rows: 2 accept with client IPs (10.10.1.55, 172.16.5.200), 1 reject
+- View correctly returned contextual messages with client IPs
+- Test data cleaned after verification
+
+Stage Summary:
+- Auth Logs table now has "Client IP" column showing the user's Framed-IP-Address
+- Reply message prioritizes client IP: "Authenticated — client IP: X.X.X.X"
+- NAS IP shown separately in detail dialog as "NAS IP (Source)"
+- FreeRADIUS postauth_query updated to capture both NAS IP and client Framed-IP-Address
+- Future auth events from real NAS/APs will auto-capture user IPs

@@ -134,11 +134,14 @@ SELECT (pa.id)::text AS id,
     pa.calledstationid AS called_station_id,
     pa.callingstationid AS calling_station_id,
     COALESCE(pa.nasipaddress, ''::text) AS nas_ip_address,
+    COALESCE(pa.clientipaddress, ''::text) AS client_ip_address,
     ''::text AS mac_address,
     'PAP'::text AS auth_type,
     CASE WHEN (pa.reply = 'Access-Accept'::text) THEN
-        CASE WHEN COALESCE(pa.nasipaddress, ''::text) != ''::text
-             THEN 'Authenticated successfully from ' || pa.nasipaddress
+        CASE WHEN COALESCE(pa.clientipaddress, ''::text) != ''::text
+             THEN 'Authenticated — client IP: ' || pa.clientipaddress
+        WHEN COALESCE(pa.nasipaddress, ''::text) != ''::text
+             THEN 'Authenticated from NAS ' || pa.nasipaddress
              ELSE 'Authenticated successfully'::text END
     ELSE
         CASE WHEN (wu.id IS NOT NULL) THEN 'Authentication rejected — invalid password'::text

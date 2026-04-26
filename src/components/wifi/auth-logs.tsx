@@ -373,6 +373,17 @@ export default function AuthLogs() {
                       </div>
                       {getResultBadge(log.authResult)}
                     </div>
+                    <div className="flex items-center justify-between gap-2">
+                      {log.clientIpAddress ? (
+                        <div className="flex items-center gap-1.5">
+                          <Monitor className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs font-mono">{log.clientIpAddress}</span>
+                        </div>
+                      ) : (
+                        <span />
+                      )}
+                      <span className="text-xs text-muted-foreground">{log.timestamp ? formatDistanceToNow(new Date(log.timestamp)) + ' ago' : '—'}</span>
+                    </div>
                     {log.replyMessage && (
                       <div className="flex items-center gap-1.5">
                         <Monitor className="h-3 w-3 text-muted-foreground" />
@@ -384,15 +395,12 @@ export default function AuthLogs() {
                         )}>{log.replyMessage}</span>
                       </div>
                     )}
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{log.timestamp ? formatDistanceToNow(new Date(log.timestamp)) + ' ago' : '—'}</span>
-                      {log.propertyName && (
-                        <div className="flex items-center gap-1">
-                          <Building2 className="h-3 w-3" />
-                          <span>{log.propertyName}</span>
-                        </div>
-                      )}
-                    </div>
+                    {log.propertyName && (
+                      <div className="flex items-center gap-1">
+                        <Building2 className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">{log.propertyName}</span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -404,10 +412,10 @@ export default function AuthLogs() {
                     <TableRow>
                       <TableHead className="w-[70px]">Result</TableHead>
                       <TableHead>Username</TableHead>
-                      <TableHead>Reply / Source</TableHead>
+                      <TableHead>Client IP</TableHead>
+                      <TableHead>Message</TableHead>
                       <TableHead>Property</TableHead>
-                      <TableHead className="w-[160px]">Timestamp</TableHead>
-                      <TableHead>Auth Type</TableHead>
+                      <TableHead className="w-[140px]">Timestamp</TableHead>
                       <TableHead>MAC</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -431,7 +439,10 @@ export default function AuthLogs() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-1.5 max-w-[240px]">
+                            <p className="text-xs font-mono">{log.clientIpAddress || '—'}</p>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5 max-w-[200px]">
                               <Monitor className="h-3 w-3 shrink-0 text-muted-foreground" />
                               <span className={cn(
                                 'text-xs truncate',
@@ -456,9 +467,6 @@ export default function AuthLogs() {
                               <Clock className="h-3 w-3 shrink-0" />
                               <span>{log.timestamp ? formatDistanceToNow(new Date(log.timestamp)) + ' ago' : '—'}</span>
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-[10px]">{log.authType || 'RADIUS'}</Badge>
                           </TableCell>
                           <TableCell>
                             <p className="text-xs font-mono text-muted-foreground">{log.callingStationId || '—'}</p>
@@ -501,9 +509,17 @@ export default function AuthLogs() {
                 </div>
               </div>
               <div className="border-t pt-4">
-                <p className="text-xs font-medium text-muted-foreground mb-3">Reply & Source</p>
-                <div className="grid grid-cols-1 gap-4">
+                <p className="text-xs font-medium text-muted-foreground mb-3">IP & Reply</p>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
+                    <p className="text-xs text-muted-foreground">Client IP (User)</p>
+                    <p className="text-sm font-mono font-medium">{selectedLog.clientIpAddress || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">NAS IP (Source)</p>
+                    <p className="text-sm font-mono">{selectedLog.nasIpAddress || '—'}</p>
+                  </div>
+                  <div className="col-span-2">
                     <p className="text-xs text-muted-foreground">Reply Message</p>
                     <div className="mt-1">
                       {getReplyMessageBadge(
@@ -511,10 +527,6 @@ export default function AuthLogs() {
                         (selectedLog.authResult || '').toLowerCase().includes('reject')
                       )}
                     </div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Source IP (NAS)</p>
-                    <p className="text-sm font-mono">{selectedLog.nasIpAddress || '—'}</p>
                   </div>
                 </div>
               </div>
