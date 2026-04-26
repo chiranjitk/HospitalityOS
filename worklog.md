@@ -725,3 +725,57 @@ Stage Summary:
 - IP pool restriction working: fn_check_ip_pool validates against user's assigned pool
 - All checks go through PostgreSQL (no SQLite, no flat files)
 - FUP switch log table tracks all throttle/unthrottle events
+---
+Task ID: 16
+Agent: Main Agent
+Task: Full 40-user production test — FUP enforcement, IP pool restriction, login limits, auth rejection, GUI verification
+
+Work Log:
+- Assessed current project state: 6 views, 8 custom PG functions, 41 users, 4 NAS, 3 FUP policies, 4 IP pools
+- Verified FR post-auth config: IP pool check (fn_check_ip_pool), gateway push (fn_get_pool_attr), FUP bandwidth override (fn_get_mikrotik_rate_limit), Simultaneous-Use (sql_session_start), post-auth logging (sql module)
+- Confirmed FR clients.conf: localhost (127.0.0.1) with testing123 secret, NAS entries in PostgreSQL nas table
+
+**Test 1: Auth Rejection (radtest)**
+- Unknown user "nonexistent.user" → Access-Reject ✅
+- Wrong password "guest.amit.mukherjee" / "WrongPassword123" → Access-Reject ✅
+- Correct password → Access-Accept with vendor attributes ✅
+
+**Test 2: FUP Enforcement**
+- Simulated data usage: 3 free users over 1GB daily limit, 2 standard users over 5GB weekly limit
+- fn_is_fup_throttled(): 5 users correctly flagged as throttled, 36 normal ✅
+- fn_check_fup(): Returns throttle bandwidth (1024/512 kbps), policy name, usage/limit ✅
+- fn_get_effective_bandwidth(): Throttled 256/128 kbps vs normal 5000/2000 kbps ✅
+- fn_get_mikrotik_rate_limit(): Throttled "256K/128K" vs normal "5M/2M" ✅
+- radtest for FUP-throttled user (david.kim): FR returns Mikrotik-Rate-Limit="512K/256K" (throttled) ✅
+- radtest for normal user (hiroshi.nakamura): FR returns Mikrotik-Rate-Limit="25M/10M" (normal) ✅
+- Simultaneous-Use correctly blocks FUP-throttled free users (limit=1, 1 active session) ✅
+
+**Test 3: Simultaneous-Use / Login Limit**
+- fn_check_login_limit(): Uses WiFiUser.maxSessions → WiFiPlan.maxDevices chain
+- maxSessions=1 → 1 active session = exceeded=true ✅
+- maxSessions=0 → unlimited (no limit) ✅
+- FR enforces Simultaneous-Use from radgroupcheck: wifi-free=1, basic=2, standard=3, premium=4, vip=5, conference=2 ✅
+
+**Test 4: IP Pool Restriction**
+- fn_check_ip_pool(): IP in user's pool → 1 (allow) ✅
+- fn_check_ip_pool(): IP outside all pools → 0 (deny) ✅
+- fn_check_ip_pool(): IP in wrong pool (VIP IP for free user) → 0 (deny) ✅
+- fn_check_ip_pool(): Staff IP for guest → 0 (deny) ✅
+- fn_get_pool_attr(): Returns correct gateway (10.10.0.1 for Guest, 172.16.10.1 for VIP) ✅
+
+**Test 5: GUI API Verification**
+- Active Sessions: 38 active, 3.9GB DL, 9.6GB UL ✅
+- Auth Logs: 65 total, 57 accept, 8 reject, 88% success ✅
+- RADIUS Users: 41 users across 6 plans ✅
+- NAS Clients: 4 NAS (MikroTik, Cisco WLC, Aruba MM, Juniper Mist) ✅
+- FUP Policies: 3 policies (Daily 1GB, Weekly 5GB, Monthly 50GB) ✅
+- IP Pools: 4 pools, 4 ranges ✅
+- WiFi Plans: 6 plans ✅
+
+Stage Summary:
+- ALL tests passed — full production system verified
+- FUP enforcement pipeline: fn_is_fup_throttled → fn_get_mikrotik_rate_limit → FR post-auth → Mikrotik-Rate-Limit override
+- IP pool enforcement: fn_check_ip_pool returns 1/0, FR post-auth rejects if 0
+- Login limit: fn_check_login_limit uses DB-driven limits (WiFiUser.maxSessions > WiFiPlan.maxDevices)
+- Auth rejection: FR rejects unknown users and wrong passwords, logs to radpostauth
+- Dev server running clean on port 3000, PM2 stable
