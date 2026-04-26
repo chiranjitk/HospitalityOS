@@ -288,6 +288,8 @@ export default function LiveCamera() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
+  const selectedCameraRef = useRef(selectedCamera);
+  selectedCameraRef.current = selectedCamera;
   const [gridSize, setGridSize] = useState<'1x1' | '2x2' | '3x3'>('2x2');
   const [groupFilter, setGroupFilter] = useState<string>('all');
   
@@ -311,7 +313,7 @@ export default function LiveCamera() {
         setStats(data.data.stats);
         
         // Set first camera as selected if not already
-        if (!selectedCamera && data.data.cameras.length > 0) {
+        if (!selectedCameraRef.current && data.data.cameras.length > 0) {
           setSelectedCamera(data.data.cameras[0]);
         }
       } else {

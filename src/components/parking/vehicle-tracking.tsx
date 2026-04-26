@@ -443,7 +443,7 @@ export default function VehicleTracking() {
                             <div className="flex items-center gap-2">
                               <Avatar className="h-6 w-6">
                                 <AvatarFallback className="text-xs bg-gradient-to-br from-emerald-400 to-teal-500 text-white">
-                                  {vehicle.guest.firstName[0]}{vehicle.guest.lastName[0]}
+                                  {vehicle.guest.firstName?.[0] || '?'}{vehicle.guest.lastName?.[0] || '?'}
                                 </AvatarFallback>
                               </Avatar>
                               <span>{vehicle.guest.firstName} {vehicle.guest.lastName}</span>
@@ -634,7 +634,7 @@ export default function VehicleTracking() {
                   <div className="flex items-center gap-2">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="bg-gradient-to-br from-emerald-400 to-teal-500 text-white">
-                        {selectedVehicle.guest.firstName[0]}{selectedVehicle.guest.lastName[0]}
+                        {selectedVehicle.guest.firstName?.[0] || '?'}{selectedVehicle.guest.lastName?.[0] || '?'}
                       </AvatarFallback>
                     </Avatar>
                     <div>

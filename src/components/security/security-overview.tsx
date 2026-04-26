@@ -43,45 +43,60 @@ export default function SecurityOverview({ onNavigate }: SecurityOverviewProps) 
   const [isLoading, setIsLoading] = useState(true);
   const [securityStatus, setSecurityStatus] = useState<SecurityStatus | null>(null);
 
+  const fetchSecurityStatus = async () => {
+    let eventsData: { success?: boolean; data?: Record<string, unknown> } = {};
+    let twoFAData: { success?: boolean; enabled?: boolean } = {};
+    let sessionsData: { success?: boolean; sessions?: Array<{ isCurrent: boolean; createdAt?: string; ipAddress?: string }>; total?: number } = {};
+
+    // Fetch security events stats
+    try {
+      const eventsResponse = await fetch('/api/security/events?stats=true');
+      eventsData = await eventsResponse.json();
+    } catch (error) {
+      console.error('Error fetching security events:', error);
+    }
+
+    // Fetch 2FA status
+    try {
+      const twoFAResponse = await fetch('/api/auth/2fa/setup');
+      twoFAData = await twoFAResponse.json();
+    } catch (error) {
+      console.error('Error fetching 2FA status:', error);
+    }
+
+    // Fetch active sessions
+    try {
+      const sessionsResponse = await fetch('/api/auth/sessions');
+      sessionsData = await sessionsResponse.json();
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+    }
+
+    // Use whatever data succeeded, with fallbacks for failures
+    const stats = eventsData.data || {};
+    const currentSession = sessionsData.sessions?.find((s: { isCurrent: boolean }) => s.isCurrent);
+
+    setSecurityStatus({
+      twoFactorEnabled: twoFAData.enabled ?? false,
+      activeSessions: sessionsData.total ?? 1,
+      lastLogin: currentSession?.createdAt ?? null,
+      lastLoginIp: currentSession?.ipAddress ?? null,
+      passwordLastChanged: null,
+      accountLocked: false,
+      failedAttempts: (stats.unacknowledgedCount as number) || 0,
+    });
+
+    if (!eventsData.success && !twoFAData.success && !sessionsData.success) {
+      toast.error('Failed to fetch security status');
+    }
+    setIsLoading(false);
+  };
+
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchSecurityStatus();
   }, []);
-
-  const fetchSecurityStatus = async () => {
-    try {
-      // Fetch security events stats for the security overview
-      const eventsResponse = await fetch('/api/security/events?stats=true');
-      const eventsData = await eventsResponse.json();
-
-      // Fetch 2FA status
-      const twoFAResponse = await fetch('/api/auth/2fa/setup');
-      const twoFAData = await twoFAResponse.json();
-
-      // Fetch active sessions from auth endpoint for session count
-      const sessionsResponse = await fetch('/api/auth/sessions');
-      const sessionsData = await sessionsResponse.json();
-
-      if (eventsData.success && twoFAData.success && sessionsData.success) {
-        const stats = eventsData.data;
-        const currentSession = sessionsData.sessions?.find((s: { isCurrent: boolean }) => s.isCurrent);
-
-        setSecurityStatus({
-          twoFactorEnabled: twoFAData.enabled || false,
-          activeSessions: sessionsData.total || 1,
-          lastLogin: currentSession?.createdAt || null,
-          lastLoginIp: currentSession?.ipAddress || null,
-          passwordLastChanged: null, // We don't track this yet
-          accountLocked: false,
-          failedAttempts: stats.unacknowledgedCount || 0,
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching security status:', error);
-      toast.error('Failed to fetch security status');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const calculateSecurityScore = () => {
     if (!securityStatus) return 0;

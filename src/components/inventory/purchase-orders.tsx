@@ -158,6 +158,8 @@ export default function PurchaseOrders() {
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const [taxRate, setTaxRate] = useState(0.1);
+
   const [formData, setFormData] = useState({
     vendorId: '',
     expectedDate: '',
@@ -215,6 +217,7 @@ export default function PurchaseOrders() {
       notes: '',
       items: [{ stockItemId: '', quantity: 1, unitPrice: 0 }],
     });
+    setTaxRate(0.1);
     setCreateDialogOpen(true);
   };
 
@@ -384,7 +387,7 @@ export default function PurchaseOrders() {
     }, 0);
   };
 
-  const calculateTax = () => calculateSubtotal() * 0.1;
+  const calculateTax = () => calculateSubtotal() * taxRate;
   const calculateTotal = () => calculateSubtotal() + calculateTax();
 
   const getAvailableActions = (order: PurchaseOrder) => {
@@ -767,9 +770,17 @@ export default function PurchaseOrders() {
                   <span>Subtotal:</span>
                   <span>{formatCurrency(calculateSubtotal())}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span>Tax (10%):</span>
-                  <span>{formatCurrency(calculateTax())}</span>
+                <div className="flex items-center justify-between text-sm gap-2">
+                  <span>Tax ({(taxRate * 100).toFixed(1)}%):</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={taxRate}
+                    onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
+                    className="w-20 text-right text-xs bg-background border rounded px-2 py-1"
+                  />
                 </div>
                 <Separator className="my-2" />
                 <div className="flex justify-between font-medium">

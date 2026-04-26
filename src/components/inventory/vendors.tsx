@@ -204,7 +204,7 @@ export default function Vendors() {
       const method = selectedVendor ? 'PUT' : 'POST';
       
       const body = selectedVendor
-        ? { id: selectedVendor.id, ...formData }
+        ? { id: selectedVendor.id, ...Object.fromEntries(Object.entries(formData).filter(([_, v]) => v !== '')) }
         : formData;
 
       const response = await fetch(url, {

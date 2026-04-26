@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -145,9 +145,9 @@ export default function Incidents() {
 
   useEffect(() => {
     fetchIncidents();
-  }, [statusFilter, severityFilter]);
+  }, [fetchIncidents]);
 
-  const fetchIncidents = async () => {
+  const fetchIncidents = useCallback(async () => {
     try {
       setIsLoading(true);
       const params = new URLSearchParams();
@@ -177,7 +177,7 @@ export default function Incidents() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [statusFilter, severityFilter, toast]);
 
   const filteredIncidents = incidents.filter(i => {
     if (searchQuery) {

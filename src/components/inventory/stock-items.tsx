@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -115,6 +115,8 @@ export default function StockItems() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
   const [saving, setSaving] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -136,12 +138,13 @@ export default function StockItems() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (search) params.append('search', search);
+      if (debouncedSearch) params.append('search', debouncedSearch);
       if (categoryFilter !== 'all') params.append('category', categoryFilter);
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (lowStockOnly) params.append('lowStock', 'true');
 
       const response = await fetch(`/api/inventory/stock?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch stock items');
       const data = await response.json();
 
       if (data.success) {
@@ -154,11 +157,22 @@ export default function StockItems() {
     } finally {
       setLoading(false);
     }
-  }, [search, categoryFilter, statusFilter, lowStockOnly]);
+  }, [debouncedSearch, categoryFilter, statusFilter, lowStockOnly]);
 
   useEffect(() => {
     fetchStockItems();
   }, [fetchStockItems]);
+
+  // Debounce search input by 300ms
+  useEffect(() => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, [search]);
 
   const handleOpenDialog = (item?: StockItem) => {
     if (item) {

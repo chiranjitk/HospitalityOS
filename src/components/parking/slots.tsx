@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -127,12 +127,15 @@ export default function ParkingSlots() {
     chargerType: '',
   });
 
+  const searchQueryRef = useRef(searchQuery);
+  searchQueryRef.current = searchQuery;
+
   // Fetch parking slots
-  const fetchSlots = async () => {
+  const fetchSlots = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
-      if (searchQuery) params.append('search', searchQuery);
+      if (searchQueryRef.current) params.append('search', searchQueryRef.current);
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (typeFilter !== 'all') params.append('type', typeFilter);
       if (propertyId) params.append('propertyId', propertyId);
@@ -154,11 +157,11 @@ export default function ParkingSlots() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [statusFilter, typeFilter, propertyId, toast]);
 
   useEffect(() => {
     fetchSlots();
-  }, [statusFilter, typeFilter]);
+  }, [fetchSlots]);
 
   // Debounced search
   useEffect(() => {

@@ -105,7 +105,7 @@ export default function LowStockAlerts() {
     setSelectedItem(item);
     setOrderFormData({
       vendorId: '',
-      quantity: Math.ceil((item.minQuantity - item.quantity) * 1.5), // Suggest reorder amount
+      quantity: Math.max(1, Math.ceil((item.minQuantity - item.quantity) * 1.5)), // Suggest reorder amount
       notes: `Reorder for ${item.name}`,
     });
     setDialogOpen(true);
@@ -383,7 +383,7 @@ export default function LowStockAlerts() {
                   onChange={(e) => setOrderFormData({ ...orderFormData, quantity: parseFloat(e.target.value) || 0 })}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Suggested: {Math.ceil((selectedItem.minQuantity - selectedItem.quantity) * 1.5)} {selectedItem.unit}
+                  Suggested: {Math.max(1, Math.ceil((selectedItem.minQuantity - selectedItem.quantity) * 1.5))} {selectedItem.unit}
                 </p>
               </div>
               <div className="bg-muted p-3 rounded-lg">
