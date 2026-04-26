@@ -1,6 +1,113 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+// ─── IP Overlap Helpers ─────────────────────────────────────────────────────
+
+interface RangeInput {
+  startIp?: string;
+  endIp?: string;
+  comment?: string;
+}
+
+/** Validate IPv4 format */
+function isValidIp(ip: string): boolean {
+  const parts = ip.split('.');
+  if (parts.length !== 4) return false;
+  return parts.every(p => {
+    const n = parseInt(p, 10);
+    return !isNaN(n) && n >= 0 && n <= 255 && p === String(n);
+  });
+}
+
+/** Convert IPv4 string to 32-bit unsigned integer */
+function ipToNum(ip: string): number {
+  return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
+}
+
+/** Validate a single range object: format + start <= end */
+function validateRange(r: RangeInput, idx: number): string | null {
+  if (!r.startIp || !r.endIp) return null; // skip incomplete
+  const s = r.startIp.replace(/\/\d+$/, '');
+  const e = r.endIp.replace(/\/\d+$/, '');
+  if (!isValidIp(s)) return `Range ${idx + 1}: Invalid start IP "${s}"`;
+  if (!isValidIp(e)) return `Range ${idx + 1}: Invalid end IP "${e}"`;
+  if (ipToNum(s) > ipToNum(e)) return `Range ${idx + 1}: Start IP (${s}) must be less than or equal to End IP (${e})`;
+  return null;
+}
+
+/** Check overlap between two ranges [s1,e1] and [s2,e2] */
+function rangesOverlap(s1: number, e1: number, s2: number, e2: number): boolean {
+  return s1 <= e2 && s2 <= e1;
+}
+
+/** Check self-overlap (ranges within the same payload) */
+function findSelfOverlaps(ranges: RangeInput[]): string[] {
+  const errors: string[] = [];
+  for (let i = 0; i < ranges.length; i++) {
+    for (let j = i + 1; j < ranges.length; j++) {
+      const si = ranges[i].startIp?.replace(/\/\d+$/, '');
+      const ei = ranges[i].endIp?.replace(/\/\d+$/, '');
+      const sj = ranges[j].startIp?.replace(/\/\d+$/, '');
+      const ej = ranges[j].endIp?.replace(/\/\d+$/, '');
+      if (!si || !ei || !sj || !ej) continue;
+      if (rangesOverlap(ipToNum(si), ipToNum(ei), ipToNum(sj), ipToNum(ej))) {
+        errors.push(`Range ${i + 1} (${si}–${ei}) overlaps with Range ${j + 1} (${sj}–${ej})`);
+      }
+    }
+  }
+  return errors;
+}
+
+/** Check cross-pool overlap using PostgreSQL inet comparison */
+async function findCrossPoolOverlaps(ranges: RangeInput[], excludePoolId?: string): Promise<string[]> {
+  if (ranges.length === 0) return [];
+  const errors: string[] = [];
+  for (const range of ranges) {
+    const s = range.startIp?.replace(/\/\d+$/, '');
+    const e = range.endIp?.replace(/\/\d+$/, '');
+    if (!s || !e) continue;
+
+    const overlapping = await db.$queryRawUnsafe(`
+      SELECT ip.name as pool_name, r."startIp", r."endIp"
+      FROM "IpPoolRange" r
+      JOIN "IpPool" ip ON ip.id = r."poolId"
+      WHERE ($1::inet <= r."endIp" AND r."startIp" <= $2::inet)
+      ${excludePoolId ? 'AND r."poolId" != $3::uuid' : ''}
+      LIMIT 3
+    `, s, e, ...(excludePoolId ? [excludePoolId] : [])) as any[];
+
+    for (const hit of overlapping) {
+      const hitStart = hit.startIp.replace(/\/\d+$/, '');
+      const hitEnd = hit.endIp.replace(/\/\d+$/, '');
+      errors.push(`${s}–${e} overlaps with pool "${hit.pool_name}" (${hitStart}–${hitEnd})`);
+    }
+  }
+  return errors;
+}
+
+/** Full validation pass — returns combined error messages */
+async function validateRanges(ranges: RangeInput[], excludePoolId?: string): Promise<string[]> {
+  const errors: string[] = [];
+
+  // 1. Per-range format validation
+  for (let i = 0; i < ranges.length; i++) {
+    const err = validateRange(ranges[i], i);
+    if (err) errors.push(err);
+  }
+  if (errors.length) return errors;
+
+  // 2. Self-overlap check
+  const selfErrors = findSelfOverlaps(ranges);
+  errors.push(...selfErrors);
+  if (selfErrors.length) return errors;
+
+  // 3. Cross-pool overlap check
+  const crossErrors = await findCrossPoolOverlaps(ranges, excludePoolId);
+  errors.push(...crossErrors);
+
+  return errors;
+}
+
 // ─── GET: List all IP pools with ranges ─────────────────────────────────────
 export async function GET(request: NextRequest) {
   try {
@@ -84,6 +191,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate ranges
+    const validRanges = (ranges || []).filter((r: RangeInput) => r.startIp && r.endIp);
+    if (validRanges.length === 0) {
+      return NextResponse.json(
+        { success: false, error: { message: 'At least one valid IP range is required' } },
+        { status: 400 }
+      );
+    }
+    const validationErrors = await validateRanges(validRanges);
+    if (validationErrors.length > 0) {
+      return NextResponse.json(
+        { success: false, error: { message: 'IP range validation failed', details: validationErrors } },
+        { status: 409 }
+      );
+    }
+
     // Get tenant ID
     const tenants = await db.$queryRawUnsafe(`SELECT id FROM "Tenant" LIMIT 1`) as any[];
     if (!tenants.length) {
@@ -117,15 +240,12 @@ export async function POST(request: NextRequest) {
 
     const pool = result[0];
 
-    // Create ranges if provided
-    if (ranges?.length > 0) {
-      for (const range of ranges) {
-        if (!range.startIp || !range.endIp) continue;
-        await db.$queryRawUnsafe(`
-          INSERT INTO "IpPoolRange" (id, "poolId", "startIp", "endIp", comment, "createdAt")
-          VALUES (gen_random_uuid(), $1::uuid, $2::inet, $3::inet, $4, NOW())
-        `, pool.id, range.startIp, range.endIp, range.comment || null);
-      }
+    // Create ranges
+    for (const range of validRanges) {
+      await db.$queryRawUnsafe(`
+        INSERT INTO "IpPoolRange" (id, "poolId", "startIp", "endIp", comment, "createdAt")
+        VALUES (gen_random_uuid(), $1::uuid, $2::inet, $3::inet, $4, NOW())
+      `, pool.id, range.startIp, range.endIp, range.comment || null);
     }
 
     return NextResponse.json({ 
@@ -161,6 +281,24 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Validate ranges if provided
+    if (ranges !== undefined && ranges.length > 0) {
+      const validRanges = ranges.filter((r: RangeInput) => r.startIp && r.endIp);
+      if (validRanges.length === 0) {
+        return NextResponse.json(
+          { success: false, error: { message: 'At least one valid IP range is required' } },
+          { status: 400 }
+        );
+      }
+      const validationErrors = await validateRanges(validRanges, id);
+      if (validationErrors.length > 0) {
+        return NextResponse.json(
+          { success: false, error: { message: 'IP range validation failed', details: validationErrors } },
+          { status: 409 }
+        );
+      }
+    }
+
     // If setting as default, clear existing default
     if (isDefault) {
       const tenants = await db.$queryRawUnsafe(`SELECT "tenantId" FROM "IpPool" WHERE id = $1::uuid`, id) as any[];
@@ -192,9 +330,9 @@ export async function PUT(request: NextRequest) {
 
     // Update ranges: delete existing and re-insert
     if (ranges !== undefined) {
+      const validRanges = ranges.filter((r: RangeInput) => r.startIp && r.endIp);
       await db.$executeRawUnsafe(`DELETE FROM "IpPoolRange" WHERE "poolId" = $1::uuid`, id);
-      for (const range of ranges) {
-        if (!range.startIp || !range.endIp) continue;
+      for (const range of validRanges) {
         await db.$queryRawUnsafe(`
           INSERT INTO "IpPoolRange" (id, "poolId", "startIp", "endIp", comment, "createdAt")
           VALUES (gen_random_uuid(), $1::uuid, $2::inet, $3::inet, $4, NOW())

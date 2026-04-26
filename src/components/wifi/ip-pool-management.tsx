@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -93,6 +93,69 @@ function countTotalIps(ranges: IpPoolRange[]): number {
   }, 0);
 }
 
+// ─── Client-Side IP Validation ──────────────────────────────────────────────
+
+function isValidIp(ip: string): boolean {
+  const parts = ip.split('.');
+  if (parts.length !== 4) return false;
+  return parts.every(p => {
+    const n = parseInt(p, 10);
+    return !isNaN(n) && n >= 0 && n <= 255 && p === String(n);
+  });
+}
+
+function ipToNum(ip: string): number {
+  return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
+}
+
+function cleanIp(ip: string): string {
+  return ip.replace(/\/\d+$/, '').trim();
+}
+
+interface RangeError {
+  index: number;
+  message: string;
+}
+
+function validateFormRanges(ranges: IpPoolRange[]): { valid: boolean; errors: RangeError[] } {
+  const errors: RangeError[] = [];
+  const nums: { idx: number; start: number; end: number; label: string }[] = [];
+
+  for (let i = 0; i < ranges.length; i++) {
+    const s = cleanIp(ranges[i].startIp);
+    const e = cleanIp(ranges[i].endIp);
+    if (!s || !e) continue; // skip incomplete ranges
+
+    if (!isValidIp(s)) {
+      errors.push({ index: i, message: 'Invalid start IP address' });
+      continue;
+    }
+    if (!isValidIp(e)) {
+      errors.push({ index: i, message: 'Invalid end IP address' });
+      continue;
+    }
+    if (ipToNum(s) > ipToNum(e)) {
+      errors.push({ index: i, message: `Start IP (${s}) must be <= End IP (${e})` });
+      continue;
+    }
+    nums.push({ idx: i, start: ipToNum(s), end: ipToNum(e), label: `${s}–${e}` });
+  }
+
+  // Check overlaps between completed ranges
+  for (let i = 0; i < nums.length; i++) {
+    for (let j = i + 1; j < nums.length; j++) {
+      if (nums[i].start <= nums[j].end && nums[j].start <= nums[i].end) {
+        errors.push({
+          index: nums[j].idx,
+          message: `Overlaps with Range ${nums[i].idx + 1} (${nums[i].label})`,
+        });
+      }
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function IpPoolManagement() {
@@ -110,6 +173,7 @@ export default function IpPoolManagement() {
   const [selectedPool, setSelectedPool] = useState<IpPool | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [expandedPools, setExpandedPools] = useState<Set<string>>(new Set());
+  const [rangeErrors, setRangeErrors] = useState<RangeError[]>([]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -164,6 +228,7 @@ export default function IpPoolManagement() {
 
   // Create pool
   const handleCreate = async () => {
+    setRangeErrors([]);
     if (!formData.name?.trim()) {
       toast({ title: 'Validation Error', description: 'Pool name is required', variant: 'destructive' });
       return;
@@ -171,6 +236,12 @@ export default function IpPoolManagement() {
     const validRanges = formData.ranges.filter(r => r.startIp && r.endIp);
     if (validRanges.length === 0) {
       toast({ title: 'Validation Error', description: 'At least one IP range is required', variant: 'destructive' });
+      return;
+    }
+    const clientValidation = validateFormRanges(formData.ranges);
+    if (!clientValidation.valid) {
+      setRangeErrors(clientValidation.errors);
+      toast({ title: 'Validation Error', description: 'Fix the highlighted IP range errors', variant: 'destructive' });
       return;
     }
 
@@ -189,9 +260,22 @@ export default function IpPoolManagement() {
         toast({ title: 'Success', description: result.message || 'IP pool created successfully' });
         setIsCreateOpen(false);
         resetForm();
+        setRangeErrors([]);
         fetchPools();
       } else {
-        toast({ title: 'Error', description: result.error?.message || 'Failed to create pool', variant: 'destructive' });
+        // Show cross-pool overlap details from server
+        const details = result.error?.details;
+        if (Array.isArray(details) && details.length > 0) {
+          setRangeErrors(details.map((msg: string, i: number) => ({ index: i, message: msg })));
+          toast({
+            title: 'IP Range Overlap Detected',
+            description: details.slice(0, 2).join('. ')
+              + (details.length > 2 ? ` (and ${details.length - 2} more)` : ''),
+            variant: 'destructive',
+          });
+        } else {
+          toast({ title: 'Error', description: result.error?.message || 'Failed to create pool', variant: 'destructive' });
+        }
       }
     } catch (error) {
       console.error('Error creating IP pool:', error);
@@ -204,6 +288,13 @@ export default function IpPoolManagement() {
   // Update pool
   const handleUpdate = async () => {
     if (!selectedPool) return;
+    setRangeErrors([]);
+    const clientValidation = validateFormRanges(formData.ranges);
+    if (!clientValidation.valid) {
+      setRangeErrors(clientValidation.errors);
+      toast({ title: 'Validation Error', description: 'Fix the highlighted IP range errors', variant: 'destructive' });
+      return;
+    }
     setIsSaving(true);
     try {
       const validRanges = formData.ranges.filter(r => r.startIp && r.endIp);
@@ -221,9 +312,21 @@ export default function IpPoolManagement() {
         toast({ title: 'Success', description: result.message || 'IP pool updated successfully' });
         setIsEditOpen(false);
         setSelectedPool(null);
+        setRangeErrors([]);
         fetchPools();
       } else {
-        toast({ title: 'Error', description: result.error?.message || 'Failed to update pool', variant: 'destructive' });
+        const details = result.error?.details;
+        if (Array.isArray(details) && details.length > 0) {
+          setRangeErrors(details.map((msg: string, i: number) => ({ index: i, message: msg })));
+          toast({
+            title: 'IP Range Overlap Detected',
+            description: details.slice(0, 2).join('. ')
+              + (details.length > 2 ? ` (and ${details.length - 2} more)` : ''),
+            variant: 'destructive',
+          });
+        } else {
+          toast({ title: 'Error', description: result.error?.message || 'Failed to update pool', variant: 'destructive' });
+        }
       }
     } catch (error) {
       console.error('Error updating IP pool:', error);
@@ -264,6 +367,7 @@ export default function IpPoolManagement() {
 
   const openEditDialog = (pool: IpPool) => {
     setSelectedPool(pool);
+    setRangeErrors([]);
     setFormData({
       name: pool.name,
       description: pool.description || '',
@@ -292,6 +396,7 @@ export default function IpPoolManagement() {
       enabled: true,
       ranges: [{ startIp: '', endIp: '', comment: '' }],
     });
+    setRangeErrors([]);
   };
 
   // Range management
@@ -410,7 +515,7 @@ export default function IpPoolManagement() {
               </p>
               <p className="text-teal-600 dark:text-teal-400 mt-1">
                 Assign pools to Plans for bulk assignment. Users can override their plan&apos;s pool for individual exceptions.
-                FreeRADIUS checks the user&apos;s IP on every authentication attempt.
+                RADIUS checks the user&apos;s IP on every authentication attempt.
               </p>
             </div>
           </div>
@@ -432,160 +537,214 @@ export default function IpPoolManagement() {
         </CardContent>
       </Card>
 
-      {/* Pools List */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      ) : pools.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="rounded-full bg-muted/50 p-4 mb-3">
-            <Network className="h-8 w-8 text-muted-foreground/40" />
+      {/* Pools Table */}
+      <Card className="overflow-hidden">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-          <h3 className="text-sm font-medium text-muted-foreground">No IP pools found</h3>
-          <p className="text-xs text-muted-foreground/60 mt-1">Create your first IP pool to restrict user access</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {pools.map((pool) => {
-            const isExpanded = expandedPools.has(pool.id);
-            const totalIps = countTotalIps(pool.ranges);
+        ) : pools.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="rounded-full bg-muted/50 p-4 mb-3">
+              <Network className="h-8 w-8 text-muted-foreground/40" />
+            </div>
+            <h3 className="text-sm font-medium text-muted-foreground">No IP pools found</h3>
+            <p className="text-xs text-muted-foreground/60 mt-1">Create your first IP pool to restrict user access</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <TableHead className="w-8"></TableHead>
+                <TableHead>Pool Name</TableHead>
+                <TableHead>Subnet</TableHead>
+                <TableHead>Gateway</TableHead>
+                <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-center">Ranges</TableHead>
+                <TableHead className="text-center">Total IPs</TableHead>
+                <TableHead className="text-center">Plans</TableHead>
+                <TableHead className="text-center">Users</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pools.map((pool) => {
+                const isExpanded = expandedPools.has(pool.id);
+                const totalIps = countTotalIps(pool.ranges);
 
-            return (
-              <Card key={pool.id} className={cn(
-                'overflow-hidden transition-all duration-200',
-                !pool.enabled && 'opacity-50'
-              )}>
-                {/* Pool Header */}
-                <div
-                  className="flex items-center gap-3 p-4 cursor-pointer hover:bg-muted/30 transition-colors"
-                  onClick={() => toggleExpand(pool.id)}
-                >
-                  {/* Expand toggle */}
-                  <div className="shrink-0">
-                    {isExpanded
-                      ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      : <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    }
-                  </div>
-
-                  {/* Status indicator */}
-                  <div className={cn(
-                    'w-2 h-2 rounded-full shrink-0',
-                    pool.enabled ? 'bg-emerald-500' : 'bg-gray-400'
-                  )} />
-
-                  {/* Name & badges */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-sm truncate">{pool.name}</span>
-                      {pool.isDefault && (
-                        <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700 text-[10px] px-1.5 py-0">
-                          <Star className="h-2.5 w-2.5 mr-0.5 fill-amber-500" />
-                          Default
-                        </Badge>
-                      )}
-                      {!pool.enabled && (
-                        <Badge variant="secondary" className="bg-gray-500/10 text-gray-500 text-[10px] px-1.5 py-0">
-                          Disabled
-                        </Badge>
-                      )}
-                    </div>
-                    {pool.description && (
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">{pool.description}</p>
-                    )}
-                  </div>
-
-                  {/* Quick stats */}
-                  <div className="hidden sm:flex items-center gap-4 text-xs text-muted-foreground shrink-0">
-                    {pool.subnet && (
-                      <span className="font-mono">{formatInet(pool.subnet)}</span>
-                    )}
-                    <span>{pool._count.ranges} range{pool._count.ranges !== 1 ? 's' : ''}</span>
-                    {totalIps > 0 && <span>{totalIps.toLocaleString()} IPs</span>}
-                  </div>
-
-                  {/* Assignment counts */}
-                  <div className="hidden md:flex items-center gap-3 shrink-0">
-                    {pool._count.plans > 0 && (
-                      <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-700">
-                        <Server className="h-2.5 w-2.5 mr-0.5" />
-                        {pool._count.plans} plan{pool._count.plans !== 1 ? 's' : ''}
-                      </Badge>
-                    )}
-                    {pool._count.users > 0 && (
-                      <Badge variant="outline" className="text-[10px] bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-700">
-                        <UserCircle className="h-2.5 w-2.5 mr-0.5" />
-                        {pool._count.users} override{pool._count.users !== 1 ? 's' : ''}
-                      </Badge>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setSelectedPool(pool); setIsDetailOpen(true); }}>
-                      <Wifi className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(pool)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-red-500 hover:text-red-600"
-                      onClick={() => { setSelectedPool(pool); setIsDeleteOpen(true); }}
+                return (
+                  <React.Fragment key={pool.id}>
+                    <TableRow
+                      className={cn('cursor-pointer group', !pool.enabled && 'opacity-50')}
+                      onClick={() => toggleExpand(pool.id)}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
+                      {/* Expand toggle */}
+                      <TableCell className="w-8 px-2">
+                        {isExpanded
+                          ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          : <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        }
+                      </TableCell>
 
-                {/* Expanded: Ranges */}
-                {isExpanded && (
-                  <div className="border-t bg-muted/20 px-4 py-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        IP Ranges ({pool._count.ranges})
-                      </span>
-                      {pool.gateway && (
-                        <Badge variant="outline" className="text-[10px] ml-auto">
-                          Gateway: {formatInet(pool.gateway)}
+                      {/* Name + badges */}
+                      <TableCell>
+                        <div className="flex items-center gap-2 min-w-[140px]">
+                          <span className="font-semibold text-sm">{pool.name}</span>
+                          {pool.isDefault && (
+                            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700 text-[10px] px-1.5 py-0">
+                              <Star className="h-2.5 w-2.5 mr-0.5 fill-amber-500" />
+                              Default
+                            </Badge>
+                          )}
+                        </div>
+                        {pool.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[200px]">{pool.description}</p>
+                        )}
+                      </TableCell>
+
+                      {/* Subnet */}
+                      <TableCell className="font-mono text-xs">
+                        {pool.subnet ? formatInet(pool.subnet) : '—'}
+                      </TableCell>
+
+                      {/* Gateway */}
+                      <TableCell className="font-mono text-xs">
+                        {pool.gateway ? formatInet(pool.gateway) : '—'}
+                      </TableCell>
+
+                      {/* Status */}
+                      <TableCell className="text-center">
+                        <Badge variant={pool.enabled ? 'default' : 'secondary'} className={cn(
+                          'text-[10px] px-2',
+                          pool.enabled
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10'
+                            : 'bg-gray-500/10 text-gray-500 hover:bg-gray-500/10'
+                        )}>
+                          <div className={cn('w-1.5 h-1.5 rounded-full mr-1.5', pool.enabled ? 'bg-emerald-500' : 'bg-gray-400')} />
+                          {pool.enabled ? 'Active' : 'Disabled'}
                         </Badge>
-                      )}
-                    </div>
-                    {pool.ranges.length === 0 ? (
-                      <p className="text-xs text-muted-foreground py-2">No ranges configured</p>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {pool.ranges.map((range, idx) => (
-                          <div key={range.id || idx} className="flex items-center gap-3 bg-background rounded-lg px-3 py-2 text-xs">
-                            <Badge variant="outline" className="font-mono text-[11px] shrink-0">
-                              {formatInet(range.startIp)}
-                            </Badge>
-                            <span className="text-muted-foreground">→</span>
-                            <Badge variant="outline" className="font-mono text-[11px] shrink-0">
-                              {formatInet(range.endIp)}
-                            </Badge>
-                            {range.comment && (
-                              <span className="text-muted-foreground truncate">({range.comment})</span>
-                            )}
-                            {range.total_ips !== undefined && range.total_ips > 0 && (
-                              <span className="ml-auto text-muted-foreground shrink-0">
-                                {range.total_ips.toLocaleString()} IPs
+                      </TableCell>
+
+                      {/* Ranges count */}
+                      <TableCell className="text-center">
+                        <span className="text-sm font-medium">{pool._count.ranges}</span>
+                      </TableCell>
+
+                      {/* Total IPs */}
+                      <TableCell className="text-center">
+                        <span className="text-sm font-medium tabular-nums">
+                          {totalIps > 0 ? totalIps.toLocaleString() : '—'}
+                        </span>
+                      </TableCell>
+
+                      {/* Plans */}
+                      <TableCell className="text-center">
+                        {pool._count.plans > 0 ? (
+                          <Badge variant="outline" className="bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-700 text-[10px]">
+                            <Server className="h-2.5 w-2.5 mr-0.5" />
+                            {pool._count.plans}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">0</span>
+                        )}
+                      </TableCell>
+
+                      {/* Users */}
+                      <TableCell className="text-center">
+                        {pool._count.users > 0 ? (
+                          <Badge variant="outline" className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-700 text-[10px]">
+                            <UserCircle className="h-2.5 w-2.5 mr-0.5" />
+                            {pool._count.users}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">0</span>
+                        )}
+                      </TableCell>
+
+                      {/* Actions */}
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="View details" onClick={() => { setSelectedPool(pool); setIsDetailOpen(true); }}>
+                            <Wifi className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Edit pool" onClick={() => openEditDialog(pool)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500 hover:text-red-600"
+                            aria-label="Delete pool"
+                            onClick={() => { setSelectedPool(pool); setIsDeleteOpen(true); }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Expanded: IP Ranges sub-table */}
+                    {isExpanded && (
+                      <TableRow className="bg-muted/20 hover:bg-muted/20">
+                        <TableCell colSpan={10} className="p-0">
+                          <div className="px-6 py-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                IP Ranges ({pool._count.ranges})
                               </span>
+                            </div>
+                            {pool.ranges.length === 0 ? (
+                              <p className="text-xs text-muted-foreground py-2">No ranges configured</p>
+                            ) : (
+                              <div className="rounded-lg border bg-background overflow-hidden">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                                      <TableHead className="text-xs">#</TableHead>
+                                      <TableHead className="text-xs">Start IP</TableHead>
+                                      <TableHead className="text-xs">End IP</TableHead>
+                                      <TableHead className="text-xs">Label</TableHead>
+                                      <TableHead className="text-xs text-center">IPs in Range</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {pool.ranges.map((range, idx) => (
+                                      <TableRow key={range.id || idx}>
+                                        <TableCell className="text-xs text-muted-foreground">{idx + 1}</TableCell>
+                                        <TableCell className="font-mono text-xs font-medium">{formatInet(range.startIp)}</TableCell>
+                                        <TableCell className="font-mono text-xs font-medium">{formatInet(range.endIp)}</TableCell>
+                                        <TableCell className="text-xs text-muted-foreground">{range.comment || '—'}</TableCell>
+                                        <TableCell className="text-xs text-center tabular-nums">
+                                          {range.total_ips !== undefined && range.total_ips > 0
+                                            ? range.total_ips.toLocaleString()
+                                            : (() => {
+                                                if (!range.startIp || !range.endIp) return '—';
+                                                try {
+                                                  const s = range.startIp.replace(/\/\d+$/, '').split('.').reduce((a, o) => (a << 8) + parseInt(o), 0) >>> 0;
+                                                  const e = range.endIp.replace(/\/\d+$/, '').split('.').reduce((a, o) => (a << 8) + parseInt(o), 0) >>> 0;
+                                                  return Math.max(0, e - s + 1).toLocaleString();
+                                                } catch { return '—'; }
+                                              })()
+                                          }
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
                             )}
                           </div>
-                        ))}
-                      </div>
+                        </TableCell>
+                      </TableRow>
                     )}
-                  </div>
-                )}
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                  </React.Fragment>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
 
       {/* Create/Edit Dialog */}
       <Dialog open={isCreateOpen || isEditOpen} onOpenChange={(open) => {
@@ -679,49 +838,64 @@ export default function IpPoolManagement() {
                 </Button>
               </div>
 
-              {formData.ranges.map((range, idx) => (
-                <div key={idx} className="flex items-start gap-2 p-3 rounded-lg bg-muted/30 border">
-                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {formData.ranges.map((range, idx) => {
+                const errorForRange = rangeErrors.filter(e => e.index === idx);
+                const hasError = errorForRange.length > 0;
+                return (
+                <div key={idx} className={cn(
+                  'rounded-lg border p-3 space-y-2',
+                  hasError ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-950/20' : 'border-border bg-muted/30'
+                )}>
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Start IP</Label>
+                      <Label className="text-xs font-medium text-muted-foreground">Start IP</Label>
                       <Input
                         placeholder="10.0.0.1"
                         value={range.startIp}
-                        onChange={(e) => updateRange(idx, 'startIp', e.target.value)}
-                        className="font-mono text-xs"
+                        onChange={(e) => { updateRange(idx, 'startIp', e.target.value); setRangeErrors(prev => prev.filter(er => er.index !== idx)); }}
+                        className={cn('font-mono', hasError && 'border-red-300 dark:border-red-700 focus-visible:ring-red-400')}
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">End IP</Label>
+                      <Label className="text-xs font-medium text-muted-foreground">End IP</Label>
                       <Input
                         placeholder="10.0.0.254"
                         value={range.endIp}
-                        onChange={(e) => updateRange(idx, 'endIp', e.target.value)}
-                        className="font-mono text-xs"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Label</Label>
-                      <Input
-                        placeholder="Floor 1, AP-01..."
-                        value={range.comment || ''}
-                        onChange={(e) => updateRange(idx, 'comment', e.target.value)}
-                        className="text-xs"
+                        onChange={(e) => { updateRange(idx, 'endIp', e.target.value); setRangeErrors(prev => prev.filter(er => er.index !== idx)); }}
+                        className={cn('font-mono', hasError && 'border-red-300 dark:border-red-700 focus-visible:ring-red-400')}
                       />
                     </div>
                   </div>
-                  {formData.ranges.length > 1 && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-red-500 hover:text-red-600 shrink-0 mt-5"
-                      onClick={() => removeRange(idx)}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs font-medium text-muted-foreground">Label (optional)</Label>
+                      <Input
+                        placeholder="e.g., Floor 1, AP-01"
+                        value={range.comment || ''}
+                        onChange={(e) => updateRange(idx, 'comment', e.target.value)}
+                      />
+                    </div>
+                    {formData.ranges.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 text-red-500 hover:text-red-600 shrink-0 mt-6"
+                        onClick={() => removeRange(idx)}
+                        aria-label="Remove range"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  {hasError && (
+                    <div className="flex items-start gap-1.5 rounded-md bg-red-100 dark:bg-red-950/40 px-2.5 py-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                      <span className="text-xs text-red-700 dark:text-red-400 leading-relaxed">{errorForRange.map(e => e.message).join('; ')}</span>
+                    </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
