@@ -14,9 +14,12 @@
     "db:seed": "bun prisma/seed.ts",
     "services:install": "cd mini-services/freeradius-service && bun install && cd ../realtime-service && bun install && cd ../availability-service && bun install && cd ../kea-service && bun install && cd ../..",
     "services:setup": "bun install && bun run db:generate && bun run db:push && bun run services:install",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) vitest run",
+    "test:watch": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) vitest",
+    "test:coverage": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) vitest run --coverage",
+    "test:pms": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) vitest run __tests__/pms-module.test.ts",
+    "test:bookings": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) vitest run __tests__/bookings-module.test.ts",
+    "test:e2e": "npx playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
@@ -101,6 +104,7 @@
     "seed": "npx tsx prisma/seed.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
