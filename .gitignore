@@ -71,3 +71,5 @@ data/rrd/pools/*.rrd
 data/rrd/isp/*.rrd
 data/rrd/aggregate/*.rrd
 !data/rrd/.gitkeep
+# RRD cron state file
+data/rrd/state/counter-state.json

@@ -1,12 +1,19 @@
 /**
  * RRD Collector — Standalone Entry Point
  *
- * Run directly with: node src/lib/rrd/collector-standalone.ts
+ * Run directly with: npx tsx src/lib/rrd/collector-standalone.ts
  * Or via PM2: pm2 start src/lib/rrd/pm2-collector.config.cjs
- *
- * Uses tsx for TypeScript execution via node --import tsx.
- * Falls back to requiring the compiled .js if tsx is available.
  */
+
+import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
+
+// Force-load project .env (overrides inherited shell env like file: custom.db)
+const envPath = path.resolve(process.cwd(), '.env');
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath, override: true });
+}
 
 import { startCollector, stopCollector } from './collector';
 
