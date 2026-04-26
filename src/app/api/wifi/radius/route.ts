@@ -958,10 +958,10 @@ export async function GET(request: NextRequest) {
 
           const conditions: string[] = [];
           const sqlParams: unknown[] = [];
-          if (username) { conditions.push(`username LIKE $${sqlParams.length + 1}`); sqlParams.push(`%${username}%`); }
-          if (status) { conditions.push(`"newStatus" = $${sqlParams.length + 1}`); sqlParams.push(status); }
-          if (startDateStr) { conditions.push(`"createdAt" >= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(startDateStr.length === 10 ? `${startDateStr} 00:00:00` : startDateStr); }
-          if (endDateStr) { conditions.push(`"createdAt" <= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(endDateStr.length === 10 ? `${endDateStr} 23:59:59` : endDateStr); }
+          if (username) { conditions.push(`h.username LIKE $${sqlParams.length + 1}`); sqlParams.push(`%${username}%`); }
+          if (status) { conditions.push(`h."newStatus" = $${sqlParams.length + 1}`); sqlParams.push(status); }
+          if (startDateStr) { conditions.push(`h."createdAt" >= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(startDateStr.length === 10 ? `${startDateStr} 00:00:00` : startDateStr); }
+          if (endDateStr) { conditions.push(`h."createdAt" <= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(endDateStr.length === 10 ? `${endDateStr} 23:59:59` : endDateStr); }
           const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
           sqlParams.push(limit, offset);
 
@@ -976,11 +976,17 @@ export async function GET(request: NextRequest) {
             createdAt: string;
             userId: string;
           }[]>(`
-            SELECT id, username, "oldStatus", "newStatus", "changedBy", "changeReason",
-                   "ipAddress", "createdAt", "userId"
-            FROM "WiFiUserStatusHistory"
+            SELECT h.id, h.username, h."oldStatus", h."newStatus",
+                   CASE
+                     WHEN h."changedBy" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-' THEN COALESCE(u."firstName" || ' ' || u."lastName", h."changedBy")
+                     ELSE h."changedBy"
+                   END AS "changedBy",
+                   h."changeReason" AS "reason", h."ipAddress",
+                   h."createdAt" AS "timestamp", h."userId"
+            FROM "WiFiUserStatusHistory" h
+            LEFT JOIN "User" u ON u.id = h."changedBy"
             ${whereClause}
-            ORDER BY "createdAt" DESC
+            ORDER BY h."createdAt" DESC
             LIMIT $${sqlParams.length - 1} OFFSET $${sqlParams.length}
           `, ...sqlParams);
 
@@ -1612,6 +1618,11 @@ export async function POST(request: NextRequest) {
         const newStatus = data.status; // 'active', 'suspended', 'deactivated'
         const reason = data.reason || '';
 
+        // Capture operator IP from request headers
+        const forwardedFor = request.headers.get('x-forwarded-for');
+        const realIp = request.headers.get('x-real-ip');
+        const operatorIp = forwardedFor?.split(',')[0]?.trim() || realIp || 'unknown';
+
         if (!userId || !newStatus) {
           return NextResponse.json({ success: false, error: 'User ID and new status are required' }, { status: 400 });
         }
@@ -1619,6 +1630,22 @@ export async function POST(request: NextRequest) {
         const validStatuses = ['active', 'suspended', 'deactivated'];
         if (!validStatuses.includes(newStatus)) {
           return NextResponse.json({ success: false, error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` }, { status: 400 });
+        }
+
+        // Resolve operator name from context.userId
+        let operatorName = context.userId || 'system';
+        try {
+          if (context.userId) {
+            const operator = await db.user.findUnique({
+              where: { id: context.userId },
+              select: { firstName: true, lastName: true },
+            });
+            if (operator) {
+              operatorName = [operator.firstName, operator.lastName].filter(Boolean).join(' ') || context.userId;
+            }
+          }
+        } catch (resolveErr) {
+          console.warn('[change-user-status] Could not resolve operator name:', resolveErr);
         }
 
         try {
@@ -1702,8 +1729,9 @@ export async function POST(request: NextRequest) {
               userId: user.id,
               oldStatus,
               newStatus,
-              changedBy: context.userId || null,
+              changedBy: operatorName,
               changeReason: reason || `Status changed from ${oldStatus} to ${newStatus}`,
+              ipAddress: operatorIp,
             },
           });
 

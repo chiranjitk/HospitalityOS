@@ -154,6 +154,12 @@ export default function RadiusUsersTab() {
   const [editingUser, setEditingUser] = useState<RadiusUser | null>(null);
   const [savingUser, setSavingUser] = useState(false);
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+
+  // Status change dialog state
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [statusDialogData, setStatusDialogData] = useState<{ user: RadiusUser; newStatus: 'active' | 'suspended' | 'deactivated' } | null>(null);
+  const [statusReason, setStatusReason] = useState('');
+  const [statusChanging, setStatusChanging] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const originalSessionTimeout = useRef<number | undefined>(undefined);
   const [form, setForm] = useState({
@@ -338,9 +344,18 @@ export default function RadiusUsersTab() {
     }
   };
 
-  const handleStatusChange = async (user: RadiusUser, newStatus: 'active' | 'suspended' | 'deactivated') => {
+  const openStatusDialog = (user: RadiusUser, newStatus: 'active' | 'suspended' | 'deactivated') => {
+    setStatusDialogData({ user, newStatus });
+    setStatusReason('');
+    setStatusDialogOpen(true);
+  };
+
+  const handleStatusChangeConfirm = async () => {
+    if (!statusDialogData) return;
+    const { user, newStatus } = statusDialogData;
     const actionLabel = newStatus === 'active' ? 'Activate' : newStatus === 'suspended' ? 'Suspend' : 'Deactivate';
-    
+
+    setStatusChanging(true);
     try {
       const res = await fetch('/api/wifi/radius', {
         method: 'POST',
@@ -349,7 +364,7 @@ export default function RadiusUsersTab() {
           action: 'change-user-status',
           id: user.id,
           status: newStatus,
-          reason: `Manual ${actionLabel.toLowerCase()} by staff`,
+          reason: statusReason.trim() || `Manual ${actionLabel.toLowerCase()} by staff`,
         }),
       });
 
@@ -362,12 +377,15 @@ export default function RadiusUsersTab() {
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Status Changed', description: `${user.username}: ${data.message || `${actionLabel}d successfully`}` });
+        setStatusDialogOpen(false);
         fetchUsers();
       } else {
         toast({ title: 'Error', description: data.error || `Failed to ${actionLabel.toLowerCase()} user`, variant: 'destructive' });
       }
     } catch {
       toast({ title: 'Error', description: `Failed to ${actionLabel.toLowerCase()} user`, variant: 'destructive' });
+    } finally {
+      setStatusChanging(false);
     }
   };
 
@@ -904,15 +922,15 @@ export default function RadiusUsersTab() {
                           <div className="flex justify-end gap-1">
                             {user.status === 'active' ? (
                               <>
-                                <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-50" title="Suspend User" onClick={() => handleStatusChange(user, 'suspended')}>
+                                <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-50" title="Suspend User" onClick={() => openStatusDialog(user, 'suspended')}>
                                   <Ban className="h-4 w-4" />
                                 </Button>
-                                <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" title="Deactivate User" onClick={() => handleStatusChange(user, 'deactivated')}>
+                                <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" title="Deactivate User" onClick={() => openStatusDialog(user, 'deactivated')}>
                                   <UserX className="h-4 w-4" />
                                 </Button>
                               </>
                             ) : (
-                              <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" title="Activate User" onClick={() => handleStatusChange(user, 'active')}>
+                              <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" title="Activate User" onClick={() => openStatusDialog(user, 'active')}>
                                 <UserCheck className="h-4 w-4" />
                               </Button>
                             )}
@@ -1104,6 +1122,50 @@ export default function RadiusUsersTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Status Change Confirmation Dialog */}
+      <AlertDialog open={statusDialogOpen} onOpenChange={(open) => { if (!open) { setStatusDialogData(null); setStatusReason(''); } setStatusDialogOpen(open); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {statusDialogData?.newStatus === 'suspended' && <Ban className="h-5 w-5 text-amber-500" />}
+              {statusDialogData?.newStatus === 'deactivated' && <UserX className="h-5 w-5 text-red-500" />}
+              {statusDialogData?.newStatus === 'active' && <UserCheck className="h-5 w-5 text-emerald-500" />}
+              {statusDialogData?.newStatus === 'suspended' ? 'Suspend User' : statusDialogData?.newStatus === 'deactivated' ? 'Deactivate User' : 'Activate User'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {statusDialogData && (statusDialogData.newStatus === 'active'
+                ? <span>Re-activate "{statusDialogData.user.username}" - they will be able to authenticate to WiFi again.</span>
+                : statusDialogData.newStatus === 'suspended'
+                ? <span>Suspend "{statusDialogData.user.username}" - their RADIUS credentials will be removed and they won&apos;t be able to log in until reactivated.</span>
+                : <span>Deactivate "{statusDialogData.user.username}" - this will permanently remove their RADIUS credentials.</span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <label className="text-sm font-medium mb-2 block">Reason (optional)</label>
+            <textarea
+              className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+              placeholder="Enter reason for this status change..."
+              value={statusReason}
+              onChange={(e) => setStatusReason(e.target.value.slice(0, 500))}
+              maxLength={500}
+            />
+            <p className="text-xs text-muted-foreground mt-1 text-right">{statusReason.length}/500</p>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleStatusChangeConfirm}
+              disabled={statusChanging}
+              className={statusDialogData?.newStatus === 'suspended' ? 'bg-amber-500 hover:bg-amber-600 text-white' : statusDialogData?.newStatus === 'deactivated' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-emerald-500 hover:bg-emerald-600 text-white'}
+            >
+              {statusChanging && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {statusDialogData?.newStatus === 'suspended' ? 'Suspend' : statusDialogData?.newStatus === 'deactivated' ? 'Deactivate' : 'Activate'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteUserId} onOpenChange={(open) => { if (!open) setDeleteUserId(null); }}>
