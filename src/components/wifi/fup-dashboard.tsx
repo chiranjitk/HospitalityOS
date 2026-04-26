@@ -52,7 +52,17 @@ import {
   WifiOff,
   TriangleAlert,
   Eye,
+  Loader2,
+  Search,
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 

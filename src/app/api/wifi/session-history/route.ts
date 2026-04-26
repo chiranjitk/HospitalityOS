@@ -342,10 +342,18 @@ export async function GET(request: NextRequest) {
 
     // ── Build response ──────────────────────────────────────────────────────
     // Convert BigInt values from SQLite to Number for JSON serialization
+    // Strip /32 CIDR suffix from PostgreSQL inet columns
     const safeData = JSON.parse(JSON.stringify(paginatedSessions, (_, v) => typeof v === 'bigint' ? Number(v) : v));
+    const stripCidr = (v: unknown) => String(v ?? '').replace(/\/\d+$/, '');
+    const cleaned = safeData.map((row: Record<string, unknown>) => ({
+      ...row,
+      nasipaddress: stripCidr(row.nasipaddress),
+      framedipaddress: stripCidr(row.framedipaddress),
+      framedipv6address: stripCidr(row.framedipv6address),
+    }));
     const response: SessionHistoryResponse = {
       success: true,
-      data: safeData,
+      data: cleaned,
       pagination: {
         total,
         limit,

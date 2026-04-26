@@ -131,8 +131,51 @@ export async function GET(request: NextRequest) {
 
     switch (action) {
       case 'status': {
-        const data = await freeradiusRequest('/api/status');
-        return NextResponse.json(data);
+        // Check actual FreeRADIUS process + PostgreSQL backend — not freeradius-service proxy
+        try {
+          const { execSync } = await import('child_process');
+          let running = false;
+          try {
+            const result = execSync('pgrep -f "freeradius" | head -1', { encoding: 'utf-8', timeout: 3000 });
+            running = !!result && result.trim().length > 0;
+          } catch { running = false; }
+
+          // Count users from radcheck
+          let userCount = 0;
+          let nasCount = 0;
+          try {
+            const uc = await db.$queryRawUnsafe<[{ c: number | bigint }]>('SELECT COUNT(*) as c FROM radcheck');
+            userCount = Number(uc[0]?.c ?? 0);
+            const nc = await db.$queryRawUnsafe<[{ c: number | bigint }]>('SELECT COUNT(*) as c FROM nas');
+            nasCount = Number(nc[0]?.c ?? 0);
+          } catch { /* tables might not exist */ }
+
+          // Count active sessions
+          let activeSessions = 0;
+          try {
+            const ac = await db.$queryRawUnsafe<[{ c: number | bigint }]>(
+              "SELECT COUNT(*) as c FROM radacct WHERE acctstoptime IS NULL"
+            );
+            activeSessions = Number(ac[0]?.c ?? 0);
+          } catch { /* ignore */ }
+
+          return NextResponse.json({
+            success: true,
+            data: {
+              installed: true,
+              running,
+              mode: running ? 'running' : 'stopped',
+              userCount,
+              nasClientCount: nasCount,
+              activeSessions,
+              authPort: 1812,
+              acctPort: 1813,
+            },
+          });
+        } catch (error) {
+          console.error('[status] Direct check error:', error);
+          return NextResponse.json({ success: true, data: { installed: false, running: false, mode: 'unknown', userCount: 0, nasClientCount: 0 } });
+        }
       }
 
       case 'stats': {
@@ -309,6 +352,7 @@ export async function GET(request: NextRequest) {
             LIMIT $${sqlParams.length}
           `, ...sqlParams);
 
+          const stripCidr = (v: string | null) => (v || '').replace(/\/\d+$/, '');
           const mapped = authEvents.map((e) => ({
             id: e.id || `auth_${e.id}`,
             timestamp: e.timestamp || '',
@@ -316,9 +360,9 @@ export async function GET(request: NextRequest) {
             authResult: e.auth_result || '',
             authType: 'RADIUS',
             // Client real IP — the user's assigned IP from pool/accounting
-            clientIpAddress: (e.client_ip_address as string) || '',
+            clientIpAddress: stripCidr(e.client_ip_address as string),
             // NAS source IP (where auth request came from)
-            nasIpAddress: (e.nas_ip_address as string) || '',
+            nasIpAddress: stripCidr(e.nas_ip_address as string),
             // MAC addresses
             callingStationId: (e.calling_station_id as string) || '',
             calledStationId: (e.called_station_id as string) || '',
@@ -633,12 +677,14 @@ export async function GET(request: NextRequest) {
             ORDER BY acctstarttime DESC
           `, ...sqlParams);
 
+          // Strip /32 CIDR suffix from PostgreSQL inet columns
+          const stripCidr = (v: string | null) => (v || '').replace(/\/\d+$/, '');
           const sessions = activeSessions.map((s) => ({
             id: `ls_${s.acctuniqueid}`,
             username: s.username || '',
-            ipAddress: s.framedipaddress || '',
+            ipAddress: stripCidr(s.framedipaddress),
             macAddress: s.callingstationid || '',
-            nasIp: s.nasipaddress || '',
+            nasIp: stripCidr(s.nasipaddress),
             nasIdentifier: s.calledstationid || '',
             deviceType: '',
             operatingSystem: '',
@@ -1106,7 +1152,7 @@ export async function GET(request: NextRequest) {
           const dailyMap = new Map<string, { downloadBytes: number; uploadBytes: number }>();
           for (const r of userRecords) {
             if (r.acctupdatetime) {
-              const dateKey = r.acctupdatetime.split('T')[0];
+              const dateKey = String(r.acctupdatetime).split('T')[0];
               const existing = dailyMap.get(dateKey);
               if (existing) {
                 existing.downloadBytes += Number(r.acctoutputoctets ?? 0);
