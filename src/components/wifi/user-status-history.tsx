@@ -65,9 +65,9 @@ interface UserStatusEntry {
 const STATUS_CONFIG: Record<string, { color: string; icon: React.ReactNode }> = {
   active: { color: 'bg-emerald-500 hover:bg-emerald-600 text-white border-0', icon: <CheckCircle className="h-3 w-3 mr-1" /> },
   suspended: { color: 'bg-amber-500 hover:bg-amber-600 text-white border-0', icon: <Pause className="h-3 w-3 mr-1" /> },
-  disabled: { color: 'bg-gray-500 hover:bg-gray-600 text-white border-0', icon: <Ban className="h-3 w-3 mr-1" /> },
-  expired: { color: 'bg-red-500 hover:bg-red-600 text-white border-0', icon: <AlertTriangle className="h-3 w-3 mr-1" /> },
-  blocked: { color: 'bg-red-600 hover:bg-red-700 text-white border-0', icon: <XCircle className="h-3 w-3 mr-1" /> },
+  deactivated: { color: 'bg-red-500 hover:bg-red-600 text-white border-0', icon: <Ban className="h-3 w-3 mr-1" /> },
+  expired: { color: 'bg-gray-500 hover:bg-gray-600 text-white border-0', icon: <AlertTriangle className="h-3 w-3 mr-1" /> },
+  revoked: { color: 'bg-red-600 hover:bg-red-700 text-white border-0', icon: <XCircle className="h-3 w-3 mr-1" /> },
   inactive: { color: 'bg-slate-500 hover:bg-slate-600 text-white border-0', icon: <Activity className="h-3 w-3 mr-1" /> },
   pending: { color: 'bg-sky-500 hover:bg-sky-600 text-white border-0', icon: <Clock className="h-3 w-3 mr-1" /> },
 };
@@ -193,12 +193,10 @@ export default function UserStatusHistory() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="suspended">Suspended</SelectItem>
-                <SelectItem value="disabled">Disabled</SelectItem>
-                <SelectItem value="expired">Expired</SelectItem>
-                <SelectItem value="blocked">Blocked</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="active">🟢 Active</SelectItem>
+                <SelectItem value="suspended">🟡 Suspended</SelectItem>
+                <SelectItem value="deactivated">🔴 Deactivated</SelectItem>
+                <SelectItem value="expired">⚪ Expired</SelectItem>
               </SelectContent>
             </Select>
             <div className="flex gap-2">
@@ -256,10 +254,12 @@ export default function UserStatusHistory() {
                 <TableBody>
                   {entries.map((entry, index) => (
                     <TableRow key={entry.id || index} className={
-                      entry.newStatus === 'blocked' || entry.newStatus === 'disabled' || entry.newStatus === 'expired'
+                      entry.newStatus === 'deactivated' || entry.newStatus === 'revoked' || entry.newStatus === 'expired'
                         ? 'bg-red-50/30 dark:bg-red-950/10'
                         : entry.newStatus === 'active'
                           ? 'bg-emerald-50/30 dark:bg-emerald-950/10'
+                          : entry.newStatus === 'suspended'
+                          ? 'bg-amber-50/30 dark:bg-amber-950/10'
                           : ''
                     }>
                       <TableCell>

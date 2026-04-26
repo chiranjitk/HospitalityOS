@@ -948,14 +948,48 @@ export async function GET(request: NextRequest) {
 
       // ─── Accsium Gap: User Status History ───────────────────
       case 'user-status-history-list': {
-        const queryParams = new URLSearchParams();
-        const params = ['propertyId', 'username', 'limit', 'offset', 'startDate', 'endDate'];
-        for (const p of params) {
-          const v = searchParams.get(p);
-          if (v) queryParams.set(p, v);
+        try {
+          const username = searchParams.get('username');
+          const status = searchParams.get('status');
+          const limit = Math.min(parseInt(searchParams.get('limit') || '200', 10), 500);
+          const offset = parseInt(searchParams.get('offset') || '0', 10);
+          const startDateStr = searchParams.get('startDate');
+          const endDateStr = searchParams.get('endDate');
+
+          const conditions: string[] = [];
+          const sqlParams: unknown[] = [];
+          if (username) { conditions.push(`username LIKE $${sqlParams.length + 1}`); sqlParams.push(`%${username}%`); }
+          if (status) { conditions.push(`"newStatus" = $${sqlParams.length + 1}`); sqlParams.push(status); }
+          if (startDateStr) { conditions.push(`"createdAt" >= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(startDateStr.length === 10 ? `${startDateStr} 00:00:00` : startDateStr); }
+          if (endDateStr) { conditions.push(`"createdAt" <= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(endDateStr.length === 10 ? `${endDateStr} 23:59:59` : endDateStr); }
+          const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+          sqlParams.push(limit, offset);
+
+          const rows = await db.$queryRawUnsafe<{
+            id: string;
+            username: string;
+            oldStatus: string;
+            newStatus: string;
+            changedBy: string;
+            changeReason: string;
+            ipAddress: string;
+            createdAt: string;
+            userId: string;
+          }[]>(`
+            SELECT id, username, "oldStatus", "newStatus", "changedBy", "changeReason",
+                   "ipAddress", "createdAt", "userId"
+            FROM "WiFiUserStatusHistory"
+            ${whereClause}
+            ORDER BY "createdAt" DESC
+            LIMIT $${sqlParams.length - 1} OFFSET $${sqlParams.length}
+          `, ...sqlParams);
+
+          const safeRows = JSON.parse(JSON.stringify(rows, (_, v) => typeof v === 'bigint' ? Number(v) : v));
+          return NextResponse.json({ success: true, data: safeRows });
+        } catch (error) {
+          console.error('[user-status-history-list] Direct query error:', error);
+          return NextResponse.json({ success: true, data: [] });
         }
-        const data = await freeradiusRequest(`/api/user-status-history?${queryParams.toString()}`);
-        return NextResponse.json(data);
       }
 
       // ─── User Usage Summary: Query from v_user_usage view ────────
