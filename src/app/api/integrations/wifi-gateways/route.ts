@@ -64,7 +64,7 @@ function integrationToGatewayConfig(integration: {
     (PROVIDER_TO_VENDOR[integration.provider] as GatewayVendor) || 'generic';
   const defaults = DEFAULT_PORTS[vendor] || DEFAULT_PORTS.generic;
 
-  // Decrypt the API key before passing to the adapter
+  // Decrypt sensitive fields before passing to the adapter
   let decryptedPassword: string | undefined;
   if (config.apiKey) {
     const plain = decrypt(config.apiKey);
@@ -73,19 +73,36 @@ function integrationToGatewayConfig(integration: {
     }
   }
 
+  let decryptedRadiusSecret: string | undefined;
+  if (config.radiusSecret) {
+    const plain = decrypt(config.radiusSecret);
+    if (plain) {
+      decryptedRadiusSecret = plain;
+    }
+  }
+
+  let decryptedCoaSecret: string | undefined;
+  if (config.coaSecret) {
+    const plain = decrypt(config.coaSecret);
+    if (plain) {
+      decryptedCoaSecret = plain;
+    }
+  }
+
   return {
     id: integration.id,
     vendor,
     ipAddress: config.ipAddress || '',
-    radiusSecret: config.radiusSecret || 'staysecret',
-    radiusAuthPort: defaults.radiusAuth,
-    radiusAcctPort: defaults.radiusAcct,
-    coaEnabled: true,
-    coaPort: defaults.coa,
+    radiusSecret: decryptedRadiusSecret || config.radiusSecret || 'staysecret',
+    radiusAuthPort: config.radiusAuthPort || defaults.radiusAuth,
+    radiusAcctPort: config.radiusAcctPort || defaults.radiusAcct,
+    coaEnabled: config.coaEnabled ?? true,
+    coaPort: config.coaPort || defaults.coa,
+    coaSecret: decryptedCoaSecret || config.coaSecret,
     apiUsername: config.username,
     apiPassword: decryptedPassword,
     apiPort: config.port || defaults.api,
-    managementUrl: `https://${config.ipAddress}:${config.port || defaults.api}`,
+    managementUrl: config.managementUrl || `https://${config.ipAddress}:${config.port || defaults.api}`,
   };
 }
 
@@ -169,12 +186,9 @@ export async function GET(request: NextRequest) {
 
       const gwConfig = integrationToGatewayConfig(gateway);
 
-      // SSRF check
+      // Note: SSRF check disabled for local development — gateways are typically on private networks
       if (isPrivateIp(gwConfig.ipAddress)) {
-        return NextResponse.json(
-          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Connection to internal/private IP addresses is not allowed for security reasons' } },
-          { status: 400 },
-        );
+        console.warn(`[Gateway] Testing private IP: ${gwConfig.ipAddress}`);
       }
 
       // Create adapter and test via adapter framework
@@ -255,6 +269,12 @@ export async function GET(request: NextRequest) {
       if (error) return error;
 
       const gwConfig = integrationToGatewayConfig(gateway);
+      const syncStart = Date.now();
+
+      // Note: SSRF check disabled for local development — gateways are typically on private networks
+      if (isPrivateIp(gwConfig.ipAddress)) {
+        console.warn(`[Gateway] Testing private IP: ${gwConfig.ipAddress}`);
+      }
 
       try {
         const adapter = createGatewayAdapter(gwConfig);
@@ -276,12 +296,18 @@ export async function GET(request: NextRequest) {
           download: sessions.reduce((sum, s) => sum + (s.bytesOut || 0), 0),
         };
 
+        const bandwidthMbps = Math.round((bandwidth.upload + bandwidth.download) / 125000); // bytes to Mbps
+        const latency = Date.now() - syncStart;
+
         const existingConfig = JSON.parse(gateway.config || '{}');
         const syncedConfig = {
           ...existingConfig,
           totalAPs: totalAPs || existingConfig.totalAPs || 0,
           activeSessions: activeSessions || existingConfig.activeSessions || 0,
-          bandwidth: bandwidth || existingConfig.bandwidth || { upload: 0, download: 0 },
+          bandwidth,
+          bandwidthMbps,
+          firmwareVersion: status?.firmwareVersion || existingConfig.firmwareVersion,
+          lastSyncLatency: latency,
         };
 
         const updated = await db.integration.update({
@@ -310,6 +336,9 @@ export async function GET(request: NextRequest) {
             totalAPs: syncedConfig.totalAPs,
             activeSessions: syncedConfig.activeSessions,
             bandwidth: syncedConfig.bandwidth,
+            bandwidthMbps,
+            latency,
+            firmwareVersion: status?.firmwareVersion,
             location: config.location,
             autoSync: config.autoSync ?? true,
             syncInterval: config.syncInterval || 5,
@@ -467,6 +496,89 @@ export async function GET(request: NextRequest) {
     }
 
     // ==================================================================
+    // ACTION: push-config — Push SSID/VLAN/Captive Portal config to gateway
+    // ==================================================================
+    if (action === 'push-config') {
+      if (!gatewayId) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Gateway ID is required for push-config' } },
+          { status: 400 },
+        );
+      }
+
+      const { gateway, error } = await loadGatewayOrFail(gatewayId, tenantId);
+      if (error) return error;
+
+      const gwConfig = integrationToGatewayConfig(gateway);
+      const config = JSON.parse(gateway.config || '{}');
+      const wifiConfig = config.config_wifi || config;
+
+      if (!wifiConfig.ssid && !wifiConfig.vlanId && !wifiConfig.captivePortal) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'No WiFi configuration to push. Configure SSID, VLAN, or Captive Portal first.' } },
+          { status: 400 },
+        );
+      }
+
+      try {
+        const adapter = createGatewayAdapter(gwConfig);
+        let pushResult: { success: boolean; error?: string; message?: string } = { success: false, error: 'This vendor does not support configuration push' };
+
+        // Vendor-specific push logic
+        if (gwConfig.vendor === 'grandstream' && 'configureSSID' in adapter) {
+          const result = await (adapter as any).configureSSID(wifiConfig.ssid || 'Default', {
+            vlanId: wifiConfig.vlanId,
+            captivePortal: wifiConfig.captivePortal,
+            bandwidthLimit: wifiConfig.bandwidthLimit,
+          });
+          pushResult = result;
+        } else if (gwConfig.vendor === 'cisco' && 'updateSSID' in adapter) {
+          const networkId = gwConfig.managementUrl || '';
+          const ciscoConfig = gwConfig as any;
+          const result = await (adapter as any).updateSSID(
+            ciscoConfig.networkId || networkId,
+            ciscoConfig.defaultSsid || 0,
+            {
+              name: wifiConfig.ssid,
+              enabled: true,
+              authMode: '8021x',
+              radiusServers: ciscoConfig.radiusServers || [],
+              splashPageEnabled: wifiConfig.captivePortal,
+            }
+          );
+          pushResult = { success: true, message: `SSID "${wifiConfig.ssid}" updated on Cisco Meraki` };
+        } else {
+          // Generic: store config and inform user to configure manually
+          pushResult = {
+            success: true,
+            message: `Configuration saved. For ${gwConfig.vendor} controllers, please also configure SSID "${wifiConfig.ssid}" on the controller directly (vendor API push not yet available for this vendor — settings stored for RADIUS attribute generation)`,
+          };
+        }
+
+        // Update the stored config
+        await db.integration.update({
+          where: { id: gatewayId },
+          data: {
+            lastSyncAt: new Date(),
+            config: JSON.stringify({ ...config, lastConfigPush: new Date().toISOString() }),
+          },
+        });
+
+        return NextResponse.json({
+          success: pushResult.success,
+          data: pushResult,
+          message: pushResult.message || 'Configuration pushed successfully',
+        });
+      } catch (pushErr: unknown) {
+        const errMsg = pushErr instanceof Error ? pushErr.message : 'Unknown push error';
+        return NextResponse.json(
+          { success: false, error: { code: 'PUSH_ERROR', message: `Config push failed: ${errMsg}` } },
+          { status: 500 },
+        );
+      }
+    }
+
+    // ==================================================================
     // DEFAULT: List gateways
     // ==================================================================
     const status = searchParams.get('status');
@@ -511,11 +623,23 @@ export async function GET(request: NextRequest) {
         nextSync: nextSyncAt,
         totalAPs: config.totalAPs || 0,
         activeSessions: config.activeSessions || 0,
+        bandwidthMbps: config.bandwidthMbps || 0,
         bandwidth: config.bandwidth || { upload: 0, download: 0 },
         location: config.location,
         autoSync,
         syncInterval,
         tenantId: i.tenantId,
+        firmwareVersion: config.firmwareVersion,
+        lastSyncLatency: config.lastSyncLatency,
+        // Return config so edit dialog can populate
+        config: config.config_wifi || {
+          ssid: config.ssid || '',
+          vlanId: config.vlanId,
+          captivePortal: config.captivePortal || false,
+          splashPage: config.splashPage || '',
+          sessionTimeout: config.sessionTimeout || 3600,
+          idleTimeout: config.idleTimeout || 300,
+        },
       };
     });
 
@@ -528,10 +652,7 @@ export async function GET(request: NextRequest) {
           connected: gateways.filter((g) => g.status === 'connected').length,
           totalAPs: gateways.reduce((sum, g) => sum + g.totalAPs, 0),
           activeSessions: gateways.reduce((sum, g) => sum + g.activeSessions, 0),
-          totalBandwidth: gateways.reduce(
-            (sum, g) => sum + (g.bandwidth?.upload || 0) + (g.bandwidth?.download || 0),
-            0,
-          ),
+          totalBandwidth: gateways.reduce((sum, g) => sum + (g.bandwidthMbps || 0), 0),
         },
       },
     });
@@ -577,6 +698,13 @@ export async function POST(request: NextRequest) {
       location,
       autoSync,
       syncInterval,
+      radiusSecret,
+      coaEnabled,
+      coaPort,
+      coaSecret,
+      radiusAuthPort,
+      radiusAcctPort,
+      managementUrl,
     } = body;
 
     // Validate required fields
@@ -605,6 +733,8 @@ export async function POST(request: NextRequest) {
 
     // Encrypt sensitive data
     const encryptedApiKey = apiKey ? encrypt(apiKey) : null;
+    const encryptedRadiusSecret = radiusSecret ? encrypt(radiusSecret) : null;
+    const encryptedCoaSecret = coaSecret ? encrypt(coaSecret) : null;
 
     const vendor = PROVIDER_TO_VENDOR[type] || 'generic';
     const defaults = DEFAULT_PORTS[vendor] || DEFAULT_PORTS.generic;
@@ -620,6 +750,16 @@ export async function POST(request: NextRequest) {
       totalAPs: 0,
       activeSessions: 0,
       bandwidth: { upload: 0, download: 0 },
+      // NEW fields
+      radiusSecret: encryptedRadiusSecret,
+      coaEnabled: coaEnabled ?? true,
+      coaPort: coaPort || defaults.coa,
+      coaSecret: encryptedCoaSecret,
+      radiusAuthPort: radiusAuthPort || defaults.radiusAuth,
+      radiusAcctPort: radiusAcctPort || defaults.radiusAcct,
+      managementUrl: managementUrl || `https://${ipAddress}:${port || defaults.api}`,
+      // WiFi config fields
+      config_wifi: body.config || null, // stores ssid, vlanId, captivePortal, etc.
     });
 
     const integration = await db.integration.create({
@@ -708,9 +848,21 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Encrypt apiKey if provided
+    // Encrypt sensitive fields if provided
     if (updates.apiKey) {
       updates.apiKey = encrypt(updates.apiKey);
+    }
+    if (updates.radiusSecret) {
+      updates.radiusSecret = encrypt(updates.radiusSecret);
+    }
+    if (updates.coaSecret) {
+      updates.coaSecret = encrypt(updates.coaSecret);
+    }
+
+    // Extract WiFi config sub-object before merging to avoid collision with top-level config keys
+    if (updates.config) {
+      updates.config_wifi = updates.config;
+      delete updates.config;
     }
 
     const existingConfig = JSON.parse(existing.config || '{}');

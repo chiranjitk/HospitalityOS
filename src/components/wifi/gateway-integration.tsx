@@ -58,6 +58,7 @@ import {
   EyeOff,
   Gauge,
   Repeat,
+  Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -69,7 +70,7 @@ interface WiFiGateway {
   type:
     | 'mikrotik'
     | 'cisco'
-    | 'unifi'
+    | 'ubiquiti'
     | 'aruba'
     | 'ruckus'
     | 'fortinet'
@@ -100,6 +101,10 @@ interface WiFiGateway {
   location?: string;
   autoSync: boolean;
   syncInterval: number;
+  radiusSecret?: string;
+  coaEnabled?: boolean;
+  coaPort?: number;
+  coaSecret?: string;
   config?: {
     ssid: string;
     vlanId?: number;
@@ -128,7 +133,7 @@ interface SyncResultData {
 const gatewayTypes = [
   { value: 'mikrotik', label: 'MikroTik RouterOS' },
   { value: 'cisco', label: 'Cisco Meraki' },
-  { value: 'unifi', label: 'Ubiquiti UniFi' },
+  { value: 'ubiquiti', label: 'Ubiquiti UniFi' },
   { value: 'aruba', label: 'Aruba Networks (HPE)' },
   { value: 'ruckus', label: 'Ruckus Networks' },
   { value: 'fortinet', label: 'Fortinet FortiGate' },
@@ -182,6 +187,10 @@ export default function GatewayIntegration() {
     location: '',
     autoSync: true,
     syncInterval: 5,
+    radiusSecret: '',
+    coaEnabled: true,
+    coaPort: 3799,
+    coaSecret: '',
     config: {
       ssid: '',
       captivePortal: false,
@@ -383,17 +392,17 @@ export default function GatewayIntegration() {
 
       if (result.success) {
         const syncData: SyncResultData = result.data || {};
+        const bw = syncData.bandwidthMbps ?? 0;
+        const latency = syncData.latency;
         const aps = syncData.totalAPs ?? gateway.totalAPs;
         const sessions = syncData.activeSessions ?? gateway.activeSessions;
-        const bw = syncData.bandwidthMbps ?? (gateway.bandwidth.download + gateway.bandwidth.upload);
-        const latency = syncData.latency;
 
         toast({
           title: 'Sync Complete',
           description: `Synced: ${aps} APs, ${sessions} sessions, ${bw} Mbps${latency != null ? ` (${latency}ms latency)` : ''}`,
         });
 
-        // Update the gateway locally with fresh sync data and latency
+        // Update gateway with proper values
         setGateways((prev) =>
           prev.map((g) =>
             g.id === gateway.id
@@ -403,7 +412,6 @@ export default function GatewayIntegration() {
                   totalAPs: aps,
                   activeSessions: sessions,
                   bandwidth: {
-                    ...g.bandwidth,
                     download: Math.round(bw * 0.65),
                     upload: Math.round(bw * 0.35),
                   },
@@ -480,6 +488,10 @@ export default function GatewayIntegration() {
       location: '',
       autoSync: true,
       syncInterval: 5,
+      radiusSecret: '',
+      coaEnabled: true,
+      coaPort: 3799,
+      coaSecret: '',
       config: {
         ssid: '',
         captivePortal: false,
@@ -500,8 +512,28 @@ export default function GatewayIntegration() {
         sessionTimeout: 3600,
         idleTimeout: 300,
       },
+      radiusSecret: (gateway as any).radiusSecret || '',
+      coaEnabled: (gateway as any).coaEnabled ?? true,
+      coaPort: (gateway as any).coaPort || 3799,
+      coaSecret: (gateway as any).coaSecret || '',
     });
     setIsConfigOpen(true);
+  };
+
+  const handlePushConfig = async (gateway: WiFiGateway) => {
+    try {
+      const response = await fetch(`/api/integrations/wifi-gateways?action=push-config&id=${gateway.id}`, {
+        method: 'POST',
+      });
+      const result = await response.json();
+      if (result.success) {
+        toast({ title: 'Config Pushed', description: result.message || 'Configuration pushed to gateway successfully' });
+      } else {
+        toast({ title: 'Push Failed', description: result.error?.message || 'Failed to push configuration', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Push Failed', description: 'Failed to push configuration', variant: 'destructive' });
+    }
   };
 
   const filteredGateways = gateways.filter((gw) => {
@@ -627,9 +659,7 @@ export default function GatewayIntegration() {
                 {status === 'all' ? 'All' : status}
                 {status !== 'all' && (
                   <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
-                    {status === 'all'
-                      ? gateways.length
-                      : gateways.filter((g) => g.status === status).length}
+                    {gateways.filter((g) => g.status === status).length}
                   </Badge>
                 )}
               </Button>
@@ -802,6 +832,15 @@ export default function GatewayIntegration() {
                             <Button
                               variant="outline"
                               size="sm"
+                              onClick={() => handlePushConfig(gateway)}
+                              disabled={gateway.status !== 'connected'}
+                            >
+                              <Upload className="h-3 w-3 mr-1" />
+                              Push Config
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => openEditDialog(gateway)}
                             >
                               <Settings className="h-3 w-3 mr-1" />
@@ -956,6 +995,78 @@ export default function GatewayIntegration() {
 
             <Separator />
 
+            {/* RADIUS & CoA Settings */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-sm">RADIUS & CoA Settings</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="radiusSecret">RADIUS Secret</Label>
+                  <div className="relative">
+                    <Input
+                      id="radiusSecret"
+                      type={showApiKey ? 'text' : 'password'}
+                      value={formData.radiusSecret || ''}
+                      onChange={(e) => setFormData({ ...formData, radiusSecret: e.target.value })}
+                      placeholder="Enter RADIUS shared secret"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                    >
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="coaPort">CoA Port</Label>
+                  <Input
+                    id="coaPort"
+                    type="number"
+                    value={formData.coaPort || 3799}
+                    onChange={(e) => setFormData({ ...formData, coaPort: parseInt(e.target.value) || 3799 })}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="coaEnabled"
+                    checked={formData.coaEnabled ?? true}
+                    onCheckedChange={(checked) => setFormData({ ...formData, coaEnabled: checked })}
+                  />
+                  <Label htmlFor="coaEnabled">Enable CoA (Change of Authorization)</Label>
+                </div>
+              </div>
+              {formData.coaEnabled !== false && (
+                <div className="space-y-2">
+                  <Label htmlFor="coaSecret">CoA Secret (optional)</Label>
+                  <div className="relative">
+                    <Input
+                      id="coaSecret"
+                      type={showApiKey ? 'text' : 'password'}
+                      value={formData.coaSecret || ''}
+                      onChange={(e) => setFormData({ ...formData, coaSecret: e.target.value })}
+                      placeholder="Enter CoA shared secret"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                    >
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
             {/* WiFi Configuration */}
             <div className="space-y-4">
               <h4 className="font-medium text-sm">WiFi Configuration</h4>
@@ -1007,6 +1118,20 @@ export default function GatewayIntegration() {
                       ...formData,
                       config: { ...formData.config!, idleTimeout: parseInt(e.target.value) || 300 }
                     })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="splashPage">Splash Page URL</Label>
+                  <Input
+                    id="splashPage"
+                    value={formData.config?.splashPage || ''}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      config: { ...formData.config!, splashPage: e.target.value }
+                    })}
+                    placeholder="https://portal.hotel.com/welcome"
                   />
                 </div>
               </div>
