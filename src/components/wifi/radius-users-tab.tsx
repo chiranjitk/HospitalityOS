@@ -66,6 +66,7 @@ import {
   Download,
   Upload,
   FileSpreadsheet,
+  Network,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -108,6 +109,9 @@ interface RadiusUser {
   status?: string;
   validUntil?: string;
   fupPolicy?: FupPolicyInfo | null;
+  ipPoolId?: string;
+  ipPoolName?: string;
+  ipPoolSource?: string;
 }
 
 interface WiFiPlan {
@@ -129,6 +133,7 @@ export default function RadiusUsersTab() {
   const { toast } = useToast();
   const [users, setUsers] = useState<RadiusUser[]>([]);
   const [wifiPlans, setWifiPlans] = useState<WiFiPlan[]>([]);
+  const [ipPools, setIpPools] = useState<Array<{ id: string; name: string; isDefault: boolean }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [groupFilter, setGroupFilter] = useState<string>('all');
@@ -152,6 +157,7 @@ export default function RadiusUsersTab() {
     password: '',
     userType: 'guest' as 'guest' | 'staff' | 'admin' | 'service',
     planId: '',
+    ipPoolId: '',
     group: 'standard-guests',
     downloadSpeed: 10,
     uploadSpeed: 5,
@@ -163,10 +169,22 @@ export default function RadiusUsersTab() {
 
   const fetchPlans = useCallback(async () => {
     try {
-      const res = await fetch('/api/wifi/plans?status=active');
-      const data = await res.json();
+      const [planRes, poolRes] = await Promise.all([
+        fetch('/api/wifi/plans?status=active'),
+        fetch('/api/wifi/ip-pools'),
+      ]);
+      const data = await planRes.json();
       if (data.success && data.data) {
         setWifiPlans(Array.isArray(data.data) ? data.data : []);
+      }
+      if (poolRes.ok) {
+        const poolData = await poolRes.json();
+        if (poolData.success && poolData.data) {
+          setIpPools(poolData.data.map((p: { id: string; name: string; isDefault: boolean }) => ({
+            id: p.id,
+            name: `${p.name}${p.isDefault ? ' (default)' : ''}`
+          })));
+        }
       }
     } catch (error) {
       console.error('Failed to fetch WiFi plans:', error);
@@ -198,7 +216,7 @@ export default function RadiusUsersTab() {
   // ─── Form Helpers ──────────────────────────────────────────────────────────
 
   const resetForm = () => {
-    setForm({ username: '', password: '', userType: 'guest', planId: '', group: 'standard-guests', downloadSpeed: 10, uploadSpeed: 5, sessionTimeout: 1440, dataLimit: 0 });
+    setForm({ username: '', password: '', userType: 'guest', planId: '', ipPoolId: '', group: 'standard-guests', downloadSpeed: 10, uploadSpeed: 5, sessionTimeout: 1440, dataLimit: 0 });
     setEditingUser(null);
   };
 
@@ -259,6 +277,7 @@ export default function RadiusUsersTab() {
       sessionTimeout: sessionMins,
       dataLimit: dataLimitVal,
       planId: matchedPlan?.id || '',
+      ipPoolId: user.ipPoolId || '',
     });
     setDialogOpen(true);
   };
@@ -735,6 +754,7 @@ export default function RadiusUsersTab() {
                     <TableHead>Validity</TableHead>
                     <TableHead>Data Cap</TableHead>
                     <TableHead>FUP Policy</TableHead>
+                    <TableHead>IP Pool</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -814,6 +834,16 @@ export default function RadiusUsersTab() {
                               </div>
                             );
                           })()}
+                        </TableCell>
+                        <TableCell>
+                          {user.ipPoolName ? (
+                            <Badge variant="outline" className="text-[10px] bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-700">
+                              <Network className="h-2.5 w-2.5 mr-0.5" />
+                              {user.ipPoolName}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Inherit</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <span className="text-xs text-muted-foreground">
@@ -940,6 +970,24 @@ export default function RadiusUsersTab() {
                 placeholder="standard-guests"
               />
               <p className="text-[11px] text-muted-foreground">Auto-set from plan; change only if you need a custom group</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>IP Pool Override</Label>
+              <Select value={form.ipPoolId} onValueChange={(v) => setForm(prev => ({ ...prev, ipPoolId: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Inherit from Plan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Inherit from Plan</SelectItem>
+                  {ipPools.map(pool => (
+                    <SelectItem key={pool.id} value={pool.id}>{pool.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Override the plan&apos;s IP pool. User will only be allowed from this pool&apos;s IP ranges.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

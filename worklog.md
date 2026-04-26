@@ -501,3 +501,44 @@ Stage Summary:
 - NAS IP shown separately in detail dialog as "NAS IP (Source)"
 - FreeRADIUS postauth_query updated to capture both NAS IP and client Framed-IP-Address
 - Future auth events from real NAS/APs will auto-capture user IPs
+
+---
+Task ID: 12
+Agent: Main Agent
+Task: Full IP Pool Management (IPAM) feature with FreeRADIUS integration
+
+Work Log:
+- Designed complete IP pool management system with priority chain: User Override > Plan Pool > Default Pool > No restriction
+- Created PostgreSQL tables: `IpPool` (with inet types for efficient range checking) and `IpPoolRange` (start/end IP as inet)
+- Added `ipPoolId` column to `WiFiPlan` and `WiFiUser` tables with FK to IpPool
+- Created PostgreSQL function `fn_check_ip_pool(username, framed_ip)` that implements the priority chain logic
+- Created helper function `fn_get_user_pool_info(username)` for GUI display
+- Built complete IP Pool Management GUI component with:
+  - Full CRUD (Create/Edit/Delete) with expandable pool cards showing IP ranges
+  - Info banner explaining the priority chain
+  - Stats cards (Total Pools, Active, Default Pool, IP Ranges)
+  - Search/filter functionality
+  - Detail dialog showing network info and assignments
+- Added "IP Pools" tab to WiFi Access page under Policy section
+- Updated Plans dialog with IP Pool Restriction selector
+- Updated Users dialog with IP Pool Override selector (inherits from plan by default)
+- Users table now shows IP Pool column with badge
+- Created API route `/api/wifi/ip-pools` with GET/POST/PUT/DELETE handlers
+- Updated Plans API (`/api/wifi/plans`) to support ipPoolId in create/update
+- Updated RADIUS API (`/api/wifi/radius`) update-user action to save ipPoolId to WiFiUser table
+- Updated users query to join IpPool info and return effective pool name + source
+- Added FreeRADIUS IP pool restriction check in `post-auth` section:
+  - Uses `%{sql:SELECT fn_check_ip_pool(...)}` to call PostgreSQL function
+  - If check returns 0 (deny), rejects the authentication with message
+  - Only runs when Framed-IP-Address is present in the request
+- Seeded default IP pool (10.0.0.1-10.0.255.254)
+- Restarted FreeRADIUS to apply config changes
+- All linting passes
+
+Stage Summary:
+- Complete IP Pool Management system deployed with full e2e implementation
+- Users can be restricted to specific IP ranges based on pool assignment
+- Plans define default pool, users can override
+- FreeRADIUS enforces IP pool restrictions on every authentication attempt
+- PostgreSQL inet types ensure efficient range queries
+- GUI provides intuitive pool management with expandable cards

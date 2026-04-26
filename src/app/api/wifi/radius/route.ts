@@ -168,19 +168,19 @@ export async function GET(request: NextRequest) {
           const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
           const rows = await db.$queryRawUnsafe<Record<string, unknown>[]>(`
-            SELECT id, "tenantId", "propertyId", "guestId", "bookingId", username, "planId",
-                   status, "authMethod", "macAddress", "validFrom", "validUntil",
-                   "totalBytesIn", "totalBytesOut", "sessionCount", "lastSeenAt",
-                   "createdAt", "updatedAt",
-                   radius_password, radius_group,
-                   guest_first_name, guest_last_name, guest_email, guest_phone,
-                   guest_loyalty_tier, guest_is_vip,
-                   room_number, room_name, room_floor,
-                   property_name, plan_name,
-                   plan_download_speed, plan_upload_speed, plan_data_limit,
-                   booking_code, booking_status, booking_check_in, booking_check_out
-            FROM v_wifi_users ${whereClause}
-            ORDER BY "createdAt" DESC
+            SELECT vw.*, u."ipPoolId",
+                   COALESCE(up.name, pp.name, dp.name) as effective_ip_pool_name,
+                   CASE WHEN up.name IS NOT NULL THEN 'User Override'
+                        WHEN pp.name IS NOT NULL THEN 'Plan'
+                        WHEN dp.name IS NOT NULL THEN 'Default'
+                        ELSE NULL END as ip_pool_source
+            FROM v_wifi_users vw
+            LEFT JOIN "WiFiUser" u ON u.id = vw.id
+            LEFT JOIN "IpPool" up ON up.id = u."ipPoolId"
+            LEFT JOIN "IpPool" pp ON pp.id = (SELECT wp."ipPoolId" FROM "WiFiPlan" wp WHERE wp.id = vw."planId")
+            LEFT JOIN "IpPool" dp ON dp."isDefault" = true AND dp.enabled = true
+            ${whereClause}
+            ORDER BY vw."createdAt" DESC
           `, ...sqlParams);
 
           const users = rows.map((row) => ({
@@ -205,6 +205,9 @@ export async function GET(request: NextRequest) {
             status: row.status || 'active',
             validUntil: row.validUntil ? String(row.validUntil) : '',
             fupPolicy: null,
+            ipPoolId: row.ipPoolId || '',
+            ipPoolName: row.effective_ip_pool_name || '',
+            ipPoolSource: row.ip_pool_source || '',
             // Enriched fields
             guest_first_name: row.guest_first_name || '',
             guest_last_name: row.guest_last_name || '',
@@ -1548,7 +1551,22 @@ export async function POST(request: NextRequest) {
         if (!userId) {
           return NextResponse.json({ success: false, error: 'User id is required' }, { status: 400 });
         }
-        const { id, ...updateData } = data;
+
+        // Handle IP pool override (stored in WiFiUser table, not in freeradius-service)
+        const ipPoolId = data.ipPoolId;
+        if (ipPoolId !== undefined) {
+          try {
+            await db.$executeRawUnsafe(
+              `UPDATE "WiFiUser" SET "ipPoolId" = $1::uuid WHERE id = $2::uuid`,
+              ipPoolId || null,
+              userId
+            );
+          } catch (poolErr) {
+            console.warn('[update-user] IP pool update failed (non-fatal):', poolErr);
+          }
+        }
+
+        const { id, ipPoolId: _poolId, ...updateData } = data;
         const result = await freeradiusRequest(`/api/users/${userId}`, {
           method: 'PUT',
           body: JSON.stringify(updateData),

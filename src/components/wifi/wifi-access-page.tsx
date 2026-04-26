@@ -1,7 +1,7 @@
 'use client';
 
 import React, { lazy, useState, useEffect, useCallback, Suspense } from 'react';
-import { Wifi, Users, UserPlus, Ticket, BarChart3, Gauge, RefreshCw, QrCode, Server, ShieldCheck, ShieldAlert, Fingerprint, Activity, History, TrendingUp } from 'lucide-react';
+import { Wifi, Users, UserPlus, Ticket, BarChart3, Gauge, RefreshCw, QrCode, Server, ShieldCheck, ShieldAlert, Fingerprint, Activity, History, TrendingUp, Network } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,7 @@ const WifiVouchers = lazy(() => import('@/components/wifi/vouchers'));
 const MacAuthTab = lazy(() => import('@/components/wifi/mac-auth'));
 const WifiFupPolicy = lazy(() => import('@/components/wifi/fup-policy'));
 const EventWifiTab = lazy(() => import('@/components/wifi/event-wifi'));
+const IpPoolManagement = lazy(() => import('@/components/wifi/ip-pool-management'));
 
 // ─── Loading Skeleton ─────────────────────────────────────────────────────────
 
@@ -177,7 +178,7 @@ function WiFiQuickActions({ onRefresh, onSwitchToVouchers }: { onRefresh: () => 
 // Removed low-usage: Smart Bandwidth (feature-incomplete)
 // Ordered by frequency: Live → Access → History → Policy
 
-type TabId = 'live-sessions' | 'users' | 'auth-logs' | 'session-history' | 'user-usage' | 'plans' | 'vouchers' | 'mac-auth' | 'fup-policy' | 'event-wifi';
+type TabId = 'live-sessions' | 'users' | 'auth-logs' | 'session-history' | 'user-usage' | 'plans' | 'vouchers' | 'mac-auth' | 'fup-policy' | 'event-wifi' | 'ip-pools';
 
 type TabItem = {
   id: TabId;
@@ -210,6 +211,7 @@ const tabs: TabEntry[] = [
   { type: 'header', label: 'Policy', indicatorColor: 'bg-amber-500' },
   { type: 'tab', id: 'plans', label: 'Plans', icon: <BarChart3 className="h-4 w-4" />, group: 'policy' },
   { type: 'tab', id: 'fup-policy', label: 'FUP Policy', icon: <Gauge className="h-4 w-4" />, group: 'policy' },
+  { type: 'tab', id: 'ip-pools', label: 'IP Pools', icon: <Network className="h-4 w-4" />, group: 'policy' },
 
   // ── Access ──
   { type: 'header', label: 'Access', indicatorColor: 'bg-purple-500' },
@@ -313,6 +315,7 @@ export function WifiAccessPage() {
           {/* Policy */}
           {activeTab === 'plans' && <WifiPlans />}
           {activeTab === 'fup-policy' && <WifiFupPolicy />}
+          {activeTab === 'ip-pools' && <IpPoolManagement />}
 
           {/* Access */}
           {activeTab === 'vouchers' && <WifiVouchers />}

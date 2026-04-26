@@ -5467,6 +5467,7 @@ model Tenant {
   guestBehaviors        GuestBehavior[]
   guestJourneyEvents    GuestJourney[]
   guestRecommendations  GuestRecommendation[]
+  ipPools               IpPool[]
   segments              GuestSegment[]
   integrations          Integration[]
   inventoryLocks        InventoryLock[]
@@ -6090,6 +6091,52 @@ model WiFiGateway {
   @@index([status])
 }
 
+// ============================================================
+// IP POOL MANAGEMENT MODULE
+// ============================================================
+
+/// IpPool - IP address pool for user restriction (IPAM)
+/// Each pool defines a set of IP ranges. Pools can be assigned to WiFi plans
+/// (plan level) and WiFi users (user override). Priority chain:
+///   User override pool > Plan pool > Default pool > No restriction
+model IpPool {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  propertyId  String?  @db.Uuid
+  name        String
+  description String?
+  gateway     String?  @db.Inet
+  dnsServers  String?  @default("8.8.8.8,8.8.4.4") // Comma-separated DNS
+  subnet      String?  @db.Inet // CIDR subnet e.g. 10.0.0.0/24
+  isDefault   Boolean  @default(false) // Default pool if no pool assigned
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @db.Timestamptz @default(now())
+  updatedAt   DateTime @db.Timestamptz @updatedAt
+  ranges      IpPoolRange[]
+  plans       WiFiPlan[]
+  users       WiFiUser[] @relation("UserIpPoolOverride")
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([isDefault])
+}
+
+/// IpPoolRange - Individual IP range within a pool
+/// Uses PostgreSQL inet type for efficient range queries
+model IpPoolRange {
+  id        String  @id @default(uuid()) @db.Uuid
+  poolId    String  @db.Uuid
+  startIp   String  @db.Inet // Range start (inclusive)
+  endIp     String  @db.Inet // Range end (inclusive)
+  comment   String? // Optional label (e.g. "AP Floor 1", "Guest VLAN")
+  createdAt DateTime @db.Timestamptz @default(now())
+  pool      IpPool  @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  @@index([poolId])
+}
+
 model WiFiPlan {
   id            String          @id @default(uuid()) @db.Uuid
   tenantId      String @db.Uuid
@@ -6101,6 +6148,7 @@ model WiFiPlan {
   sessionLimit  Int?
   maxDevices    Int             @default(1)
   fupPolicyId   String? @db.Uuid
+  ipPoolId      String? @db.Uuid
   price         Float           @default(0)
   currency      String          @default("USD")
   priority      Int             @default(0)
@@ -6110,6 +6158,7 @@ model WiFiPlan {
   updatedAt     DateTime @db.Timestamptz        @updatedAt
   aaaaConfigs   WiFiAAAConfig[]
   fupPolicy     FairAccessPolicy? @relation(fields: [fupPolicyId], references: [id])
+  ipPool        IpPool?          @relation(fields: [ipPoolId], references: [id])
   roomTypes     RoomType[]        @relation("RoomTypeWiFiPlan")
   tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   sessions      WiFiSession[]
@@ -6117,6 +6166,7 @@ model WiFiPlan {
   vouchers      WiFiVoucher[]
 
   @@index([tenantId])
+  @@index([ipPoolId])
 }
 
 model WiFiSession {
@@ -6155,6 +6205,7 @@ model WiFiUser {
   bookingId        String? @db.Uuid
   userType         String     @default("guest")
   planId           String? @db.Uuid
+  ipPoolId         String? @db.Uuid
   validFrom        DateTime @db.Timestamptz
   validUntil       DateTime @db.Timestamptz
   maxSessions      Int        @default(1)
@@ -6170,6 +6221,7 @@ model WiFiUser {
   radCheck         RadCheck[]
   radReply         RadReply[]
   plan             WiFiPlan?  @relation(fields: [planId], references: [id])
+  ipPool           IpPool?    @relation("UserIpPoolOverride", fields: [ipPoolId], references: [id])
   property         Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   tenant           Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -6179,6 +6231,7 @@ model WiFiUser {
   @@index([guestId])
   @@index([bookingId])
   @@index([status])
+  @@index([ipPoolId])
 }
 
 

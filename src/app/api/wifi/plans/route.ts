@@ -36,6 +36,9 @@ export async function GET(request: NextRequest) {    const user = await requireP
         fupPolicy: {
           select: { id: true, name: true },
         },
+        ipPool: {
+          select: { id: true, name: true },
+        },
       },
       orderBy: [
         { priority: 'desc' },
@@ -104,6 +107,7 @@ export async function POST(request: NextRequest) {    const user = await require
       sessionLimit,
       maxDevices = 1,
       fupPolicyId,
+      ipPoolId,
       price = 0,
       currency = 'USD',
       priority = 0,
@@ -145,6 +149,7 @@ export async function POST(request: NextRequest) {    const user = await require
         sessionLimit: sessionLimit ? parseInt(sessionLimit, 10) : null,
         maxDevices: parseInt(maxDevices, 10),
         ...(fupPolicyId && { fupPolicyId }),
+        ...(ipPoolId && { ipPoolId }),
         price: parseFloat(price),
         currency,
         priority: parseInt(priority, 10),
@@ -227,6 +232,7 @@ export async function PUT(request: NextRequest) {    const user = await requireP
         ...(updateData.sessionLimit !== undefined && { sessionLimit: updateData.sessionLimit ? parseInt(updateData.sessionLimit, 10) : null }),
         ...(updateData.maxDevices !== undefined && { maxDevices: parseInt(updateData.maxDevices, 10) }),
         ...(updateData.fupPolicyId !== undefined && { fupPolicyId: updateData.fupPolicyId || null }),
+        ...(updateData.ipPoolId !== undefined && { ipPoolId: updateData.ipPoolId || null }),
         ...(updateData.price !== undefined && { price: parseFloat(updateData.price) }),
         ...(updateData.currency && { currency: updateData.currency }),
         ...(updateData.priority !== undefined && { priority: parseInt(updateData.priority, 10) }),

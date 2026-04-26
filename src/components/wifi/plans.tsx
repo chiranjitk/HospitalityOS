@@ -102,6 +102,7 @@ export default function WifiPlans() {
   });
 
   const [fupPolicies, setFupPolicies] = useState<Array<{ id: string; name: string }>>([]);
+  const [ipPools, setIpPools] = useState<Array<{ id: string; name: string; isDefault: boolean }>>([]);
   const [defaultPlanId, setDefaultPlanId] = useState<string | null>(null);
   const { propertyId } = usePropertyId();
 
@@ -122,6 +123,7 @@ export default function WifiPlans() {
     sessionLimit: '',
     maxDevices: '1',
     fupPolicyId: '',
+    ipPoolId: '',
     price: '0',
     currency: 'USD',
     priority: '0',
@@ -139,9 +141,10 @@ export default function WifiPlans() {
       if (searchQuery) params.append('search', searchQuery);
       if (statusFilter !== 'all') params.append('status', statusFilter);
 
-      const [planRes, fupRes] = await Promise.all([
+      const [planRes, fupRes, poolRes] = await Promise.all([
         fetch(`/api/wifi/plans?${params.toString()}`),
         fetch('/api/wifi/radius?action=fap-policies-list'),
+        fetch('/api/wifi/ip-pools'),
       ]);
       const result = await planRes.json();
       const fupResult = await fupRes.json();
@@ -151,6 +154,15 @@ export default function WifiPlans() {
           id: p.id,
           name: `${p.name}${p.isEnabled ? '' : ' (disabled)'}`
         })));
+      }
+      if (poolRes.ok) {
+        const poolResult = await poolRes.json();
+        if (poolResult.success && Array.isArray(poolResult.data)) {
+          setIpPools(poolResult.data.map((p: { id: string; name: string; isDefault: boolean }) => ({
+            id: p.id,
+            name: `${p.name}${p.isDefault ? ' (default)' : ''}`
+          })));
+        }
       }
 
       if (result.success) {
@@ -227,6 +239,7 @@ export default function WifiPlans() {
           sessionLimit: formData.unlimitedSession ? null : (formData.sessionLimit ? parseInt(formData.sessionLimit) : null),
           maxDevices: parseInt(formData.maxDevices),
           fupPolicyId: formData.fupPolicyId && formData.fupPolicyId !== 'none' ? formData.fupPolicyId : undefined,
+          ipPoolId: formData.ipPoolId && formData.ipPoolId !== 'none' ? formData.ipPoolId : undefined,
           price: parseFloat(formData.price),
           currency: formData.currency,
           priority: parseInt(formData.priority),
@@ -283,6 +296,7 @@ export default function WifiPlans() {
           sessionLimit: formData.unlimitedSession ? null : (formData.sessionLimit ? parseInt(formData.sessionLimit) : null),
           maxDevices: parseInt(formData.maxDevices),
           fupPolicyId: formData.fupPolicyId && formData.fupPolicyId !== 'none' ? formData.fupPolicyId : null,
+          ipPoolId: formData.ipPoolId && formData.ipPoolId !== 'none' ? formData.ipPoolId : null,
           price: parseFloat(formData.price),
           currency: formData.currency,
           priority: parseInt(formData.priority),
@@ -370,6 +384,7 @@ export default function WifiPlans() {
       sessionLimit: plan.sessionLimit?.toString() || '',
       maxDevices: (plan.maxDevices ?? 1).toString(),
       fupPolicyId: (plan as Record<string, unknown>).fupPolicyId?.toString() || '',
+      ipPoolId: (plan as Record<string, unknown>).ipPoolId?.toString() || (plan as Record<string, unknown>).ipPool?.id?.toString() || '',
       price: plan.price.toString(),
       currency: plan.currency,
       priority: plan.priority.toString(),
@@ -396,6 +411,7 @@ export default function WifiPlans() {
       sessionLimit: '',
       maxDevices: '1',
       fupPolicyId: '',
+      ipPoolId: '',
       price: '0',
       currency: 'USD',
       priority: '0',
@@ -781,6 +797,23 @@ export default function WifiPlans() {
               </Select>
               <p className="text-xs text-muted-foreground">
                 Apply Fair Usage Policy to throttle/block after data limit
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ipPoolId">IP Pool Restriction</Label>
+              <Select value={formData.ipPoolId} onValueChange={(v) => setFormData(prev => ({ ...prev, ipPoolId: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="None (use default pool)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None (use default pool)</SelectItem>
+                  {ipPools.map(pool => (
+                    <SelectItem key={pool.id} value={pool.id}>{pool.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Restrict users on this plan to connect only from the selected IP pool
               </p>
             </div>
             <div className="grid grid-cols-3 gap-4">
