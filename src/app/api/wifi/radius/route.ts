@@ -1558,7 +1558,7 @@ export async function POST(request: NextRequest) {
           try {
             await db.$executeRawUnsafe(
               `UPDATE "WiFiUser" SET "ipPoolId" = $1::uuid WHERE id = $2::uuid`,
-              ipPoolId || null,
+              (ipPoolId && ipPoolId !== 'none') ? ipPoolId : null,
               userId
             );
           } catch (poolErr) {

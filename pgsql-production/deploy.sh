@@ -54,7 +54,7 @@ if ! command -v bun &>/dev/null; then
 fi
 
 # Verify database connectivity
-echo "[0/6] Verifying database connectivity..."
+echo "[0/7] Verifying database connectivity..."
 if ! psql "$DB_URL" -c "SELECT 1;" &>/dev/null; then
     echo "ERROR: Cannot connect to database: $DB_URL"
     echo "  Ensure PostgreSQL is running and the URL is correct."
@@ -64,32 +64,37 @@ echo "  ✓ Database connection verified"
 echo ""
 
 # Step 1: Push Prisma schema
-echo "[1/6] Pushing Prisma schema (226 tables)..."
+echo "[1/7] Pushing Prisma schema (226 tables)..."
 DATABASE_URL="$DB_URL" npx prisma db push --schema "$SCRIPT_DIR/schema.prisma" --accept-data-loss 2>&1
 echo "  ✓ Prisma tables created"
 
 # Step 2: FreeRADIUS schema
-echo "[2/6] Creating FreeRADIUS tables..."
+echo "[2/7] Creating FreeRADIUS tables..."
 psql "$DB_URL" -f "$SCRIPT_DIR/01-freeradius-schema.sql" 2>&1
 echo "  ✓ 7 FreeRADIUS tables + indexes created"
 
 # Step 3: Custom views + helper table
-echo "[3/6] Creating custom views..."
+echo "[3/7] Creating custom views..."
 psql "$DB_URL" -f "$SCRIPT_DIR/02-staysuite-views.sql" 2>&1
 echo "  ✓ 5 views + data_usage_by_period table created"
 
-# Step 4: App seed
-echo "[4/6] Seeding application data..."
+# Step 4: IP Pool functions + default pool seed
+echo "[4/7] Creating IP pool functions & seeding default pool..."
+psql "$DB_URL" -f "$SCRIPT_DIR/04-ip-pool-functions.sql" 2>&1
+echo "  ✓ 2 IP pool functions + default pool seeded"
+
+# Step 5: App seed
+echo "[5/7] Seeding application data..."
 (cd "$PROJECT_DIR" && DATABASE_URL="$DB_URL" bun run prisma/seed.ts) 2>&1
 echo "  ✓ App data seeded"
 
-# Step 5: WiFi module seed
-echo "[5/6] Seeding WiFi module data..."
+# Step 6: WiFi module seed
+echo "[6/7] Seeding WiFi module data..."
 (cd "$PROJECT_DIR" && DATABASE_URL="$DB_URL" bun run prisma/wifi-seed.ts) 2>&1
 echo "  ✓ WiFi data seeded"
 
-# Step 6: FreeRADIUS native seed
-echo "[6/6] Seeding FreeRADIUS native tables..."
+# Step 7: FreeRADIUS native seed
+echo "[7/7] Seeding FreeRADIUS native tables..."
 psql "$DB_URL" -f "$SCRIPT_DIR/03-radius-seed.sql" 2>&1
 echo "  ✓ RADIUS seed data inserted"
 

@@ -157,7 +157,7 @@ export default function RadiusUsersTab() {
     password: '',
     userType: 'guest' as 'guest' | 'staff' | 'admin' | 'service',
     planId: '',
-    ipPoolId: '',
+    ipPoolId: 'none',
     group: 'standard-guests',
     downloadSpeed: 10,
     uploadSpeed: 5,
@@ -216,7 +216,7 @@ export default function RadiusUsersTab() {
   // ─── Form Helpers ──────────────────────────────────────────────────────────
 
   const resetForm = () => {
-    setForm({ username: '', password: '', userType: 'guest', planId: '', ipPoolId: '', group: 'standard-guests', downloadSpeed: 10, uploadSpeed: 5, sessionTimeout: 1440, dataLimit: 0 });
+    setForm({ username: '', password: '', userType: 'guest', planId: '', ipPoolId: 'none', group: 'standard-guests', downloadSpeed: 10, uploadSpeed: 5, sessionTimeout: 1440, dataLimit: 0 });
     setEditingUser(null);
   };
 
@@ -277,7 +277,7 @@ export default function RadiusUsersTab() {
       sessionTimeout: sessionMins,
       dataLimit: dataLimitVal,
       planId: matchedPlan?.id || '',
-      ipPoolId: user.ipPoolId || '',
+      ipPoolId: user.ipPoolId || 'none',
     });
     setDialogOpen(true);
   };
@@ -979,7 +979,7 @@ export default function RadiusUsersTab() {
                   <SelectValue placeholder="Inherit from Plan" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Inherit from Plan</SelectItem>
+                  <SelectItem value="none">Inherit from Plan</SelectItem>
                   {ipPools.map(pool => (
                     <SelectItem key={pool.id} value={pool.id}>{pool.name}</SelectItem>
                   ))}

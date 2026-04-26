@@ -542,3 +542,36 @@ Stage Summary:
 - FreeRADIUS enforces IP pool restrictions on every authentication attempt
 - PostgreSQL inet types ensure efficient range queries
 - GUI provides intuitive pool management with expandable cards
+
+---
+Task ID: 13
+Agent: Main Agent
+Task: Fix WiFi Access page crash (Select.Item empty string) + Gateway/DNS logic + Production deployment sync
+
+Work Log:
+- Fixed crash in WiFi Access page: `SelectItem value=""` is invalid in shadcn/ui Select component
+  - Changed IP Pool Override select in radius-users-tab.tsx from `value=""` to `value="none"`
+  - Updated all ipPoolId initialization to use `"none"` instead of `""` (form default, reset, edit load)
+  - Fixed API to handle `"none"` value: `(ipPoolId && ipPoolId !== 'none') ? ipPoolId : null`
+- Synced pgsql-production/schema.prisma with main dev schema:
+  - Added IpPool model (12 fields, relations, indexes)
+  - Added IpPoolRange model (6 fields, cascade relation)
+  - Added ipPoolId to WiFiPlan and WiFiUser models
+  - Added ipPools relation to Tenant model
+  - Validated with `prisma validate`
+- Persisted SQL functions to deployment pipeline:
+  - Created pgsql-production/04-ip-pool-functions.sql
+  - Contains: fn_check_ip_pool(), fn_get_user_pool_info(), fn_get_pool_attr() + default pool seed
+  - Updated deploy.sh to include new Step 4 (now 7 steps total)
+- Added gateway push to FreeRADIUS RADIUS reply:
+  - Created fn_get_pool_attr() PostgreSQL function (returns gateway/dns for user's effective pool)
+  - Updated FreeRADIUS post-auth section: pushes Framed-Route with pool gateway after IP check passes
+  - DNS not pushed via RADIUS (no standard attribute) — handled via DHCP on NAS/AP
+  - Verified FreeRADIUS config parses and starts correctly
+
+Stage Summary:
+- WiFi Access page no longer crashes on user edit (SelectItem fix)
+- Production deployment pipeline now includes IP pool tables, functions, and seed data
+- FreeRADIUS pushes pool-specific gateway via Framed-Route attribute on auth
+- 3 PostgreSQL functions for IP pool: check, user info, pool attributes
+- Gateway/DNS Logic: Gateway → RADIUS Framed-Route, DNS → DHCP on NAS/AP (stored in pool for reference)
