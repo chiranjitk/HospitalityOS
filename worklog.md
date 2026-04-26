@@ -236,3 +236,47 @@ Stage Summary:
 - Session closed in radacct (acctstoptime set, acctterminatecause='Admin-Reset')
 - Session disappears from v_active_sessions view after disconnect
 - No more "no matching session found" errors
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Full production test — 4 NAS vendors, 40 users, FUP, CoA, accounting
+
+Work Log:
+- Cleaned all old test data from radacct, radpostauth, radcheck, radreply, radusergroup, radgroupcheck, radgroupreply, nas, LiveSession, WiFiSession
+- Created 4 NAS clients (different vendors):
+  - 10.0.0.1: MikroTik CCR-2004 (RouterOS v7) — MikroTikSecret!2025
+  - 10.0.0.2: Cisco Catalyst 9800 WLC (IOS-XE 17) — CiscoWLC$ecret2025
+  - 10.0.0.3: Aruba Mobility Master (AOS 8.x) — ArubaMC#Secret25
+  - 10.0.0.4: Juniper Mist AP45 (WiFi6E) — JuniperAP%Secret25
+- Created 6 RADIUS groups with vendor-specific reply attributes:
+  - wifi-free: Mikrotik-Rate-Limit=5M/2M, Cisco-AVPair=sub:QoS-Policy-Name=FREE-5M, Aruba-User-Role=wifi-free-guest
+  - wifi-basic: 10M/5M, +ChilliSpot-Max-Total-Octets=2GB, Cisco/Aruba roles
+  - wifi-standard: 25M/10M, +5GB data limit, all vendor attrs
+  - wifi-premium: 50M/25M, +15GB data limit, all vendor attrs
+  - wifi-vip: 100M/50M, unlimited data, +Reply-Message welcome, all vendor attrs
+  - wifi-conference: 30M/15M, +10GB data limit, all vendor attrs
+- Created 3 FUP (Fair Access Policy) policies:
+  - Daily 1GB Throttle: After 1GB/day → 256Kbps
+  - Weekly 5GB Fair Use: After 5GB/week → 512Kbps
+  - Monthly 50GB Premium: After 50GB/month → 2Mbps
+- Assigned FUP to plans: Free/Basic→Daily, Standard/Premium/Conference→Weekly, VIP→Monthly
+- Created 40 RADIUS users: 8 free, 7 basic, 8 standard, 7 premium, 5 VIP, 5 conference
+- Ran real radtest for all 40 users in parallel — 100% Access-Accept with correct vendor attributes
+- Tested wrong password → Access-Reject, unknown user → Access-Reject (both logged to radpostauth)
+- Sent 8 accounting Start packets across 4 NAS — all Accounting-Response received
+- Sent 4 Interim-Update packets (simulating data usage) — all Accounting-Response
+- Sent 2 accounting Stop packets (User-Request, Session-Timeout) — all Accounting-Response
+- Fixed v_session_history view: added DISTINCT ON (username, acctsessionid) to deduplicate Interim-Update rows
+- Tested GUI disconnect via API for 2 users (MikroTik + Aruba NAS) — both closed with Admin-Reset
+- Verified all 14 GUI WiFi API tabs return success with real data
+
+Stage Summary:
+- 4 NAS devices across 4 vendors with vendor-specific RADIUS attributes
+- 40 users across 6 plans, all authenticating with correct bandwidth/vendor attrs
+- 3 FUP policies assigned to 6 plans
+- Real RADIUS auth (radtest): 40/40 accept, 2/2 reject (wrong pw + unknown user)
+- Real accounting: Start/Interim-Update/Stop all working
+- CoA disconnect: Working (local DB close, NAS CoA best-effort in dev)
+- View deduplication fix for Interim-Update rows
+- All 14 GUI tabs populated with real data
