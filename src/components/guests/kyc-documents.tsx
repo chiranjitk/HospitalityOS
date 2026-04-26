@@ -94,20 +94,49 @@ export function KYCDocuments({ guestId }: KYCDocumentsProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   useEffect(() => {
-    fetchDocuments();
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+    setIsLoading(true);
+    (async () => {
+      try {
+        const response = await fetch(`/api/guests/${guestId}/documents`, { signal });
+        if (!response.ok) {
+          const text = await response.text().catch(() => 'Unknown error');
+          throw new Error(text);
+        }
+        const result = await response.json();
+        if (result.success) {
+          setDocuments(result.data);
+        }
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch documents',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+    return () => abortController.abort();
   }, [guestId]);
 
   const fetchDocuments = async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/guests/${guestId}/documents`);
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
       
       if (result.success) {
         setDocuments(result.data);
       }
     } catch (error) {
-      console.error('Error fetching documents:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch documents',
@@ -158,6 +187,10 @@ export function KYCDocuments({ guestId }: KYCDocumentsProps) {
         }),
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -177,14 +210,14 @@ export function KYCDocuments({ guestId }: KYCDocumentsProps) {
         });
       }
     } catch (error) {
-      console.error('Error uploading document:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to upload document',
         variant: 'destructive',
       });
     } finally {
-      clearInterval(interval);
+      clearInterval(uploadInterval);
       setIsSaving(false);
       setUploadProgress(0);
     }
@@ -206,6 +239,10 @@ export function KYCDocuments({ guestId }: KYCDocumentsProps) {
         }),
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -224,7 +261,7 @@ export function KYCDocuments({ guestId }: KYCDocumentsProps) {
         });
       }
     } catch (error) {
-      console.error('Error updating document:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to update document',
@@ -245,6 +282,10 @@ export function KYCDocuments({ guestId }: KYCDocumentsProps) {
         { method: 'DELETE' }
       );
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -263,7 +304,7 @@ export function KYCDocuments({ guestId }: KYCDocumentsProps) {
         });
       }
     } catch (error) {
-      console.error('Error deleting document:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to delete document',
@@ -421,6 +462,7 @@ export function KYCDocuments({ guestId }: KYCDocumentsProps) {
                             setSelectedDocument(doc);
                             setIsDeleteOpen(true);
                           }}
+                          aria-label="Delete document"
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>

@@ -167,6 +167,7 @@ export default function ExpressKiosk() {
 
     try {
       const response = await fetch(`/api/frontdesk/kiosk-session?code=${encodeURIComponent(confirmationCode.trim())}`);
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
 
       if (result.success) {
@@ -185,7 +186,8 @@ export default function ExpressKiosk() {
           setErrorMsg('No confirmed booking found with this code. Please try again.');
         }
       }
-    } catch {
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
       setErrorMsg('Unable to verify your booking. Please try again or visit the front desk.');
     } finally {
       setIsVerifying(false);
@@ -208,6 +210,7 @@ export default function ExpressKiosk() {
         }),
       });
 
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
 
       if (result.success) {
@@ -217,7 +220,8 @@ export default function ExpressKiosk() {
         setErrorMsg(result.error?.message || 'Check-in failed. Please visit the front desk.');
         setStep('error');
       }
-    } catch {
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
       setErrorMsg('Unable to complete check-in. Please visit the front desk.');
       setStep('error');
     } finally {

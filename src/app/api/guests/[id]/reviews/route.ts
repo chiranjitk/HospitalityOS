@@ -9,7 +9,7 @@ export async function GET(
 ) {
     const tenantId = await getTenantIdFromSession(request);
     if (!tenantId) {
-      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
     }
 
 

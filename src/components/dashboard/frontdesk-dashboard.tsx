@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -23,14 +23,13 @@ import {
   ArrowRight,
   Phone,
   Mail,
-  TrendingUp,
   Timer,
   CheckCircle2,
   AlertCircle,
   Activity,
   Sparkles,
   CreditCard,
-  RefreshCw
+  RefreshCw,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -170,6 +169,7 @@ function ArrivalCard({ arrival, formatTime }: { arrival: FrontDeskStats['arrival
           variant="ghost" 
           className="opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={() => useUIStore.getState().setActiveSection('frontdesk-checkin')}
+          aria-label="Check in guest"
         >
           <LogIn className="h-4 w-4" />
         </Button>
@@ -229,6 +229,7 @@ function DepartureCard({ departure, formatCurrency, formatTime }: {
           variant="ghost" 
           className="opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={() => useUIStore.getState().setActiveSection('frontdesk-checkout')}
+          aria-label="Check out guest"
         >
           <LogOut className="h-4 w-4" />
         </Button>
@@ -262,12 +263,42 @@ export default function FrontDeskDashboard() {
   const { formatTime } = useTimezone();
 
   React.useEffect(() => {
+    const controller = new AbortController();
     const fetchStats = async () => {
       try {
-        const response = await fetch('/api/frontdesk/dashboard');
+        const response = await fetch('/api/frontdesk/dashboard', { signal: controller.signal });
+        if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
         const result = await response.json();
         if (result.success) {
           setStats(result.data);
+        } else {
+          setError(result.error?.message || 'Failed to load dashboard');
+          setStats(EMPTY_FRONTDESK_STATS);
+        }
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+        setError('Failed to fetch dashboard data');
+        setStats(EMPTY_FRONTDESK_STATS);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchStats();
+    return () => controller.abort();
+  }, []);
+
+  // Retry fetch
+  const retryFetch = () => {
+    setIsLoading(true);
+    setError(null);
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/frontdesk/dashboard');
+        if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
+        const result = await response.json();
+        if (result.success) {
+          setStats(result.data);
+          setError(null);
         } else {
           setError(result.error?.message || 'Failed to load dashboard');
           setStats(EMPTY_FRONTDESK_STATS);
@@ -280,7 +311,7 @@ export default function FrontDeskDashboard() {
       }
     };
     fetchStats();
-  }, []);
+  };
 
   if (isLoading) {
     return (
@@ -298,7 +329,7 @@ export default function FrontDeskDashboard() {
     );
   }
 
-  if (!stats) return null;
+  if (error && !stats) return null;
 
   const currentTime = new Date();
   const hour = currentTime.getHours();
@@ -333,6 +364,25 @@ export default function FrontDeskDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <Card className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center justify-center text-center gap-4">
+              <AlertCircle className="h-10 w-10 text-red-500 dark:text-red-400" />
+              <div>
+                <p className="text-lg font-medium text-red-700 dark:text-red-300">Failed to load dashboard</p>
+                <p className="text-sm text-muted-foreground mt-1">{error}</p>
+              </div>
+              <Button variant="outline" onClick={retryFetch}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Grid */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">

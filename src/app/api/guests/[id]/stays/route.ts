@@ -29,8 +29,31 @@ export async function GET(
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
+    // Validate status against allowed values
+    const allowedStatuses = ['pending', 'confirmed', 'checked_in', 'checked_out', 'cancelled', 'no_show'];
+    if (status && !allowedStatuses.includes(status)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid status. Must be one of: ${allowedStatuses.join(', ')}` } },
+        { status: 400 }
+      );
+    }
+
+    // Validate date params
+    if (startDate && isNaN(Date.parse(startDate))) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'startDate must be a valid date' } },
+        { status: 400 }
+      );
+    }
+    if (endDate && isNaN(Date.parse(endDate))) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'endDate must be a valid date' } },
+        { status: 400 }
+      );
+    }
+
     // Build booking filter conditions
-    const bookingFilter: Record<string, unknown> = {};
+    const bookingFilter: Record<string, unknown> = { deletedAt: null };
     if (status) {
       bookingFilter.status = status;
     }

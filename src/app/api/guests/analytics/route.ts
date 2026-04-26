@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const searchParams = request.nextUrl.searchParams;
-    const dateRange = parseInt(searchParams.get('dateRange') || '30', 10);
+    const dateRange = Math.min(Math.max(parseInt(searchParams.get('dateRange') || '30', 10), 1), 365);
 
     // Calculate date threshold
     const startDate = new Date();

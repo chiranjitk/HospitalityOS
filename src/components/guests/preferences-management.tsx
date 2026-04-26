@@ -50,11 +50,7 @@ import {
   Utensils,
   Languages,
   Building,
-  CigaretteOff,
   Ban,
-  PawPrint,
-  Baby,
-  Accessibility,
   RefreshCw,
   ChevronRight,
   Settings,
@@ -217,13 +213,59 @@ export default function PreferencesManagement() {
   });
 
   useEffect(() => {
-    fetchGuests();
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+    setIsLoading(true);
+    (async () => {
+      try {
+        const response = await fetch('/api/guests?limit=100', { signal });
+        if (!response.ok) {
+          const text = await response.text().catch(() => 'Unknown error');
+          throw new Error(text);
+        }
+        const result = await response.json();
+
+        if (result.success) {
+          setGuests(result.data);
+
+          // Calculate stats
+          const withPrefs = result.data.filter((g: Guest) => g.preferences && Object.keys(g.preferences).length > 0).length;
+          const dietary = result.data.filter((g: Guest) => {
+            const d = g.preferences?.dietaryPreferences;
+            return d && (d.vegetarian || d.vegan || d.glutenFree || d.halal || d.kosher || d.allergies?.length > 0);
+          }).length;
+          const special = result.data.filter((g: Guest) => g.preferences?.otherPreferences).length;
+
+          setStats({
+            total: result.data.length,
+            withPreferences: withPrefs,
+            dietaryRestrictions: dietary,
+            specialRequests: special,
+          });
+        }
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch guests',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+    return () => abortController.abort();
   }, []);
+
 
   const fetchGuests = async () => {
     setIsLoading(true);
     try {
       const response = await fetch('/api/guests?limit=100');
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -245,7 +287,7 @@ export default function PreferencesManagement() {
         });
       }
     } catch (error) {
-      console.error('Error fetching guests:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch guests',
@@ -267,6 +309,10 @@ export default function PreferencesManagement() {
         body: JSON.stringify({ preferences: editPreferences }),
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -284,7 +330,7 @@ export default function PreferencesManagement() {
         });
       }
     } catch (error) {
-      console.error('Error saving preferences:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to save preferences',

@@ -137,7 +137,7 @@ export async function GET(request: NextRequest) {
 
     // Pending service requests
     const pendingServiceRequests = await db.serviceRequest.count({
-      where: { status: 'pending' },
+      where: { status: 'pending', tenantId, deletedAt: null },
     });
 
     // Pending actions count (service requests + rooms needing attention)

@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
   Dialog,
   DialogContent,
@@ -145,20 +144,49 @@ export function LoyaltyPoints({ guestId }: LoyaltyPointsProps) {
   const [selectedRedemption, setSelectedRedemption] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchLoyaltyData();
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+    setIsLoading(true);
+    (async () => {
+      try {
+        const response = await fetch(`/api/guests/${guestId}/loyalty`, { signal });
+        if (!response.ok) {
+          const text = await response.text().catch(() => 'Unknown error');
+          throw new Error(text);
+        }
+        const result = await response.json();
+        if (result.success) {
+          setData(result.data);
+        }
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch loyalty data',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+    return () => abortController.abort();
   }, [guestId]);
 
   const fetchLoyaltyData = async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/guests/${guestId}/loyalty`);
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
       
       if (result.success) {
         setData(result.data);
       }
     } catch (error) {
-      console.error('Error fetching loyalty data:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch loyalty data',
@@ -190,6 +218,10 @@ export function LoyaltyPoints({ guestId }: LoyaltyPointsProps) {
         }),
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -209,7 +241,7 @@ export function LoyaltyPoints({ guestId }: LoyaltyPointsProps) {
         });
       }
     } catch (error) {
-      console.error('Error adjusting points:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to adjust points',
@@ -253,6 +285,10 @@ export function LoyaltyPoints({ guestId }: LoyaltyPointsProps) {
         }),
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -271,7 +307,7 @@ export function LoyaltyPoints({ guestId }: LoyaltyPointsProps) {
         });
       }
     } catch (error) {
-      console.error('Error redeeming points:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to redeem points',

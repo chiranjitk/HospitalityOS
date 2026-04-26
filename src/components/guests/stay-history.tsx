@@ -23,7 +23,6 @@ import {
   Loader2,
   MapPin,
   Star,
-  ChevronRight,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -85,13 +84,43 @@ export function StayHistory({ guestId }: StayHistoryProps) {
   const [sortBy, setSortBy] = useState<string>('date_desc');
 
   useEffect(() => {
-    fetchStays();
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+    setIsLoading(true);
+    (async () => {
+      try {
+        const response = await fetch(`/api/guests/${guestId}/stays`, { signal });
+        if (!response.ok) {
+          const text = await response.text().catch(() => 'Unknown error');
+          throw new Error(text);
+        }
+        const result = await response.json();
+        if (result.success) {
+          setStays(result.data);
+          setSummary(result.summary);
+        }
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch stay history',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+    return () => abortController.abort();
   }, [guestId]);
 
   const fetchStays = async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/guests/${guestId}/stays`);
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -99,7 +128,7 @@ export function StayHistory({ guestId }: StayHistoryProps) {
         setSummary(result.summary);
       }
     } catch (error) {
-      console.error('Error fetching stays:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch stay history',

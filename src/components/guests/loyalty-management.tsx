@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
 import {
   Dialog,
   DialogContent,
@@ -44,9 +43,7 @@ import {
   Plus,
   Minus,
   History,
-  Check,
   Crown,
-  Sparkles,
   RefreshCw,
   ChevronRight,
   DollarSign,
@@ -143,15 +140,6 @@ const tierConfig = {
   },
 };
 
-const redemptionOptions = [
-  { id: 'free_night', name: 'Free Night Stay', points: 5000, value: 150 },
-  { id: 'room_upgrade', name: 'Room Upgrade', points: 2000, value: 50 },
-  { id: 'spa_voucher', name: 'Spa Voucher', points: 3000, value: 75 },
-  { id: 'dinner_voucher', name: 'Dinner Voucher', points: 1500, value: 40 },
-  { id: 'airport_transfer', name: 'Airport Transfer', points: 2500, value: 60 },
-  { id: 'late_checkout', name: 'Late Checkout', points: 500, value: 25 },
-];
-
 export default function LoyaltyManagement() {
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
@@ -182,13 +170,61 @@ export default function LoyaltyManagement() {
   });
 
   useEffect(() => {
-    fetchGuests();
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+    setIsLoading(true);
+    (async () => {
+      try {
+        const response = await fetch('/api/guests?limit=100', { signal });
+        if (!response.ok) {
+          const text = await response.text().catch(() => 'Unknown error');
+          throw new Error(text);
+        }
+        const result = await response.json();
+
+        if (result.success) {
+          setGuests(result.data);
+
+          // Calculate stats
+          const totalPoints = result.data.reduce((sum: number, g: Guest) => sum + (g.loyaltyPoints || 0), 0);
+          const tierDistribution = {
+            bronze: result.data.filter((g: Guest) => (g.loyaltyTier || 'bronze') === 'bronze').length,
+            silver: result.data.filter((g: Guest) => g.loyaltyTier === 'silver').length,
+            gold: result.data.filter((g: Guest) => g.loyaltyTier === 'gold').length,
+            platinum: result.data.filter((g: Guest) => g.loyaltyTier === 'platinum').length,
+          };
+
+          setStats({
+            totalMembers: result.data.length,
+            totalPoints,
+            totalRedemptions: 0,
+            avgPointsPerMember: result.data.length > 0 ? Math.round(totalPoints / result.data.length) : 0,
+            tierDistribution,
+          });
+        }
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch guests',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+    return () => abortController.abort();
   }, []);
+
 
   const fetchGuests = async () => {
     setIsLoading(true);
     try {
       const response = await fetch('/api/guests?limit=100');
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -212,7 +248,7 @@ export default function LoyaltyManagement() {
         });
       }
     } catch (error) {
-      console.error('Error fetching guests:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch guests',
@@ -227,13 +263,17 @@ export default function LoyaltyManagement() {
     setIsLoadingDetails(true);
     try {
       const response = await fetch(`/api/guests/${guestId}/loyalty`);
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
         setLoyaltyData(result.data);
       }
     } catch (error) {
-      console.error('Error fetching loyalty details:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch loyalty details',
@@ -271,6 +311,10 @@ export default function LoyaltyManagement() {
         }),
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -291,7 +335,7 @@ export default function LoyaltyManagement() {
         });
       }
     } catch (error) {
-      console.error('Error adjusting points:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to adjust points',

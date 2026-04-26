@@ -9,17 +9,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
   ArrowLeft,
   Mail,
   Phone,
   MapPin,
-  Calendar,
   Star,
   Crown,
   Shield,
@@ -27,10 +20,7 @@ import {
   Clock,
   Gift,
   Loader2,
-  Building,
   CreditCard,
-  Edit,
-  Route,
   Wifi,
 } from 'lucide-react';
 import { KYCDocuments } from './kyc-documents';
@@ -119,15 +109,49 @@ export function GuestProfile({ guestId, onBack }: GuestProfileProps) {
   const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
-    if (guestId) {
-      fetchGuest();
-    }
+    if (!guestId) return;
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+    setIsLoading(true);
+    (async () => {
+      try {
+        const response = await fetch(`/api/guests/${guestId}`, { signal });
+        if (!response.ok) {
+          const text = await response.text().catch(() => 'Unknown error');
+          throw new Error(text);
+        }
+        const result = await response.json();
+        if (result.success) {
+          setGuest(result.data);
+        } else {
+          toast({
+            title: 'Error',
+            description: 'Failed to fetch guest details',
+            variant: 'destructive',
+          });
+        }
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch guest details',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+    return () => abortController.abort();
   }, [guestId]);
 
   const fetchGuest = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/guests/${guestId}`);
+      const response = await fetch(`/api/guests/${guestId}`, { signal });
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -140,7 +164,7 @@ export function GuestProfile({ guestId, onBack }: GuestProfileProps) {
         });
       }
     } catch (error) {
-      console.error('Error fetching guest:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch guest details',
@@ -202,7 +226,7 @@ export function GuestProfile({ guestId, onBack }: GuestProfileProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start gap-4">
-        <Button variant="ghost" size="icon" onClick={onBack}>
+        <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back to list">
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">

@@ -32,7 +32,6 @@ import {
   Users,
   Crown,
   Building2,
-  LogIn,
   AlertCircle,
   CheckCircle2,
   ArrowRight,
@@ -116,18 +115,22 @@ export default function RoomAssignment() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        if (error?.name === 'AbortError') return;
+        toast({ title: 'Error', description: 'Failed to fetch properties', variant: 'destructive' });
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch unassigned bookings
@@ -139,6 +142,7 @@ export default function RoomAssignment() {
       if (searchQuery) params.append('search', searchQuery);
       
       const response = await fetch(`/api/bookings?${params.toString()}`);
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
 
       if (result.success) {
@@ -147,7 +151,7 @@ export default function RoomAssignment() {
         setUnassignedBookings(unassigned);
       }
     } catch (error) {
-      console.error('Error fetching bookings:', error);
+      if (error?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch bookings',
@@ -168,13 +172,14 @@ export default function RoomAssignment() {
       if (roomTypeFilter !== 'all') params.append('roomTypeId', roomTypeFilter);
 
       const response = await fetch(`/api/rooms?${params.toString()}`);
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
 
       if (result.success) {
         setAvailableRooms(result.data);
       }
     } catch (error) {
-      console.error('Error fetching rooms:', error);
+      if (error?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch rooms',
@@ -222,6 +227,7 @@ export default function RoomAssignment() {
         }),
       });
 
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
 
       if (result.success) {
@@ -240,7 +246,7 @@ export default function RoomAssignment() {
         });
       }
     } catch (error) {
-      console.error('Error assigning room:', error);
+      if (error?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to assign room',
@@ -263,6 +269,7 @@ export default function RoomAssignment() {
         }),
       });
 
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
 
       if (result.success) {
@@ -280,7 +287,7 @@ export default function RoomAssignment() {
         });
       }
     } catch (error) {
-      console.error('Error assigning room:', error);
+      if (error?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to assign room',

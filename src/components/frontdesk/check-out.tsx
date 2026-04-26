@@ -29,8 +29,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  LogOut, 
+import {
+  LogOut,
   Search,
   Users,
   Crown,
@@ -39,15 +39,10 @@ import {
   Building2,
   Key,
   RefreshCw,
-  CheckCircle2,
   CreditCard,
   Receipt,
   DollarSign,
   AlertCircle,
-  Wallet,
-  Printer,
-  Wifi,
-  WifiOff,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -138,7 +133,7 @@ export default function CheckOut() {
   const [isCheckOutOpen, setIsCheckOutOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  
+
   // Payment form
   const [paymentMethod, setPaymentMethod] = useState<string>('card');
   const [paymentAmount, setPaymentAmount] = useState<string>('');
@@ -146,7 +141,7 @@ export default function CheckOut() {
   const [notes, setNotes] = useState<string>('');
 
   // Fetch today's departures
-  const fetchDepartures = async () => {
+  const fetchDepartures = async (signal?: AbortSignal) => {
     setIsLoading(true);
     try {
       const today = new Date();
@@ -156,7 +151,11 @@ export default function CheckOut() {
       params.append('checkInTo', endOfDay(today).toISOString());
       if (searchQuery) params.append('search', searchQuery);
 
-      const response = await fetch(`/api/bookings?${params.toString()}`);
+      const response = await fetch(`/api/bookings?${params.toString()}`, { signal });
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -167,8 +166,8 @@ export default function CheckOut() {
         });
         setBookings(todayDepartures);
       }
-    } catch (error) {
-      console.error('Error fetching departures:', error);
+    } catch (err: unknown) {
+      if ((err as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch departures',
@@ -180,13 +179,19 @@ export default function CheckOut() {
   };
 
   useEffect(() => {
-    fetchDepartures();
+    const controller = new AbortController();
+    fetchDepartures(controller.signal);
+    return () => controller.abort();
   }, [searchQuery]);
 
   // Fetch booking details with folio
   const fetchBookingDetails = async (bookingId: string) => {
     try {
       const response = await fetch(`/api/bookings/${bookingId}`);
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
       if (result.success) {
         setSelectedBooking(result.data);
@@ -198,8 +203,13 @@ export default function CheckOut() {
           setPaymentAmount(result.data.totalAmount.toString());
         }
       }
-    } catch (error) {
-      console.error('Error fetching booking details:', error);
+    } catch (err: unknown) {
+      if ((err as Error)?.name === 'AbortError') return;
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch booking details',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -239,6 +249,10 @@ export default function CheckOut() {
         }),
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -256,8 +270,8 @@ export default function CheckOut() {
           variant: 'destructive',
         });
       }
-    } catch (error) {
-      console.error('Error processing payment:', error);
+    } catch (err: unknown) {
+      if ((err as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to process payment',
@@ -295,20 +309,24 @@ export default function CheckOut() {
         }),
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
         const roomNumber = selectedBooking.room?.number;
-        
+
         // Build success message with WiFi status
         let successMessage = `Guest checked out from Room ${roomNumber || 'assigned'}`;
         const additionalActions: string[] = [];
-        
+
         if (result.wifi?.deprovisioned) {
           additionalActions.push('WiFi disabled');
         }
         additionalActions.push('room marked for cleaning');
-        
+
         if (additionalActions.length > 0) {
           successMessage += `. ${additionalActions.join(', ')}.`;
         }
@@ -326,8 +344,8 @@ export default function CheckOut() {
           variant: 'destructive',
         });
       }
-    } catch (error) {
-      console.error('Error processing check-out:', error);
+    } catch (err: unknown) {
+      if ((err as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to process check-out',
@@ -445,7 +463,7 @@ export default function CheckOut() {
             {bookings.map((booking) => {
               const nights = differenceInDays(new Date(booking.checkOut), new Date(booking.checkIn));
               const hasBalance = (booking.folios?.[0]?.balance ?? 0) > 0;
-              
+
               return (
                 <Card key={booking.id}>
                   <CardContent className="p-4">
@@ -455,7 +473,7 @@ export default function CheckOut() {
                         <Avatar className="h-12 w-12">
                           <AvatarFallback className={cn(
                             "text-sm font-medium",
-                            booking.primaryGuest.isVip 
+                            booking.primaryGuest.isVip
                               ? "bg-gradient-to-br from-amber-400 to-amber-600 text-white"
                               : "bg-gradient-to-br from-primary/80 to-primary text-primary-foreground"
                           )}>
@@ -642,8 +660,8 @@ export default function CheckOut() {
                     {/* Actions */}
                     {selectedFolio.balance > 0 && (
                       <div className="mt-4 flex gap-2">
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           className="flex-1"
                           onClick={() => setIsPaymentOpen(true)}
                         >
@@ -680,8 +698,8 @@ export default function CheckOut() {
             <Button variant="outline" onClick={() => setIsCheckOutOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              onClick={processCheckOut} 
+            <Button
+              onClick={processCheckOut}
               disabled={isProcessing || ((selectedFolio?.balance ?? 0) > 0)}
               className="bg-amber-600 hover:bg-amber-700"
             >
@@ -745,6 +763,7 @@ export default function CheckOut() {
                 <Input
                   type="number"
                   step="0.01"
+                  min={0}
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
                   className="pl-9"

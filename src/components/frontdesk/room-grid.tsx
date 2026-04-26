@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,21 +20,15 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   BedDouble, 
   Sparkles, 
   Wrench, 
-  Ban, 
   RefreshCw,
   LogIn,
   LogOut,
-  Users,
   Building2,
-  Eye,
   CheckCircle2,
-  Clock,
-  AlertCircle,
   Wifi,
   WifiOff,
   Activity,
@@ -116,6 +110,9 @@ export default function RoomGrid() {
   const [showUpdateFlash, setShowUpdateFlash] = useState(false);
   const [updatedRoomId, setUpdatedRoomId] = useState<string | null>(null);
 
+  // Ref for setTimeout cleanup to prevent memory leak
+  const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Handle room status change from WebSocket
   const handleRoomStatusChange = useCallback((event: RoomStatusEvent) => {
     if (process.env.NODE_ENV !== 'production') { console.log('[RoomGrid] Received room status change:', event); }
@@ -142,7 +139,8 @@ export default function RoomGrid() {
     setLastUpdate(new Date());
 
     // Clear flash after animation
-    setTimeout(() => {
+    if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+    flashTimeoutRef.current = setTimeout(() => {
       setShowUpdateFlash(false);
       setUpdatedRoomId(null);
     }, 2000);
@@ -191,7 +189,7 @@ export default function RoomGrid() {
     onRoomStatusChange: handleRoomStatusChange,
     onInitialState: handleInitialState,
     onError: (error) => {
-      console.error('[RoomGrid] Socket error:', error);
+      if (process.env.NODE_ENV !== 'production') { console.error('[RoomGrid] Socket error:', error); }
       toast({
         title: 'Connection Error',
         description: error.message,
@@ -202,18 +200,22 @@ export default function RoomGrid() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        if (error?.name === 'AbortError') return;
+        toast({ title: 'Error', description: 'Failed to fetch properties', variant: 'destructive' });
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch rooms
@@ -225,13 +227,14 @@ export default function RoomGrid() {
       if (statusFilter !== 'all') params.append('status', statusFilter);
 
       const response = await fetch(`/api/rooms?${params.toString()}`);
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
 
       if (result.success) {
         setRooms(result.data);
       }
     } catch (error) {
-      console.error('Error fetching rooms:', error);
+      if (error?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch rooms',
@@ -251,12 +254,14 @@ export default function RoomGrid() {
     setIsLoadingBooking(true);
     try {
       const response = await fetch(`/api/bookings?roomId=${roomId}&status=checked_in`);
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
       if (result.success && result.data.length > 0) {
         setRoomBooking(result.data[0]);
       } else {
         // Check for confirmed bookings too
         const confirmedResponse = await fetch(`/api/bookings?roomId=${roomId}&status=confirmed`);
+        if (!confirmedResponse.ok) { const text = await confirmedResponse.text().catch(() => 'Unknown error'); throw new Error(text); }
         const confirmedResult = await confirmedResponse.json();
         if (confirmedResult.success && confirmedResult.data.length > 0) {
           setRoomBooking(confirmedResult.data[0]);
@@ -265,7 +270,8 @@ export default function RoomGrid() {
         }
       }
     } catch (error) {
-      console.error('Error fetching room booking:', error);
+      if (error?.name === 'AbortError') return;
+      toast({ title: 'Error', description: 'Failed to fetch room booking', variant: 'destructive' });
       setRoomBooking(null);
     } finally {
       setIsLoadingBooking(false);
@@ -295,6 +301,7 @@ export default function RoomGrid() {
         body: JSON.stringify({ status: newStatus }),
       });
 
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
 
       if (result.success) {
@@ -321,7 +328,7 @@ export default function RoomGrid() {
         });
       }
     } catch (error) {
-      console.error('Error updating room:', error);
+      if (error?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to update room status',

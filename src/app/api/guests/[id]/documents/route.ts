@@ -64,6 +64,15 @@ export async function POST(
         { status: 400 }
       );
     }
+
+    // Validate document type
+    const allowedDocTypes = ['passport', 'national_id', 'drivers_license', 'visa', 'residence_permit', 'other'];
+    if (!allowedDocTypes.includes(type)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid document type. Must be one of: ${allowedDocTypes.join(', ')}` } },
+        { status: 400 }
+      );
+    }
     
     // Verify guest exists and belongs to tenant
     const guest = await db.guest.findFirst({
@@ -128,6 +137,15 @@ export async function PUT(
     if (!documentId || !status) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Document ID and status are required' } },
+        { status: 400 }
+      );
+    }
+
+    // Validate status
+    const allowedStatuses = ['pending', 'verified', 'rejected'];
+    if (!allowedStatuses.includes(status)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid status. Must be one of: ${allowedStatuses.join(', ')}` } },
         { status: 400 }
       );
     }

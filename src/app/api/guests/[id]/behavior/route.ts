@@ -14,10 +14,11 @@ export async function GET(
 
     // Get guest with behavior data — scoped to current tenant
     const guest = await db.guest.findFirst({
-      where: { id, tenantId: auth.tenantId },
+      where: { id, tenantId: auth.tenantId, deletedAt: null },
       include: {
         behavior: true,
         bookings: {
+          where: { deletedAt: null },
           select: {
             id: true,
             status: true,

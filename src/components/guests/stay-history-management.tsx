@@ -39,10 +39,8 @@ import {
   History,
   Search,
   Loader2,
-  Download,
   CalendarIcon,
   Building,
-  BedDouble,
   Clock,
   DollarSign,
   RefreshCw,
@@ -134,29 +132,68 @@ export default function StayHistoryManagement() {
   });
 
   useEffect(() => {
-    fetchGuests();
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+    (async () => {
+      try {
+        const response = await fetch('/api/guests?limit=100', { signal });
+        if (!response.ok) {
+          const text = await response.text().catch(() => 'Unknown error');
+          throw new Error(text);
+        }
+        const result = await response.json();
+        if (result.success) {
+          setGuests(result.data);
+        }
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch guests',
+          variant: 'destructive',
+        });
+      }
+    })();
+    return () => abortController.abort();
   }, []);
 
   useEffect(() => {
-    fetchStays();
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+    setIsLoading(true);
+    (async () => {
+      try {
+        await fetchStaysInternal(signal);
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
+      }
+    })();
+    return () => abortController.abort();
   }, [guestFilter, statusFilter, dateRange]);
 
   const fetchGuests = async () => {
     try {
       const response = await fetch('/api/guests?limit=100');
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
       if (result.success) {
         setGuests(result.data);
       }
     } catch (error) {
-      console.error('Error fetching guests:', error);
+      if ((error as Error)?.name === 'AbortError') return;
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch guests',
+        variant: 'destructive',
+      });
     }
   };
 
-  const fetchStays = async () => {
-    setIsLoading(true);
+  const fetchStaysInternal = async (signal?: AbortSignal) => {
     try {
-      // Fetch stays for all guests or filtered guest
       const guestIds = guestFilter !== 'all' ? [guestFilter] : guests.map(g => g.id);
 
       if (guestIds.length === 0) {
@@ -164,14 +201,17 @@ export default function StayHistoryManagement() {
         return;
       }
 
-      // Fetch stays for each guest
       const stayPromises = guestIds.map(async (guestId) => {
         const params = new URLSearchParams();
         if (statusFilter !== 'all') params.append('status', statusFilter);
         if (dateRange?.from) params.append('startDate', dateRange.from.toISOString());
         if (dateRange?.to) params.append('endDate', dateRange.to.toISOString());
 
-        const response = await fetch(`/api/guests/${guestId}/stays?${params.toString()}`);
+        const response = await fetch(`/api/guests/${guestId}/stays?${params.toString()}`, { signal });
+        if (!response.ok) {
+          const text = await response.text().catch(() => 'Unknown error');
+          throw new Error(text);
+        }
         const result = await response.json();
         return result.success ? result.data : [];
       });
@@ -208,12 +248,23 @@ export default function StayHistoryManagement() {
         avgStayLength: Math.round(avgStayLength * 10) / 10,
       });
     } catch (error) {
-      console.error('Error fetching stays:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch stay history',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchStays = async () => {
+    setIsLoading(true);
+    try {
+      await fetchStaysInternal();
+    } catch (error) {
+      if ((error as Error)?.name === 'AbortError') return;
     } finally {
       setIsLoading(false);
     }

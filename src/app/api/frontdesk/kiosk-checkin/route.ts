@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { db } from '@/lib/db';
 
 // POST /api/frontdesk/kiosk-checkin - Process express check-in from kiosk
@@ -10,6 +11,15 @@ export async function POST(request: NextRequest) {
     if (!bookingId) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'bookingId is required' } },
+        { status: 400 }
+      );
+    }
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(bookingId)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'bookingId must be a valid UUID' } },
         { status: 400 }
       );
     }
@@ -30,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     // Fetch booking with all needed relations
     const booking = await db.booking.findFirst({
-      where: { id: bookingId, status: 'confirmed' },
+      where: { id: bookingId, status: 'confirmed', deletedAt: null },
       include: {
         primaryGuest: { select: { id: true, firstName: true, lastName: true } },
         room: { select: { id: true, number: true, floor: true, status: true } },
@@ -104,7 +114,7 @@ export async function POST(request: NextRequest) {
       if (wifiPlan) {
         const guest = booking.primaryGuest;
         const username = `guest_${guest.id.slice(-6).toLowerCase()}`;
-        const password = Math.random().toString(36).slice(2, 10).toUpperCase();
+        const password = crypto.randomBytes(4).toString('hex').toUpperCase();
 
         // Calculate validUntil: max of checkout+12h and now+validityDays*24h
         const checkoutPlus12h = new Date(booking.checkOut.getTime() + 12 * 60 * 60 * 1000);

@@ -45,12 +45,10 @@ import {
   Car,
   Waves,
   Mountain,
-  Eye,
   Clock,
   User,
   AlertCircle,
   CheckCircle2,
-  XCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -177,11 +175,13 @@ export default function RoomMove() {
         limit: '10',
       });
       const response = await fetch(`/api/bookings?${params}`);
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
       if (result.success) {
         setSearchResults(result.data || []);
       }
-    } catch {
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
       toast({ title: 'Error', description: 'Failed to search bookings', variant: 'destructive' });
     } finally {
       setIsSearching(false);
@@ -214,11 +214,13 @@ export default function RoomMove() {
     setIsLoadingRooms(true);
     try {
       const response = await fetch(`/api/rooms?propertyId=${propertyId}&status=available&limit=50`);
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
       if (result.success) {
         setAvailableRooms(result.data || []);
       }
-    } catch {
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
       toast({ title: 'Error', description: 'Failed to fetch available rooms', variant: 'destructive' });
     } finally {
       setIsLoadingRooms(false);
@@ -229,12 +231,13 @@ export default function RoomMove() {
     setIsLoadingHistory(true);
     try {
       const response = await fetch(`/api/bookings/room-move/history?bookingId=${bookingId}`);
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
       if (result.success) {
         setMoveHistory(result.data || []);
       }
-    } catch {
-      // No history or error
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
     } finally {
       setIsLoadingHistory(false);
     }
@@ -258,6 +261,7 @@ export default function RoomMove() {
         }),
       });
 
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
 
       if (result.success) {
@@ -278,7 +282,8 @@ export default function RoomMove() {
           variant: 'destructive',
         });
       }
-    } catch {
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
       toast({ title: 'Error', description: 'Failed to process room move', variant: 'destructive' });
     } finally {
       setIsProcessing(false);
@@ -444,12 +449,18 @@ export default function RoomMove() {
                           </div>
                         </div>
                         <div className="flex gap-1 mt-2 flex-wrap">
-                          {room.roomType.amenities && JSON.parse(room.roomType.amenities).slice(0, 5).map((amenity: string, idx: number) => (
-                            <Badge key={idx} variant="outline" className="text-[10px] h-5 gap-0.5">
-                              {getAmenityIcon(amenity)}
-                              {amenity}
-                            </Badge>
-                          ))}
+                          {(() => {
+                            let amenities: string[] = [];
+                            try {
+                              amenities = room.roomType.amenities ? JSON.parse(room.roomType.amenities) : [];
+                            } catch { /* ignore parse errors */ }
+                            return amenities.slice(0, 5).map((amenity: string, idx: number) => (
+                              <Badge key={idx} variant="outline" className="text-[10px] h-5 gap-0.5">
+                                {getAmenityIcon(amenity)}
+                                {amenity}
+                              </Badge>
+                            ));
+                          })()}
                           {room.hasBalcony && <Badge variant="outline" className="text-[10px] h-5">Balcony</Badge>}
                           {room.hasSeaView && <Badge variant="outline" className="text-[10px] h-5">Sea View</Badge>}
                           {room.isAccessible && <Badge variant="outline" className="text-[10px] h-5">Accessible</Badge>}

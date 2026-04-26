@@ -28,7 +28,6 @@ import {
   HeartHandshake,
   Plus,
   RefreshCw,
-  Eye,
   Search,
   Route,
 } from 'lucide-react';
@@ -155,7 +154,40 @@ export function GuestJourney({ guestId }: GuestJourneyProps) {
   });
 
   useEffect(() => {
-    fetchJourney();
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+    setIsLoading(true);
+    (async () => {
+      try {
+        const params = new URLSearchParams();
+        params.append('limit', '100');
+        const response = await fetch(`/api/guests/${guestId}/journey?${params.toString()}`, { signal });
+        if (!response.ok) {
+          const text = await response.text().catch(() => 'Unknown error');
+          throw new Error(text);
+        }
+        const result = await response.json();
+        if (result.success) {
+          setData(result.data);
+        } else {
+          toast({
+            title: 'Error',
+            description: 'Failed to fetch guest journey',
+            variant: 'destructive',
+          });
+        }
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch guest journey',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+    return () => abortController.abort();
   }, [guestId]);
 
   const fetchJourney = async () => {
@@ -176,7 +208,7 @@ export function GuestJourney({ guestId }: GuestJourneyProps) {
         });
       }
     } catch (error) {
-      console.error('Error fetching journey:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch guest journey',
@@ -211,6 +243,10 @@ export function GuestJourney({ guestId }: GuestJourneyProps) {
         }),
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -226,7 +262,7 @@ export function GuestJourney({ guestId }: GuestJourneyProps) {
         });
       }
     } catch (error) {
-      console.error('Error adding event:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to add journey event',

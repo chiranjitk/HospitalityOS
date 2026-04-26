@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
       where: {
         confirmationCode: code.toUpperCase().trim(),
         status: 'confirmed',
+        deletedAt: null,
       },
       include: {
         primaryGuest: {
@@ -30,7 +31,6 @@ export async function GET(request: NextRequest) {
             phone: true,
             nationality: true,
             idType: true,
-            idNumber: true,
             isVip: true,
           },
         },

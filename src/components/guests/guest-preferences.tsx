@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
@@ -17,20 +16,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Heart,
   Save,
   Loader2,
   Coffee,
   BedDouble,
   Utensils,
-  Car,
-  Accessibility,
   Ban,
-  PawPrint,
-  Baby,
   Languages,
   Building,
-  CigaretteOff,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -163,13 +156,61 @@ export function GuestPreferences({ guestId }: GuestPreferencesProps) {
   const [activeSection, setActiveSection] = useState<'room' | 'dietary' | 'amenities' | 'communication'>('room');
 
   useEffect(() => {
-    fetchPreferences();
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+    setIsLoading(true);
+    (async () => {
+      try {
+        const response = await fetch(`/api/guests/${guestId}`, { signal });
+        if (!response.ok) {
+          const text = await response.text().catch(() => 'Unknown error');
+          throw new Error(text);
+        }
+        const result = await response.json();
+        if (result.success && result.data.preferences) {
+          setPreferences({
+            ...defaultPreferences,
+            ...result.data.preferences,
+            roomPreferences: {
+              ...defaultPreferences.roomPreferences,
+              ...(result.data.preferences.roomPreferences || {}),
+            },
+            dietaryPreferences: {
+              ...defaultPreferences.dietaryPreferences,
+              ...(result.data.preferences.dietaryPreferences || {}),
+            },
+            amenities: {
+              ...defaultPreferences.amenities,
+              ...(result.data.preferences.amenities || {}),
+            },
+            communication: {
+              ...defaultPreferences.communication,
+              ...(result.data.preferences.communication || {}),
+            },
+          });
+        }
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch preferences',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+    return () => abortController.abort();
   }, [guestId]);
 
   const fetchPreferences = async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/guests/${guestId}`);
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
       
       if (result.success && result.data.preferences) {
@@ -196,7 +237,7 @@ export function GuestPreferences({ guestId }: GuestPreferencesProps) {
         });
       }
     } catch (error) {
-      console.error('Error fetching preferences:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch preferences',
@@ -216,6 +257,10 @@ export function GuestPreferences({ guestId }: GuestPreferencesProps) {
         body: JSON.stringify({ preferences }),
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -231,7 +276,7 @@ export function GuestPreferences({ guestId }: GuestPreferencesProps) {
         });
       }
     } catch (error) {
-      console.error('Error saving preferences:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to save preferences',

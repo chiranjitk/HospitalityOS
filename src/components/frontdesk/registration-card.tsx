@@ -7,8 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Textarea } from '@/components/ui/textarea';
+
 import {
   Select,
   SelectContent,
@@ -16,14 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+
 import {
   Table,
   TableBody,
@@ -40,7 +32,6 @@ import {
   Plus,
   Trash2,
   Eye,
-  Download,
   User,
   Building2,
   Calendar,
@@ -138,7 +129,6 @@ export default function RegistrationCard() {
   const [vehiclePlate, setVehiclePlate] = useState<string>('');
   const [companions, setCompanions] = useState<Companion[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
 
   // Search bookings
   const searchBookings = async () => {
@@ -154,11 +144,13 @@ export default function RegistrationCard() {
         limit: '10',
       });
       const response = await fetch(`/api/bookings?${params}`);
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
       if (result.success) {
         setSearchResults(result.data || []);
       }
-    } catch {
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
       toast({ title: 'Error', description: 'Failed to search bookings', variant: 'destructive' });
     } finally {
       setIsSearching(false);
@@ -190,6 +182,7 @@ export default function RegistrationCard() {
     // Check for existing registration card
     try {
       const response = await fetch(`/api/folio/registration-card?bookingId=${booking.id}`);
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
       if (result.success && result.data) {
         setExistingCard(result.data);
@@ -198,8 +191,9 @@ export default function RegistrationCard() {
         setCompanions(JSON.parse(result.data.companions || '[]'));
         setTermsAccepted(result.data.termsAccepted);
       }
-    } catch {
-      // No existing card
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      toast({ title: 'Error', description: 'Failed to load existing registration card', variant: 'destructive' });
     }
   };
 
@@ -263,6 +257,7 @@ export default function RegistrationCard() {
 
         // Refresh card data
         const cardResponse = await fetch(`/api/folio/registration-card?bookingId=${selectedBooking.id}`);
+        if (!cardResponse.ok) { const text = await cardResponse.text().catch(() => 'Unknown error'); throw new Error(text); }
         const cardResult = await cardResponse.json();
         if (cardResult.success && cardResult.data) {
           setExistingCard(cardResult.data);
@@ -271,7 +266,8 @@ export default function RegistrationCard() {
         const error = await response.json();
         toast({ title: 'Error', description: error.error?.message || 'Failed to generate card', variant: 'destructive' });
       }
-    } catch {
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
       toast({ title: 'Error', description: 'Failed to generate registration card', variant: 'destructive' });
     } finally {
       setIsGenerating(false);
@@ -515,7 +511,7 @@ export default function RegistrationCard() {
                             />
                           </TableCell>
                           <TableCell>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => removeCompanion(idx)}>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Remove companion" onClick={() => removeCompanion(idx)}>
                               <Trash2 className="h-3 w-3 text-red-500" />
                             </Button>
                           </TableCell>

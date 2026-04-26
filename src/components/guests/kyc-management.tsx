@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
@@ -39,7 +38,6 @@ import {
   Search,
   Loader2,
   Upload,
-  Eye,
   CheckCircle,
   XCircle,
   Clock,
@@ -48,8 +46,8 @@ import {
   AlertCircle,
   Shield,
   User,
-  Filter,
   RefreshCw,
+  Eye,
   ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -126,45 +124,75 @@ export default function KYCManagement() {
   });
 
   useEffect(() => {
-    fetchGuests();
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+    setIsLoading(true);
+    (async () => {
+      try {
+        const response = await fetch('/api/guests?includeDocuments=true', { signal });
+        if (!response.ok) {
+          const text = await response.text().catch(() => 'Unknown error');
+          throw new Error(text);
+        }
+        const result = await response.json();
+        if (result.success) {
+          const guestsData = result.data.map((guest: Guest) => {
+            const documents = guest.documents || [];
+            let kycStatus: 'pending' | 'verified' | 'rejected' | 'incomplete' = 'incomplete';
+            if (documents.length > 0) {
+              const allVerified = documents.every((d: Document) => d.status === 'verified');
+              const anyRejected = documents.some((d: Document) => d.status === 'rejected');
+              const anyPending = documents.some((d: Document) => d.status === 'pending');
+              if (allVerified) kycStatus = 'verified';
+              else if (anyRejected && !anyPending) kycStatus = 'rejected';
+              else if (anyPending) kycStatus = 'pending';
+            }
+            return { ...guest, documents, kycStatus };
+          });
+          setGuests(guestsData);
+          const newStats = {
+            total: guestsData.length,
+            verified: guestsData.filter((g: Guest) => g.kycStatus === 'verified').length,
+            pending: guestsData.filter((g: Guest) => g.kycStatus === 'pending').length,
+            rejected: guestsData.filter((g: Guest) => g.kycStatus === 'rejected').length,
+            incomplete: guestsData.filter((g: Guest) => g.kycStatus === 'incomplete').length,
+          };
+          setStats(newStats);
+        }
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
+        toast({ title: 'Error', description: 'Failed to fetch guests', variant: 'destructive' });
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+    return () => abortController.abort();
   }, []);
 
   const fetchGuests = async () => {
     setIsLoading(true);
     try {
       const response = await fetch('/api/guests?includeDocuments=true');
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
-
       if (result.success) {
-        // Transform guests with KYC status calculation
-        const guestsData = result.data.map((guest: any) => {
+        const guestsData = result.data.map((guest: Guest) => {
           const documents = guest.documents || [];
           let kycStatus: 'pending' | 'verified' | 'rejected' | 'incomplete' = 'incomplete';
-
           if (documents.length > 0) {
             const allVerified = documents.every((d: Document) => d.status === 'verified');
             const anyRejected = documents.some((d: Document) => d.status === 'rejected');
             const anyPending = documents.some((d: Document) => d.status === 'pending');
-
-            if (allVerified) {
-              kycStatus = 'verified';
-            } else if (anyRejected && !anyPending) {
-              kycStatus = 'rejected';
-            } else if (anyPending) {
-              kycStatus = 'pending';
-            }
+            if (allVerified) kycStatus = 'verified';
+            else if (anyRejected && !anyPending) kycStatus = 'rejected';
+            else if (anyPending) kycStatus = 'pending';
           }
-
-          return {
-            ...guest,
-            documents,
-            kycStatus,
-          };
+          return { ...guest, documents, kycStatus };
         });
-
         setGuests(guestsData);
-
-        // Calculate stats
         const newStats = {
           total: guestsData.length,
           verified: guestsData.filter((g: Guest) => g.kycStatus === 'verified').length,
@@ -175,12 +203,8 @@ export default function KYCManagement() {
         setStats(newStats);
       }
     } catch (error) {
-      console.error('Error fetching guests:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch guests',
-        variant: 'destructive',
-      });
+      if ((error as Error)?.name === 'AbortError') return;
+      toast({ title: 'Error', description: 'Failed to fetch guests', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -202,6 +226,10 @@ export default function KYCManagement() {
         }),
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -221,7 +249,7 @@ export default function KYCManagement() {
         });
       }
     } catch (error) {
-      console.error('Error updating document:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to update document',

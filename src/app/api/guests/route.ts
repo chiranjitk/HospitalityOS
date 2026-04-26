@@ -3,6 +3,14 @@ import { db } from '@/lib/db';
 import { logGuest } from '@/lib/audit';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
+function safeJsonParse(value: string, fallback: unknown = null): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
 // GET /api/guests - List all guests
 export async function GET(request: NextRequest) {
   try {
@@ -30,6 +38,12 @@ export async function GET(request: NextRequest) {
     };
 
     if (search) {
+      if (search.length > 100) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Search query must be 100 characters or less' } },
+          { status: 400 }
+        );
+      }
       where.OR = [
         { firstName: { contains: search } },
         { lastName: { contains: search } },
@@ -62,8 +76,8 @@ export async function GET(request: NextRequest) {
       orderBy: {
         createdAt: 'desc',
       },
-      ...(limit && { take: parseInt(limit, 10) }),
-      ...(offset && { skip: parseInt(offset, 10) }),
+      ...(limit && { take: Math.min(Math.max(parseInt(limit, 10), 1), 100) }),
+      ...(offset && { skip: Math.max(parseInt(offset, 10), 0) }),
     });
 
     const total = await db.guest.count({ where });
@@ -72,14 +86,14 @@ export async function GET(request: NextRequest) {
       success: true,
       data: guests.map((g) => ({
         ...g,
-        preferences: JSON.parse(g.preferences),
-        tags: JSON.parse(g.tags),
+        preferences: safeJsonParse(g.preferences),
+        tags: safeJsonParse(g.tags),
         totalBookings: g._count.bookings,
       })),
       pagination: {
         total,
-        limit: limit ? parseInt(limit, 10) : null,
-        offset: offset ? parseInt(offset, 10) : null,
+        limit: limit ? Math.min(Math.max(parseInt(limit, 10), 1), 100) : null,
+        offset: offset ? Math.max(parseInt(offset, 10), 0) : null,
       },
     });
   } catch (error) {
@@ -218,8 +232,8 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         ...guest,
-        preferences: JSON.parse(guest.preferences),
-        tags: JSON.parse(guest.tags),
+        preferences: safeJsonParse(guest.preferences),
+        tags: safeJsonParse(guest.tags),
       }
     }, { status: 201 });
   } catch (error) {

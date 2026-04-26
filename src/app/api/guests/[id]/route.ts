@@ -3,6 +3,14 @@ import { db } from '@/lib/db';
 import { logGuest } from '@/lib/audit';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
+function safeJsonParse(value: string, fallback: unknown = null): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
 // GET /api/guests/[id] - Get a single guest
 export async function GET(
   request: NextRequest,
@@ -58,8 +66,8 @@ export async function GET(
       success: true,
       data: {
         ...guest,
-        preferences: JSON.parse(guest.preferences),
-        tags: JSON.parse(guest.tags),
+        preferences: safeJsonParse(guest.preferences),
+        tags: safeJsonParse(guest.tags),
         totalBookings: guest._count.bookings,
         totalReviews: guest._count.reviews,
         totalFeedback: guest._count.feedback,
@@ -172,8 +180,8 @@ export async function PUT(
     const guest = await db.guest.update({
       where: { id },
       data: {
-        ...(firstName && { firstName }),
-        ...(lastName && { lastName }),
+        ...(firstName !== undefined && { firstName }),
+        ...(lastName !== undefined && { lastName }),
         ...(email !== undefined && { email }),
         ...(phone !== undefined && { phone }),
         ...(alternatePhone !== undefined && { alternatePhone }),
@@ -195,7 +203,7 @@ export async function PUT(
         ...(avatar !== undefined && { avatar }),
         ...(notes !== undefined && { notes }),
         ...(tags !== undefined && { tags: JSON.stringify(tags) }),
-        ...(loyaltyTier && { loyaltyTier }),
+        ...(loyaltyTier !== undefined && { loyaltyTier }),
         ...(loyaltyPoints !== undefined && { loyaltyPoints }),
         ...(totalStays !== undefined && { totalStays }),
         ...(totalSpent !== undefined && { totalSpent }),
@@ -205,7 +213,7 @@ export async function PUT(
         ...(sourceId !== undefined && { sourceId }),
         ...(emailOptIn !== undefined && { emailOptIn }),
         ...(smsOptIn !== undefined && { smsOptIn }),
-        ...(kycStatus && { kycStatus }),
+        ...(kycStatus !== undefined && { kycStatus }),
       },
     });
     
@@ -228,8 +236,8 @@ export async function PUT(
       success: true, 
       data: {
         ...guest,
-        preferences: JSON.parse(guest.preferences),
-        tags: JSON.parse(guest.tags),
+        preferences: safeJsonParse(guest.preferences),
+        tags: safeJsonParse(guest.tags),
       }
     });
   } catch (error) {
@@ -264,6 +272,7 @@ export async function DELETE(
         bookings: {
           where: {
             status: { in: ['confirmed', 'checked_in'] },
+            deletedAt: null,
           },
         },
       },

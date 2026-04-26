@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -38,9 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Tooltip,
@@ -159,13 +158,17 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
       if (vipFilter === 'vip') params.append('isVip', 'true');
 
       const response = await fetch(`/api/guests?${params.toString()}`);
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
         setGuests(result.data);
       }
     } catch (error) {
-      console.error('Error fetching guests:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch guests',
@@ -177,7 +180,37 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
   };
 
   useEffect(() => {
-    fetchGuests();
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+
+    setIsLoading(true);
+    (async () => {
+      try {
+        const params = new URLSearchParams();
+        if (searchQuery) params.append('search', searchQuery);
+        if (loyaltyFilter !== 'all') params.append('loyaltyTier', loyaltyFilter);
+        if (vipFilter === 'vip') params.append('isVip', 'true');
+
+        const response = await fetch(`/api/guests?${params.toString()}`, { signal });
+        if (!response.ok) {
+          const text = await response.text().catch(() => 'Unknown error');
+          throw new Error(text);
+        }
+        const result = await response.json();
+        if (result.success) setGuests(result.data);
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch guests',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+
+    return () => abortController.abort();
   }, [loyaltyFilter, vipFilter]);
 
   // Debounced search
@@ -209,6 +242,10 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
         body: JSON.stringify(formData),
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -227,7 +264,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
         });
       }
     } catch (error) {
-      console.error('Error creating guest:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to create guest',
@@ -249,6 +286,10 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
         body: JSON.stringify(formData),
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -267,7 +308,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
         });
       }
     } catch (error) {
-      console.error('Error updating guest:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to update guest',
@@ -287,6 +328,10 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
         method: 'DELETE',
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -305,7 +350,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
         });
       }
     } catch (error) {
-      console.error('Error deleting guest:', error);
+      if ((error as Error)?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to delete guest',
@@ -642,7 +687,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
                 size="icon"
                 className="h-9 w-9"
                 onClick={() => onSelectGuest(guest.id)}
-                title="View Profile"
+                aria-label="View Profile"
               >
                 <Eye className="h-4 w-4" />
               </Button>
@@ -652,7 +697,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
               size="icon"
               className="h-9 w-9"
               onClick={() => openEditDialog(guest)}
-              title="Edit"
+              aria-label="Edit guest"
             >
               <Pencil className="h-4 w-4" />
             </Button>
@@ -661,7 +706,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
               size="icon"
               className="h-9 w-9"
               onClick={() => openDeleteDialog(guest)}
-              title="Delete"
+              aria-label="Delete guest"
             >
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
@@ -788,7 +833,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
               size="icon"
               className="h-9 w-9"
               onClick={() => onSelectGuest(guest.id)}
-              title="View Profile"
+              aria-label="View Profile"
             >
               <Eye className="h-4 w-4" />
             </Button>
@@ -798,7 +843,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
             size="icon"
             className="h-9 w-9"
             onClick={() => openEditDialog(guest)}
-            title="Edit"
+            aria-label="Edit guest"
           >
             <Pencil className="h-4 w-4" />
           </Button>
@@ -807,7 +852,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
             size="icon"
             className="h-9 w-9"
             onClick={() => openDeleteDialog(guest)}
-            title="Delete"
+            aria-label="Delete guest"
           >
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>

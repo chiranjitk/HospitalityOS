@@ -282,9 +282,11 @@ export default function WalkIn() {
 
   // Fetch properties on mount
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -293,18 +295,22 @@ export default function WalkIn() {
           }
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        if (error?.name === 'AbortError') return;
+        toast({ title: 'Error', description: 'Failed to fetch properties', variant: 'destructive' });
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch room types and tax settings when property changes
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRoomTypes = async () => {
       if (!selectedPropertyId) return;
       try {
-        const response = await fetch(`/api/room-types?propertyId=${selectedPropertyId}`);
+        const response = await fetch(`/api/room-types?propertyId=${selectedPropertyId}`, { signal: controller.signal });
+        if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
         const result = await response.json();
         if (result.success) {
           setRoomTypes(result.data);
@@ -314,14 +320,16 @@ export default function WalkIn() {
           }
         }
       } catch (error) {
-        console.error('Error fetching room types:', error);
+        if (error?.name === 'AbortError') return;
+        toast({ title: 'Error', description: 'Failed to fetch room types', variant: 'destructive' });
       }
     };
 
     const fetchTaxSettings = async () => {
       if (!selectedPropertyId) return;
       try {
-        const response = await fetch(`/api/properties/${selectedPropertyId}/tax-settings`);
+        const response = await fetch(`/api/properties/${selectedPropertyId}/tax-settings`, { signal: controller.signal });
+        if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
         const result = await response.json();
         if (result.success) {
           setTaxSettings({
@@ -331,7 +339,8 @@ export default function WalkIn() {
           });
         }
       } catch (error) {
-        console.error('Error fetching tax settings:', error);
+        if (error?.name === 'AbortError') return;
+        toast({ title: 'Error', description: 'Failed to fetch tax settings', variant: 'destructive' });
         setTaxSettings({
           defaultTaxRate: 0,
           taxComponents: [],
@@ -342,17 +351,21 @@ export default function WalkIn() {
 
     fetchRoomTypes();
     fetchTaxSettings();
+    return () => controller.abort();
   }, [selectedPropertyId]);
 
   // Fetch available rooms when room type changes
   useEffect(() => {
+    const controller = new AbortController();
     const fetchAvailableRooms = async () => {
       if (!selectedPropertyId || !selectedRoomTypeId) return;
       try {
         setIsLoading(true);
         const response = await fetch(
-          `/api/rooms?propertyId=${selectedPropertyId}&roomTypeId=${selectedRoomTypeId}&status=available`
+          `/api/rooms?propertyId=${selectedPropertyId}&roomTypeId=${selectedRoomTypeId}&status=available`,
+          { signal: controller.signal }
         );
+        if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
         const result = await response.json();
         if (result.success) {
           setAvailableRooms(result.data);
@@ -361,12 +374,14 @@ export default function WalkIn() {
           }
         }
       } catch (error) {
-        console.error('Error fetching available rooms:', error);
+        if (error?.name === 'AbortError') return;
+        toast({ title: 'Error', description: 'Failed to fetch available rooms', variant: 'destructive' });
       } finally {
         setIsLoading(false);
       }
     };
     fetchAvailableRooms();
+    return () => controller.abort();
   }, [selectedPropertyId, selectedRoomTypeId]);
 
   // Search existing guests
@@ -378,12 +393,14 @@ export default function WalkIn() {
     setIsSearchingGuests(true);
     try {
       const response = await fetch(`/api/guests?search=${query}&limit=10`);
+      if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
       const result = await response.json();
       if (result.success) {
         setExistingGuests(result.data);
       }
     } catch (error) {
-      console.error('Error searching guests:', error);
+      if (error?.name === 'AbortError') return;
+      toast({ title: 'Error', description: 'Failed to search guests', variant: 'destructive' });
     } finally {
       setIsSearchingGuests(false);
     }
@@ -486,6 +503,7 @@ export default function WalkIn() {
             tenantId: user?.tenantId || '',
           }),
         });
+        if (!guestResponse.ok) { const text = await guestResponse.text().catch(() => 'Unknown error'); throw new Error(text); }
         const guestResult = await guestResponse.json();
         if (!guestResult.success) {
           toast({
@@ -522,6 +540,7 @@ export default function WalkIn() {
           specialRequests: bookingForm.specialRequests || undefined,
         }),
       });
+      if (!bookingResponse.ok) { const text = await bookingResponse.text().catch(() => 'Unknown error'); throw new Error(text); }
       const bookingResult = await bookingResponse.json();
 
       if (bookingResult.success) {
@@ -555,6 +574,7 @@ export default function WalkIn() {
           const response = await fetch(
             `/api/rooms?propertyId=${selectedPropertyId}&roomTypeId=${selectedRoomTypeId}&status=available`
           );
+          if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
           const result = await response.json();
           if (result.success) {
             setAvailableRooms(result.data);
@@ -571,7 +591,7 @@ export default function WalkIn() {
         });
       }
     } catch (error) {
-      console.error('Error creating walk-in:', error);
+      if (error?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to create walk-in booking',
@@ -945,6 +965,7 @@ export default function WalkIn() {
                   </span>
                   <Input
                     type="number"
+                    min={0}
                     step="0.01"
                     placeholder="Rate per night"
                     value={bookingForm.roomRate}

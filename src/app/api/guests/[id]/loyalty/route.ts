@@ -156,7 +156,42 @@ export async function PUT(
     const tenantId = user.tenantId;
     const body = await request.json();
     const { points, operation = 'add', tier } = body;
-    
+
+    // Validate operation
+    const allowedOperations = ['add', 'subtract', 'set'];
+    if (!allowedOperations.includes(operation)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid operation. Must be one of: ${allowedOperations.join(', ')}` } },
+        { status: 400 }
+      );
+    }
+
+    // Validate points
+    if (points !== undefined) {
+      const parsedPoints = Number(points);
+      if (isNaN(parsedPoints) || !Number.isFinite(parsedPoints)) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Points must be a valid number' } },
+          { status: 400 }
+        );
+      }
+      if (parsedPoints < 0) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Points must be a non-negative number' } },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate tier
+    const allowedTiers = ['bronze', 'silver', 'gold', 'platinum'];
+    if (tier !== undefined && !allowedTiers.includes(tier)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid tier. Must be one of: ${allowedTiers.join(', ')}` } },
+        { status: 400 }
+      );
+    }
+
     const guest = await db.guest.findFirst({
       where: { id, tenantId, deletedAt: null },
     });

@@ -13,7 +13,7 @@ export async function GET(
     const { id } = await params;
     const { searchParams } = new URL(request.url);
     const stage = searchParams.get('stage');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '50'), 1), 200);
 
     // Build where clause with tenantId isolation
     const whereClause: Record<string, unknown> = { guestId: id, tenantId: auth.tenantId };
@@ -30,7 +30,7 @@ export async function GET(
 
     // Get guest info — scoped to tenant
     const guest = await db.guest.findFirst({
-      where: { id, tenantId: auth.tenantId },
+      where: { id, tenantId: auth.tenantId, deletedAt: null },
       select: {
         id: true,
         firstName: true,
@@ -105,6 +105,7 @@ export async function POST(
     // Validate required fields
     const { stage, eventType, title, description, metadata, source, bookingId } = body;
 
+    const allowedStages = ['discovery', 'booking', 'pre_arrival', 'stay', 'post_stay'];
     if (!stage || !eventType || !title) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'stage, eventType, and title are required' } },
@@ -112,9 +113,16 @@ export async function POST(
       );
     }
 
+    if (!allowedStages.includes(stage)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid stage. Must be one of: ${allowedStages.join(', ')}` } },
+        { status: 400 }
+      );
+    }
+
     // Get guest to get tenantId — scoped to current tenant
     const guest = await db.guest.findFirst({
-      where: { id, tenantId: auth.tenantId },
+      where: { id, tenantId: auth.tenantId, deletedAt: null },
       select: { tenantId: true },
     });
 

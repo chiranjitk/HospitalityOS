@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { useToast } from '@/hooks/use-toast';
-import { formatDistanceToNow, format } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { Button } from '@/components/ui/button';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -211,7 +211,7 @@ export default function WifiSessionHistory({ guestId }: GuestWifiHistoryProps) {
         }
       }
     } catch (err) {
-      console.error('Failed to fetch WiFi session data:', err);
+      if ((err as Error)?.name === 'AbortError') return;
       setError('Failed to load WiFi session data. The RADIUS service may be unavailable.');
     } finally {
       setIsLoading(false);

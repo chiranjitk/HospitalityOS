@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,14 +35,11 @@ import {
   Crown,
   Clock,
   Phone,
-  Mail,
   Building2,
   Key,
   RefreshCw,
   CheckCircle2,
   AlertCircle,
-  CreditCard,
-  FileText,
   Wifi,
   Copy,
 } from 'lucide-react';
@@ -120,7 +117,7 @@ export default function CheckIn() {
   const [lateCheckOut, setLateCheckOut] = useState<boolean>(false);
 
   // Fetch today's arrivals
-  const fetchArrivals = async () => {
+  const fetchArrivals = async (signal?: AbortSignal) => {
     setIsLoading(true);
     try {
       const today = new Date();
@@ -130,14 +127,18 @@ export default function CheckIn() {
       params.append('checkInTo', endOfDay(today).toISOString());
       if (searchQuery) params.append('search', searchQuery);
 
-      const response = await fetch(`/api/bookings?${params.toString()}`);
+      const response = await fetch(`/api/bookings?${params.toString()}`, { signal });
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
         setBookings(result.data);
       }
-    } catch (error) {
-      console.error('Error fetching arrivals:', error);
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch arrivals',
@@ -149,13 +150,19 @@ export default function CheckIn() {
   };
 
   useEffect(() => {
-    fetchArrivals();
+    const controller = new AbortController();
+    fetchArrivals(controller.signal);
+    return () => controller.abort();
   }, [searchQuery]);
 
   // Fetch available rooms for room type
   const fetchAvailableRooms = async (roomTypeId: string, propertyId: string) => {
     try {
       const response = await fetch(`/api/rooms?roomTypeId=${roomTypeId}&propertyId=${propertyId}&status=available`);
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
       if (result.success) {
         setAvailableRooms(result.data);
@@ -163,8 +170,13 @@ export default function CheckIn() {
           setSelectedRoomId(result.data[0].id);
         }
       }
-    } catch (error) {
-      console.error('Error fetching available rooms:', error);
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch available rooms',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -215,6 +227,10 @@ export default function CheckIn() {
         }),
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -242,8 +258,8 @@ export default function CheckIn() {
           variant: 'destructive',
         });
       }
-    } catch (error) {
-      console.error('Error processing check-in:', error);
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to process check-in',
@@ -676,6 +692,7 @@ export default function CheckIn() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      aria-label="Copy username"
                       onClick={() => copyToClipboard(wifiCredentials.username, 'Username')}
                     >
                       <Copy className="h-4 w-4" />
@@ -689,6 +706,7 @@ export default function CheckIn() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      aria-label="Copy password"
                       onClick={() => copyToClipboard(wifiCredentials.password, 'Password')}
                     >
                       <Copy className="h-4 w-4" />
