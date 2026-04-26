@@ -857,3 +857,27 @@ Stage Summary:
 - pgsql-production/deploy.sh updated: 8-step deployment pipeline (was 7)
 - All SQL files are idempotent (CREATE TABLE IF NOT EXISTS, CREATE OR REPLACE)
 - No other files modified
+
+---
+Task ID: 16
+Agent: Main Agent
+Task: Complete production deployment package — verify FR/PG, fix missing schema objects, create production config, push to GitHub
+
+Work Log:
+- **Verified sandbox**: PostgreSQL 17.9 running at /home/z/pgsql-17/bin/, FreeRADIUS 3.2.6 installed at /home/z/freeradius-install/, Next.js on port 3000
+- **Audited live database**: 6 views (v_active_sessions, v_auth_logs, v_fup_switch_logs, v_session_history, v_user_usage, v_wifi_users), 8 custom functions, 1 custom table (fup_switch_log)
+- **Created pgsql-production/05-fup-tables-and-functions.sql**: fup_switch_log table, v_fup_switch_logs view, 5 FUP functions
+- **Updated pgsql-production/02-staysuite-views.sql**: Added v_fup_switch_logs view (6 views total)
+- **Updated pgsql-production/deploy.sh**: 8-step deployment pipeline
+- **Created production-env.conf**: Auto-detects OS/PG/FR paths, sets DATABASE_URL, helper functions (check_pg, check_fr, run_psql, fr_restart)
+- **Created freeradius-config-patches/**: 4 patch files for FR SQL module, queries.conf, sites/default post-auth
+- **Created pgsql-production/DEPLOY-GUIDE.md**: 10-step production deployment guide for Rocky 10
+- **Verified no sandbox paths in src/, prisma/, pgsql-production/**: Clean
+- **Path dependencies documented**: Rocky 10 vs Sandbox for PG, FR, sql symlink, debug artifacts
+- **Pushed to GitHub**: Commit d818d63 with all production files
+
+Stage Summary:
+- Complete production deployment package with auto-detection config
+- All 8 functions, 6 views captured in pgsql-production/ SQL files
+- FreeRADIUS config patches documented for Rocky 10 deployment
+- GitHub push successful: https://github.com/chiranjitk/StaySuite-HospitalityOS
