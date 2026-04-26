@@ -81,7 +81,7 @@ interface RatePlan {
 
 const mealPlans = [
   { value: 'room_only', label: 'Room Only', icon: Tag },
-  { value: 'breakfast', label: 'Bed & Breakfast', icon: Coffee },
+  { value: 'bed_breakfast', label: 'Bed & Breakfast', icon: Coffee },
   { value: 'half_board', label: 'Half Board', icon: Utensils },
   { value: 'full_board', label: 'Full Board', icon: Utensils },
   { value: 'all_inclusive', label: 'All Inclusive', icon: Utensils },

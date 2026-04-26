@@ -64,14 +64,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (checkInDate < new Date()) {
-      return NextResponse.json(
-        { error: 'Check-in date cannot be in the past' },
-        { status: 400 }
-      );
-    }
-
-    // Get property details
+    // Get property details (including status for active check)
     const property = await db.property.findUnique({
       where: { id: propertyId },
       select: {
@@ -81,13 +74,23 @@ export async function GET(request: NextRequest) {
         checkInTime: true,
         checkOutTime: true,
         timezone: true,
+        status: true,
       },
     });
 
-    if (!property) {
+    if (!property || property.status !== 'active') {
       return NextResponse.json(
-        { error: 'Property not found' },
+        { success: false, error: 'Property not available' },
         { status: 404 }
+      );
+    }
+
+    // Use property timezone for "today" check to avoid timezone mismatch
+    const todayAtProperty = new Date(new Intl.DateTimeFormat('en-CA', { timeZone: property.timezone || 'UTC' }).format(new Date()));
+    if (checkInDate < todayAtProperty) {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_DATES', message: 'Check-in date cannot be in the past' } },
+        { status: 400 }
       );
     }
 
@@ -151,7 +154,11 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate availability for each room type
-    const availability = roomTypes.map(roomType => {
+    const availability = roomTypes.flatMap(roomType => {
+      // Check capacity independently — skip room types that can't accommodate
+      if (roomType.maxAdults && adults > roomType.maxAdults) return [];
+      if (roomType.maxChildren !== undefined && roomType.maxChildren !== null && children > roomType.maxChildren) return [];
+
       const totalRooms = roomType.rooms.length;
       
       // Count booked rooms
@@ -184,10 +191,9 @@ export async function GET(request: NextRequest) {
       // Calculate total price
       const basePrice = bestRate ? bestRate.basePrice * nights : roomType.basePrice * nights;
 
-      // Check capacity
       const fitsCapacity = adults + children <= roomType.maxOccupancy;
 
-      return {
+      return [{
         roomType: {
           id: roomType.id,
           name: roomType.name,
@@ -222,7 +228,7 @@ export async function GET(request: NextRequest) {
           } : null,
         },
         fitsCapacity,
-      };
+      }];
     });
 
     // Calculate overall statistics

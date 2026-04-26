@@ -12,6 +12,8 @@ export async function GET(request: NextRequest) {
     const propertyId = searchParams.get('propertyId');
     const floor = searchParams.get('floor');
     const id = searchParams.get('id');
+    const limit = parseInt(searchParams.get('limit') || '100', 10);
+    const offset = parseInt(searchParams.get('offset') || '0', 10);
 
     // Get by ID
     if (id) {
@@ -98,6 +100,8 @@ export async function GET(request: NextRequest) {
         { propertyId: 'asc' },
         { floor: 'asc' },
       ],
+      take: limit,
+      skip: offset,
     });
 
     return NextResponse.json({
@@ -239,18 +243,19 @@ export async function PUT(request: NextRequest) {
     }
 
     // If floor is being updated, check for duplicates
-    if (updateData.floor !== undefined && updateData.propertyId) {
+    if (updateData.floor !== undefined) {
       const duplicateFloorPlan = await db.floorPlan.findFirst({
         where: {
-          propertyId: updateData.propertyId,
+          propertyId: existingFloorPlan.propertyId,
           floor: parseInt(updateData.floor, 10),
           id: { not: id },
+          deletedAt: null,
         },
       });
 
       if (duplicateFloorPlan) {
         return NextResponse.json(
-          { success: false, error: { code: 'DUPLICATE_FLOOR', message: 'A floor plan already exists for this floor' } },
+          { success: false, error: { code: 'DUPLICATE_FLOOR', message: `Floor ${updateData.floor} already exists for this property` } },
           { status: 400 }
         );
       }

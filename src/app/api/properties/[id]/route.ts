@@ -155,14 +155,14 @@ export async function PUT(
       return tx.property.update({
         where: { id },
         data: {
-          ...(name && { name }),
+          ...(name !== undefined && { name }),
           ...(slug && { slug }),
           ...(description !== undefined && { description }),
-          ...(type && { type }),
-          ...(address && { address }),
-          ...(city && { city }),
+          ...(type !== undefined && { type }),
+          ...(address !== undefined && { address }),
+          ...(city !== undefined && { city }),
           ...(state !== undefined && { state }),
-          ...(country && { country }),
+          ...(country !== undefined && { country }),
           ...(postalCode !== undefined && { postalCode }),
           ...(latitude !== undefined && { latitude: latitude ? parseFloat(latitude) : null }),
           ...(longitude !== undefined && { longitude: longitude ? parseFloat(longitude) : null }),
@@ -237,6 +237,20 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Not found' } }, { status: 404 });
     }
     
+    // Check for active rooms and bookings before deleting
+    const activeRooms = await db.room.count({
+      where: { propertyId: id, deletedAt: null },
+    });
+    const activeBookings = await db.booking.count({
+      where: { propertyId: id, status: { in: ['confirmed', 'checked_in'] } },
+    });
+    if (activeRooms > 0 || activeBookings > 0) {
+      return NextResponse.json({
+        success: false,
+        error: { code: 'HAS_DEPENDENTS', message: `Cannot delete property with ${activeRooms} active rooms and ${activeBookings} active bookings` },
+      }, { status: 400 });
+    }
+
     // Soft delete in a transaction for atomicity
     await db.$transaction(async (tx) => {
       await tx.property.update({

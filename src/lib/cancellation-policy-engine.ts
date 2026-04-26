@@ -328,66 +328,71 @@ export async function applyCancellationPenalty(params: {
     });
   }
 
-  // 3. If penalty > 0, add line item to folio
+  // Wrap penalty application, folio update, booking status update, and room release in a single transaction
   let lineItemId = '';
-  if (evaluation.penaltyAmount > 0) {
-    const lineItem = await db.folioLineItem.create({
+  await db.$transaction(async (tx) => {
+    // 3. If penalty > 0, add line item to folio
+    if (evaluation.penaltyAmount > 0) {
+      const lineItem = await tx.folioLineItem.create({
+        data: {
+          folioId: folio!.id,
+          description: `Cancellation penalty - ${evaluation.policy.name}`,
+          category: 'penalty',
+          quantity: 1,
+          unitPrice: evaluation.penaltyAmount,
+          totalAmount: evaluation.penaltyAmount,
+          serviceDate: new Date(),
+          referenceType: 'cancellation_policy',
+          referenceId: evaluation.policy.id !== 'none' ? evaluation.policy.id : null,
+          postedBy: performedBy,
+        },
+      });
+      lineItemId = lineItem.id;
+
+      // 4. Update folio totals
+      const allLineItems = await tx.folioLineItem.findMany({
+        where: { folioId: folio!.id },
+      });
+
+      const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+      const taxAmount = allLineItems.reduce((sum, li) => sum + (li.taxAmount || 0), 0);
+      const newTotal = newSubtotal + taxAmount - (folio!.discount || 0);
+
+      await tx.folio.update({
+        where: { id: folio!.id },
+        data: {
+          subtotal: newSubtotal,
+          taxes: taxAmount,
+          totalAmount: newTotal,
+          balance: Math.max(0, newTotal - (folio!.paidAmount || 0)),
+        },
+      });
+    }
+
+    // 5. Update booking status to 'cancelled'
+    await tx.booking.update({
+      where: { id: bookingId },
       data: {
-        folioId: folio.id,
-        description: `Cancellation penalty - ${evaluation.policy.name}`,
-        category: 'penalty',
-        quantity: 1,
-        unitPrice: evaluation.penaltyAmount,
-        totalAmount: evaluation.penaltyAmount,
-        serviceDate: new Date(),
-        referenceType: 'cancellation_policy',
-        referenceId: evaluation.policy.id !== 'none' ? evaluation.policy.id : null,
-        postedBy: performedBy,
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        cancelledBy: performedBy,
+        cancellationReason: reason || `Cancelled with penalty policy: ${evaluation.policy.name}`,
       },
     });
-    lineItemId = lineItem.id;
 
-    // 4. Update folio totals
-    const allLineItems = await db.folioLineItem.findMany({
-      where: { folioId: folio.id },
+    // 6. Release room if assigned
+    const booking = await tx.booking.findUnique({
+      where: { id: bookingId },
+      select: { roomId: true },
     });
 
-    const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
-    const newBalance = newSubtotal - folio.paidAmount;
-
-    await db.folio.update({
-      where: { id: folio.id },
-      data: {
-        subtotal: newSubtotal,
-        totalAmount: newSubtotal + folio.taxes - folio.discount,
-        balance: Math.max(0, newBalance),
-      },
-    });
-  }
-
-  // 5. Update booking status to 'cancelled'
-  await db.booking.update({
-    where: { id: bookingId },
-    data: {
-      status: 'cancelled',
-      cancelledAt: new Date(),
-      cancelledBy: performedBy,
-      cancellationReason: reason || `Cancelled with penalty policy: ${evaluation.policy.name}`,
-    },
+    if (booking?.roomId) {
+      await tx.room.update({
+        where: { id: booking.roomId },
+        data: { status: 'available' },
+      });
+    }
   });
-
-  // 6. Release room if assigned
-  const booking = await db.booking.findUnique({
-    where: { id: bookingId },
-    select: { roomId: true },
-  });
-
-  if (booking?.roomId) {
-    await db.room.update({
-      where: { id: booking.roomId },
-      data: { status: 'available' },
-    });
-  }
 
   return {
     success: true,

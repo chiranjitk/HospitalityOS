@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -161,6 +161,14 @@ export default function InventoryLocking() {
   const [isStartCalendarOpen, setIsStartCalendarOpen] = useState(false);
   const [isEndCalendarOpen, setIsEndCalendarOpen] = useState(false);
 
+  // Pagination state
+  const [offset, setOffset] = useState(0);
+  const [limit] = useState(20);
+  const [pagination, setPagination] = useState({ total: 0 });
+
+  // Bulk selection state
+  const [selectedLocks, setSelectedLocks] = useState<Set<string>>(new Set());
+
   // Fetch properties
   useEffect(() => {
     const fetchProperties = async () => {
@@ -186,9 +194,59 @@ export default function InventoryLocking() {
   }, []);
 
   // Fetch data when property changes
+  const fetchData = useCallback(async () => {
+    if (!selectedProperty) return;
+    setIsLoading(true);
+
+    try {
+      // Fetch room types
+      const roomTypesResponse = await fetch(`/api/room-types?propertyId=${selectedProperty}`);
+      const roomTypesResult = await roomTypesResponse.json();
+      if (roomTypesResult.success) {
+        setRoomTypes(roomTypesResult.data);
+      }
+
+      // Fetch rooms
+      const roomsResponse = await fetch(`/api/rooms?propertyId=${selectedProperty}`);
+      const roomsResult = await roomsResponse.json();
+      if (roomsResult.success) {
+        setRooms(roomsResult.data);
+      }
+
+      // Fetch inventory locks
+      const locksParams = new URLSearchParams({ propertyId: selectedProperty });
+      if (statusFilter === 'active') locksParams.append('active', 'true');
+      if (statusFilter === 'upcoming') locksParams.append('upcoming', 'true');
+      if (offset > 0) locksParams.append('offset', String(offset));
+      locksParams.append('limit', String(limit));
+
+      const locksResponse = await fetch(`/api/inventory-locks?${locksParams.toString()}`);
+      const locksResult = await locksResponse.json();
+      if (locksResult.success) {
+        setLocks(locksResult.data);
+        setStats(locksResult.stats);
+        setPagination(locksResult.pagination || { total: locksResult.data?.length || 0 });
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch inventory locks',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedProperty, statusFilter, offset, limit, toast]);
+
+  useEffect(() => {
+    setOffset(0);
+    setSelectedLocks(new Set());
+  }, [selectedProperty, statusFilter]);
+
   useEffect(() => {
     fetchData();
-  }, [selectedProperty, statusFilter]);
+  }, [fetchData]);
 
   // Filter locks
   const filteredLocks = locks.filter(lock => {
@@ -352,6 +410,7 @@ export default function InventoryLocking() {
 
   // Remove lock (unlock)
   const handleUnlock = async (lock: InventoryLock) => {
+    if (!window.confirm('Unlock this inventory? This will make rooms available for booking.')) return;
     try {
       const response = await fetch(`/api/inventory-locks?ids=${lock.id}`, {
         method: 'DELETE',
@@ -382,48 +441,6 @@ export default function InventoryLocking() {
     }
   };
 
-  const fetchData = async () => {
-    if (!selectedProperty) return;
-    setIsLoading(true);
-
-    try {
-      // Fetch room types
-      const roomTypesResponse = await fetch(`/api/room-types?propertyId=${selectedProperty}`);
-      const roomTypesResult = await roomTypesResponse.json();
-      if (roomTypesResult.success) {
-        setRoomTypes(roomTypesResult.data);
-      }
-
-      // Fetch rooms
-      const roomsResponse = await fetch(`/api/rooms?propertyId=${selectedProperty}`);
-      const roomsResult = await roomsResponse.json();
-      if (roomsResult.success) {
-        setRooms(roomsResult.data);
-      }
-
-      // Fetch inventory locks
-      const locksParams = new URLSearchParams({ propertyId: selectedProperty });
-      if (statusFilter === 'active') locksParams.append('active', 'true');
-      if (statusFilter === 'upcoming') locksParams.append('upcoming', 'true');
-
-      const locksResponse = await fetch(`/api/inventory-locks?${locksParams.toString()}`);
-      const locksResult = await locksResponse.json();
-      if (locksResult.success) {
-        setLocks(locksResult.data);
-        setStats(locksResult.stats);
-      }
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch inventory locks',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const openEditDialog = (lock: InventoryLock) => {
     setSelectedLock(lock);
     setFormData({
@@ -451,6 +468,63 @@ export default function InventoryLocking() {
       endDate: '',
       reason: '',
     });
+  };
+
+  // Bulk delete selected locks
+  const handleBulkDelete = async () => {
+    if (selectedLocks.size === 0) return;
+    if (!window.confirm(`Delete ${selectedLocks.size} selected lock(s)? This will make rooms available for booking.`)) return;
+
+    try {
+      const ids = Array.from(selectedLocks).join(',');
+      const response = await fetch(`/api/inventory-locks?ids=${ids}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: 'Success',
+          description: `${selectedLocks.size} lock(s) removed successfully`,
+        });
+        setSelectedLocks(new Set());
+        fetchData();
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error?.message || 'Failed to remove locks',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error bulk deleting locks:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to remove locks',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const toggleLockSelection = (lockId: string) => {
+    setSelectedLocks(prev => {
+      const next = new Set(prev);
+      if (next.has(lockId)) {
+        next.delete(lockId);
+      } else {
+        next.add(lockId);
+      }
+      return next;
+    });
+  };
+
+  const toggleAllLocks = () => {
+    if (selectedLocks.size === filteredLocks.length) {
+      setSelectedLocks(new Set());
+    } else {
+      setSelectedLocks(new Set(filteredLocks.map(l => l.id)));
+    }
   };
 
   const getLockTypeInfo = (lockType: string) => {
@@ -611,6 +685,15 @@ export default function InventoryLocking() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <input
+                        type="checkbox"
+                        checked={filteredLocks.length > 0 && selectedLocks.size === filteredLocks.length}
+                        onChange={toggleAllLocks}
+                        className="rounded border-gray-300"
+                        aria-label="Select all locks"
+                      />
+                    </TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Room / Room Type</TableHead>
@@ -627,6 +710,15 @@ export default function InventoryLocking() {
 
                     return (
                       <TableRow key={lock.id}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selectedLocks.has(lock.id)}
+                            onChange={() => toggleLockSelection(lock.id)}
+                            className="rounded border-gray-300"
+                            aria-label={`Select lock for ${lock.room?.number || lock.reason}`}
+                          />
+                        </TableCell>
                         <TableCell>{getStatusBadge(lock)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -706,6 +798,29 @@ export default function InventoryLocking() {
           )}
         </CardContent>
       </Card>
+
+      {/* Pagination & Bulk Actions */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">
+            Showing {filteredLocks.length} of {pagination.total} locks
+          </span>
+          {selectedLocks.size > 0 && (
+            <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+              <Trash2 className="h-4 w-4 mr-1" />
+              Delete Selected ({selectedLocks.size})
+            </Button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => setOffset(Math.max(0, offset - limit))} disabled={offset === 0} variant="outline" size="sm">
+            Previous
+          </Button>
+          <Button onClick={() => setOffset(offset + limit)} disabled={offset + limit >= pagination.total} variant="outline" size="sm">
+            Next
+          </Button>
+        </div>
+      </div>
 
       {/* Create Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

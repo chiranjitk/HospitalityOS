@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -156,61 +156,82 @@ export default function AvailabilityControl() {
     fetchProperties();
   }, []);
 
-  // Fetch data when property changes
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!selectedProperty) return;
-      setIsLoading(true);
+  // Fetch data when property or date range changes
+  const fetchData = useCallback(async () => {
+    if (!selectedProperty) return;
+    setIsLoading(true);
 
-      try {
-        // Fetch room types
-        const roomTypesResponse = await fetch(`/api/room-types?propertyId=${selectedProperty}`);
-        const roomTypesResult = await roomTypesResponse.json();
-        if (roomTypesResult.success) {
-          setRoomTypes(roomTypesResult.data);
-        }
-
-        // Fetch rooms
-        const roomsResponse = await fetch(`/api/rooms?propertyId=${selectedProperty}`);
-        const roomsResult = await roomsResponse.json();
-        if (roomsResult.success) {
-          setRooms(roomsResult.data);
-        }
-
-        // Fetch bookings for the date range
-        const bookingsParams = new URLSearchParams({
-          propertyId: selectedProperty,
-          checkInFrom: startDate.toISOString(),
-          checkInTo: endDate.toISOString(),
-        });
-        const bookingsResponse = await fetch(`/api/bookings?${bookingsParams.toString()}`);
-        const bookingsResult = await bookingsResponse.json();
-        if (bookingsResult.success) {
-          setBookings(bookingsResult.data);
-        }
-
-        // Fetch inventory locks
-        try {
-          const locksResponse = await fetch(`/api/inventory-locks?propertyId=${selectedProperty}&active=true`);
-          if (locksResponse.ok) {
-            const locksResult = await locksResponse.json();
-            setInventoryLocks(locksResult.data || locksResult || []);
-          }
-        } catch { /* ignore lock fetch errors */ }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to fetch availability data',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsLoading(false);
+    try {
+      // Fetch room types
+      const roomTypesResponse = await fetch(`/api/room-types?propertyId=${selectedProperty}`);
+      const roomTypesResult = await roomTypesResponse.json();
+      if (roomTypesResult.success) {
+        setRoomTypes(roomTypesResult.data);
       }
-    };
 
+      // Fetch rooms
+      const roomsResponse = await fetch(`/api/rooms?propertyId=${selectedProperty}`);
+      const roomsResult = await roomsResponse.json();
+      if (roomsResult.success) {
+        setRooms(roomsResult.data);
+      }
+
+      // Fetch bookings for the date range
+      const bookingsParams = new URLSearchParams({
+        propertyId: selectedProperty,
+        checkInFrom: startDate.toISOString(),
+        checkInTo: endDate.toISOString(),
+      });
+      const bookingsResponse = await fetch(`/api/bookings?${bookingsParams.toString()}`);
+      const bookingsResult = await bookingsResponse.json();
+      if (bookingsResult.success) {
+        setBookings(bookingsResult.data);
+      }
+
+      // Fetch inventory locks
+      try {
+        const locksResponse = await fetch(`/api/inventory-locks?propertyId=${selectedProperty}&active=true`);
+        if (locksResponse.ok) {
+          const locksResult = await locksResponse.json();
+          setInventoryLocks(locksResult.data || locksResult || []);
+        }
+      } catch { /* ignore lock fetch errors */ }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch availability data',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedProperty, startDate, endDate, toast]);
+
+  useEffect(() => {
     fetchData();
-  }, [selectedProperty, startDate, endDate]);
+  }, [fetchData]);
+
+  // Pre-index bookings by roomTypeId for O(1) lookup (Fix 5-D1)
+  const bookingsByRoomType = useMemo(() => {
+    const map = new Map<string, typeof bookings>();
+    for (const b of bookings) {
+      const arr = map.get(b.roomTypeId || '') || [];
+      arr.push(b);
+      map.set(b.roomTypeId || '', arr);
+    }
+    return map;
+  }, [bookings]);
+
+  const locksByRoomType = useMemo(() => {
+    const map = new Map<string, typeof inventoryLocks>();
+    for (const l of inventoryLocks) {
+      const arr = map.get(l.roomTypeId || '') || [];
+      arr.push(l);
+      map.set(l.roomTypeId || '', arr);
+    }
+    return map;
+  }, [inventoryLocks]);
 
   // Calculate availability for each date and room type
   const availabilityData = useMemo((): AvailabilityData[] => {
@@ -223,9 +244,9 @@ export default function AvailabilityControl() {
       roomTypes.forEach(roomType => {
         const totalRoomsForType = rooms.filter(r => r.roomTypeId === roomType.id).length;
 
-        // Count bookings for this date and room type
-        const bookingsForDateAndType = bookings.filter(booking => {
-          if (booking.roomTypeId !== roomType.id) return false;
+        // Count bookings for this date and room type using pre-indexed map
+        const bookingsForType = bookingsByRoomType.get(roomType.id) || [];
+        const bookingsForDateAndType = bookingsForType.filter(booking => {
           const checkIn = parseISO(booking.checkIn);
           const checkOut = parseISO(booking.checkOut);
           const currentDate = parseISO(dateStr);
@@ -234,8 +255,8 @@ export default function AvailabilityControl() {
         });
 
         const booked = bookingsForDateAndType.length;
-        const blocked = inventoryLocks.filter((l: any) =>
-          l.roomTypeId === roomType.id &&
+        const locksForType = locksByRoomType.get(roomType.id) || [];
+        const blocked = locksForType.filter((l: any) =>
           new Date(l.startDate) <= date &&
           (!l.endDate || new Date(l.endDate) >= date)
         ).length;
@@ -254,7 +275,7 @@ export default function AvailabilityControl() {
     });
 
     return data;
-  }, [roomTypes, rooms, bookings, inventoryLocks, startDate, endDate]);
+  }, [roomTypes, rooms, bookingsByRoomType, locksByRoomType, startDate, endDate]);
 
   // Get availability for a specific date and room type
   const getAvailability = (date: Date, roomTypeId: string): AvailabilityData | undefined => {
@@ -308,6 +329,7 @@ export default function AvailabilityControl() {
   // Save availability edit
   const handleSaveAvailability = async () => {
     if (!editData) return;
+    if (!window.confirm('Update availability?')) return;
     setIsSaving(true);
 
     try {
@@ -352,11 +374,7 @@ export default function AvailabilityControl() {
 
   // Refresh data
   const refreshData = () => {
-    if (selectedProperty) {
-      setIsLoading(true);
-      // Re-trigger the effect
-      setStartDate(new Date(startDate));
-    }
+    fetchData();
   };
 
   // Export to CSV
@@ -475,7 +493,7 @@ export default function AvailabilityControl() {
                         setIsStartCalendarOpen(false);
                       }
                     }}
-                    disabled={(date) => date < new Date() || date > endDate}
+                    disabled={(date) => date > endDate}
                   />
                 </PopoverContent>
               </Popover>
@@ -594,6 +612,11 @@ export default function AvailabilityControl() {
             </div>
           ) : (
             <>
+              {displayDates.length > 14 && (
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 px-4 py-2 rounded-md text-sm mb-4 mx-3">
+                  Showing first 14 days of {displayDates.length}-day range. Narrow the date range or use pagination.
+                </div>
+              )}
               {/* Desktop table */}
               <div className="hidden md:block overflow-x-auto">
                 <Table>

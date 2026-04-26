@@ -34,6 +34,18 @@ export async function GET(request: NextRequest) {    const user = await getUserF
     start.setHours(0, 0, 0, 0);
     end.setHours(23, 59, 59, 999);
     
+    // Verify property belongs to tenant
+    const propertyCheck = await db.property.findFirst({
+      where: { id: propertyId, tenantId: user.tenantId },
+      select: { id: true },
+    });
+    if (!propertyCheck) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Property not found or access denied' } },
+        { status: 403 }
+      );
+    }
+
     // Get room types with their rooms
     const roomTypes = await db.roomType.findMany({
       where: {
@@ -79,6 +91,14 @@ export async function GET(request: NextRequest) {    const user = await getUserF
       },
     });
     
+    // Pre-index bookings by roomTypeId for O(1) lookup instead of O(N) filter per roomType per date
+    const bookingMap = new Map<string, { checkIn: Date; checkOut: Date }[]>();
+    for (const b of bookings) {
+      const arr = bookingMap.get(b.roomTypeId) || [];
+      arr.push({ checkIn: new Date(b.checkIn), checkOut: new Date(b.checkOut) });
+      bookingMap.set(b.roomTypeId, arr);
+    }
+
     // Calculate inventory for each day
     const inventoryData: Record<string, Record<string, { available: number; total: number; price: number }>> = {};
     
@@ -91,13 +111,9 @@ export async function GET(request: NextRequest) {    const user = await getUserF
       for (const roomType of roomTypes) {
         const totalRooms = roomType.rooms.length;
         
-        // Count booked rooms for this date
-        const bookedRooms = bookings.filter(b => {
-          if (b.roomTypeId !== roomType.id) return false;
-          const checkIn = new Date(b.checkIn);
-          const checkOut = new Date(b.checkOut);
-          return currentDate >= checkIn && currentDate < checkOut;
-        }).length;
+        // Use pre-indexed map instead of bookings.filter()
+        const roomBookings = bookingMap.get(roomType.id) || [];
+        const bookedRooms = roomBookings.filter(b => currentDate >= b.checkIn && currentDate < b.checkOut).length;
         
         const available = Math.max(0, totalRooms - bookedRooms);
         

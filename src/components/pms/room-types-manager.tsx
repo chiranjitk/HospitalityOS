@@ -334,7 +334,15 @@ export default function RoomTypesManager() {
     if (!formData.propertyId || !formData.name || !formData.code || !formData.basePrice) {
       toast({
         title: 'Validation Error',
-        description: 'Please fill in all required fields',
+        description: 'Property, name, code, and base price are required.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (formData.maxAdults < 1 || parseFloat(formData.basePrice) <= 0) {
+      toast({
+        title: 'Validation Error',
+        description: 'Max adults must be >= 1 and base price must be > 0.',
         variant: 'destructive',
       });
       return;
@@ -350,7 +358,7 @@ export default function RoomTypesManager() {
           basePrice: parseFloat(formData.basePrice),
           sizeSqMeters: formData.sizeSqMeters ? parseFloat(formData.sizeSqMeters) : null,
           wifiPlanId: formData.wifiPlanId || null,
-          currency: 'INR',
+          currency: properties.find(p => p.id === formData.propertyId)?.currency || 'INR',
         }),
       });
       
@@ -396,7 +404,7 @@ export default function RoomTypesManager() {
           basePrice: parseFloat(formData.basePrice),
           sizeSqMeters: formData.sizeSqMeters ? parseFloat(formData.sizeSqMeters) : null,
           wifiPlanId: formData.wifiPlanId || null,
-          currency: 'INR',
+          currency: properties.find(p => p.id === formData.propertyId)?.currency || 'INR',
         }),
       });
       
@@ -470,9 +478,14 @@ export default function RoomTypesManager() {
   // Bulk delete
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.length} room types?`)) return;
     setIsSaving(true);
     try {
-      await Promise.all(selectedIds.map(id => fetch(`/api/room-types/${id}`, { method: 'DELETE' })));
+      // Process in chunks of 5
+      for (let i = 0; i < selectedIds.length; i += 5) {
+        const chunk = selectedIds.slice(i, i + 5);
+        await Promise.all(chunk.map(id => fetch(`/api/room-types/${id}`, { method: 'DELETE' })));
+      }
       toast({ title: 'Success', description: `${selectedIds.length} room types deleted` });
       setSelectedIds([]);
       fetchRoomTypes();
@@ -594,7 +607,7 @@ export default function RoomTypesManager() {
               ...defaultFormData,
               ...item,
               propertyId: formData.propertyId || properties[0]?.id,
-              currency: 'INR',
+              currency: properties.find(p => p.id === (formData.propertyId || properties[0]?.id))?.currency || 'INR',
             }),
           });
           if (response.ok) {

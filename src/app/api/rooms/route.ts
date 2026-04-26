@@ -194,60 +194,68 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const room = await db.room.create({
-      data: {
-        propertyId,
-        roomTypeId,
-        number,
-        name,
-        floor,
-        isAccessible,
-        isSmoking,
-        hasBalcony,
-        hasSeaView,
-        hasMountainView,
-        status,
-        digitalKeyEnabled,
-      },
-      include: {
-        roomType: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            basePrice: true,
-            currency: true,
+    // Wrap all three operations in a single transaction for atomicity
+    const room = await db.$transaction(async (tx) => {
+      const newRoom = await tx.room.create({
+        data: {
+          propertyId,
+          roomTypeId,
+          number,
+          name,
+          floor,
+          isAccessible,
+          isSmoking,
+          hasBalcony,
+          hasSeaView,
+          hasMountainView,
+          status,
+          digitalKeyEnabled,
+        },
+        include: {
+          roomType: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              basePrice: true,
+              currency: true,
+            },
+          },
+          property: {
+            select: {
+              id: true,
+              name: true,
+              currency: true,
+            },
           },
         },
-        property: {
-          select: {
-            id: true,
-            name: true,
-            currency: true,
-          },
-        },
-      },
-    });
-    
-    // Atomically update totalRooms count on room type and property
-    await db.$transaction([
-      db.roomType.update({
+      });
+
+      await tx.roomType.update({
         where: { id: roomTypeId },
         data: {
           totalRooms: {
             increment: 1,
           },
         },
-      }),
-      db.property.update({
+      });
+
+      await tx.property.update({
         where: { id: propertyId },
         data: {
           totalRooms: {
             increment: 1,
           },
         },
-      }),
-    ]);
+      });
+
+      // NOTE: totalRooms on Property and RoomType are maintained via increment/decrement.
+      // If counts drift (e.g., manual DB changes, failed transactions), run reconciliation:
+      // UPDATE "RoomType" rt SET "totalRooms" = (SELECT COUNT(*) FROM "Room" r WHERE r."roomTypeId" = rt.id AND r."deletedAt" IS NULL)
+      // UPDATE "Property" p SET "totalRooms" = (SELECT COUNT(*) FROM "Room" r WHERE r."propertyId" = p.id AND r."deletedAt" IS NULL)
+
+      return newRoom;
+    });
     
     // Log room creation (non-blocking)
     try {

@@ -176,7 +176,11 @@ function hasCheckInDeadlinePassed(
   // Convert both to total minutes for comparison
   const currentMinutes = current.hours * 60 + current.minutes;
   const deadlineMinutes = (checkIn.hours + bufferHours) * 60 + checkIn.minutes;
-
+  // Handle wraparound past midnight
+  if (deadlineMinutes >= 1440) {
+    const adjustedDeadline = deadlineMinutes - 1440;
+    return currentMinutes >= adjustedDeadline || currentMinutes < (checkIn.hours * 60 + checkIn.minutes);
+  }
   return currentMinutes >= deadlineMinutes;
 }
 
@@ -184,14 +188,42 @@ function hasCheckInDeadlinePassed(
  * Get today's date range for a property's timezone, returned as UTC Date objects.
  */
 function getPropertyTodayRange(timezone: string): { start: Date; end: Date } {
-  const localDateStr = getPropertyLocalDate(timezone);
+  const now = new Date();
+  // Get the date string in the property's timezone
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  });
+  const dateStr = formatter.format(now); // "2025-01-15"
 
-  // Start of day in property timezone -> convert to UTC
-  const startLocal = new Date(`${localDateStr}T00:00:00`);
-  // End of day in property timezone -> convert to UTC
-  const endLocal = new Date(`${localDateStr}T23:59:59`);
+  const startFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  });
+  const endFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '23', minute: '59', second: '59', hour12: false
+  });
 
-  return { start: startLocal, end: endLocal };
+  const startParts = startFormatter.formatToParts(now);
+  const endParts = endFormatter.formatToParts(now);
+
+  const getValue = (parts: Intl.DateTimeFormatPart[], type: string) => parts.find(p => p.type === type)?.value;
+
+  const start = new Date(
+    parseInt(getValue(startParts, 'year')!),
+    parseInt(getValue(startParts, 'month')!) - 1,
+    parseInt(getValue(startParts, 'day')!),
+    0, 0, 0, 0
+  );
+  const end = new Date(
+    parseInt(getValue(endParts, 'year')!),
+    parseInt(getValue(endParts, 'month')!) - 1,
+    parseInt(getValue(endParts, 'day')!),
+    23, 59, 59, 999
+  );
+
+  return { start, end };
 }
 
 // =====================================================

@@ -37,10 +37,9 @@ import {
   Layers,
   AlignStartVertical,
   AlignStartHorizontal,
-  Group,
-  Ungroup,
   Lock,
   Unlock,
+  Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -143,9 +142,11 @@ export function FloorPlanEditor({
   
   // Dialog state
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
+  const [roomSearch, setRoomSearch] = useState('');
   
   const editorRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const lastMouseRef = useRef({ x: 0, y: 0 });
 
   // History management
   const pushToHistory = useCallback((positions: RoomPosition[]) => {
@@ -197,9 +198,10 @@ export function FloorPlanEditor({
         e.preventDefault();
         setSelectedRooms(roomPositions.map(p => p.roomId));
       }
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedRooms.length > 0) {
-          e.preventDefault();
+      if (selectedRooms.length > 0 && (e.key === 'Delete' || e.key === 'Backspace')) {
+        e.preventDefault();
+        const confirmed = window.confirm(`Remove ${selectedRooms.length} room(s) from floor plan?`);
+        if (confirmed) {
           removeSelectedRooms();
         }
       }
@@ -312,6 +314,7 @@ export function FloorPlanEditor({
     }
 
     setDraggingRoom(roomId);
+    lastMouseRef.current = { x: e.clientX, y: e.clientY };
     setDragOffset({
       x: (e.clientX - rect.left - pan.x) / zoom - position.x,
       y: (e.clientY - rect.top - pan.y) / zoom - position.y,
@@ -338,15 +341,16 @@ export function FloorPlanEditor({
         newY = Math.max(0, Math.min(newY, maxY));
       }
 
-      // Calculate delta for multi-select drag
-      const deltaX = position ? newX - position.x : 0;
-      const deltaY = position ? newY - position.y : 0;
+      // Use frame-to-frame delta for multi-select to avoid floating point drift
+      const mouseDeltaX = e.clientX - lastMouseRef.current.x;
+      const mouseDeltaY = e.clientY - lastMouseRef.current.y;
+      lastMouseRef.current = { x: e.clientX, y: e.clientY };
 
       setRoomPositions(prev => {
         if (selectedRooms.length > 1 && selectedRooms.includes(draggingRoom)) {
           return prev.map(p => 
             selectedRooms.includes(p.roomId) && !p.locked
-              ? { ...p, x: p.x + deltaX, y: p.y + deltaY }
+              ? { ...p, x: p.x + mouseDeltaX, y: p.y + mouseDeltaY }
               : p
           );
         }
@@ -432,12 +436,18 @@ export function FloorPlanEditor({
     let x = 20;
     let y = 20;
     
-    while (roomPositions.some(p => p.x === x && p.y === y)) {
+    let maxAttempts = 200;
+    while (roomPositions.some(p => p.x === x && p.y === y) && maxAttempts > 0) {
       x += defaultRoomSize.width + gridSize;
       if (x + defaultRoomSize.width > floorPlan.width) {
         x = 20;
         y += defaultRoomSize.height + gridSize;
       }
+      maxAttempts--;
+    }
+    if (maxAttempts <= 0) {
+      toast({ title: 'Error', description: 'No space available on canvas', variant: 'destructive' });
+      return;
     }
 
     const newPositions = [...roomPositions, {
@@ -835,7 +845,16 @@ export function FloorPlanEditor({
           </div>
           <ScrollArea className="flex-1">
             <div className="p-2 space-y-1">
-              {rooms.map(room => {
+              <Input 
+                placeholder="Search rooms..." 
+                value={roomSearch}
+                onChange={(e) => setRoomSearch(e.target.value)}
+                className="mb-2"
+              />
+              {rooms.filter(r => 
+                r.number.toLowerCase().includes(roomSearch.toLowerCase()) ||
+                r.roomType?.name.toLowerCase().includes(roomSearch.toLowerCase())
+              ).map(room => {
                 const isPlaced = roomPositions.some(p => p.roomId === room.id);
                 const statusInfo = getStatusInfo(room.status);
                 const position = getRoomPosition(room.id);

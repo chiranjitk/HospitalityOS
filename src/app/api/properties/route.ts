@@ -18,6 +18,10 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status');
     const type = searchParams.get('type');
+    const limitParam = searchParams.get('limit');
+    const offsetParam = searchParams.get('offset');
+    const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 50;
+    const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
     
     const where: Record<string, unknown> = {
       deletedAt: null,
@@ -32,6 +36,8 @@ export async function GET(request: NextRequest) {
       where.type = type;
     }
     
+    const total = await db.property.count({ where });
+
     const properties = await db.property.findMany({
       where,
       include: {
@@ -45,10 +51,13 @@ export async function GET(request: NextRequest) {
       orderBy: {
         createdAt: 'desc',
       },
+      take: limit,
+      skip: offset,
     });
     
     return NextResponse.json({
       success: true,
+      pagination: { total, limit, offset },
       data: properties.map((p) => ({
         ...p,
         totalRooms: p._count.rooms,
@@ -118,6 +127,13 @@ export async function POST(request: NextRequest) {
     if (!name || !slug || !address || !city || !country) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required fields' } },
+        { status: 400 }
+      );
+    }
+
+    if (slug && !/^[a-z0-9-]+$/.test(slug)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Slug must contain only lowercase letters, numbers, and hyphens' } },
         { status: 400 }
       );
     }

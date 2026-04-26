@@ -1,3 +1,6 @@
+// NOTE: These endpoints manage hotel supplies/procurement inventory
+// Currently no PMS page uses them — planned for future Hotel Supplies module
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
@@ -288,37 +291,31 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Get the log first to reverse the stock change
-    const log = await db.stockConsumption.findUnique({
-      where: { id },
-      include: { stockItem: true },
-    });
-
-    if (!log) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Consumption log not found' } },
-        { status: 404 }
-      );
-    }
-
-    // Verify stock item belongs to user's tenant
-    if (log.stockItem.tenantId !== user.tenantId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Access denied' } },
-        { status: 403 }
-      );
-    }
-
-    // Compute the quantity reversal
-    const quantityChange = log.type === 'consumed' || log.type === 'adjusted' || log.type === 'wasted'
-      ? Math.abs(log.quantity)
-      : log.type === 'added' || log.type === 'returned'
-        ? -Math.abs(log.quantity)
-        : -log.quantity;
-
-    // Reverse stock change and delete log atomically
+    // Wrap read + reversal + delete in a transaction to avoid stale data
     await db.$transaction(async (tx) => {
-      // Reverse the stock change
+      // Get the log first to reverse the stock change (inside transaction for consistency)
+      const log = await tx.stockConsumption.findUnique({
+        where: { id },
+        include: { stockItem: true },
+      });
+
+      if (!log) {
+        throw new Error('NOT_FOUND');
+      }
+
+      // Verify stock item belongs to user's tenant
+      if (log.stockItem.tenantId !== user.tenantId) {
+        throw new Error('FORBIDDEN');
+      }
+
+      // Compute the quantity reversal
+      const quantityChange = log.type === 'consumed' || log.type === 'adjusted' || log.type === 'wasted'
+        ? Math.abs(log.quantity)
+        : log.type === 'added' || log.type === 'returned'
+          ? -Math.abs(log.quantity)
+          : -log.quantity;
+
+      // Reverse the stock change (reads fresh quantity inside tx)
       await tx.stockItem.update({
         where: { id: log.stockItemId },
         data: {
@@ -338,6 +335,18 @@ export async function DELETE(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error deleting consumption log:', error);
+    if (error instanceof Error && error.message === 'NOT_FOUND') {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Consumption log not found' } },
+        { status: 404 }
+      );
+    }
+    if (error instanceof Error && error.message === 'FORBIDDEN') {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Access denied' } },
+        { status: 403 }
+      );
+    }
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete consumption log' } },
       { status: 500 }

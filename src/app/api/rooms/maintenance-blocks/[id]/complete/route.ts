@@ -55,10 +55,11 @@ export async function POST(
       });
 
       // Only set room back to available if no other active blocks
+      // Use 'dirty' as default since maintenance was completed and room likely needs cleaning
       if (otherActiveBlocks === 0) {
         await tx.room.update({
           where: { id: block.roomId },
-          data: { status: 'available' },
+          data: { status: 'dirty' },
         });
       }
 

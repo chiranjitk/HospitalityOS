@@ -212,7 +212,12 @@ export default function BulkPriceUpdate() {
     setSaveProgress(50);
 
     try {
-      const calculatedPrice = preview[0].price;
+      // Build the rates map expected by the API
+      const rates: Record<string, number> = {};
+      preview.forEach(entry => {
+        rates[entry.date] = entry.price;
+      });
+
       const response = await fetch('/api/rate-plans/bulk-rates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -222,7 +227,7 @@ export default function BulkPriceUpdate() {
           ratePlanId: selectedRatePlan,
           startDate: dateRange.start,
           endDate: dateRange.end,
-          basePrice: calculatedPrice,
+          rates,
           reason: reason || `Bulk price update (${updateMode})`,
         }),
       });

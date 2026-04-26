@@ -124,10 +124,6 @@ export async function POST(request: NextRequest) {
   const user = await requirePermission(request, 'pricing.manage');
     if (user instanceof NextResponse) return user;
 
-      if (!hasPermission(user, 'revenue:read')) {
-    return NextResponse.json({ success: false, error: 'Permission denied' }, { status: 403 });
-  }
-
   try {
     const tenantId = user.tenantId;
     const body = await request.json();
@@ -234,10 +230,6 @@ export async function PUT(request: NextRequest) {
   const user = await requirePermission(request, 'pricing.manage');
     if (user instanceof NextResponse) return user;
 
-      if (!hasPermission(user, 'revenue:read')) {
-    return NextResponse.json({ success: false, error: 'Permission denied' }, { status: 403 });
-  }
-
   try {
     const tenantId = user.tenantId;
     const body = await request.json();
@@ -326,10 +318,6 @@ export async function DELETE(request: NextRequest) {
   const user = await requirePermission(request, 'pricing.manage');
     if (user instanceof NextResponse) return user;
 
-      if (!hasPermission(user, 'revenue:read')) {
-    return NextResponse.json({ success: false, error: 'Permission denied' }, { status: 403 });
-  }
-
   try {
     const tenantId = user.tenantId;
     const searchParams = request.nextUrl.searchParams;
@@ -340,6 +328,10 @@ export async function DELETE(request: NextRequest) {
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Price override IDs are required' } },
         { status: 400 }
       );
+    }
+
+    if (ids.length > 100) {
+      return NextResponse.json({ success: false, error: 'Maximum 100 items per operation' }, { status: 400 });
     }
 
     // Verify all overrides belong to tenant via rate plans

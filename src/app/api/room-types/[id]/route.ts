@@ -147,6 +147,14 @@ export async function PUT(
       wifiPlanId,
     } = body;
     
+    // Validate overbooking settings
+    if (overbookingEnabled && !overbookingPercentage && !overbookingLimit) {
+      return NextResponse.json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Set overbooking percentage or limit before enabling' },
+      }, { status: 400 });
+    }
+
     // If code is being changed, check for conflicts
     if (code && code !== existingRoomType.code) {
       const codeConflict = await db.roomType.findUnique({
@@ -252,8 +260,10 @@ export async function DELETE(
         },
         _count: {
           select: {
-            rooms: true,
-          },
+            rooms: {
+              where: { deletedAt: null }
+            }
+          }
         },
       },
     });

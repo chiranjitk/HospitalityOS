@@ -216,36 +216,32 @@ export async function POST(request: NextRequest) {
     let updated = 0;
 
     if (rates && typeof rates === 'object') {
-      for (const [dateStr, price] of Object.entries(rates)) {
-        const priceVal = Number(price);
-        if (isNaN(priceVal) || priceVal < 0) continue;
+      await db.$transaction(async (tx) => {
+        for (const [dateStr, price] of Object.entries(rates)) {
+          const priceVal = Number(price);
+          if (isNaN(priceVal) || priceVal < 0) continue;
 
-        const date = new Date(dateStr);
-        if (date < start || date > end) continue;
+          const date = new Date(dateStr);
+          if (date < start || date > end) continue;
 
-        // Upsert: create or update the override
-        const existing = await db.priceOverride.findUnique({
-          where: { ratePlanId_date: { ratePlanId, date } },
-        });
-
-        if (existing) {
-          await db.priceOverride.update({
+          const existing = await tx.priceOverride.findUnique({
             where: { ratePlanId_date: { ratePlanId, date } },
-            data: { price: priceVal, reason: reason || existing.reason },
           });
-          updated++;
-        } else {
-          await db.priceOverride.create({
-            data: {
-              ratePlanId,
-              date,
-              price: priceVal,
-              reason: reason || 'Manual rate update',
-            },
-          });
-          created++;
+
+          if (existing) {
+            await tx.priceOverride.update({
+              where: { id: existing.id },
+              data: { price: priceVal },
+            });
+            updated++;
+          } else {
+            await tx.priceOverride.create({
+              data: { ratePlanId, date, price: priceVal },
+            });
+            created++;
+          }
         }
-      }
+      });
     }
 
     return NextResponse.json({

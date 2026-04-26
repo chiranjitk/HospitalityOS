@@ -199,8 +199,8 @@ export function PricingManager() {
           setRatePlans(ratePlansResult.data);
         }
 
-        // Fetch price overrides
-        const overridesResponse = await fetch('/api/price-overrides');
+        // Fetch price overrides filtered by selected room type
+        const overridesResponse = await fetch(`/api/price-overrides${selectedRoomType ? `?roomTypeId=${selectedRoomType}` : ''}`);
         const overridesResult = await overridesResponse.json();
         if (overridesResult.success) {
           // Filter overrides for current property
@@ -390,8 +390,8 @@ export function PricingManager() {
           description: `Price override ${selectedOverride ? 'updated' : 'added'}`,
         });
         setIsPriceOverrideOpen(false);
-        // Refresh overrides
-        const overridesResponse = await fetch('/api/price-overrides');
+        // Refresh overrides filtered by selected room type
+        const overridesResponse = await fetch(`/api/price-overrides${selectedRoomType ? `?roomTypeId=${selectedRoomType}` : ''}`);
         const overridesResult = await overridesResponse.json();
         if (overridesResult.success) {
           const filteredOverrides = overridesResult.data.filter((o: PriceOverride) =>

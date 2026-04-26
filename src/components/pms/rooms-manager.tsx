@@ -119,6 +119,7 @@ export default function RoomsManager() {
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   
   // Bulk import states
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -272,6 +273,7 @@ export default function RoomsManager() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          // Client owns JSON serialization - API stores images as JSON string
           images: JSON.stringify(formData.images),
         }),
       });
@@ -345,6 +347,7 @@ export default function RoomsManager() {
 
   // Quick status update
   const updateRoomStatus = async (roomId: string, newStatus: string) => {
+    setUpdatingStatus(roomId);
     try {
       const response = await fetch(`/api/rooms/${roomId}`, {
         method: 'PUT',
@@ -374,6 +377,8 @@ export default function RoomsManager() {
         description: 'Failed to update room status',
         variant: 'destructive',
       });
+    } finally {
+      setUpdatingStatus(null);
     }
   };
 
@@ -541,13 +546,8 @@ export default function RoomsManager() {
 
   const openEditDialog = (room: Room) => {
     setSelectedRoom(room);
-    // Parse images from JSON string
-    let roomImages: string[] = [];
-    try {
-      roomImages = room.images ? JSON.parse(room.images) : [];
-    } catch {
-      roomImages = [];
-    }
+    // Client owns JSON deserialization - images stored as JSON string in DB
+    const parsedImages = (() => { try { return JSON.parse(room.images || '[]'); } catch { return []; } })();
     
     setFormData({
       propertyId: room.propertyId,
@@ -562,7 +562,7 @@ export default function RoomsManager() {
       hasMountainView: room.hasMountainView,
       status: room.status,
       digitalKeyEnabled: room.digitalKeyEnabled,
-      images: roomImages,
+      images: parsedImages,
     });
     setIsEditOpen(true);
   };
@@ -870,10 +870,15 @@ export default function RoomsManager() {
                         <Select
                           value={room.status}
                           onValueChange={(value) => updateRoomStatus(room.id, value)}
+                          disabled={updatingStatus === room.id}
                         >
                           <SelectTrigger className="w-32 h-8">
                             <div className="flex items-center gap-2">
-                              <div className={cn("w-2 h-2 rounded-full", statusInfo.color)} />
+                              {updatingStatus === room.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <div className={cn("w-2 h-2 rounded-full", statusInfo.color)} />
+                              )}
                               <span>{statusInfo.label}</span>
                             </div>
                           </SelectTrigger>

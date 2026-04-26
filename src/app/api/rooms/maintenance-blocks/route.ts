@@ -17,32 +17,43 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const propertyId = searchParams.get('propertyId');
     const status = searchParams.get('status');
+    const limitParam = searchParams.get('limit');
+    const offsetParam = searchParams.get('offset');
+
+    // Pagination defaults
+    const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 100;
+    const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
 
     const where: Record<string, unknown> = { tenantId };
 
     if (propertyId) where.propertyId = propertyId;
     if (status && status !== 'all') where.status = status;
 
-    const blocks = await db.maintenanceBlock.findMany({
-      where,
-      include: {
-        room: {
-          select: {
-            id: true,
-            number: true,
-            name: true,
-            floor: true,
-            status: true,
-            roomType: {
-              select: { id: true, name: true },
+    const [blocks, total] = await Promise.all([
+      db.maintenanceBlock.findMany({
+        where,
+        include: {
+          room: {
+            select: {
+              id: true,
+              number: true,
+              name: true,
+              floor: true,
+              status: true,
+              roomType: {
+                select: { id: true, name: true },
+              },
             },
           },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      db.maintenanceBlock.count({ where }),
+    ]);
 
-    return NextResponse.json({ success: true, data: blocks });
+    return NextResponse.json({ success: true, data: blocks, pagination: { total, limit, offset } });
   } catch (error) {
     console.error('Error fetching maintenance blocks:', error);
     return NextResponse.json(
@@ -100,9 +111,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify room exists and get property info
+    // Verify room exists, is not deleted, and get property info
     const room = await db.room.findFirst({
-      where: { id: roomId },
+      where: { id: roomId, deletedAt: null },
       include: { property: { select: { id: true, tenantId: true } } },
     });
 
@@ -117,17 +128,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for overlapping active blocks
-    const overlapping = await db.maintenanceBlock.findFirst({
+    // Check for overlapping active blocks (with proper null handling for endDate)
+    const existingBlocks = await db.maintenanceBlock.findMany({
       where: {
         roomId,
+        tenantId,
         status: { in: ['scheduled', 'active'] },
-        startDate: { lte: endDate ? new Date(endDate) : new Date('2100-01-01') },
-        endDate: startDate ? { gte: new Date(startDate) } : undefined,
       },
     });
 
-    if (overlapping) {
+    const startDateObj = new Date(startDate);
+    const endDateObj = endDate ? new Date(endDate) : null;
+    const hasOverlap = existingBlocks.some((block) => {
+      const blockStart = new Date(block.startDate);
+      const blockEnd = block.endDate ? new Date(block.endDate) : null;
+      // Two date ranges overlap if: newStart < blockEnd AND blockStart < newEnd
+      // Null end means open-ended (treated as far future)
+      const blockEndVal = blockEnd || new Date('2100-01-01');
+      const newEndVal = endDateObj || new Date('2100-01-01');
+      return startDateObj < blockEndVal && blockStart < newEndVal;
+    });
+
+    if (hasOverlap) {
       return NextResponse.json(
         { success: false, error: { code: 'OVERLAP', message: 'Room already has an active or scheduled block for this period' } },
         { status: 400 }
@@ -154,11 +176,11 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Update room status if block is active
-      if (maintenanceBlock.status === 'active') {
+      // Update room status if block is active or scheduled
+      if (maintenanceBlock.status === 'active' || maintenanceBlock.status === 'scheduled') {
         await tx.room.update({
           where: { id: roomId },
-          data: { status: 'maintenance' },
+          data: { status: 'out_of_order' },
         });
       }
 

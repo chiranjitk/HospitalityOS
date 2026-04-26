@@ -282,64 +282,122 @@ export default function InventoryCalendar() {
   };
 
   // Handle price update
-  const handlePriceUpdate = async () => {
+  const handleSaveEdit = async () => {
     if (!editData) return;
     setIsSaving(true);
 
     try {
-      // Find the rate plan for this room type
-      const ratePlan = ratePlans.find(rp => rp.roomTypeId === editData.roomTypeId);
-      if (!ratePlan) {
-        toast({
-          title: 'Error',
-          description: 'No rate plan found for this room type',
-          variant: 'destructive',
+      // Handle close availability action (P4-07)
+      if (editData.available === 0) {
+        const closeResponse = await fetch('/api/inventory', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date: editData.date,
+            roomTypeId: editData.roomTypeId,
+            action: 'close',
+          }),
         });
-        return;
+        const closeResult = await closeResponse.json();
+        if (closeResult.success) {
+          setInventoryData(prev =>
+            prev.map(inv =>
+              inv.date === editData.date && inv.roomTypeId === editData.roomTypeId
+                ? { ...inv, available: 0 }
+                : inv
+            )
+          );
+          toast({ title: 'Success', description: 'Availability closed for this date' });
+          setIsEditOpen(false);
+          return;
+        } else {
+          toast({ title: 'Error', description: closeResult.error?.message || 'Failed to close availability', variant: 'destructive' });
+          return;
+        }
       }
 
-      // Create/update price override
-      const response = await fetch('/api/price-overrides', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ratePlanId: ratePlan.id,
-          date: editData.date,
-          price: editData.price,
-          reason: 'Manual adjustment',
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        // Update local state
-        setInventoryData(prev =>
-          prev.map(inv =>
-            inv.date === editData.date && inv.roomTypeId === editData.roomTypeId
-              ? { ...inv, price: editData.price }
-              : inv
-          )
-        );
-        toast({
-          title: 'Success',
-          description: 'Price updated successfully',
+      // Handle available rooms update (P4-08)
+      const currentInv = inventoryData.find(inv => inv.date === editData.date && inv.roomTypeId === editData.roomTypeId);
+      if (currentInv && editData.available !== currentInv.available) {
+        const availResponse = await fetch('/api/inventory', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date: editData.date,
+            roomTypeId: editData.roomTypeId,
+            available: editData.available,
+            action: 'open',
+          }),
         });
-        setIsEditOpen(false);
+        const availResult = await availResponse.json();
+        if (availResult.success) {
+          setInventoryData(prev =>
+            prev.map(inv =>
+              inv.date === editData.date && inv.roomTypeId === editData.roomTypeId
+                ? { ...inv, available: editData.available }
+                : inv
+            )
+          );
+        }
+      }
+
+      // Handle price update (P4-04: fallback to room type base price if no rate plan)
+      const ratePlan = ratePlans.find(rp => rp.roomTypeId === editData.roomTypeId);
+      if (ratePlan) {
+        // Create/update price override via rate plan
+        const response = await fetch('/api/price-overrides', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ratePlanId: ratePlan.id,
+            date: editData.date,
+            price: editData.price,
+            reason: 'Manual adjustment',
+          }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          setInventoryData(prev =>
+            prev.map(inv =>
+              inv.date === editData.date && inv.roomTypeId === editData.roomTypeId
+                ? { ...inv, price: editData.price }
+                : inv
+            )
+          );
+          toast({ title: 'Success', description: 'Price updated successfully' });
+          setIsEditOpen(false);
+        } else {
+          toast({ title: 'Error', description: result.error?.message || 'Failed to update price', variant: 'destructive' });
+        }
       } else {
-        toast({
-          title: 'Error',
-          description: result.error?.message || 'Failed to update price',
-          variant: 'destructive',
+        // No rate plan — update room type base price directly
+        const response = await fetch(`/api/room-types/${editData.roomTypeId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ basePrice: editData.price }),
         });
+
+        const result = await response.json();
+
+        if (result.success) {
+          setInventoryData(prev =>
+            prev.map(inv =>
+              inv.roomTypeId === editData.roomTypeId
+                ? { ...inv, price: editData.price }
+                : inv
+            )
+          );
+          toast({ title: 'Success', description: 'Base price updated successfully' });
+          setIsEditOpen(false);
+        } else {
+          toast({ title: 'Error', description: result.error?.message || 'Failed to update base price', variant: 'destructive' });
+        }
       }
     } catch (error) {
-      console.error('Error updating price:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update price',
-        variant: 'destructive',
-      });
+      console.error('Error updating inventory:', error);
+      toast({ title: 'Error', description: 'Failed to update', variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -478,9 +536,9 @@ export default function InventoryCalendar() {
                 {/* Empty corner cell */}
                 <div className="p-2 font-medium text-xs text-muted-foreground">Room Type</div>
                 {/* Day headers */}
-                {calendarDates.slice(0, 7).map((date, idx) => (
+                {daysOfWeek.map((day, idx) => (
                   <div key={idx} className="p-2 text-center font-medium text-xs">
-                    {daysOfWeek[date.getDay()]}
+                    {day}
                   </div>
                 ))}
               </div>
@@ -489,8 +547,8 @@ export default function InventoryCalendar() {
               {roomTypes.map(roomType => (
                 <div key={roomType.id}>
                   <div className="grid gap-1" style={{ gridTemplateColumns: '80px repeat(7, minmax(90px, 1fr))' }}>
-                    {/* Room Type Cell */}
-                    <div className="p-2 border-t">
+                    {/* Room Type Cell - spans all 6 rows */}
+                    <div className="p-2 border-t" style={{ gridRow: '1 / -1' }}>
                       <div className="font-medium text-xs truncate">{roomType.name}</div>
                       <div className="text-xs text-muted-foreground">{roomType.totalRooms} rooms</div>
                     </div>
@@ -609,9 +667,9 @@ export default function InventoryCalendar() {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Pricing</DialogTitle>
+            <DialogTitle>Edit Inventory</DialogTitle>
             <DialogDescription>
-              Update the price for this date
+              Update price and availability for this date
             </DialogDescription>
           </DialogHeader>
           {editData && (
@@ -629,7 +687,29 @@ export default function InventoryCalendar() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="price">Price ($)</Label>
+                <Label htmlFor="edit-available">Available Rooms</Label>
+                <Input
+                  id="edit-available"
+                  type="number"
+                  value={editData.available}
+                  onChange={(e) => setEditData(prev => prev ? { ...prev, available: parseInt(e.target.value) || 0 } : null)}
+                  min="0"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="edit-closed">Close Availability</Label>
+                <Switch
+                  id="edit-closed"
+                  checked={editData.available === 0}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setEditData(prev => prev ? { ...prev, available: 0 } : null);
+                    }
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="price">Price</Label>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -649,9 +729,9 @@ export default function InventoryCalendar() {
             <Button variant="outline" onClick={() => setIsEditOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handlePriceUpdate} disabled={isSaving}>
+            <Button onClick={handleSaveEdit} disabled={isSaving}>
               {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Update Price
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>

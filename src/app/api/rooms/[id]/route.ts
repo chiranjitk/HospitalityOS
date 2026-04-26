@@ -6,7 +6,7 @@ import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 // Room status transition validation
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  available: ['occupied', 'dirty', 'maintenance', 'out_of_order'],
+  available: ['occupied', 'maintenance', 'out_of_order', 'dirty', 'cleaning'],
   occupied: ['dirty', 'available', 'maintenance', 'out_of_order'],
   dirty: ['cleaning', 'maintenance', 'out_of_order'],
   cleaning: ['inspected', 'dirty', 'maintenance', 'available'],
@@ -239,23 +239,100 @@ export async function PUT(
           { status: 400 }
         );
       }
-      
-      // Update room counts
-      await db.roomType.update({
-        where: { id: existingRoom.roomTypeId },
-        data: { totalRooms: { decrement: 1 } },
+
+      // Wrap room type change + count updates in a single transaction
+      // NOTE: totalRooms on RoomType are maintained via increment/decrement.
+      // If counts drift (e.g., manual DB changes), run reconciliation:
+      // UPDATE "RoomType" rt SET "totalRooms" = (SELECT COUNT(*) FROM "Room" r WHERE r."roomTypeId" = rt.id AND r."deletedAt" IS NULL)
+      const room = await db.$transaction(async (tx) => {
+        // Decrement old room type count
+        await tx.roomType.update({
+          where: { id: existingRoom.roomTypeId },
+          data: { totalRooms: { decrement: 1 } },
+        });
+
+        // Increment new room type count
+        await tx.roomType.update({
+          where: { id: roomTypeId },
+          data: { totalRooms: { increment: 1 } },
+        });
+
+        // Update the room
+        return tx.room.update({
+          where: { id },
+          data: {
+            roomTypeId,
+            ...(number && { number }),
+            ...(name !== undefined && { name }),
+            ...(floor !== undefined && { floor }),
+            ...(isAccessible !== undefined && { isAccessible }),
+            ...(isSmoking !== undefined && { isSmoking }),
+            ...(hasBalcony !== undefined && { hasBalcony }),
+            ...(hasSeaView !== undefined && { hasSeaView }),
+            ...(hasMountainView !== undefined && { hasMountainView }),
+            ...(status && { status }),
+            ...(digitalKeyEnabled !== undefined && { digitalKeyEnabled }),
+            ...(smartRoomConfig !== undefined && { smartRoomConfig }),
+            ...(images !== undefined && { images }),
+          },
+          include: {
+            roomType: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+                basePrice: true,
+                currency: true,
+              },
+            },
+            property: {
+              select: {
+                id: true,
+                name: true,
+                currency: true,
+                tenantId: true,
+              },
+            },
+          },
+        });
       });
-      
-      await db.roomType.update({
-        where: { id: roomTypeId },
-        data: { totalRooms: { increment: 1 } },
-      });
+
+      // Log room update (non-blocking)
+      const auditAction = status && status !== existingRoom.status ? 'status_change' : 'update';
+      try {
+        await logRoom(request, auditAction, room.id, oldValue, {
+          number: room.number,
+          floor: room.floor,
+          status: room.status,
+          roomTypeId: room.roomTypeId,
+          previousStatus: existingRoom.status,
+        }, { tenantId: user.tenantId, userId: user.id });
+      } catch (auditError) {
+        console.error('Audit log failed (non-blocking):', auditError);
+      }
+
+      // Emit WebSocket event if status changed
+      if (status && status !== existingRoom.status) {
+        try {
+          emitRoomStatusChange({
+            roomId: id,
+            propertyId: room.property.id,
+            tenantId: room.property.tenantId,
+            status: status,
+            previousStatus: existingRoom.status,
+          });
+        } catch (wsError) {
+          console.error('Failed to emit room status change:', wsError);
+        }
+      }
+
+      return NextResponse.json({ success: true, data: room });
     }
-    
+
+    // No room type change - simple update
     const room = await db.room.update({
       where: { id },
       data: {
-        ...(roomTypeId && { roomTypeId }),
         ...(number && { number }),
         ...(name !== undefined && { name }),
         ...(floor !== undefined && { floor }),
@@ -289,7 +366,7 @@ export async function PUT(
         },
       },
     });
-    
+
     // Log room update (non-blocking)
     const auditAction = status && status !== existingRoom.status ? 'status_change' : 'update';
     try {
@@ -303,13 +380,11 @@ export async function PUT(
     } catch (auditError) {
       console.error('Audit log failed (non-blocking):', auditError);
     }
-    
+
     // Emit WebSocket event if status changed
     if (status && status !== existingRoom.status) {
       try {
-        // Get tenant ID from the room's property
         const tenantId = room.property.tenantId;
-        
         emitRoomStatusChange({
           roomId: id,
           propertyId: room.property.id,
@@ -318,11 +393,10 @@ export async function PUT(
           previousStatus: existingRoom.status,
         });
       } catch (wsError) {
-        // Don't fail the request if WebSocket emission fails
         console.error('Failed to emit room status change:', wsError);
       }
     }
-    
+
     return NextResponse.json({ success: true, data: room });
   } catch (error) {
     console.error('Error updating room:', error);
@@ -401,15 +475,13 @@ export async function DELETE(
       floor: existingRoom.floor,
       status: existingRoom.status,
     };
-    
-    // Soft delete
-    await db.room.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
-    
-    // Atomically update counts on room type and property
+
+    // Soft delete + count decrements in a single transaction
     await db.$transaction([
+      db.room.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      }),
       db.roomType.update({
         where: { id: existingRoom.roomTypeId },
         data: { totalRooms: { decrement: 1 } },

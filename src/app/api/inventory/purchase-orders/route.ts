@@ -1,3 +1,6 @@
+// NOTE: These endpoints manage hotel supplies/procurement inventory
+// Currently no PMS page uses them — planned for future Hotel Supplies module
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
@@ -254,7 +257,8 @@ export async function POST(request: NextRequest) {
     }));
 
     const subtotal = itemsWithTotals.reduce((sum: number, item: { totalAmount: number }) => sum + item.totalAmount, 0);
-    const taxes = subtotal * 0.1; // Default 10% tax
+    const taxRate = (body as Record<string, unknown>).taxRate !== undefined ? parseFloat(String((body as Record<string, unknown>).taxRate)) : 0.1;
+    const taxes = subtotal * taxRate;
     const totalAmount = subtotal + taxes;
 
     // Generate order number
@@ -407,11 +411,6 @@ export async function PUT(request: NextRequest) {
         }
       }
 
-      // Delete existing items and create new ones
-      await db.purchaseOrderItem.deleteMany({
-        where: { purchaseOrderId: id },
-      });
-
       const itemsWithTotals = items.map((item: { stockItemId: string; quantity: number; unitPrice: number }) => ({
         ...item,
         totalAmount: item.quantity * item.unitPrice,
@@ -429,23 +428,32 @@ export async function PUT(request: NextRequest) {
 
       // Recalculate totals
       const subtotal = itemsWithTotals.reduce((sum: number, item: { totalAmount: number }) => sum + item.totalAmount, 0);
-      const taxes = subtotal * 0.1;
+      const taxRate = (body as Record<string, unknown>).taxRate !== undefined ? parseFloat(String((body as Record<string, unknown>).taxRate)) : 0.1;
+      const taxes = subtotal * taxRate;
       updateData.subtotal = subtotal;
       updateData.taxes = taxes;
       updateData.totalAmount = subtotal + taxes;
     }
 
-    const purchaseOrder = await db.purchaseOrder.update({
-      where: { id },
-      data: updateData,
-      include: {
-        vendor: true,
-        items: {
-          include: {
-            stockItem: true,
+    // Atomic update: delete old items and update order in a single transaction
+    const purchaseOrder = await db.$transaction(async (tx) => {
+      if (items && Array.isArray(items)) {
+        await tx.purchaseOrderItem.deleteMany({
+          where: { purchaseOrderId: id },
+        });
+      }
+      return tx.purchaseOrder.update({
+        where: { id },
+        data: updateData,
+        include: {
+          vendor: true,
+          items: {
+            include: {
+              stockItem: true,
+            },
           },
         },
-      },
+      });
     });
 
     // If order is received, update stock quantities

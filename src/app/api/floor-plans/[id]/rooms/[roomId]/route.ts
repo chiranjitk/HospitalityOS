@@ -190,6 +190,15 @@ export async function DELETE(
       );
     }
 
+    // Verify the room belongs to the same property as the floor plan
+    const room = await db.room.findFirst({ where: { id: roomId } });
+    if (room && room.propertyId !== floorPlan.propertyId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_ROOM', message: 'Room does not belong to this floor plan' } },
+        { status: 400 }
+      );
+    }
+
     // Delete the floor plan room
     await db.floorPlanRoom.delete({
       where: {

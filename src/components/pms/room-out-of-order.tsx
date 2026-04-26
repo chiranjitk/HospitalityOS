@@ -52,6 +52,11 @@ import { useToast } from '@/hooks/use-toast';
 import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 
+interface Property {
+  id: string;
+  name: string;
+}
+
 interface Room {
   id: string;
   number: string;
@@ -112,6 +117,8 @@ export default function RoomOutOfOrder() {
 
   const [blocks, setBlocks] = useState<MaintenanceBlock[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [propertyFilter, setPropertyFilter] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -131,21 +138,42 @@ export default function RoomOutOfOrder() {
   const [estimatedCost, setEstimatedCost] = useState('');
   const [completeActualCost, setCompleteActualCost] = useState('');
 
+  // Fetch properties
+  useEffect(() => {
+    const fetchProperties = async () => {
+      try {
+        const res = await fetch('/api/properties');
+        const json = await res.json();
+        if (json.success) {
+          setProperties(json.data);
+          if (json.data.length > 0) {
+            setPropertyFilter(json.data[0].id);
+          }
+        }
+      } catch { /* ignore */ }
+    };
+    fetchProperties();
+  }, []);
+
   const fetchRooms = useCallback(async () => {
     try {
-      const res = await fetch('/api/rooms?limit=500');
+      const params = new URLSearchParams();
+      if (propertyFilter !== 'all') params.append('propertyId', propertyFilter);
+      params.append('limit', '500');
+      const res = await fetch(`/api/rooms?${params.toString()}`);
       const json = await res.json();
       if (json.success) {
-        setRooms(json.data.filter((r: Room) => r.status !== 'maintenance'));
+        setRooms(json.data.filter((r: Room) => !['maintenance', 'out_of_order'].includes(r.status)));
       }
     } catch { /* ignore */ }
-  }, []);
+  }, [propertyFilter]);
 
   const fetchBlocks = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.append('status', statusFilter);
+      if (propertyFilter !== 'all') params.append('propertyId', propertyFilter);
       const res = await fetch(`/api/rooms/maintenance-blocks?${params.toString()}`);
       const json = await res.json();
       if (json.success) setBlocks(json.data);
@@ -154,14 +182,20 @@ export default function RoomOutOfOrder() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, toast]);
+  }, [statusFilter, propertyFilter, toast]);
 
   useEffect(() => { fetchRooms(); }, [fetchRooms]);
   useEffect(() => { fetchBlocks(); }, [fetchBlocks]);
+  useEffect(() => { fetchRooms(); fetchBlocks(); }, [propertyFilter]);
 
   const handleCreate = async () => {
     if (!roomId || !reason || !startDate) {
       toast({ title: 'Error', description: 'Fill all required fields', variant: 'destructive' });
+      return;
+    }
+
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      toast({ title: 'Validation Error', description: 'End date must be after start date.', variant: 'destructive' });
       return;
     }
 
@@ -359,7 +393,7 @@ export default function RoomOutOfOrder() {
             </div>
             <div>
               <div className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-violet-400 bg-clip-text text-transparent">
-                ${totalEstCost.toFixed(0)}
+                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalEstCost)}
               </div>
               <div className="text-xs text-muted-foreground">Est. Cost</div>
             </div>
@@ -391,18 +425,31 @@ export default function RoomOutOfOrder() {
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row justify-between gap-2">
             <CardTitle className="text-base">Active Blocks</CardTitle>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Filter status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="scheduled">Scheduled</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select value={propertyFilter} onValueChange={setPropertyFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Property" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Properties</SelectItem>
+                  {properties.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Filter status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">

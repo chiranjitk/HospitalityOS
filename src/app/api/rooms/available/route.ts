@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify property belongs to tenant before querying rooms
-    const property = await db.property.findFirst({ where: { id: propertyId, tenantId } });
+    const property = await db.property.findFirst({ where: { id: propertyId, tenantId: user.tenantId } });
     if (!property) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Property not found' } },

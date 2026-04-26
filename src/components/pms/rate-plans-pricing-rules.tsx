@@ -320,19 +320,35 @@ export default function RatePlansPricingRules() {
     setIsPriceOverrideOpen(true);
   };
 
-  const handlePriceOverride = async () => {
-    if (!selectedDate || !selectedRoomType) return;
-    
+  const handlePriceOverride = async (roomTypeId?: string, date?: string, price?: number, reason?: string) => {
+    const targetRoomTypeId = roomTypeId || selectedRoomType;
+    const targetDate = date || (selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined);
+    const targetPrice = price ?? overrideData.price;
+    const targetReason = reason || overrideData.reason;
+
+    if (!targetRoomTypeId || !targetDate) return;
+
+    const ratePlan = ratePlans.find(rp => rp.roomTypeId === targetRoomTypeId && rp.status === 'active');
+    if (!ratePlan) {
+      toast({ title: 'Error', description: 'No active rate plan found for this room type', variant: 'destructive' });
+      return;
+    }
+
     setIsSaving(true);
     try {
-      // In a real app, this would call an API
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      setPriceOverrides(prev => [
-        ...prev.filter(o => !(o.date === dateStr && o.roomTypeId === selectedRoomType)),
-        { date: dateStr, roomTypeId: selectedRoomType, ...overrideData }
-      ]);
-      toast({ title: 'Success', description: 'Price override saved' });
-      setIsPriceOverrideOpen(false);
+      const response = await fetch('/api/price-overrides', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ratePlanId: ratePlan.id, date: targetDate, price: targetPrice, reason: targetReason }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        toast({ title: 'Price Updated', description: `Price set to ${targetPrice} for ${targetDate}` });
+        setIsPriceOverrideOpen(false);
+        fetchData();
+      } else {
+        toast({ title: 'Error', description: result.error?.message || 'Failed to update price', variant: 'destructive' });
+      }
     } catch (error) {
       toast({ title: 'Error', description: 'Failed to save override', variant: 'destructive' });
     } finally {
@@ -503,6 +519,7 @@ export default function RatePlansPricingRules() {
   };
 
   const deleteRule = async (id: string) => {
+    if (!window.confirm('Delete this pricing rule? This affects live pricing.')) return;
     try {
       const response = await fetch(`/api/revenue/pricing-rules?id=${id}`, {
         method: 'DELETE',
@@ -827,54 +844,40 @@ export default function RatePlansPricingRules() {
                   
                   {/* Calendar Days */}
                   <div className="grid grid-cols-7">
-                    {calendarDays.map((day, i) => {
-                      const roomType = roomTypes.find(rt => rt.id === selectedRoomType);
-                      const price = roomType ? getPriceForDay(day, selectedRoomType) : 0;
-                      const priceColor = roomType ? getPriceColor(roomType.basePrice, price) : '';
-                      const isWeekendDay = isWeekend(day);
-                      
-                      // Pad first week
-                      const firstDayOfMonth = getDay(startOfMonth(currentMonth));
-                      if (i === 0 && firstDayOfMonth > 0) {
+                    {(() => {
+                      const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay();
+                      const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
+                      const allCells: (Date | null)[] = [];
+                      for (let i = 0; i < firstDayOfMonth; i++) { allCells.push(null); }
+                      for (let d = 1; d <= daysInMonth; d++) { allCells.push(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), d)); }
+
+                      return allCells.map((day, idx) => {
+                        if (!day) {
+                          return <div key={`pad-${idx}`} className="min-h-20 p-1 border-r border-b bg-muted/20" />;
+                        }
+                        const roomType = roomTypes.find(rt => rt.id === selectedRoomType);
+                        const price = roomType ? getPriceForDay(day, selectedRoomType) : 0;
+                        const priceColor = roomType ? getPriceColor(roomType.basePrice, price) : '';
+                        const isWeekendDay = isWeekend(day);
+
                         return (
-                          <React.Fragment key={day.toISOString()}>
-                            {Array.from({ length: firstDayOfMonth }).map((_, j) => (
-                              <div key={`pad-${j}`} className="min-h-20 p-1 border-r border-b bg-muted/20" />
-                            ))}
-                            <div
-                              className={cn(
-                                "min-h-20 p-1 border-r border-b cursor-pointer hover:bg-muted/50 transition-colors",
-                                isToday(day) && "ring-2 ring-primary ring-inset",
-                                isWeekendDay && "bg-muted/20"
-                              )}
-                              onClick={() => handleDayClick(day)}
-                            >
-                              <div className="text-xs font-medium mb-1">{format(day, 'd')}</div>
-                              <div className={cn("text-xs px-1 py-0.5 rounded font-medium", priceColor)}>
-                                {formatCurrency(price)}
-                              </div>
+                          <div
+                            key={day.toISOString()}
+                            className={cn(
+                              "min-h-20 p-1 border-r border-b cursor-pointer hover:bg-muted/50 transition-colors",
+                              isToday(day) && "ring-2 ring-primary ring-inset",
+                              isWeekendDay && "bg-muted/20"
+                            )}
+                            onClick={() => handleDayClick(day)}
+                          >
+                            <div className="text-xs font-medium mb-1">{format(day, 'd')}</div>
+                            <div className={cn("text-xs px-1 py-0.5 rounded font-medium", priceColor)}>
+                              {formatCurrency(price)}
                             </div>
-                          </React.Fragment>
-                        );
-                      }
-                      
-                      return (
-                        <div
-                          key={day.toISOString()}
-                          className={cn(
-                            "min-h-20 p-1 border-r border-b cursor-pointer hover:bg-muted/50 transition-colors",
-                            isToday(day) && "ring-2 ring-primary ring-inset",
-                            isWeekendDay && "bg-muted/20"
-                          )}
-                          onClick={() => handleDayClick(day)}
-                        >
-                          <div className="text-xs font-medium mb-1">{format(day, 'd')}</div>
-                          <div className={cn("text-xs px-1 py-0.5 rounded font-medium", priceColor)}>
-                            {formatCurrency(price)}
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
               )}

@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {    const user = await requireP
         discountDisplay: plan.discountPercent
           ? `${plan.discountPercent}% off`
           : plan.discountAmount
-          ? `$${plan.discountAmount} off`
+          ? `${plan.currency || 'USD'} ${plan.discountAmount} off`
           : null,
       };
     });
@@ -287,13 +287,24 @@ export async function PUT(request: NextRequest) {    const user = await requireP
 
       try {
     const body = await request.json();
-    const { id, ...updates } = body;
+    const { id, tenantId, createdAt, updatedAt, deletedAt, ...updates } = body;
 
     if (!id) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Rate plan ID is required' } },
         { status: 400 }
       );
+    }
+
+    // Tenant verification for roomTypeId if being changed
+    if (updates.roomTypeId) {
+      const targetRoomType = await db.roomType.findFirst({
+        where: { id: updates.roomTypeId },
+        include: { property: { select: { tenantId: true } } },
+      });
+      if (!targetRoomType || targetRoomType.property.tenantId !== user.tenantId) {
+        return NextResponse.json({ success: false, error: 'Room type not accessible' }, { status: 403 });
+      }
     }
 
     // Handle date fields
@@ -376,6 +387,10 @@ export async function DELETE(request: NextRequest) {    const user = await requi
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Rate plan IDs are required' } },
         { status: 400 }
       );
+    }
+
+    if (ids.length > 100) {
+      return NextResponse.json({ success: false, error: 'Maximum 100 items per operation' }, { status: 400 });
     }
 
     // Check if any rate plans are in use

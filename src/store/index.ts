@@ -90,6 +90,8 @@ export const useAuthStore = create<AuthState>()(
         tenant: state.tenant,
         currentProperty: state.currentProperty,
         properties: state.properties,
+        // SECURITY NOTE: Client-side permissions are for UI rendering only.
+        // All API routes independently verify permissions server-side.
         // Don't persist isAuthenticated - derived from user presence by AuthContext
       }),
     }

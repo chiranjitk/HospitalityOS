@@ -276,19 +276,13 @@ export default function PropertiesList() {
       if (typeFilter !== 'all') params.append('type', typeFilter);
       
       const response = await fetch(`/api/properties?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
       const result = await response.json();
       
       if (result.success) {
-        const propertiesWithStats = result.data.map((p: Property, index: number) => ({
-          ...p,
-          stats: {
-            totalBookings: 10 + (index * 5) % 40,
-            occupancyRate: 60 + (index * 7) % 35,
-            todayRevenue: 10000 + (index * 5000) % 40000,
-            activeGuests: 5 + (index * 3) % 25,
-          }
-        }));
-        setProperties(propertiesWithStats);
+        setProperties(result.data);
       }
     } catch (error) {
       console.error('Error fetching properties:', error);
@@ -317,6 +311,10 @@ export default function PropertiesList() {
   };
 
   const handleCreate = async () => {
+    if (!formData.name || !formData.slug || !formData.address || !formData.city || !formData.country) {
+      toast({ title: 'Validation Error', description: 'Name, slug, address, city, and country are required.', variant: 'destructive' });
+      return;
+    }
     setIsSaving(true);
     try {
       const response = await fetch('/api/properties', {
@@ -324,8 +322,8 @@ export default function PropertiesList() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          latitude: formData.latitude ? parseFloat(formData.latitude) : null,
-          longitude: formData.longitude ? parseFloat(formData.longitude) : null,
+          latitude: formData.latitude !== '' && formData.latitude !== undefined ? parseFloat(formData.latitude) : null,
+          longitude: formData.longitude !== '' && formData.longitude !== undefined ? parseFloat(formData.longitude) : null,
         }),
       });
       
@@ -355,8 +353,8 @@ export default function PropertiesList() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          latitude: formData.latitude ? parseFloat(formData.latitude) : null,
-          longitude: formData.longitude ? parseFloat(formData.longitude) : null,
+          latitude: formData.latitude !== '' && formData.latitude !== undefined ? parseFloat(formData.latitude) : null,
+          longitude: formData.longitude !== '' && formData.longitude !== undefined ? parseFloat(formData.longitude) : null,
         }),
       });
       
@@ -401,6 +399,9 @@ export default function PropertiesList() {
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} properties? This action cannot be undone.`)) {
+      return;
+    }
     setIsSaving(true);
     try {
       await Promise.all(selectedIds.map(id => fetch(`/api/properties/${id}`, { method: 'DELETE' })));
@@ -444,7 +445,8 @@ export default function PropertiesList() {
       
       if (!Array.isArray(data)) throw new Error('Invalid file format');
       
-      let imported = 0;
+      let successCount = 0;
+      let failCount = 0;
       for (const item of data) {
         try {
           const response = await fetch('/api/properties', {
@@ -452,13 +454,14 @@ export default function PropertiesList() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...defaultFormData, ...item }),
           });
-          if (response.ok) imported++;
+          if (response.ok) { successCount++; } else { failCount++; }
         } catch (e) {
           console.error('Failed to import item:', e);
+          failCount++;
         }
       }
       
-      toast({ title: 'Import Complete', description: `Imported ${imported} of ${data.length} properties` });
+      toast({ title: 'Import Complete', description: `${successCount} imported, ${failCount} failed.` });
       fetchProperties();
     } catch (error) {
       toast({ title: 'Import Failed', description: 'Invalid file format. Please use a valid JSON file.', variant: 'destructive' });

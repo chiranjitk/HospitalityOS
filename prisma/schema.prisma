@@ -728,10 +728,6 @@ model CancellationPolicy {
 // CAPTIVE PORTAL MODULE - Full portal management
 // ============================================================
 
-// ============================================================
-// CAPTIVE PORTAL MODULE - Full portal management
-// ============================================================
-
 /// CaptivePortal - Portal instance configuration
 model CaptivePortal {
   id                String                 @id @default(uuid()) @db.Uuid

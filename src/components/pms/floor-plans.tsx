@@ -142,12 +142,18 @@ interface HistoryState {
   roomPositions: RoomPosition[];
 }
 
+function safeJsonParse(str: string | null | undefined, fallback: any = []): any {
+  if (!str) return fallback;
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
 export default function FloorPlans() {
   const { toast } = useToast();
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingFloorPlan, setIsLoadingFloorPlan] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [propertyFilter, setPropertyFilter] = useState<string>('all');
   
@@ -199,7 +205,7 @@ export default function FloorPlans() {
 
   // History management
   const pushToHistory = useCallback((positions: RoomPosition[]) => {
-    const newState: HistoryState = { roomPositions: JSON.parse(JSON.stringify(positions)) };
+    const newState: HistoryState = { roomPositions: structuredClone(positions) };
     const newHistory = [...history.slice(0, historyIndex + 1), newState];
     // Keep only last 50 states
     if (newHistory.length > 50) {
@@ -213,7 +219,7 @@ export default function FloorPlans() {
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1;
       setHistoryIndex(newIndex);
-      setRoomPositions(JSON.parse(JSON.stringify(history[newIndex].roomPositions)));
+      setRoomPositions(structuredClone(history[newIndex].roomPositions));
     }
   }, [history, historyIndex]);
 
@@ -221,7 +227,7 @@ export default function FloorPlans() {
     if (historyIndex < history.length - 1) {
       const newIndex = historyIndex + 1;
       setHistoryIndex(newIndex);
-      setRoomPositions(JSON.parse(JSON.stringify(history[newIndex].roomPositions)));
+      setRoomPositions(structuredClone(history[newIndex].roomPositions));
     }
   }, [history, historyIndex]);
 
@@ -250,7 +256,7 @@ export default function FloorPlans() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [viewMode, undo, redo]);
+  }, [viewMode, undo, redo, saveRoomPositions]);
 
   // Fetch properties
   useEffect(() => {
@@ -366,13 +372,10 @@ export default function FloorPlans() {
     if (!selectedFloorPlan) return;
     setIsSavingDialog(true);
     try {
-      const response = await fetch('/api/floor-plans', {
+      const response = await fetch(`/api/floor-plans/${selectedFloorPlan.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: selectedFloorPlan.id,
-          ...formData,
-        }),
+        body: JSON.stringify(formData),
       });
       
       const result = await response.json();
@@ -442,17 +445,14 @@ export default function FloorPlans() {
   };
 
   // Save room positions
-  const saveRoomPositions = async () => {
+  const saveRoomPositions = useCallback(async () => {
     if (!selectedFloorPlan) return;
     setIsSaving(true);
     try {
-      const response = await fetch('/api/floor-plans', {
+      const response = await fetch(`/api/floor-plans/${selectedFloorPlan.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: selectedFloorPlan.id,
-          roomPositions,
-        }),
+        body: JSON.stringify({ roomPositions }),
       });
       
       const result = await response.json();
@@ -480,7 +480,7 @@ export default function FloorPlans() {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [selectedFloorPlan, roomPositions]);
 
   // Auto-arrange rooms
   const autoArrangeRooms = useCallback(() => {
@@ -605,12 +605,13 @@ export default function FloorPlans() {
 
   // Open editor
   const openEditor = async (floorPlan: FloorPlan) => {
+    setIsLoadingFloorPlan(true);
     setSelectedFloorPlan(floorPlan);
-    const positions = JSON.parse(floorPlan.roomPositions || '[]');
+    const positions = safeJsonParse(floorPlan.roomPositions);
     setRoomPositions(positions);
     
     // Initialize history
-    setHistory([{ roomPositions: JSON.parse(JSON.stringify(positions)) }]);
+    setHistory([{ roomPositions: structuredClone(positions) }]);
     setHistoryIndex(0);
     
     setZoom(1);
@@ -618,17 +619,20 @@ export default function FloorPlans() {
     setSelectedRoom(null);
     await fetchRooms(floorPlan.propertyId, floorPlan.floor);
     setViewMode('editor');
+    setIsLoadingFloorPlan(false);
   };
 
   // Open viewer
   const openViewer = async (floorPlan: FloorPlan) => {
+    setIsLoadingFloorPlan(true);
     setSelectedFloorPlan(floorPlan);
-    setRoomPositions(JSON.parse(floorPlan.roomPositions || '[]'));
+    setRoomPositions(safeJsonParse(floorPlan.roomPositions));
     setZoom(1);
     setPan({ x: 0, y: 0 });
     setSelectedRoom(null);
     await fetchRooms(floorPlan.propertyId, floorPlan.floor);
     setViewMode('viewer');
+    setIsLoadingFloorPlan(false);
   };
 
   // Open edit dialog
@@ -874,13 +878,13 @@ export default function FloorPlans() {
     setSelectedRoom(null);
   };
 
-  // Duplicate room
-  const duplicateRoom = useCallback((roomId: string) => {
+  // Nudge/shift room position
+  const nudgeRooms = useCallback((roomId: string) => {
     const position = getRoomPosition(roomId);
     const room = getRoomById(roomId);
     if (!position || !room) return;
     
-    // Create a virtual duplicate by adding offset
+    // Shift room position by adding offset
     const newPositions = roomPositions.map(p => 
       p.roomId === roomId 
         ? { ...p, x: p.x + 20, y: p.y + 20 }
@@ -891,8 +895,8 @@ export default function FloorPlans() {
     pushToHistory(newPositions);
     
     toast({
-      title: 'Duplicated',
-      description: `Room ${room.number} duplicated`,
+      title: 'Shifted',
+      description: `Room ${room.number} shifted`,
     });
   }, [roomPositions, pushToHistory]);
 
@@ -922,7 +926,8 @@ export default function FloorPlans() {
   const stats = {
     total: floorPlans.length,
     properties: new Set(floorPlans.map(fp => fp.propertyId)).size,
-    floors: floorPlans.length,
+    uniqueFloors: new Set(floorPlans.map(fp => fp.floor)).size,
+    rooms: new Set(floorPlans.flatMap(fp => safeJsonParse(fp.roomPositions).map((p: any) => p.roomId))).size,
   };
 
   // List View
@@ -948,9 +953,9 @@ export default function FloorPlans() {
             <Button variant="outline" size="sm" disabled={filteredFloorPlans.length === 0} onClick={async () => {
               const fp = filteredFloorPlans[0];
               setSelectedFloorPlan(fp);
-              const positions = JSON.parse(fp.roomPositions || '[]');
+              const positions = safeJsonParse(fp.roomPositions);
               setRoomPositions(positions);
-              setHistory([{ roomPositions: JSON.parse(JSON.stringify(positions)) }]);
+              setHistory([{ roomPositions: structuredClone(positions) }]);
               setHistoryIndex(0);
               setZoom(1); setPan({ x: 0, y: 0 }); setSelectedRoom(null);
               await fetchRooms(fp.propertyId, fp.floor);
@@ -962,7 +967,7 @@ export default function FloorPlans() {
             <Button variant="outline" size="sm" disabled={filteredFloorPlans.length === 0} onClick={async () => {
               const fp = filteredFloorPlans[0];
               setSelectedFloorPlan(fp);
-              setRoomPositions(JSON.parse(fp.roomPositions || '[]'));
+              setRoomPositions(safeJsonParse(fp.roomPositions));
               setZoom(1); setPan({ x: 0, y: 0 }); setSelectedRoom(null);
               await fetchRooms(fp.propertyId, fp.floor);
               setViewMode('floor-viewer');
@@ -984,8 +989,8 @@ export default function FloorPlans() {
             <div className="text-xs text-muted-foreground">Properties</div>
           </Card>
           <Card className="p-4">
-            <div className="text-2xl font-bold">{stats.floors}</div>
-            <div className="text-xs text-muted-foreground">Floors Mapped</div>
+            <div className="text-2xl font-bold">{stats.uniqueFloors}</div>
+            <div className="text-xs text-muted-foreground">Unique Floors</div>
           </Card>
         </div>
 
@@ -1050,6 +1055,7 @@ export default function FloorPlans() {
                       <div
                         key={floorPlan.id}
                         className="border rounded-lg p-4 hover:border-primary/50 transition-colors cursor-pointer group"
+                        onClick={() => openEditor(floorPlan)}
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -1109,7 +1115,7 @@ export default function FloorPlans() {
                         </div>
                         <div className="mt-3 flex items-center gap-2">
                           <Badge variant="outline" className="text-xs">
-                            {JSON.parse(floorPlan.roomPositions || '[]').length} rooms placed
+                            {safeJsonParse(floorPlan.roomPositions).length} rooms placed
                           </Badge>
                         </div>
                       </div>
@@ -1148,7 +1154,7 @@ export default function FloorPlans() {
                   type="number"
                   min={1}
                   value={formData.floor}
-                  onChange={(e) => setFormData(prev => ({ ...prev, floor: parseInt(e.target.value) || 1 }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, floor: Math.max(1, parseInt(e.target.value) || 1) }))}
                 />
               </div>
               <div className="space-y-2">
@@ -1349,6 +1355,14 @@ export default function FloorPlans() {
   // Editor View
   const isViewer = viewMode === 'viewer';
   
+  if ((viewMode === 'editor' || viewMode === 'viewer') && isLoadingFloorPlan) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-8rem)]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col">
       {/* Editor Header */}
@@ -1490,9 +1504,9 @@ export default function FloorPlans() {
             <div className="flex-1" />
             {!isViewer && selectedRoom && (
               <>
-                <Button variant="outline" size="sm" onClick={() => duplicateRoom(selectedRoom)}>
+                <Button variant="outline" size="sm" onClick={() => nudgeRooms(selectedRoom)}>
                   <Copy className="h-4 w-4 mr-2" />
-                  Duplicate
+                  Shift
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => removeRoomFromCanvas(selectedRoom)}>
                   <Trash2 className="h-4 w-4 mr-2" />

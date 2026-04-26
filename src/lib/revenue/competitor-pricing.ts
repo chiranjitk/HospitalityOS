@@ -173,6 +173,7 @@ export async function fetchAllCompetitorRates(
   const competitors = await db.competitorPrice.findMany({
     where: {
       tenantId,
+      propertyId,
       date: { gte: startDate },
     },
     distinct: ['competitorName'],
@@ -225,19 +226,32 @@ export async function fetchAllCompetitorRates(
     // Use individual creates since createMany may have constraints
     for (const r of allRates) {
       try {
-        await db.competitorPrice.create({
-          data: {
+        const dateKey = r.date instanceof Date ? r.date : new Date(r.date);
+        await db.competitorPrice.upsert({
+          where: {
+            propertyId_competitorName_date: {
+              propertyId,
+              competitorName: r.competitorName,
+              date: dateKey,
+            },
+          },
+          update: {
+            price: r.rate,
+            currency: r.currency,
+            source: r.source,
+          },
+          create: {
             tenantId,
             competitorName: r.competitorName,
             propertyId,
-            date: r.date,
+            date: dateKey,
             price: r.rate,
             currency: r.currency,
             source: r.source,
           },
         });
-      } catch {
-        // Skip duplicates
+      } catch (error) {
+        console.error(`Error upserting competitor rate for ${r.competitorName} on ${r.date}:`, error);
       }
     }
   }

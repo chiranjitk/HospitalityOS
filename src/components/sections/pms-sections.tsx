@@ -1,3 +1,4 @@
+// DEPRECATED: Use section-resolver.ts + category loaders instead
 'use client';
 import { lazy } from 'react';
 

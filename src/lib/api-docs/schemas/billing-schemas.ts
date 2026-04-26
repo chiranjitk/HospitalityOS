@@ -148,7 +148,7 @@ export const billingSchemas = {
       },
       category: {
         type: 'string',
-        enum: ['room', 'food', 'beverage', 'service', 'tax', 'discount'],
+        enum: ['room', 'food', 'beverage', 'service', 'tax', 'discount', 'penalty'],
         example: 'room',
       },
       quantity: {
@@ -169,7 +169,7 @@ export const billingSchemas = {
       },
       referenceType: {
         type: 'string',
-        enum: ['order', 'booking', 'service'],
+        enum: ['order', 'booking', 'service', 'cancellation_policy'],
         nullable: true,
       },
       referenceId: {
@@ -327,7 +327,7 @@ export const billingSchemas = {
       },
       category: {
         type: 'string',
-        enum: ['room', 'food', 'beverage', 'service', 'tax', 'discount'],
+        enum: ['room', 'food', 'beverage', 'service', 'tax', 'discount', 'penalty'],
         example: 'food',
       },
       quantity: {
@@ -344,7 +344,7 @@ export const billingSchemas = {
       },
       referenceType: {
         type: 'string',
-        enum: ['order', 'booking', 'service'],
+        enum: ['order', 'booking', 'service', 'cancellation_policy'],
         nullable: true,
       },
       referenceId: {

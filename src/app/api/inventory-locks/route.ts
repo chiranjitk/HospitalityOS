@@ -77,17 +77,20 @@ export async function GET(request: NextRequest) {
     }
 
     // Filter for active locks (current date falls within lock period)
-    if (active === 'true') {
+    const upcoming = searchParams.get('upcoming') === 'true';
+    if (active === 'true' && upcoming) {
+      const now = new Date();
+      where.OR = [
+        { AND: [{ startDate: { lte: now } }, { endDate: { gte: now } }] },
+        { startDate: { gt: now } },
+      ];
+    } else if (active === 'true') {
       const now = new Date();
       where.AND = [
         { startDate: { lte: now } },
         { endDate: { gte: now } },
       ];
-    }
-
-    // Also filter for upcoming locks
-    const upcoming = searchParams.get('upcoming') === 'true';
-    if (upcoming) {
+    } else if (upcoming) {
       const now = new Date();
       where.startDate = { gt: now };
     }
@@ -139,6 +142,16 @@ export async function GET(request: NextRequest) {
 
     const total = await db.inventoryLock.count({ where });
 
+    // Calculate stats from full dataset, not just paginated results
+    const activeStatsWhere: Record<string, unknown> = { tenantId: user.tenantId };
+    if (propertyId) activeStatsWhere.propertyId = propertyId;
+    const activeLocksCount = await db.inventoryLock.count({
+      where: { ...activeStatsWhere, startDate: { lte: now }, endDate: { gte: now } },
+    });
+    const upcomingLocksCount = await db.inventoryLock.count({
+      where: { ...activeStatsWhere, startDate: { gt: now } },
+    });
+
     // Get lock type distribution
     const lockTypeDistribution = await db.inventoryLock.groupBy({
       by: ['lockType'],
@@ -156,8 +169,8 @@ export async function GET(request: NextRequest) {
       },
       stats: {
         totalLocks: total,
-        activeLocks: transformedLocks.filter(l => l.isActive).length,
-        upcomingLocks: transformedLocks.filter(l => l.isUpcoming).length,
+        activeLocks: activeLocksCount,
+        upcomingLocks: upcomingLocksCount,
         lockTypeDistribution: lockTypeDistribution.map(lt => ({
           lockType: lt.lockType,
           count: lt._count,
@@ -505,6 +518,28 @@ export async function PUT(request: NextRequest) {
           { status: 400 }
         );
       }
+
+      // Check for conflicting bookings if dates or roomId changed
+      if ((updates.startDate || updates.endDate || updates.roomId) && roomId) {
+        const conflictingBookings = await db.booking.findMany({
+          where: {
+            tenantId: user.tenantId,
+            roomId,
+            status: { in: ['confirmed', 'checked_in'] },
+            deletedAt: null,
+            AND: [
+              { checkIn: { lt: endDate } },
+              { checkOut: { gt: startDate } },
+            ],
+          },
+        });
+        if (conflictingBookings.length > 0) {
+          return NextResponse.json({
+            success: false,
+            error: { code: 'CONFLICTING_BOOKINGS', message: 'Room has active bookings during this period' },
+          }, { status: 400 });
+        }
+      }
     }
 
     if (roomTypeId && !roomId) {
@@ -593,6 +628,10 @@ export async function DELETE(request: NextRequest) {
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Inventory lock IDs are required' } },
         { status: 400 }
       );
+    }
+
+    if (ids.length > 100) {
+      return NextResponse.json({ success: false, error: 'Maximum 100 items per operation' }, { status: 400 });
     }
 
     const results = await db.inventoryLock.deleteMany({

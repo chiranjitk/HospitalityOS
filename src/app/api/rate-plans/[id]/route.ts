@@ -101,6 +101,8 @@ export async function PUT(
         where: {
           roomTypeId: existing.roomTypeId,
           code: code!,
+          deletedAt: null,
+          id: { not: id },
         },
       });
       

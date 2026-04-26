@@ -64,6 +64,7 @@ export default function RevenueDashboard() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<RevenueMetrics[]>([]);
   const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
 
@@ -81,6 +82,7 @@ export default function RevenueDashboard() {
         }
       } catch (error) {
         console.error('Error fetching properties:', error);
+        setError('Failed to load data. Please try again.');
       }
     };
     fetchProperties();
@@ -96,18 +98,29 @@ export default function RevenueDashboard() {
         const property = properties.find(p => p.id === selectedProperty);
         const totalRooms = property?.totalRooms || 100;
 
-        // Fetch bookings
-        const response = await fetch(`/api/bookings?propertyId=${selectedProperty}`);
+        // Fetch bookings with date range
+        const today = new Date();
+
+        // Calculate metrics based on period
+        let days = 1;
+        if (period === 'week') days = 7;
+        if (period === 'month') days = 30;
+
+        // Compute date range boundaries
+        const startDateObj = new Date(today);
+        startDateObj.setDate(startDateObj.getDate() - (days - 1));
+        startDateObj.setHours(0, 0, 0, 0);
+        const endDateObj = new Date(today);
+        endDateObj.setHours(23, 59, 59, 999);
+
+        const startDate = toLocalDateString(startDateObj);
+        const endDate = toLocalDateString(endDateObj);
+
+        const response = await fetch(`/api/bookings?propertyId=${selectedProperty}&checkInFrom=${startDate}&checkInTo=${endDate}`);
         const result = await response.json();
 
         if (result.success) {
           const bookings = result.data || [];
-          const today = new Date();
-          
-          // Calculate metrics based on period
-          let days = 1;
-          if (period === 'week') days = 7;
-          if (period === 'month') days = 30;
 
           const metricsData: RevenueMetrics[] = [];
           
@@ -124,7 +137,12 @@ export default function RevenueDashboard() {
             });
 
             const roomsSold = dayBookings.length;
-            const revenue = dayBookings.reduce((sum: number, b: any) => sum + (b.roomRate || 0), 0);
+            const revenue = dayBookings.reduce((sum: number, b: any) => {
+              const checkIn = new Date(b.checkIn);
+              const checkOut = new Date(b.checkOut);
+              const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+              return sum + ((b.roomRate || 0) / nights);
+            }, 0);
             const occupancy = totalRooms > 0 ? (roomsSold / totalRooms) * 100 : 0;
             const adr = roomsSold > 0 ? revenue / roomsSold : 0;
             const revpar = totalRooms > 0 ? revenue / totalRooms : 0;
@@ -144,6 +162,7 @@ export default function RevenueDashboard() {
         }
       } catch (error) {
         console.error('Error fetching metrics:', error);
+        setError('Failed to load data. Please try again.');
       } finally {
         setIsLoading(false);
       }
@@ -224,6 +243,7 @@ export default function RevenueDashboard() {
 
   return (
     <div className="space-y-6">
+      {error && <div className="bg-destructive/10 text-destructive p-4 rounded-lg mb-4">{error}</div>}
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>

@@ -91,6 +91,14 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['rooms.view', 'rooms.manage', '*'],
     description: 'View and manage floor plans'
   },
+  'room-rate-calendar': {
+    permissions: ['rooms.view', 'rooms.manage', 'rooms.*', '*'],
+    description: 'View and manage room rate calendar',
+  },
+  'room-out-of-order': {
+    permissions: ['rooms.view', 'rooms.manage', 'rooms.*', '*'],
+    description: 'Manage room out-of-order status',
+  },
 
   // ---- Bookings ----
   'bookings-calendar': {
@@ -139,6 +147,18 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['frontdesk.assign', 'rooms.update', 'frontdesk.*', '*'],
     description: 'Assign rooms to guests'
   },
+  'registration-card': {
+    permissions: ['frontdesk.view', 'frontdesk.manage', 'frontdesk.*', '*'],
+    description: 'View and manage guest registration cards'
+  },
+  'express-kiosk': {
+    permissions: ['frontdesk.view', 'frontdesk.manage', 'frontdesk.*', '*'],
+    description: 'Manage express check-in kiosk'
+  },
+  'room-move': {
+    permissions: ['frontdesk.assign', 'rooms.update', 'frontdesk.*', '*'],
+    description: 'Move guest between rooms'
+  },
 
   // ---- Guests ----
   'guests-list': {
@@ -160,6 +180,10 @@ export const menuPermissions: PermissionConfig = {
   'guests-loyalty': {
     permissions: ['guests.loyalty', 'guests.manage', 'guests.*', '*'],
     description: 'Manage loyalty points'
+  },
+  'guests-profile': {
+    permissions: ['guests.view', 'guests.manage', 'guests.*', '*'],
+    description: 'View and manage guest profiles'
   },
 
   // ---- Housekeeping ----
@@ -216,6 +240,22 @@ export const menuPermissions: PermissionConfig = {
   'billing-discounts': {
     permissions: ['billing.discounts', 'billing.manage', 'billing.*', '*'],
     description: 'Manage discounts'
+  },
+  'folio-transfer': {
+    permissions: ['billing.view', 'billing.manage', 'billing.*', '*'],
+    description: 'Transfer folio between guests'
+  },
+  'payment-plans': {
+    permissions: ['billing.view', 'billing.manage', 'billing.*', '*'],
+    description: 'Manage payment plans'
+  },
+  'credit-notes': {
+    permissions: ['billing.view', 'billing.manage', 'billing.*', '*'],
+    description: 'Manage credit notes'
+  },
+  'multi-currency': {
+    permissions: ['billing.view', 'billing.manage', 'billing.*', '*'],
+    description: 'Manage multi-currency settings'
   },
   'billing-cancellation-policies': {
     permissions: ['bookings.view', 'bookings.manage', 'admin.*', '*'],

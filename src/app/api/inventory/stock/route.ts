@@ -1,3 +1,6 @@
+// NOTE: These endpoints manage hotel supplies/procurement inventory
+// Currently no PMS page uses them — planned for future Hotel Supplies module
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
@@ -291,6 +294,10 @@ export async function DELETE(request: NextRequest) {    const user = await getUs
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Item IDs are required' } },
         { status: 400 }
       );
+    }
+
+    if (ids.length > 100) {
+      return NextResponse.json({ success: false, error: 'Maximum 100 items per operation' }, { status: 400 });
     }
 
     const results = await db.stockItem.updateMany({

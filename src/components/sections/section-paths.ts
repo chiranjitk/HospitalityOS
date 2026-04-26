@@ -1,3 +1,4 @@
+// DEPRECATED: Use section-resolver.ts + category loaders instead
 // Section resolver — maps section names to component file paths
 // No import() calls here! Just string mappings.
 // page.tsx will use require() at runtime to load the actual components.

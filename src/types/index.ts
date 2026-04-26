@@ -296,12 +296,12 @@ export interface FolioLineItem {
   id: string;
   folioId: string;
   description: string;
-  category: 'room' | 'food' | 'beverage' | 'service' | 'tax' | 'discount';
+  category: 'room' | 'food' | 'beverage' | 'service' | 'tax' | 'discount' | 'penalty' | 'cancellation_fee' | 'no_show_fee';
   quantity: number;
   unitPrice: number;
   totalAmount: number;
   serviceDate: Date;
-  referenceType?: 'order' | 'booking' | 'service';
+  referenceType?: 'order' | 'booking' | 'service' | 'cancellation_policy' | 'promo_code';
   referenceId?: string;
   taxRate: number;
   taxAmount: number;

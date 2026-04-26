@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
+// Safe JSON parse helper
+function safeJsonParse(str: string | null | undefined, fallback: any = []): any {
+  if (!str) return fallback;
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
 // GET /api/room-types - List all room types
 export async function GET(request: NextRequest) {    const user = await getUserFromRequest(request);
     if (!user) {
@@ -74,24 +80,25 @@ export async function GET(request: NextRequest) {    const user = await getUserF
       skip: offset,
     });
     
-    // Get overbooking statistics
-    const overbookingStats = await Promise.all(
-      roomTypes.map(async (rt) => {
-        // Count bookings for each room type
-        const activeBookings = await db.booking.count({
-          where: {
-            roomTypeId: rt.id,
-            status: { in: ['confirmed', 'checked_in'] },
-            deletedAt: null,
-          },
-        });
-        return {
-          roomTypeId: rt.id,
-          activeBookings,
-        };
-      })
-    );
-    const overbookingStatsMap = new Map(overbookingStats.map(s => [s.roomTypeId, s.activeBookings]));
+    // Get booking counts grouped by room type in a single query
+    const bookingWhere: Record<string, unknown> = {
+      tenantId: user.tenantId,
+      status: { in: ['confirmed', 'checked_in'] },
+      checkIn: { lte: new Date() },
+      OR: [
+        { checkOut: null },
+        { checkOut: { gte: new Date() } },
+      ],
+    };
+    if (propertyId) {
+      bookingWhere.propertyId = propertyId;
+    }
+    const bookingCounts = await db.booking.groupBy({
+      by: ['roomTypeId'],
+      where: bookingWhere,
+      _count: { id: true },
+    });
+    const bookingCountMap = new Map(bookingCounts.map(bc => [bc.roomTypeId, bc._count.id]));
     
     return NextResponse.json({
       success: true,
@@ -99,10 +106,10 @@ export async function GET(request: NextRequest) {    const user = await getUserF
       data: roomTypes.map((rt) => ({
         ...rt,
         totalRooms: rt._count.rooms,
-        amenities: JSON.parse(rt.amenities),
-        images: JSON.parse(rt.images),
+        amenities: safeJsonParse(rt.amenities),
+        images: safeJsonParse(rt.images),
         overbookingStats: {
-          activeBookings: overbookingStatsMap.get(rt.id) || 0,
+          activeBookings: bookingCountMap.get(rt.id) || 0,
           availableForOverbooking: rt.overbookingEnabled 
             ? Math.min(rt.overbookingLimit, Math.ceil(rt._count.rooms * (rt.overbookingPercentage / 100)))
             : 0,
@@ -239,8 +246,8 @@ export async function POST(request: NextRequest) {    const user = await getUser
       success: true, 
       data: {
         ...roomType,
-        amenities: JSON.parse(roomType.amenities),
-        images: JSON.parse(roomType.images),
+        amenities: safeJsonParse(roomType.amenities),
+        images: safeJsonParse(roomType.images),
       }
     }, { status: 201 });
   } catch (error) {

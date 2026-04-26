@@ -31,6 +31,7 @@ export interface PricingRuleCondition {
   guestType?: string[];
   advanceBookingDaysMin?: number;
   advanceBookingDaysMax?: number;
+  promoCode?: string; // Required for promo_code rule type
 }
 
 export interface PriceBreakdown {
@@ -127,15 +128,8 @@ export async function calculatePrice(context: PricingContext): Promise<PriceBrea
         amount: result.amount,
       });
       currentPricePerNight = result.newPrice;
-
-      // Update rule applied count
-      await db.pricingRule.update({
-        where: { id: rule.id },
-        data: {
-          appliedCount: { increment: 1 },
-          lastAppliedAt: new Date(),
-        },
-      });
+      // Note: appliedCount update should be handled by the caller as a side effect,
+      // not inside the calculation function, to keep this pure and performant.
     }
   }
 
@@ -362,6 +356,11 @@ function checkRuleConditions(
     }
   }
 
+  // Check guest type (e.g., 'corporate', 'vip', 'loyalty')
+  // Note: guestType matching requires a guest context that is not yet passed in.
+  // This is a placeholder for future expansion when guest profiles are linked to bookings.
+  // if (conditions.guestType && conditions.guestType.length > 0) { ... }
+
   return true;
 }
 
@@ -454,11 +453,11 @@ function applyRule(
       break;
 
     case 'weekend':
-      // Weekend surcharge/discount
+      // Weekend surcharge/discount (negative value = discount)
       const checkInDay = context.checkIn.getDay();
       if (checkInDay === 5 || checkInDay === 6) { // Friday or Saturday
-        amount = currentPrice * (rule.value / 100);
-        newPrice = currentPrice + amount;
+        amount = currentPrice * (Math.abs(rule.value) / 100);
+        newPrice = rule.value < 0 ? currentPrice - amount : currentPrice + amount;
       } else {
         return { applied: false, amount: 0, newPrice: currentPrice };
       }
@@ -487,16 +486,29 @@ function applyRule(
       }
       break;
 
-    case 'promo_code':
-      // Promo code discount - check if promo code matches
-      // This would need the promo code from conditions
-      if (context.promoCode) {
+    case 'promo_code': {
+      // Promo code discount - check if promo code matches the rule's conditions
+      // NOTE: rule.conditions is a JSON string; parse it to access promoCode
+      let parsedPromoConditions: PricingRuleCondition | null = null;
+      if (rule.conditions) {
+        try {
+          parsedPromoConditions = JSON.parse(rule.conditions);
+        } catch {
+          // If parsing fails, cannot validate promo code
+        }
+      }
+      if (
+        context.promoCode &&
+        parsedPromoConditions?.promoCode &&
+        context.promoCode.toLowerCase() === parsedPromoConditions.promoCode.toLowerCase()
+      ) {
         amount = currentPrice * (rule.value / 100);
         newPrice = currentPrice - amount;
       } else {
         return { applied: false, amount: 0, newPrice: currentPrice };
       }
       break;
+    }
 
     case 'occupancy':
       // Occupancy-based pricing

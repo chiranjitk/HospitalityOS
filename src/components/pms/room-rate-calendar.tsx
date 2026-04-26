@@ -121,6 +121,8 @@ export default function RoomRateCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [editingCell, setEditingCell] = useState<{ date: string; ratePlanId: string } | null>(null);
   const [editValue, setEditValue] = useState<string>('');
+  const [editCTA, setEditCTA] = useState(false);
+  const [editCTD, setEditCTD] = useState(false);
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [bulkRate, setBulkRate] = useState<string>('');
   const [bulkStartDate, setBulkStartDate] = useState<string>('');
@@ -164,6 +166,7 @@ export default function RoomRateCalendar() {
         }
       } catch (error) {
         console.error('Error fetching properties:', error);
+        toast({ title: 'Error', description: 'Failed to load properties', variant: 'destructive' });
       }
     };
     fetchProperties();
@@ -177,8 +180,9 @@ export default function RoomRateCalendar() {
         const response = await fetch(`/api/room-types?propertyId=${selectedProperty}`);
         const result = await response.json();
         if (result.success && result.data) {
-          setRoomTypes(result.data.filter((rt: { deletedAt: unknown }) => !rt.deletedAt));
-          if (result.data.length > 0) setSelectedRoomType(result.data[0].id);
+          const filtered = result.data.filter((rt: { deletedAt: unknown }) => !rt.deletedAt);
+          setRoomTypes(filtered);
+          if (filtered.length > 0) setSelectedRoomType(filtered[0].id);
         }
       } catch (error) {
         console.error('Error fetching room types:', error);
@@ -222,6 +226,10 @@ export default function RoomRateCalendar() {
         endDate,
       });
 
+      if (selectedRatePlan) {
+        params.append('ratePlanId', selectedRatePlan);
+      }
+
       const response = await fetch(`/api/rate-plans/bulk-rates?${params}`);
       const result = await response.json();
       if (result.success && result.data) {
@@ -261,11 +269,19 @@ export default function RoomRateCalendar() {
     const rate = getRate(date, ratePlanId);
     setEditingCell({ date, ratePlanId });
     setEditValue(rate?.overrideRate?.toString() || rate?.baseRate?.toString() || '');
+    setEditCTA(!!rate?.closedToArrival);
+    setEditCTD(!!rate?.closedToDeparture);
   };
 
   // Save inline edit
   const saveInlineEdit = async () => {
-    if (!editingCell || !editValue) return;
+    if (!editingCell || editValue === undefined || editValue === null || editValue === '') return;
+
+    const parsedValue = parseFloat(editValue);
+    if (isNaN(parsedValue)) {
+      toast({ title: 'Error', description: 'Invalid number', variant: 'destructive' });
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -277,14 +293,16 @@ export default function RoomRateCalendar() {
           ratePlanId: editingCell.ratePlanId,
           startDate: editingCell.date,
           endDate: editingCell.date,
-          rates: { [editingCell.date]: parseFloat(editValue) },
+          rates: { [editingCell.date]: parsedValue },
+          closedToArrival: editCTA,
+          closedToDeparture: editCTD,
           reason: 'Manual rate edit',
         }),
       });
 
       const result = await response.json();
       if (result.success) {
-        toast({ title: 'Rate Updated', description: `Rate for ${editingCell.date} updated to ${formatCurrency(parseFloat(editValue))}` });
+        toast({ title: 'Rate Updated', description: `Rate for ${editingCell.date} updated to ${formatCurrency(parsedValue)}` });
         setEditingCell(null);
         fetchRates();
       } else {
@@ -300,6 +318,11 @@ export default function RoomRateCalendar() {
   // Bulk rate update
   const handleBulkUpdate = async () => {
     if (!bulkRate || !bulkStartDate || !bulkEndDate || !selectedRatePlan || !selectedRoomType) return;
+
+    if (new Date(bulkStartDate) > new Date(bulkEndDate)) {
+      toast({ title: 'Error', description: 'Start date must be before end date', variant: 'destructive' });
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -500,6 +523,11 @@ export default function RoomRateCalendar() {
           ) : (
             <ScrollArea className="w-full">
               <div className="min-w-[900px]">
+                {ratePlans.filter(rp => !selectedRoomType || rp.roomType?.id === selectedRoomType).length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No rate plans configured for this room type. Create rate plans first.
+                  </div>
+                )}
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -514,7 +542,6 @@ export default function RoomRateCalendar() {
                   </TableHeader>
                   <TableBody>
                     {calendarDays.map(day => {
-                      const currentRatePlan = ratePlans.find(rp => rp.id === selectedRatePlan);
                       const rate = getRate(day.date, selectedRatePlan);
 
                       return (
@@ -551,7 +578,7 @@ export default function RoomRateCalendar() {
                             return (
                               <TableCell key={rp.id} className="text-center p-0">
                                 {editingCell?.date === day.date && editingCell?.ratePlanId === rp.id ? (
-                                  <div className="flex items-center gap-1 p-1">
+                                  <div className="flex flex-col items-center gap-1 p-1">
                                     <Input
                                       type="number"
                                       value={editValue}
@@ -563,12 +590,24 @@ export default function RoomRateCalendar() {
                                         if (e.key === 'Escape') setEditingCell(null);
                                       }}
                                     />
-                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={saveInlineEdit} disabled={isSaving}>
-                                      {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3 text-green-600" />}
-                                    </Button>
-                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingCell(null)}>
-                                      <X className="h-3 w-3 text-red-500" />
-                                    </Button>
+                                    <div className="flex items-center gap-1">
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={saveInlineEdit} disabled={isSaving}>
+                                        {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3 text-green-600" />}
+                                      </Button>
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingCell(null)}>
+                                        <X className="h-3 w-3 text-red-500" />
+                                      </Button>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <label className="flex items-center gap-1">
+                                        <input type="checkbox" checked={editCTA} onChange={(e) => setEditCTA(e.target.checked)} className="rounded" />
+                                        CTA
+                                      </label>
+                                      <label className="flex items-center gap-1">
+                                        <input type="checkbox" checked={editCTD} onChange={(e) => setEditCTD(e.target.checked)} className="rounded" />
+                                        CTD
+                                      </label>
+                                    </div>
                                   </div>
                                 ) : (
                                   <div
@@ -579,7 +618,7 @@ export default function RoomRateCalendar() {
                                       cellStatus === 'available' && 'text-foreground',
                                     )}
                                     onClick={() => isSelectedPlan && handleCellClick(day.date, rp.id)}
-                                    title={isSelectedPlan ? 'Click to edit rate' : undefined}
+                                    title={!isSelectedPlan ? 'Switch to this rate plan to edit rates' : 'Click to edit rate'}
                                   >
                                     <div className="flex flex-col items-center">
                                       <span>{formatCurrency(effectiveRate)}</span>
@@ -680,7 +719,7 @@ export default function RoomRateCalendar() {
               />
             </div>
             {bulkStartDate && bulkEndDate && (() => {
-              const days = Math.ceil((new Date(bulkEndDate).getTime() - new Date(bulkStartDate).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+              const days = Math.max(0, Math.ceil((new Date(bulkEndDate).getTime() - new Date(bulkStartDate).getTime()) / (1000 * 60 * 60 * 24)) + 1);
               return (
                 <div className="p-3 bg-muted rounded-lg text-sm">
                   <p className="font-medium">{days} days will be updated</p>

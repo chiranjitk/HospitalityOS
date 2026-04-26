@@ -180,6 +180,15 @@ export default function OverbookingSettings() {
 
   // Quick toggle overbooking
   const handleToggle = async (roomType: RoomType, enabled: boolean) => {
+    if (enabled && !window.confirm('Enable overbooking? This allows accepting more bookings than available rooms.')) return;
+
+    // Optimistic update
+    setRoomTypes(prev =>
+      prev.map(rt =>
+        rt.id === roomType.id ? { ...rt, overbookingEnabled: enabled } : rt
+      )
+    );
+
     try {
       const response = await fetch(`/api/room-types/${roomType.id}`, {
         method: 'PUT',
@@ -193,24 +202,30 @@ export default function OverbookingSettings() {
 
       if (result.success) {
         toast({
-          title: 'Success',
-          description: `Overbooking ${enabled ? 'enabled' : 'disabled'} for ${roomType.name}`,
+          title: 'Updated',
+          description: `Overbooking ${enabled ? 'enabled' : 'disabled'}`,
         });
-        // Update local state
+      } else {
+        // Revert optimistic update
         setRoomTypes(prev =>
           prev.map(rt =>
-            rt.id === roomType.id ? { ...rt, overbookingEnabled: enabled } : rt
+            rt.id === roomType.id ? { ...rt, overbookingEnabled: !enabled } : rt
           )
         );
-      } else {
         toast({
           title: 'Error',
-          description: result.error?.message || 'Failed to update settings',
+          description: result.error?.message || 'Failed to update',
           variant: 'destructive',
         });
+        return;
       }
-    } catch (error) {
-      console.error('Error toggling overbooking:', error);
+    } catch {
+      // Revert optimistic update
+      setRoomTypes(prev =>
+        prev.map(rt =>
+          rt.id === roomType.id ? { ...rt, overbookingEnabled: !enabled } : rt
+        )
+      );
       toast({
         title: 'Error',
         description: 'Failed to toggle overbooking',
@@ -300,6 +315,11 @@ export default function OverbookingSettings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Enforcement Notice */}
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3 text-sm text-amber-800 dark:text-amber-200">
+        Overbooking settings are configured here. Enforcement is applied during availability checks and booking creation.
+      </div>
 
       {/* Property Select */}
       <Card>
@@ -470,18 +490,19 @@ export default function OverbookingSettings() {
                                 / {roomType.totalRooms}
                               </span>
                             </div>
-                            <Progress
-                              value={occupancyRate}
-                              className={cn(
-                                "h-2",
-                                occupancyRate > 100 && "bg-red-100 dark:bg-red-900/30",
-                                occupancyRate > 90 && occupancyRate <= 100 && "bg-yellow-100 dark:bg-yellow-900/30"
+                            <div className="relative">
+                              <Progress
+                                value={occupancyRate}
+                                className="h-2"
+                              />
+                              {occupancyRate > 100 && (
+                                <div className="absolute inset-0 h-2 rounded-full bg-red-500 pointer-events-none" style={{ width: `${Math.min(occupancyRate, 100)}%` }} />
                               )}
-                            />
+                            </div>
                             <div className={cn(
                               "text-xs",
                               occupancyRate > 100 && "text-red-600 dark:text-red-400",
-                              occupancyRate > 90 && "text-yellow-600 dark:text-yellow-400"
+                              occupancyRate > 90 && occupancyRate <= 100 && "text-yellow-600 dark:text-yellow-400"
                             )}>
                               {occupancyRate}% occupied
                             </div>
@@ -627,7 +648,7 @@ export default function OverbookingSettings() {
                     onChange={(e) =>
                       setFormData(prev => ({
                         ...prev,
-                        overbookingPercentage: parseFloat(e.target.value) || 0,
+                        overbookingPercentage: Math.min(50, Math.max(0, parseFloat(e.target.value) || 0)),
                       }))
                     }
                   />

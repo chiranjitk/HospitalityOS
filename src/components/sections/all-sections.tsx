@@ -1,3 +1,4 @@
+// DEPRECATED: Use section-resolver.ts + category loaders instead
 const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<any> }>> = {
   // ── admin (section-map-admin.tsx) ──
   'admin-tenants': () => import('@/components/admin/tenant-management'),
