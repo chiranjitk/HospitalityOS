@@ -1,0 +1,32 @@
+-- =============================================================================
+-- StaySuite Patch: Post-Auth Query for PostgreSQL
+-- File: raddb/mods-config/sql/main/postgresql/queries.conf
+-- Section: post-auth { ... }
+--
+-- REPLACE the existing post-auth section at the bottom of queries.conf
+-- with this version. The original only inserts username, pass, reply, authdate.
+-- This version also captures:
+--   - calledstationid: AP MAC address (Called-Station-Id from RADIUS request)
+--   - callingstationid: Client MAC address (Calling-Station-Id from RADIUS request)
+--   - nasipaddress: NAS source IP address
+--   - clientipaddress: User's Framed-IP-Address (assigned by NAS/DHCP)
+-- =============================================================================
+
+post-auth {
+        query = "\
+                INSERT INTO ${..postauth_table} \
+                        (username, pass, reply, authdate, \
+                         calledstationid, callingstationid, \
+                         nasipaddress, clientipaddress \
+                         ${..class.column_name}) \
+                VALUES(\
+                        '%{User-Name}', \
+                        '%{%{User-Password}:-%{Chap-Password}}', \
+                        '%{reply:Packet-Type}', \
+                        '%S', \
+                        '%{Called-Station-Id}', \
+                        '%{Calling-Station-Id}', \
+                        '%{NAS-IP-Address}', \
+                        '%{request:Framed-IP-Address}' \
+                        ${..class.reply_xlat})"
+}

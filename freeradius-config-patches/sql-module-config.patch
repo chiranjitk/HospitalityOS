@@ -1,0 +1,36 @@
+# =============================================================================
+# StaySuite Patch: SQL Module Configuration
+# File: raddb/mods-available/sql
+#
+# Key settings to configure (search for these in the file):
+# =============================================================================
+
+# Line ~40: Set dialect
+dialect = "postgresql"
+
+# Line ~60: Set driver
+driver = "rlm_sql_postgresql"
+
+# Line ~176: Set database connection string
+# REPLACE with your actual connection string, e.g.:
+radius_db = "dbname=staysuite host=localhost port=5432 user=staysuite password=YourSecurePassword"
+
+# Line ~192-207: Verify table names (should already be correct)
+acct_table1 = "radacct"
+acct_table2 = "radacct"
+postauth_table = "radpostauth"
+authcheck_table = "radcheck"
+groupcheck_table = "radgroupcheck"
+authreply_table = "radreply"
+groupreply_table = "radgroupreply"
+usergroup_table = "radusergroup"
+
+# Line ~345-368: Enable reading NAS clients from database
+read_clients = yes
+client_table = "nas"
+
+# IMPORTANT: Remove or comment out this debug line if present:
+# logfile = /tmp/sql_debug.log
+
+# IMPORTANT: Disable sqlippool if enabled:
+# sudo rm -f mods-enabled/sqlippool

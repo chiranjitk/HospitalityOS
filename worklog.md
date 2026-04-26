@@ -819,3 +819,41 @@ Stage Summary:
   - NAS: ✅ 4 NAS across 4 vendors
   - AAA Config: ✅ 43 configuration fields
 - Lint: Clean ✅
+
+---
+Task ID: 7
+Agent: Deployment Guide Agent
+Task: Create comprehensive production deployment guide
+
+Work Log:
+- Created DEPLOY-GUIDE.md with 10-step deployment process
+- Covered Rocky 10 specific: PostgreSQL 17, FreeRADIUS, Next.js, PM2
+- Included troubleshooting section
+- Documented expected database state
+
+Stage Summary:
+- pgsql-production/DEPLOY-GUIDE.md created with full 10-step guide
+- Covers: system prep, PG17, FR3.x, schema deployment, app build, firewall
+- Includes file reference table and troubleshooting
+---
+Task ID: 2
+Agent: Production SQL Files Agent
+Task: Update pgsql-production with missing FUP tables, functions, and views
+
+Work Log:
+- Created pgsql-production/05-fup-tables-and-functions.sql with:
+  - fup_switch_log table (16 columns + 3 indexes)
+  - v_fup_switch_logs view (enriched with WiFiUser/Property/WiFiPlan joins)
+  - 5 PostgreSQL functions: fn_check_fup, fn_check_login_limit, fn_get_effective_bandwidth, fn_get_mikrotik_rate_limit, fn_is_fup_throttled
+- Updated pgsql-production/02-staysuite-views.sql: added v_fup_switch_logs view (6th view) before COMMIT
+- Updated pgsql-production/deploy.sh: inserted Step 5 for 05-fup-tables-and-functions.sql, renumbered all steps to 0/8 through 8/8, updated view/function counts in status messages
+- Verified: 8 total functions (3 in 04-ip-pool-functions.sql + 5 in 05-fup-tables-and-functions.sql)
+- Verified: 6 total views (5 original + v_fup_switch_logs in 02-staysuite-views.sql)
+- Verified: deploy.sh runs all 8 steps in correct dependency order
+
+Stage Summary:
+- pgsql-production/05-fup-tables-and-functions.sql created (291 lines): 1 table, 1 view, 5 functions
+- pgsql-production/02-staysuite-views.sql updated: now contains 6 views
+- pgsql-production/deploy.sh updated: 8-step deployment pipeline (was 7)
+- All SQL files are idempotent (CREATE TABLE IF NOT EXISTS, CREATE OR REPLACE)
+- No other files modified

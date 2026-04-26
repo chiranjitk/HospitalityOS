@@ -261,4 +261,28 @@ SELECT u.id, u."tenantId", u."propertyId", u."guestId", u."bookingId",
      LEFT JOIN "Property" p ON ((u."propertyId" = p.id)))
      LEFT JOIN "WiFiPlan" wp ON ((u."planId" = wp.id)));
 
+-- ============================================================================
+-- VIEW: v_fup_switch_logs
+-- Shows Fair Access Policy throttle events with user/plan/property enrichment.
+-- Displays the history of when users were throttled due to exceeding data limits.
+-- Used by: FUP dashboard, bandwidth reports, policy audit logs.
+-- ============================================================================
+CREATE OR REPLACE VIEW v_fup_switch_logs AS
+SELECT fsl.id::text AS id,
+    fsl.username,
+    fsl.fup_policy_name,
+    fsl.usage_mb,
+    fsl.limit_mb,
+    fsl.throttle_down_kbps,
+    fsl.throttle_up_kbps,
+    fsl.triggered_at,
+    COALESCE(p.name, ''::text) AS property_name,
+    wu."planId",
+    wp.name AS plan_name
+FROM fup_switch_log fsl
+    LEFT JOIN "WiFiUser" wu ON wu.username = fsl.username
+    LEFT JOIN "Property" p ON p.id = fsl.property_id
+    LEFT JOIN "WiFiPlan" wp ON wp.id = wu."planId"
+ORDER BY fsl.triggered_at DESC;
+
 COMMIT;

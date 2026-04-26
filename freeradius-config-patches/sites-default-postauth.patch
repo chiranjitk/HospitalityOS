@@ -1,0 +1,58 @@
+# =============================================================================
+# StaySuite Patch: Post-Auth Section for sites-available/default
+# File: raddb/sites-available/default
+# Section: post-auth { ... }
+#
+# ADD these blocks INSIDE the post-auth section, BEFORE the "sql" line.
+# These blocks implement:
+#   1. IP Pool restriction check
+#   2. Gateway push via Framed-Route
+#   3. FUP bandwidth override
+# =============================================================================
+
+        # -- StaySuite: IP Pool Restriction Check ------------------------------
+        # Check if user's IP is within their assigned IP pool.
+        # Priority: User Override > Plan Pool > Default Pool > No restriction.
+        # Calls fn_check_ip_pool(username, framed_ip) which returns 1 (allow) or 0 (deny).
+        #
+        if (&Framed-IP-Address) {
+            update control {
+                &Tmp-Integer-0 := "%{sql:SELECT fn_check_ip_pool('%{User-Name}', '%{Framed-IP-Address}'::inet)}"
+            }
+            if (&control:Tmp-Integer-0 == 0) {
+                update reply {
+                    &Reply-Message := "Access denied - IP not in allowed pool for this user"
+                }
+                reject
+            }
+
+            #
+            # -- StaySuite: Push Gateway from IP Pool --------------------------
+            # Assign pool-specific gateway to the client via Framed-Route.
+            # Uses fn_get_pool_attr() which follows: User Override > Plan > Default.
+            #
+            update control {
+                &Tmp-String-0 := "%{sql:SELECT fn_get_pool_attr('%{User-Name}', 'gateway')}"
+            }
+            if (&control:Tmp-String-0 && &control:Tmp-String-0 != '') {
+                update reply {
+                    &Framed-Route := "0.0.0.0/0 %{control:Tmp-String-0}"
+                }
+            }
+        }
+
+        # -- StaySuite: FUP Switch-Over Bandwidth Override ----------------------
+        # Override ALL bandwidth attributes based on Fair Access Policy.
+        # If user has exceeded their data limit for the current cycle
+        # (daily/weekly/monthly), their bandwidth is throttled per FUP policy.
+        # fn_get_mikrotik_rate_limit() also logs switch-over events to
+        # fup_switch_log table for GUI display.
+        #
+        update control {
+            &Tmp-String-2 := "%{sql:SELECT fn_get_mikrotik_rate_limit('%{User-Name}')}"
+        }
+        update reply {
+            &Mikrotik-Rate-Limit := "%{control:Tmp-String-2}"
+        }
+
+        # NOTE: The existing "sql" and "exec" lines should follow AFTER these blocks
