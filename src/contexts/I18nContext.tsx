@@ -131,7 +131,7 @@ const defaultTranslations: Translations = {
     // WiFi items
     'wifi-sessions': 'Active Sessions', 'wifi-vouchers': 'Voucher Management',
     'wifi-plans': 'Plans / Bandwidth', 'wifi-logs': 'Usage Logs',
-    'wifi-gateway': 'Gateway Integration', 'wifi-aaa': 'AAA Configuration',
+    'wifi-gateway': 'WiFi Controller', 'wifi-aaa': 'AAA Configuration',
     'wifi-users': 'WiFi Users', 'wifi-network': 'Network',
     'wifi-dhcp': 'DHCP Server', 'wifi-portal': 'Captive Portal',
     'wifi-firewall': 'Firewall & Bandwidth', 'wifi-reports': 'WiFi Reports',
@@ -174,7 +174,7 @@ const defaultTranslations: Translations = {
     'security-sessions': 'Device Sessions', 'security-sso': 'SSO Configuration',
     
     // Integrations items
-    'integrations-payments': 'Payment Gateways', 'integrations-wifi': 'WiFi Gateways',
+    'integrations-payments': 'Payment Gateways',
     'integrations-pos': 'POS Systems', 'integrations-apis': 'Third-party APIs',
     
     // Automation items

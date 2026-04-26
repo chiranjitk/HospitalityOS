@@ -458,7 +458,6 @@ export const navigationConfig: NavSection[] = [
     category: 'addons',
     items: [
       { id: 'integrations-payments', title: 'Payment Gateways', href: '#integrations-payments', icon: CreditCard },
-      { id: 'integrations-wifi', title: 'WiFi Gateways', href: '#integrations-wifi', icon: Wifi },
       { id: 'integrations-pos', title: 'POS Systems', href: '#integrations-pos', icon: UtensilsCrossed },
       { id: 'integrations-apis', title: 'Third-party APIs', href: '#integrations-apis', icon: Plug },
     ],

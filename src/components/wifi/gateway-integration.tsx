@@ -556,10 +556,10 @@ export default function GatewayIntegration() {
         <div>
           <h2 className="text-xl font-semibold flex items-center gap-2">
             <Router className="h-5 w-5" />
-            Gateway Integration
+            WiFi Controller
           </h2>
           <p className="text-sm text-muted-foreground">
-            Configure and manage WiFi gateway connections
+            Manage wireless controller connections and push configuration
           </p>
         </div>
         <div className="flex gap-2">

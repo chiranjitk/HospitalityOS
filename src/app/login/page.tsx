@@ -274,7 +274,7 @@ export default function LoginPage() {
             </h2>
 
             <div className="flex flex-wrap items-center gap-3 text-xs">
-              {['WiFi AAA Ready', 'Gateway Integration'].map((label) => (
+              {['WiFi AAA Ready', 'WiFi Controller'].map((label) => (
                 <span
                   key={label}
                   className="px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/25 text-white font-medium hover:bg-white/20 hover:border-white/35 transition-all duration-300 cursor-default"

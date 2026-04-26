@@ -32,7 +32,7 @@ type TabId = 'aaa' | 'gateway' | 'provisioning' | 'nas-health';
 
 const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'aaa', label: 'AAA Configuration', icon: <Shield className="h-4 w-4" /> },
-  { id: 'gateway', label: 'Gateway Integration', icon: <Server className="h-4 w-4" /> },
+  { id: 'gateway', label: 'WiFi Controller', icon: <Server className="h-4 w-4" /> },
   { id: 'provisioning', label: 'Provisioning Logs', icon: <ScrollText className="h-4 w-4" /> },
   { id: 'nas-health', label: 'NAS Health', icon: <HeartPulse className="h-4 w-4" /> },
 ];
