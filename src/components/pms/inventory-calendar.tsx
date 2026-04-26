@@ -90,7 +90,7 @@ export default function InventoryCalendar() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [ratePlans, setRatePlans] = useState<RatePlan[]>([]);
-  const [selectedProperty, setSelectedProperty] = useState<string>('');
+  const [selectedProperty, setSelectedProperty] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
 
   // Calendar state
@@ -140,10 +140,12 @@ export default function InventoryCalendar() {
 
       try {
         const params = new URLSearchParams({
-          propertyId: selectedProperty,
           startDate: toLocalDateString(startDate),
           endDate: toLocalDateString(endDate),
         });
+        if (selectedProperty !== 'all') {
+          params.set('propertyId', selectedProperty);
+        }
 
         const response = await fetch(`/api/inventory?${params.toString()}`);
         const result = await response.json();
@@ -172,7 +174,10 @@ export default function InventoryCalendar() {
     const fetchRatePlans = async () => {
       if (!selectedProperty) return;
       try {
-        const response = await fetch(`/api/rate-plans?propertyId=${selectedProperty}`);
+        const ratePlanUrl = selectedProperty !== 'all'
+          ? `/api/rate-plans?propertyId=${selectedProperty}`
+          : '/api/rate-plans';
+        const response = await fetch(ratePlanUrl);
         const result = await response.json();
         if (result.success) {
           setRatePlans(result.data);
@@ -453,6 +458,7 @@ export default function InventoryCalendar() {
             <SelectValue placeholder="Select Property" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="all">All Properties</SelectItem>
             {properties.map(property => (
               <SelectItem key={property.id} value={property.id}>
                 {property.name}

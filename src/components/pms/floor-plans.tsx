@@ -231,6 +231,44 @@ export default function FloorPlans() {
     }
   }, [history, historyIndex]);
 
+  // Save room positions (declared before useEffect that references it)
+  const saveRoomPositions = useCallback(async () => {
+    if (!selectedFloorPlan) return;
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/floor-plans/${selectedFloorPlan.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomPositions }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: 'Success',
+          description: 'Room positions saved successfully',
+        });
+        setSelectedFloorPlan(result.data);
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to save room positions',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error saving room positions:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save room positions',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [selectedFloorPlan, roomPositions, toast]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -444,43 +482,7 @@ export default function FloorPlans() {
     }
   };
 
-  // Save room positions
-  const saveRoomPositions = useCallback(async () => {
-    if (!selectedFloorPlan) return;
-    setIsSaving(true);
-    try {
-      const response = await fetch(`/api/floor-plans/${selectedFloorPlan.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomPositions }),
-      });
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        toast({
-          title: 'Success',
-          description: 'Room positions saved successfully',
-        });
-        setSelectedFloorPlan(result.data);
-      } else {
-        toast({
-          title: 'Error',
-          description: 'Failed to save room positions',
-          variant: 'destructive',
-        });
-      }
-    } catch (error) {
-      console.error('Error saving room positions:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to save room positions',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  }, [selectedFloorPlan, roomPositions]);
+  // saveRoomPositions is declared above (before the keyboard shortcuts useEffect)
 
   // Auto-arrange rooms
   const autoArrangeRooms = useCallback(() => {

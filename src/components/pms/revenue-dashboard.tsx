@@ -62,7 +62,7 @@ export default function RevenueDashboard() {
   const { formatCurrency } = useCurrency();
   const { formatDate } = useTimezone();
   const [properties, setProperties] = useState<Property[]>([]);
-  const [selectedProperty, setSelectedProperty] = useState<string>('');
+  const [selectedProperty, setSelectedProperty] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<RevenueMetrics[]>([]);
@@ -116,7 +116,14 @@ export default function RevenueDashboard() {
         const startDate = toLocalDateString(startDateObj);
         const endDate = toLocalDateString(endDateObj);
 
-        const response = await fetch(`/api/bookings?propertyId=${selectedProperty}&checkInFrom=${startDate}&checkInTo=${endDate}`);
+        const metricsParams = new URLSearchParams({
+          checkInFrom: startDate,
+          checkInTo: endDate,
+        });
+        if (selectedProperty !== 'all') {
+          metricsParams.set('propertyId', selectedProperty);
+        }
+        const response = await fetch(`/api/bookings?${metricsParams.toString()}`);
         const result = await response.json();
 
         if (result.success) {
@@ -261,6 +268,7 @@ export default function RevenueDashboard() {
               <SelectValue placeholder="Select property" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">All Properties</SelectItem>
               {properties.map(p => (
                 <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
               ))}

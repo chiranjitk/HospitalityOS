@@ -202,7 +202,7 @@ export function PricingManager() {
         // Fetch price overrides filtered by selected room type
         const overridesResponse = await fetch(`/api/price-overrides${selectedRoomType ? `?roomTypeId=${selectedRoomType}` : ''}`);
         const overridesResult = await overridesResponse.json();
-        if (overridesResult.success) {
+        if (overridesResult.success && overridesResult.data && ratePlansResult.success && ratePlansResult.data) {
           // Filter overrides for current property
           const filteredOverrides = overridesResult.data.filter((o: PriceOverride) =>
             ratePlansResult.data.some((rp: RatePlan) => rp.id === o.ratePlanId)
@@ -222,7 +222,7 @@ export function PricingManager() {
     };
 
     fetchData();
-  }, [selectedProperty]);
+  }, [selectedProperty, selectedRoomType]);
 
   const openRatePlanDialog = (plan?: RatePlan) => {
     if (plan) {

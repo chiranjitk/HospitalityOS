@@ -472,9 +472,14 @@ export default function PropertiesList() {
 
   const openEditDialog = (property: Property) => {
     setSelectedProperty(property);
-    const taxComponents = property.taxComponents 
-      ? JSON.parse(property.taxComponents) 
-      : defaultFormData.taxComponents;
+    let taxComponents;
+    try {
+      taxComponents = property.taxComponents
+        ? JSON.parse(property.taxComponents)
+        : defaultFormData.taxComponents;
+    } catch {
+      taxComponents = defaultFormData.taxComponents;
+    }
     setFormData({
       name: property.name,
       slug: property.slug,

@@ -111,7 +111,7 @@ export default function AvailabilityControl() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [inventoryLocks, setInventoryLocks] = useState<any[]>([]);
-  const [selectedProperty, setSelectedProperty] = useState<string>('');
+  const [selectedProperty, setSelectedProperty] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
 
   // Date range state
@@ -163,14 +163,14 @@ export default function AvailabilityControl() {
 
     try {
       // Fetch room types
-      const roomTypesResponse = await fetch(`/api/room-types?propertyId=${selectedProperty}`);
+      const roomTypesResponse = await fetch(selectedProperty !== 'all' ? `/api/room-types?propertyId=${selectedProperty}` : '/api/room-types');
       const roomTypesResult = await roomTypesResponse.json();
       if (roomTypesResult.success) {
         setRoomTypes(roomTypesResult.data);
       }
 
       // Fetch rooms
-      const roomsResponse = await fetch(`/api/rooms?propertyId=${selectedProperty}`);
+      const roomsResponse = await fetch(selectedProperty !== 'all' ? `/api/rooms?propertyId=${selectedProperty}` : '/api/rooms');
       const roomsResult = await roomsResponse.json();
       if (roomsResult.success) {
         setRooms(roomsResult.data);
@@ -178,10 +178,12 @@ export default function AvailabilityControl() {
 
       // Fetch bookings for the date range
       const bookingsParams = new URLSearchParams({
-        propertyId: selectedProperty,
         checkInFrom: startDate.toISOString(),
         checkInTo: endDate.toISOString(),
       });
+      if (selectedProperty !== 'all') {
+        bookingsParams.set('propertyId', selectedProperty);
+      }
       const bookingsResponse = await fetch(`/api/bookings?${bookingsParams.toString()}`);
       const bookingsResult = await bookingsResponse.json();
       if (bookingsResult.success) {
@@ -190,7 +192,7 @@ export default function AvailabilityControl() {
 
       // Fetch inventory locks
       try {
-        const locksResponse = await fetch(`/api/inventory-locks?propertyId=${selectedProperty}&active=true`);
+        const locksResponse = await fetch(selectedProperty !== 'all' ? `/api/inventory-locks?propertyId=${selectedProperty}&active=true` : '/api/inventory-locks?active=true');
         if (locksResponse.ok) {
           const locksResult = await locksResponse.json();
           setInventoryLocks(locksResult.data || locksResult || []);
@@ -464,6 +466,7 @@ export default function AvailabilityControl() {
                   <SelectValue placeholder="Select Property" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">All Properties</SelectItem>
                   {properties.map(property => (
                     <SelectItem key={property.id} value={property.id}>
                       {property.name}

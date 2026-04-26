@@ -49,6 +49,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -114,6 +115,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 
 export default function RoomOutOfOrder() {
   const { toast } = useToast();
+  const { formatCurrency } = useCurrency();
 
   const [blocks, setBlocks] = useState<MaintenanceBlock[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -186,7 +188,6 @@ export default function RoomOutOfOrder() {
 
   useEffect(() => { fetchRooms(); }, [fetchRooms]);
   useEffect(() => { fetchBlocks(); }, [fetchBlocks]);
-  useEffect(() => { fetchRooms(); fetchBlocks(); }, [propertyFilter]);
 
   const handleCreate = async () => {
     if (!roomId || !reason || !startDate) {
@@ -393,7 +394,7 @@ export default function RoomOutOfOrder() {
             </div>
             <div>
               <div className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-violet-400 bg-clip-text text-transparent">
-                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalEstCost)}
+                {formatCurrency(totalEstCost)}
               </div>
               <div className="text-xs text-muted-foreground">Est. Cost</div>
             </div>
@@ -511,7 +512,7 @@ export default function RoomOutOfOrder() {
                             {block.endDate && <p className="text-muted-foreground">{format(new Date(block.endDate), 'MMM d, yyyy')}</p>}
                           </TableCell>
                           <TableCell className="text-right text-sm">
-                            {block.estimatedCost ? `$${block.estimatedCost.toFixed(2)}` : <span className="text-muted-foreground">-</span>}
+                            {block.estimatedCost ? formatCurrency(block.estimatedCost) : <span className="text-muted-foreground">-</span>}
                           </TableCell>
                           <TableCell>
                             <Badge className={cn("text-white text-xs", statusCfg.color)}>

@@ -134,7 +134,7 @@ export default function InventoryLocking() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [locks, setLocks] = useState<InventoryLock[]>([]);
   const [stats, setStats] = useState<LockStats | null>(null);
-  const [selectedProperty, setSelectedProperty] = useState<string>('');
+  const [selectedProperty, setSelectedProperty] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -200,21 +200,22 @@ export default function InventoryLocking() {
 
     try {
       // Fetch room types
-      const roomTypesResponse = await fetch(`/api/room-types?propertyId=${selectedProperty}`);
+      const roomTypesResponse = await fetch(selectedProperty !== 'all' ? `/api/room-types?propertyId=${selectedProperty}` : '/api/room-types');
       const roomTypesResult = await roomTypesResponse.json();
       if (roomTypesResult.success) {
         setRoomTypes(roomTypesResult.data);
       }
 
       // Fetch rooms
-      const roomsResponse = await fetch(`/api/rooms?propertyId=${selectedProperty}`);
+      const roomsResponse = await fetch(selectedProperty !== 'all' ? `/api/rooms?propertyId=${selectedProperty}` : '/api/rooms');
       const roomsResult = await roomsResponse.json();
       if (roomsResult.success) {
         setRooms(roomsResult.data);
       }
 
       // Fetch inventory locks
-      const locksParams = new URLSearchParams({ propertyId: selectedProperty });
+      const locksParams = new URLSearchParams();
+      if (selectedProperty !== 'all') locksParams.set('propertyId', selectedProperty);
       if (statusFilter === 'active') locksParams.append('active', 'true');
       if (statusFilter === 'upcoming') locksParams.append('upcoming', 'true');
       if (offset > 0) locksParams.append('offset', String(offset));
@@ -630,6 +631,7 @@ export default function InventoryLocking() {
                 <SelectValue placeholder="Select Property" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="all">All Properties</SelectItem>
                 {properties.map(property => (
                   <SelectItem key={property.id} value={property.id}>
                     {property.name}

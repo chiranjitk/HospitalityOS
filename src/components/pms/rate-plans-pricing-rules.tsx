@@ -165,6 +165,7 @@ const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // Helper function to get price color based on deviation from base
 const getPriceColor = (basePrice: number, currentPrice: number): string => {
+  if (!basePrice || basePrice === 0) return 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200';
   const deviation = ((currentPrice - basePrice) / basePrice) * 100;
   if (deviation > 20) return 'bg-red-500 text-white';
   if (deviation > 10) return 'bg-orange-400 text-white';
@@ -541,10 +542,11 @@ export default function RatePlansPricingRules() {
 
   const duplicateRule = async (rule: PricingRule) => {
     try {
+      const { id, createdAt, updatedAt, ...ruleData } = rule;
       const response = await fetch('/api/revenue/pricing-rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...rule, name: `${rule.name} (Copy)` }),
+        body: JSON.stringify({ ...ruleData, name: `${rule.name} (Copy)` }),
       });
 
       const data = await response.json();

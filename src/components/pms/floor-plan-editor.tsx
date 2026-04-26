@@ -173,6 +173,10 @@ export function FloorPlanEditor({
     }
   }, [history, historyIndex]);
 
+  // Refs for callbacks that will be defined later but are needed in the keyboard shortcut effect
+  const handleSaveRef = useRef<() => void>();
+  const removeSelectedRoomsRef = useRef<() => void>();
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -192,7 +196,7 @@ export function FloorPlanEditor({
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        handleSave();
+        handleSaveRef.current?.();
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
         e.preventDefault();
@@ -202,7 +206,7 @@ export function FloorPlanEditor({
         e.preventDefault();
         const confirmed = window.confirm(`Remove ${selectedRooms.length} room(s) from floor plan?`);
         if (confirmed) {
-          removeSelectedRooms();
+          removeSelectedRoomsRef.current?.();
         }
       }
       if (e.key === 'Escape') {
@@ -212,7 +216,7 @@ export function FloorPlanEditor({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [readOnly, undo, redo, selectedRooms, roomPositions, handleSave, removeSelectedRooms]);
+  }, [readOnly, undo, redo, selectedRooms, roomPositions]);
 
   // Get status info
   const getStatusInfo = (status: string) => {
@@ -472,6 +476,7 @@ export function FloorPlanEditor({
     pushToHistory(newPositions);
     setSelectedRooms([]);
   }, [roomPositions, selectedRooms, pushToHistory]);
+  removeSelectedRoomsRef.current = removeSelectedRooms;
 
   // Toggle room lock
   const toggleRoomLock = useCallback((roomId: string) => {
@@ -659,6 +664,7 @@ export function FloorPlanEditor({
       setIsSaving(false);
     }
   }, [roomPositions, onSave, toast]);
+  handleSaveRef.current = handleSave;
 
   // Zoom controls
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.1, 2));

@@ -81,14 +81,11 @@ export async function GET(request: NextRequest) {    const user = await getUserF
     });
     
     // Get booking counts grouped by room type in a single query
-    const bookingWhere: Record<string, unknown> = {
+    const bookingWhere: any = {
       tenantId: user.tenantId,
       status: { in: ['confirmed', 'checked_in'] },
       checkIn: { lte: new Date() },
-      OR: [
-        { checkOut: null },
-        { checkOut: { gte: new Date() } },
-      ],
+      checkOut: { gte: new Date() },
     };
     if (propertyId) {
       bookingWhere.propertyId = propertyId;

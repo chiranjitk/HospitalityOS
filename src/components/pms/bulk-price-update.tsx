@@ -94,9 +94,9 @@ export default function BulkPriceUpdate() {
   const [isLoading, setIsLoading] = useState(false);
 
   // Form state
-  const [selectedProperty, setSelectedProperty] = useState<string>('');
-  const [selectedRoomType, setSelectedRoomType] = useState<string>('');
-  const [selectedRatePlan, setSelectedRatePlan] = useState<string>('');
+  const [selectedProperty, setSelectedProperty] = useState<string>('all');
+  const [selectedRoomType, setSelectedRoomType] = useState<string>('all');
+  const [selectedRatePlan, setSelectedRatePlan] = useState<string>('all');
   const [dateRange, setDateRange] = useState<DateRange>({
     start: new Date().toISOString().split('T')[0],
     end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -138,7 +138,7 @@ export default function BulkPriceUpdate() {
     const fetchRoomTypes = async () => {
       if (!selectedProperty) return;
       try {
-        const response = await fetch(`/api/room-types?propertyId=${selectedProperty}`);
+        const response = await fetch(selectedProperty !== 'all' ? `/api/room-types?propertyId=${selectedProperty}` : '/api/room-types');
         const result = await response.json();
         if (result.success) {
           setRoomTypes(result.data);
@@ -158,7 +158,7 @@ export default function BulkPriceUpdate() {
     const fetchRatePlans = async () => {
       if (!selectedProperty) return;
       try {
-        const response = await fetch(`/api/rate-plans?propertyId=${selectedProperty}`);
+        const response = await fetch(selectedProperty !== 'all' ? `/api/rate-plans?propertyId=${selectedProperty}` : '/api/rate-plans');
         const result = await response.json();
         if (result.success) {
           setRatePlans(result.data);
@@ -305,6 +305,7 @@ export default function BulkPriceUpdate() {
                   <SelectValue placeholder="Select property" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">All Properties</SelectItem>
                   {properties.map(p => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
@@ -318,6 +319,7 @@ export default function BulkPriceUpdate() {
                   <SelectValue placeholder="Select room type" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">All Room Types</SelectItem>
                   {roomTypes.map(rt => (
                     <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>
                   ))}
@@ -331,7 +333,8 @@ export default function BulkPriceUpdate() {
                   <SelectValue placeholder="Select rate plan" />
                 </SelectTrigger>
                 <SelectContent>
-                  {ratePlans.filter(rp => !selectedRoomType || rp.roomTypeId === selectedRoomType).map(rp => (
+                  <SelectItem value="all">All Rate Plans</SelectItem>
+                  {ratePlans.filter(rp => !selectedRoomType || selectedRoomType === 'all' || rp.roomTypeId === selectedRoomType).map(rp => (
                     <SelectItem key={rp.id} value={rp.id}>
                       {rp.name} ({formatCurrency(rp.basePrice)})
                     </SelectItem>

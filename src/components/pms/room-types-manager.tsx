@@ -1376,14 +1376,14 @@ function RoomTypeForm({ formData, setFormData, properties, amenities, wifiPlans,
       <div className="space-y-2">
         <Label>WiFi Plan</Label>
         <Select 
-          value={formData.wifiPlanId || ''} 
-          onValueChange={(value) => setFormData(prev => ({ ...prev, wifiPlanId: value }))}
+          value={formData.wifiPlanId || '__none__'} 
+          onValueChange={(value) => setFormData(prev => ({ ...prev, wifiPlanId: value === '__none__' ? '' : value }))}
         >
           <SelectTrigger>
             <SelectValue placeholder="Default (from AAA Settings)" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Default (from AAA Settings)</SelectItem>
+            <SelectItem value="__none__">Default (from AAA Settings)</SelectItem>
             {wifiPlans.map(plan => (
               <SelectItem key={plan.id} value={plan.id}>
                 {plan.name}{plan.speed ? ` - ${plan.speed}` : ''}
