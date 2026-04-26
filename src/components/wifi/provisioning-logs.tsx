@@ -5,7 +5,7 @@
  *
  * Displays RADIUS provisioning log history — sync, guest-wifi-link,
  * guest-wifi-unlink, and other provisioning actions. Auto-refreshes every 60s.
- * Fetches from /api/wifi/radius?action=provisioning-logs
+ * Fetches directly from /api/wifi/provisioning-logs (no freeradius-service dependency)
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -70,9 +70,16 @@ const PAGE_LIMIT = 50;
 
 const ACTION_OPTIONS = [
   { value: 'all', label: 'All Actions' },
-  { value: 'create', label: 'Create / Provision' },
-  { value: 'update', label: 'Update / Sync' },
-  { value: 'delete', label: 'Delete / Deprovision' },
+  { value: 'provision', label: 'Provision' },
+  { value: 'deprovision', label: 'Deprovision' },
+  { value: 'sync-users', label: 'Sync Users' },
+  { value: 'batch-sync', label: 'Batch Sync' },
+  { value: 'guest-wifi-link', label: 'Guest WiFi Link' },
+  { value: 'guest-wifi-unlink', label: 'Guest WiFi Unlink' },
+  { value: 'suspend', label: 'Suspend' },
+  { value: 'resume', label: 'Resume' },
+  { value: 'update', label: 'Update' },
+  { value: 'password-reset', label: 'Password Reset' },
 ];
 
 const AUTO_REFRESH_MS = 60_000;
@@ -89,14 +96,18 @@ function formatActionLabel(action: string): string {
     deprovision: 'Deprovision',
     'batch-sync': 'Batch Sync',
     'password-reset': 'Password Reset',
+    suspend: 'Suspend',
+    resume: 'Resume',
+    update: 'Update',
   };
   return map[action] || action;
 }
 
 function getActionBadgeVariant(action: string): 'default' | 'secondary' | 'outline' | 'success' | 'warning' | 'destructive' {
-  if (action.includes('unlink') || action.includes('deprovision')) return 'destructive';
-  if (action.includes('link') || action.includes('provision')) return 'success';
-  if (action.includes('reset')) return 'warning';
+  if (action.includes('unlink') || action.includes('deprovision') || action === 'suspend') return 'destructive';
+  if (action.includes('link') || action === 'provision' || action === 'resume') return 'success';
+  if (action.includes('sync') || action.includes('batch')) return 'default';
+  if (action.includes('reset') || action === 'update') return 'warning';
   return 'secondary';
 }
 
@@ -144,7 +155,7 @@ export default function ProvisioningLogs() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch('/api/wifi/radius?action=provisioning-logs-stats');
+      const res = await fetch('/api/wifi/provisioning-logs?stats=true');
       const data = await res.json();
       if (data.success && data.data) {
         setStats(data.data);
@@ -163,14 +174,13 @@ export default function ProvisioningLogs() {
 
       try {
         const params = new URLSearchParams();
-        params.append('action', 'provisioning-logs');
-        if (searchQuery.trim()) params.append('username', searchQuery.trim());
-        if (actionFilter !== 'all') params.append('filterAction', actionFilter);
-        if (resultFilter !== 'all') params.append('result', resultFilter);
         params.append('limit', String(PAGE_LIMIT));
         params.append('offset', String(offset));
+        if (searchQuery.trim()) params.append('username', searchQuery.trim());
+        if (actionFilter !== 'all') params.append('action', actionFilter);
+        if (resultFilter !== 'all') params.append('result', resultFilter);
 
-        const res = await fetch(`/api/wifi/radius?${params.toString()}`);
+        const res = await fetch(`/api/wifi/provisioning-logs?${params.toString()}`);
         const data = await res.json();
 
         if (data.success && data.data) {
@@ -405,6 +415,7 @@ export default function ProvisioningLogs() {
                 <SelectItem value="all">All Results</SelectItem>
                 <SelectItem value="success">Success</SelectItem>
                 <SelectItem value="failed">Failed</SelectItem>
+                <SelectItem value="skipped">Skipped</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -453,6 +464,8 @@ export default function ProvisioningLogs() {
                         className={
                           log.result === 'failed'
                             ? 'bg-red-50/30 dark:bg-red-950/10'
+                            : log.result === 'skipped'
+                              ? 'bg-amber-50/30 dark:bg-amber-950/10'
                             : ''
                         }
                       >
@@ -493,6 +506,10 @@ export default function ProvisioningLogs() {
                             <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0">
                               <CheckCircle className="h-3 w-3 mr-1" />
                               Success
+                            </Badge>
+                          ) : log.result === 'skipped' ? (
+                            <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0">
+                              Skipped
                             </Badge>
                           ) : (
                             <Badge className="bg-red-500 hover:bg-red-600 text-white border-0">

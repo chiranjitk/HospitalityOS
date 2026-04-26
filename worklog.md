@@ -1003,3 +1003,45 @@ Stage Summary:
 - DnsRedirect API preserved with automatic matchPattern↔domain/wildcard mapping
 - All DB operations converted to async pg pool with $N parameterized queries
 - Version: 2.0.0, Backend: postgresql, Port: 3012
+
+
+---
+
+### Task ID: ip-pool-fix
+### Step 16: Fix IP Pool Creation Failure — Missing gen_random_uuid() Defaults
+- **Status**: Completed
+- **Timestamp**: 2026-04-27
+- **Commit**: 6108d45
+
+#### Root Cause
+Prisma @default(uuid()) generates UUIDs client-side but does NOT set a PostgreSQL column DEFAULT. When API routes use $queryRawUnsafe with INSERT that omit the id column, PostgreSQL rejects with NOT NULL violation. All 222 UUID PK tables were affected.
+
+#### Fix
+1. Live DB: ALTER TABLE on all 222 tables to set DEFAULT gen_random_uuid()
+2. API route INSERT now explicitly uses gen_random_uuid() for id + NOW() for timestamps
+3. deploy.sh: Added step 1b/9 to auto-fix UUID defaults on fresh deployments
+
+#### Not Related to freeradius-service
+IP Pool management uses Next.js API route directly to PostgreSQL. No freeradius-service dependency.
+
+---
+Task ID: 1
+Agent: main
+Task: Fix Provisioning Logs tab - bypass freeradius-service dependency
+
+Work Log:
+- Investigated Provisioning Logs tab: component fetches from /api/wifi/radius?action=provisioning-logs which proxies to freeradius-service (:3010)
+- Found FreeRADIUS mini-service is NOT running in PM2, causing 503 errors
+- RadiusProvisioningLog table had 0 rows (no seed data)
+- Created dedicated API route at src/app/api/wifi/provisioning-logs/route.ts that queries DB directly
+- Added auth (requireAuth + hasPermission), tenant isolation (JOIN Property), and proper pagination
+- Fixed SQL WHERE clause bug (trailing AND when no filters applied)
+- Updated provisioning-logs.tsx component to use new direct API instead of proxy
+- Fixed action filter options: replaced generic create/update/delete with actual actions
+- Added "skipped" result badge and row background styling
+- Seeded 25 demo provisioning log entries into RadiusProvisioningLog table
+
+Stage Summary:
+- New file: src/app/api/wifi/provisioning-logs/route.ts
+- Modified: src/components/wifi/provisioning-logs.tsx
+- Seeded: 25 rows in RadiusProvisioningLog
