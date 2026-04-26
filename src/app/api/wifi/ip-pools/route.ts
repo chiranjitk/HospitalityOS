@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN (SELECT "ipPoolId", COUNT(*)::int as cnt FROM "WiFiUser" WHERE "ipPoolId" IS NOT NULL GROUP BY "ipPoolId") uc ON uc."ipPoolId" = ip.id
       LEFT JOIN (SELECT "poolId", COUNT(*)::int as cnt FROM "IpPoolRange" GROUP BY "poolId") rc ON rc."poolId" = ip.id
       WHERE ($1::text = '' OR ip.name ILIKE '%' || $1 || '%' OR ip.description ILIKE '%' || $1 || '%')
-      AND ($2::text = '' OR ip."propertyId" = $2::uuid)
+      AND ($2::text = '' OR ip."propertyId"::text = $2)
       ORDER BY ip."isDefault" DESC, ip.enabled DESC, ip.name ASC
     `, search, propertyId);
 
@@ -27,9 +27,9 @@ export async function GET(request: NextRequest) {
     const poolIds = (pools as any[]).map((p: any) => p.id);
     let ranges: any[] = [];
     if (poolIds.length > 0) {
-      const placeholders = poolIds.map((_, i) => `\$${i + 1}`).join(',');
+      const placeholders = poolIds.map((_, i) => `\$${i + 1}::uuid`).join(',');
       ranges = await db.$queryRawUnsafe(`
-        SELECT r.*, (r."endIp" - r."startIp" + 1) as total_ips
+        SELECT r.*, (r."endIp" - r."startIp" + 1)::numeric as total_ips
         FROM "IpPoolRange" r
         WHERE r."poolId" IN (${placeholders})
         ORDER BY r."startIp"
@@ -47,9 +47,9 @@ export async function GET(request: NextRequest) {
       ...p,
       ranges: rangeMap[p.id] || [],
       _count: {
-        plans: p._planCount || 0,
-        users: p._userCount || 0,
-        ranges: p._rangeCount || 0,
+        plans: p._planCount || p._plancount || 0,
+        users: p._userCount || p._usercount || 0,
+        ranges: p._rangeCount || p._rangecount || 0,
       }
     }));
 

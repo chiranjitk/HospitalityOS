@@ -1855,7 +1855,7 @@ export async function POST(request: NextRequest) {
               WHERE acctstoptime IS NULL
                 AND ($1::text = '' OR username = $1)
                 AND ($2::text = '' OR acctuniqueid = $2 OR acctsessionid = $2)
-                AND ($3::text = '' OR host(nasipaddress) = host($3::inet))
+                AND ($3::text = '' OR nasipaddress = $3 OR nasipaddress::inet = $3::inet)
             `, disconnectUsername, bareSessionId || '', nasIpFilter);
           } catch (radacctErr) {
             console.warn('[live-sessions-disconnect] radacct update error:', radacctErr instanceof Error ? radacctErr.message : radacctErr);
