@@ -31,7 +31,9 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
+.env.local
+.env.production
+!.env
 
 # vercel
 .vercel
@@ -43,12 +45,17 @@ next-env.d.ts
 local-*
 .claude
 .z-ai-config
-*.log
+# PostgreSQL runtime logs (data stays in repo, logs don't)
+pgsql-runtime/pgsql.log
+pgsql-runtime/data/log/
+
+# logs directory
+/logs/
+
 dev.log
 dev.out.log
 test
 prompt
-
 server.log
 # Skills directory
 /skills/custom.db

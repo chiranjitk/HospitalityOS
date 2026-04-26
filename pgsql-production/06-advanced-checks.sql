@@ -236,15 +236,15 @@ SELECT (pa.id)::text AS id,
         REPLACE(acct."framedipaddress"::text, '/32', ''),
         ''::text
     ) AS client_ip_address,
-    COALESCE(pa.nasipaddress, ''::text) AS nas_ip_address,
+    COALESCE(pa."nasIpAddress", ''::text) AS nas_ip_address,
     COALESCE(pa.callingstationid, ''::text) AS calling_station_id,
     COALESCE(pa.calledstationid, ''::text) AS called_station_id,
     'PAP'::text AS auth_type,
     CASE WHEN (pa.reply = 'Access-Accept'::text) THEN
         CASE WHEN COALESCE(REPLACE(acct."framedipaddress"::text, '/32', ''), ''::text) != ''::text
              THEN 'Authenticated — client IP: ' || REPLACE(acct."framedipaddress"::text, '/32', '')
-        WHEN COALESCE(pa.nasipaddress, ''::text) != ''::text
-             THEN 'Authenticated from NAS ' || pa.nasipaddress
+        WHEN COALESCE(pa."nasIpAddress", ''::text) != ''::text
+             THEN 'Authenticated from NAS ' || pa."nasIpAddress"
              ELSE 'Authenticated successfully'::text END
     ELSE
         CASE WHEN (wu.id IS NOT NULL) THEN 'Authentication rejected — invalid password'::text

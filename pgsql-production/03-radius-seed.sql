@@ -159,7 +159,8 @@ INSERT INTO radacct (radacctid, acctsessionid, acctuniqueid, username, realm,
     acctinputoctets, acctoutputoctets,
     calledstationid, callingstationid, acctterminatecause,
     servicetype, framedprotocol, framedipaddress, framedipv6address,
-    framedipv6prefix, framedinterfaceid, delegatedipv6prefix, class
+    framedipv6prefix, framedinterfaceid, delegatedipv6prefix, class,
+    "createdAt", "updatedAt"
 ) VALUES
   (1, 'sess-amit-001',   'acct-amit-active-001',   'guest.amit.mukherjee', '',
    '192.168.1.1', NULL, 'Wireless-802.11',
@@ -167,21 +168,24 @@ INSERT INTO radacct (radacctid, acctsessionid, acctuniqueid, username, realm,
    7200, 'RADIUS', '', '',
    52428800, 209715200,
    '00:11:22:33:44:55', 'AA:BB:CC:DD:EE:01', '',
-   '', '', '10.0.1.101', '', '', '', '', ''),
+   '', '', '10.0.1.101', '', '', '', '', '',
+   '2026-04-25 21:29:20+00', '2026-04-25 23:28:50+00'),
   (2, 'sess-vikram-001', 'acct-vikram-active-001', 'guest.vikram.singh',   '',
    '192.168.1.2', NULL, 'Wireless-802.11',
    '2026-04-25 22:29:20+00', '2026-04-25 23:29:05+00', NULL, NULL,
    3600, 'RADIUS', '', '',
    10485760, 52428800,
    '00:11:22:33:44:57', 'AA:BB:CC:DD:EE:04', '',
-   '', '', '10.0.2.55', '', '', '', '', ''),
+   '', '', '10.0.2.55', '', '', '', '', '',
+   '2026-04-25 22:29:20+00', '2026-04-25 23:29:05+00'),
   (3, 'sess-deepak-001', 'acct-deepak-active-001', 'guest.deepak.patel',   '',
    '192.168.1.3', NULL, 'Wireless-802.11',
    '2026-04-25 22:44:20+00', '2026-04-25 23:29:10+00', NULL, NULL,
    2700, 'RADIUS', '', '',
    3145728, 15728640,
    '00:11:22:33:44:56', 'AA:BB:CC:DD:EE:07', '',
-   '', '', '10.0.3.22', '', '', '', '', '')
+   '', '', '10.0.3.22', '', '', '', '', '',
+   '2026-04-25 22:44:20+00', '2026-04-25 23:29:10+00')
 ON CONFLICT DO NOTHING;
 
 COMMIT;

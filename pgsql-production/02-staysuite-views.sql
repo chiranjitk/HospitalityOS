@@ -135,11 +135,11 @@ SELECT (pa.id)::text AS id,
     -- Client IP from radacct (user's real assigned IP, strip /32 suffix)
     COALESCE(
         REPLACE(acct."framedipaddress"::text, '/32', ''),
-        pa.clientipaddress,
+        pa."nasIpAddress",
         ''::text
     ) AS client_ip_address,
     -- NAS IP (source of auth request)
-    COALESCE(pa.nasipaddress, ''::text) AS nas_ip_address,
+    COALESCE(pa."nasIpAddress", ''::text) AS nas_ip_address,
     -- MAC addresses from radpostauth
     COALESCE(pa.callingstationid, ''::text) AS calling_station_id,
     COALESCE(pa.calledstationid, ''::text) AS called_station_id,
@@ -147,10 +147,10 @@ SELECT (pa.id)::text AS id,
     CASE WHEN (pa.reply = 'Access-Accept'::text) THEN
         CASE WHEN COALESCE(REPLACE(acct."framedipaddress"::text, '/32', ''), ''::text) != ''::text
              THEN 'Authenticated — client IP: ' || REPLACE(acct."framedipaddress"::text, '/32', '')
-        WHEN COALESCE(pa.clientipaddress, ''::text) != ''::text
-             THEN 'Authenticated — client IP: ' || pa.clientipaddress
-        WHEN COALESCE(pa.nasipaddress, ''::text) != ''::text
-             THEN 'Authenticated from NAS ' || pa.nasipaddress
+        WHEN COALESCE(pa."nasIpAddress", ''::text) != ''::text
+             THEN 'Authenticated — client IP: ' || pa."nasIpAddress"
+        WHEN COALESCE(pa."nasIpAddress", ''::text) != ''::text
+             THEN 'Authenticated from NAS ' || pa."nasIpAddress"
              ELSE 'Authenticated successfully'::text END
     ELSE
         CASE WHEN (wu.id IS NOT NULL) THEN 'Authentication rejected — invalid password'::text
@@ -175,7 +175,7 @@ SELECT (pa.id)::text AS id,
      LEFT JOIN "Guest" g ON ((u."guestId" = g.id)))
      LEFT JOIN "Booking" b ON ((u."bookingId" = b.id)))
      LEFT JOIN "Room" rm ON ((b."roomId" = rm.id)))
-     LEFT JOIN "Property" p ON ((u."propertyId" = p.id)));
+     LEFT JOIN "Property" p ON ((u."propertyId" = p.id));
 
 -- ============================================================================
 -- VIEW: v_user_usage
