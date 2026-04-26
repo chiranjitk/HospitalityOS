@@ -24,6 +24,20 @@ export async function GET(request: NextRequest) {    const user = await requireP
       where.propertyId = propertyId;
     }
 
+    // Apply date filters to checkIn
+    if (startDate) {
+      const startCheckIn = new Date(startDate);
+      if (!isNaN(startCheckIn.getTime())) {
+        where.checkIn = { ...(where.checkIn as Record<string, unknown> || {}), gte: startCheckIn };
+      }
+    }
+    if (endDate) {
+      const endCheckIn = new Date(endDate);
+      if (!isNaN(endCheckIn.getTime())) {
+        where.checkIn = { ...(where.checkIn as Record<string, unknown> || {}), lte: endCheckIn };
+      }
+    }
+
     // Get all active bookings with rooms
     const bookings = await db.booking.findMany({
       where,
@@ -529,6 +543,10 @@ export async function POST(request: NextRequest) {    const user = await require
           );
           const secondNights = originalNights - firstNights;
 
+          if (originalNights === 0) {
+            throw new Error('INVALID_DATES');
+          }
+
           const pricePerNight = originalBooking.roomRate / originalNights;
           const firstRoomRate = pricePerNight * firstNights;
           const secondRoomRate = pricePerNight * secondNights;
@@ -861,6 +879,12 @@ export async function POST(request: NextRequest) {    const user = await require
           { status: 400 }
         );
       }
+      if (error.message === 'INVALID_DATES') {
+        return NextResponse.json(
+          { success: false, error: { code: 'INVALID_DATES', message: 'Check-in and check-out cannot be the same date' } },
+          { status: 400 }
+        );
+      }
       if (error.message === 'NOT_IMPLEMENTED') {
         return NextResponse.json(
           { success: false, error: { code: 'NOT_IMPLEMENTED', message: 'This resolution type is not yet implemented' } },
@@ -897,6 +921,17 @@ export async function PUT(request: NextRequest) {    const user = await requireP
       case 'move_room':
         // Move the second booking to a different room
         if (targetRoomId && bookingIds.length >= 1) {
+          const bookingToMoveId = bookingIds[bookingIds.length - 1];
+
+          // Verify booking belongs to user's tenant
+          const bookingCheck = await db.booking.findUnique({ where: { id: bookingToMoveId } });
+          if (!bookingCheck || bookingCheck.tenantId !== user.tenantId) {
+            return NextResponse.json(
+              { success: false, error: { code: 'NOT_FOUND', message: 'Booking not found' } },
+              { status: 404 }
+            );
+          }
+
           const booking = await db.booking.update({
             where: { id: bookingIds[bookingIds.length - 1] },
             data: { roomId: targetRoomId },
@@ -918,6 +953,15 @@ export async function PUT(request: NextRequest) {    const user = await requireP
       case 'cancel':
         // Cancel one of the conflicting bookings
         for (let i = 1; i < bookingIds.length; i++) {
+          // Verify booking belongs to user's tenant
+          const cancelBookingCheck = await db.booking.findUnique({ where: { id: bookingIds[i] } });
+          if (!cancelBookingCheck || cancelBookingCheck.tenantId !== user.tenantId) {
+            return NextResponse.json(
+              { success: false, error: { code: 'NOT_FOUND', message: 'Booking not found' } },
+              { status: 404 }
+            );
+          }
+
           const booking = await db.booking.update({
             where: { id: bookingIds[i] },
             data: {

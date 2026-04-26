@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -56,7 +56,6 @@ import {
   Building2,
   Mail,
   Phone,
-  DollarSign,
   FileText,
   MoreHorizontal,
   Pencil,
@@ -65,8 +64,6 @@ import {
   Clock,
   XCircle,
   Bed,
-  User,
-  ArrowRight,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -157,7 +154,7 @@ const groupStatuses: Record<string, { label: string; color: string; icon: React.
 export default function GroupBookings() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const { formatCurrency, currency } = useCurrency();
+  const { formatCurrency } = useCurrency();
   const { formatDate } = useTimezone();
   const [groups, setGroups] = useState<GroupBooking[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
@@ -200,7 +197,6 @@ export default function GroupBookings() {
 
   // Room booking state
   const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
-  const [selectedRoomTypes, setSelectedRoomTypes] = useState<Record<string, number>>({});
   const [selectedGuest, setSelectedGuest] = useState<string>('');
   const [guestMode, setGuestMode] = useState<'existing' | 'new'>('existing');
   const [newGuest, setNewGuest] = useState({
@@ -212,9 +208,14 @@ export default function GroupBookings() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -222,35 +223,49 @@ export default function GroupBookings() {
             setFormData(prev => ({ ...prev, propertyId: result.data[0].id }));
           }
         }
-      } catch (error) {
-        console.error('Error fetching properties:', error);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('Error fetching properties:', err);
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch room types when property changes
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRoomTypes = async () => {
       if (!formData.propertyId) return;
       try {
-        const response = await fetch(`/api/room-types?propertyId=${formData.propertyId}`);
+        const response = await fetch(`/api/room-types?propertyId=${formData.propertyId}`, { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setRoomTypes(result.data);
         }
-      } catch (error) {
-        console.error('Error fetching room types:', error);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('Error fetching room types:', err);
       }
     };
     fetchRoomTypes();
+    return () => controller.abort();
   }, [formData.propertyId]);
 
   // Fetch guests
   useEffect(() => {
+    const controller = new AbortController();
     const fetchGuests = async () => {
       try {
-        const response = await fetch('/api/guests?limit=100');
+        const response = await fetch('/api/guests?limit=100', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setGuests(result.data);
@@ -258,11 +273,13 @@ export default function GroupBookings() {
             setSelectedGuest(result.data[0].id);
           }
         }
-      } catch (error) {
-        console.error('Error fetching guests:', error);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('Error fetching guests:', err);
       }
     };
     fetchGuests();
+    return () => controller.abort();
   }, []);
 
   // Fetch group bookings
@@ -275,11 +292,15 @@ export default function GroupBookings() {
       if (propertyFilter !== 'all') params.append('propertyId', propertyFilter);
 
       const response = await fetch(`/api/group-bookings?${params.toString()}`);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
         setGroups(result.data);
-        setStats(result.stats);
+        setStats(result.stats || { total: 0, inquiry: 0, confirmed: 0, cancelled: 0, totalValue: 0 });
       }
     } catch (error) {
       console.error('Error fetching group bookings:', error);
@@ -294,16 +315,19 @@ export default function GroupBookings() {
   };
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchGroups();
+    return () => controller.abort();
   }, [statusFilter, propertyFilter]);
 
   useEffect(() => {
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       if (searchQuery.length >= 2 || searchQuery.length === 0) {
         fetchGroups();
       }
     }, 300);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); controller.abort(); };
   }, [searchQuery]);
 
   // Fetch available rooms for booking
@@ -316,6 +340,10 @@ export default function GroupBookings() {
       const response = await fetch(
         `/api/rooms/available?propertyId=${group.property.id}&checkIn=${group.checkIn}&checkOut=${group.checkOut}`
       );
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       if (result.success) {
         setAvailableRooms(result.data || []);
@@ -346,6 +374,10 @@ export default function GroupBookings() {
         body: JSON.stringify(formData),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -425,6 +457,16 @@ export default function GroupBookings() {
           }),
         });
 
+        if (!guestResponse.ok) {
+          const errorText = await guestResponse.text().catch(() => 'Unknown error');
+          toast({
+            title: 'Error',
+            description: `Failed to create guest: ${errorText}`,
+            variant: 'destructive',
+          });
+          setIsSaving(false);
+          return;
+        }
         const guestResult = await guestResponse.json();
         if (!guestResult.success) {
           toast({
@@ -452,6 +494,10 @@ export default function GroupBookings() {
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -493,6 +539,10 @@ export default function GroupBookings() {
         body: JSON.stringify({ id: selectedGroup.id, ...formData }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -535,6 +585,10 @@ export default function GroupBookings() {
         body: JSON.stringify({ id: selectedGroup.id }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -582,7 +636,6 @@ export default function GroupBookings() {
       notes: '',
     });
     setSelectedRooms([]);
-    setSelectedRoomTypes({});
   };
 
   const openEditDialog = (group: GroupBooking) => {
@@ -616,6 +669,10 @@ export default function GroupBookings() {
   const openDetailsDialog = async (group: GroupBooking) => {
     try {
       const response = await fetch(`/api/group-bookings/${group.id}`);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       if (result.success) {
         setSelectedGroup(result.data);
@@ -742,7 +799,7 @@ export default function GroupBookings() {
           </Card>
         ) : groups.map((group) => {
           const nights = differenceInDays(new Date(group.checkOut), new Date(group.checkIn));
-          const roomProgress = (group.bookedRooms / group.totalRooms) * 100;
+          const roomProgress = group.totalRooms > 0 ? (group.bookedRooms / group.totalRooms) * 100 : 0;
           return (
             <Card key={group.id} className="p-3 space-y-2 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200">
               <div className="flex items-center justify-between gap-2">
@@ -778,7 +835,7 @@ export default function GroupBookings() {
               <div className="flex items-center justify-end">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
+                    <Button variant="ghost" size="sm" className="h-9 w-9 p-0" aria-label="More actions">
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -843,7 +900,7 @@ export default function GroupBookings() {
                 <TableBody>
                   {groups.map((group) => {
                     const nights = differenceInDays(new Date(group.checkOut), new Date(group.checkIn));
-                    const roomProgress = (group.bookedRooms / group.totalRooms) * 100;
+                    const roomProgress = group.totalRooms > 0 ? (group.bookedRooms / group.totalRooms) * 100 : 0;
 
                     return (
                       <TableRow key={group.id} className="hover:bg-muted/50 transition-colors">
@@ -921,7 +978,7 @@ export default function GroupBookings() {
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
+                              <Button variant="ghost" size="icon" aria-label="More actions">
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -1343,7 +1400,7 @@ function GroupBookingForm({ formData, setFormData, properties }: GroupBookingFor
         <div className="space-y-2">
           <Label htmlFor="propertyId">Property *</Label>
           <Select
-            value={formData.propertyId as string}
+            value={formData.propertyId || undefined}
             onValueChange={(value) => setFormData(prev => ({ ...prev, propertyId: value }))}
           >
             <SelectTrigger>

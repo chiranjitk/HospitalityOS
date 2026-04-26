@@ -25,7 +25,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   FileText,
   Search,
-  Loader2,
   Clock,
   User,
   Hash,
@@ -93,11 +92,15 @@ export default function AuditLogs() {
       if (actionFilter !== 'all') params.append('action', actionFilter);
 
       const response = await fetch(`/api/bookings/audit-logs?${params.toString()}`);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
-        setLogs(result.data);
-        setTotal(result.pagination.total);
+        setLogs(result.data || []);
+        setTotal(result.pagination?.total ?? 0);
       }
     } catch (error) {
       console.error('Error fetching audit logs:', error);
@@ -107,16 +110,19 @@ export default function AuditLogs() {
   };
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchLogs();
+    return () => controller.abort();
   }, [actionFilter]);
 
   useEffect(() => {
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       if (searchQuery.length >= 2 || searchQuery.length === 0) {
         fetchLogs();
       }
     }, 300);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); controller.abort(); };
   }, [searchQuery]);
 
   const getActionBadge = (action: string) => {

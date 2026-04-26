@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getUserFromRequest } from '@/lib/auth-helpers';
 
 // GET /api/bookings/room-move/history - Get room move history for a booking
 export async function GET(request: NextRequest) {
   try {
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const bookingId = searchParams.get('bookingId');
     const guestId = searchParams.get('guestId');
@@ -15,7 +21,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { tenantId: user.tenantId };
     if (bookingId) where.bookingId = bookingId;
     if (guestId) where.guestId = guestId;
 
@@ -34,9 +40,9 @@ export async function GET(request: NextRequest) {
     const formattedHistory = history.map(log => ({
       ...log,
       reasonDisplay: log.reason.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-      rateChangeDisplay: log.rateDifference >= 0
-        ? `+${log.rateDifference.toFixed(2)}`
-        : log.rateDifference.toFixed(2),
+      rateChangeDisplay: (log.rateDifference ?? 0) >= 0
+        ? `+${(log.rateDifference ?? 0).toFixed(2)}`
+        : (log.rateDifference ?? 0).toFixed(2),
       isUpgrade: log.rateDifference > 0,
       isDowngrade: log.rateDifference < 0,
     }));

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -63,11 +63,9 @@ import {
   CalendarDays,
   FileText,
   Search,
-  DollarSign,
-  GripHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, addDays, differenceInDays, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, addDays, differenceInDays, startOfWeek, endOfWeek } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
 // ============ SHARED TYPES ============
@@ -204,7 +202,7 @@ export function BookingsCalendarList() {
 // ============ CALENDAR VIEW TAB ============
 function CalendarViewTab() {
   const { toast } = useToast();
-  const { formatCurrency, currency } = useCurrency();
+  const { formatCurrency } = useCurrency();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
@@ -239,9 +237,14 @@ function CalendarViewTab() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -250,21 +253,28 @@ function CalendarViewTab() {
             setQuickBookData(prev => ({ ...prev, propertyId: result.data[0].id }));
           }
         }
-      } catch (error) {
-        console.error('Error fetching properties:', error);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('Error fetching properties:', err);
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Sync propertyId with propertyFilter and fetch room types
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRoomTypes = async () => {
       if (!propertyFilter || propertyFilter === 'all') return;
       // Sync propertyId with propertyFilter
       setQuickBookData(prev => ({ ...prev, propertyId: propertyFilter }));
       try {
-        const response = await fetch(`/api/room-types?propertyId=${propertyFilter}`);
+        const response = await fetch(`/api/room-types?propertyId=${propertyFilter}`, { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setRoomTypes(result.data);
@@ -277,18 +287,25 @@ function CalendarViewTab() {
             }));
           }
         }
-      } catch (error) {
-        console.error('Error fetching room types:', error);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('Error fetching room types:', err);
       }
     };
     fetchRoomTypes();
+    return () => controller.abort();
   }, [propertyFilter]);
 
   // Fetch guests
   useEffect(() => {
+    const controller = new AbortController();
     const fetchGuests = async () => {
       try {
-        const response = await fetch('/api/guests?limit=100');
+        const response = await fetch('/api/guests?limit=100', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setGuests(result.data);
@@ -296,11 +313,13 @@ function CalendarViewTab() {
             setQuickBookData(prev => ({ ...prev, primaryGuestId: result.data[0].id }));
           }
         }
-      } catch (error) {
-        console.error('Error fetching guests:', error);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('Error fetching guests:', err);
       }
     };
     fetchGuests();
+    return () => controller.abort();
   }, []);
 
   // Fetch bookings and availability
@@ -320,6 +339,10 @@ function CalendarViewTab() {
       bookingsParams.append('propertyId', propertyFilter);
 
       const bookingsResponse = await fetch(`/api/bookings?${bookingsParams.toString()}`);
+      if (!bookingsResponse.ok) {
+        const errorText = await bookingsResponse.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${bookingsResponse.status}: ${errorText}`);
+      }
       const bookingsResult = await bookingsResponse.json();
 
       if (bookingsResult.success) {
@@ -334,6 +357,10 @@ function CalendarViewTab() {
         availabilityParams.append('endDate', endDate.toISOString());
 
         const availabilityResponse = await fetch(`/api/availability?${availabilityParams.toString()}`);
+        if (!availabilityResponse.ok) {
+          const errorText = await availabilityResponse.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${availabilityResponse.status}: ${errorText}`);
+        }
         const availabilityResult = await availabilityResponse.json();
         if (availabilityResult.success && availabilityResult.data?.availabilityByRoomType) {
           // Flatten the availability data for easier access
@@ -387,7 +414,9 @@ function CalendarViewTab() {
   }, [currentMonth, propertyFilter]);
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchData();
+    return () => controller.abort();
   }, [fetchData]);
 
   // Generate calendar days
@@ -502,6 +531,10 @@ function CalendarViewTab() {
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -542,13 +575,13 @@ function CalendarViewTab() {
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={goToPreviousMonth}>
+              <Button variant="outline" size="icon" aria-label="Previous month" onClick={goToPreviousMonth}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <Button variant="outline" onClick={goToToday}>
                 Today
               </Button>
-              <Button variant="outline" size="icon" onClick={goToNextMonth}>
+              <Button variant="outline" size="icon" aria-label="Next month" onClick={goToNextMonth}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
               <span className="text-lg font-semibold ml-2">
@@ -967,7 +1000,7 @@ function CalendarViewTab() {
               <div className="space-y-2">
                 <Label>Room Type</Label>
                 <Select 
-                  value={quickBookData.roomTypeId} 
+                  value={quickBookData.roomTypeId || undefined} 
                   onValueChange={(value) => {
                     const rt = roomTypes.find(r => r.id === value);
                     setQuickBookData(prev => ({ 
@@ -992,7 +1025,7 @@ function CalendarViewTab() {
               <div className="space-y-2">
                 <Label>Guest <span className="text-red-500 dark:text-red-400">*</span></Label>
                 <Select 
-                  value={quickBookData.primaryGuestId} 
+                  value={quickBookData.primaryGuestId || undefined} 
                   onValueChange={(value) => setQuickBookData(prev => ({ ...prev, primaryGuestId: value }))}
                 >
                   <SelectTrigger className="w-full">
@@ -1137,9 +1170,14 @@ function BookingsListTab() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -1147,19 +1185,26 @@ function BookingsListTab() {
             setFormData(prev => ({ ...prev, propertyId: result.data[0].id }));
           }
         }
-      } catch (error) {
-        console.error('Error fetching properties:', error);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('Error fetching properties:', err);
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch room types when property changes
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRoomTypes = async () => {
       if (!formData.propertyId) return;
       try {
-        const response = await fetch(`/api/room-types?propertyId=${formData.propertyId}`);
+        const response = await fetch(`/api/room-types?propertyId=${formData.propertyId}`, { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setRoomTypes(result.data);
@@ -1171,18 +1216,25 @@ function BookingsListTab() {
             }));
           }
         }
-      } catch (error) {
-        console.error('Error fetching room types:', error);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('Error fetching room types:', err);
       }
     };
     fetchRoomTypes();
+    return () => controller.abort();
   }, [formData.propertyId]);
 
   // Fetch guests
   useEffect(() => {
+    const controller = new AbortController();
     const fetchGuests = async () => {
       try {
-        const response = await fetch('/api/guests?limit=100');
+        const response = await fetch('/api/guests?limit=100', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setGuests(result.data);
@@ -1190,11 +1242,13 @@ function BookingsListTab() {
             setFormData(prev => ({ ...prev, primaryGuestId: result.data[0].id }));
           }
         }
-      } catch (error) {
-        console.error('Error fetching guests:', error);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('Error fetching guests:', err);
       }
     };
     fetchGuests();
+    return () => controller.abort();
   }, []);
 
   // Fetch bookings
@@ -1207,6 +1261,10 @@ function BookingsListTab() {
       if (propertyFilter !== 'all') params.append('propertyId', propertyFilter);
       
       const response = await fetch(`/api/bookings?${params.toString()}`);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -1225,16 +1283,19 @@ function BookingsListTab() {
   };
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchBookings();
+    return () => controller.abort();
   }, [statusFilter, propertyFilter]);
 
   useEffect(() => {
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       if (searchQuery.length >= 2 || searchQuery.length === 0) {
         fetchBookings();
       }
     }, 300);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); controller.abort(); };
   }, [searchQuery]);
 
   // Quick status update
@@ -1246,6 +1307,10 @@ function BookingsListTab() {
         body: JSON.stringify({ status: newStatus }),
       });
       
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -1301,7 +1366,11 @@ function BookingsListTab() {
           totalAmount,
         }),
       });
-      
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -1785,7 +1854,7 @@ function BookingForm({ formData, setFormData, properties, roomTypes, guests }: {
         <div className="space-y-2">
           <Label htmlFor="propertyId">Property *</Label>
           <Select 
-            value={formData.propertyId as string} 
+            value={formData.propertyId || undefined} 
             onValueChange={(value) => setFormData(prev => ({ ...prev, propertyId: value, roomTypeId: '' }))}
           >
             <SelectTrigger>
@@ -1803,7 +1872,7 @@ function BookingForm({ formData, setFormData, properties, roomTypes, guests }: {
         <div className="space-y-2">
           <Label htmlFor="roomTypeId">Room Type *</Label>
           <Select 
-            value={formData.roomTypeId as string} 
+            value={formData.roomTypeId || undefined} 
             onValueChange={(value) => {
               const rt = roomTypes.find(r => r.id === value);
               setFormData(prev => ({ 
@@ -1830,7 +1899,7 @@ function BookingForm({ formData, setFormData, properties, roomTypes, guests }: {
       <div className="space-y-2">
         <Label htmlFor="primaryGuestId">Guest *</Label>
         <Select 
-          value={formData.primaryGuestId as string} 
+          value={formData.primaryGuestId || undefined} 
           onValueChange={(value) => setFormData(prev => ({ ...prev, primaryGuestId: value }))}
         >
           <SelectTrigger>

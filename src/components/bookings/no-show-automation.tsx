@@ -45,6 +45,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { toast } from 'sonner';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 // =====================================================
 // TYPES
@@ -85,6 +86,7 @@ interface DetectionResult {
 // =====================================================
 
 export default function NoShowAutomation() {
+  const { formatCurrency } = useCurrency();
   // --- Settings ---
   const [settings, setSettings] = useState<NoShowSettings>({
     noShowBufferHours: 1,
@@ -184,7 +186,9 @@ export default function NoShowAutomation() {
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchNoShowBookings();
+    return () => controller.abort();
   }, [fetchNoShowBookings]);
 
   // =====================================================
@@ -225,7 +229,9 @@ export default function NoShowAutomation() {
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchSettings();
+    return () => controller.abort();
   }, [fetchSettings]);
 
   // =====================================================
@@ -285,6 +291,10 @@ export default function NoShowAutomation() {
         },
         body: JSON.stringify({ dryRun }),
       });
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${res.status}: ${errorText}`);
+      }
       const result: DetectionResult = await res.json();
       setDetectionResult(result);
 
@@ -373,7 +383,7 @@ export default function NoShowAutomation() {
                   <div>
                     <p className="text-sm text-muted-foreground">Revenue from Penalties</p>
                     <p className="text-2xl font-bold">
-                      ${stats.revenueFromPenalties.toFixed(2)}
+                      {formatCurrency(stats.revenueFromPenalties)}
                     </p>
                   </div>
                 </div>
@@ -688,7 +698,7 @@ export default function NoShowAutomation() {
                       </TableCell>
                       <TableCell className="text-sm text-right">
                         {booking.totalAmount > 0
-                          ? `$${booking.totalAmount.toFixed(2)}`
+                          ? formatCurrency(booking.totalAmount)
                           : '-'}
                       </TableCell>
                       <TableCell className="text-center">

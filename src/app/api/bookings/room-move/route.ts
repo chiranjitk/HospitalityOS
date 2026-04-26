@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getUserFromRequest } from '@/lib/auth-helpers';
 
 // POST /api/bookings/room-move - Move guest from one room to another
 export async function POST(request: NextRequest) {
   try {
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
     const body = await request.json();
     const { bookingId, fromRoomId, toRoomId, reason, notes } = body;
 
@@ -44,6 +50,10 @@ export async function POST(request: NextRequest) {
 
       if (!booking) {
         throw new Error('Booking not found');
+      }
+
+      if (booking.tenantId !== user.tenantId) {
+        throw new Error('FORBIDDEN');
       }
 
       if (!booking.room || booking.room.id !== fromRoomId) {
@@ -101,6 +111,21 @@ export async function POST(request: NextRequest) {
         throw new Error('Target room already has an active check-in');
       }
 
+      // Check for overlapping future bookings in the target room
+      const futureBookings = await tx.booking.findFirst({
+        where: {
+          roomId: toRoomId,
+          id: { not: bookingId },
+          status: { in: ['confirmed', 'checked_in'] },
+          checkIn: { lt: booking.checkOut },
+          checkOut: { gt: new Date() },
+        },
+      });
+
+      if (futureBookings) {
+        throw new Error('CONFLICT');
+      }
+
       // 4. Calculate rate difference
       const previousRate = fromRoom.roomType.basePrice;
       const newRate = toRoom.roomType.basePrice;
@@ -143,7 +168,7 @@ export async function POST(request: NextRequest) {
           toRoomId,
           toRoomNumber: toRoom.number,
           reason,
-          movedBy: 'frontdesk',
+          movedBy: user.id,
           previousRate,
           newRate,
           rateDifference,
@@ -159,7 +184,7 @@ export async function POST(request: NextRequest) {
           oldStatus: booking.status,
           newStatus: booking.status,
           notes: `Room moved from ${fromRoom.number} to ${toRoom.number}. Reason: ${reason}. Rate change: ${rateDifference >= 0 ? '+' : ''}${rateDifference}`,
-          performedBy: 'frontdesk',
+          performedBy: user.id,
         },
       });
 
@@ -187,6 +212,16 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error processing room move:', error);
     const message = error instanceof Error ? error.message : 'Failed to process room move';
+
+    if (error instanceof Error) {
+      if (error.message === 'FORBIDDEN') {
+        return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Access denied' } }, { status: 403 });
+      }
+      if (error.message === 'CONFLICT') {
+        return NextResponse.json({ success: false, error: { code: 'CONFLICT', message: 'Target room has conflicting bookings' } }, { status: 409 });
+      }
+    }
+
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message } },
       { status: 500 }

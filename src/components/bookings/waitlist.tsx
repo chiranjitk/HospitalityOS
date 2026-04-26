@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -54,13 +54,10 @@ import {
   Bell,
   CheckCircle,
   XCircle,
-  AlertCircle,
-  ArrowRight,
   MoreHorizontal,
   Trash2,
   Mail,
   Phone,
-  UserPlus,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -168,9 +165,14 @@ export default function Waitlist() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -178,19 +180,26 @@ export default function Waitlist() {
             setFormData(prev => ({ ...prev, propertyId: result.data[0].id }));
           }
         }
-      } catch (error) {
-        console.error('Error fetching properties:', error);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('Error fetching properties:', err);
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch room types when property changes
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRoomTypes = async () => {
       if (!formData.propertyId) return;
       try {
-        const response = await fetch(`/api/room-types?propertyId=${formData.propertyId}`);
+        const response = await fetch(`/api/room-types?propertyId=${formData.propertyId}`, { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setRoomTypes(result.data);
@@ -198,18 +207,25 @@ export default function Waitlist() {
             setFormData(prev => ({ ...prev, roomTypeId: result.data[0].id }));
           }
         }
-      } catch (error) {
-        console.error('Error fetching room types:', error);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('Error fetching room types:', err);
       }
     };
     fetchRoomTypes();
+    return () => controller.abort();
   }, [formData.propertyId]);
 
   // Fetch guests
   useEffect(() => {
+    const controller = new AbortController();
     const fetchGuests = async () => {
       try {
-        const response = await fetch('/api/guests?limit=100');
+        const response = await fetch('/api/guests?limit=100', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setGuests(result.data);
@@ -217,11 +233,13 @@ export default function Waitlist() {
             setFormData(prev => ({ ...prev, guestId: result.data[0].id }));
           }
         }
-      } catch (error) {
-        console.error('Error fetching guests:', error);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('Error fetching guests:', err);
       }
     };
     fetchGuests();
+    return () => controller.abort();
   }, []);
 
   // Fetch waitlist entries
@@ -233,11 +251,15 @@ export default function Waitlist() {
       if (propertyFilter !== 'all') params.append('propertyId', propertyFilter);
 
       const response = await fetch(`/api/waitlist?${params.toString()}`);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
         setEntries(result.data);
-        setStats(result.stats);
+        setStats(result.stats || { total: 0, waiting: 0, notified: 0, converted: 0, expired: 0 });
       }
     } catch (error) {
       console.error('Error fetching waitlist:', error);
@@ -252,7 +274,9 @@ export default function Waitlist() {
   };
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchEntries();
+    return () => controller.abort();
   }, [statusFilter, propertyFilter]);
 
   // Create waitlist entry
@@ -302,6 +326,16 @@ export default function Waitlist() {
           }),
         });
 
+        if (!guestResponse.ok) {
+          const errorText = await guestResponse.text().catch(() => 'Unknown error');
+          toast({
+            title: 'Error',
+            description: `Failed to create guest: ${errorText}`,
+            variant: 'destructive',
+          });
+          setIsSaving(false);
+          return;
+        }
         const guestResult = await guestResponse.json();
         if (!guestResult.success) {
           toast({
@@ -329,6 +363,10 @@ export default function Waitlist() {
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -367,6 +405,10 @@ export default function Waitlist() {
         body: JSON.stringify({ id: entryId, status: newStatus }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -404,6 +446,10 @@ export default function Waitlist() {
         body: JSON.stringify({ id: selectedEntry.id }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -599,7 +645,7 @@ export default function Waitlist() {
               <div className="flex items-center justify-end">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
+                    <Button variant="ghost" size="sm" className="h-9 w-9 p-0" aria-label="More actions">
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -745,7 +791,7 @@ export default function Waitlist() {
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
+                              <Button variant="ghost" size="icon" aria-label="More actions">
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -803,7 +849,7 @@ export default function Waitlist() {
                   <Label htmlFor="guestId">Guest *</Label>
                   {guests.length > 0 ? (
                     <Select
-                      value={formData.guestId}
+                      value={formData.guestId || undefined}
                       onValueChange={(value) => setFormData(prev => ({ ...prev, guestId: value }))}
                     >
                       <SelectTrigger>
@@ -874,7 +920,7 @@ export default function Waitlist() {
               <div className="space-y-2">
                 <Label htmlFor="propertyId">Property *</Label>
                 <Select
-                  value={formData.propertyId}
+                      value={formData.propertyId || undefined}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, propertyId: value, roomTypeId: '' }))}
                 >
                   <SelectTrigger>
@@ -892,7 +938,7 @@ export default function Waitlist() {
               <div className="space-y-2">
                 <Label htmlFor="roomTypeId">Room Type *</Label>
                 <Select
-                  value={formData.roomTypeId}
+                  value={formData.roomTypeId || undefined}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, roomTypeId: value }))}
                 >
                   <SelectTrigger>

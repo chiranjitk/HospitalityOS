@@ -26,6 +26,9 @@ export async function GET(request: NextRequest) {    const user = await requireP
         );
       }
       where.bookingId = bookingId;
+    } else {
+      // When no bookingId specified, filter by tenant through booking relation
+      where.booking = { tenantId };
     }
 
     if (action) {

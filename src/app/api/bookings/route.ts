@@ -57,6 +57,13 @@ export async function GET(request: NextRequest) {
       where.primaryGuestId = guestId;
     }
     
+    if (checkInFrom && isNaN(new Date(checkInFrom).getTime())) {
+      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid checkInFrom date' } }, { status: 400 });
+    }
+    if (checkInTo && isNaN(new Date(checkInTo).getTime())) {
+      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid checkInTo date' } }, { status: 400 });
+    }
+
     if (checkInFrom || checkInTo) {
       where.checkIn = {};
       if (checkInFrom) {
@@ -103,8 +110,8 @@ export async function GET(request: NextRequest) {
         { checkIn: 'asc' },
         { createdAt: 'desc' },
       ],
-      ...(limit && { take: parseInt(limit, 10) }),
-      ...(offset && { skip: parseInt(offset, 10) }),
+      take: limit ? Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200) : 50,
+      ...(offset && { skip: Math.max(parseInt(offset, 10) || 0, 0) }),
     });
     
     // Get all room types for bookings
@@ -147,8 +154,8 @@ export async function GET(request: NextRequest) {
       data: transformedBookings,
       pagination: {
         total,
-        limit: limit ? parseInt(limit, 10) : null,
-        offset: offset ? parseInt(offset, 10) : null,
+        limit: limit ? Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200) : 50,
+        offset: offset ? Math.max(parseInt(offset, 10) || 0, 0) : 0,
       },
     });
   } catch (error) {

@@ -27,10 +27,6 @@ import {
   Loader2,
   RefreshCw,
   Calendar,
-  User,
-  Building2,
-  Hash,
-  ArrowRight,
   DoorOpen,
   Users,
   XCircle,
@@ -131,24 +127,31 @@ export default function Conflicts() {
   const [isResolveOpen, setIsResolveOpen] = useState(false);
   const [selectedConflict, setSelectedConflict] = useState<Conflict | Overbooking | null>(null);
   const [selectedType, setSelectedType] = useState<'conflict' | 'overbooking'>('conflict');
-  const [resolution, setResolution] = useState<string>('');
-  const [targetRoomId, setTargetRoomId] = useState<string>('');
+  const [resolution, setResolution] = useState<string | undefined>(undefined);
+  const [targetRoomId, setTargetRoomId] = useState<string | undefined>(undefined);
   const [isSaving, setIsSaving] = useState(false);
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
         }
-      } catch (error) {
-        console.error('Error fetching properties:', error);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('Error fetching properties:', err);
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch conflicts
@@ -161,11 +164,16 @@ export default function Conflicts() {
       }
 
       const response = await fetch(`/api/bookings/conflicts?${params.toString()}`);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
-        setConflicts(result.data.conflicts || []);
-        setOverbookings(result.data.overbookings || []);
+        const data = result.data || {};
+        setConflicts(data.conflicts || []);
+        setOverbookings(data.overbookings || []);
         setStats(result.stats || {
           totalConflicts: 0,
           criticalConflicts: 0,
@@ -188,25 +196,34 @@ export default function Conflicts() {
   };
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchConflicts();
+    return () => controller.abort();
   }, [propertyFilter]);
 
   // Fetch available rooms when resolving
   useEffect(() => {
+    const controller = new AbortController();
     if (isResolveOpen && propertyFilter !== 'all') {
       const fetchRooms = async () => {
         try {
-          const response = await fetch(`/api/rooms?propertyId=${propertyFilter}&status=available`);
+          const response = await fetch(`/api/rooms?propertyId=${propertyFilter}&status=available`, { signal: controller.signal });
+          if (!response.ok) {
+            const errorText = await response.text().catch(() => 'Unknown error');
+            throw new Error(`API error ${response.status}: ${errorText}`);
+          }
           const result = await response.json();
           if (result.success) {
             setAvailableRooms(result.data);
           }
-        } catch (error) {
-          console.error('Error fetching rooms:', error);
+        } catch (err: any) {
+          if (err?.name === 'AbortError') return;
+          console.error('Error fetching rooms:', err);
         }
       };
       fetchRooms();
     }
+    return () => controller.abort();
   }, [isResolveOpen, propertyFilter]);
 
   // Resolve conflict
@@ -246,6 +263,10 @@ export default function Conflicts() {
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {

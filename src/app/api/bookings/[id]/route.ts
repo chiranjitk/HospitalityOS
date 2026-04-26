@@ -371,7 +371,7 @@ export async function PUT(
       where: { id },
       data: {
         ...(roomId !== undefined && { roomId }),
-        ...(roomTypeId && { roomTypeId }),
+        ...(roomTypeId !== undefined && { roomTypeId }),
         ...(checkIn && { checkIn: new Date(checkIn) }),
         ...(checkOut && { checkOut: new Date(checkOut) }),
         ...(adults !== undefined && { adults }),
@@ -384,7 +384,7 @@ export async function PUT(
         ...(totalAmount !== undefined && { totalAmount }),
         ...(ratePlanId !== undefined && { ratePlanId }),
         ...(promoCode !== undefined && { promoCode }),
-        ...(status && { status }),
+        ...(status !== undefined && status !== '' && { status }),
         ...(specialRequests !== undefined && { specialRequests }),
         ...(notes !== undefined && { notes }),
         ...(internalNotes !== undefined && { internalNotes }),
@@ -1679,6 +1679,9 @@ export async function DELETE(
 ) {    const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+    }
+    if (!hasAnyPermission(user, ['bookings.manage', 'admin.bookings', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: 'Permission denied' }, { status: 403 });
     }
 
 
