@@ -23,11 +23,6 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import {
   ChevronLeft,
   ChevronRight,
   Calendar as CalendarIcon,
@@ -35,8 +30,6 @@ import {
   Loader2,
   Pencil,
   DollarSign,
-  Lock,
-  Unlock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -109,9 +102,14 @@ export default function InventoryCalendar() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -120,14 +118,17 @@ export default function InventoryCalendar() {
           }
         }
       } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
         console.error('Error fetching properties:', error);
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch inventory data when property changes
   useEffect(() => {
+    const controller = new AbortController();
     const fetchInventory = async () => {
       if (!selectedProperty) return;
       setIsLoading(true);
@@ -147,7 +148,11 @@ export default function InventoryCalendar() {
           params.set('propertyId', selectedProperty);
         }
 
-        const response = await fetch(`/api/inventory?${params.toString()}`);
+        const response = await fetch(`/api/inventory?${params.toString()}`, { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
 
         if (result.success) {
@@ -155,6 +160,7 @@ export default function InventoryCalendar() {
           setRoomTypes(result.roomTypes || []);
         }
       } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
         console.error('Error fetching inventory:', error);
         toast({
           title: 'Error',
@@ -167,26 +173,34 @@ export default function InventoryCalendar() {
     };
 
     fetchInventory();
+    return () => controller.abort();
   }, [selectedProperty, currentDate]);
 
   // Fetch rate plans for the selected property
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRatePlans = async () => {
       if (!selectedProperty) return;
       try {
         const ratePlanUrl = selectedProperty !== 'all'
           ? `/api/rate-plans?propertyId=${selectedProperty}`
           : '/api/rate-plans';
-        const response = await fetch(ratePlanUrl);
+        const response = await fetch(ratePlanUrl, { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setRatePlans(result.data);
         }
       } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
         console.error('Error fetching rate plans:', error);
       }
     };
     fetchRatePlans();
+    return () => controller.abort();
   }, [selectedProperty]);
 
   // Generate calendar dates for the current month
@@ -303,6 +317,10 @@ export default function InventoryCalendar() {
             action: 'close',
           }),
         });
+        if (!closeResponse.ok) {
+          const errorText = await closeResponse.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${closeResponse.status}: ${errorText}`);
+        }
         const closeResult = await closeResponse.json();
         if (closeResult.success) {
           setInventoryData(prev =>
@@ -334,6 +352,10 @@ export default function InventoryCalendar() {
             action: 'open',
           }),
         });
+        if (!availResponse.ok) {
+          const errorText = await availResponse.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${availResponse.status}: ${errorText}`);
+        }
         const availResult = await availResponse.json();
         if (availResult.success) {
           setInventoryData(prev =>
@@ -360,7 +382,10 @@ export default function InventoryCalendar() {
             reason: 'Manual adjustment',
           }),
         });
-
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
 
         if (result.success) {
@@ -383,7 +408,10 @@ export default function InventoryCalendar() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ basePrice: editData.price }),
         });
-
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
 
         if (result.success) {
@@ -495,13 +523,13 @@ export default function InventoryCalendar() {
         <CardHeader className="pb-2">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={goToPreviousMonth}>
+              <Button variant="outline" size="icon" aria-label="Previous month" onClick={goToPreviousMonth}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <div className="min-w-[160px] text-center font-semibold">
                 {months[currentDate.getMonth()]} {currentDate.getFullYear()}
               </div>
-              <Button variant="outline" size="icon" onClick={goToNextMonth}>
+              <Button variant="outline" size="icon" aria-label="Next month" onClick={goToNextMonth}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
               <Button variant="outline" size="sm" onClick={goToToday} className="ml-2">

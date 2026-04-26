@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Separator } from '@/components/ui/separator';
 import {
   Dialog,
   DialogContent,
@@ -142,9 +141,14 @@ export default function RoomOutOfOrder() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const res = await fetch('/api/properties');
+        const res = await fetch('/api/properties', { signal: controller.signal });
+        if (!res.ok) {
+          const errorText = await res.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${res.status}: ${errorText}`);
+        }
         const json = await res.json();
         if (json.success) {
           setProperties(json.data);
@@ -155,14 +159,19 @@ export default function RoomOutOfOrder() {
       } catch { /* ignore */ }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
-  const fetchRooms = useCallback(async () => {
+  const fetchRooms = useCallback(async (signal?: AbortSignal) => {
     try {
       const params = new URLSearchParams();
       if (propertyFilter !== 'all') params.append('propertyId', propertyFilter);
       params.append('limit', '500');
-      const res = await fetch(`/api/rooms?${params.toString()}`);
+      const res = await fetch(`/api/rooms?${params.toString()}`, signal ? { signal } : undefined);
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${res.status}: ${errorText}`);
+      }
       const json = await res.json();
       if (json.success) {
         setRooms(json.data.filter((r: Room) => !['maintenance', 'out_of_order'].includes(r.status)));
@@ -170,24 +179,37 @@ export default function RoomOutOfOrder() {
     } catch { /* ignore */ }
   }, [propertyFilter]);
 
-  const fetchBlocks = useCallback(async () => {
+  const fetchBlocks = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (propertyFilter !== 'all') params.append('propertyId', propertyFilter);
-      const res = await fetch(`/api/rooms/maintenance-blocks?${params.toString()}`);
+      const res = await fetch(`/api/rooms/maintenance-blocks?${params.toString()}`, signal ? { signal } : undefined);
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${res.status}: ${errorText}`);
+      }
       const json = await res.json();
       if (json.success) setBlocks(json.data);
-    } catch {
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
       toast({ title: 'Error', description: 'Failed to fetch blocks', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
   }, [statusFilter, propertyFilter, toast]);
 
-  useEffect(() => { fetchRooms(); }, [fetchRooms]);
-  useEffect(() => { fetchBlocks(); }, [fetchBlocks]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchRooms(controller.signal);
+    return () => controller.abort();
+  }, [fetchRooms]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchBlocks(controller.signal);
+    return () => controller.abort();
+  }, [fetchBlocks]);
 
   const handleCreate = async () => {
     if (!roomId || !reason || !startDate) {
@@ -215,6 +237,10 @@ export default function RoomOutOfOrder() {
           estimatedCost: estimatedCost ? parseFloat(estimatedCost) : undefined,
         }),
       });
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${res.status}: ${errorText}`);
+      }
       const json = await res.json();
       if (json.success) {
         toast({ title: 'Success', description: `Room ${json.data.roomNumber} blocked` });
@@ -241,6 +267,10 @@ export default function RoomOutOfOrder() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ actualCost: completeActualCost ? parseFloat(completeActualCost) : null }),
       });
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${res.status}: ${errorText}`);
+      }
       const json = await res.json();
       if (json.success) {
         toast({ title: 'Success', description: 'Block completed' });
@@ -263,6 +293,10 @@ export default function RoomOutOfOrder() {
     setIsSaving(true);
     try {
       const res = await fetch(`/api/rooms/maintenance-blocks/${selectedBlock.id}/cancel`, { method: 'POST' });
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${res.status}: ${errorText}`);
+      }
       const json = await res.json();
       if (json.success) {
         toast({ title: 'Success', description: 'Block cancelled' });
@@ -565,13 +599,13 @@ export default function RoomOutOfOrder() {
               Calendar View
             </CardTitle>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" onClick={prevMonth} className="h-8 w-8">
+              <Button variant="ghost" size="icon" onClick={prevMonth} className="h-8 w-8" aria-label="Previous month">
                 <span className="text-lg">&lt;</span>
               </Button>
               <span className="text-sm font-medium min-w-[140px] text-center">
                 {format(calendarMonth, 'MMMM yyyy')}
               </span>
-              <Button variant="ghost" size="icon" onClick={nextMonth} className="h-8 w-8">
+              <Button variant="ghost" size="icon" onClick={nextMonth} className="h-8 w-8" aria-label="Next month">
                 <span className="text-lg">&gt;</span>
               </Button>
             </div>

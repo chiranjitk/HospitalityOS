@@ -293,7 +293,9 @@ export default function PropertiesList() {
   };
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchProperties();
+    return () => controller.abort();
   }, [statusFilter, typeFilter]);
 
   const generateSlug = (name: string) => {
@@ -327,6 +329,10 @@ export default function PropertiesList() {
         }),
       });
       
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -358,6 +364,10 @@ export default function PropertiesList() {
         }),
       });
       
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -380,6 +390,10 @@ export default function PropertiesList() {
     setIsSaving(true);
     try {
       const response = await fetch(`/api/properties/${selectedProperty.id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -833,7 +847,7 @@ export default function PropertiesList() {
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-8 w-8">
+                      <Button variant="outline" size="icon" className="h-8 w-8" aria-label="More options">
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -911,13 +925,13 @@ export default function PropertiesList() {
                         <TableCell>{getStatusBadge(property.status)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openViewDialog(property)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openViewDialog(property)} aria-label="View property">
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(property)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(property)} aria-label="Edit property">
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 dark:text-red-400" onClick={() => openDeleteDialog(property)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 dark:text-red-400" onClick={() => openDeleteDialog(property)} aria-label="Delete property">
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -974,7 +988,7 @@ export default function PropertiesList() {
                   <Button variant="outline" size="sm" className="flex-1 h-9 min-h-[44px]" onClick={() => openEditDialog(property)}>
                     <Pencil className="h-3 w-3 mr-1" />Edit
                   </Button>
-                  <Button variant="outline" size="icon" className="h-9 w-9 min-h-[44px] text-red-600 dark:text-red-400" onClick={() => openDeleteDialog(property)}>
+                  <Button variant="outline" size="icon" className="h-9 w-9 min-h-[44px] text-red-600 dark:text-red-400" onClick={() => openDeleteDialog(property)} aria-label="Delete property">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -1184,7 +1198,7 @@ function PropertyBasicForm({ formData, setFormData, onNameChange }: PropertyBasi
           <Label>Slug</Label>
           <div className="flex gap-2">
             <Input value={formData.slug} readOnly className="font-mono text-sm bg-muted" />
-            <Button variant="outline" size="icon" onClick={() => navigator.clipboard.writeText(formData.slug)}>
+            <Button variant="outline" size="icon" onClick={() => navigator.clipboard.writeText(formData.slug)} aria-label="Copy slug">
               <Copy className="h-4 w-4" />
             </Button>
           </div>
@@ -1379,12 +1393,13 @@ function PropertyTaxForm({ formData, setFormData, addTaxComponent, removeTaxComp
               />
               <Input
                 type="number"
+                min={0}
                 value={tc.rate}
                 onChange={(e) => updateTaxComponent(tc.id, 'rate', parseFloat(e.target.value) || 0)}
                 className="w-20"
               />
               <span className="text-sm text-muted-foreground">%</span>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 dark:text-red-400" onClick={() => removeTaxComponent(tc.id)}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 dark:text-red-400" onClick={() => removeTaxComponent(tc.id)} aria-label="Remove tax component">
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>

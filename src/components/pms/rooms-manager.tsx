@@ -147,9 +147,14 @@ export default function RoomsManager() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -163,14 +168,20 @@ export default function RoomsManager() {
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch room types when property changes
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRoomTypes = async () => {
       if (!formData.propertyId) return;
       try {
         const response = await fetch(`/api/room-types?propertyId=${formData.propertyId}`);
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setRoomTypes(result.data);
@@ -183,6 +194,7 @@ export default function RoomsManager() {
       }
     };
     fetchRoomTypes();
+    return () => controller.abort();
   }, [formData.propertyId]);
 
   // Fetch rooms
@@ -194,6 +206,10 @@ export default function RoomsManager() {
       if (statusFilter !== 'all') params.append('status', statusFilter);
       
       const response = await fetch(`/api/rooms?${params.toString()}`);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -212,7 +228,9 @@ export default function RoomsManager() {
   };
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchRooms();
+    return () => controller.abort();
   }, [propertyFilter, statusFilter]);
 
   // Create room
@@ -234,6 +252,10 @@ export default function RoomsManager() {
         body: JSON.stringify(formData),
       });
       
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -278,6 +300,10 @@ export default function RoomsManager() {
         }),
       });
       
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -315,7 +341,10 @@ export default function RoomsManager() {
       const response = await fetch(`/api/rooms/${selectedRoom.id}`, {
         method: 'DELETE',
       });
-      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -355,6 +384,10 @@ export default function RoomsManager() {
         body: JSON.stringify({ status: newStatus }),
       });
       
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -718,6 +751,7 @@ export default function RoomsManager() {
                 size="icon"
                 className="h-8 w-8"
                 onClick={() => setViewMode('grid')}
+                aria-label="Grid view"
               >
                 <Grid className="h-4 w-4" />
               </Button>
@@ -726,6 +760,7 @@ export default function RoomsManager() {
                 size="icon"
                 className="h-8 w-8"
                 onClick={() => setViewMode('list')}
+                aria-label="List view"
               >
                 <List className="h-4 w-4" />
               </Button>
@@ -823,10 +858,10 @@ export default function RoomsManager() {
                 <div className="flex items-center justify-between pt-1">
                   <div className="text-xs text-muted-foreground">Floor {room.floor}</div>
                   <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" className="h-11 min-w-[44px]" onClick={(e) => { e.stopPropagation(); openEditDialog(room); }}>
+                    <Button variant="ghost" size="sm" className="h-11 min-w-[44px]" onClick={(e) => { e.stopPropagation(); openEditDialog(room); }} aria-label="Edit room">
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-11 min-w-[44px] text-destructive" onClick={(e) => { e.stopPropagation(); openDeleteDialog(room); }}>
+                    <Button variant="ghost" size="sm" className="h-11 min-w-[44px] text-destructive" onClick={(e) => { e.stopPropagation(); openDeleteDialog(room); }} aria-label="Delete room">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -922,10 +957,10 @@ export default function RoomsManager() {
                         </div>
                       </td>
                       <td className="p-4 text-right">
-                        <Button variant="ghost" size="sm" onClick={() => openEditDialog(room)}>
+                        <Button variant="ghost" size="sm" onClick={() => openEditDialog(room)} aria-label="Edit room">
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => openDeleteDialog(room)} className="text-destructive">
+                        <Button variant="ghost" size="sm" onClick={() => openDeleteDialog(room)} className="text-destructive" aria-label="Delete room">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </td>

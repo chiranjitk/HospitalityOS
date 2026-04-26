@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -15,13 +14,12 @@ import {
   TrendingDown,
   IndianRupee,
   Bed,
-  Calendar,
-  Percent,
   BarChart3,
   Target,
   Activity,
   DollarSign,
   Users,
+  Percent,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -70,9 +68,14 @@ export default function RevenueDashboard() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -86,10 +89,12 @@ export default function RevenueDashboard() {
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Calculate metrics from bookings
   useEffect(() => {
+    const controller = new AbortController();
     const fetchMetrics = async () => {
       if (!selectedProperty) return;
       setIsLoading(true);
@@ -123,7 +128,11 @@ export default function RevenueDashboard() {
         if (selectedProperty !== 'all') {
           metricsParams.set('propertyId', selectedProperty);
         }
-        const response = await fetch(`/api/bookings?${metricsParams.toString()}`);
+        const response = await fetch(`/api/bookings?${metricsParams.toString()}`, { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
 
         if (result.success) {
@@ -176,6 +185,7 @@ export default function RevenueDashboard() {
     };
 
     fetchMetrics();
+    return () => controller.abort();
   }, [selectedProperty, period, properties]);
 
   // Calculate summary stats

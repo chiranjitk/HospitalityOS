@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useId } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Slider } from '@/components/ui/slider';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +22,6 @@ import {
 import {
   ZoomIn,
   ZoomOut,
-  Move,
   Grid3X3,
   Save,
   Maximize2,
@@ -33,13 +31,10 @@ import {
   Wand2,
   Download,
   Trash2,
-  Copy,
-  Layers,
   AlignStartVertical,
   AlignStartHorizontal,
   Lock,
   Unlock,
-  Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -147,6 +142,17 @@ export function FloorPlanEditor({
   const editorRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const lastMouseRef = useRef({ x: 0, y: 0 });
+  const patternId = useId();
+
+  // Helper to get client coordinates from mouse or touch events
+  const getPointerClient = (e: React.MouseEvent | React.TouchEvent) => {
+    if ('touches' in e) {
+      const touch = e.touches[0] || e.changedTouches[0];
+      return { clientX: touch.clientX, clientY: touch.clientY };
+    }
+    return { clientX: e.clientX, clientY: e.clientY };
+  };
+  const hasShiftKey = (e: React.MouseEvent | React.TouchEvent) => 'shiftKey' in e && e.shiftKey;
 
   // History management
   const pushToHistory = useCallback((positions: RoomPosition[]) => {
@@ -234,39 +240,41 @@ export function FloorPlanEditor({
   };
 
   // Handle canvas pan
-  const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleCanvasMouseDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (readOnly) return;
     
+    const { clientX, clientY } = getPointerClient(e);
     const target = e.target as HTMLElement;
     if (target === canvasRef.current || target.classList.contains('canvas-bg') || target.tagName === 'svg') {
       setIsDragging(true);
-      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+      setDragStart({ x: clientX - pan.x, y: clientY - pan.y });
       setSelectedRooms([]);
       
       // Start selection box
-      if (e.shiftKey) {
+      if (hasShiftKey(e)) {
         const rect = editorRef.current?.getBoundingClientRect();
         if (rect) {
           setIsSelecting(true);
-          const startX = (e.clientX - rect.left - pan.x) / zoom;
-          const startY = (e.clientY - rect.top - pan.y) / zoom;
+          const startX = (clientX - rect.left - pan.x) / zoom;
+          const startY = (clientY - rect.top - pan.y) / zoom;
           setSelectionBox({ startX, startY, endX: startX, endY: startY });
         }
       }
     }
   }, [pan, zoom, readOnly]);
 
-  const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
+  const handleCanvasMouseMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (isDragging && !draggingRoom && !resizingRoom) {
+      const { clientX, clientY } = getPointerClient(e);
       if (isSelecting) {
         const rect = editorRef.current?.getBoundingClientRect();
         if (rect) {
-          const endX = (e.clientX - rect.left - pan.x) / zoom;
-          const endY = (e.clientY - rect.top - pan.y) / zoom;
+          const endX = (clientX - rect.left - pan.x) / zoom;
+          const endY = (clientY - rect.top - pan.y) / zoom;
           setSelectionBox(prev => ({ ...prev, endX, endY }));
         }
       } else {
-        setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+        setPan({ x: clientX - dragStart.x, y: clientY - dragStart.y });
       }
     }
   }, [isDragging, dragStart, draggingRoom, resizingRoom, isSelecting, zoom]);
@@ -301,38 +309,40 @@ export function FloorPlanEditor({
   }, [draggingRoom, resizingRoom, roomPositions, pushToHistory, isSelecting, selectionBox]);
 
   // Handle room drag
-  const handleRoomMouseDown = useCallback((e: React.MouseEvent, roomId: string) => {
+  const handleRoomMouseDown = useCallback((e: React.MouseEvent | React.TouchEvent, roomId: string) => {
     if (readOnly) return;
     e.stopPropagation();
     
+    const { clientX, clientY } = getPointerClient(e);
     const position = getRoomPosition(roomId);
     if (!position || position.locked) return;
 
     const rect = editorRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    if (e.shiftKey && selectedRooms.includes(roomId)) {
+    if (hasShiftKey(e) && selectedRooms.includes(roomId)) {
       // Drag all selected rooms
     } else if (!selectedRooms.includes(roomId)) {
       setSelectedRooms([roomId]);
     }
 
     setDraggingRoom(roomId);
-    lastMouseRef.current = { x: e.clientX, y: e.clientY };
+    lastMouseRef.current = { x: clientX, y: clientY };
     setDragOffset({
-      x: (e.clientX - rect.left - pan.x) / zoom - position.x,
-      y: (e.clientY - rect.top - pan.y) / zoom - position.y,
+      x: (clientX - rect.left - pan.x) / zoom - position.x,
+      y: (clientY - rect.top - pan.y) / zoom - position.y,
     });
   }, [pan, zoom, roomPositions, selectedRooms, readOnly]);
 
-  const handleRoomMouseMove = useCallback((e: React.MouseEvent) => {
+  const handleRoomMouseMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    const { clientX, clientY } = getPointerClient(e);
     if (draggingRoom) {
       const rect = editorRef.current?.getBoundingClientRect();
       if (!rect) return;
 
       const gridSize = floorPlan.gridSize || 20;
-      let newX = (e.clientX - rect.left - pan.x) / zoom - dragOffset.x;
-      let newY = (e.clientY - rect.top - pan.y) / zoom - dragOffset.y;
+      let newX = (clientX - rect.left - pan.x) / zoom - dragOffset.x;
+      let newY = (clientY - rect.top - pan.y) / zoom - dragOffset.y;
 
       newX = Math.round(newX / gridSize) * gridSize;
       newY = Math.round(newY / gridSize) * gridSize;
@@ -346,9 +356,9 @@ export function FloorPlanEditor({
       }
 
       // Use frame-to-frame delta for multi-select to avoid floating point drift
-      const mouseDeltaX = e.clientX - lastMouseRef.current.x;
-      const mouseDeltaY = e.clientY - lastMouseRef.current.y;
-      lastMouseRef.current = { x: e.clientX, y: e.clientY };
+      const mouseDeltaX = clientX - lastMouseRef.current.x;
+      const mouseDeltaY = clientY - lastMouseRef.current.y;
+      lastMouseRef.current = { x: clientX, y: clientY };
 
       setRoomPositions(prev => {
         if (selectedRooms.length > 1 && selectedRooms.includes(draggingRoom)) {
@@ -366,8 +376,8 @@ export function FloorPlanEditor({
       const rect = editorRef.current?.getBoundingClientRect();
       if (!rect) return;
       
-      const currentX = (e.clientX - rect.left - pan.x) / zoom;
-      const currentY = (e.clientY - rect.top - pan.y) / zoom;
+      const currentX = (clientX - rect.left - pan.x) / zoom;
+      const currentY = (clientY - rect.top - pan.y) / zoom;
       const gridSize = floorPlan.gridSize || 20;
       
       let newWidth = resizeStart.width;
@@ -407,7 +417,7 @@ export function FloorPlanEditor({
   }, [draggingRoom, dragOffset, pan, zoom, floorPlan, resizingRoom, resizeHandle, resizeStart, selectedRooms]);
 
   // Handle resize start
-  const handleResizeStart = useCallback((e: React.MouseEvent, roomId: string, handle: string) => {
+  const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent, roomId: string, handle: string) => {
     if (readOnly) return;
     e.stopPropagation();
     const position = getRoomPosition(roomId);
@@ -415,12 +425,14 @@ export function FloorPlanEditor({
     
     const rect = editorRef.current?.getBoundingClientRect();
     if (!rect) return;
+
+    const { clientX, clientY } = getPointerClient(e);
     
     setResizingRoom(roomId);
     setResizeHandle(handle);
     setResizeStart({
-      x: (e.clientX - rect.left - pan.x) / zoom,
-      y: (e.clientY - rect.top - pan.y) / zoom,
+      x: (clientX - rect.left - pan.x) / zoom,
+      y: (clientY - rect.top - pan.y) / zoom,
       width: position.width,
       height: position.height,
       posX: position.x,
@@ -682,7 +694,7 @@ export function FloorPlanEditor({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={handleZoomOut}>
+                <Button variant="outline" size="icon" onClick={handleZoomOut} aria-label="Zoom Out">
                   <ZoomOut className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -693,7 +705,7 @@ export function FloorPlanEditor({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={handleZoomIn}>
+                <Button variant="outline" size="icon" onClick={handleZoomIn} aria-label="Zoom In">
                   <ZoomIn className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -703,7 +715,7 @@ export function FloorPlanEditor({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={handleZoomReset}>
+                <Button variant="outline" size="icon" onClick={handleZoomReset} aria-label="Reset View">
                   <Maximize2 className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -721,6 +733,7 @@ export function FloorPlanEditor({
                 variant={showGrid ? 'secondary' : 'outline'}
                 size="icon"
                 onClick={() => setShowGrid(!showGrid)}
+                aria-label="Toggle Grid"
               >
                 <Grid3X3 className="h-4 w-4" />
               </Button>
@@ -736,7 +749,7 @@ export function FloorPlanEditor({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" onClick={undo} disabled={historyIndex <= 0}>
+                  <Button variant="outline" size="icon" onClick={undo} disabled={historyIndex <= 0} aria-label="Undo">
                     <Undo2 className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
@@ -746,7 +759,7 @@ export function FloorPlanEditor({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" onClick={redo} disabled={historyIndex >= history.length - 1}>
+                  <Button variant="outline" size="icon" onClick={redo} disabled={historyIndex >= history.length - 1} aria-label="Redo">
                     <Redo2 className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
@@ -780,7 +793,7 @@ export function FloorPlanEditor({
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" onClick={() => alignRooms('left')}>
+                        <Button variant="outline" size="icon" onClick={() => alignRooms('left')} aria-label="Align Left">
                           <AlignStartVertical className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
@@ -790,7 +803,7 @@ export function FloorPlanEditor({
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" onClick={() => alignRooms('h-center')}>
+                        <Button variant="outline" size="icon" onClick={() => alignRooms('h-center')} aria-label="Align Center Horizontal">
                           <AlignStartVertical className="h-4 w-4 rotate-90" />
                         </Button>
                       </TooltipTrigger>
@@ -800,7 +813,7 @@ export function FloorPlanEditor({
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" onClick={() => alignRooms('top')}>
+                        <Button variant="outline" size="icon" onClick={() => alignRooms('top')} aria-label="Align Top">
                           <AlignStartHorizontal className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
@@ -812,7 +825,7 @@ export function FloorPlanEditor({
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" size="icon" onClick={removeSelectedRooms}>
+                      <Button variant="outline" size="icon" onClick={removeSelectedRooms} aria-label="Delete Selected">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
@@ -904,7 +917,13 @@ export function FloorPlanEditor({
           }}
           onMouseUp={handleCanvasMouseUp}
           onMouseLeave={handleCanvasMouseUp}
-          style={{ cursor: readOnly ? 'default' : isDragging ? 'grabbing' : 'grab' }}
+          onTouchStart={handleCanvasMouseDown}
+          onTouchMove={(e) => {
+            handleCanvasMouseMove(e);
+            handleRoomMouseMove(e);
+          }}
+          onTouchEnd={handleCanvasMouseUp}
+          style={{ cursor: readOnly ? 'default' : isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
         >
           <div
             ref={canvasRef}
@@ -930,7 +949,7 @@ export function FloorPlanEditor({
               <svg className="absolute inset-0 w-full h-full pointer-events-none">
                 <defs>
                   <pattern
-                    id="grid"
+                    id={`grid-${patternId}`}
                     width={floorPlan.gridSize}
                     height={floorPlan.gridSize}
                     patternUnits="userSpaceOnUse"
@@ -944,7 +963,7 @@ export function FloorPlanEditor({
                     />
                   </pattern>
                 </defs>
-                <rect width="100%" height="100%" fill="url(#grid)" />
+                <rect width="100%" height="100%" fill={`url(#grid-${patternId})`} />
               </svg>
             )}
 
@@ -996,6 +1015,7 @@ export function FloorPlanEditor({
                           height: position.height,
                         }}
                         onMouseDown={!readOnly && !isLocked ? (e) => handleRoomMouseDown(e, position.roomId) : undefined}
+                        onTouchStart={!readOnly && !isLocked ? (e) => handleRoomMouseDown(e, position.roomId) : undefined}
                       >
                         <div className={cn("w-3 h-3 rounded-full mb-1", statusInfo.color)} />
                         <span className="font-bold text-sm">{room.number}</span>
@@ -1008,14 +1028,14 @@ export function FloorPlanEditor({
                         {/* Resize Handles */}
                         {!readOnly && isSelected && !isLocked && (
                           <>
-                            <div className="absolute w-3 h-3 bg-primary rounded-full cursor-nwse-resize -top-1 -left-1" onMouseDown={(e) => handleResizeStart(e, position.roomId, 'nw')} />
-                            <div className="absolute w-3 h-3 bg-primary rounded-full cursor-nesw-resize -top-1 -right-1" onMouseDown={(e) => handleResizeStart(e, position.roomId, 'ne')} />
-                            <div className="absolute w-3 h-3 bg-primary rounded-full cursor-nesw-resize -bottom-1 -left-1" onMouseDown={(e) => handleResizeStart(e, position.roomId, 'sw')} />
-                            <div className="absolute w-3 h-3 bg-primary rounded-full cursor-nwse-resize -bottom-1 -right-1" onMouseDown={(e) => handleResizeStart(e, position.roomId, 'se')} />
-                            <div className="absolute w-6 h-2 bg-primary rounded cursor-ns-resize -top-1 left-1/2 -translate-x-1/2" onMouseDown={(e) => handleResizeStart(e, position.roomId, 'n')} />
-                            <div className="absolute w-6 h-2 bg-primary rounded cursor-ns-resize -bottom-1 left-1/2 -translate-x-1/2" onMouseDown={(e) => handleResizeStart(e, position.roomId, 's')} />
-                            <div className="absolute w-2 h-6 bg-primary rounded cursor-ew-resize -left-1 top-1/2 -translate-y-1/2" onMouseDown={(e) => handleResizeStart(e, position.roomId, 'w')} />
-                            <div className="absolute w-2 h-6 bg-primary rounded cursor-ew-resize -right-1 top-1/2 -translate-y-1/2" onMouseDown={(e) => handleResizeStart(e, position.roomId, 'e')} />
+                            <div className="absolute w-3 h-3 bg-primary rounded-full cursor-nwse-resize -top-1 -left-1" onMouseDown={(e) => handleResizeStart(e, position.roomId, 'nw')} onTouchStart={(e) => handleResizeStart(e, position.roomId, 'nw')} />
+                            <div className="absolute w-3 h-3 bg-primary rounded-full cursor-nesw-resize -top-1 -right-1" onMouseDown={(e) => handleResizeStart(e, position.roomId, 'ne')} onTouchStart={(e) => handleResizeStart(e, position.roomId, 'ne')} />
+                            <div className="absolute w-3 h-3 bg-primary rounded-full cursor-nesw-resize -bottom-1 -left-1" onMouseDown={(e) => handleResizeStart(e, position.roomId, 'sw')} onTouchStart={(e) => handleResizeStart(e, position.roomId, 'sw')} />
+                            <div className="absolute w-3 h-3 bg-primary rounded-full cursor-nwse-resize -bottom-1 -right-1" onMouseDown={(e) => handleResizeStart(e, position.roomId, 'se')} onTouchStart={(e) => handleResizeStart(e, position.roomId, 'se')} />
+                            <div className="absolute w-6 h-2 bg-primary rounded cursor-ns-resize -top-1 left-1/2 -translate-x-1/2" onMouseDown={(e) => handleResizeStart(e, position.roomId, 'n')} onTouchStart={(e) => handleResizeStart(e, position.roomId, 'n')} />
+                            <div className="absolute w-6 h-2 bg-primary rounded cursor-ns-resize -bottom-1 left-1/2 -translate-x-1/2" onMouseDown={(e) => handleResizeStart(e, position.roomId, 's')} onTouchStart={(e) => handleResizeStart(e, position.roomId, 's')} />
+                            <div className="absolute w-2 h-6 bg-primary rounded cursor-ew-resize -left-1 top-1/2 -translate-y-1/2" onMouseDown={(e) => handleResizeStart(e, position.roomId, 'w')} onTouchStart={(e) => handleResizeStart(e, position.roomId, 'w')} />
+                            <div className="absolute w-2 h-6 bg-primary rounded cursor-ew-resize -right-1 top-1/2 -translate-y-1/2" onMouseDown={(e) => handleResizeStart(e, position.roomId, 'e')} onTouchStart={(e) => handleResizeStart(e, position.roomId, 'e')} />
                           </>
                         )}
                       </div>

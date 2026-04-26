@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useId } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -100,6 +100,16 @@ export function FloorPlanViewer({
   
   const viewerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const patternId = useId();
+
+  // Helper to get client coordinates from mouse or touch events
+  const getPointerClient = (e: React.MouseEvent | React.TouchEvent) => {
+    if ('touches' in e) {
+      const touch = e.touches[0] || e.changedTouches[0];
+      return { clientX: touch.clientX, clientY: touch.clientY };
+    }
+    return { clientX: e.clientX, clientY: e.clientY };
+  };
 
   // Get status info
   const getStatusInfo = (status: string) => {
@@ -117,17 +127,19 @@ export function FloorPlanViewer({
   };
 
   // Handle canvas pan
-  const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleCanvasMouseDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    const { clientX, clientY } = getPointerClient(e);
     const target = e.target as HTMLElement;
     if (target === canvasRef.current || target.classList.contains('canvas-bg') || target.tagName === 'svg') {
       setIsDragging(true);
-      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+      setDragStart({ x: clientX - pan.x, y: clientY - pan.y });
     }
   }, [pan]);
 
-  const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
+  const handleCanvasMouseMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (isDragging) {
-      setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+      const { clientX, clientY } = getPointerClient(e);
+      setPan({ x: clientX - dragStart.x, y: clientY - dragStart.y });
     }
   }, [isDragging, dragStart]);
 
@@ -300,7 +312,7 @@ export function FloorPlanViewer({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="icon" onClick={handleZoomOut}>
+              <Button variant="outline" size="icon" onClick={handleZoomOut} aria-label="Zoom Out">
                 <ZoomOut className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -311,7 +323,7 @@ export function FloorPlanViewer({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="icon" onClick={handleZoomIn}>
+              <Button variant="outline" size="icon" onClick={handleZoomIn} aria-label="Zoom In">
                 <ZoomIn className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -321,7 +333,7 @@ export function FloorPlanViewer({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="icon" onClick={handleZoomReset}>
+              <Button variant="outline" size="icon" onClick={handleZoomReset} aria-label="Reset View">
                 <Maximize2 className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -338,6 +350,7 @@ export function FloorPlanViewer({
                 variant={showGrid ? 'secondary' : 'outline'}
                 size="icon"
                 onClick={() => setShowGrid(!showGrid)}
+                aria-label="Toggle Grid"
               >
                 <Grid3X3 className="h-4 w-4" />
               </Button>
@@ -364,7 +377,10 @@ export function FloorPlanViewer({
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
           onMouseLeave={handleCanvasMouseUp}
-          style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+          onTouchStart={handleCanvasMouseDown}
+          onTouchMove={handleCanvasMouseMove}
+          onTouchEnd={handleCanvasMouseUp}
+          style={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
         >
           <div
             ref={canvasRef}
@@ -390,7 +406,7 @@ export function FloorPlanViewer({
               <svg className="absolute inset-0 w-full h-full pointer-events-none">
                 <defs>
                   <pattern
-                    id="grid-viewer"
+                    id={`grid-viewer-${patternId}`}
                     width={floorPlan.gridSize}
                     height={floorPlan.gridSize}
                     patternUnits="userSpaceOnUse"
@@ -404,7 +420,7 @@ export function FloorPlanViewer({
                     />
                   </pattern>
                 </defs>
-                <rect width="100%" height="100%" fill="url(#grid-viewer)" />
+                <rect width="100%" height="100%" fill={`url(#grid-viewer-${patternId})`} />
               </svg>
             )}
 

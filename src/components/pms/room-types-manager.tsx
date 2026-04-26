@@ -225,9 +225,14 @@ export default function RoomTypesManager() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -240,12 +245,17 @@ export default function RoomTypesManager() {
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch amenities
   const fetchAmenities = async () => {
     try {
       const response = await fetch('/api/amenities');
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       if (result.success) {
         setAmenities(result.data);
@@ -256,14 +266,21 @@ export default function RoomTypesManager() {
   };
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchAmenities();
+    return () => controller.abort();
   }, []);
 
   // Fetch WiFi plans
   useEffect(() => {
+    const controller = new AbortController();
     const fetchWifiPlans = async () => {
       try {
-        const response = await fetch('/api/wifi/plans?status=active');
+        const response = await fetch('/api/wifi/plans?status=active', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setWifiPlans(result.data);
@@ -273,6 +290,7 @@ export default function RoomTypesManager() {
       }
     };
     fetchWifiPlans();
+    return () => controller.abort();
   }, []);
 
   // Fetch room types
@@ -283,6 +301,10 @@ export default function RoomTypesManager() {
       if (propertyFilter !== 'all') params.append('propertyId', propertyFilter);
       
       const response = await fetch(`/api/room-types?${params.toString()}`);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -301,7 +323,9 @@ export default function RoomTypesManager() {
   };
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchRoomTypes();
+    return () => controller.abort();
   }, [propertyFilter]);
 
   // Generate code from name
@@ -362,6 +386,10 @@ export default function RoomTypesManager() {
         }),
       });
       
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -408,6 +436,10 @@ export default function RoomTypesManager() {
         }),
       });
       
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -445,7 +477,10 @@ export default function RoomTypesManager() {
       const response = await fetch(`/api/room-types/${selectedRoomType.id}`, {
         method: 'DELETE',
       });
-      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -964,7 +999,7 @@ export default function RoomTypesManager() {
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-8 w-8">
+                      <Button variant="outline" size="icon" className="h-8 w-8" aria-label="More options">
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -1044,13 +1079,13 @@ export default function RoomTypesManager() {
                         <TableCell>{getStatusBadge(roomType.status)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openViewDialog(roomType)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openViewDialog(roomType)} aria-label="View room type">
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(roomType)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(roomType)} aria-label="Edit room type">
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 dark:text-red-400" onClick={() => openDeleteDialog(roomType)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 dark:text-red-400" onClick={() => openDeleteDialog(roomType)} aria-label="Delete room type">
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -1111,7 +1146,7 @@ export default function RoomTypesManager() {
                   <Button variant="outline" size="sm" className="flex-1 h-9 min-h-[44px]" onClick={() => openEditDialog(roomType)}>
                     <Pencil className="h-3 w-3 mr-1" />Edit
                   </Button>
-                  <Button variant="outline" size="icon" className="h-9 w-9 min-h-[44px] text-red-600 dark:text-red-400" onClick={() => openDeleteDialog(roomType)}>
+                  <Button variant="outline" size="icon" className="h-9 w-9 min-h-[44px] text-red-600 dark:text-red-400" onClick={() => openDeleteDialog(roomType)} aria-label="Delete room type">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>

@@ -55,7 +55,6 @@ import {
   Search,
   Loader2,
   Calendar as CalendarIcon,
-  Filter,
   RefreshCw,
   Clock,
   AlertTriangle,
@@ -65,7 +64,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { format, addDays, parseISO, isAfter, isBefore, isWithinInterval } from 'date-fns';
+import { Checkbox } from '@/components/ui/checkbox';
+import { format, addDays, parseISO } from 'date-fns';
 
 interface Property {
   id: string;
@@ -171,9 +171,14 @@ export default function InventoryLocking() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -182,6 +187,7 @@ export default function InventoryLocking() {
           }
         }
       } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
         console.error('Error fetching properties:', error);
         toast({
           title: 'Error',
@@ -191,6 +197,7 @@ export default function InventoryLocking() {
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch data when property changes
@@ -201,6 +208,10 @@ export default function InventoryLocking() {
     try {
       // Fetch room types
       const roomTypesResponse = await fetch(selectedProperty !== 'all' ? `/api/room-types?propertyId=${selectedProperty}` : '/api/room-types');
+      if (!roomTypesResponse.ok) {
+        const errorText = await roomTypesResponse.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${roomTypesResponse.status}: ${errorText}`);
+      }
       const roomTypesResult = await roomTypesResponse.json();
       if (roomTypesResult.success) {
         setRoomTypes(roomTypesResult.data);
@@ -208,6 +219,10 @@ export default function InventoryLocking() {
 
       // Fetch rooms
       const roomsResponse = await fetch(selectedProperty !== 'all' ? `/api/rooms?propertyId=${selectedProperty}` : '/api/rooms');
+      if (!roomsResponse.ok) {
+        const errorText = await roomsResponse.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${roomsResponse.status}: ${errorText}`);
+      }
       const roomsResult = await roomsResponse.json();
       if (roomsResult.success) {
         setRooms(roomsResult.data);
@@ -222,6 +237,10 @@ export default function InventoryLocking() {
       locksParams.append('limit', String(limit));
 
       const locksResponse = await fetch(`/api/inventory-locks?${locksParams.toString()}`);
+      if (!locksResponse.ok) {
+        const errorText = await locksResponse.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${locksResponse.status}: ${errorText}`);
+      }
       const locksResult = await locksResponse.json();
       if (locksResult.success) {
         setLocks(locksResult.data);
@@ -246,7 +265,9 @@ export default function InventoryLocking() {
   }, [selectedProperty, statusFilter]);
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchData();
+    return () => controller.abort();
   }, [fetchData]);
 
   // Filter locks
@@ -293,7 +314,10 @@ export default function InventoryLocking() {
           endDate: formData.endDate,
         }),
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -340,7 +364,10 @@ export default function InventoryLocking() {
           endDate: formData.endDate,
         }),
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -379,7 +406,10 @@ export default function InventoryLocking() {
       const response = await fetch(`/api/inventory-locks?ids=${selectedLock.id}`, {
         method: 'DELETE',
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -416,7 +446,10 @@ export default function InventoryLocking() {
       const response = await fetch(`/api/inventory-locks?ids=${lock.id}`, {
         method: 'DELETE',
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -481,7 +514,10 @@ export default function InventoryLocking() {
       const response = await fetch(`/api/inventory-locks?ids=${ids}`, {
         method: 'DELETE',
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -662,7 +698,7 @@ export default function InventoryLocking() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon" onClick={fetchData}>
+            <Button variant="outline" size="icon" aria-label="Refresh locks" onClick={fetchData}>
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
@@ -688,11 +724,9 @@ export default function InventoryLocking() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={filteredLocks.length > 0 && selectedLocks.size === filteredLocks.length}
-                        onChange={toggleAllLocks}
-                        className="rounded border-gray-300"
+                        onCheckedChange={toggleAllLocks}
                         aria-label="Select all locks"
                       />
                     </TableHead>
@@ -713,11 +747,9 @@ export default function InventoryLocking() {
                     return (
                       <TableRow key={lock.id}>
                         <TableCell>
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={selectedLocks.has(lock.id)}
-                            onChange={() => toggleLockSelection(lock.id)}
-                            className="rounded border-gray-300"
+                            onCheckedChange={() => toggleLockSelection(lock.id)}
                             aria-label={`Select lock for ${lock.room?.number || lock.reason}`}
                           />
                         </TableCell>
@@ -770,6 +802,7 @@ export default function InventoryLocking() {
                                 size="sm"
                                 onClick={() => handleUnlock(lock)}
                                 className="text-green-600 dark:text-green-400 hover:text-green-700"
+                                aria-label="Unlock"
                               >
                                 <Unlock className="h-4 w-4" />
                               </Button>
@@ -778,6 +811,7 @@ export default function InventoryLocking() {
                               variant="ghost"
                               size="sm"
                               onClick={() => openEditDialog(lock)}
+                              aria-label="Edit lock"
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -786,6 +820,7 @@ export default function InventoryLocking() {
                               size="sm"
                               onClick={() => openDeleteDialog(lock)}
                               className="text-destructive hover:text-destructive"
+                              aria-label="Delete lock"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

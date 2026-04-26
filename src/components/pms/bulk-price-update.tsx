@@ -33,15 +33,11 @@ import { Progress } from '@/components/ui/progress';
 import {
   TrendingUp,
   TrendingDown,
-  Calendar,
-  Loader2,
   Plus,
   CalendarDays,
   Percent,
   IndianRupee,
   Zap,
-  Target,
-  BarChart3,
   Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -116,9 +112,14 @@ export default function BulkPriceUpdate() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -131,14 +132,20 @@ export default function BulkPriceUpdate() {
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch room types when property changes
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRoomTypes = async () => {
       if (!selectedProperty) return;
       try {
-        const response = await fetch(selectedProperty !== 'all' ? `/api/room-types?propertyId=${selectedProperty}` : '/api/room-types');
+        const response = await fetch(selectedProperty !== 'all' ? `/api/room-types?propertyId=${selectedProperty}` : '/api/room-types', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setRoomTypes(result.data);
@@ -151,14 +158,20 @@ export default function BulkPriceUpdate() {
       }
     };
     fetchRoomTypes();
+    return () => controller.abort();
   }, [selectedProperty]);
 
   // Fetch rate plans when room type changes
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRatePlans = async () => {
       if (!selectedProperty) return;
       try {
-        const response = await fetch(selectedProperty !== 'all' ? `/api/rate-plans?propertyId=${selectedProperty}` : '/api/rate-plans');
+        const response = await fetch(selectedProperty !== 'all' ? `/api/rate-plans?propertyId=${selectedProperty}` : '/api/rate-plans', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setRatePlans(result.data);
@@ -171,6 +184,7 @@ export default function BulkPriceUpdate() {
       }
     };
     fetchRatePlans();
+    return () => controller.abort();
   }, [selectedProperty, selectedRoomType]);
 
   // Generate preview
@@ -232,6 +246,10 @@ export default function BulkPriceUpdate() {
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       setSaveProgress(100);
 
@@ -407,6 +425,7 @@ export default function BulkPriceUpdate() {
                   <Label>New Price ({currency.symbol})</Label>
                   <Input
                     type="number"
+                    min={0}
                     value={priceValue}
                     onChange={(e) => setPriceValue(e.target.value)}
                     placeholder="5000"
@@ -434,6 +453,7 @@ export default function BulkPriceUpdate() {
                   <Label>Amount to Add ({currency.symbol})</Label>
                   <Input
                     type="number"
+                    min={0}
                     value={priceValue}
                     onChange={(e) => setPriceValue(e.target.value)}
                     placeholder="500"

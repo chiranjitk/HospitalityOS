@@ -53,11 +53,9 @@ import {
   Redo2,
   Wand2,
   Download,
-  RotateCcw,
   Copy,
   Grid2X2,
 } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -242,6 +240,10 @@ export default function FloorPlans() {
         body: JSON.stringify({ roomPositions }),
       });
       
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -298,9 +300,14 @@ export default function FloorPlans() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -313,22 +320,28 @@ export default function FloorPlans() {
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch floor plans
-  const fetchFloorPlans = async () => {
+  const fetchFloorPlans = async (signal?: AbortSignal) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
       if (propertyFilter !== 'all') params.append('propertyId', propertyFilter);
       
-      const response = await fetch(`/api/floor-plans?${params.toString()}`);
+      const response = await fetch(`/api/floor-plans?${params.toString()}`, signal ? { signal } : undefined);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
         setFloorPlans(result.data);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return;
       console.error('Error fetching floor plans:', error);
       toast({
         title: 'Error',
@@ -341,13 +354,19 @@ export default function FloorPlans() {
   };
 
   useEffect(() => {
-    fetchFloorPlans();
+    const controller = new AbortController();
+    fetchFloorPlans(controller.signal);
+    return () => controller.abort();
   }, [propertyFilter]);
 
   // Fetch rooms when property changes in editor
   const fetchRooms = async (propertyId: string, floor: number) => {
     try {
       const response = await fetch(`/api/rooms?propertyId=${propertyId}&floor=${floor}`);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       if (result.success) {
         setRooms(result.data);
@@ -376,6 +395,10 @@ export default function FloorPlans() {
         body: JSON.stringify(formData),
       });
       
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -416,6 +439,10 @@ export default function FloorPlans() {
         body: JSON.stringify(formData),
       });
       
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -453,6 +480,10 @@ export default function FloorPlans() {
         method: 'DELETE',
       });
       
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       
       if (result.success) {
@@ -1076,6 +1107,7 @@ export default function FloorPlans() {
                                     size="icon"
                                     className="h-8 w-8"
                                     onClick={(e) => { e.stopPropagation(); openEditor(floorPlan); }}
+                                    aria-label="Edit floor plan"
                                   >
                                     <Pencil className="h-4 w-4" />
                                   </Button>
@@ -1091,6 +1123,7 @@ export default function FloorPlans() {
                                     size="icon"
                                     className="h-8 w-8"
                                     onClick={(e) => { e.stopPropagation(); openViewer(floorPlan); }}
+                                    aria-label="View floor plan"
                                   >
                                     <Eye className="h-4 w-4" />
                                   </Button>
@@ -1106,6 +1139,7 @@ export default function FloorPlans() {
                                     size="icon"
                                     className="h-8 w-8 text-destructive"
                                     onClick={(e) => { e.stopPropagation(); openDeleteDialog(floorPlan); }}
+                                    aria-label="Delete floor plan"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
@@ -1172,6 +1206,7 @@ export default function FloorPlans() {
                   <Label>Width (px)</Label>
                   <Input
                     type="number"
+                    min={0}
                     value={formData.width}
                     onChange={(e) => setFormData(prev => ({ ...prev, width: parseInt(e.target.value) || 800 }))}
                   />
@@ -1180,6 +1215,7 @@ export default function FloorPlans() {
                   <Label>Height (px)</Label>
                   <Input
                     type="number"
+                    min={0}
                     value={formData.height}
                     onChange={(e) => setFormData(prev => ({ ...prev, height: parseInt(e.target.value) || 600 }))}
                   />
@@ -1226,6 +1262,7 @@ export default function FloorPlans() {
                   <Label>Width (px)</Label>
                   <Input
                     type="number"
+                    min={0}
                     value={formData.width}
                     onChange={(e) => setFormData(prev => ({ ...prev, width: parseInt(e.target.value) || 800 }))}
                   />
@@ -1234,6 +1271,7 @@ export default function FloorPlans() {
                   <Label>Height (px)</Label>
                   <Input
                     type="number"
+                    min={0}
                     value={formData.height}
                     onChange={(e) => setFormData(prev => ({ ...prev, height: parseInt(e.target.value) || 600 }))}
                   />
@@ -1382,10 +1420,10 @@ export default function FloorPlans() {
         <div className="flex items-center gap-1.5 flex-wrap">
           {!isViewer && (
             <>
-              <Button variant="outline" size="icon" className="h-9 w-9 min-h-[44px]" onClick={undo} disabled={historyIndex <= 0}>
+              <Button variant="outline" size="icon" className="h-9 w-9 min-h-[44px]" onClick={undo} disabled={historyIndex <= 0} aria-label="Undo">
                 <Undo2 className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon" className="h-9 w-9 min-h-[44px]" onClick={redo} disabled={historyIndex >= history.length - 1}>
+              <Button variant="outline" size="icon" className="h-9 w-9 min-h-[44px]" onClick={redo} disabled={historyIndex >= history.length - 1} aria-label="Redo">
                 <Redo2 className="h-4 w-4" />
               </Button>
               <div className="w-px h-6 bg-border mx-0.5" />
@@ -1460,7 +1498,7 @@ export default function FloorPlans() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" onClick={handleZoomOut}>
+                  <Button variant="outline" size="icon" onClick={handleZoomOut} aria-label="Zoom out">
                     <ZoomOut className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
@@ -1471,7 +1509,7 @@ export default function FloorPlans() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" onClick={handleZoomIn}>
+                  <Button variant="outline" size="icon" onClick={handleZoomIn} aria-label="Zoom in">
                     <ZoomIn className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
@@ -1481,7 +1519,7 @@ export default function FloorPlans() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" onClick={handleZoomReset}>
+                  <Button variant="outline" size="icon" onClick={handleZoomReset} aria-label="Reset view">
                     <Maximize2 className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
@@ -1496,6 +1534,7 @@ export default function FloorPlans() {
                     variant={showGrid ? 'secondary' : 'outline'}
                     size="icon"
                     onClick={() => setShowGrid(!showGrid)}
+                    aria-label="Toggle grid"
                   >
                     <Grid3X3 className="h-4 w-4" />
                   </Button>

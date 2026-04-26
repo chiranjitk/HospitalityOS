@@ -13,13 +13,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Plus,
   Calendar,
   DollarSign,
   Percent,
-  Clock,
   TrendingUp,
   TrendingDown,
   Edit,
@@ -30,10 +28,7 @@ import {
   RefreshCw,
   Tag,
   Settings,
-  Sun,
-  Moon,
   Building2,
-  Users,
   ChevronLeft,
   ChevronRight,
   Grid3X3,
@@ -47,7 +42,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isSameDay, addMonths, subMonths, isWeekend, getDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, addMonths, subMonths, isWeekend } from 'date-fns';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { cn } from '@/lib/utils';
 
@@ -237,6 +232,19 @@ export default function RatePlansPricingRules() {
         fetch('/api/room-types'),
       ]);
 
+      if (!ratePlansRes.ok) {
+        const errorText = await ratePlansRes.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${ratePlansRes.status}: ${errorText}`);
+      }
+      if (!rulesRes.ok) {
+        const errorText = await rulesRes.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${rulesRes.status}: ${errorText}`);
+      }
+      if (!roomTypesRes.ok) {
+        const errorText = await roomTypesRes.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${roomTypesRes.status}: ${errorText}`);
+      }
+
       const ratePlansData = await ratePlansRes.json();
       const rulesData = await rulesRes.json();
       const roomTypesData = await roomTypesRes.json();
@@ -272,7 +280,9 @@ export default function RatePlansPricingRules() {
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchData();
+    return () => controller.abort();
   }, [fetchData]);
 
   // Calendar helpers
@@ -342,6 +352,10 @@ export default function RatePlansPricingRules() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ratePlanId: ratePlan.id, date: targetDate, price: targetPrice, reason: targetReason }),
       });
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       if (result.success) {
         toast({ title: 'Price Updated', description: `Price set to ${targetPrice} for ${targetDate}` });
@@ -371,7 +385,10 @@ export default function RatePlansPricingRules() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRatePlan),
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const data = await response.json();
 
       if (data.success) {
@@ -399,7 +416,10 @@ export default function RatePlansPricingRules() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingRatePlan),
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const data = await response.json();
 
       if (data.success) {
@@ -422,7 +442,10 @@ export default function RatePlansPricingRules() {
       const response = await fetch(`/api/rate-plans?ids=${id}`, {
         method: 'DELETE',
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const data = await response.json();
 
       if (data.success) {
@@ -446,7 +469,10 @@ export default function RatePlansPricingRules() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRule),
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const data = await response.json();
 
       if (data.success) {
@@ -474,7 +500,10 @@ export default function RatePlansPricingRules() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingRule),
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const data = await response.json();
 
       if (data.success) {
@@ -502,7 +531,10 @@ export default function RatePlansPricingRules() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, isActive: !rule.isActive }),
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const data = await response.json();
 
       if (data.success) {
@@ -525,7 +557,10 @@ export default function RatePlansPricingRules() {
       const response = await fetch(`/api/revenue/pricing-rules?id=${id}`, {
         method: 'DELETE',
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const data = await response.json();
 
       if (data.success) {
@@ -548,7 +583,10 @@ export default function RatePlansPricingRules() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...ruleData, name: `${rule.name} (Copy)` }),
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const data = await response.json();
 
       if (data.success) {
@@ -732,11 +770,11 @@ export default function RatePlansPricingRules() {
                     </SelectContent>
                   </Select>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="icon" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
+                    <Button variant="outline" size="icon" aria-label="Previous month" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <span className="font-medium w-32 text-center">{format(currentMonth, 'MMMM yyyy')}</span>
-                    <Button variant="outline" size="icon" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
+                    <Button variant="outline" size="icon" aria-label="Next month" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
@@ -1020,7 +1058,7 @@ export default function RatePlansPricingRules() {
                             <TableCell className="text-right">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm">
+                                  <Button variant="ghost" size="sm" aria-label="Rate plan actions">
                                     <MoreHorizontal className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
@@ -1239,7 +1277,7 @@ export default function RatePlansPricingRules() {
                           <TableCell className="text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm">
+                                <Button variant="ghost" size="sm" aria-label="Rule actions">
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
@@ -1310,6 +1348,7 @@ export default function RatePlansPricingRules() {
               <Label>Custom Price</Label>
               <Input
                 type="number"
+                min={0}
                 value={overrideData.price}
                 onChange={(e) => setOverrideData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
                 placeholder="Enter price"
@@ -1404,6 +1443,7 @@ function RatePlanForm({
           <Label>Base Price *</Label>
           <Input
             type="number"
+            min={0}
             placeholder="0.00"
             value={ratePlan.basePrice || ''}
             onChange={(e) => onChange({ ...ratePlan, basePrice: parseFloat(e.target.value) || 0 })}
@@ -1433,6 +1473,7 @@ function RatePlanForm({
           <Label>Min Stay (nights)</Label>
           <Input
             type="number"
+            min={1}
             placeholder="1"
             value={ratePlan.minStay || ''}
             onChange={(e) => onChange({ ...ratePlan, minStay: parseInt(e.target.value) || 1 })}
@@ -1442,6 +1483,7 @@ function RatePlanForm({
           <Label>Max Stay (nights)</Label>
           <Input
             type="number"
+            min={0}
             placeholder="Unlimited"
             value={ratePlan.maxStay || ''}
             onChange={(e) => onChange({ ...ratePlan, maxStay: parseInt(e.target.value) || undefined })}
@@ -1531,6 +1573,7 @@ function RuleForm({
           <Label>Adjustment Value</Label>
           <Input
             type="number"
+            min={0}
             placeholder="Enter value"
             value={rule.value || ''}
             onChange={(e) => onChange({ ...rule, value: parseFloat(e.target.value) || 0 })}
@@ -1540,6 +1583,7 @@ function RuleForm({
           <Label>Priority</Label>
           <Input
             type="number"
+            min={1}
             placeholder="1"
             value={rule.priority || ''}
             onChange={(e) => onChange({ ...rule, priority: parseInt(e.target.value) || 1 })}

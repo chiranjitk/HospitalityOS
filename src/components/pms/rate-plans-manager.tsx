@@ -128,9 +128,14 @@ export function RatePlansManager() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
         const response = await fetch('/api/properties');
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -140,10 +145,12 @@ export function RatePlansManager() {
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch room types
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRoomTypes = async () => {
       try {
         const params = new URLSearchParams();
@@ -151,6 +158,10 @@ export function RatePlansManager() {
           params.append('propertyId', propertyFilter);
         }
         const response = await fetch(`/api/room-types?${params.toString()}`);
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setRoomTypes(result.data);
@@ -163,6 +174,7 @@ export function RatePlansManager() {
       }
     };
     fetchRoomTypes();
+    return () => controller.abort();
   }, [propertyFilter]);
 
   // Fetch rate plans
@@ -178,6 +190,10 @@ export function RatePlansManager() {
       }
 
       const response = await fetch(`/api/rate-plans?${params.toString()}`);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -196,7 +212,9 @@ export function RatePlansManager() {
   };
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchRatePlans();
+    return () => controller.abort();
   }, [propertyFilter, statusFilter]);
 
   // Generate code from name
@@ -239,6 +257,10 @@ export function RatePlansManager() {
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -284,6 +306,10 @@ export function RatePlansManager() {
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -321,7 +347,10 @@ export function RatePlansManager() {
       const response = await fetch(`/api/rate-plans/${selectedPlan.id}`, {
         method: 'DELETE',
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -549,6 +578,7 @@ export function RatePlansManager() {
                           variant="ghost"
                           size="icon"
                           onClick={() => openEditDialog(plan)}
+                          aria-label="Edit rate plan"
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -557,6 +587,7 @@ export function RatePlansManager() {
                           size="icon"
                           onClick={() => openDeleteDialog(plan)}
                           className="text-destructive"
+                          aria-label="Delete rate plan"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -741,10 +772,10 @@ function RatePlanForm({ formData, setFormData, roomTypes, onNameChange, isEdit }
               id="basePrice"
               type="number"
               className="pl-9"
+              min={0}
               value={formData.basePrice as string}
               onChange={(e) => setFormData(prev => ({ ...prev, basePrice: e.target.value }))}
               placeholder="199.00"
-              min="0"
               step="0.01"
             />
           </div>

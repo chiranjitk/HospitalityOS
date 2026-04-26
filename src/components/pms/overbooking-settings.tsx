@@ -98,9 +98,14 @@ export default function OverbookingSettings() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -109,6 +114,7 @@ export default function OverbookingSettings() {
           }
         }
       } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
         console.error('Error fetching properties:', error);
         toast({
           title: 'Error',
@@ -118,11 +124,14 @@ export default function OverbookingSettings() {
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch room types when property changes
   useEffect(() => {
+    const controller = new AbortController();
     fetchRoomTypes();
+    return () => controller.abort();
   }, [selectedProperty]);
 
   // Open edit dialog
@@ -147,7 +156,10 @@ export default function OverbookingSettings() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -197,7 +209,10 @@ export default function OverbookingSettings() {
           overbookingEnabled: enabled,
         }),
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -241,6 +256,10 @@ export default function OverbookingSettings() {
 
     try {
       const response = await fetch(`/api/room-types?propertyId=${selectedProperty}`);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {

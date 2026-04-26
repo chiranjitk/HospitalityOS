@@ -45,12 +45,11 @@ import {
   Loader2,
   Pencil,
   Download,
-  Filter,
   RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isToday, parseISO, startOfMonth, endOfMonth, eachMonthOfInterval, getMonth, getYear } from 'date-fns';
+import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 
 interface Property {
   id: string;
@@ -134,9 +133,14 @@ export default function AvailabilityControl() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -145,6 +149,7 @@ export default function AvailabilityControl() {
           }
         }
       } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
         console.error('Error fetching properties:', error);
         toast({
           title: 'Error',
@@ -154,6 +159,7 @@ export default function AvailabilityControl() {
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch data when property or date range changes
@@ -164,6 +170,10 @@ export default function AvailabilityControl() {
     try {
       // Fetch room types
       const roomTypesResponse = await fetch(selectedProperty !== 'all' ? `/api/room-types?propertyId=${selectedProperty}` : '/api/room-types');
+      if (!roomTypesResponse.ok) {
+        const errorText = await roomTypesResponse.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${roomTypesResponse.status}: ${errorText}`);
+      }
       const roomTypesResult = await roomTypesResponse.json();
       if (roomTypesResult.success) {
         setRoomTypes(roomTypesResult.data);
@@ -171,6 +181,10 @@ export default function AvailabilityControl() {
 
       // Fetch rooms
       const roomsResponse = await fetch(selectedProperty !== 'all' ? `/api/rooms?propertyId=${selectedProperty}` : '/api/rooms');
+      if (!roomsResponse.ok) {
+        const errorText = await roomsResponse.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${roomsResponse.status}: ${errorText}`);
+      }
       const roomsResult = await roomsResponse.json();
       if (roomsResult.success) {
         setRooms(roomsResult.data);
@@ -185,6 +199,10 @@ export default function AvailabilityControl() {
         bookingsParams.set('propertyId', selectedProperty);
       }
       const bookingsResponse = await fetch(`/api/bookings?${bookingsParams.toString()}`);
+      if (!bookingsResponse.ok) {
+        const errorText = await bookingsResponse.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${bookingsResponse.status}: ${errorText}`);
+      }
       const bookingsResult = await bookingsResponse.json();
       if (bookingsResult.success) {
         setBookings(bookingsResult.data);
@@ -211,7 +229,9 @@ export default function AvailabilityControl() {
   }, [selectedProperty, startDate, endDate, toast]);
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchData();
+    return () => controller.abort();
   }, [fetchData]);
 
   // Pre-index bookings by roomTypeId for O(1) lookup (Fix 5-D1)
@@ -345,7 +365,10 @@ export default function AvailabilityControl() {
           available: editData.available,
         }),
       });
-
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -573,13 +596,13 @@ export default function AvailabilityControl() {
       {/* Navigation */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
-          <Button variant="outline" size="icon" onClick={() => navigateRange('prev')}>
+          <Button variant="outline" size="icon" aria-label="Previous period" onClick={() => navigateRange('prev')}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-[200px] text-center font-medium text-sm">
             {formatDate(startDate)} - {formatDate(endDate)}
           </div>
-          <Button variant="outline" size="icon" onClick={() => navigateRange('next')}>
+          <Button variant="outline" size="icon" aria-label="Next period" onClick={() => navigateRange('next')}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>

@@ -63,6 +63,11 @@ export function RoomImageGallery({
           body: formData,
         });
 
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`Upload failed (${response.status}): ${errorText}`);
+        }
+
         const result = await response.json();
         
         if (result.success) {
@@ -258,6 +263,7 @@ export function RoomImageGallery({
                             handleSetPrimary(index);
                           }}
                           title="Set as primary"
+                          aria-label="Set as primary photo"
                         >
                           <Star className="h-4 w-4" />
                         </Button>
@@ -271,6 +277,7 @@ export function RoomImageGallery({
                           handleRemoveImage(index);
                         }}
                         title="Remove image"
+                        aria-label="Remove photo"
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -313,6 +320,7 @@ export function RoomImageGallery({
           <button
             className="absolute top-4 right-4 z-10 text-white hover:text-white/80"
             onClick={() => setSelectedImage(null)}
+            aria-label="Close lightbox"
           >
             <X className="h-6 w-6" />
           </button>

@@ -148,9 +148,14 @@ export function PricingManager() {
 
   // Fetch properties
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
         const response = await fetch('/api/properties');
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
@@ -163,14 +168,20 @@ export function PricingManager() {
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch room types when property changes
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRoomTypes = async () => {
       if (!selectedProperty) return;
       try {
         const response = await fetch(`/api/room-types?propertyId=${selectedProperty}`);
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success) {
           setRoomTypes(result.data);
@@ -183,10 +194,12 @@ export function PricingManager() {
       }
     };
     fetchRoomTypes();
+    return () => controller.abort();
   }, [selectedProperty]);
 
   // Fetch rate plans and overrides
   useEffect(() => {
+    const controller = new AbortController();
     const fetchData = async () => {
       if (!selectedProperty) return;
       setIsLoading(true);
@@ -194,6 +207,10 @@ export function PricingManager() {
       try {
         // Fetch rate plans
         const ratePlansResponse = await fetch(`/api/rate-plans?propertyId=${selectedProperty}`);
+        if (!ratePlansResponse.ok) {
+          const errorText = await ratePlansResponse.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${ratePlansResponse.status}: ${errorText}`);
+        }
         const ratePlansResult = await ratePlansResponse.json();
         if (ratePlansResult.success) {
           setRatePlans(ratePlansResult.data);
@@ -201,6 +218,10 @@ export function PricingManager() {
 
         // Fetch price overrides filtered by selected room type
         const overridesResponse = await fetch(`/api/price-overrides${selectedRoomType ? `?roomTypeId=${selectedRoomType}` : ''}`);
+        if (!overridesResponse.ok) {
+          const errorText = await overridesResponse.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${overridesResponse.status}: ${errorText}`);
+        }
         const overridesResult = await overridesResponse.json();
         if (overridesResult.success && overridesResult.data && ratePlansResult.success && ratePlansResult.data) {
           // Filter overrides for current property
@@ -222,6 +243,7 @@ export function PricingManager() {
     };
 
     fetchData();
+    return () => controller.abort();
   }, [selectedProperty, selectedRoomType]);
 
   const openRatePlanDialog = (plan?: RatePlan) => {
@@ -282,6 +304,10 @@ export function PricingManager() {
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -292,6 +318,10 @@ export function PricingManager() {
         setIsRatePlanOpen(false);
         // Refresh data
         const ratePlansResponse = await fetch(`/api/rate-plans?propertyId=${selectedProperty}`);
+        if (!ratePlansResponse.ok) {
+          const errorText = await ratePlansResponse.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${ratePlansResponse.status}: ${errorText}`);
+        }
         const ratePlansResult = await ratePlansResponse.json();
         if (ratePlansResult.success) {
           setRatePlans(ratePlansResult.data);
@@ -319,6 +349,10 @@ export function PricingManager() {
     setIsSaving(true);
     try {
       const response = await fetch(`/api/rate-plans/${planId}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -382,6 +416,10 @@ export function PricingManager() {
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -392,6 +430,10 @@ export function PricingManager() {
         setIsPriceOverrideOpen(false);
         // Refresh overrides filtered by selected room type
         const overridesResponse = await fetch(`/api/price-overrides${selectedRoomType ? `?roomTypeId=${selectedRoomType}` : ''}`);
+        if (!overridesResponse.ok) {
+          const errorText = await overridesResponse.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${overridesResponse.status}: ${errorText}`);
+        }
         const overridesResult = await overridesResponse.json();
         if (overridesResult.success) {
           const filteredOverrides = overridesResult.data.filter((o: PriceOverride) =>
@@ -422,6 +464,10 @@ export function PricingManager() {
     setIsSaving(true);
     try {
       const response = await fetch(`/api/price-overrides/${overrideId}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -602,6 +648,7 @@ export function PricingManager() {
                               variant="ghost"
                               size="sm"
                               onClick={() => openRatePlanDialog(plan)}
+                              aria-label="Edit rate plan"
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -610,6 +657,7 @@ export function PricingManager() {
                               size="sm"
                               className="text-destructive"
                               onClick={() => handleDeleteRatePlan(plan.id)}
+                              aria-label="Delete rate plan"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -706,6 +754,7 @@ export function PricingManager() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => openPriceOverrideDialog(override.ratePlanId, override)}
+                                aria-label="Edit price override"
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
@@ -714,6 +763,7 @@ export function PricingManager() {
                                 size="sm"
                                 className="text-destructive"
                                 onClick={() => handleDeleteOverride(override.id)}
+                                aria-label="Delete price override"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -796,6 +846,7 @@ export function PricingManager() {
                   <Input
                     type="number"
                     className="pl-9"
+                    min={0}
                     value={ratePlanForm.basePrice}
                     onChange={(e) => setRatePlanForm(prev => ({ ...prev, basePrice: e.target.value }))}
                     placeholder="3500"
@@ -928,6 +979,7 @@ export function PricingManager() {
                   <Input
                     type="number"
                     className="pl-9"
+                    min={0}
                     value={overrideForm.price}
                     onChange={(e) => setOverrideForm(prev => ({ ...prev, price: e.target.value }))}
                     placeholder="4500"

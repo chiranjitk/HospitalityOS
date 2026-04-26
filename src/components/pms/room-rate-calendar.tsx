@@ -35,13 +35,10 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Edit3,
   Loader2,
   Save,
   X,
   Sparkles,
-  AlertTriangle,
-  CheckCircle2,
   XCircle,
   Calendar as CalendarIcon,
 } from 'lucide-react';
@@ -156,9 +153,14 @@ export default function RoomRateCalendar() {
 
   // Fetch properties on mount
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties', { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success && result.data) {
           setProperties(result.data);
@@ -170,14 +172,20 @@ export default function RoomRateCalendar() {
       }
     };
     fetchProperties();
+    return () => controller.abort();
   }, []);
 
   // Fetch room types when property changes
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRoomTypes = async () => {
       if (!selectedProperty) return;
       try {
-        const response = await fetch(`/api/room-types?propertyId=${selectedProperty}`);
+        const response = await fetch(`/api/room-types?propertyId=${selectedProperty}`, { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success && result.data) {
           const filtered = result.data.filter((rt: { deletedAt: unknown }) => !rt.deletedAt);
@@ -189,14 +197,20 @@ export default function RoomRateCalendar() {
       }
     };
     fetchRoomTypes();
+    return () => controller.abort();
   }, [selectedProperty]);
 
   // Fetch rate plans when room type changes
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRatePlans = async () => {
       if (!selectedProperty || !selectedRoomType) return;
       try {
-        const response = await fetch(`/api/rate-plans?roomTypeId=${selectedRoomType}`);
+        const response = await fetch(`/api/rate-plans?roomTypeId=${selectedRoomType}`, { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
         const result = await response.json();
         if (result.success && result.data) {
           setRatePlans(result.data);
@@ -207,6 +221,7 @@ export default function RoomRateCalendar() {
       }
     };
     fetchRatePlans();
+    return () => controller.abort();
   }, [selectedProperty, selectedRoomType]);
 
   // Fetch rates for current month view
@@ -231,6 +246,10 @@ export default function RoomRateCalendar() {
       }
 
       const response = await fetch(`/api/rate-plans/bulk-rates?${params}`);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       if (result.success && result.data) {
         setRates(result.data.rates);
@@ -243,8 +262,35 @@ export default function RoomRateCalendar() {
   }, [selectedRoomType, selectedRatePlan, currentDate]);
 
   useEffect(() => {
-    fetchRates();
-  }, [fetchRates]);
+    const controller = new AbortController();
+    // fetchRates already handles its own error state
+    const fetchData = async () => {
+      if (!selectedRoomType || !selectedRatePlan) return;
+      setIsLoading(true);
+      try {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        const params = new URLSearchParams({ roomTypeId: selectedRoomType, startDate, endDate });
+        if (selectedRatePlan) params.append('ratePlanId', selectedRatePlan);
+        const response = await fetch(`/api/rate-plans/bulk-rates?${params}`, { signal: controller.signal });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`API error ${response.status}: ${errorText}`);
+        }
+        const result = await response.json();
+        if (result.success && result.data) setRates(result.data.rates);
+      } catch (error) {
+        console.error('Error fetching rates:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+    return () => controller.abort();
+  }, [selectedRoomType, selectedRatePlan, currentDate]);
 
   // Navigation
   const goToPrevMonth = () => {
@@ -300,6 +346,10 @@ export default function RoomRateCalendar() {
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       if (result.success) {
         toast({ title: 'Rate Updated', description: `Rate for ${editingCell.date} updated to ${formatCurrency(parsedValue)}` });
@@ -348,6 +398,10 @@ export default function RoomRateCalendar() {
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
       const result = await response.json();
       if (result.success) {
         toast({ title: 'Bulk Update Complete', description: result.message });
@@ -581,6 +635,7 @@ export default function RoomRateCalendar() {
                                   <div className="flex flex-col items-center gap-1 p-1">
                                     <Input
                                       type="number"
+                                      min={0}
                                       value={editValue}
                                       onChange={(e) => setEditValue(e.target.value)}
                                       className="h-7 text-xs text-center w-20"
@@ -591,10 +646,10 @@ export default function RoomRateCalendar() {
                                       }}
                                     />
                                     <div className="flex items-center gap-1">
-                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={saveInlineEdit} disabled={isSaving}>
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={saveInlineEdit} disabled={isSaving} aria-label="Save rate">
                                         {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3 text-green-600" />}
                                       </Button>
-                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingCell(null)}>
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingCell(null)} aria-label="Cancel edit">
                                         <X className="h-3 w-3 text-red-500" />
                                       </Button>
                                     </div>
@@ -705,6 +760,7 @@ export default function RoomRateCalendar() {
               <Label>New Rate</Label>
               <Input
                 type="number"
+                min={0}
                 value={bulkRate}
                 onChange={(e) => setBulkRate(e.target.value)}
                 placeholder="Enter rate amount"
