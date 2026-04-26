@@ -596,20 +596,25 @@ export default function NetworkPage() {
         const res = await fetch(`/api/wifi/network/interfaces?${params.toString()}`);
         const result = await res.json();
         if (result.success && Array.isArray(result.data)) {
-          const mapped: NetworkInterface[] = result.data.map((row: Record<string, unknown>) => ({
-            id: row.id as string,
-            name: row.name as string,
-            type: (row.type as NetworkInterface['type']) || 'ethernet',
-            status: (row.status as NetworkInterface['status']) || 'down',
-            ipAddress: (row as Record<string, unknown>).ipAddress as string || '—',
-            subnet: (row as Record<string, unknown>).subnet as string || '—',
-            mac: (row.hwAddress as string) || '—',
-            speed: (row.speed as string) || '—',
-            mtu: (row.mtu as number) || 1500,
-            rxBytes: (row.rxBytes as number) || 0,
-            txBytes: (row.txBytes as number) || 0,
-            description: (row.description as string) || '',
-          }));
+          const mapped: NetworkInterface[] = result.data.map((row: Record<string, unknown>) => {
+            const ip = (row.ipAddress as string) || '—';
+            return {
+              id: row.id as string,
+              name: row.name as string,
+              type: (row.type as NetworkInterface['type']) || 'ethernet',
+              status: (row.status as NetworkInterface['status']) || 'down',
+              ipAddress: ip,
+              subnet: (row.subnet as string) || '—',
+              mac: (row.hwAddress as string) || '—',
+              speed: (row.speed as string) || '—',
+              mtu: (row.mtu as number) || 1500,
+              rxBytes: (row.rxBytes as number) || 0,
+              txBytes: (row.txBytes as number) || 0,
+              description: (row.description as string) || '',
+              allIps: ip !== '—' ? [ip] : [],
+              secondaryIps: [],
+            };
+          });
           setInterfaces(mapped);
         } else {
           setInterfaces([]);
@@ -1877,8 +1882,8 @@ export default function NetworkPage() {
                   <CardContent className="pt-0">
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="space-y-0.5">
-                        <span className="text-muted-foreground">IP Address{iface.allIps.length > 1 ? 'es' : ''}</span>
-                        {iface.allIps.map((ip, idx) => (
+                        <span className="text-muted-foreground">IP Address{(iface.allIps?.length || 0) > 1 ? 'es' : ''}</span>
+                        {(iface.allIps || []).map((ip, idx) => (
                           <p key={idx} className="font-mono font-medium text-xs">{ip}</p>
                         ))}
                       </div>
@@ -1972,8 +1977,8 @@ export default function NetworkPage() {
                             {iface.description || '—'}
                           </TableCell>
                           <TableCell className="font-mono text-sm">
-                            {iface.allIps.map((ip, idx) => (
-                              <span key={idx}>{ip}{idx < iface.allIps.length - 1 ? ', ' : ''}</span>
+                            {(iface.allIps || []).map((ip, idx) => (
+                              <span key={idx}>{ip}{idx < (iface.allIps?.length || 0) - 1 ? ', ' : ''}</span>
                             ))}
                           </TableCell>
                           <TableCell className="font-mono text-sm">{iface.subnet}</TableCell>

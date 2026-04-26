@@ -5,8 +5,9 @@
  *
  * NAS health monitoring dashboard with online/offline status, live user count,
  * last seen, latency, health log history, and "Check Now" button.
+ * Switchable grid (card) / list (table) view.
  *
- * Data source: /api/wifi/radius?action=nas-health-current, nas-health-list, nas-health-check, nas-health-stats
+ * Data source: /api/wifi/nas-health (direct DB query from RadiusNAS + LiveSession + RadiusAuthLog)
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -26,17 +27,13 @@ import {
   Router,
   Loader2,
   RefreshCw,
-  Activity,
   Users,
-  Clock,
   Wifi,
   WifiOff,
   Signal,
-  CheckCircle,
-  XCircle,
-  Eye,
-  Heart,
   Server,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -66,6 +63,8 @@ interface NasHealthStats {
   avgLatency: number;
 }
 
+type ViewMode = 'grid' | 'list';
+
 // ─── Component ──────────────────────────────────────────────────────────────────
 
 export default function NasHealth() {
@@ -79,29 +78,23 @@ export default function NasHealth() {
     avgLatency: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [checkingId, setCheckingId] = useState<string | null>(null);
-  const [checkingAll, setCheckingAll] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   // ─── Fetch ──────────────────────────────────────────────────────────────────
 
   const fetchHealth = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [currentRes, statsRes] = await Promise.all([
-        fetch('/api/wifi/radius?action=nas-health-current'),
-        fetch('/api/wifi/radius?action=nas-health-stats'),
-      ]);
-      const currentData = await currentRes.json();
-      const statsData = await statsRes.json();
+      const res = await fetch('/api/wifi/nas-health');
+      const result = await res.json();
 
-      if (currentData.success && currentData.data) {
-        setNasEntries(Array.isArray(currentData.data) ? currentData.data : []);
+      if (result.success) {
+        setNasEntries(Array.isArray(result.data) ? result.data : []);
+        if (result.stats) {
+          setStats(result.stats);
+        }
       } else {
         setNasEntries([]);
-      }
-
-      if (statsData.success && statsData.data) {
-        setStats(statsData.data);
       }
     } catch (error) {
       console.error('Failed to fetch NAS health:', error);
@@ -113,57 +106,20 @@ export default function NasHealth() {
 
   useEffect(() => {
     fetchHealth();
-    // Auto-refresh every 30s
     const interval = setInterval(fetchHealth, 30000);
     return () => clearInterval(interval);
   }, [fetchHealth]);
 
-  // ─── Check Single NAS ──────────────────────────────────────────────────────
+  // ─── Actions ────────────────────────────────────────────────────────────────
 
   const handleCheckNow = async (nas: NasHealthEntry) => {
-    setCheckingId(nas.id);
-    try {
-      const res = await fetch('/api/wifi/radius', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'nas-health-check', nasIp: nas.nasIp }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast({ title: 'Check Complete', description: `Health check for ${nas.nasIdentifier || nas.nasIp} completed` });
-        fetchHealth();
-      } else {
-        toast({ title: 'Error', description: data.error || 'Health check failed', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Error', description: 'Health check failed', variant: 'destructive' });
-    } finally {
-      setCheckingId(null);
-    }
+    toast({ title: 'Refreshing', description: `Re-fetching status for ${nas.nasIdentifier || nas.nasIp}` });
+    await fetchHealth();
   };
 
-  // ─── Check All NAS ─────────────────────────────────────────────────────────
-
-  const handleCheckAll = async () => {
-    setCheckingAll(true);
-    try {
-      const res = await fetch('/api/wifi/radius', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'nas-health-check', all: true }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast({ title: 'All NAS Checked', description: 'Health check completed for all NAS devices' });
-        fetchHealth();
-      } else {
-        toast({ title: 'Error', description: data.error || 'Health check failed', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Error', description: 'Health check failed', variant: 'destructive' });
-    } finally {
-      setCheckingAll(false);
-    }
+  const handleRefreshAll = async () => {
+    await fetchHealth();
+    toast({ title: 'Refreshed', description: 'NAS status data updated' });
   };
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -209,6 +165,25 @@ export default function NasHealth() {
     );
   };
 
+  const getStatusDot = (status: string) => {
+    const colors: Record<string, string> = {
+      online: 'bg-emerald-500',
+      degraded: 'bg-amber-500',
+      offline: 'bg-red-500',
+    };
+    return (
+      <span className="relative flex h-2.5 w-2.5">
+        {status === 'online' && (
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+        )}
+        {status === 'degraded' && (
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+        )}
+        <span className={cn('relative inline-flex rounded-full h-2.5 w-2.5', colors[status] || colors.offline)} />
+      </span>
+    );
+  };
+
   const getLatencyBadge = (latency?: number) => {
     if (latency == null) return <span className="text-sm text-muted-foreground">—</span>;
     if (latency < 50) {
@@ -230,6 +205,30 @@ export default function NasHealth() {
     return `${minutes}m`;
   };
 
+  const getStatusIconColor = (status: string) => {
+    if (status === 'online') return 'text-emerald-500 dark:text-emerald-400';
+    if (status === 'degraded') return 'text-amber-500 dark:text-amber-400';
+    return 'text-red-500 dark:text-red-400';
+  };
+
+  const getStatusBgColor = (status: string) => {
+    if (status === 'online') return 'bg-emerald-500/10';
+    if (status === 'degraded') return 'bg-amber-500/10';
+    return 'bg-red-500/10';
+  };
+
+  const getStatusBorderColor = (status: string) => {
+    if (status === 'online') return 'border-emerald-200 dark:border-emerald-800';
+    if (status === 'degraded') return 'border-amber-200 dark:border-amber-800';
+    return 'border-red-200 dark:border-red-800';
+  };
+
+  const getRowBgColor = (status: string) => {
+    if (status === 'online') return 'bg-emerald-50/30 dark:bg-emerald-950/10';
+    if (status === 'offline') return 'bg-red-50/30 dark:bg-red-950/10';
+    return '';
+  };
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -245,18 +244,38 @@ export default function NasHealth() {
             Real-time health monitoring for all NAS devices. Auto-refreshes every 30s.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {/* View Mode Toggle */}
+          <div className="inline-flex items-center rounded-lg border bg-muted/50 p-0.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                'h-7 w-7 p-0 rounded-md',
+                viewMode === 'grid' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground',
+              )}
+              onClick={() => setViewMode('grid')}
+              title="Grid view"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                'h-7 w-7 p-0 rounded-md',
+                viewMode === 'list' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground',
+              )}
+              onClick={() => setViewMode('list')}
+              title="List view"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+
           <Button variant="outline" size="sm" onClick={fetchHealth}>
             <RefreshCw className={cn('h-4 w-4 mr-2', isLoading && 'animate-spin')} />
             Refresh
-          </Button>
-          <Button size="sm" onClick={handleCheckAll} disabled={checkingAll}>
-            {checkingAll ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Heart className="h-4 w-4 mr-2" />
-            )}
-            Check All
           </Button>
         </div>
       </div>
@@ -320,133 +339,119 @@ export default function NasHealth() {
         </Card>
       </div>
 
-      {/* NAS Status Cards */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        {nasEntries.map((nas) => (
-          <Card key={nas.id} className={cn(
-            nas.status === 'online' && 'border-emerald-200 dark:border-emerald-800',
-            nas.status === 'offline' && 'border-red-200 dark:border-red-800',
-            nas.status === 'degraded' && 'border-amber-200 dark:border-amber-800',
-          )}>
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className={cn(
-                    'p-2 rounded-lg',
-                    nas.status === 'online' && 'bg-emerald-500/10',
-                    nas.status === 'offline' && 'bg-red-500/10',
-                    nas.status === 'degraded' && 'bg-amber-500/10',
-                  )}>
-                    <Router className={cn(
-                      'h-5 w-5',
-                      nas.status === 'online' && 'text-emerald-500 dark:text-emerald-400',
-                      nas.status === 'offline' && 'text-red-500 dark:text-red-400',
-                      nas.status === 'degraded' && 'text-amber-500 dark:text-amber-400',
-                    )} />
+      {/* ─── Loading State ─── */}
+      {isLoading ? (
+        <Card>
+          <CardContent className="flex items-center justify-center py-16">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </CardContent>
+        </Card>
+      ) : nasEntries.length === 0 ? (
+        /* ─── Empty State ─── */
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="rounded-full bg-muted/50 p-4 mb-3">
+              <Server className="h-8 w-8 text-muted-foreground/40" />
+            </div>
+            <h3 className="text-sm font-medium text-muted-foreground">No NAS devices found</h3>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              NAS health entries will appear when NAS clients are configured
+            </p>
+          </CardContent>
+        </Card>
+      ) : viewMode === 'grid' ? (
+        /* ─── Grid View (Cards) ─── */
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {nasEntries.map((nas) => (
+            <Card key={nas.id} className={cn('transition-shadow hover:shadow-md', getStatusBorderColor(nas.status))}>
+              <CardContent className="p-4">
+                {/* Card Header */}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className={cn('p-2 rounded-lg', getStatusBgColor(nas.status))}>
+                      <Router className={cn('h-5 w-5', getStatusIconColor(nas.status))} />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">{nas.nasIdentifier || 'NAS'}</p>
+                      <p className="text-xs font-mono text-muted-foreground">{nas.nasIp}</p>
+                    </div>
+                  </div>
+                  {getStatusIndicator(nas.status)}
+                </div>
+
+                {/* Card Metrics */}
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <p className="text-muted-foreground">Live Users</p>
+                    <p className="font-medium text-sm tabular-nums">{nas.liveUserCount}</p>
                   </div>
                   <div>
-                    <p className="font-medium text-sm">{nas.nasIdentifier || 'NAS'}</p>
-                    <p className="text-xs font-mono text-muted-foreground">{nas.nasIp}</p>
+                    <p className="text-muted-foreground">Latency</p>
+                    <div className="mt-0.5">{getLatencyBadge(nas.latency)}</div>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Last Seen</p>
+                    <p className="font-medium text-sm">
+                      {nas.lastSeenAt ? formatDistanceToNow(new Date(nas.lastSeenAt)) + ' ago' : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Uptime</p>
+                    <p className="font-medium text-sm">{formatUptime(nas.uptime)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Total Sessions</p>
+                    <p className="font-medium text-sm tabular-nums">{nas.totalSessions}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Failed Auths</p>
+                    <p className={cn(
+                      'font-medium text-sm tabular-nums',
+                      nas.failedAuths > 10 && 'text-red-600 dark:text-red-400',
+                    )}>
+                      {nas.failedAuths}
+                    </p>
                   </div>
                 </div>
-                {getStatusIndicator(nas.status)}
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <p className="text-muted-foreground">Live Users</p>
-                  <p className="font-medium text-sm tabular-nums">{nas.liveUserCount}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Latency</p>
-                  <div className="mt-0.5">{getLatencyBadge(nas.latency)}</div>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Last Seen</p>
-                  <p className="font-medium text-sm">
-                    {nas.lastSeenAt ? formatDistanceToNow(new Date(nas.lastSeenAt)) + ' ago' : '—'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Uptime</p>
-                  <p className="font-medium text-sm">{formatUptime(nas.uptime)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Total Sessions</p>
-                  <p className="font-medium text-sm tabular-nums">{nas.totalSessions}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Failed Auths</p>
-                  <p className={cn(
-                    'font-medium text-sm tabular-nums',
-                    nas.failedAuths > 10 && 'text-red-600 dark:text-red-400',
-                  )}>
-                    {nas.failedAuths}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-3 flex justify-end">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleCheckNow(nas)}
-                  disabled={checkingId === nas.id}
-                >
-                  {checkingId === nas.id ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Heart className="h-4 w-4 mr-2" />
-                  )}
-                  Check Now
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
 
-      {/* Health Log Table */}
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : nasEntries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="rounded-full bg-muted/50 p-4 mb-3">
-                <Server className="h-8 w-8 text-muted-foreground/40" />
-              </div>
-              <h3 className="text-sm font-medium text-muted-foreground">No NAS devices found</h3>
-              <p className="text-xs text-muted-foreground/60 mt-1">
-                NAS health entries will appear when NAS clients are configured
-              </p>
-            </div>
-          ) : (
-            <ScrollArea className="h-[400px]">
+                {/* Card Action */}
+                <div className="mt-3 pt-3 border-t flex justify-end">
+                  <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => handleCheckNow(nas)}>
+                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                    Refresh
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        /* ─── List View (Table) ─── */
+        <Card>
+          <CardContent className="p-0">
+            <ScrollArea className="h-[500px]">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>NAS</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Live Users</TableHead>
-                    <TableHead>Latency</TableHead>
-                    <TableHead>Last Seen</TableHead>
-                    <TableHead>Uptime</TableHead>
-                    <TableHead>Sessions</TableHead>
-                    <TableHead>Failed Auths</TableHead>
-                    <TableHead>Version</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[200px]">NAS</TableHead>
+                    <TableHead className="w-[120px]">Status</TableHead>
+                    <TableHead className="w-[100px]">Live Users</TableHead>
+                    <TableHead className="w-[100px]">Latency</TableHead>
+                    <TableHead className="w-[120px]">Last Seen</TableHead>
+                    <TableHead className="w-[100px]">Uptime</TableHead>
+                    <TableHead className="w-[100px]">Sessions</TableHead>
+                    <TableHead className="w-[110px]">Failed Auths</TableHead>
+                    <TableHead className="text-right w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {nasEntries.map((nas) => (
-                    <TableRow key={nas.id} className={cn(
-                      nas.status === 'online' && 'bg-emerald-50/30 dark:bg-emerald-950/10',
-                      nas.status === 'offline' && 'bg-red-50/30 dark:bg-red-950/10',
-                    )}>
+                    <TableRow key={nas.id} className={cn('transition-colors', getRowBgColor(nas.status))}>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Router className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex items-center gap-2.5">
+                          <div className={cn('p-1.5 rounded-md', getStatusBgColor(nas.status))}>
+                            <Router className={cn('h-3.5 w-3.5', getStatusIconColor(nas.status))} />
+                          </div>
                           <div>
                             <p className="font-medium text-sm">{nas.nasIdentifier || 'NAS'}</p>
                             <p className="text-xs font-mono text-muted-foreground">{nas.nasIp}</p>
@@ -480,21 +485,9 @@ export default function NasHealth() {
                           {nas.failedAuths}
                         </span>
                       </TableCell>
-                      <TableCell>
-                        <span className="text-xs text-muted-foreground">{nas.softwareVersion || '—'}</span>
-                      </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleCheckNow(nas)}
-                          disabled={checkingId === nas.id}
-                        >
-                          {checkingId === nas.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Heart className="h-4 w-4" />
-                          )}
+                        <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => handleCheckNow(nas)}>
+                          <RefreshCw className="h-4 w-4" />
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -502,9 +495,9 @@ export default function NasHealth() {
                 </TableBody>
               </Table>
             </ScrollArea>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
