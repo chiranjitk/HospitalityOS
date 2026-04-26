@@ -106,7 +106,7 @@ class BandwidthCollector {
         acctinputoctets: bigint | number;
         acctoutputoctets: bigint | number;
       }> = await this.prisma.$queryRawUnsafe(`
-        SELECT username, acctinputoctets, acctoutputoctets
+        SELECT username, acctoutputoctets, acctinputoctets
         FROM radacct
         WHERE acctstoptime IS NULL
       `);
@@ -114,8 +114,9 @@ class BandwidthCollector {
       const now = Math.floor(Date.now() / 1000);
 
       for (const row of rows) {
-        const inBytes = Number(row.acctinputoctets) || 0;
-        const outBytes = Number(row.acctoutputoctets) || 0;
+        // acctoutputoctets = NAS→user = download, acctinputoctets = user→NAS = upload
+        const inBytes = Number(row.acctoutputoctets) || 0;   // download
+        const outBytes = Number(row.acctinputoctets) || 0;   // upload
         const prev = this.userCounters.get(row.username);
 
         if (isSeed) {
