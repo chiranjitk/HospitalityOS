@@ -97,8 +97,7 @@ export default function WifiPlans() {
     totalPlans: 0,
     activePlans: 0,
     avgPrice: 0,
-    avgDownloadSpeed: 0,
-    avgUploadSpeed: 0,
+    totalUsers: 0,
   });
 
   const [fupPolicies, setFupPolicies] = useState<Array<{ id: string; name: string }>>([]);
@@ -483,11 +482,11 @@ export default function WifiPlans() {
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-amber-500/10">
-              <ArrowDownToLine className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+              <Smartphone className="h-4 w-4 text-amber-500 dark:text-amber-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold">{summary.avgDownloadSpeed} Mbps</div>
-              <div className="text-xs text-muted-foreground">Avg Download</div>
+              <div className="text-2xl font-bold">{summary.totalUsers}</div>
+              <div className="text-xs text-muted-foreground">Total Users</div>
             </div>
           </div>
         </Card>

@@ -59,10 +59,16 @@ export async function GET(request: NextRequest) {    const user = await requireP
       where,
       _avg: {
         price: true,
-        downloadSpeed: true,
-        uploadSpeed: true,
       },
     });
+
+    // Count total users assigned to plans
+    const totalUsersResult = await db.wiFiUser.groupBy({
+      by: ['planId'],
+      where: { planId: { not: null } },
+      _count: true,
+    });
+    const totalUsers = totalUsersResult.reduce((sum: number, g: any) => sum + g._count, 0);
 
     return NextResponse.json({
       success: true,
@@ -76,8 +82,7 @@ export async function GET(request: NextRequest) {    const user = await requireP
         totalPlans: total,
         activePlans,
         avgPrice: avgPrice._avg.price || 0,
-        avgDownloadSpeed: avgPrice._avg.downloadSpeed || 0,
-        avgUploadSpeed: avgPrice._avg.uploadSpeed || 0,
+        totalUsers,
       },
     });
   } catch (error) {
