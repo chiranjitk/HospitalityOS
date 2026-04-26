@@ -881,3 +881,125 @@ Stage Summary:
 - All 8 functions, 6 views captured in pgsql-production/ SQL files
 - FreeRADIUS config patches documented for Rocky 10 deployment
 - GitHub push successful: https://github.com/chiranjitk/StaySuite-HospitalityOS
+
+---
+Task ID: 7
+Agent: Main Agent
+Task: Migrate dhcp-service from bun:sqlite to PostgreSQL (pg package)
+
+Work Log:
+- Read existing dhcp-service/index.ts (1668 lines) — full SQLite-based DHCP management service
+- Inspected actual PostgreSQL schema: all 7 DHCP tables use mixed-case names (DhcpSubnet, DhcpReservation, etc.) and mixed-case column names (tenantId, poolStart, etc.)
+- Confirmed all IDs are UUID type, enabled is boolean type, createdAt/updatedAt are timestamptz
+- Installed pg@8.20.0 package
+- Rewrote index.ts with comprehensive PostgreSQL migration:
+
+  **Driver & Connection**:
+  - Replaced `import Database from 'bun:sqlite'` with `import pg from 'pg'`
+  - Replaced synchronous SQLite with `new pg.Pool()` (max 10, 30s idle, 5s connect timeout)
+  - Removed all SQLite PRAGMA statements (journal_mode, busy_timeout, foreign_keys, etc.)
+  - Added startup DB connection verification with masked URL in logs
+
+  **Query Conversion**:
+  - All `db.query(SQL).all()` → `(await pool.query(SQL)).rows`
+  - All `db.query(SQL, params).get()` → `(await pool.query(SQL, params)).rows[0]`
+  - All `db.run(SQL, params)` → `await pool.query(SQL, params)`
+  - All `?` placeholders → `$1, $2, ...` (via `paramify()` helper for dynamic queries)
+  - All table/column names quoted for mixed-case: `"DhcpSubnet"`, `"macAddress"`, etc.
+  - `COUNT(*)::int` cast to avoid bigint string serialization
+  - `enabled = 1` → `enabled = true` (boolean column)
+  - `body.enabled !== false ? 1 : 0` → `body.enabled !== false` (true/false)
+
+  **Type Adaptations**:
+  - ID generation: `generateId()` → `generateUuid()` using `crypto.randomUUID()`
+  - Default tenantId/propertyId: UUID strings from existing DB data
+  - `new Date().toISOString()` → `new Date()` (pg handles Date→timestamptz)
+  - Dynamic UPDATE queries: `paramify()` helper converts `?` → `$N`
+
+  **Async Conversion**:
+  - `generateConfig()` → async (queries 7 tables in parallel via Promise.all)
+  - `fullSync()` → async
+  - `parseLeasesFile()` → async (DB query for subnet mapping)
+  - `deriveSubnetCidr()` → async (auto-repair DB write)
+  - `startDnsmasq()` → async
+  - `reloadDnsmasq()` → async
+  - All 30+ route handlers → async
+
+  **New Features**:
+  - Version bumped to 2.1.0
+  - Health endpoint reports `database: "postgresql"`
+  - Status endpoint reports `database: "postgresql"`
+  - Pool error handler logs unexpected disconnects
+
+- Verified service startup: connected to PostgreSQL, generated config with 23 directives (4 subnets, 3 reservations, 3 options)
+- Verified all read endpoints: /health, /api/status, /api/subnets (4), /api/reservations (3), /api/options (3)
+- Restarted via pm2 with `DATABASE_URL=postgresql://z@localhost:5432/staysuite`
+- Service running stable under pm2 (id 10)
+
+Stage Summary:
+- dhcp-service fully migrated from SQLite (bun:sqlite) to PostgreSQL (pg@8.20.0)
+- All 7 DHCP tables queried via pg Pool with proper mixed-case quoting
+- Config generation working: dnsmasq conf produced with all subnets, reservations, options
+- All API endpoints verified: health, status, subnets, reservations, options, blacklist, tag-rules, hostname-filters, lease-scripts
+- Version: 2.1.0, Backend: postgresql, Port: 3011
+
+---
+Task ID: 8
+Agent: Main Agent
+Task: Migrate dns-service from bun:sqlite to PostgreSQL (pg package)
+
+Work Log:
+- **Analyzed dual-DB architecture**: dns-service used two SQLite databases:
+  1. Own DB (`db/dns-service.db`): DnsZone, DnsRecord, DnsRedirect, DnsForwarder, DnsActivityLog
+  2. Prisma DB (`db/custom.db`): DnsZone, DnsRecord, DnsRedirectRule (bidirectional sync)
+- **Installed pg package**: `bun add pg` → pg@8.20.0
+- **Dropped dual-DB architecture entirely**:
+  - Removed syncFromPrisma() (~160 lines) — bidirectional sync no longer needed
+  - Removed syncToPrisma() (~140 lines) — same
+  - Removed PRISMA_DB_PATH, DB_PATH, prismaBoolToInt() helper
+  - Removed /api/sync-from-prisma and /api/sync-to-prisma endpoints (replaced with simplified /api/sync)
+- **Mapped tables to single PostgreSQL database**:
+  - DnsZone → Prisma "DnsZone" (already exists, columns match except no `type` field → computed as 'forward')
+  - DnsRecord → Prisma "DnsRecord" (already exists, direct mapping)
+  - DnsRedirect → Prisma "DnsRedirectRule" (different schema — added mapping helpers):
+    - `redirectRuleToApi()`: matchPattern → domain + wildcard
+    - `apiToRedirectRule()`: domain + wildcard → matchPattern
+    - `matchPatternToDnsmasq()`: matchPattern → dnsmasq address= format
+  - DnsForwarder → new "DnsForwarder" table (created in PostgreSQL, no Prisma equivalent)
+  - DnsActivityLog → new "DnsActivityLog" table (created in PostgreSQL, no Prisma equivalent)
+- **Converted all database operations**:
+  - `bun:sqlite` → `pg.Pool` (connection pool with 10 max connections)
+  - `db.query('...').all()` → `(await pool.query('...', [...])).rows`
+  - `db.query('...').get()` → `(await pool.query('...', [...])).rows[0]`
+  - `db.run('...', [...])` → `await pool.query('...', [...])`
+  - `?` params → `$1, $2, ...` (PostgreSQL parameterized)
+  - `db.exec('...')` → `await pool.query('...')`
+  - SQLite PRAGMA statements removed (WAL, foreign_keys)
+  - All DB calls made async (syncConfigToDisk, fullSync, logActivity, all route handlers)
+  - Quoted all mixed-case table/column names: "DnsZone", "DnsRecord", "DnsRedirectRule", "DnsForwarder", "DnsActivityLog"
+  - `INTEGER` 0/1 booleans → PostgreSQL `BOOLEAN` true/false
+  - `datetime('now')` → `NOW()`
+  - `generateId()` changed from `dns_${Date.now()}_${rand}` to `crypto.randomUUID()` (Prisma tables use UUID PKs)
+  - `enabled = 1` → `enabled = true`
+  - COUNT results parsed with `parseInt()` (pg returns string for counts)
+  - Dynamic query building converted: `domain = ?` → `domain = $${paramIdx++}`
+- **Created service-managed tables in PostgreSQL**:
+  - "DnsForwarder": id TEXT PK, address, port, description, enabled BOOLEAN, createdAt/updatedAt TIMESTAMPTZ, UNIQUE(address, port, propertyId)
+  - "DnsActivityLog": id TEXT PK, action, details, severity, timestamp TIMESTAMPTZ
+- **Simplified startup**: No more sync from Prisma — just ensure tables exist, generate config, auto-start dnsmasq
+- **Restarted with new env**: `DATABASE_URL=postgresql://z@localhost:5432/staysuite pm2 start ...`
+- **Verified all endpoints working**:
+  - /health → healthy, database connected ✅
+  - /api/status → 2 zones, 4 records, 2 redirects, 0 forwarders (from real Prisma data) ✅
+  - /api/redirects → Correctly maps DnsRedirectRule matchPattern to domain/wildcard API format ✅
+  - /api/forwarders → CRUD working (create + list + delete round-trip) ✅
+  - /api/stats → All counts correct, recordTypes, topDomains ✅
+
+Stage Summary:
+- dns-service migrated from bun:sqlite to PostgreSQL (pg@8.20.0)
+- Single database architecture: no more dual-DB sync
+- DnsZone, DnsRecord, DnsRedirectRule use Prisma-managed tables
+- DnsForwarder, DnsActivityLog are service-managed tables
+- DnsRedirect API preserved with automatic matchPattern↔domain/wildcard mapping
+- All DB operations converted to async pg pool with $N parameterized queries
+- Version: 2.0.0, Backend: postgresql, Port: 3012

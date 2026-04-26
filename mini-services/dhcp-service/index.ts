@@ -12,6 +12,7 @@
  * Both write separate config files; dnsmasq reads /etc/dnsmasq.d/*
  *
  * Port: 3011 (same as old kea-service — drop-in replacement)
+ * Backend: PostgreSQL (migrated from SQLite)
  */
 
 import { Hono } from 'hono';
@@ -19,17 +20,17 @@ import { cors } from 'hono/cors';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import Database from 'bun:sqlite';
+import pg from 'pg';
 import { createLogger } from '../shared/logger';
 
 const app = new Hono();
 const PORT = 3011;
-const SERVICE_VERSION = '2.0.0';
+const SERVICE_VERSION = '2.1.0';
 const log = createLogger('dhcp-service');
 const startTime = Date.now();
 
 const PROJECT_ROOT = process.env.PROJECT_ROOT || path.resolve(__dirname, '..', '..');
-const DB_PATH = process.env.DATABASE_PATH || path.join(PROJECT_ROOT, 'db', 'custom.db');
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://z@localhost:5432/staysuite';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Paths — detect Rocky Linux vs Debian
@@ -54,42 +55,33 @@ const DNSMASQ_LEASES = SYSTEM_DNSMASQ
 
 // Ensure directories exist
 try { fs.mkdirSync(DNSMASQ_CONF_DIR, { recursive: true }); } catch {}
-try { fs.mkdirSync(path.dirname(DB_PATH), { recursive: true }); } catch {}
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SQLite Database
+// PostgreSQL Connection Pool
 // ─────────────────────────────────────────────────────────────────────────────
 
-let db: Database.Database;
-try {
-  db = new Database(DB_PATH);
-  db.exec('PRAGMA journal_mode = WAL;');
-  db.exec('PRAGMA foreign_keys = ON;');
-  // CRITICAL: Set busy_timeout so this service waits for FreeRADIUS/Prisma write locks
-  // instead of causing SQLITE_BUSY (error code 5). Without this, accounting fails.
-  db.exec('PRAGMA busy_timeout = 30000;');
-  db.exec('PRAGMA synchronous = NORMAL;');
-  db.exec('PRAGMA wal_autocheckpoint = 1000;');
-  log.info('Connected to database', { path: DB_PATH });
-} catch (error) {
-  log.error('Failed to connect to database', { path: DB_PATH, error: String(error) });
-  process.exit(1);
-}
+const pool = new pg.Pool({
+  connectionString: DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
 
-// The service reads from the shared Prisma-managed database (custom.db).
+pool.on('error', (err: Error) => {
+  log.error('Unexpected PostgreSQL pool error', { error: err.message });
+});
+
+// The service reads from the shared Prisma-managed PostgreSQL database.
 // DhcpSubnet / DhcpReservation tables are managed by Prisma schema.
-// Column mapping (Prisma → dnsmasq):
-//   subnet → cidr,  no 'interface' (per-VLAN),  no 'tag' (generated from id/name)
-// We do NOT create tables here — Prisma schema owns them.
+// All table and column names are mixed-case and must be quoted.
+// IDs are UUID type, enabled is boolean type.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function generateId(prefix = 'id'): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(4));
-  const rand = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-  return `${prefix}_${Date.now()}_${rand}`;
+function generateUuid(): string {
+  return crypto.randomUUID();
 }
 
 function safeExec(cmd: string, timeout = 5000): string {
@@ -143,8 +135,14 @@ function numToIp(n: number): string {
   return `${(n >>> 24) & 0xFF}.${(n >>> 16) & 0xFF}.${(n >>> 8) & 0xFF}.${n & 0xFF}`;
 }
 
+/** Convert ? placeholders to $1, $2, ... for PostgreSQL */
+function paramify(sql: string): string {
+  let idx = 0;
+  return sql.replace(/\?/g, () => `$${++idx}`);
+}
+
 /** Compute the smallest CIDR that covers poolStart..poolEnd, and auto-repair DB */
-function deriveSubnetCidr(sub: any): string {
+async function deriveSubnetCidr(sub: any): Promise<string> {
   if (sub.subnet) return sub.subnet;
   if (!sub.poolStart || !sub.poolEnd) return '';
 
@@ -166,7 +164,7 @@ function deriveSubnetCidr(sub: any): string {
   const cidr = `${networkPart}.0/${detectedPrefix}`;
 
   // Auto-repair: write back to DB so future reads don't recompute
-  try { db.run('UPDATE DhcpSubnet SET subnet = ? WHERE id = ?', [cidr, sub.id]); } catch {}
+  try { await pool.query(paramify('UPDATE "DhcpSubnet" SET "subnet" = ? WHERE "id" = ?'), [cidr, sub.id]); } catch {}
 
   return cidr;
 }
@@ -265,11 +263,11 @@ function getDnsmasqVersion(): string {
   } catch { return 'Unknown'; }
 }
 
-function startDnsmasq(): { success: boolean; message: string } {
+async function startDnsmasq(): Promise<{ success: boolean; message: string }> {
   if (isDnsmasqRunning()) return { success: true, message: 'dnsmasq is already running' };
 
   // Generate config first
-  const gen = generateConfig();
+  const gen = await generateConfig();
   if (!gen.success) return { success: false, message: gen.message };
 
   try {
@@ -307,14 +305,14 @@ function stopDnsmasq(): { success: boolean; message: string } {
   }
 }
 
-function reloadDnsmasq(): { success: boolean; message: string } {
+async function reloadDnsmasq(): Promise<{ success: boolean; message: string }> {
   if (!isDnsmasqRunning()) {
     // Not running — start it
     return startDnsmasq();
   }
   try {
     // Generate config first
-    const gen = generateConfig();
+    const gen = await generateConfig();
     if (!gen.success) return { success: false, message: gen.message };
 
     // Try systemctl reload first, then SIGHUP
@@ -332,15 +330,25 @@ function reloadDnsmasq(): { success: boolean; message: string } {
 // Config Generation — DB → /etc/dnsmasq.d/staysuite-dhcp.conf
 // ─────────────────────────────────────────────────────────────────────────────
 
-function generateConfig(): { success: boolean; message: string; lines: number } {
+async function generateConfig(): Promise<{ success: boolean; message: string; lines: number }> {
   try {
-    const subnets = db.query('SELECT * FROM DhcpSubnet WHERE enabled = 1 ORDER BY name ASC').all() as any[];
-    const reservations = db.query('SELECT r.*, s.name as subnetName, s.subnet as subnetCidr FROM DhcpReservation r LEFT JOIN DhcpSubnet s ON r.subnetId = s.id WHERE r.enabled = 1').all() as any[];
-    const blacklists = db.query('SELECT * FROM DhcpBlacklist WHERE enabled = 1 ORDER BY macAddress ASC').all() as any[];
-    const tagRules = db.query('SELECT * FROM DhcpTagRule WHERE enabled = 1 ORDER BY name ASC').all() as any[];
-    const hostnameFilters = db.query('SELECT * FROM DhcpHostnameFilter WHERE enabled = 1 ORDER BY pattern ASC').all() as any[];
-    const dhcpOptions = db.query('SELECT o.*, s.name as subnetName FROM DhcpOption o LEFT JOIN DhcpSubnet s ON o.subnetId = s.id WHERE o.enabled = 1 ORDER BY o.code ASC').all() as any[];
-    const leaseScripts = db.query('SELECT * FROM DhcpLeaseScript WHERE enabled = 1 ORDER BY name ASC').all() as any[];
+    const [subnetsResult, reservationsResult, blacklistsResult, tagRulesResult, hostnameFiltersResult, dhcpOptionsResult, leaseScriptsResult] = await Promise.all([
+      pool.query('SELECT * FROM "DhcpSubnet" WHERE "enabled" = true ORDER BY "name" ASC'),
+      pool.query('SELECT r.*, s."name" as "subnetName", s."subnet" as "subnetCidr" FROM "DhcpReservation" r LEFT JOIN "DhcpSubnet" s ON r."subnetId" = s."id" WHERE r."enabled" = true'),
+      pool.query('SELECT * FROM "DhcpBlacklist" WHERE "enabled" = true ORDER BY "macAddress" ASC'),
+      pool.query('SELECT * FROM "DhcpTagRule" WHERE "enabled" = true ORDER BY "name" ASC'),
+      pool.query('SELECT * FROM "DhcpHostnameFilter" WHERE "enabled" = true ORDER BY "pattern" ASC'),
+      pool.query('SELECT o.*, s."name" as "subnetName" FROM "DhcpOption" o LEFT JOIN "DhcpSubnet" s ON o."subnetId" = s."id" WHERE o."enabled" = true ORDER BY o."code" ASC'),
+      pool.query('SELECT * FROM "DhcpLeaseScript" WHERE "enabled" = true ORDER BY "name" ASC'),
+    ]);
+
+    const subnets = subnetsResult.rows;
+    const reservations = reservationsResult.rows;
+    const blacklists = blacklistsResult.rows;
+    const tagRules = tagRulesResult.rows;
+    const hostnameFilters = hostnameFiltersResult.rows;
+    const dhcpOptions = dhcpOptionsResult.rows;
+    const leaseScripts = leaseScriptsResult.rows;
 
     let config = `# StaySuite DHCP Configuration - Auto-generated\n`;
     config += `# Last updated: ${new Date().toISOString()}\n`;
@@ -443,7 +451,7 @@ function generateConfig(): { success: boolean; message: string; lines: number } 
       config += `# ─────────────────────────────────────────────\n\n`;
 
       for (const sub of subnets) {
-        const cidr = deriveSubnetCidr(sub);
+        const cidr = await deriveSubnetCidr(sub);
         const netmask = prefixToNetmask(subnetToPrefix(cidr));
         config += `# Subnet: ${sub.name} (${cidr})\n`;
         config += `# ID: ${sub.id}\n`;
@@ -567,11 +575,11 @@ function generateConfig(): { success: boolean; message: string; lines: number } 
 }
 
 // Full sync: generate config + reload dnsmasq
-function fullSync(): { config: ReturnType<typeof generateConfig>; reload: ReturnType<typeof reloadDnsmasq> } {
-  const config = generateConfig();
-  let reload: ReturnType<typeof reloadDnsmasq> = { success: false, message: 'not attempted' };
+async function fullSync(): Promise<{ config: Awaited<ReturnType<typeof generateConfig>>; reload: Awaited<ReturnType<typeof reloadDnsmasq>> }> {
+  const config = await generateConfig();
+  let reload: Awaited<ReturnType<typeof reloadDnsmasq>> = { success: false, message: 'not attempted' };
   if (config.success && isDnsmasqRunning()) {
-    reload = reloadDnsmasq();
+    reload = await reloadDnsmasq();
   }
   return { config, reload };
 }
@@ -580,7 +588,7 @@ function fullSync(): { config: ReturnType<typeof generateConfig>; reload: Return
 // Lease Parsing — read /var/lib/dnsmasq/dnsmasq.leases
 // ─────────────────────────────────────────────────────────────────────────────
 
-function parseLeasesFile(): any[] {
+async function parseLeasesFile(): Promise<any[]> {
   const leasePaths = [
     DNSMASQ_LEASES,
     '/var/lib/dnsmasq/dnsmasq.leases',
@@ -595,7 +603,8 @@ function parseLeasesFile(): any[] {
       if (lines.length === 0) continue;
 
       // Get subnets for mapping (need poolStart/poolEnd for CIDR fallback)
-      const subnets = db.query('SELECT id, name, subnet, poolStart, poolEnd FROM DhcpSubnet WHERE enabled = 1').all() as any[];
+      const subnetsResult = await pool.query('SELECT "id", "name", "subnet", "poolStart", "poolEnd" FROM "DhcpSubnet" WHERE "enabled" = true');
+      const subnets = subnetsResult.rows;
 
       return lines.map((line: string) => {
         const parts = line.split(/\s+/);
@@ -611,8 +620,9 @@ function parseLeasesFile(): any[] {
         const type = expiry === 0 ? 'static' : 'dynamic';
 
         // Match lease IP to a subnet: by CIDR if available, else by pool range
+        // NOTE: deriveSubnetCidr is async but we use sync fallback here for mapping
         const sub = subnets.find((s: any) => {
-          const cidr = deriveSubnetCidr(s);
+          const cidr = s.subnet || `${s.poolStart?.split('.').slice(0, 3).join('.')}.0/24`;
           if (!cidr) return false;
           const network = subnetToNetwork(cidr);
           const mask = prefixToNetmask(subnetToPrefix(cidr));
@@ -662,13 +672,27 @@ function parseLeasesFile(): any[] {
     leasesFile: DNSMASQ_LEASES,
   });
 
+  // Verify DB connection
+  try {
+    await pool.query('SELECT 1');
+    log.info('Connected to PostgreSQL', {
+      database: DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
+    });
+  } catch (error) {
+    log.error('Failed to connect to PostgreSQL', {
+      database: DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
+      error: String(error),
+    });
+    process.exit(1);
+  }
+
   // Generate initial config
-  generateConfig();
+  await generateConfig();
 
   // Auto-start dnsmasq if installed but not running
   if (SYSTEM_DNSMASQ && !isDnsmasqRunning()) {
     log.info('dnsmasq installed but not running, auto-starting...');
-    const result = startDnsmasq();
+    const result = await startDnsmasq();
     log.info(result.success ? 'dnsmasq auto-started' : 'dnsmasq auto-start failed', { message: result.message });
   } else if (SYSTEM_DNSMASQ) {
     log.info('dnsmasq is already running');
@@ -719,6 +743,7 @@ app.get('/health', (c) => {
     service: 'dhcp-service',
     version: SERVICE_VERSION,
     backend: 'dnsmasq',
+    database: 'postgresql',
     timestamp: new Date().toISOString(),
     uptime: Math.floor((Date.now() - startTime) / 1000),
     port: PORT,
@@ -737,25 +762,26 @@ app.get('/health', (c) => {
 // Service Status & Control
 // ─────────────────────────────────────────────────────────────────────────────
 
-app.get('/api/status', (c) => {
+app.get('/api/status', async (c) => {
   const running = isDnsmasqRunning();
   const version = running ? getDnsmasqVersion() : 'Not running';
 
   let subnetCount = 0, reservationCount = 0, leaseCount = 0, activeLeases = 0;
   let blacklistCount = 0, optionsCount = 0, tagRulesCount = 0, hostnameFiltersCount = 0, leaseScriptsCount = 0;
-  try { subnetCount = (db.query('SELECT COUNT(*) as c FROM DhcpSubnet WHERE enabled = 1').get() as any)?.c || 0; } catch {}
-  try { reservationCount = (db.query('SELECT COUNT(*) as c FROM DhcpReservation WHERE enabled = 1').get() as any)?.c || 0; } catch {}
-  try { blacklistCount = (db.query('SELECT COUNT(*) as c FROM DhcpBlacklist WHERE enabled = 1').get() as any)?.c || 0; } catch {}
-  try { optionsCount = (db.query('SELECT COUNT(*) as c FROM DhcpOption WHERE enabled = 1').get() as any)?.c || 0; } catch {}
-  try { tagRulesCount = (db.query('SELECT COUNT(*) as c FROM DhcpTagRule WHERE enabled = 1').get() as any)?.c || 0; } catch {}
-  try { hostnameFiltersCount = (db.query('SELECT COUNT(*) as c FROM DhcpHostnameFilter WHERE enabled = 1').get() as any)?.c || 0; } catch {}
-  try { leaseScriptsCount = (db.query('SELECT COUNT(*) as c FROM DhcpLeaseScript WHERE enabled = 1').get() as any)?.c || 0; } catch {}
+  try { subnetCount = parseInt((await pool.query('SELECT COUNT(*)::int AS count FROM "DhcpSubnet" WHERE "enabled" = true')).rows[0]?.count) || 0; } catch {}
+  try { reservationCount = parseInt((await pool.query('SELECT COUNT(*)::int AS count FROM "DhcpReservation" WHERE "enabled" = true')).rows[0]?.count) || 0; } catch {}
+  try { blacklistCount = parseInt((await pool.query('SELECT COUNT(*)::int AS count FROM "DhcpBlacklist" WHERE "enabled" = true')).rows[0]?.count) || 0; } catch {}
+  try { optionsCount = parseInt((await pool.query('SELECT COUNT(*)::int AS count FROM "DhcpOption" WHERE "enabled" = true')).rows[0]?.count) || 0; } catch {}
+  try { tagRulesCount = parseInt((await pool.query('SELECT COUNT(*)::int AS count FROM "DhcpTagRule" WHERE "enabled" = true')).rows[0]?.count) || 0; } catch {}
+  try { hostnameFiltersCount = parseInt((await pool.query('SELECT COUNT(*)::int AS count FROM "DhcpHostnameFilter" WHERE "enabled" = true')).rows[0]?.count) || 0; } catch {}
+  try { leaseScriptsCount = parseInt((await pool.query('SELECT COUNT(*)::int AS count FROM "DhcpLeaseScript" WHERE "enabled" = true')).rows[0]?.count) || 0; } catch {}
 
-  const leases = parseLeasesFile();
+  const leases = await parseLeasesFile();
   leaseCount = leases.length;
   activeLeases = leases.filter((l: any) => l.state === 'active').length;
 
-  const subnets = db.query('SELECT id, name, subnet FROM DhcpSubnet WHERE enabled = 1').all() as any[];
+  const subnetsResult = await pool.query('SELECT "id", "name", "subnet" FROM "DhcpSubnet" WHERE "enabled" = true');
+  const subnets = subnetsResult.rows;
   const currentInterfaces: string[] = [];
 
   // System interfaces
@@ -777,6 +803,7 @@ app.get('/api/status', (c) => {
       version,
       mode: running ? 'production' : 'stopped',
       backend: 'dnsmasq',
+      database: 'postgresql',
       configFile: DNSMASQ_CONF_FILE,
       leasesFile: DNSMASQ_LEASES,
       subnetCount,
@@ -794,9 +821,8 @@ app.get('/api/status', (c) => {
   });
 });
 
-app.post('/api/service/start', (c) => {
-  const gen = generateConfig();
-  const result = startDnsmasq();
+app.post('/api/service/start', async (c) => {
+  const result = await startDnsmasq();
   return c.json({
     success: result.success,
     message: result.message,
@@ -815,11 +841,10 @@ app.post('/api/service/stop', (c) => {
   });
 });
 
-app.post('/api/service/restart', (c) => {
+app.post('/api/service/restart', async (c) => {
   stopDnsmasq();
   execSync('sleep 1');
-  const gen = generateConfig();
-  const result = startDnsmasq();
+  const result = await startDnsmasq();
   return c.json({
     success: result.success,
     message: result.message,
@@ -828,8 +853,8 @@ app.post('/api/service/restart', (c) => {
   });
 });
 
-app.post('/api/service/reload', (c) => {
-  const result = reloadDnsmasq();
+app.post('/api/service/reload', async (c) => {
+  const result = await reloadDnsmasq();
   return c.json({
     success: result.success,
     message: result.message,
@@ -837,8 +862,8 @@ app.post('/api/service/reload', (c) => {
   });
 });
 
-app.post('/api/sync', (c) => {
-  const result = fullSync();
+app.post('/api/sync', async (c) => {
+  const result = await fullSync();
   return c.json({
     success: result.config.success,
     message: `Config generated (${result.config.lines} directives), dnsmasq ${result.reload.success ? 'reloaded' : result.reload.message}`,
@@ -849,16 +874,17 @@ app.post('/api/sync', (c) => {
 // DHCP Subnets
 // ─────────────────────────────────────────────────────────────────────────────
 
-app.get('/api/subnets', (c) => {
+app.get('/api/subnets', async (c) => {
   try {
-    const subnets = db.query('SELECT * FROM DhcpSubnet ORDER BY vlanId ASC, name ASC').all() as any[];
-    const leases = parseLeasesFile();
+    const subnetsResult = await pool.query('SELECT * FROM "DhcpSubnet" ORDER BY "vlanId" ASC, "name" ASC');
+    const subnets = subnetsResult.rows;
+    const leases = await parseLeasesFile();
     const systemInterfaces = getSystemInterfaces();
 
-    const enriched = subnets.map((sub: any) => {
+    const enriched = await Promise.all(subnets.map(async (sub: any) => {
       const dns = parseDnsList(sub.dnsServers);
       const activeLeases = leases.filter((l: any) => l.subnetId === sub.id && l.state === 'active').length;
-      const cidr = deriveSubnetCidr(sub);
+      const cidr = await deriveSubnetCidr(sub);
       const netmask = prefixToNetmask(subnetToPrefix(cidr));
       const detectedInterface = findInterfaceForSubnet(cidr, systemInterfaces);
       return {
@@ -889,7 +915,7 @@ app.get('/api/subnets', (c) => {
         ipv6LeaseTime: sub.ipv6LeaseTime || 0,
         ipv6RAType: sub.ipv6RAType || 'slaac',
       };
-    });
+    }));
 
     return c.json({ success: true, data: enriched });
   } catch (error) {
@@ -900,11 +926,8 @@ app.get('/api/subnets', (c) => {
 app.post('/api/subnets', async (c) => {
   try {
     const body = await c.req.json();
-    const id = generateId('subnet');
-    const now = new Date().toISOString();
-
-    // Generate tag from name
-    const tag = (body.name || 'default').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16) || 'default';
+    const id = generateUuid();
+    const now = new Date();
 
     // Validate subnet
     const subnetCidr = body.subnet || body.cidr || '192.168.1.0/24';
@@ -912,19 +935,21 @@ app.post('/api/subnets', async (c) => {
     const dnsStr = Array.isArray(body.dnsServers) ? JSON.stringify(body.dnsServers) : (body.dnsServers || '[]');
     const leaseSec = displayToLeaseSeconds(body.leaseTime ?? 3600);
 
-    db.run(`INSERT INTO DhcpSubnet (id, tenantId, propertyId, name, subnet, gateway, poolStart, poolEnd, leaseTime, dnsServers, domainName, vlanId, enabled, ipv6Enabled, ipv6Prefix, ipv6PoolStart, ipv6PoolEnd, ipv6LeaseTime, ipv6RAType, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+    await pool.query(paramify(
+      `INSERT INTO "DhcpSubnet" ("id", "tenantId", "propertyId", "name", "subnet", "gateway", "poolStart", "poolEnd", "leaseTime", "dnsServers", "domainName", "vlanId", "enabled", "ipv6Enabled", "ipv6Prefix", "ipv6PoolStart", "ipv6PoolEnd", "ipv6LeaseTime", "ipv6RAType", "createdAt", "updatedAt")
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ), [
       id,
-      body.tenantId || 'tenant-1',
-      body.propertyId || 'property-1',
+      body.tenantId || '444017d5-e022-4c5f-ac07-ea0d51f4609b',
+      body.propertyId || '281fde73-7836-4511-b644-91f3663d8fcd',
       body.name || 'Default',
       subnetCidr,
       body.gateway || '',
       body.poolStart || '', body.poolEnd || '',
       leaseSec, dnsStr, body.domainName || '',
       body.vlanId ? parseInt(body.vlanId) : null,
-      body.enabled !== false ? 1 : 0,
-      body.ipv6Enabled ? 1 : 0,
+      body.enabled !== false,
+      body.ipv6Enabled ? true : false,
       body.ipv6Prefix || '',
       body.ipv6PoolStart || '',
       body.ipv6PoolEnd || '',
@@ -933,7 +958,7 @@ app.post('/api/subnets', async (c) => {
       now, now,
     ]);
 
-    fullSync();
+    await fullSync();
     return c.json({ success: true, data: { id, ...body }, message: 'DHCP subnet created and applied', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -944,47 +969,47 @@ app.put('/api/subnets/:id', async (c) => {
   try {
     const { id } = c.req.param();
     const body = await c.req.json();
-    const now = new Date().toISOString();
+    const now = new Date();
 
     const fields: string[] = [];
     const values: any[] = [];
-    if (body.name !== undefined) { fields.push('name = ?'); values.push(body.name); }
-    if (body.subnet !== undefined || body.cidr !== undefined) { fields.push('subnet = ?'); values.push(body.subnet || body.cidr); }
-    if (body.gateway !== undefined) { fields.push('gateway = ?'); values.push(body.gateway); }
-    if (body.poolStart !== undefined) { fields.push('poolStart = ?'); values.push(body.poolStart); }
-    if (body.poolEnd !== undefined) { fields.push('poolEnd = ?'); values.push(body.poolEnd); }
+    if (body.name !== undefined) { fields.push('"name" = ?'); values.push(body.name); }
+    if (body.subnet !== undefined || body.cidr !== undefined) { fields.push('"subnet" = ?'); values.push(body.subnet || body.cidr); }
+    if (body.gateway !== undefined) { fields.push('"gateway" = ?'); values.push(body.gateway); }
+    if (body.poolStart !== undefined) { fields.push('"poolStart" = ?'); values.push(body.poolStart); }
+    if (body.poolEnd !== undefined) { fields.push('"poolEnd" = ?'); values.push(body.poolEnd); }
     // netmask is derived from CIDR prefix — no dedicated column in Prisma schema
-    if (body.leaseTime !== undefined) { fields.push('leaseTime = ?'); values.push(displayToLeaseSeconds(body.leaseTime)); }
+    if (body.leaseTime !== undefined) { fields.push('"leaseTime" = ?'); values.push(displayToLeaseSeconds(body.leaseTime)); }
     if (body.dnsServers !== undefined) {
-      fields.push('dnsServers = ?');
+      fields.push('"dnsServers" = ?');
       values.push(Array.isArray(body.dnsServers) ? JSON.stringify(body.dnsServers) : body.dnsServers);
     }
-    if (body.domainName !== undefined) { fields.push('domainName = ?'); values.push(body.domainName); }
-    if (body.vlanId !== undefined) { fields.push('vlanId = ?'); values.push(body.vlanId ? parseInt(body.vlanId) : null); }
-    if (body.enabled !== undefined) { fields.push('enabled = ?'); values.push(body.enabled ? 1 : 0); }
-    if (body.ipv6Enabled !== undefined) { fields.push('ipv6Enabled = ?'); values.push(body.ipv6Enabled ? 1 : 0); }
-    if (body.ipv6Prefix !== undefined) { fields.push('ipv6Prefix = ?'); values.push(body.ipv6Prefix); }
-    if (body.ipv6PoolStart !== undefined) { fields.push('ipv6PoolStart = ?'); values.push(body.ipv6PoolStart); }
-    if (body.ipv6PoolEnd !== undefined) { fields.push('ipv6PoolEnd = ?'); values.push(body.ipv6PoolEnd); }
-    if (body.ipv6LeaseTime !== undefined) { fields.push('ipv6LeaseTime = ?'); values.push(displayToLeaseSeconds(body.ipv6LeaseTime)); }
-    if (body.ipv6RAType !== undefined) { fields.push('ipv6RAType = ?'); values.push(body.ipv6RAType); }
-    fields.push('updatedAt = ?'); values.push(now); values.push(id);
+    if (body.domainName !== undefined) { fields.push('"domainName" = ?'); values.push(body.domainName); }
+    if (body.vlanId !== undefined) { fields.push('"vlanId" = ?'); values.push(body.vlanId ? parseInt(body.vlanId) : null); }
+    if (body.enabled !== undefined) { fields.push('"enabled" = ?'); values.push(body.enabled ? true : false); }
+    if (body.ipv6Enabled !== undefined) { fields.push('"ipv6Enabled" = ?'); values.push(body.ipv6Enabled ? true : false); }
+    if (body.ipv6Prefix !== undefined) { fields.push('"ipv6Prefix" = ?'); values.push(body.ipv6Prefix); }
+    if (body.ipv6PoolStart !== undefined) { fields.push('"ipv6PoolStart" = ?'); values.push(body.ipv6PoolStart); }
+    if (body.ipv6PoolEnd !== undefined) { fields.push('"ipv6PoolEnd" = ?'); values.push(body.ipv6PoolEnd); }
+    if (body.ipv6LeaseTime !== undefined) { fields.push('"ipv6LeaseTime" = ?'); values.push(displayToLeaseSeconds(body.ipv6LeaseTime)); }
+    if (body.ipv6RAType !== undefined) { fields.push('"ipv6RAType" = ?'); values.push(body.ipv6RAType); }
+    fields.push('"updatedAt" = ?'); values.push(now); values.push(id);
 
-    db.run(`UPDATE DhcpSubnet SET ${fields.join(', ')} WHERE id = ?`, values);
-    fullSync();
+    await pool.query(paramify(`UPDATE "DhcpSubnet" SET ${fields.join(', ')} WHERE "id" = ?`), values);
+    await fullSync();
     return c.json({ success: true, data: { id, ...body }, message: 'DHCP subnet updated and applied', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
 });
 
-app.delete('/api/subnets/:id', (c) => {
+app.delete('/api/subnets/:id', async (c) => {
   try {
     const { id } = c.req.param();
     // Delete associated reservations first
-    try { db.run('DELETE FROM DhcpReservation WHERE subnetId = ?', [id]); } catch {}
-    db.run('DELETE FROM DhcpSubnet WHERE id = ?', [id]);
-    fullSync();
+    try { await pool.query('DELETE FROM "DhcpReservation" WHERE "subnetId" = $1', [id]); } catch {}
+    await pool.query('DELETE FROM "DhcpSubnet" WHERE "id" = $1', [id]);
+    await fullSync();
     return c.json({ success: true, message: `DHCP subnet ${id} deleted`, persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -995,15 +1020,17 @@ app.delete('/api/subnets/:id', (c) => {
 // DHCP Reservations
 // ─────────────────────────────────────────────────────────────────────────────
 
-app.get('/api/reservations', (c) => {
+app.get('/api/reservations', async (c) => {
   try {
-    const reservations = db.query(`SELECT r.*, s.name as subnetName, s.subnet as subnetCidr
-      FROM DhcpReservation r LEFT JOIN DhcpSubnet s ON r.subnetId = s.id
-      ORDER BY r.macAddress ASC`).all() as any[];
+    const result = await pool.query(
+      `SELECT r.*, s."name" as "subnetName", s."subnet" as "subnetCidr"
+       FROM "DhcpReservation" r LEFT JOIN "DhcpSubnet" s ON r."subnetId" = s."id"
+       ORDER BY r."macAddress" ASC`
+    );
 
     return c.json({
       success: true,
-      data: reservations.map((r: any) => ({
+      data: result.rows.map((r: any) => ({
         id: r.id,
         macAddress: r.macAddress,
         ipAddress: r.ipAddress,
@@ -1023,23 +1050,28 @@ app.get('/api/reservations', (c) => {
 app.post('/api/reservations', async (c) => {
   try {
     const body = await c.req.json();
-    const id = generateId('res');
-    const now = new Date().toISOString();
+    const id = generateUuid();
+    const now = new Date();
 
     // Check for duplicate MAC in same subnet
-    const existing = db.query('SELECT id FROM DhcpReservation WHERE macAddress = ? AND subnetId = ?', [body.macAddress, body.subnetId]).get() as any;
+    const existing = (await pool.query(
+      'SELECT "id" FROM "DhcpReservation" WHERE "macAddress" = $1 AND "subnetId" = $2',
+      [body.macAddress, body.subnetId]
+    )).rows[0];
     if (existing) {
       return c.json({ success: false, error: `MAC ${body.macAddress} already has a reservation in this subnet` });
     }
 
-    db.run(`INSERT INTO DhcpReservation (id, subnetId, macAddress, ipAddress, hostname, leaseTime, description, enabled, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+    await pool.query(paramify(
+      `INSERT INTO "DhcpReservation" ("id", "subnetId", "macAddress", "ipAddress", "hostname", "leaseTime", "description", "enabled", "createdAt", "updatedAt")
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ), [
       id, body.subnetId, body.macAddress, body.ipAddress,
       body.hostname || '', body.leaseTime || '', body.description || '',
-      body.enabled !== false ? 1 : 0, now, now,
+      body.enabled !== false, now, now,
     ]);
 
-    fullSync();
+    await fullSync();
     return c.json({ success: true, data: { id, ...body }, message: 'MAC reservation added and applied', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1050,44 +1082,44 @@ app.put('/api/reservations/:id', async (c) => {
   try {
     const { id } = c.req.param();
     const body = await c.req.json();
-    const now = new Date().toISOString();
+    const now = new Date();
 
     const fields: string[] = [];
     const values: any[] = [];
-    if (body.macAddress !== undefined) { fields.push('macAddress = ?'); values.push(body.macAddress); }
-    if (body.ipAddress !== undefined) { fields.push('ipAddress = ?'); values.push(body.ipAddress); }
-    if (body.hostname !== undefined) { fields.push('hostname = ?'); values.push(body.hostname); }
-    if (body.subnetId !== undefined) { fields.push('subnetId = ?'); values.push(body.subnetId); }
-    if (body.leaseTime !== undefined) { fields.push('leaseTime = ?'); values.push(body.leaseTime); }
-    if (body.description !== undefined) { fields.push('description = ?'); values.push(body.description); }
-    if (body.enabled !== undefined) { fields.push('enabled = ?'); values.push(body.enabled ? 1 : 0); }
-    fields.push('updatedAt = ?'); values.push(now); values.push(id);
+    if (body.macAddress !== undefined) { fields.push('"macAddress" = ?'); values.push(body.macAddress); }
+    if (body.ipAddress !== undefined) { fields.push('"ipAddress" = ?'); values.push(body.ipAddress); }
+    if (body.hostname !== undefined) { fields.push('"hostname" = ?'); values.push(body.hostname); }
+    if (body.subnetId !== undefined) { fields.push('"subnetId" = ?'); values.push(body.subnetId); }
+    if (body.leaseTime !== undefined) { fields.push('"leaseTime" = ?'); values.push(body.leaseTime); }
+    if (body.description !== undefined) { fields.push('"description" = ?'); values.push(body.description); }
+    if (body.enabled !== undefined) { fields.push('"enabled" = ?'); values.push(body.enabled ? true : false); }
+    fields.push('"updatedAt" = ?'); values.push(now); values.push(id);
 
-    db.run(`UPDATE DhcpReservation SET ${fields.join(', ')} WHERE id = ?`, values);
-    fullSync();
+    await pool.query(paramify(`UPDATE "DhcpReservation" SET ${fields.join(', ')} WHERE "id" = ?`), values);
+    await fullSync();
     return c.json({ success: true, data: { id, ...body }, message: 'MAC reservation updated and applied', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
 });
 
-app.delete('/api/reservations/:subnetId/:mac', (c) => {
+app.delete('/api/reservations/:subnetId/:mac', async (c) => {
   try {
     const { subnetId, mac } = c.req.param();
     const macClean = mac.replace(/-/g, ':');
-    db.run('DELETE FROM DhcpReservation WHERE subnetId = ? AND macAddress = ?', [subnetId, macClean]);
-    fullSync();
+    await pool.query('DELETE FROM "DhcpReservation" WHERE "subnetId" = $1 AND "macAddress" = $2', [subnetId, macClean]);
+    await fullSync();
     return c.json({ success: true, message: `Reservation for ${macClean} removed`, persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
 });
 
-app.delete('/api/reservations/:id', (c) => {
+app.delete('/api/reservations/:id', async (c) => {
   try {
     const { id } = c.req.param();
-    db.run('DELETE FROM DhcpReservation WHERE id = ?', [id]);
-    fullSync();
+    await pool.query('DELETE FROM "DhcpReservation" WHERE "id" = $1', [id]);
+    await fullSync();
     return c.json({ success: true, message: 'Reservation deleted', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1098,19 +1130,19 @@ app.delete('/api/reservations/:id', (c) => {
 // Leases (read from flat file)
 // ─────────────────────────────────────────────────────────────────────────────
 
-app.get('/api/leases', (c) => {
+app.get('/api/leases', async (c) => {
   try {
-    const leases = parseLeasesFile();
+    const leases = await parseLeasesFile();
     return c.json({ success: true, data: leases });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
 });
 
-app.post('/api/leases/reclaim', (c) => {
+app.post('/api/leases/reclaim', async (c) => {
   // dnsmasq doesn't have a reclaim command like Kea
   // Instead, we reload which triggers lease cleanup
-  const result = reloadDnsmasq();
+  const result = await reloadDnsmasq();
   return c.json({ success: result.success, message: result.success ? 'dnsmasq reloaded (leases refreshed)' : result.message });
 });
 
@@ -1120,12 +1152,14 @@ app.post('/api/leases/reclaim', (c) => {
 
 const MAC_REGEX = /^([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}$|^([0-9a-fA-F]{2}[:*]){5}[0-9a-fA-F*]{2}$|^([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F*]{2}$/;
 
-app.get('/api/blacklist', (c) => {
+app.get('/api/blacklist', async (c) => {
   try {
-    const blacklist = db.query(`SELECT b.*, s.name as subnetName
-      FROM DhcpBlacklist b LEFT JOIN DhcpSubnet s ON b.subnetId = s.id
-      ORDER BY b.macAddress ASC`).all() as any[];
-    return c.json({ success: true, data: blacklist });
+    const result = await pool.query(
+      `SELECT b.*, s."name" as "subnetName"
+       FROM "DhcpBlacklist" b LEFT JOIN "DhcpSubnet" s ON b."subnetId" = s."id"
+       ORDER BY b."macAddress" ASC`
+    );
+    return c.json({ success: true, data: result.rows });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
@@ -1134,8 +1168,8 @@ app.get('/api/blacklist', (c) => {
 app.post('/api/blacklist', async (c) => {
   try {
     const body = await c.req.json();
-    const id = generateId('bl');
-    const now = new Date().toISOString();
+    const id = generateUuid();
+    const now = new Date();
 
     // Validate MAC format (allow wildcards like aa:bb:cc:*:*:*)
     const mac = (body.macAddress || '').toLowerCase();
@@ -1143,18 +1177,20 @@ app.post('/api/blacklist', async (c) => {
       return c.json({ success: false, error: 'Invalid MAC address format. Use xx:xx:xx:xx:xx:xx or xx:xx:xx:*:*:*' });
     }
 
-    db.run(`INSERT INTO DhcpBlacklist (id, tenantId, propertyId, subnetId, macAddress, reason, enabled, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+    await pool.query(paramify(
+      `INSERT INTO "DhcpBlacklist" ("id", "tenantId", "propertyId", "subnetId", "macAddress", "reason", "enabled", "createdAt", "updatedAt")
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ), [
       id,
-      body.tenantId || 'tenant-1',
-      body.propertyId || 'property-1',
+      body.tenantId || '444017d5-e022-4c5f-ac07-ea0d51f4609b',
+      body.propertyId || '281fde73-7836-4511-b644-91f3663d8fcd',
       body.subnetId || null,
       mac,
       body.reason || '',
-      body.enabled !== false ? 1 : 0, now, now,
+      body.enabled !== false, now, now,
     ]);
 
-    fullSync();
+    await fullSync();
     return c.json({ success: true, data: { id, macAddress: mac, reason: body.reason, subnetId: body.subnetId, enabled: body.enabled !== false }, message: 'MAC blacklist entry added and applied', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1165,33 +1201,33 @@ app.put('/api/blacklist/:id', async (c) => {
   try {
     const { id } = c.req.param();
     const body = await c.req.json();
-    const now = new Date().toISOString();
+    const now = new Date();
 
     const fields: string[] = [];
     const values: any[] = [];
     if (body.macAddress !== undefined) {
       const mac = body.macAddress.toLowerCase();
       if (!MAC_REGEX.test(mac)) return c.json({ success: false, error: 'Invalid MAC address format' });
-      fields.push('macAddress = ?'); values.push(mac);
+      fields.push('"macAddress" = ?'); values.push(mac);
     }
-    if (body.reason !== undefined) { fields.push('reason = ?'); values.push(body.reason); }
-    if (body.subnetId !== undefined) { fields.push('subnetId = ?'); values.push(body.subnetId || null); }
-    if (body.enabled !== undefined) { fields.push('enabled = ?'); values.push(body.enabled ? 1 : 0); }
-    fields.push('updatedAt = ?'); values.push(now); values.push(id);
+    if (body.reason !== undefined) { fields.push('"reason" = ?'); values.push(body.reason); }
+    if (body.subnetId !== undefined) { fields.push('"subnetId" = ?'); values.push(body.subnetId || null); }
+    if (body.enabled !== undefined) { fields.push('"enabled" = ?'); values.push(body.enabled ? true : false); }
+    fields.push('"updatedAt" = ?'); values.push(now); values.push(id);
 
-    db.run(`UPDATE DhcpBlacklist SET ${fields.join(', ')} WHERE id = ?`, values);
-    fullSync();
+    await pool.query(paramify(`UPDATE "DhcpBlacklist" SET ${fields.join(', ')} WHERE "id" = ?`), values);
+    await fullSync();
     return c.json({ success: true, data: { id, ...body }, message: 'Blacklist entry updated and applied', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
 });
 
-app.delete('/api/blacklist/:id', (c) => {
+app.delete('/api/blacklist/:id', async (c) => {
   try {
     const { id } = c.req.param();
-    db.run('DELETE FROM DhcpBlacklist WHERE id = ?', [id]);
-    fullSync();
+    await pool.query('DELETE FROM "DhcpBlacklist" WHERE "id" = $1', [id]);
+    await fullSync();
     return c.json({ success: true, message: 'Blacklist entry deleted', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1201,7 +1237,7 @@ app.delete('/api/blacklist/:id', (c) => {
 app.post('/api/blacklist/bulk', async (c) => {
   try {
     const body = await c.req.json();
-    const now = new Date().toISOString();
+    const now = new Date();
     let added = 0, removed = 0;
 
     // Bulk add
@@ -1210,16 +1246,18 @@ app.post('/api/blacklist/bulk', async (c) => {
         const mac = (entry.macAddress || '').toLowerCase();
         if (!MAC_REGEX.test(mac)) continue;
         try {
-          const id = generateId('bl');
-          db.run(`INSERT INTO DhcpBlacklist (id, tenantId, propertyId, subnetId, macAddress, reason, enabled, createdAt, updatedAt)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+          const id = generateUuid();
+          await pool.query(paramify(
+            `INSERT INTO "DhcpBlacklist" ("id", "tenantId", "propertyId", "subnetId", "macAddress", "reason", "enabled", "createdAt", "updatedAt")
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ), [
             id,
-            entry.tenantId || 'tenant-1',
-            entry.propertyId || 'property-1',
+            entry.tenantId || '444017d5-e022-4c5f-ac07-ea0d51f4609b',
+            entry.propertyId || '281fde73-7836-4511-b644-91f3663d8fcd',
             entry.subnetId || null,
             mac,
             entry.reason || '',
-            entry.enabled !== false ? 1 : 0, now, now,
+            entry.enabled !== false, now, now,
           ]);
           added++;
         } catch { /* duplicate or constraint error */ }
@@ -1230,17 +1268,19 @@ app.post('/api/blacklist/bulk', async (c) => {
     if (body.remove && Array.isArray(body.remove)) {
       for (const macId of body.remove) {
         try {
-          if (macId.startsWith('bl_')) {
-            db.run('DELETE FROM DhcpBlacklist WHERE id = ?', [macId]);
+          // Check if it looks like a UUID
+          const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (uuidPattern.test(macId)) {
+            await pool.query('DELETE FROM "DhcpBlacklist" WHERE "id" = $1', [macId]);
           } else {
-            db.run('DELETE FROM DhcpBlacklist WHERE macAddress = ?', [macId.toLowerCase()]);
+            await pool.query('DELETE FROM "DhcpBlacklist" WHERE "macAddress" = $1', [macId.toLowerCase()]);
           }
           removed++;
         } catch {}
       }
     }
 
-    fullSync();
+    await fullSync();
     return c.json({ success: true, data: { added, removed }, message: `Bulk operation: ${added} added, ${removed} removed`, persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1251,12 +1291,14 @@ app.post('/api/blacklist/bulk', async (c) => {
 // DHCP Options
 // ─────────────────────────────────────────────────────────────────────────────
 
-app.get('/api/options', (c) => {
+app.get('/api/options', async (c) => {
   try {
-    const options = db.query(`SELECT o.*, s.name as subnetName
-      FROM DhcpOption o LEFT JOIN DhcpSubnet s ON o.subnetId = s.id
-      ORDER BY o.code ASC`).all() as any[];
-    return c.json({ success: true, data: options });
+    const result = await pool.query(
+      `SELECT o.*, s."name" as "subnetName"
+       FROM "DhcpOption" o LEFT JOIN "DhcpSubnet" s ON o."subnetId" = s."id"
+       ORDER BY o."code" ASC`
+    );
+    return c.json({ success: true, data: result.rows });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
@@ -1265,8 +1307,8 @@ app.get('/api/options', (c) => {
 app.post('/api/options', async (c) => {
   try {
     const body = await c.req.json();
-    const id = generateId('opt');
-    const now = new Date().toISOString();
+    const id = generateUuid();
+    const now = new Date();
 
     // Validate option code (1-254)
     const code = parseInt(body.code);
@@ -1280,22 +1322,24 @@ app.post('/api/options', async (c) => {
       return c.json({ success: false, error: `Invalid type. Must be one of: ${validTypes.join(', ')}` });
     }
 
-    db.run(`INSERT INTO DhcpOption (id, tenantId, propertyId, subnetId, code, name, value, type, enabled, description, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+    await pool.query(paramify(
+      `INSERT INTO "DhcpOption" ("id", "tenantId", "propertyId", "subnetId", "code", "name", "value", "type", "enabled", "description", "createdAt", "updatedAt")
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ), [
       id,
-      body.tenantId || 'tenant-1',
-      body.propertyId || 'property-1',
+      body.tenantId || '444017d5-e022-4c5f-ac07-ea0d51f4609b',
+      body.propertyId || '281fde73-7836-4511-b644-91f3663d8fcd',
       body.subnetId || null,
       code,
       body.name || `option-${code}`,
       body.value || '',
       optType,
-      body.enabled !== false ? 1 : 0,
+      body.enabled !== false,
       body.description || '',
       now, now,
     ]);
 
-    fullSync();
+    await fullSync();
     return c.json({ success: true, data: { id, code, name: body.name, value: body.value, type: optType, subnetId: body.subnetId }, message: 'DHCP option created and applied', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1306,36 +1350,36 @@ app.put('/api/options/:id', async (c) => {
   try {
     const { id } = c.req.param();
     const body = await c.req.json();
-    const now = new Date().toISOString();
+    const now = new Date();
 
     const fields: string[] = [];
     const values: any[] = [];
     if (body.code !== undefined) {
       const code = parseInt(body.code);
       if (!code || code < 1 || code > 254) return c.json({ success: false, error: 'Invalid option code. Must be 1-254' });
-      fields.push('code = ?'); values.push(code);
+      fields.push('"code" = ?'); values.push(code);
     }
-    if (body.name !== undefined) { fields.push('name = ?'); values.push(body.name); }
-    if (body.value !== undefined) { fields.push('value = ?'); values.push(body.value); }
-    if (body.type !== undefined) { fields.push('type = ?'); values.push(body.type); }
-    if (body.subnetId !== undefined) { fields.push('subnetId = ?'); values.push(body.subnetId || null); }
-    if (body.description !== undefined) { fields.push('description = ?'); values.push(body.description); }
-    if (body.enabled !== undefined) { fields.push('enabled = ?'); values.push(body.enabled ? 1 : 0); }
-    fields.push('updatedAt = ?'); values.push(now); values.push(id);
+    if (body.name !== undefined) { fields.push('"name" = ?'); values.push(body.name); }
+    if (body.value !== undefined) { fields.push('"value" = ?'); values.push(body.value); }
+    if (body.type !== undefined) { fields.push('"type" = ?'); values.push(body.type); }
+    if (body.subnetId !== undefined) { fields.push('"subnetId" = ?'); values.push(body.subnetId || null); }
+    if (body.description !== undefined) { fields.push('"description" = ?'); values.push(body.description); }
+    if (body.enabled !== undefined) { fields.push('"enabled" = ?'); values.push(body.enabled ? true : false); }
+    fields.push('"updatedAt" = ?'); values.push(now); values.push(id);
 
-    db.run(`UPDATE DhcpOption SET ${fields.join(', ')} WHERE id = ?`, values);
-    fullSync();
+    await pool.query(paramify(`UPDATE "DhcpOption" SET ${fields.join(', ')} WHERE "id" = ?`), values);
+    await fullSync();
     return c.json({ success: true, data: { id, ...body }, message: 'DHCP option updated and applied', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
 });
 
-app.delete('/api/options/:id', (c) => {
+app.delete('/api/options/:id', async (c) => {
   try {
     const { id } = c.req.param();
-    db.run('DELETE FROM DhcpOption WHERE id = ?', [id]);
-    fullSync();
+    await pool.query('DELETE FROM "DhcpOption" WHERE "id" = $1', [id]);
+    await fullSync();
     return c.json({ success: true, message: 'DHCP option deleted', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1348,12 +1392,14 @@ app.delete('/api/options/:id', (c) => {
 
 const VALID_MATCH_TYPES = ['mac', 'vendor_class', 'user_class', 'hostname'];
 
-app.get('/api/tag-rules', (c) => {
+app.get('/api/tag-rules', async (c) => {
   try {
-    const tagRules = db.query(`SELECT t.*, s.name as subnetName
-      FROM DhcpTagRule t LEFT JOIN DhcpSubnet s ON t.subnetId = s.id
-      ORDER BY t.name ASC`).all() as any[];
-    return c.json({ success: true, data: tagRules });
+    const result = await pool.query(
+      `SELECT t.*, s."name" as "subnetName"
+       FROM "DhcpTagRule" t LEFT JOIN "DhcpSubnet" s ON t."subnetId" = s."id"
+       ORDER BY t."name" ASC`
+    );
+    return c.json({ success: true, data: result.rows });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
@@ -1362,8 +1408,8 @@ app.get('/api/tag-rules', (c) => {
 app.post('/api/tag-rules', async (c) => {
   try {
     const body = await c.req.json();
-    const id = generateId('tag');
-    const now = new Date().toISOString();
+    const id = generateUuid();
+    const now = new Date();
 
     // Validate matchType
     const matchType = body.matchType || 'mac';
@@ -1375,22 +1421,24 @@ app.post('/api/tag-rules', async (c) => {
       return c.json({ success: false, error: 'matchPattern is required' });
     }
 
-    db.run(`INSERT INTO DhcpTagRule (id, tenantId, propertyId, subnetId, name, matchType, matchPattern, setTag, enabled, description, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+    await pool.query(paramify(
+      `INSERT INTO "DhcpTagRule" ("id", "tenantId", "propertyId", "subnetId", "name", "matchType", "matchPattern", "setTag", "enabled", "description", "createdAt", "updatedAt")
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ), [
       id,
-      body.tenantId || 'tenant-1',
-      body.propertyId || 'property-1',
+      body.tenantId || '444017d5-e022-4c5f-ac07-ea0d51f4609b',
+      body.propertyId || '281fde73-7836-4511-b644-91f3663d8fcd',
       body.subnetId || null,
       body.name || `tag-rule-${Date.now()}`,
       matchType,
       body.matchPattern,
       body.setTag || body.name || `tag-${Date.now()}`,
-      body.enabled !== false ? 1 : 0,
+      body.enabled !== false,
       body.description || '',
       now, now,
     ]);
 
-    fullSync();
+    await fullSync();
     return c.json({ success: true, data: { id, name: body.name, matchType, matchPattern: body.matchPattern, setTag: body.setTag }, message: 'Tag rule created and applied', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1401,35 +1449,35 @@ app.put('/api/tag-rules/:id', async (c) => {
   try {
     const { id } = c.req.param();
     const body = await c.req.json();
-    const now = new Date().toISOString();
+    const now = new Date();
 
     const fields: string[] = [];
     const values: any[] = [];
-    if (body.name !== undefined) { fields.push('name = ?'); values.push(body.name); }
+    if (body.name !== undefined) { fields.push('"name" = ?'); values.push(body.name); }
     if (body.matchType !== undefined) {
       if (!VALID_MATCH_TYPES.includes(body.matchType)) return c.json({ success: false, error: `Invalid matchType. Must be one of: ${VALID_MATCH_TYPES.join(', ')}` });
-      fields.push('matchType = ?'); values.push(body.matchType);
+      fields.push('"matchType" = ?'); values.push(body.matchType);
     }
-    if (body.matchPattern !== undefined) { fields.push('matchPattern = ?'); values.push(body.matchPattern); }
-    if (body.setTag !== undefined) { fields.push('setTag = ?'); values.push(body.setTag); }
-    if (body.subnetId !== undefined) { fields.push('subnetId = ?'); values.push(body.subnetId || null); }
-    if (body.description !== undefined) { fields.push('description = ?'); values.push(body.description); }
-    if (body.enabled !== undefined) { fields.push('enabled = ?'); values.push(body.enabled ? 1 : 0); }
-    fields.push('updatedAt = ?'); values.push(now); values.push(id);
+    if (body.matchPattern !== undefined) { fields.push('"matchPattern" = ?'); values.push(body.matchPattern); }
+    if (body.setTag !== undefined) { fields.push('"setTag" = ?'); values.push(body.setTag); }
+    if (body.subnetId !== undefined) { fields.push('"subnetId" = ?'); values.push(body.subnetId || null); }
+    if (body.description !== undefined) { fields.push('"description" = ?'); values.push(body.description); }
+    if (body.enabled !== undefined) { fields.push('"enabled" = ?'); values.push(body.enabled ? true : false); }
+    fields.push('"updatedAt" = ?'); values.push(now); values.push(id);
 
-    db.run(`UPDATE DhcpTagRule SET ${fields.join(', ')} WHERE id = ?`, values);
-    fullSync();
+    await pool.query(paramify(`UPDATE "DhcpTagRule" SET ${fields.join(', ')} WHERE "id" = ?`), values);
+    await fullSync();
     return c.json({ success: true, data: { id, ...body }, message: 'Tag rule updated and applied', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
 });
 
-app.delete('/api/tag-rules/:id', (c) => {
+app.delete('/api/tag-rules/:id', async (c) => {
   try {
     const { id } = c.req.param();
-    db.run('DELETE FROM DhcpTagRule WHERE id = ?', [id]);
-    fullSync();
+    await pool.query('DELETE FROM "DhcpTagRule" WHERE "id" = $1', [id]);
+    await fullSync();
     return c.json({ success: true, message: 'Tag rule deleted', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1440,12 +1488,14 @@ app.delete('/api/tag-rules/:id', (c) => {
 // DHCP Hostname Filters
 // ─────────────────────────────────────────────────────────────────────────────
 
-app.get('/api/hostname-filters', (c) => {
+app.get('/api/hostname-filters', async (c) => {
   try {
-    const filters = db.query(`SELECT h.*, s.name as subnetName
-      FROM DhcpHostnameFilter h LEFT JOIN DhcpSubnet s ON h.subnetId = s.id
-      ORDER BY h.pattern ASC`).all() as any[];
-    return c.json({ success: true, data: filters });
+    const result = await pool.query(
+      `SELECT h.*, s."name" as "subnetName"
+       FROM "DhcpHostnameFilter" h LEFT JOIN "DhcpSubnet" s ON h."subnetId" = s."id"
+       ORDER BY h."pattern" ASC`
+    );
+    return c.json({ success: true, data: result.rows });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
@@ -1454,8 +1504,8 @@ app.get('/api/hostname-filters', (c) => {
 app.post('/api/hostname-filters', async (c) => {
   try {
     const body = await c.req.json();
-    const id = generateId('hnf');
-    const now = new Date().toISOString();
+    const id = generateUuid();
+    const now = new Date();
 
     // Validate action
     const action = body.action || 'ignore';
@@ -1467,20 +1517,22 @@ app.post('/api/hostname-filters', async (c) => {
       return c.json({ success: false, error: 'pattern is required' });
     }
 
-    db.run(`INSERT INTO DhcpHostnameFilter (id, tenantId, propertyId, subnetId, pattern, action, enabled, description, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+    await pool.query(paramify(
+      `INSERT INTO "DhcpHostnameFilter" ("id", "tenantId", "propertyId", "subnetId", "pattern", "action", "enabled", "description", "createdAt", "updatedAt")
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ), [
       id,
-      body.tenantId || 'tenant-1',
-      body.propertyId || 'property-1',
+      body.tenantId || '444017d5-e022-4c5f-ac07-ea0d51f4609b',
+      body.propertyId || '281fde73-7836-4511-b644-91f3663d8fcd',
       body.subnetId || null,
       body.pattern,
       action,
-      body.enabled !== false ? 1 : 0,
+      body.enabled !== false,
       body.description || '',
       now, now,
     ]);
 
-    fullSync();
+    await fullSync();
     return c.json({ success: true, data: { id, pattern: body.pattern, action, subnetId: body.subnetId }, message: 'Hostname filter created and applied', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1491,33 +1543,33 @@ app.put('/api/hostname-filters/:id', async (c) => {
   try {
     const { id } = c.req.param();
     const body = await c.req.json();
-    const now = new Date().toISOString();
+    const now = new Date();
 
     const fields: string[] = [];
     const values: any[] = [];
-    if (body.pattern !== undefined) { fields.push('pattern = ?'); values.push(body.pattern); }
+    if (body.pattern !== undefined) { fields.push('"pattern" = ?'); values.push(body.pattern); }
     if (body.action !== undefined) {
       if (body.action !== 'ignore' && body.action !== 'deny') return c.json({ success: false, error: 'Invalid action. Must be "ignore" or "deny"' });
-      fields.push('action = ?'); values.push(body.action);
+      fields.push('"action" = ?'); values.push(body.action);
     }
-    if (body.subnetId !== undefined) { fields.push('subnetId = ?'); values.push(body.subnetId || null); }
-    if (body.description !== undefined) { fields.push('description = ?'); values.push(body.description); }
-    if (body.enabled !== undefined) { fields.push('enabled = ?'); values.push(body.enabled ? 1 : 0); }
-    fields.push('updatedAt = ?'); values.push(now); values.push(id);
+    if (body.subnetId !== undefined) { fields.push('"subnetId" = ?'); values.push(body.subnetId || null); }
+    if (body.description !== undefined) { fields.push('"description" = ?'); values.push(body.description); }
+    if (body.enabled !== undefined) { fields.push('"enabled" = ?'); values.push(body.enabled ? true : false); }
+    fields.push('"updatedAt" = ?'); values.push(now); values.push(id);
 
-    db.run(`UPDATE DhcpHostnameFilter SET ${fields.join(', ')} WHERE id = ?`, values);
-    fullSync();
+    await pool.query(paramify(`UPDATE "DhcpHostnameFilter" SET ${fields.join(', ')} WHERE "id" = ?`), values);
+    await fullSync();
     return c.json({ success: true, data: { id, ...body }, message: 'Hostname filter updated and applied', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
 });
 
-app.delete('/api/hostname-filters/:id', (c) => {
+app.delete('/api/hostname-filters/:id', async (c) => {
   try {
     const { id } = c.req.param();
-    db.run('DELETE FROM DhcpHostnameFilter WHERE id = ?', [id]);
-    fullSync();
+    await pool.query('DELETE FROM "DhcpHostnameFilter" WHERE "id" = $1', [id]);
+    await fullSync();
     return c.json({ success: true, message: 'Hostname filter deleted', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1528,10 +1580,10 @@ app.delete('/api/hostname-filters/:id', (c) => {
 // DHCP Lease Scripts
 // ─────────────────────────────────────────────────────────────────────────────
 
-app.get('/api/lease-scripts', (c) => {
+app.get('/api/lease-scripts', async (c) => {
   try {
-    const scripts = db.query('SELECT * FROM DhcpLeaseScript ORDER BY name ASC').all() as any[];
-    return c.json({ success: true, data: scripts });
+    const result = await pool.query('SELECT * FROM "DhcpLeaseScript" ORDER BY "name" ASC');
+    return c.json({ success: true, data: result.rows });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
@@ -1540,8 +1592,8 @@ app.get('/api/lease-scripts', (c) => {
 app.post('/api/lease-scripts', async (c) => {
   try {
     const body = await c.req.json();
-    const id = generateId('ls');
-    const now = new Date().toISOString();
+    const id = generateUuid();
+    const now = new Date();
 
     if (!body.scriptPath) {
       return c.json({ success: false, error: 'scriptPath is required' });
@@ -1554,20 +1606,22 @@ app.post('/api/lease-scripts', async (c) => {
 
     const events = Array.isArray(body.events) ? JSON.stringify(body.events) : (body.events || '[]');
 
-    db.run(`INSERT INTO DhcpLeaseScript (id, tenantId, propertyId, name, scriptPath, events, enabled, description, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+    await pool.query(paramify(
+      `INSERT INTO "DhcpLeaseScript" ("id", "tenantId", "propertyId", "name", "scriptPath", "events", "enabled", "description", "createdAt", "updatedAt")
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ), [
       id,
-      body.tenantId || 'tenant-1',
-      body.propertyId || 'property-1',
+      body.tenantId || '444017d5-e022-4c5f-ac07-ea0d51f4609b',
+      body.propertyId || '281fde73-7836-4511-b644-91f3663d8fcd',
       body.name || path.basename(body.scriptPath),
       body.scriptPath,
       events,
-      body.enabled !== false ? 1 : 0,
+      body.enabled !== false,
       body.description || '',
       now, now,
     ]);
 
-    fullSync();
+    await fullSync();
     return c.json({ success: true, data: { id, name: body.name, scriptPath: body.scriptPath, events: body.events }, message: 'Lease script created and applied', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1578,38 +1632,38 @@ app.put('/api/lease-scripts/:id', async (c) => {
   try {
     const { id } = c.req.param();
     const body = await c.req.json();
-    const now = new Date().toISOString();
+    const now = new Date();
 
     const fields: string[] = [];
     const values: any[] = [];
-    if (body.name !== undefined) { fields.push('name = ?'); values.push(body.name); }
+    if (body.name !== undefined) { fields.push('"name" = ?'); values.push(body.name); }
     if (body.scriptPath !== undefined) {
       if (!fs.existsSync(body.scriptPath)) {
         return c.json({ success: false, error: `Script not found at path: ${body.scriptPath}` });
       }
-      fields.push('scriptPath = ?'); values.push(body.scriptPath);
+      fields.push('"scriptPath" = ?'); values.push(body.scriptPath);
     }
     if (body.events !== undefined) {
-      fields.push('events = ?');
+      fields.push('"events" = ?');
       values.push(Array.isArray(body.events) ? JSON.stringify(body.events) : body.events);
     }
-    if (body.description !== undefined) { fields.push('description = ?'); values.push(body.description); }
-    if (body.enabled !== undefined) { fields.push('enabled = ?'); values.push(body.enabled ? 1 : 0); }
-    fields.push('updatedAt = ?'); values.push(now); values.push(id);
+    if (body.description !== undefined) { fields.push('"description" = ?'); values.push(body.description); }
+    if (body.enabled !== undefined) { fields.push('"enabled" = ?'); values.push(body.enabled ? true : false); }
+    fields.push('"updatedAt" = ?'); values.push(now); values.push(id);
 
-    db.run(`UPDATE DhcpLeaseScript SET ${fields.join(', ')} WHERE id = ?`, values);
-    fullSync();
+    await pool.query(paramify(`UPDATE "DhcpLeaseScript" SET ${fields.join(', ')} WHERE "id" = ?`), values);
+    await fullSync();
     return c.json({ success: true, data: { id, ...body }, message: 'Lease script updated and applied', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
 });
 
-app.delete('/api/lease-scripts/:id', (c) => {
+app.delete('/api/lease-scripts/:id', async (c) => {
   try {
     const { id } = c.req.param();
-    db.run('DELETE FROM DhcpLeaseScript WHERE id = ?', [id]);
-    fullSync();
+    await pool.query('DELETE FROM "DhcpLeaseScript" WHERE "id" = $1', [id]);
+    await fullSync();
     return c.json({ success: true, message: 'Lease script deleted', persisted: true });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1620,8 +1674,8 @@ app.delete('/api/lease-scripts/:id', (c) => {
 // Config write & interfaces
 // ─────────────────────────────────────────────────────────────────────────────
 
-app.post('/api/config/write', (c) => {
-  const result = generateConfig();
+app.post('/api/config/write', async (c) => {
+  const result = await generateConfig();
   return c.json({ success: result.success, message: result.message, lines: result.lines });
 });
 
@@ -1636,7 +1690,7 @@ app.post('/api/interfaces', async (c) => {
     // Update all subnets' interfaces — NOTE: this is unusual for dnsmasq,
     // normally each subnet maps to its own interface. This endpoint exists
     // for API compatibility with the frontend.
-    const result = fullSync();
+    const result = await fullSync();
     return c.json({
       success: true,
       message: `dnsmasq DHCP interfaces managed per-subnet. Active: ${interfaces.join(', ')}`,
@@ -1647,8 +1701,8 @@ app.post('/api/interfaces', async (c) => {
   }
 });
 
-app.post('/api/dhcp/enable', (c) => {
-  const result = startDnsmasq();
+app.post('/api/dhcp/enable', async (c) => {
+  const result = await startDnsmasq();
   return c.json({ success: result.success, message: result.message });
 });
 
@@ -1661,7 +1715,6 @@ app.post('/api/dhcp/disable', (c) => {
 // Start Server
 // ─────────────────────────────────────────────────────────────────────────────
 
-log.info(`DHCP service listening on port ${PORT}`);
-// export default app; // Commented out to prevent Bun auto-serve double-bind
+log.info(`DHCP service listening on port ${PORT} (PostgreSQL backend)`);
 
 Bun.serve({ port: PORT, fetch: app.fetch });

@@ -7,7 +7,10 @@
  * - Upstream forwarders
  * - Cache management
  * - Auto-sync DB -> dnsmasq config -> reload
- * - Prisma DB sync (bidirectional)
+ *
+ * Uses PostgreSQL (shared with main StaySuite app via Prisma-managed tables).
+ * DnsZone, DnsRecord, DnsRedirectRule are Prisma-managed.
+ * DnsForwarder, DnsActivityLog are service-managed.
  *
  * Port: 3012
  */
@@ -17,22 +20,19 @@ import { cors } from 'hono/cors';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import Database from 'bun:sqlite';
+import pg from 'pg';
 import { createLogger } from '../shared/logger';
+
+const { Pool } = pg;
 
 const app = new Hono();
 const PORT = 3012;
-const SERVICE_VERSION = '1.0.0';
+const SERVICE_VERSION = '2.0.0';
 const log = createLogger('dns-service');
 const startTime = Date.now();
 
 const PROJECT_ROOT = process.env.PROJECT_ROOT || path.resolve(__dirname, '..', '..');
-
-// DNS service uses its own separate database for operational data
-const DB_PATH = process.env.DATABASE_PATH || path.join(PROJECT_ROOT, 'db', 'dns-service.db');
-
-// Prisma database path (the main Next.js app DB) - used for sync
-const PRISMA_DB_PATH = process.env.PRISMA_DATABASE_PATH || path.join(PROJECT_ROOT, 'db', 'custom.db');
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://z@localhost:5432/staysuite';
 
 // Detect system dnsmasq
 const SYSTEM_DNSMASQ = (() => {
@@ -45,95 +45,139 @@ const DNSMASQ_CONFIG = path.join(DNSMASQ_CONFIG_DIR, 'staysuite.conf');
 const DNSMASQ_PID_FILE = SYSTEM_DNSMASQ ? '/run/dnsmasq/dnsmasq.pid' : '/tmp/dnsmasq.pid';
 const DNSMASQ_RESOLV = SYSTEM_DNSMASQ ? '/etc/resolv.conf' : path.join(PROJECT_ROOT, 'dns-local', 'resolv.conf');
 
-// Ensure config and db directories exist
+// Ensure config directory exists
 try { fs.mkdirSync(DNSMASQ_CONFIG_DIR, { recursive: true }); } catch {}
-try { fs.mkdirSync(path.dirname(DB_PATH), { recursive: true }); } catch {}
 
 // ============================================================================
-// Database Connection (DNS service's own DB)
+// Database Connection (PostgreSQL)
 // ============================================================================
 
-let db: Database.Database;
-try {
-  db = new Database(DB_PATH);
-  db.exec('PRAGMA journal_mode = WAL;');
-  db.exec('PRAGMA foreign_keys = ON;');
-  log.info('Connected to own database', { path: DB_PATH });
-} catch (error) {
-  log.error('Failed to connect to database', { path: DB_PATH, error: String(error) });
-  process.exit(1);
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
+
+pool.on('error', (err: Error) => {
+  log.error('Unexpected database pool error', { error: err.message });
+});
+
+// Test connection
+(async () => {
+  try {
+    const client = await pool.connect();
+    await client.query('SELECT 1');
+    client.release();
+    log.info('Connected to PostgreSQL', { database: DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@') });
+  } catch (error) {
+    log.error('Failed to connect to PostgreSQL', { database: DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'), error: String(error) });
+    process.exit(1);
+  }
+})();
+
+// Create service-managed tables (not in Prisma schema)
+async function ensureServiceTables() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "DnsForwarder" (
+        "id" TEXT PRIMARY KEY,
+        "tenantId" TEXT NOT NULL DEFAULT 'default',
+        "propertyId" TEXT NOT NULL DEFAULT 'default',
+        "address" TEXT NOT NULL,
+        "port" INTEGER NOT NULL DEFAULT 53,
+        "description" TEXT,
+        "enabled" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE("address", "port", "propertyId")
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "DnsActivityLog" (
+        "id" TEXT PRIMARY KEY,
+        "action" TEXT NOT NULL,
+        "details" TEXT,
+        "severity" TEXT NOT NULL DEFAULT 'info',
+        "timestamp" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    log.info('Service-managed tables verified/created');
+  } catch (error) {
+    log.error('Failed to create service tables', { error: String(error) });
+  }
 }
-
-// Ensure DNS tables exist in the service's own DB
-db.exec(`
-  CREATE TABLE IF NOT EXISTS DnsZone (
-    id TEXT PRIMARY KEY,
-    tenantId TEXT NOT NULL DEFAULT 'default',
-    propertyId TEXT NOT NULL DEFAULT 'default',
-    domain TEXT NOT NULL,
-    type TEXT NOT NULL DEFAULT 'forward',
-    description TEXT,
-    vlanId INTEGER,
-    enabled INTEGER NOT NULL DEFAULT 1,
-    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
-    updatedAt TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(domain, propertyId)
-  );
-
-  CREATE TABLE IF NOT EXISTS DnsRecord (
-    id TEXT PRIMARY KEY,
-    tenantId TEXT NOT NULL DEFAULT 'default',
-    zoneId TEXT NOT NULL,
-    name TEXT NOT NULL,
-    type TEXT NOT NULL DEFAULT 'A',
-    value TEXT NOT NULL,
-    ttl INTEGER NOT NULL DEFAULT 300,
-    priority INTEGER,
-    enabled INTEGER NOT NULL DEFAULT 1,
-    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
-    updatedAt TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (zoneId) REFERENCES DnsZone(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS DnsRedirect (
-    id TEXT PRIMARY KEY,
-    tenantId TEXT NOT NULL DEFAULT 'default',
-    propertyId TEXT NOT NULL DEFAULT 'default',
-    domain TEXT NOT NULL,
-    targetIp TEXT NOT NULL,
-    wildcard INTEGER NOT NULL DEFAULT 0,
-    priority INTEGER NOT NULL DEFAULT 100,
-    description TEXT,
-    enabled INTEGER NOT NULL DEFAULT 1,
-    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
-    updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS DnsForwarder (
-    id TEXT PRIMARY KEY,
-    tenantId TEXT NOT NULL DEFAULT 'default',
-    propertyId TEXT NOT NULL DEFAULT 'default',
-    address TEXT NOT NULL,
-    port INTEGER NOT NULL DEFAULT 53,
-    description TEXT,
-    enabled INTEGER NOT NULL DEFAULT 1,
-    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(address, port, propertyId)
-  );
-`);
 
 // ============================================================================
 // Helpers
 // ============================================================================
 
 function generateId(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(6));
-  const rand = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-  return `dns_${Date.now()}_${rand}`;
+  return crypto.randomUUID();
 }
 
 function safeExec(cmd: string, timeout = 5000): string {
   try { return execSync(cmd, { encoding: 'utf-8', timeout }); } catch { return ''; }
+}
+
+/**
+ * Map DnsRedirectRule row to DnsRedirect API format.
+ * matchPattern -> domain + wildcard
+ */
+function redirectRuleToApi(rule: any): any {
+  let domain = rule.matchPattern || '';
+  let wildcard = false;
+  if (domain.startsWith('*.')) {
+    domain = domain.slice(2);
+    wildcard = true;
+  } else if (domain === '*') {
+    wildcard = true;
+  }
+  return {
+    id: rule.id,
+    tenantId: rule.tenantId,
+    propertyId: rule.propertyId,
+    name: rule.name,
+    domain,
+    wildcard,
+    targetIp: rule.targetIp,
+    applyTo: rule.applyTo,
+    priority: rule.priority,
+    description: rule.description,
+    enabled: rule.enabled,
+    createdAt: rule.createdAt,
+    updatedAt: rule.updatedAt,
+  };
+}
+
+/**
+ * Convert DnsRedirect API fields to DnsRedirectRule DB fields.
+ */
+function apiToRedirectRule(body: any): { matchPattern: string; name: string; applyTo: string } {
+  let matchPattern = body.domain || '';
+  if (body.wildcard && matchPattern !== '*') {
+    matchPattern = `*.${matchPattern}`;
+  }
+  return {
+    matchPattern,
+    name: body.name || body.domain || 'Redirect',
+    applyTo: body.applyTo || 'unauthenticated',
+  };
+}
+
+/**
+ * Convert DnsRedirectRule matchPattern to dnsmasq address= format.
+ */
+function matchPatternToDnsmasq(matchPattern: string): string {
+  if (matchPattern === '*') {
+    return '/*';
+  } else if (matchPattern.startsWith('*.')) {
+    return `/${matchPattern.slice(2)}`;
+  } else {
+    return matchPattern;
+  }
 }
 
 function getDnsmasqPid(): string {
@@ -145,11 +189,8 @@ function getDnsmasqPid(): string {
 
 function isDnsmasqRunning(): boolean {
   try {
-    // Check if dnsmasq process is alive
     const pid = getDnsmasqPid();
     if (!pid) return false;
-    // Verify it's actually listening on DNS port 53 (UDP)
-    // Use grep -F (fixed string) to avoid regex escape warnings
     const ssResult = execSync('ss -ulnp | grep -F ":53"', { encoding: 'utf-8' });
     return ssResult.trim().length > 0;
   } catch { return false; }
@@ -175,13 +216,9 @@ function getDnsmasqStats(): {
     const pid = getDnsmasqPid();
     if (!pid) return defaultResult;
 
-    // Send SIGUSR1 to dnsmasq — it dumps runtime stats to syslog
     safeExec(`kill -USR1 ${pid} 2>/dev/null`);
-
-    // Wait briefly for syslog write
     safeExec('sleep 0.3');
 
-    // Read recent dnsmasq log entries from journalctl or /var/log/messages
     const logOutput = safeExec(
       'journalctl -t dnsmasq --no-pager -n 20 2>/dev/null || ' +
       'journalctl --no-pager -n 20 --grep=dnsmasq 2>/dev/null || ' +
@@ -194,15 +231,12 @@ function getDnsmasqStats(): {
     const result = { ...defaultResult, forwardersMap: new Map<string, typeof defaultResult.forwarders[0]>() };
 
     for (const line of logOutput.split('\n')) {
-      // "DNSSEC per-query crypto work HWM N"
       const dnssecCrypto = line.match(/DNSSEC per-query crypto work HWM\s+(\d+)/);
       if (dnssecCrypto) { result.dnssecCryptoHwm = parseInt(dnssecCrypto[1]); continue; }
 
-      // "DNSSEC per-RRSet signature fails HWM N"
       const dnssecSig = line.match(/DNSSEC per-RRSet signature fails HWM\s+(\d+)/);
       if (dnssecSig) { result.dnssecSigFails = parseInt(dnssecSig[1]); continue; }
 
-      // "pool memory in use N, max N, allocated N"
       const poolMem = line.match(/pool memory in use\s+(\d+),\s*max\s+(\d+),\s*allocated\s+(\d+)/);
       if (poolMem) {
         result.poolMemoryUsed = parseInt(poolMem[1]);
@@ -211,7 +245,6 @@ function getDnsmasqStats(): {
         continue;
       }
 
-      // "child processes for TCP requests: in use N, highest since last SIGUSR1 N, max allowed N."
       const tcpInfo = line.match(/child processes for TCP requests.*in use\s+(\d+).*max allowed\s+(\d+)/);
       if (tcpInfo) {
         result.tcpInUse = parseInt(tcpInfo[1]);
@@ -219,7 +252,6 @@ function getDnsmasqStats(): {
         continue;
       }
 
-      // "server 8.8.8.8#53: queries sent N, retried N, failed N, nxdomain replies N, avg. latency Nms"
       const serverMatch = line.match(/server\s+([^#]+)#(\d+):\s*queries sent\s+(\d+),\s*retried\s+(\d+),\s*failed\s+(\d+),\s*nxdomain replies?\s+(\d+),\s*avg\.\s*latency\s+(\d+)ms/);
       if (serverMatch) {
         const fwKey = `${serverMatch[1]}:${serverMatch[2]}`;
@@ -235,8 +267,6 @@ function getDnsmasqStats(): {
         continue;
       }
 
-      // Also check for Debian/Ubuntu style cache entries (in case user upgrades)
-      // "cache size N, X/N cache entries"
       const cacheMatch = line.match(/cache size\s+(\d+),\s*(\d+)\/(\d+)\s*cache entries/);
       if (cacheMatch) {
         result.cacheEntriesAvailable = true;
@@ -244,7 +274,6 @@ function getDnsmasqStats(): {
       }
     }
 
-    // Convert deduplicated forwarders map to array and compute totals
     const forwarders = Array.from(result.forwardersMap.values());
     return {
       upstreamQueries: forwarders.reduce((s, f) => s + f.queries, 0),
@@ -276,7 +305,6 @@ function getDnsmasqVersion(): string {
 function startDnsmasq(): { success: boolean; message: string } {
   if (isDnsmasqRunning()) return { success: true, message: 'dnsmasq is already running' };
   try {
-    // Load ALL conf files in the config directory (both DNS and DHCP)
     const configDir = path.dirname(DNSMASQ_CONFIG);
     execSync(`${DNSMASQ_BIN} -C ${configDir} 2>&1`, { encoding: 'utf-8' });
     const start = Date.now();
@@ -309,14 +337,13 @@ function stopDnsmasq(): { success: boolean; message: string } {
 function reloadDnsmasq(): { success: boolean; message: string } {
   try {
     execSync('pkill -HUP dnsmasq 2>/dev/null || true');
-    // After SIGHUP, dnsmasq re-reads config but may not show new listeners immediately
     return { success: true, message: 'dnsmasq reload signal sent (config re-read)' };
   } catch (error) {
     return { success: false, message: `Failed to reload dnsmasq: ${error}` };
   }
 }
 
-function syncConfigToDisk(): { success: boolean; lines: number } {
+async function syncConfigToDisk(): Promise<{ success: boolean; lines: number }> {
   let config = `# StaySuite DNS Configuration - Auto-generated
 # Last updated: ${new Date().toISOString()}
 # DO NOT EDIT MANUALLY - Changes will be overwritten
@@ -325,37 +352,41 @@ function syncConfigToDisk(): { success: boolean; lines: number } {
 
   // Upstream forwarders
   try {
-    const forwarders = db.query('SELECT * FROM DnsForwarder WHERE enabled = 1').all() as any[];
-    if (forwarders.length > 0) {
+    const fwResult = await pool.query('SELECT * FROM "DnsForwarder" WHERE enabled = true');
+    if (fwResult.rows.length > 0) {
       config += '# Upstream DNS forwarders\n';
-      for (const f of forwarders) {
+      for (const f of fwResult.rows) {
         config += `server=${f.port !== 53 ? `${f.address}#${f.port}` : f.address}\n`;
       }
       config += '\n';
     }
-  } catch {}
+  } catch (error) {
+    log.warn('Failed to read forwarders for config', { error: String(error) });
+  }
 
-  // DNS redirects (captive portal)
+  // DNS redirects (captive portal) - now from DnsRedirectRule table
   try {
-    const redirects = db.query('SELECT * FROM DnsRedirect WHERE enabled = 1 ORDER BY priority ASC').all() as any[];
-    if (redirects.length > 0) {
+    const redirResult = await pool.query('SELECT * FROM "DnsRedirectRule" WHERE enabled = true ORDER BY priority ASC');
+    if (redirResult.rows.length > 0) {
       config += '# DNS Redirects (Captive Portal)\n';
-      for (const r of redirects) {
-        const domain = r.wildcard ? `/${r.domain}` : r.domain;
-        config += `address=/${domain}/${r.targetIp}\n`;
+      for (const r of redirResult.rows) {
+        const dnsmasqDomain = matchPatternToDnsmasq(r.matchPattern);
+        config += `address=/${dnsmasqDomain}/${r.targetIp}\n`;
       }
       config += '\n';
     }
-  } catch {}
+  } catch (error) {
+    log.warn('Failed to read redirects for config', { error: String(error) });
+  }
 
   // DNS records
   try {
-    const zones = db.query('SELECT * FROM DnsZone WHERE enabled = 1').all() as any[];
-    for (const zone of zones) {
+    const zoneResult = await pool.query('SELECT * FROM "DnsZone" WHERE enabled = true');
+    for (const zone of zoneResult.rows) {
       config += `# Zone: ${zone.domain}\n`;
       try {
-        const records = db.query('SELECT * FROM DnsRecord WHERE zoneId = ? AND enabled = 1').all(zone.id) as any[];
-        for (const r of records) {
+        const recResult = await pool.query('SELECT * FROM "DnsRecord" WHERE "zoneId" = $1 AND enabled = true', [zone.id]);
+        for (const r of recResult.rows) {
           switch (r.type) {
             case 'A':
               config += `address=/${r.name}.${zone.domain}/${r.value}\n`;
@@ -380,10 +411,14 @@ function syncConfigToDisk(): { success: boolean; lines: number } {
               break;
           }
         }
-      } catch {}
+      } catch (error) {
+        log.warn(`Failed to read records for zone ${zone.id}`, { error: String(error) });
+      }
       config += '\n';
     }
-  } catch {}
+  } catch (error) {
+    log.warn('Failed to read zones for config', { error: String(error) });
+  }
 
   // General settings
   config += `# General settings
@@ -407,8 +442,8 @@ min-port=1024
   }
 }
 
-function fullSync(): { config: any; reload: any } {
-  const config = syncConfigToDisk();
+async function fullSync(): Promise<{ config: any; reload: any }> {
+  const config = await syncConfigToDisk();
   let reload: any = { success: false, message: 'dnsmasq not running' };
   if (isDnsmasqRunning()) {
     reload = reloadDnsmasq();
@@ -417,347 +452,33 @@ function fullSync(): { config: any; reload: any } {
 }
 
 // ============================================================================
-// Prisma DB Sync Functions
-// ============================================================================
-
-/**
- * Convert Prisma boolean (1/"1"/true/"true"/0/"0"/false/"false") to INTEGER for our DB
- */
-function prismaBoolToInt(val: any): number {
-  if (val === true || val === 1 || val === '1' || val === 'true') return 1;
-  return 0;
-}
-
-/**
- * Sync data FROM the Prisma database (custom.db) INTO the DNS service's own database.
- * Reads DnsZone, DnsRecord, DnsRedirectRule from Prisma and upserts into local tables.
- */
-function syncFromPrisma(): { zones: number; records: number; redirects: number; errors: string[] } {
-  const result = { zones: 0, records: 0, redirects: 0, errors: [] as string[] };
-
-  // Check if Prisma DB exists
-  if (!fs.existsSync(PRISMA_DB_PATH)) {
-    result.errors.push(`Prisma database not found at ${PRISMA_DB_PATH}`);
-    return result;
-  }
-
-  let prismaDb: Database.Database;
-  try {
-    prismaDb = new Database(PRISMA_DB_PATH, { readonly: true });
-  } catch (error) {
-    result.errors.push(`Failed to open Prisma database: ${error}`);
-    return result;
-  }
-
-  try {
-    // ---- Sync DnsZone from Prisma ----
-    // Prisma DnsZone columns: id, tenantId, propertyId, domain, description, vlanId, enabled, createdAt, updatedAt
-    // DNS service DnsZone columns: id, tenantId, propertyId, domain, type, description, vlanId, enabled, createdAt, updatedAt
-    try {
-      const prismaZones = prismaDb.query('SELECT * FROM DnsZone').all() as any[];
-      for (const pz of prismaZones) {
-        try {
-          db.run(`
-            INSERT INTO DnsZone (id, tenantId, propertyId, domain, type, description, vlanId, enabled, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              tenantId = excluded.tenantId,
-              propertyId = excluded.propertyId,
-              domain = excluded.domain,
-              description = excluded.description,
-              vlanId = excluded.vlanId,
-              enabled = excluded.enabled,
-              updatedAt = excluded.updatedAt
-          `, [
-            pz.id, pz.tenantId || 'default', pz.propertyId || 'default',
-            pz.domain, 'forward',  // Prisma doesn't have type, default to 'forward'
-            pz.description || null, pz.vlanId || null,
-            prismaBoolToInt(pz.enabled),
-            pz.createdAt || new Date().toISOString(),
-            pz.updatedAt || new Date().toISOString()
-          ]);
-          result.zones++;
-        } catch (err) {
-          result.errors.push(`Zone upsert failed [${pz.id}]: ${err}`);
-        }
-      }
-    } catch (err) {
-      result.errors.push(`DnsZone read from Prisma failed: ${err}`);
-    }
-
-    // ---- Sync DnsRecord from Prisma ----
-    // Prisma DnsRecord columns: id, tenantId, zoneId, name, type, value, ttl, priority, enabled, createdAt, updatedAt
-    try {
-      const prismaRecords = prismaDb.query('SELECT * FROM DnsRecord').all() as any[];
-      for (const pr of prismaRecords) {
-        try {
-          db.run(`
-            INSERT INTO DnsRecord (id, tenantId, zoneId, name, type, value, ttl, priority, enabled, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              tenantId = excluded.tenantId,
-              zoneId = excluded.zoneId,
-              name = excluded.name,
-              type = excluded.type,
-              value = excluded.value,
-              ttl = excluded.ttl,
-              priority = excluded.priority,
-              enabled = excluded.enabled,
-              updatedAt = excluded.updatedAt
-          `, [
-            pr.id, pr.tenantId || 'default', pr.zoneId,
-            pr.name, pr.type || 'A', pr.value,
-            pr.ttl || 300, pr.priority || null,
-            prismaBoolToInt(pr.enabled),
-            pr.createdAt || new Date().toISOString(),
-            pr.updatedAt || new Date().toISOString()
-          ]);
-          result.records++;
-        } catch (err) {
-          result.errors.push(`Record upsert failed [${pr.id}]: ${err}`);
-        }
-      }
-    } catch (err) {
-      result.errors.push(`DnsRecord read from Prisma failed: ${err}`);
-    }
-
-    // ---- Sync DnsRedirectRule from Prisma -> DnsRedirect in our DB ----
-    // Prisma DnsRedirectRule columns: id, tenantId, propertyId, name, matchPattern, targetIp, applyTo, priority, enabled, description, createdAt, updatedAt
-    // DNS service DnsRedirect columns: id, tenantId, propertyId, domain, targetIp, wildcard, priority, description, enabled, createdAt, updatedAt
-    // Mapping: matchPattern -> domain, applyTo is stored in description prefix
-    try {
-      const prismaRules = prismaDb.query('SELECT * FROM DnsRedirectRule').all() as any[];
-      for (const pr of prismaRules) {
-        try {
-          // Convert matchPattern to domain and wildcard flag
-          let domain = pr.matchPattern || '';
-          let wildcard = 0;
-          // Patterns like *.example.com -> domain=example.com, wildcard=1
-          // Patterns like * (all domains) -> domain=*, wildcard=1
-          if (domain.startsWith('*.')) {
-            domain = domain.slice(2); // Remove *. prefix
-            wildcard = 1;
-          } else if (domain === '*') {
-            wildcard = 1;
-          }
-
-          // Build description with applyTo context
-          let description = pr.description || pr.name || '';
-          if (pr.applyTo && pr.applyTo !== 'unauthenticated') {
-            description = `[${pr.applyTo}] ${description}`;
-          }
-
-          db.run(`
-            INSERT INTO DnsRedirect (id, tenantId, propertyId, domain, targetIp, wildcard, priority, description, enabled, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              tenantId = excluded.tenantId,
-              propertyId = excluded.propertyId,
-              domain = excluded.domain,
-              targetIp = excluded.targetIp,
-              wildcard = excluded.wildcard,
-              priority = excluded.priority,
-              description = excluded.description,
-              enabled = excluded.enabled,
-              updatedAt = excluded.updatedAt
-          `, [
-            pr.id, pr.tenantId || 'default', pr.propertyId || 'default',
-            domain, pr.targetIp, wildcard,
-            pr.priority || 0, description,
-            prismaBoolToInt(pr.enabled),
-            pr.createdAt || new Date().toISOString(),
-            pr.updatedAt || new Date().toISOString()
-          ]);
-          result.redirects++;
-        } catch (err) {
-          result.errors.push(`RedirectRule upsert failed [${pr.id}]: ${err}`);
-        }
-      }
-    } catch (err) {
-      result.errors.push(`DnsRedirectRule read from Prisma failed: ${err}`);
-    }
-
-  } finally {
-    try { prismaDb.close(); } catch {}
-  }
-
-  // Regenerate dnsmasq config and reload if running
-  if (result.zones > 0 || result.records > 0 || result.redirects > 0) {
-    syncConfigToDisk();
-    if (isDnsmasqRunning()) {
-      reloadDnsmasq();
-    }
-  }
-
-  return result;
-}
-
-/**
- * Sync data FROM the DNS service's own database BACK TO the Prisma database.
- * Writes DnsZone, DnsRecord, DnsRedirect from local DB into the Prisma tables.
- */
-function syncToPrisma(): { zones: number; records: number; redirects: number; errors: string[] } {
-  const result = { zones: 0, records: 0, redirects: 0, errors: [] as string[] };
-
-  // Check if Prisma DB exists
-  if (!fs.existsSync(PRISMA_DB_PATH)) {
-    result.errors.push(`Prisma database not found at ${PRISMA_DB_PATH}`);
-    return result;
-  }
-
-  let prismaDb: Database.Database;
-  try {
-    prismaDb = new Database(PRISMA_DB_PATH);
-    prismaDb.exec('PRAGMA journal_mode = WAL;');
-    // Disable FK checks during sync - DNS service data may reference properties/tenants
-    // that were created through different flows. Prisma will validate on its own reads.
-    prismaDb.exec('PRAGMA foreign_keys = OFF;');
-  } catch (error) {
-    result.errors.push(`Failed to open Prisma database for writing: ${error}`);
-    return result;
-  }
-
-  try {
-    // ---- Sync DnsZone to Prisma ----
-    try {
-      const localZones = db.query('SELECT * FROM DnsZone').all() as any[];
-      for (const lz of localZones) {
-        try {
-          prismaDb.run(`
-            INSERT INTO DnsZone (id, tenantId, propertyId, domain, description, vlanId, enabled, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              tenantId = excluded.tenantId,
-              propertyId = excluded.propertyId,
-              domain = excluded.domain,
-              description = excluded.description,
-              vlanId = excluded.vlanId,
-              enabled = excluded.enabled,
-              updatedAt = excluded.updatedAt
-          `, [
-            lz.id, lz.tenantId || 'default', lz.propertyId || 'default',
-            lz.domain, lz.description || null, lz.vlanId || null,
-            lz.enabled ? 1 : 0,
-            lz.createdAt || new Date().toISOString(),
-            lz.updatedAt || new Date().toISOString()
-          ]);
-          result.zones++;
-        } catch (err) {
-          result.errors.push(`Zone to-Prisma upsert failed [${lz.id}]: ${err}`);
-        }
-      }
-    } catch (err) {
-      result.errors.push(`DnsZone local read failed: ${err}`);
-    }
-
-    // ---- Sync DnsRecord to Prisma ----
-    try {
-      const localRecords = db.query('SELECT * FROM DnsRecord').all() as any[];
-      for (const lr of localRecords) {
-        try {
-          prismaDb.run(`
-            INSERT INTO DnsRecord (id, tenantId, zoneId, name, type, value, ttl, priority, enabled, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              tenantId = excluded.tenantId,
-              zoneId = excluded.zoneId,
-              name = excluded.name,
-              type = excluded.type,
-              value = excluded.value,
-              ttl = excluded.ttl,
-              priority = excluded.priority,
-              enabled = excluded.enabled,
-              updatedAt = excluded.updatedAt
-          `, [
-            lr.id, lr.tenantId || 'default', lr.zoneId,
-            lr.name, lr.type || 'A', lr.value,
-            lr.ttl || 300, lr.priority || null,
-            lr.enabled ? 1 : 0,
-            lr.createdAt || new Date().toISOString(),
-            lr.updatedAt || new Date().toISOString()
-          ]);
-          result.records++;
-        } catch (err) {
-          result.errors.push(`Record to-Prisma upsert failed [${lr.id}]: ${err}`);
-        }
-      }
-    } catch (err) {
-      result.errors.push(`DnsRecord local read failed: ${err}`);
-    }
-
-    // ---- Sync DnsRedirect -> DnsRedirectRule in Prisma ----
-    try {
-      const localRedirects = db.query('SELECT * FROM DnsRedirect').all() as any[];
-      for (const lr of localRedirects) {
-        try {
-          // Convert domain/wildcard back to matchPattern
-          let matchPattern = lr.domain || '';
-          if (lr.wildcard && matchPattern !== '*') {
-            matchPattern = `*.${matchPattern}`;
-          }
-
-          // Extract applyTo from description if present
-          let applyTo = 'unauthenticated';
-          let name = lr.domain || 'Redirect';
-          let description = lr.description || '';
-          const applyToMatch = description.match(/^\[([^\]]+)\]\s*(.*)/);
-          if (applyToMatch) {
-            applyTo = applyToMatch[1];
-            description = applyToMatch[2];
-          }
-
-          prismaDb.run(`
-            INSERT INTO DnsRedirectRule (id, tenantId, propertyId, name, matchPattern, targetIp, applyTo, priority, enabled, description, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              tenantId = excluded.tenantId,
-              propertyId = excluded.propertyId,
-              name = excluded.name,
-              matchPattern = excluded.matchPattern,
-              targetIp = excluded.targetIp,
-              applyTo = excluded.applyTo,
-              priority = excluded.priority,
-              enabled = excluded.enabled,
-              description = excluded.description,
-              updatedAt = excluded.updatedAt
-          `, [
-            lr.id, lr.tenantId || 'default', lr.propertyId || 'default',
-            name, matchPattern, lr.targetIp, applyTo,
-            lr.priority || 0, lr.enabled ? 1 : 0,
-            description,
-            lr.createdAt || new Date().toISOString(),
-            lr.updatedAt || new Date().toISOString()
-          ]);
-          result.redirects++;
-        } catch (err) {
-          result.errors.push(`Redirect to-Prisma upsert failed [${lr.id}]: ${err}`);
-        }
-      }
-    } catch (err) {
-      result.errors.push(`DnsRedirect local read failed: ${err}`);
-    }
-
-  } finally {
-    try { prismaDb.close(); } catch {}
-  }
-
-  return result;
-}
-
-// ============================================================================
-// Initial sync on startup: sync from Prisma then regenerate config
+// Startup Initialization
 // ============================================================================
 
 (async () => {
-  // Auto-sync from Prisma DB on startup
-  log.info('Auto-syncing from Prisma database on startup');
-  const syncResult = syncFromPrisma();
-  if (syncResult.errors.length > 0) {
-    log.warn('Prisma sync completed with errors', { errorCount: syncResult.errors.length, sampleErrors: syncResult.errors.slice(0, 3) });
-  }
-  log.info('Prisma sync complete', { zones: syncResult.zones, records: syncResult.records, redirects: syncResult.redirects });
+  // Create service-managed tables
+  await ensureServiceTables();
 
-  syncConfigToDisk();
+  // Seed activity log if empty
+  try {
+    const countResult = await pool.query('SELECT COUNT(*) as c FROM "DnsActivityLog"');
+    if (parseInt(countResult.rows[0]?.c) === 0) {
+      const seedLogs = [
+        { action: 'service_start', details: 'DNS service initialized (PostgreSQL)', severity: 'info' },
+        { action: 'config_sync', details: 'Initial config sync completed', severity: 'info' },
+      ];
+      for (const entry of seedLogs) {
+        await pool.query(
+          'INSERT INTO "DnsActivityLog" (id, action, details, severity) VALUES ($1, $2, $3, $4)',
+          [generateId(), entry.action, entry.details, entry.severity]
+        );
+      }
+    }
+  } catch {}
+
+  // Generate dnsmasq config
+  await syncConfigToDisk();
+
   if (SYSTEM_DNSMASQ && !isDnsmasqRunning()) {
     log.info('dnsmasq detected but not running, auto-starting');
     const result = startDnsmasq();
@@ -777,14 +498,12 @@ function syncToPrisma(): { zones: number; records: number; redirects: number; er
 
 // Auth middleware - check Bearer token, skip for /health endpoint
 app.use('*', async (c, next) => {
-  // Allow health check without auth
   if (c.req.path === '/health') {
     return next();
   }
 
   const authSecret = process.env.SERVICE_AUTH_SECRET;
 
-  // If no secret configured, log warning and allow all (dev mode)
   if (!authSecret) {
     if (!(globalThis as Record<string, unknown>).__authWarningLogged) {
       log.warn('SERVICE_AUTH_SECRET not configured. All requests will be allowed. Set SERVICE_AUTH_SECRET env var for production.');
@@ -816,9 +535,15 @@ app.use('*', cors({
 // Health Check
 // ============================================================================
 
-app.get('/health', (c) => {
+app.get('/health', async (c) => {
+  let dbOk = false;
+  try {
+    await pool.query('SELECT 1');
+    dbOk = true;
+  } catch {}
+
   return c.json({
-    status: 'healthy',
+    status: dbOk ? 'healthy' : 'degraded',
     service: 'dns-service',
     version: SERVICE_VERSION,
     timestamp: new Date().toISOString(),
@@ -826,11 +551,10 @@ app.get('/health', (c) => {
     port: PORT,
     memoryUsage: process.memoryUsage(),
     dnsmasq: { installed: SYSTEM_DNSMASQ, running: isDnsmasqRunning(), configPath: DNSMASQ_CONFIG },
-    databases: {
-      own: DB_PATH,
-      prisma: PRISMA_DB_PATH,
-      prismaExists: fs.existsSync(PRISMA_DB_PATH),
-    }
+    database: {
+      url: DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
+      connected: dbOk,
+    },
   });
 });
 
@@ -838,18 +562,17 @@ app.get('/health', (c) => {
 // Service Status & Control
 // ============================================================================
 
-app.get('/api/status', (c) => {
+app.get('/api/status', async (c) => {
   const running = isDnsmasqRunning();
   const version = running ? getDnsmasqVersion() : 'Not running';
 
-  // Get counts
   let zoneCount = 0, recordCount = 0, redirectCount = 0, forwarderCount = 0;
-  try { zoneCount = (db.query('SELECT COUNT(*) as c FROM DnsZone WHERE enabled = 1').get() as any)?.c || 0; } catch {}
-  try { recordCount = (db.query('SELECT COUNT(*) as c FROM DnsRecord WHERE enabled = 1').get() as any)?.c || 0; } catch {}
-  try { redirectCount = (db.query('SELECT COUNT(*) as c FROM DnsRedirect WHERE enabled = 1').get() as any)?.c || 0; } catch {}
-  try { forwarderCount = (db.query('SELECT COUNT(*) as c FROM DnsForwarder WHERE enabled = 1').get() as any)?.c || 0; } catch {}
+  try { zoneCount = parseInt((await pool.query('SELECT COUNT(*) as c FROM "DnsZone" WHERE enabled = true')).rows[0]?.c) || 0; } catch {}
+  try { recordCount = parseInt((await pool.query('SELECT COUNT(*) as c FROM "DnsRecord" WHERE enabled = true')).rows[0]?.c) || 0; } catch {}
+  try { redirectCount = parseInt((await pool.query('SELECT COUNT(*) as c FROM "DnsRedirectRule" WHERE enabled = true')).rows[0]?.c) || 0; } catch {}
+  try { forwarderCount = parseInt((await pool.query('SELECT COUNT(*) as c FROM "DnsForwarder" WHERE enabled = true')).rows[0]?.c) || 0; } catch {}
 
-  // Cache stats - read configured cache-size from config file
+  // Cache stats
   let cacheStats = { size: 0, inserts: 0, evictions: 0 };
   try {
     const configContent = fs.readFileSync(DNSMASQ_CONFIG, 'utf-8');
@@ -871,17 +594,16 @@ app.get('/api/status', (c) => {
       redirectCount,
       forwarderCount,
       cacheStats,
-      databases: {
-        own: DB_PATH,
-        prisma: PRISMA_DB_PATH,
-        prismaExists: fs.existsSync(PRISMA_DB_PATH),
-      }
+      database: {
+        url: DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
+        connected: true,
+      },
     }
   });
 });
 
-app.post('/api/service/start', (c) => {
-  syncConfigToDisk();
+app.post('/api/service/start', async (c) => {
+  await syncConfigToDisk();
   const result = startDnsmasq();
   return c.json({ success: result.success, message: result.message, running: isDnsmasqRunning() });
 });
@@ -891,30 +613,32 @@ app.post('/api/service/stop', (c) => {
   return c.json({ success: result.success, message: result.message, running: isDnsmasqRunning() });
 });
 
-app.post('/api/service/restart', (c) => {
-  syncConfigToDisk();
+app.post('/api/service/restart', async (c) => {
+  await syncConfigToDisk();
   stopDnsmasq();
   const result = startDnsmasq();
   return c.json({ success: result.success, message: result.message, running: isDnsmasqRunning() });
 });
 
-app.post('/api/service/reload', (c) => {
-  syncConfigToDisk();
+app.post('/api/service/reload', async (c) => {
+  await syncConfigToDisk();
   const result = reloadDnsmasq();
   return c.json({ success: result.success, message: result.message });
 });
 
 // ============================================================================
-// DNS Zones
+// DNS Zones (Prisma-managed: "DnsZone")
 // ============================================================================
 
-app.get('/api/zones', (c) => {
+app.get('/api/zones', async (c) => {
   try {
-    const zones = db.query('SELECT * FROM DnsZone ORDER BY domain ASC').all() as any[];
+    const result = await pool.query('SELECT *, \'forward\' as type FROM "DnsZone" ORDER BY domain ASC');
+    const zones = result.rows;
     // Add record counts
     for (const zone of zones) {
       try {
-        zone.recordCount = (db.query('SELECT COUNT(*) as c FROM DnsRecord WHERE zoneId = ?').get(zone.id) as any)?.c || 0;
+        const countResult = await pool.query('SELECT COUNT(*) as c FROM "DnsRecord" WHERE "zoneId" = $1', [zone.id]);
+        zone.recordCount = parseInt(countResult.rows[0]?.c) || 0;
       } catch { zone.recordCount = 0; }
     }
     return c.json({ success: true, data: zones });
@@ -929,16 +653,28 @@ app.post('/api/zones', async (c) => {
     const id = generateId();
     const now = new Date().toISOString();
 
-    db.run(`INSERT INTO DnsZone (id, tenantId, propertyId, domain, type, description, vlanId, enabled, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-      id, body.tenantId || 'default', body.propertyId || 'default',
-      body.domain, body.type || 'forward', body.description || null,
-      body.vlanId || null, body.enabled !== false ? 1 : 0, now, now
-    ]);
+    await pool.query(
+      `INSERT INTO "DnsZone" (id, "tenantId", "propertyId", domain, description, "vlanId", enabled, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (id) DO UPDATE SET
+         "tenantId" = EXCLUDED."tenantId",
+         "propertyId" = EXCLUDED."propertyId",
+         domain = EXCLUDED.domain,
+         description = EXCLUDED.description,
+         "vlanId" = EXCLUDED."vlanId",
+         enabled = EXCLUDED.enabled,
+         "updatedAt" = EXCLUDED."updatedAt"`,
+      [
+        id, body.tenantId || 'default', body.propertyId || 'default',
+        body.domain, body.description || null,
+        body.vlanId || null, body.enabled !== false,
+        now, now
+      ]
+    );
 
-    fullSync();
-    const zone = db.query('SELECT * FROM DnsZone WHERE id = ?').get(id);
-    return c.json({ success: true, data: zone, message: 'DNS zone created' });
+    await fullSync();
+    const zoneResult = await pool.query('SELECT *, \'forward\' as type FROM "DnsZone" WHERE id = $1', [id]);
+    return c.json({ success: true, data: zoneResult.rows[0], message: 'DNS zone created' });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
@@ -952,30 +688,31 @@ app.put('/api/zones/:id', async (c) => {
 
     const fields: string[] = [];
     const values: any[] = [];
-    if (body.domain !== undefined) { fields.push('domain = ?'); values.push(body.domain); }
-    if (body.type !== undefined) { fields.push('type = ?'); values.push(body.type); }
-    if (body.description !== undefined) { fields.push('description = ?'); values.push(body.description); }
-    if (body.vlanId !== undefined) { fields.push('vlanId = ?'); values.push(body.vlanId); }
-    if (body.enabled !== undefined) { fields.push('enabled = ?'); values.push(body.enabled ? 1 : 0); }
-    fields.push('updatedAt = ?'); values.push(now); values.push(id);
+    let paramIdx = 1;
+    if (body.domain !== undefined) { fields.push(`domain = $${paramIdx++}`); values.push(body.domain); }
+    if (body.description !== undefined) { fields.push(`description = $${paramIdx++}`); values.push(body.description); }
+    if (body.vlanId !== undefined) { fields.push(`"vlanId" = $${paramIdx++}`); values.push(body.vlanId); }
+    if (body.enabled !== undefined) { fields.push(`enabled = $${paramIdx++}`); values.push(body.enabled); }
+    // Note: 'type' field from old API is not stored in Prisma DnsZone (always 'forward')
+    fields.push(`"updatedAt" = $${paramIdx++}`); values.push(now);
+    values.push(id);
+    await pool.query(`UPDATE "DnsZone" SET ${fields.join(', ')} WHERE id = $${paramIdx}`, values);
 
-    db.run(`UPDATE DnsZone SET ${fields.join(', ')} WHERE id = ?`, values);
-    fullSync();
-
-    const zone = db.query('SELECT * FROM DnsZone WHERE id = ?').get(id);
-    return c.json({ success: true, data: zone, message: 'DNS zone updated' });
+    await fullSync();
+    const zoneResult = await pool.query('SELECT *, \'forward\' as type FROM "DnsZone" WHERE id = $1', [id]);
+    return c.json({ success: true, data: zoneResult.rows[0], message: 'DNS zone updated' });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
 });
 
-app.delete('/api/zones/:id', (c) => {
+app.delete('/api/zones/:id', async (c) => {
   try {
     const { id } = c.req.param();
-    // Delete records in this zone first
-    try { db.run('DELETE FROM DnsRecord WHERE zoneId = ?', [id]); } catch {}
-    db.run('DELETE FROM DnsZone WHERE id = ?', [id]);
-    fullSync();
+    // Records are cascade-deleted via FK, but explicit delete for safety
+    try { await pool.query('DELETE FROM "DnsRecord" WHERE "zoneId" = $1', [id]); } catch {}
+    await pool.query('DELETE FROM "DnsZone" WHERE id = $1', [id]);
+    await fullSync();
     return c.json({ success: true, message: 'DNS zone deleted' });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -983,22 +720,23 @@ app.delete('/api/zones/:id', (c) => {
 });
 
 // ============================================================================
-// DNS Records
+// DNS Records (Prisma-managed: "DnsRecord")
 // ============================================================================
 
-app.get('/api/records', (c) => {
+app.get('/api/records', async (c) => {
   try {
     const zoneId = c.req.query('zoneId');
     const type = c.req.query('type');
 
-    let query = 'SELECT r.*, z.domain as zoneDomain FROM DnsRecord r LEFT JOIN DnsZone z ON r.zoneId = z.id WHERE 1=1';
-    const params: any[] = [];
-    if (zoneId) { query += ' AND r.zoneId = ?'; params.push(zoneId); }
-    if (type) { query += ' AND r.type = ?'; params.push(type); }
+    let query = 'SELECT r.*, z.domain as "zoneDomain" FROM "DnsRecord" r LEFT JOIN "DnsZone" z ON r."zoneId" = z.id WHERE 1=1';
+    const values: any[] = [];
+    let paramIdx = 1;
+    if (zoneId) { query += ` AND r."zoneId" = $${paramIdx++}`; values.push(zoneId); }
+    if (type) { query += ` AND r.type = $${paramIdx++}`; values.push(type); }
     query += ' ORDER BY r.type ASC, r.name ASC';
 
-    const records = db.query(query).all(...params) as any[];
-    return c.json({ success: true, data: records });
+    const result = await pool.query(query, values);
+    return c.json({ success: true, data: result.rows });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
@@ -1010,17 +748,33 @@ app.post('/api/records', async (c) => {
     const id = generateId();
     const now = new Date().toISOString();
 
-    db.run(`INSERT INTO DnsRecord (id, tenantId, zoneId, name, type, value, ttl, priority, enabled, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-      id, body.tenantId || 'default', body.zoneId,
-      body.name, body.type || 'A', body.value,
-      body.ttl || 300, body.priority || null,
-      body.enabled !== false ? 1 : 0, now, now
-    ]);
+    await pool.query(
+      `INSERT INTO "DnsRecord" (id, "tenantId", "zoneId", name, type, value, ttl, priority, enabled, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT (id) DO UPDATE SET
+         "tenantId" = EXCLUDED."tenantId",
+         "zoneId" = EXCLUDED."zoneId",
+         name = EXCLUDED.name,
+         type = EXCLUDED.type,
+         value = EXCLUDED.value,
+         ttl = EXCLUDED.ttl,
+         priority = EXCLUDED.priority,
+         enabled = EXCLUDED.enabled,
+         "updatedAt" = EXCLUDED."updatedAt"`,
+      [
+        id, body.tenantId || 'default', body.zoneId,
+        body.name, body.type || 'A', body.value,
+        body.ttl || 300, body.priority || null,
+        body.enabled !== false, now, now
+      ]
+    );
 
-    fullSync();
-    const record = db.query('SELECT r.*, z.domain as zoneDomain FROM DnsRecord r LEFT JOIN DnsZone z ON r.zoneId = z.id WHERE r.id = ?').get(id);
-    return c.json({ success: true, data: record, message: 'DNS record created' });
+    await fullSync();
+    const recResult = await pool.query(
+      'SELECT r.*, z.domain as "zoneDomain" FROM "DnsRecord" r LEFT JOIN "DnsZone" z ON r."zoneId" = z.id WHERE r.id = $1',
+      [id]
+    );
+    return c.json({ success: true, data: recResult.rows[0], message: 'DNS record created' });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
@@ -1034,30 +788,34 @@ app.put('/api/records/:id', async (c) => {
 
     const fields: string[] = [];
     const values: any[] = [];
-    if (body.name !== undefined) { fields.push('name = ?'); values.push(body.name); }
-    if (body.type !== undefined) { fields.push('type = ?'); values.push(body.type); }
-    if (body.value !== undefined) { fields.push('value = ?'); values.push(body.value); }
-    if (body.ttl !== undefined) { fields.push('ttl = ?'); values.push(body.ttl); }
-    if (body.priority !== undefined) { fields.push('priority = ?'); values.push(body.priority); }
-    if (body.enabled !== undefined) { fields.push('enabled = ?'); values.push(body.enabled ? 1 : 0); }
-    if (body.zoneId !== undefined) { fields.push('zoneId = ?'); values.push(body.zoneId); }
-    fields.push('updatedAt = ?'); values.push(now); values.push(id);
+    let paramIdx = 1;
+    if (body.name !== undefined) { fields.push(`name = $${paramIdx++}`); values.push(body.name); }
+    if (body.type !== undefined) { fields.push(`type = $${paramIdx++}`); values.push(body.type); }
+    if (body.value !== undefined) { fields.push(`value = $${paramIdx++}`); values.push(body.value); }
+    if (body.ttl !== undefined) { fields.push(`ttl = $${paramIdx++}`); values.push(body.ttl); }
+    if (body.priority !== undefined) { fields.push(`priority = $${paramIdx++}`); values.push(body.priority); }
+    if (body.enabled !== undefined) { fields.push(`enabled = $${paramIdx++}`); values.push(body.enabled); }
+    if (body.zoneId !== undefined) { fields.push(`"zoneId" = $${paramIdx++}`); values.push(body.zoneId); }
+    fields.push(`"updatedAt" = $${paramIdx++}`); values.push(now);
+    values.push(id);
+    await pool.query(`UPDATE "DnsRecord" SET ${fields.join(', ')} WHERE id = $${paramIdx}`, values);
 
-    db.run(`UPDATE DnsRecord SET ${fields.join(', ')} WHERE id = ?`, values);
-    fullSync();
-
-    const record = db.query('SELECT r.*, z.domain as zoneDomain FROM DnsRecord r LEFT JOIN DnsZone z ON r.zoneId = z.id WHERE r.id = ?').get(id);
-    return c.json({ success: true, data: record, message: 'DNS record updated' });
+    await fullSync();
+    const recResult = await pool.query(
+      'SELECT r.*, z.domain as "zoneDomain" FROM "DnsRecord" r LEFT JOIN "DnsZone" z ON r."zoneId" = z.id WHERE r.id = $1',
+      [id]
+    );
+    return c.json({ success: true, data: recResult.rows[0], message: 'DNS record updated' });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
 });
 
-app.delete('/api/records/:id', (c) => {
+app.delete('/api/records/:id', async (c) => {
   try {
     const { id } = c.req.param();
-    db.run('DELETE FROM DnsRecord WHERE id = ?', [id]);
-    fullSync();
+    await pool.query('DELETE FROM "DnsRecord" WHERE id = $1', [id]);
+    await fullSync();
     return c.json({ success: true, message: 'DNS record deleted' });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1065,12 +823,14 @@ app.delete('/api/records/:id', (c) => {
 });
 
 // ============================================================================
-// DNS Redirects (Captive Portal)
+// DNS Redirects (Prisma-managed: "DnsRedirectRule")
+// API uses DnsRedirect format (domain, wildcard) -> maps to DnsRedirectRule (matchPattern, name, applyTo)
 // ============================================================================
 
-app.get('/api/redirects', (c) => {
+app.get('/api/redirects', async (c) => {
   try {
-    const redirects = db.query('SELECT * FROM DnsRedirect ORDER BY priority ASC, domain ASC').all() as any[];
+    const result = await pool.query('SELECT * FROM "DnsRedirectRule" ORDER BY priority ASC, "matchPattern" ASC');
+    const redirects = result.rows.map(redirectRuleToApi);
     return c.json({ success: true, data: redirects });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1082,18 +842,33 @@ app.post('/api/redirects', async (c) => {
     const body = await c.req.json();
     const id = generateId();
     const now = new Date().toISOString();
+    const { matchPattern, name, applyTo } = apiToRedirectRule(body);
 
-    db.run(`INSERT INTO DnsRedirect (id, tenantId, propertyId, domain, targetIp, wildcard, priority, description, enabled, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-      id, body.tenantId || 'default', body.propertyId || 'default',
-      body.domain, body.targetIp, body.wildcard ? 1 : 0,
-      body.priority || 100, body.description || null,
-      body.enabled !== false ? 1 : 0, now, now
-    ]);
+    await pool.query(
+      `INSERT INTO "DnsRedirectRule" (id, "tenantId", "propertyId", name, "matchPattern", "targetIp", "applyTo", priority, enabled, description, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       ON CONFLICT (id) DO UPDATE SET
+         "tenantId" = EXCLUDED."tenantId",
+         "propertyId" = EXCLUDED."propertyId",
+         name = EXCLUDED.name,
+         "matchPattern" = EXCLUDED."matchPattern",
+         "targetIp" = EXCLUDED."targetIp",
+         "applyTo" = EXCLUDED."applyTo",
+         priority = EXCLUDED.priority,
+         enabled = EXCLUDED.enabled,
+         description = EXCLUDED.description,
+         "updatedAt" = EXCLUDED."updatedAt"`,
+      [
+        id, body.tenantId || 'default', body.propertyId || 'default',
+        name, matchPattern, body.targetIp, applyTo,
+        body.priority || 0, body.enabled !== false,
+        body.description || null, now, now
+      ]
+    );
 
-    fullSync();
-    const redirect = db.query('SELECT * FROM DnsRedirect WHERE id = ?').get(id);
-    return c.json({ success: true, data: redirect, message: 'DNS redirect created' });
+    await fullSync();
+    const redirResult = await pool.query('SELECT * FROM "DnsRedirectRule" WHERE id = $1', [id]);
+    return c.json({ success: true, data: redirectRuleToApi(redirResult.rows[0]), message: 'DNS redirect created' });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
@@ -1107,29 +882,46 @@ app.put('/api/redirects/:id', async (c) => {
 
     const fields: string[] = [];
     const values: any[] = [];
-    if (body.domain !== undefined) { fields.push('domain = ?'); values.push(body.domain); }
-    if (body.targetIp !== undefined) { fields.push('targetIp = ?'); values.push(body.targetIp); }
-    if (body.wildcard !== undefined) { fields.push('wildcard = ?'); values.push(body.wildcard ? 1 : 0); }
-    if (body.priority !== undefined) { fields.push('priority = ?'); values.push(body.priority); }
-    if (body.description !== undefined) { fields.push('description = ?'); values.push(body.description); }
-    if (body.enabled !== undefined) { fields.push('enabled = ?'); values.push(body.enabled ? 1 : 0); }
-    fields.push('updatedAt = ?'); values.push(now); values.push(id);
+    let paramIdx = 1;
+    if (body.domain !== undefined || body.wildcard !== undefined) {
+      // Need to reconstruct matchPattern from domain + wildcard
+      const currentResult = await pool.query('SELECT "matchPattern" FROM "DnsRedirectRule" WHERE id = $1', [id]);
+      const currentMatchPattern = currentResult.rows[0]?.matchPattern || '';
+      let currentDomain = currentMatchPattern;
+      let currentWildcard = false;
+      if (currentDomain.startsWith('*.')) { currentDomain = currentDomain.slice(2); currentWildcard = true; }
+      else if (currentDomain === '*') { currentWildcard = true; }
 
-    db.run(`UPDATE DnsRedirect SET ${fields.join(', ')} WHERE id = ?`, values);
-    fullSync();
+      const newDomain = body.domain !== undefined ? body.domain : currentDomain;
+      const newWildcard = body.wildcard !== undefined ? body.wildcard : currentWildcard;
+      let newMatchPattern = newDomain;
+      if (newWildcard && newMatchPattern !== '*') newMatchPattern = `*.${newMatchPattern}`;
 
-    const redirect = db.query('SELECT * FROM DnsRedirect WHERE id = ?').get(id);
-    return c.json({ success: true, data: redirect, message: 'DNS redirect updated' });
+      fields.push(`"matchPattern" = $${paramIdx++}`); values.push(newMatchPattern);
+    }
+    if (body.targetIp !== undefined) { fields.push(`"targetIp" = $${paramIdx++}`); values.push(body.targetIp); }
+    if (body.priority !== undefined) { fields.push(`priority = $${paramIdx++}`); values.push(body.priority); }
+    if (body.description !== undefined) { fields.push(`description = $${paramIdx++}`); values.push(body.description); }
+    if (body.enabled !== undefined) { fields.push(`enabled = $${paramIdx++}`); values.push(body.enabled); }
+    if (body.applyTo !== undefined) { fields.push(`"applyTo" = $${paramIdx++}`); values.push(body.applyTo); }
+    if (body.name !== undefined) { fields.push(`name = $${paramIdx++}`); values.push(body.name); }
+    fields.push(`"updatedAt" = $${paramIdx++}`); values.push(now);
+    values.push(id);
+    await pool.query(`UPDATE "DnsRedirectRule" SET ${fields.join(', ')} WHERE id = $${paramIdx}`, values);
+
+    await fullSync();
+    const redirResult = await pool.query('SELECT * FROM "DnsRedirectRule" WHERE id = $1', [id]);
+    return c.json({ success: true, data: redirectRuleToApi(redirResult.rows[0]), message: 'DNS redirect updated' });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
 });
 
-app.delete('/api/redirects/:id', (c) => {
+app.delete('/api/redirects/:id', async (c) => {
   try {
     const { id } = c.req.param();
-    db.run('DELETE FROM DnsRedirect WHERE id = ?', [id]);
-    fullSync();
+    await pool.query('DELETE FROM "DnsRedirectRule" WHERE id = $1', [id]);
+    await fullSync();
     return c.json({ success: true, message: 'DNS redirect deleted' });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1148,7 +940,6 @@ app.get('/api/cache', (c) => {
     let coldMs = 0;
     let hotMs = 0;
 
-    // Real dnsmasq stats from SIGUSR1
     let upstreamQueries = 0;
     let upstreamRetried = 0;
     let upstreamFailed = 0;
@@ -1160,7 +951,6 @@ app.get('/api/cache', (c) => {
     let cacheEntriesAvailable = false;
 
     if (running) {
-      // Get real dnsmasq runtime stats via SIGUSR1 signal
       const stats = getDnsmasqStats();
       upstreamQueries = stats.upstreamQueries;
       upstreamRetried = stats.upstreamRetried;
@@ -1172,24 +962,20 @@ app.get('/api/cache', (c) => {
       poolMemoryMax = stats.poolMemoryMax;
       cacheEntriesAvailable = stats.cacheEntriesAvailable;
 
-      // Test cache with DNS timing: query twice, second should be faster if cached
       const testDomain = 'cache-test.staysuite.internal';
       try {
-        // Cold query (cache miss - upstream lookup)
         const coldStart = Date.now();
         safeExec(`dig @127.0.0.1 ${testDomain} +short +tries=1 +time=2 2>/dev/null`, 5000);
         coldMs = Date.now() - coldStart;
 
-        // Hot query (should be cached or NXDOMAIN-cached)
         const hotStart = Date.now();
         safeExec(`dig @127.0.0.1 ${testDomain} +short +tries=1 +time=2 2>/dev/null`, 5000);
         hotMs = Date.now() - hotStart;
 
-        // If hot query is faster, caching is working
         if (hotMs < coldMs && coldMs > 0) {
           hitRate = 'Active';
         } else if (coldMs > 0) {
-          hitRate = 'Active'; // dnsmasq always caches, even NXDOMAIN
+          hitRate = 'Active';
         } else {
           hitRate = 'No data';
         }
@@ -1197,11 +983,10 @@ app.get('/api/cache', (c) => {
         hitRate = 'Test failed';
       }
 
-      // Read cache-size from config file
       try {
         const configContent = fs.readFileSync(DNSMASQ_CONFIG, 'utf-8');
         const match = configContent.match(/cache-size=(\d+)/);
-        cacheSize = match ? parseInt(match[1]) : 150; // dnsmasq default is 150
+        cacheSize = match ? parseInt(match[1]) : 150;
       } catch { cacheSize = 150; }
     }
 
@@ -1213,7 +998,6 @@ app.get('/api/cache', (c) => {
         dnsmasqRunning: running,
         coldQueryMs: coldMs,
         hotQueryMs: hotMs,
-        // Real stats from SIGUSR1
         upstreamQueries,
         upstreamRetried,
         upstreamFailed,
@@ -1222,7 +1006,7 @@ app.get('/api/cache', (c) => {
         forwarders,
         poolMemoryUsed,
         poolMemoryMax,
-        cacheEntriesAvailable, // true only on builds that support cache entry counting
+        cacheEntriesAvailable,
       }
     });
   } catch (error) {
@@ -1230,14 +1014,12 @@ app.get('/api/cache', (c) => {
   }
 });
 
-app.post('/api/cache/flush', (c) => {
+app.post('/api/cache/flush', async (c) => {
   try {
     if (!isDnsmasqRunning()) {
       return c.json({ success: false, message: 'dnsmasq is not running' });
     }
-    // SIGHUP only reloads config but does NOT clear cache.
-    // To actually flush the cache, we must restart dnsmasq.
-    syncConfigToDisk();
+    await syncConfigToDisk();
     const stopResult = stopDnsmasq();
     if (!stopResult.success) {
       return c.json({ success: false, message: `Failed to stop dnsmasq: ${stopResult.message}` });
@@ -1253,13 +1035,13 @@ app.post('/api/cache/flush', (c) => {
 });
 
 // ============================================================================
-// DNS Forwarders
+// DNS Forwarders (Service-managed: "DnsForwarder")
 // ============================================================================
 
-app.get('/api/forwarders', (c) => {
+app.get('/api/forwarders', async (c) => {
   try {
-    const forwarders = db.query('SELECT * FROM DnsForwarder ORDER BY address ASC').all() as any[];
-    return c.json({ success: true, data: forwarders });
+    const result = await pool.query('SELECT * FROM "DnsForwarder" ORDER BY address ASC');
+    return c.json({ success: true, data: result.rows });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
@@ -1271,26 +1053,37 @@ app.post('/api/forwarders', async (c) => {
     const id = generateId();
     const now = new Date().toISOString();
 
-    db.run(`INSERT INTO DnsForwarder (id, tenantId, propertyId, address, port, description, enabled, createdAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [
-      id, body.tenantId || 'default', body.propertyId || 'default',
-      body.address, body.port || 53, body.description || null,
-      body.enabled !== false ? 1 : 0, now
-    ]);
+    await pool.query(
+      `INSERT INTO "DnsForwarder" (id, "tenantId", "propertyId", address, port, description, enabled, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (id) DO UPDATE SET
+         "tenantId" = EXCLUDED."tenantId",
+         "propertyId" = EXCLUDED."propertyId",
+         address = EXCLUDED.address,
+         port = EXCLUDED.port,
+         description = EXCLUDED.description,
+         enabled = EXCLUDED.enabled,
+         "updatedAt" = EXCLUDED."updatedAt"`,
+      [
+        id, body.tenantId || 'default', body.propertyId || 'default',
+        body.address, body.port || 53, body.description || null,
+        body.enabled !== false, now, now
+      ]
+    );
 
-    fullSync();
-    const forwarder = db.query('SELECT * FROM DnsForwarder WHERE id = ?').get(id);
-    return c.json({ success: true, data: forwarder, message: 'DNS forwarder added' });
+    await fullSync();
+    const fwResult = await pool.query('SELECT * FROM "DnsForwarder" WHERE id = $1', [id]);
+    return c.json({ success: true, data: fwResult.rows[0], message: 'DNS forwarder added' });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
   }
 });
 
-app.delete('/api/forwarders/:id', (c) => {
+app.delete('/api/forwarders/:id', async (c) => {
   try {
     const { id } = c.req.param();
-    db.run('DELETE FROM DnsForwarder WHERE id = ?', [id]);
-    fullSync();
+    await pool.query('DELETE FROM "DnsForwarder" WHERE id = $1', [id]);
+    await fullSync();
     return c.json({ success: true, message: 'DNS forwarder removed' });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1303,7 +1096,6 @@ app.delete('/api/forwarders/:id', (c) => {
 
 app.get('/api/dhcp-dns', (c) => {
   try {
-    // Read dnsmasq lease file for DHCP-DNS entries
     const leaseFile = SYSTEM_DNSMASQ ? '/var/lib/misc/dnsmasq.leases' : '/tmp/dnsmasq.leases';
     const entries: any[] = [];
     try {
@@ -1328,50 +1120,20 @@ app.get('/api/dhcp-dns', (c) => {
 });
 
 // ============================================================================
-// Sync Endpoints
+// Sync Endpoint (simplified - no dual-DB sync needed)
 // ============================================================================
 
 /**
- * POST /api/sync - Sync config to disk and reload dnsmasq.
- * Also triggers a sync from Prisma DB to pick up any changes made via Next.js API routes.
+ * POST /api/sync - Regenerate config from DB and reload dnsmasq.
+ * No Prisma sync needed since we're using the same database.
  */
-app.post('/api/sync', (c) => {
-  // First sync from Prisma to get latest data
-  const prismaSync = syncFromPrisma();
-  // Then regenerate config and reload
-  const result = fullSync();
+app.post('/api/sync', async (c) => {
+  const result = await fullSync();
   return c.json({
     success: result.config.success && (result.reload.success || !isDnsmasqRunning()),
-    message: `Prisma sync (${prismaSync.zones} zones, ${prismaSync.records} records, ${prismaSync.redirects} redirects), Config synced (${result.config.lines} lines), ${result.reload.message}`,
+    message: `Config synced (${result.config.lines} lines), ${result.reload.message}`,
     config: result.config,
     reload: result.reload,
-    prismaSync,
-  });
-});
-
-/**
- * POST /api/sync-from-prisma - Read from Prisma DB and import into DNS service's own DB.
- */
-app.post('/api/sync-from-prisma', (c) => {
-  const result = syncFromPrisma();
-  logActivity('sync_from_prisma', `Synced ${result.zones} zones, ${result.records} records, ${result.redirects} redirects from Prisma`, result.errors.length > 0 ? 'warning' : 'info');
-  return c.json({
-    success: result.errors.length === 0,
-    message: `Synced from Prisma: ${result.zones} zones, ${result.records} records, ${result.redirects} redirects`,
-    ...result,
-  });
-});
-
-/**
- * POST /api/sync-to-prisma - Write DNS service data back to the Prisma DB.
- */
-app.post('/api/sync-to-prisma', (c) => {
-  const result = syncToPrisma();
-  logActivity('sync_to_prisma', `Synced ${result.zones} zones, ${result.records} records, ${result.redirects} redirects to Prisma`, result.errors.length > 0 ? 'warning' : 'info');
-  return c.json({
-    success: result.errors.length === 0,
-    message: `Synced to Prisma: ${result.zones} zones, ${result.records} records, ${result.redirects} redirects`,
-    ...result,
   });
 });
 
@@ -1388,16 +1150,11 @@ app.get('/api/config', (c) => {
   }
 });
 
-/**
- * Validate dnsmasq config content for obvious injection patterns.
- * Returns an object with valid flag and reason if invalid.
- */
 function validateDnsmasqConfig(content: string): { valid: boolean; reason?: string } {
   if (!content || typeof content !== 'string') {
     return { valid: false, reason: 'No content provided' };
   }
 
-  // Split into lines and validate each
   const lines = content.split('\n');
   const validDirectives = [
     'server=', 'address=', 'cname=', 'mx-host=', 'txt-record=',
@@ -1412,32 +1169,27 @@ function validateDnsmasqConfig(content: string): { valid: boolean; reason?: stri
     'dhcp-authoritative', 'dhcp-script=', 'read-ethers',
   ];
 
-  // Shell metacharacters and injection patterns to reject
   const injectionPatterns = [
-    /[;|&`$]/,           // Shell command separators and substitution
-    /\$\(/,               // Command substitution
-    /\$\{/,               // Variable expansion
+    /[;|&`$]/,
+    /\$\(/,
+    /\$\{/,
     /\b(rm|chmod|chown|mv|cp|cat|sh|bash|curl|wget|nc|ncat|python|perl|ruby|node|exec|eval|system|spawn)\b/i,
     /\b(sudo|su|passwd|shadow|crontab|iptables|nft|systemctl)\b/i,
-    /\/\.\.\//,           // Path traversal
-    /\b(import|require)\b/, // Code injection
-    /`/,                   // Backtick command substitution
+    /\/\.\.\//,
+    /\b(import|require)\b/,
+    /`/,
   ];
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-
-    // Skip empty lines and comments
     if (!line || line.startsWith('#')) continue;
 
-    // Check for injection patterns
     for (const pattern of injectionPatterns) {
       if (pattern.test(line)) {
-        return { valid: false, reason: `Line ${i + 1}: Content contains disallowed pattern (${pattern.source}). This looks like a potential injection attempt.` };
+        return { valid: false, reason: `Line ${i + 1}: Content contains disallowed pattern (${pattern.source}).` };
       }
     }
 
-    // Check that the line starts with a valid dnsmasq directive
     const startsWithValidDirective = validDirectives.some(d => line.startsWith(d));
     if (!startsWithValidDirective) {
       return { valid: false, reason: `Line ${i + 1}: "${line.substring(0, 40)}${line.length > 40 ? '...' : ''}" does not start with a recognized dnsmasq directive` };
@@ -1454,23 +1206,22 @@ app.post('/api/config', async (c) => {
       return c.json({ success: false, error: 'No content provided' });
     }
 
-    // Validate the config content before writing
     const validation = validateDnsmasqConfig(body.content);
     if (!validation.valid) {
       return c.json({
         success: false,
         error: `Config validation failed: ${validation.reason}`,
-        warning: '⚠️ ADVANCED FEATURE: Direct config editing is intended for experienced administrators only. Use the zones/records/redirects/forwarders APIs for safe configuration.',
+        warning: 'Direct config editing is intended for experienced administrators only. Use the zones/records/redirects/forwarders APIs for safe configuration.',
       });
     }
 
     fs.writeFileSync(DNSMASQ_CONFIG, body.content, 'utf-8');
     if (isDnsmasqRunning()) reloadDnsmasq();
-    logActivity('config_manual_edit', 'dnsmasq config manually edited via API', 'warning');
+    await logActivity('config_manual_edit', 'dnsmasq config manually edited via API', 'warning');
     return c.json({
       success: true,
       message: 'Config saved and dnsmasq reloaded',
-      warning: '⚠️ ADVANCED FEATURE: Direct config edits will be overwritten by auto-generated config on next sync operation.',
+      warning: 'Direct config edits will be overwritten by auto-generated config on next sync operation.',
     });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1478,44 +1229,15 @@ app.post('/api/config', async (c) => {
 });
 
 // ============================================================================
-// Activity Log
+// Activity Log (Service-managed: "DnsActivityLog")
 // ============================================================================
 
-// Create ActivityLog table
-db.exec(`
-  CREATE TABLE IF NOT EXISTS DnsActivityLog (
-    id TEXT PRIMARY KEY,
-    action TEXT NOT NULL,
-    details TEXT,
-    severity TEXT NOT NULL DEFAULT 'info',
-    timestamp TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-`);
-
-// Seed initial activity log if empty
-try {
-  const count = (db.query('SELECT COUNT(*) as c FROM DnsActivityLog').get() as any)?.c || 0;
-  if (count === 0) {
-    const seedLogs = [
-      { id: generateId(), action: 'service_start', details: 'DNS service initialized', severity: 'info' },
-      { id: generateId(), action: 'config_sync', details: 'Initial config sync completed', severity: 'info' },
-      { id: generateId(), action: 'zone_create', details: 'Default zones provisioned', severity: 'info' },
-      { id: generateId(), action: 'forwarder_add', details: 'Upstream forwarders configured (8.8.8.8, 1.1.1.1)', severity: 'info' },
-      { id: generateId(), action: 'cache_flush', details: 'Cache cleared on startup', severity: 'warning' },
-    ];
-    for (const log of seedLogs) {
-      db.run('INSERT INTO DnsActivityLog (id, action, details, severity) VALUES (?, ?, ?, ?)',
-        [log.id, log.action, log.details, log.severity]);
-    }
-  }
-} catch {}
-
-app.get('/api/activity', (c) => {
+app.get('/api/activity', async (c) => {
   try {
     const limit = parseInt(c.req.query('limit') || '50');
-    const logs = db.query('SELECT * FROM DnsActivityLog ORDER BY timestamp DESC LIMIT ?').all(limit) as any[];
+    const result = await pool.query('SELECT * FROM "DnsActivityLog" ORDER BY timestamp DESC LIMIT $1', [limit]);
+    const logs = result.rows;
 
-    // Also add some dynamic entries for current state
     const running = isDnsmasqRunning();
     const dynamicEntries = [
       {
@@ -1533,11 +1255,12 @@ app.get('/api/activity', (c) => {
   }
 });
 
-// Helper to log activity
-function logActivity(action: string, details: string, severity = 'info') {
+async function logActivity(action: string, details: string, severity = 'info') {
   try {
-    db.run('INSERT INTO DnsActivityLog (id, action, details, severity) VALUES (?, ?, ?, ?)',
-      [generateId(), action, details, severity]);
+    await pool.query(
+      'INSERT INTO "DnsActivityLog" (id, action, details, severity) VALUES ($1, $2, $3, $4)',
+      [generateId(), action, details, severity]
+    );
   } catch {}
 }
 
@@ -1545,40 +1268,37 @@ function logActivity(action: string, details: string, severity = 'info') {
 // Detailed Stats
 // ============================================================================
 
-app.get('/api/stats', (c) => {
+app.get('/api/stats', async (c) => {
   try {
     const running = isDnsmasqRunning();
 
-    // Basic counts
     let zoneCount = 0, recordCount = 0, redirectCount = 0, forwarderCount = 0;
     let totalZones = 0, totalRecords = 0, totalRedirects = 0;
-    try { zoneCount = (db.query('SELECT COUNT(*) as c FROM DnsZone WHERE enabled = 1').get() as any)?.c || 0; } catch {}
-    try { recordCount = (db.query('SELECT COUNT(*) as c FROM DnsRecord WHERE enabled = 1').get() as any)?.c || 0; } catch {}
-    try { redirectCount = (db.query('SELECT COUNT(*) as c FROM DnsRedirect WHERE enabled = 1').get() as any)?.c || 0; } catch {}
-    try { forwarderCount = (db.query('SELECT COUNT(*) as c FROM DnsForwarder WHERE enabled = 1').get() as any)?.c || 0; } catch {}
-    try { totalZones = (db.query('SELECT COUNT(*) as c FROM DnsZone').get() as any)?.c || 0; } catch {}
-    try { totalRecords = (db.query('SELECT COUNT(*) as c FROM DnsRecord').get() as any)?.c || 0; } catch {}
-    try { totalRedirects = (db.query('SELECT COUNT(*) as c FROM DnsRedirect').get() as any)?.c || 0; } catch {}
+    try { zoneCount = parseInt((await pool.query('SELECT COUNT(*) as c FROM "DnsZone" WHERE enabled = true')).rows[0]?.c) || 0; } catch {}
+    try { recordCount = parseInt((await pool.query('SELECT COUNT(*) as c FROM "DnsRecord" WHERE enabled = true')).rows[0]?.c) || 0; } catch {}
+    try { redirectCount = parseInt((await pool.query('SELECT COUNT(*) as c FROM "DnsRedirectRule" WHERE enabled = true')).rows[0]?.c) || 0; } catch {}
+    try { forwarderCount = parseInt((await pool.query('SELECT COUNT(*) as c FROM "DnsForwarder" WHERE enabled = true')).rows[0]?.c) || 0; } catch {}
+    try { totalZones = parseInt((await pool.query('SELECT COUNT(*) as c FROM "DnsZone"')).rows[0]?.c) || 0; } catch {}
+    try { totalRecords = parseInt((await pool.query('SELECT COUNT(*) as c FROM "DnsRecord"')).rows[0]?.c) || 0; } catch {}
+    try { totalRedirects = parseInt((await pool.query('SELECT COUNT(*) as c FROM "DnsRedirectRule"')).rows[0]?.c) || 0; } catch {}
 
-    // Record type distribution
     const recordTypes: Record<string, number> = {};
     try {
-      const typeCounts = db.query('SELECT type, COUNT(*) as c FROM DnsRecord GROUP BY type').all() as any[];
+      const typeCounts = (await pool.query('SELECT type, COUNT(*) as c FROM "DnsRecord" GROUP BY type')).rows;
       for (const tc of typeCounts) {
-        recordTypes[tc.type] = tc.c;
+        recordTypes[tc.type] = parseInt(tc.c);
       }
     } catch {}
 
-    // Top domains (from redirects)
     const topDomains: { domain: string; hits: number }[] = [];
     try {
-      const domains = db.query('SELECT domain, priority FROM DnsRedirect WHERE enabled = 1 ORDER BY priority ASC LIMIT 10').all() as any[];
+      const domains = (await pool.query('SELECT "matchPattern", priority FROM "DnsRedirectRule" WHERE enabled = true ORDER BY priority ASC LIMIT 10')).rows;
       for (const d of domains) {
-        topDomains.push({ domain: d.domain, hits: 0 });
+        const { domain } = redirectRuleToApi(d);
+        topDomains.push({ domain, hits: 0 });
       }
     } catch {}
 
-    // Cache stats - read configured cache-size
     let cacheSize = 0;
     try {
       const configContent = fs.readFileSync(DNSMASQ_CONFIG, 'utf-8');
@@ -1620,14 +1340,14 @@ app.post('/api/zones/bulk-delete', async (c) => {
     let deleted = 0;
     for (const id of ids) {
       try {
-        db.run('DELETE FROM DnsRecord WHERE zoneId = ?', [id]);
-        db.run('DELETE FROM DnsZone WHERE id = ?', [id]);
+        await pool.query('DELETE FROM "DnsRecord" WHERE "zoneId" = $1', [id]);
+        await pool.query('DELETE FROM "DnsZone" WHERE id = $1', [id]);
         deleted++;
       } catch {}
     }
 
-    fullSync();
-    logActivity('zones_bulk_delete', `Deleted ${deleted} zones`, 'warning');
+    await fullSync();
+    await logActivity('zones_bulk_delete', `Deleted ${deleted} zones`, 'warning');
     return c.json({ success: true, message: `Deleted ${deleted} zones`, deleted });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1649,13 +1369,13 @@ app.post('/api/records/bulk-delete', async (c) => {
     let deleted = 0;
     for (const id of ids) {
       try {
-        db.run('DELETE FROM DnsRecord WHERE id = ?', [id]);
+        await pool.query('DELETE FROM "DnsRecord" WHERE id = $1', [id]);
         deleted++;
       } catch {}
     }
 
-    fullSync();
-    logActivity('records_bulk_delete', `Deleted ${deleted} records`, 'warning');
+    await fullSync();
+    await logActivity('records_bulk_delete', `Deleted ${deleted} records`, 'warning');
     return c.json({ success: true, message: `Deleted ${deleted} records`, deleted });
   } catch (error) {
     return c.json({ success: false, error: String(error) });
@@ -1671,9 +1391,7 @@ log.info('DNS Service starting', {
   version: SERVICE_VERSION,
   dnsmasq: SYSTEM_DNSMASQ ? 'system-installed' : 'not-found',
   configPath: DNSMASQ_CONFIG,
-  ownDb: DB_PATH,
-  prismaDb: PRISMA_DB_PATH,
-  prismaDbExists: fs.existsSync(PRISMA_DB_PATH),
+  database: DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
 });
 
 Bun.serve({
@@ -1684,15 +1402,14 @@ Bun.serve({
 log.info('DNS Service HTTP server listening', { port: PORT });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   log.info('SIGTERM received, shutting down');
-  // Close database connections
-  try { db.close(); } catch {}
+  try { await pool.end(); } catch {}
   process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   log.info('SIGINT received, shutting down');
-  try { db.close(); } catch {}
+  try { await pool.end(); } catch {}
   process.exit(0);
 });

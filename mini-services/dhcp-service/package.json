@@ -8,6 +8,7 @@
     "start": "bun index.ts"
   },
   "dependencies": {
-    "hono": "^4.7.0"
+    "hono": "^4.7.0",
+    "pg": "^8.20.0"
   }
 }
