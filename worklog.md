@@ -383,3 +383,29 @@ Stage Summary:
   - Vouchers: 10 vouchers
 - Real RADIUS flow tested end-to-end: Auth → PostAuth → Acct-Start → Acct-Interim → Acct-Stop
 - Key fix: radclient from localhost must use `testing123` secret (FR clients.conf localhost entry), not NAS-specific secrets
+
+---
+Task ID: 9
+Agent: Main Agent
+Task: Fix Auth Logs — show plan name as separate column, query from radpostauth instead of v_session_history
+
+Work Log:
+- User reported "Auth log reply message showing plan names" — plan names were stuffed into replyMessage column ("Plan: Conference Plan")
+- Root cause: auth-logs handler queried v_session_history (only successful auths from radacct), missing rejects entirely
+- Fixed auth-logs handler: Now queries radpostauth (real RADIUS auth log) with LEFT JOIN to WiFiUser → WiFiPlan → Property
+  - Returns planName as own field, not embedded in replyMessage
+  - Includes both Access-Accept AND Access-Reject entries
+  - Falls back to radusergroup.groupname when no WiFiUser plan exists
+- Fixed auth-logs-stats handler: Now queries radpostauth for proper accept/reject counts (was hardcoded 0 rejects)
+- Updated auth-logs.tsx frontend:
+  - New table columns: Plan (with Tag badge), Property (with Building icon)
+  - Removed "Reply Message" column (was showing fake plan data)
+  - Shows real authResult (Access-Accept / Access-Reject)
+  - Added mobile card layout
+  - Added detail dialog with full auth event info (user, plan, property, room, MAC, AP, timestamp)
+
+Stage Summary:
+- Auth Logs tab now shows 42 entries (40 accept + 2 reject) from real radpostauth table
+- Plan name is a separate column with proper badge, not stuffed into reply message
+- Reject filter works correctly — shows rejected users with "Access-Reject" badge
+- Stats show proper counts: 95% success rate (40/42)
