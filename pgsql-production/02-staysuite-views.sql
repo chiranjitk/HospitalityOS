@@ -98,18 +98,18 @@ SELECT COALESCE((s.id)::text, r.acctuniqueid) AS session_id,
     COALESCE(r.calledstationid, ''::text) AS calledstationid,
     r.connectinfo_start,
     r.connectinfo_stop
-   FROM (((((((("WiFiSession" s
-     FULL JOIN (
-       SELECT DISTINCT ON (username, acctsessionid) *
-       FROM radacct
-       ORDER BY username, acctsessionid, radacctid DESC
-     ) r ON (((s.id)::text = r.acctuniqueid)))
-     LEFT JOIN "WiFiUser" wu ON ((s."guestId" = wu."guestId")))
-     LEFT JOIN "Guest" g ON ((s."guestId" = g.id)))
-     LEFT JOIN "Booking" b ON ((s."bookingId" = b.id)))
-     LEFT JOIN "Room" rm ON ((b."roomId" = rm.id)))
-     LEFT JOIN "Property" p ON ((b."propertyId" = p.id)))
-     LEFT JOIN "WiFiPlan" wp ON ((COALESCE(s."planId", wu."planId") = wp.id)));
+FROM "WiFiSession" s
+FULL JOIN (
+    SELECT DISTINCT ON (username, acctsessionid) *
+    FROM radacct
+    ORDER BY username, acctsessionid, radacctid DESC
+) r ON (s.id)::text = r.acctuniqueid
+LEFT JOIN "WiFiUser" wu ON wu.username = r.username
+LEFT JOIN "Guest" g ON COALESCE(wu."guestId", s."guestId") IS NOT NULL AND COALESCE(wu."guestId", s."guestId") = g.id
+LEFT JOIN "Booking" b ON COALESCE(wu."bookingId", s."bookingId") IS NOT NULL AND COALESCE(wu."bookingId", s."bookingId") = b.id
+LEFT JOIN "Room" rm ON b."roomId" = rm.id
+LEFT JOIN "Property" p ON COALESCE(wu."propertyId", b."propertyId") IS NOT NULL AND COALESCE(wu."propertyId", b."propertyId") = p.id
+LEFT JOIN "WiFiPlan" wp ON COALESCE(s."planId", wu."planId") = wp.id;
 
 -- ============================================================================
 -- VIEW: v_active_sessions
