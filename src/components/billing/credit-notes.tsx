@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -103,6 +104,7 @@ const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secon
 
 export default function CreditNotes() {
   const { toast } = useToast();
+  const { formatCurrency } = useCurrency();
 
   const [folios, setFolios] = useState<Folio[]>([]);
   const [creditNotes, setCreditNotes] = useState<CreditNote[]>([]);
@@ -293,7 +295,7 @@ export default function CreditNotes() {
             </div>
             <div>
               <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
-                ${totalIssued.toFixed(2)}
+                {formatCurrency(totalIssued)}
               </div>
               <div className="text-xs text-muted-foreground">Total Issued</div>
             </div>
@@ -306,7 +308,7 @@ export default function CreditNotes() {
             </div>
             <div>
               <div className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-400 bg-clip-text text-transparent">
-                ${totalApplied.toFixed(2)}
+                {formatCurrency(totalApplied)}
               </div>
               <div className="text-xs text-muted-foreground">Applied</div>
             </div>
@@ -319,7 +321,7 @@ export default function CreditNotes() {
             </div>
             <div>
               <div className="text-2xl font-bold bg-gradient-to-r from-amber-600 to-red-400 bg-clip-text text-transparent">
-                ${totalRemaining.toFixed(2)}
+                {formatCurrency(totalRemaining)}
               </div>
               <div className="text-xs text-muted-foreground">Remaining</div>
             </div>
@@ -408,10 +410,10 @@ export default function CreditNotes() {
                               {note.reason.replace(/_/g, ' ')}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right font-medium">${note.totalAmount.toFixed(2)}</TableCell>
+                          <TableCell className="text-right font-medium">{formatCurrency(note.totalAmount)}</TableCell>
                           <TableCell className="text-right">
                             <span className={note.appliedAmount > 0 ? 'text-emerald-600' : 'text-muted-foreground'}>
-                              ${note.appliedAmount.toFixed(2)}
+                              {formatCurrency(note.appliedAmount)}
                             </span>
                           </TableCell>
                           <TableCell>
@@ -527,7 +529,7 @@ export default function CreditNotes() {
                 ))}
               </div>
               <div className="mt-2 text-right text-sm font-bold">
-                Total: ${totalAmount.toFixed(2)}
+                Total: {formatCurrency(totalAmount)}
               </div>
             </div>
           </div>
@@ -550,7 +552,7 @@ export default function CreditNotes() {
               Are you sure you want to cancel credit note <span className="font-bold">{cancelTarget?.creditNoteNumber}</span>?
               {cancelTarget && cancelTarget.appliedAmount > 0 && (
                 <span className="block mt-2 text-red-600 font-medium">
-                  This will reverse the applied credit of ${cancelTarget.appliedAmount.toFixed(2)} on the folio.
+                  This will reverse the applied credit of {formatCurrency(cancelTarget.appliedAmount)} on the folio.
                 </span>
               )}
             </DialogDescription>

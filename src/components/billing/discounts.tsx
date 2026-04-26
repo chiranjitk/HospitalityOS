@@ -274,8 +274,13 @@ export default function Discounts() {
           description: formData.description,
           discountType: formData.discountType,
           discountValue: parseFloat(formData.discountValue),
+          maxDiscount: formData.maxDiscount ? parseFloat(formData.maxDiscount) : null,
+          minBookingValue: formData.minBookingValue ? parseFloat(formData.minBookingValue) : null,
+          minNights: parseInt(formData.minNights) || 1,
           startsAt: formData.startsAt || undefined,
           endsAt: formData.endsAt || undefined,
+          maxUses: formData.maxUses ? parseInt(formData.maxUses) : null,
+          maxUsesPerUser: formData.maxUsesPerUser ? parseInt(formData.maxUsesPerUser) : null,
           status: selectedDiscount.status,
         }),
       });

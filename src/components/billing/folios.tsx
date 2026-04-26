@@ -232,18 +232,13 @@ export default function Folios() {
   };
 
   useEffect(() => {
-    fetchFolios();
-  }, [statusFilter]);
-
-  // Debounced search
-  useEffect(() => {
     const timer = setTimeout(() => {
       if (searchQuery.length >= 2 || searchQuery.length === 0) {
         fetchFolios();
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [statusFilter, searchQuery]);
 
   // View folio details
   const viewFolioDetails = async (folioId: string) => {

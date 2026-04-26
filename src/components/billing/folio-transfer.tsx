@@ -47,6 +47,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -108,6 +109,7 @@ const REASONS = [
 
 export default function FolioTransfer() {
   const { toast } = useToast();
+  const { formatCurrency } = useCurrency();
 
   const [folios, setFolios] = useState<Folio[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -235,7 +237,7 @@ export default function FolioTransfer() {
       const json = await res.json();
 
       if (json.success) {
-        toast({ title: 'Transfer Complete', description: `Successfully transferred $${json.data.totalTransferred.toFixed(2)}` });
+        toast({ title: 'Transfer Complete', description: `Successfully transferred ${formatCurrency(json.data.totalTransferred)}` });
         resetForm();
         setShowTransferDialog(false);
         fetchFolios();
@@ -332,7 +334,7 @@ export default function FolioTransfer() {
             </div>
             <div>
               <div className="text-2xl font-bold bg-gradient-to-r from-amber-600 to-red-400 bg-clip-text text-transparent">
-                ${folios.reduce((s, f) => s + f.balance, 0).toFixed(2)}
+                {formatCurrency(folios.reduce((s, f) => s + f.balance, 0))}
               </div>
               <div className="text-xs text-muted-foreground">Outstanding</div>
             </div>
@@ -371,9 +373,9 @@ export default function FolioTransfer() {
                       <TableCell>
                         <p className="text-sm">{folio.booking?.primaryGuest?.firstName} {folio.booking?.primaryGuest?.lastName}</p>
                       </TableCell>
-                      <TableCell className="text-right font-medium">${folio.totalAmount.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(folio.totalAmount)}</TableCell>
                       <TableCell className={cn("text-right font-medium", folio.balance > 0 ? "text-amber-600" : "text-emerald-600")}>
-                        ${folio.balance.toFixed(2)}
+                        {formatCurrency(folio.balance)}
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className={cn(
@@ -421,14 +423,14 @@ export default function FolioTransfer() {
                 <SelectContent>
                   {folios.filter(f => f.status === 'open').map(f => (
                     <SelectItem key={f.id} value={f.id}>
-                      {f.folioNumber} - {f.booking?.primaryGuest?.firstName} {f.booking?.primaryGuest?.lastName} (${f.balance.toFixed(2)})
+                      {f.folioNumber} - {f.booking?.primaryGuest?.firstName} {f.booking?.primaryGuest?.lastName} ({formatCurrency(f.balance)})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {sourceFolio && (
                 <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
-                  Balance: <span className="font-medium text-amber-600">${sourceFolio.balance.toFixed(2)}</span> | Total: ${sourceFolio.totalAmount.toFixed(2)}
+                  Balance: <span className="font-medium text-amber-600">{formatCurrency(sourceFolio.balance)}</span> | Total: {formatCurrency(sourceFolio.totalAmount)}
                 </div>
               )}
             </div>
@@ -513,7 +515,7 @@ export default function FolioTransfer() {
                               </TableCell>
                               <TableCell className="text-sm">{item.description}</TableCell>
                               <TableCell className="text-right text-sm font-medium">
-                                ${(item.totalAmount + item.taxAmount).toFixed(2)}
+                                {formatCurrency(item.totalAmount + item.taxAmount)}
                               </TableCell>
                             </motion.tr>
                           ))}
@@ -522,7 +524,7 @@ export default function FolioTransfer() {
                     </Table>
                     {selectedItems.length > 0 && (
                       <div className="p-3 bg-muted/50 text-sm font-medium text-right">
-                        Selected Total: <span className="text-primary">${getSelectedTotal().toFixed(2)}</span>
+                        Selected Total: <span className="text-primary">{formatCurrency(getSelectedTotal())}</span>
                       </div>
                     )}
                   </Card>
@@ -575,24 +577,24 @@ export default function FolioTransfer() {
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Source: {sourceFolio?.folioNumber}</p>
                         <div className="text-sm">
-                          <span className="line-through text-muted-foreground">${previewBeforeFrom.toFixed(2)}</span>
+                          <span className="line-through text-muted-foreground">{formatCurrency(previewBeforeFrom)}</span>
                           <span className="mx-2">&rarr;</span>
-                          <span className="font-medium">${(previewBeforeFrom - getActualTransferAmount()).toFixed(2)}</span>
+                          <span className="font-medium">{formatCurrency(previewBeforeFrom - getActualTransferAmount())}</span>
                         </div>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Target: {targetFolio?.folioNumber}</p>
                         <div className="text-sm">
-                          <span className="line-through text-muted-foreground">${previewBeforeTo.toFixed(2)}</span>
+                          <span className="line-through text-muted-foreground">{formatCurrency(previewBeforeTo)}</span>
                           <span className="mx-2">&rarr;</span>
-                          <span className="font-medium">${(previewBeforeTo + getActualTransferAmount()).toFixed(2)}</span>
+                          <span className="font-medium">{formatCurrency(previewBeforeTo + getActualTransferAmount())}</span>
                         </div>
                       </div>
                     </div>
                     <Separator className="my-3" />
                     <div className="flex justify-between text-sm font-bold">
                       <span>Transfer Amount:</span>
-                      <span className="text-primary">${getActualTransferAmount().toFixed(2)}</span>
+                      <span className="text-primary">{formatCurrency(getActualTransferAmount())}</span>
                     </div>
                   </motion.div>
                 )}
@@ -621,7 +623,7 @@ export default function FolioTransfer() {
           <DialogHeader>
             <DialogTitle>Confirm Transfer</DialogTitle>
             <DialogDescription>
-              You are transferring <span className="font-bold text-foreground">${getActualTransferAmount().toFixed(2)}</span>
+              You are transferring <span className="font-bold text-foreground">{formatCurrency(getActualTransferAmount())}</span>
               {' '}from <span className="font-bold text-foreground">{sourceFolio?.folioNumber}</span>
               {' '}to <span className="font-bold text-foreground">{targetFolio?.folioNumber}</span>.
             </DialogDescription>
@@ -679,7 +681,7 @@ export default function FolioTransfer() {
                     </TableCell>
                     <TableCell className="text-xs font-mono">{t.fromFolio.folioNumber}</TableCell>
                     <TableCell className="text-xs font-mono">{t.toFolio.folioNumber}</TableCell>
-                    <TableCell className="text-right font-medium">${t.amount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-medium">{formatCurrency(t.amount)}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs capitalize">
                         {t.reason.replace('_', ' ')}

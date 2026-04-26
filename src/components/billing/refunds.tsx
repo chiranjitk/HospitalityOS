@@ -139,6 +139,7 @@ export default function Refunds() {
     reason: '',
     isPartial: false,
   });
+  const [otherReasonText, setOtherReasonText] = useState('');
 
   // Fetch payments with refunds
   const fetchPayments = async () => {
@@ -208,6 +209,19 @@ export default function Refunds() {
       return;
     }
 
+    if (refundData.reason === 'other' && !otherReasonText.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please specify the reason for refund',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const refundReason = refundData.reason === 'other'
+      ? `Other: ${otherReasonText.trim()}`
+      : refundData.reason;
+
     setIsSaving(true);
     try {
       const response = await fetch(`/api/payments/${selectedPayment.id}`, {
@@ -215,7 +229,7 @@ export default function Refunds() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           refundAmount,
-          refundReason: refundData.reason,
+          refundReason,
         }),
       });
 
@@ -228,6 +242,7 @@ export default function Refunds() {
         });
         setIsProcessOpen(false);
         setRefundData({ amount: '', reason: '', isPartial: false });
+        setOtherReasonText('');
         fetchPayments();
       } else {
         toast({
@@ -637,6 +652,8 @@ export default function Refunds() {
                     id="otherReason"
                     placeholder="Enter reason for refund..."
                     rows={2}
+                    value={otherReasonText}
+                    onChange={(e) => setOtherReasonText(e.target.value)}
                   />
                 </div>
               )}

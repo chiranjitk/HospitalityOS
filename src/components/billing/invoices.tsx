@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -134,23 +134,23 @@ const CURRENCIES = [
   { value: 'JPY', label: 'JPY (\u00A5)', symbol: '\u00A5' },
 ];
 
-let itemIdCounter = 0;
-function newBlankLineItem(): LineItem {
-  return {
-    id: `new-${++itemIdCounter}`,
-    description: '',
-    quantity: 1,
-    unitPrice: 0,
-    totalAmount: 0,
-    taxRate: 0,
-    taxAmount: 0,
-  };
-}
-
 export default function Invoices() {
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const { formatDate, formatDateTime } = useTimezone();
+  const itemIdCounter = useRef(0);
+
+  function newBlankLineItem(): LineItem {
+    return {
+      id: `new-${++itemIdCounter.current}`,
+      description: '',
+      quantity: 1,
+      unitPrice: 0,
+      totalAmount: 0,
+      taxRate: 0,
+      taxAmount: 0,
+    };
+  }
 
   // Data state
   const [invoices, setInvoices] = useState<InvoiceData[]>([]);

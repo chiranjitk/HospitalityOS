@@ -48,6 +48,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { format, addDays, addWeeks, addMonths, differenceInDays } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -107,6 +108,7 @@ const FREQUENCY_OPTIONS = [
 
 export default function PaymentPlans() {
   const { toast } = useToast();
+  const { formatCurrency } = useCurrency();
 
   const [folios, setFolios] = useState<Folio[]>([]);
   const [schedules, setSchedules] = useState<PaymentSchedule[]>([]);
@@ -345,7 +347,7 @@ export default function PaymentPlans() {
               <DollarSign className="h-4 w-4 text-blue-500" />
             </div>
             <div>
-              <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">${totalScheduled.toFixed(2)}</div>
+              <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">{formatCurrency(totalScheduled)}</div>
               <div className="text-xs text-muted-foreground">Total Scheduled</div>
             </div>
           </div>
@@ -356,7 +358,7 @@ export default function PaymentPlans() {
               <TrendingUp className="h-4 w-4 text-emerald-500" />
             </div>
             <div>
-              <div className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-400 bg-clip-text text-transparent">${totalPaid.toFixed(2)}</div>
+              <div className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-400 bg-clip-text text-transparent">{formatCurrency(totalPaid)}</div>
               <div className="text-xs text-muted-foreground">Total Paid</div>
             </div>
           </div>
@@ -367,7 +369,7 @@ export default function PaymentPlans() {
               <Clock className="h-4 w-4 text-amber-500" />
             </div>
             <div>
-              <div className="text-2xl font-bold bg-gradient-to-r from-amber-600 to-red-400 bg-clip-text text-transparent">${totalRemaining.toFixed(2)}</div>
+              <div className="text-2xl font-bold bg-gradient-to-r from-amber-600 to-red-400 bg-clip-text text-transparent">{formatCurrency(totalRemaining)}</div>
               <div className="text-xs text-muted-foreground">Remaining</div>
             </div>
           </div>
@@ -385,7 +387,7 @@ export default function PaymentPlans() {
             <SelectContent>
               {folios.map(f => (
                 <SelectItem key={f.id} value={f.id}>
-                  {f.folioNumber} - {f.booking?.primaryGuest?.firstName} {f.booking?.primaryGuest?.lastName} (${f.balance.toFixed(2)})
+                  {f.folioNumber} - {f.booking?.primaryGuest?.firstName} {f.booking?.primaryGuest?.lastName} ({formatCurrency(f.balance)})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -443,13 +445,13 @@ export default function PaymentPlans() {
                     {/* Progress bar */}
                     <div>
                       <div className="flex justify-between text-sm mb-1">
-                        <span className="text-muted-foreground">${schedule.paidAmount.toFixed(2)} paid</span>
+                        <span className="text-muted-foreground">{formatCurrency(schedule.paidAmount)} paid</span>
                         <span className="font-medium">{progress.toFixed(0)}%</span>
                       </div>
                       <Progress value={progress} className="h-2" />
                       <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                        <span>of ${schedule.totalAmount.toFixed(2)}</span>
-                        <span>${schedule.remainingAmount.toFixed(2)} remaining</span>
+                        <span>of {formatCurrency(schedule.totalAmount)}</span>
+                        <span>{formatCurrency(schedule.remainingAmount)} remaining</span>
                       </div>
                     </div>
 
@@ -457,7 +459,7 @@ export default function PaymentPlans() {
                     {schedule.depositAmount > 0 && (
                       <div className="flex items-center gap-2 text-sm bg-muted/50 p-2 rounded">
                         <Percent className="h-4 w-4 text-muted-foreground" />
-                        <span>Deposit: <span className="font-medium">${schedule.depositAmount.toFixed(2)}</span></span>
+                        <span>Deposit: <span className="font-medium">{formatCurrency(schedule.depositAmount)}</span></span>
                         {schedule.depositDueDate && (
                           <span className="text-muted-foreground ml-2">
                             Due: {format(new Date(schedule.depositDueDate), 'MMM d, yyyy')}
@@ -495,7 +497,7 @@ export default function PaymentPlans() {
                                   {idx + 1}
                                 </div>
                                 <div>
-                                  <p className="text-sm font-medium">${inst.amount.toFixed(2)}</p>
+                                  <p className="text-sm font-medium">{formatCurrency(inst.amount)}</p>
                                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                                     <Calendar className="h-3 w-3" />
                                     {format(new Date(inst.dueDate), 'MMM d, yyyy')}
@@ -621,7 +623,7 @@ export default function PaymentPlans() {
                 {parseFloat(depositPercent) > 0 && (
                   <div className="flex justify-between text-sm mb-1">
                     <span>Deposit ({depositPercent}%):</span>
-                    <span className="font-medium">${(parseFloat(totalAmount) * parseFloat(depositPercent) / 100).toFixed(2)}</span>
+                    <span className="font-medium">{formatCurrency(parseFloat(totalAmount) * parseFloat(depositPercent) / 100)}</span>
                   </div>
                 )}
                 <Separator className="my-2" />
@@ -629,13 +631,13 @@ export default function PaymentPlans() {
                   {(frequency === 'custom' ? customDates : null)?.map((d, i) => (
                     <div key={i} className="flex justify-between text-sm">
                       <span>#{i + 1} - {format(new Date(d.dueDate), 'MMM d, yyyy')}</span>
-                      <span>${d.amount.toFixed(2)}</span>
+                      <span>{formatCurrency(d.amount)}</span>
                     </div>
                   ))}
                   {frequency !== 'custom' && customDates.map((d, i) => (
                     <div key={i} className="flex justify-between text-sm">
                       <span>#{i + 1} - {format(new Date(d.dueDate), 'MMM d, yyyy')}</span>
-                      <span>${d.amount.toFixed(2)}</span>
+                      <span>{formatCurrency(d.amount)}</span>
                     </div>
                   ))}
                 </div>
@@ -665,7 +667,7 @@ export default function PaymentPlans() {
             const inst = schedule.installments[selectedInstallment.index];
             return (
               <div className="bg-muted/50 p-3 rounded text-sm space-y-1">
-                <p>Installment #{selectedInstallment.index + 1}: <span className="font-bold">${inst.amount.toFixed(2)}</span></p>
+                <p>Installment #{selectedInstallment.index + 1}: <span className="font-bold">{formatCurrency(inst.amount)}</span></p>
                 <p className="text-muted-foreground">Due: {format(new Date(inst.dueDate), 'MMM d, yyyy')}</p>
               </div>
             );
