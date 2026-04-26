@@ -673,3 +673,55 @@ Stage Summary:
 - MAC addresses preserved in both table and detail dialog
 - Reply message: "Authenticated — client IP: 10.10.173.74" (not NAS IP)
 - FreeRADIUS postauth_query already captures Framed-IP-Address → clientipaddress (works in production with real NAS/AP)
+
+---
+Task ID: 16
+Agent: Main Agent
+Task: Full production test — 40 users, Simultaneous-Use, FUP Switch-Over, IP Pool, Wrong Credentials
+
+Work Log:
+- Cleaned all old radacct/radpostauth data for fresh test start
+- Fixed FR config: changed `%{SQL-User-Name}` to `%{User-Name}` in post-auth SQL expansions (SQL-User-Name was empty in post-auth context)
+- Created PostgreSQL FUP system:
+  - ALTER TABLE FairAccessPolicy: added throttleDownKbps, throttleUpKbps columns
+  - Updated 3 FUP policies with throttle values (256/128, 512/256, 2048/1024 kbps)
+  - Created fn_get_effective_bandwidth(username, direction) → VOLATILE function returning kbps
+  - Created fn_is_fup_throttled(username) → helper for FR unlang comparison
+  - Created fn_get_mikrotik_rate_limit(username) → returns "100M/50M" or "2048K/1024K" string
+  - All functions log switch-over events to fup_switch_log table
+- Updated FR post-auth (sites-available/default):
+  - FUP bandwidth override: calls fn_get_mikrotik_rate_limit() to set Mikrotik-Rate-Limit
+  - When throttled: overrides with kbps format (e.g., "2048K/1024K")
+  - When normal: uses Mbps format (e.g., "100M/50M")
+
+Production Test Results (ALL PASSING):
+1. ✅ Authenticated all 41 users (41/41 Access-Accept)
+2. ✅ Wrong password rejected (Access-Reject for guest.amit.mukherjee)
+3. ✅ Unknown user rejected (Access-Reject for nonexistent.user)
+4. ✅ Simultaneous-Use Login Limits:
+   - Free Plan (limit=1): user with 1 active session rejected ✅
+   - Basic Plan (limit=2): user with 2 active sessions rejected ✅
+   - Standard Plan (limit=3): user with 2 active sessions accepted (3rd login) ✅
+   - Standard Plan (limit=3): user with 3 active sessions rejected (4th login) ✅
+5. ✅ IP Pool Restriction:
+   - VIP user (VIP Lounge: 172.16.10.2-254) rejected 192.168.99.50 ✅
+   - VIP user accepted 172.16.10.50 ✅
+   - Free user (Guest Floor: 10.10.0.1-255.254) accepted 10.10.50.100 ✅
+   - Free user rejected 192.168.1.50 ✅
+   - Conference user (10.20.0.1-255.254) rejected wrong pool IP ✅
+6. ✅ Bandwidth as per policy (verified for all 6 plans via fn_get_effective_bandwidth)
+7. ✅ FUP Switch-Over:
+   - Free Plan (Daily 1GB): 1536MB usage → throttled to 256/128 kbps ✅
+   - Standard Plan (Weekly 5GB): 6144MB usage → throttled to 512/256 kbps ✅
+   - VIP Plan (Monthly 50GB): 56320MB usage → throttled to 2048/1024 kbps ✅
+   - FUP switch log entries created for all 3 tests ✅
+   - FR response shows throttled Mikrotik-Rate-Limit: "2048K/1024K" ✅
+8. ✅ Property ID: All 41 users and 3 FUP policies scoped to single property
+
+Stage Summary:
+- All 7 test categories passed with real RADIUS auth via radtest
+- Simultaneous-Use (login limit) enforced from PostgreSQL radgroupcheck via FR session section
+- FUP switch-over working end-to-end: PostgreSQL function → FR post-auth → vendor attributes
+- IP pool restriction working: fn_check_ip_pool validates against user's assigned pool
+- All checks go through PostgreSQL (no SQLite, no flat files)
+- FUP switch log table tracks all throttle/unthrottle events

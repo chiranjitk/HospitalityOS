@@ -277,6 +277,166 @@ function getStatusBadge(status: UsageStatus) {
 }
 
 // ---------------------------------------------------------------------------
+// FUP Switch-Over Log Sub-component
+// ---------------------------------------------------------------------------
+
+function FupSwitchLog() {
+  const [logs, setLogs] = useState<Array<Record<string, unknown>>>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [actionFilter, setActionFilter] = useState<string>('all');
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        const params = new URLSearchParams({ limit: '20' });
+        if (actionFilter !== 'all') params.set('action', actionFilter);
+        const res = await fetch(`/api/wifi/radius?action=fup-switch-log&${params}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) setLogs(data.data);
+      } catch { /* ignore */ }
+      finally { setIsLoading(false); }
+    };
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 60000);
+    return () => clearInterval(interval);
+  }, [actionFilter]);
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (logs.length === 0) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+          <div className="rounded-full bg-muted/50 p-3 mb-2">
+            <Zap className="h-6 w-6 text-muted-foreground/40" />
+          </div>
+          <h3 className="text-sm font-medium text-muted-foreground">No switch-over events</h3>
+          <p className="text-xs text-muted-foreground/60 mt-1">
+            Throttle events will appear here when users exceed their FUP data limit
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <div className="p-4 border-b">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Filter by username..."
+                className="pl-9"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val) {
+                    setActionFilter('all');
+                    // The server fetches without username filter when empty
+                    const fetchLogs = async () => {
+                      try {
+                        const res = await fetch(`/api/wifi/radius?action=fup-switch-log&limit=20`);
+                        const data = await res.json();
+                        if (data.success && Array.isArray(data.data)) setLogs(data.data);
+                      } catch { /* ignore */ }
+                    };
+                    fetchLogs();
+                  }
+                }}
+              />
+            </div>
+            <Select value={actionFilter} onValueChange={setActionFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Action" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Events</SelectItem>
+                <SelectItem value="throttle">Throttled</SelectItem>
+                <SelectItem value="unthrottle">Unthrottled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <ScrollArea className="max-h-[320px]">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-8">#</TableHead>
+                <TableHead>Username</TableHead>
+                <TableHead>Plan</TableHead>
+                <TableHead>FUP Policy</TableHead>
+                <TableHead>Usage</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>Original BW</TableHead>
+                <TableHead>Throttled BW</TableHead>
+                <TableHead className="w-[120px]">Time</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {logs.map((log, i) => (
+                <TableRow key={log.id} className={cn(
+                  log.action === 'throttle' && 'bg-amber-50/30 dark:bg-amber-950/10',
+                  log.action === 'unthrottle' && 'bg-emerald-50/30 dark:bg-emerald-950/10',
+                )}>
+                  <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+                  <TableCell>
+                    <span className="text-sm font-medium font-mono">{log.username}</span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs">{log.plan_name || '—'}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      {getCycleIcon(log.cycle_type as string)}
+                      <span className="text-xs text-muted-foreground">{log.fup_policy_name || '—'}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs font-mono">{log.usage_mb} / {log.limit_mb} MB</span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge className={cn(
+                      'text-[10px]',
+                      log.action === 'throttle'
+                        ? 'bg-amber-500 text-white border-0'
+                        : 'bg-emerald-500 text-white border-0',
+                    )}>
+                      {log.action === 'throttle' ? 'Throttled' : 'Unthrottled'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs font-mono">{log.original_down_kbps || '—'}K/{log.original_up_kbps || '—'}K</span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs font-mono text-amber-600 dark:text-amber-400">
+                      {log.throttle_down_kbps || '—'}K/{log.throttle_up_kbps || '—'}K
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs text-muted-foreground">
+                      {log.timestamp ? formatDistanceToNow(new Date(log.timestamp as string)) + ' ago' : '—'}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Loading Skeleton Components
 // ---------------------------------------------------------------------------
 
@@ -963,6 +1123,19 @@ export default function FupDashboard() {
             </CardContent>
           </Card>
         )}
+      </div>
+
+      {/* ─── FUP Switch-Over Log ─────────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Zap className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold">FUP Switch-Over Log</h3>
+          <Badge variant="secondary" className="text-xs">
+            Recent Events
+          </Badge>
+        </div>
+
+        <FupSwitchLog />
       </div>
 
       {/* ─── Footer note ────────────────────────────────────────────── */}

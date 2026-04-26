@@ -92,6 +92,7 @@ const VIEW_ACTIONS = new Set([
   'coa-logs', 'coa-audit-list', 'coa-audit-stats',
   'nas-health-current', 'nas-health-list', 'nas-health-stats',
   'concurrent-sessions', 'concurrent-violations',
+  'fup-switch-log',
 ]);
 
 // GET /api/wifi/radius - Get RADIUS service data
@@ -814,6 +815,7 @@ export async function GET(request: NextRequest) {
                    fap."switchOverBwPolicyId", fap."cycleResetHour", fap."cycleResetMinute",
                    fap."applicableOn", fap."isEnabled", fap.priority,
                    fap."createdAt", fap."updatedAt",
+                   fap."throttleDownKbps", fap."throttleUpKbps",
                    bp.name as "switchOverBwPolicyName",
                    bp."downloadKbps" as "switchOverDownloadKbps",
                    bp."uploadKbps" as "switchOverUploadKbps"
@@ -840,6 +842,40 @@ export async function GET(request: NextRequest) {
         } catch (error) {
           console.error('[fap-policies-list] Direct query error:', error);
           return NextResponse.json({ success: true, data: [], total: 0 });
+        }
+      }
+
+      // ─── FUP Switch-Over Log ─────────────────────────────────────
+      case 'fup-switch-log': {
+        try {
+          const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 200);
+          const action = searchParams.get('action');
+          const username = searchParams.get('username');
+
+          const conditions: string[] = [];
+          const sqlParams: unknown[] = [];
+          if (action) { conditions.push(`action = $${sqlParams.length + 1}`); sqlParams.push(action); }
+          if (username) { conditions.push(`username LIKE $${sqlParams.length + 1}`); sqlParams.push(`%${username}%`); }
+          const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+          sqlParams.push(limit);
+
+          const logs = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(`
+            SELECT id, username, plan_name, fup_policy_name, cycle_type,
+                   ROUND(usage_mb::numeric, 1) as usage_mb, limit_mb,
+                   action, original_down_kbps, original_up_kbps,
+                   throttle_down_kbps, throttle_up_kbps,
+                   nas_ip, created_at as "timestamp"
+            FROM fup_switch_log
+            ${whereClause}
+            ORDER BY created_at DESC
+            LIMIT $${sqlParams.length}
+          `, ...sqlParams);
+
+          const safeLogs = JSON.parse(JSON.stringify(logs, (_, v) => typeof v === 'bigint' ? Number(v) : v));
+          return NextResponse.json({ success: true, data: safeLogs });
+        } catch (error) {
+          console.error('[fup-switch-log] error:', error);
+          return NextResponse.json({ success: true, data: [] });
         }
       }
 
