@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,6 +56,8 @@ import {
   Trash2,
   Eye,
   EyeOff,
+  Gauge,
+  Repeat,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -64,7 +66,22 @@ import { format, formatDistanceToNow } from 'date-fns';
 interface WiFiGateway {
   id: string;
   name: string;
-  type: 'cisco' | 'ubiquiti' | 'aruba' | 'ruckus' | 'mikrotik' | 'other';
+  type:
+    | 'mikrotik'
+    | 'cisco'
+    | 'unifi'
+    | 'aruba'
+    | 'ruckus'
+    | 'fortinet'
+    | 'juniper'
+    | 'huawei'
+    | 'netgear'
+    | 'dlink'
+    | 'ruijie'
+    | 'tplink'
+    | 'cambium'
+    | 'grandstream'
+    | 'other';
   ipAddress: string;
   port: number;
   status: 'connected' | 'disconnected' | 'error';
@@ -72,6 +89,8 @@ interface WiFiGateway {
   apiKey?: string;
   username?: string;
   lastSync?: string;
+  lastSyncLatency?: number;
+  firmwareVersion?: string;
   totalAPs: number;
   activeSessions: number;
   bandwidth: {
@@ -99,13 +118,29 @@ interface GatewayStats {
   totalBandwidth: number;
 }
 
+interface SyncResultData {
+  totalAPs?: number;
+  activeSessions?: number;
+  bandwidthMbps?: number;
+  latency?: number;
+}
+
 const gatewayTypes = [
+  { value: 'mikrotik', label: 'MikroTik RouterOS' },
   { value: 'cisco', label: 'Cisco Meraki' },
-  { value: 'ubiquiti', label: 'Ubiquiti UniFi' },
-  { value: 'aruba', label: 'Aruba Networks' },
-  { value: 'ruckus', label: 'Ruckus Wireless' },
-  { value: 'mikrotik', label: 'MikroTik' },
-  { value: 'other', label: 'Other' },
+  { value: 'unifi', label: 'Ubiquiti UniFi' },
+  { value: 'aruba', label: 'Aruba Networks (HPE)' },
+  { value: 'ruckus', label: 'Ruckus Networks' },
+  { value: 'fortinet', label: 'Fortinet FortiGate' },
+  { value: 'juniper', label: 'Juniper Mist AI' },
+  { value: 'huawei', label: 'Huawei AirEngine' },
+  { value: 'netgear', label: 'Netgear Insight' },
+  { value: 'dlink', label: 'D-Link Nuclias' },
+  { value: 'ruijie', label: 'Ruijie Networks' },
+  { value: 'tplink', label: 'TP-Link Omada' },
+  { value: 'cambium', label: 'Cambium Networks' },
+  { value: 'grandstream', label: 'Grandstream GWN' },
+  { value: 'other', label: 'Other (Generic RADIUS)' },
 ];
 
 const statusConfig = {
@@ -132,6 +167,9 @@ export default function GatewayIntegration() {
   const [testResult, setTestResult] = useState<'success' | 'failed' | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
   const [deleteGatewayId, setDeleteGatewayId] = useState<string | null>(null);
+  const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
+  const [filterStatus, setFilterStatus] = useState<'all' | 'connected' | 'disconnected' | 'error'>('all');
+  const autoSyncTimerRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // Form state for new/edit gateway
   const [formData, setFormData] = useState<Partial<WiFiGateway>>({
@@ -154,9 +192,36 @@ export default function GatewayIntegration() {
 
   useEffect(() => {
     fetchGateways();
+    return () => {
+      // Clean up auto-sync timers on unmount
+      autoSyncTimerRef.current.forEach((timer) => clearTimeout(timer));
+      autoSyncTimerRef.current.clear();
+    };
   }, []);
 
-  const fetchGateways = async () => {
+  // Manage auto-sync timers
+  useEffect(() => {
+    // Clear existing timers
+    autoSyncTimerRef.current.forEach((timer) => clearTimeout(timer));
+    autoSyncTimerRef.current.clear();
+
+    // Set up new timers for gateways with auto-sync enabled
+    gateways.forEach((gateway) => {
+      if (gateway.autoSync && gateway.status === 'connected') {
+        const intervalMs = (gateway.syncInterval || 5) * 60 * 1000;
+        const timer = setTimeout(() => {
+          handleSync(gateway);
+        }, intervalMs);
+        autoSyncTimerRef.current.set(gateway.id, timer);
+      }
+    });
+
+    return () => {
+      // Cleanup handled in main unmount above
+    };
+  }, [gateways]);
+
+  const fetchGateways = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch('/api/integrations/wifi-gateways');
@@ -182,7 +247,7 @@ export default function GatewayIntegration() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
   const handleSaveGateway = async () => {
     if (!formData.name || !formData.ipAddress) {
@@ -304,6 +369,9 @@ export default function GatewayIntegration() {
   };
 
   const handleSync = async (gateway: WiFiGateway) => {
+    // Mark this gateway as syncing
+    setSyncingIds((prev) => new Set(prev).add(gateway.id));
+
     toast({
       title: 'Sync Started',
       description: `Syncing ${gateway.name}...`,
@@ -314,10 +382,37 @@ export default function GatewayIntegration() {
       const result = await response.json();
 
       if (result.success) {
+        const syncData: SyncResultData = result.data || {};
+        const aps = syncData.totalAPs ?? gateway.totalAPs;
+        const sessions = syncData.activeSessions ?? gateway.activeSessions;
+        const bw = syncData.bandwidthMbps ?? (gateway.bandwidth.download + gateway.bandwidth.upload);
+        const latency = syncData.latency;
+
         toast({
           title: 'Sync Complete',
-          description: result.message || `Successfully synced ${gateway.name}`,
+          description: `Synced: ${aps} APs, ${sessions} sessions, ${bw} Mbps${latency != null ? ` (${latency}ms latency)` : ''}`,
         });
+
+        // Update the gateway locally with fresh sync data and latency
+        setGateways((prev) =>
+          prev.map((g) =>
+            g.id === gateway.id
+              ? {
+                  ...g,
+                  lastSync: new Date().toISOString(),
+                  totalAPs: aps,
+                  activeSessions: sessions,
+                  bandwidth: {
+                    ...g.bandwidth,
+                    download: Math.round(bw * 0.65),
+                    upload: Math.round(bw * 0.35),
+                  },
+                  ...(latency != null ? { lastSyncLatency: latency } : {}),
+                }
+              : g
+          )
+        );
+
         fetchGateways();
       } else {
         toast({
@@ -331,6 +426,12 @@ export default function GatewayIntegration() {
         title: 'Sync Failed',
         description: 'Failed to sync gateway',
         variant: 'destructive',
+      });
+    } finally {
+      setSyncingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(gateway.id);
+        return next;
       });
     }
   };
@@ -402,6 +503,11 @@ export default function GatewayIntegration() {
     });
     setIsConfigOpen(true);
   };
+
+  const filteredGateways = gateways.filter((gw) => {
+    if (filterStatus === 'all') return true;
+    return gw.status === filterStatus;
+  });
 
   if (isLoading) {
     return (
@@ -506,135 +612,220 @@ export default function GatewayIntegration() {
           </Button>
         </Card>
       ) : (
-        <ScrollArea className="h-[600px]">
-          <div className="space-y-4">
-            {gateways.map((gateway) => {
-              const statusInfo = statusConfig[gateway.status] || statusConfig.disconnected;
-              const StatusIcon = statusInfo.icon;
+        <>
+          {/* Filter bar */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Filter:</span>
+            {(['all', 'connected', 'disconnected', 'error'] as const).map((status) => (
+              <Button
+                key={status}
+                variant={filterStatus === status ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFilterStatus(status)}
+                className="capitalize text-xs"
+              >
+                {status === 'all' ? 'All' : status}
+                {status !== 'all' && (
+                  <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
+                    {status === 'all'
+                      ? gateways.length
+                      : gateways.filter((g) => g.status === status).length}
+                  </Badge>
+                )}
+              </Button>
+            ))}
+          </div>
 
-              return (
-                <Card key={gateway.id} className="overflow-hidden">
-                  <div className="flex flex-col lg:flex-row">
-                    {/* Status Indicator */}
-                    <div className={cn(
-                      'w-full lg:w-2 p-4 flex items-center justify-center gap-2',
-                      statusInfo.bgColor
-                    )}>
-                      <StatusIcon className={cn('h-5 w-5', statusInfo.color)} />
-                      <span className={cn('font-medium', statusInfo.color)}>
-                        {statusInfo.label}
-                      </span>
-                    </div>
+          <ScrollArea className="h-[600px]">
+            <div className="space-y-4">
+              {filteredGateways.length === 0 ? (
+                <Card className="flex flex-col items-center justify-center py-12">
+                  <WifiOff className="h-10 w-10 text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground">No gateways match the selected filter</p>
+                </Card>
+              ) : (
+                filteredGateways.map((gateway) => {
+                  const statusInfo = statusConfig[gateway.status] || statusConfig.disconnected;
+                  const StatusIcon = statusInfo.icon;
+                  const isSyncing = syncingIds.has(gateway.id);
 
-                    {/* Main Content */}
-                    <div className="flex-1 p-4">
-                      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                        <div className="flex items-start gap-3">
-                          <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-cyan-500/20 to-teal-500/20 flex items-center justify-center">
-                            <Router className="h-6 w-6 text-cyan-500 dark:text-cyan-400" />
+                  return (
+                    <Card key={gateway.id} className="overflow-hidden">
+                      <div className="flex flex-col lg:flex-row">
+                        {/* Status Indicator */}
+                        <div className={cn(
+                          'w-full lg:w-2 p-4 flex items-center justify-center gap-2',
+                          statusInfo.bgColor
+                        )}>
+                          <div className="relative">
+                            <StatusIcon className={cn('h-5 w-5', statusInfo.color)} />
+                            {/* Green pulse for connected status */}
+                            {gateway.status === 'connected' && (
+                              <span className="absolute inset-0 rounded-full animate-ping opacity-20 bg-emerald-500" />
+                            )}
                           </div>
-                          <div>
-                            <h3 className="font-semibold">{gateway.name}</h3>
-                            <p className="text-sm text-muted-foreground">
-                              {gateway.ipAddress}:{gateway.port}
-                            </p>
-                            <div className="flex gap-2 mt-1">
-                              <Badge variant="outline" className="capitalize text-xs">
-                                {gatewayTypes.find(t => t.value === gateway.type)?.label}
-                              </Badge>
-                              {gateway.location && (
-                                <Badge variant="secondary" className="text-xs">
-                                  {gateway.location}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Metrics */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <p className="text-muted-foreground">APs</p>
-                            <p className="font-semibold">{gateway.totalAPs}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Sessions</p>
-                            <p className="font-semibold">{gateway.activeSessions}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Download</p>
-                            <p className="font-semibold">{gateway.bandwidth.download} Mbps</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Upload</p>
-                            <p className="font-semibold">{gateway.bandwidth.upload} Mbps</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Last Sync & Auto Sync */}
-                      <div className="flex items-center gap-4 mt-4 pt-4 border-t">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={gateway.autoSync}
-                            onCheckedChange={() => handleToggleAutoSync(gateway)}
-                          />
-                          <span className="text-sm text-muted-foreground">
-                            Auto-sync ({gateway.syncInterval} min)
+                          <span className={cn('font-medium', statusInfo.color)}>
+                            {statusInfo.label}
                           </span>
                         </div>
-                        {gateway.lastSync && (
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            Last sync: {formatDistanceToNow(new Date(gateway.lastSync))} ago
-                          </div>
-                        )}
-                      </div>
 
-                      {/* Actions */}
-                      <div className="flex flex-wrap gap-2 mt-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleSync(gateway)}
-                          disabled={gateway.status !== 'connected'}
-                        >
-                          <RefreshCw className="h-3 w-3 mr-1" />
-                          Sync
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => { setSelectedGateway(gateway); setIsTestOpen(true); }}
-                        >
-                          <TestTube className="h-3 w-3 mr-1" />
-                          Test Connection
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openEditDialog(gateway)}
-                        >
-                          <Settings className="h-3 w-3 mr-1" />
-                          Configure
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-red-600 dark:text-red-400 hover:text-red-700"
-                          onClick={() => handleDelete(gateway)}
-                        >
-                          <Trash2 className="h-3 w-3 mr-1" />
-                          Delete
-                        </Button>
+                        {/* Main Content */}
+                        <div className="flex-1 p-4">
+                          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                            <div className="flex items-start gap-3">
+                              <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-cyan-500/20 to-teal-500/20 flex items-center justify-center">
+                                <Router className="h-6 w-6 text-cyan-500 dark:text-cyan-400" />
+                              </div>
+                              <div>
+                                <h3 className="font-semibold flex items-center gap-2">
+                                  {gateway.name}
+                                  {/* Green pulse dot for connected */}
+                                  {gateway.status === 'connected' && (
+                                    <span className="relative flex h-2.5 w-2.5">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                                    </span>
+                                  )}
+                                </h3>
+                                <p className="text-sm text-muted-foreground">
+                                  {gateway.ipAddress}:{gateway.port}
+                                </p>
+                                <div className="flex flex-wrap gap-2 mt-1">
+                                  <Badge variant="outline" className="capitalize text-xs">
+                                    {gatewayTypes.find(t => t.value === gateway.type)?.label}
+                                  </Badge>
+                                  {gateway.location && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {gateway.location}
+                                    </Badge>
+                                  )}
+                                  {gateway.firmwareVersion && (
+                                    <Badge variant="secondary" className="text-xs gap-1">
+                                      <Shield className="h-3 w-3" />
+                                      v{gateway.firmwareVersion}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Metrics */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                              <div>
+                                <p className="text-muted-foreground">APs</p>
+                                <p className="font-semibold">{gateway.totalAPs}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Sessions</p>
+                                <p className="font-semibold">{gateway.activeSessions}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Download</p>
+                                <p className="font-semibold">{gateway.bandwidth.download} Mbps</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Upload</p>
+                                <p className="font-semibold">{gateway.bandwidth.upload} Mbps</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Last Sync, Latency & Auto Sync */}
+                          <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t">
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={gateway.autoSync}
+                                onCheckedChange={() => handleToggleAutoSync(gateway)}
+                              />
+                              <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                                <Repeat className="h-3 w-3" />
+                                Auto-sync every {gateway.syncInterval} min
+                              </span>
+                              {/* Auto-sync spinning indicator */}
+                              {gateway.autoSync && gateway.status === 'connected' && (
+                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  {isSyncing ? (
+                                    <>
+                                      <Loader2 className="h-3 w-3 animate-spin text-cyan-500" />
+                                      <span className="text-cyan-600 dark:text-cyan-400">Syncing...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="relative flex h-1.5 w-1.5">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
+                                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                                      </span>
+                                      <span className="text-emerald-600 dark:text-emerald-400">Active</span>
+                                    </>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                            {gateway.lastSync && (
+                              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                <Clock className="h-3 w-3" />
+                                Last sync: {formatDistanceToNow(new Date(gateway.lastSync))} ago
+                                {/* Show latency from last sync */}
+                                {gateway.lastSyncLatency != null && (
+                                  <Badge variant="outline" className="ml-1.5 text-[10px] px-1.5 py-0 gap-0.5 font-normal">
+                                    <Gauge className="h-2.5 w-2.5" />
+                                    {gateway.lastSyncLatency}ms
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex flex-wrap gap-2 mt-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleSync(gateway)}
+                              disabled={gateway.status !== 'connected' || isSyncing}
+                            >
+                              {isSyncing ? (
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-3 w-3 mr-1" />
+                              )}
+                              {isSyncing ? 'Syncing...' : 'Sync'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => { setSelectedGateway(gateway); setIsTestOpen(true); }}
+                            >
+                              <TestTube className="h-3 w-3 mr-1" />
+                              Test Connection
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openEditDialog(gateway)}
+                            >
+                              <Settings className="h-3 w-3 mr-1" />
+                              Configure
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-red-600 dark:text-red-400 hover:text-red-700"
+                              onClick={() => handleDelete(gateway)}
+                            >
+                              <Trash2 className="h-3 w-3 mr-1" />
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        </ScrollArea>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          </ScrollArea>
+        </>
       )}
 
       {/* Add/Edit Gateway Dialog */}
@@ -864,7 +1055,7 @@ export default function GatewayIntegration() {
             ) : (
               <div className={cn(
                 'text-center p-6 rounded-lg',
-                testResult === 'success' ? 'bg-emerald-50' : 'bg-red-50'
+                testResult === 'success' ? 'bg-emerald-50 dark:bg-emerald-950/30' : 'bg-red-50 dark:bg-red-950/30'
               )}>
                 {testResult === 'success' ? (
                   <CheckCircle className="h-12 w-12 mx-auto mb-4 text-emerald-500 dark:text-emerald-400" />

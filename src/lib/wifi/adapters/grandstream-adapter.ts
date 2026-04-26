@@ -1,23 +1,20 @@
 /**
- * Grandstream WiFi Gateway Adapter - Production Ready
+ * Grandstream WiFi Gateway Adapter
  * 
  * Grandstream GWN Series is popular in SMB hospitality deployments worldwide.
  * This adapter supports:
- * - GWN Manager (Cloud/On-Premises)
+ * - GWN Manager (Cloud/On-Premises) REST API v1
  * - GWN7000, GWN7600, GWN7605, GWN7610, GWN7625, GWN7630, GWN7660 Access Points
  * - Captive Portal
  * - RADIUS authentication
- * - CoA for session management
+ * - CoA for session management (via freeradius-service)
+ * 
+ * Auth: HTTP Basic authentication with apiUsername:apiPassword
+ * API base: https://{ip}:{port}/api/v1/
  * 
  * References:
  * - https://www.grandstream.com/products/networking-wifi-access-points
  * - https://www.grandstream.com/support/tools/gwn-api
- * 
- * Popular Hardware:
- * - GWN7000 (Enterprise AP)
- * - GWN7600/7605/7610 (Mid-range APs)
- * - GWN7625/7630/7660 (WiFi 6 APs)
- * - GWN Manager (Controller)
  */
 
 import {
@@ -29,18 +26,17 @@ import {
   GatewayStatus,
   BandwidthPolicy,
 } from './gateway-adapter';
-import * as dgram from 'dgram';
-import * as net from 'net';
-import { createHash, randomBytes } from 'crypto';
+
+const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://localhost:3010';
 
 export interface GrandstreamConfig extends GatewayConfig {
   vendor: 'grandstream';
   // Grandstream-specific settings
-  gwnManagerUrl?: string; // GWN Manager URL (cloud or on-prem)
+  gwnManagerUrl?: string;
   gwnManagerUsername?: string;
   gwnManagerPassword?: string;
-  gwnManagerTenantId?: string; // For multi-tenant deployments
-  apModel?: string; // e.g., 'GWN7660', 'GWN7630'
+  gwnManagerTenantId?: string;
+  apModel?: string;
   apMacAddress?: string;
   useCloudManager?: boolean;
   captivePortalEnabled?: boolean;
@@ -64,403 +60,45 @@ enum GrandstreamVSA {
 }
 
 /**
- * GWN Manager API Client
+ * Helper to make requests to the freeradius-service
+ * Used for all CoA operations that require radclient CLI
  */
-class GWNManagerClient {
-  private config: GrandstreamConfig;
-  private baseUrl: string;
-  private sessionToken: string | null = null;
-  private tokenExpiry: Date | null = null;
+async function freeradiusRequest(endpoint: string, options: RequestInit = {}) {
+  const url = `${RADIUS_SERVICE_URL}${endpoint}`;
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
 
-  constructor(config: GrandstreamConfig) {
-    this.config = config;
-    this.baseUrl = config.gwnManagerUrl || '';
-  }
-
-  /**
-   * Login to GWN Manager
-   */
-  async login(): Promise<{ success: boolean; error?: string }> {
-    if (!this.baseUrl) {
-      return { success: false, error: 'GWN Manager URL not configured' };
-    }
-
+  if (!response.ok) {
+    const errorBody = await response.text();
+    let parsedError;
     try {
-      // GWN Manager uses token-based authentication
-      const response = await this.request('/api/v1/login', {
-        method: 'POST',
-        body: JSON.stringify({
-          username: this.config.gwnManagerUsername,
-          password: this.config.gwnManagerPassword,
-        }),
-      });
-
-      if (response.token) {
-        this.sessionToken = response.token;
-        this.tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-        return { success: true };
-      }
-
-      return { success: false, error: 'Login failed' };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Login failed',
-      };
+      parsedError = JSON.parse(errorBody);
+    } catch {
+      parsedError = { error: errorBody };
     }
+    return { success: false, status: response.status, ...parsedError };
   }
 
-  /**
-   * Check if logged in
-   */
-  isLoggedIn(): boolean {
-    return !!this.sessionToken && (!this.tokenExpiry || this.tokenExpiry > new Date());
-  }
-
-  /**
-   * Make API request
-   */
-  async request(
-    endpoint: string,
-    options: {
-      method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
-      body?: string;
-      params?: Record<string, string>;
-    } = {}
-  ): Promise<any> {
-    // Simulated response for development
-    // In production, use actual HTTP client
-    return this.simulateResponse(endpoint, options);
-  }
-
-  /**
-   * Simulated responses for development
-   */
-  private simulateResponse(endpoint: string, options: any): any {
-    if (endpoint.includes('/login')) {
-      return {
-        token: 'gwn_token_' + randomBytes(16).toString('hex'),
-        expires: 86400,
-      };
-    }
-
-    if (endpoint.includes('/aps')) {
-      return {
-        aps: [{
-          mac: this.config.apMacAddress || '00:0B:82:00:00:01',
-          name: 'GWN7660-Lobby',
-          model: this.config.apModel || 'GWN7660',
-          firmware: '1.0.15.2',
-          status: 'online',
-          clients: 15,
-          cpu: 10,
-          memory: 28,
-          uptime: 172800,
-          last_seen: new Date().toISOString(),
-        }],
-      };
-    }
-
-    if (endpoint.includes('/clients')) {
-      return {
-        clients: [{
-          mac: 'AA:BB:CC:DD:EE:FF',
-          hostname: 'guest-device',
-          ip: '192.168.10.100',
-          ssid: 'HotelGuest',
-          rx_bytes: 2048000,
-          tx_bytes: 1024000,
-          connected_time: Date.now() - 7200000,
-          signal: -52,
-          channel: 36,
-          bandwidth: 866000,
-        }],
-      };
-    }
-
-    if (endpoint.includes('/ssid')) {
-      return { success: true };
-    }
-
-    if (endpoint.includes('/bandwidth')) {
-      return { success: true };
-    }
-
-    return { success: true };
-  }
-
-  /**
-   * Get all access points
-   */
-  async getAPs(): Promise<any[]> {
-    if (!this.isLoggedIn()) {
-      await this.login();
-    }
-    const response = await this.request('/api/v1/aps');
-    return response.aps || [];
-  }
-
-  /**
-   * Get AP by MAC
-   */
-  async getAP(mac: string): Promise<any> {
-    if (!this.isLoggedIn()) {
-      await this.login();
-    }
-    return this.request(`/api/v1/aps/${mac}`);
-  }
-
-  /**
-   * Get connected clients
-   */
-  async getClients(apMac?: string): Promise<any[]> {
-    if (!this.isLoggedIn()) {
-      await this.login();
-    }
-    const mac = apMac || this.config.apMacAddress;
-    const response = await this.request(`/api/v1/aps/${mac}/clients`);
-    return response.clients || [];
-  }
-
-  /**
-   * Disconnect client
-   */
-  async disconnectClient(clientMac: string, apMac?: string): Promise<{ success: boolean; error?: string }> {
-    if (!this.isLoggedIn()) {
-      await this.login();
-    }
-    const mac = apMac || this.config.apMacAddress;
-    try {
-      await this.request(`/api/v1/aps/${mac}/clients/${clientMac}/disconnect`, {
-        method: 'POST',
-      });
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Disconnect failed',
-      };
-    }
-  }
-
-  /**
-   * Update client bandwidth
-   */
-  async updateClientBandwidth(
-    clientMac: string,
-    downloadKbps: number,
-    uploadKbps: number,
-    apMac?: string
-  ): Promise<{ success: boolean; error?: string }> {
-    if (!this.isLoggedIn()) {
-      await this.login();
-    }
-    const mac = apMac || this.config.apMacAddress;
-    try {
-      await this.request(`/api/v1/aps/${mac}/clients/${clientMac}/bandwidth`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          download_limit: downloadKbps,
-          upload_limit: uploadKbps,
-        }),
-      });
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Bandwidth update failed',
-      };
-    }
-  }
-
-  /**
-   * Configure SSID
-   */
-  async configureSSID(
-    ssidName: string,
-    options: {
-      password?: string;
-      vlanId?: number;
-      bandwidthLimit?: { download: number; upload: number };
-      captivePortal?: boolean;
-    }
-  ): Promise<{ success: boolean; error?: string }> {
-    if (!this.isLoggedIn()) {
-      await this.login();
-    }
-    const mac = this.config.apMacAddress;
-    try {
-      await this.request(`/api/v1/aps/${mac}/ssid`, {
-        method: 'POST',
-        body: JSON.stringify({
-          name: ssidName,
-          security: options.password ? 'wpa2-psk' : 'open',
-          password: options.password,
-          vlan_id: options.vlanId,
-          bandwidth_limit: options.bandwidthLimit ? {
-            download: Math.ceil(options.bandwidthLimit.download / 1000),
-            upload: Math.ceil(options.bandwidthLimit.upload / 1000),
-          } : undefined,
-          captive_portal: options.captivePortal,
-        }),
-      });
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'SSID configuration failed',
-      };
-    }
-  }
-
-  /**
-   * Get AP statistics
-   */
-  async getStats(apMac?: string): Promise<any> {
-    if (!this.isLoggedIn()) {
-      await this.login();
-    }
-    const mac = apMac || this.config.apMacAddress;
-    return this.request(`/api/v1/aps/${mac}/stats`);
-  }
+  return response.json();
 }
 
 /**
- * Grandstream RADIUS CoA Client
- */
-class GrandstreamCoAClient {
-  private config: GrandstreamConfig;
-
-  constructor(config: GrandstreamConfig) {
-    this.config = config;
-  }
-
-  /**
-   * Send CoA packet
-   */
-  async sendCoA(
-    sessionId: string,
-    username: string,
-    action: 'disconnect' | 'update',
-    attributes?: Record<string, string>
-  ): Promise<{ success: boolean; error?: string }> {
-    return new Promise((resolve) => {
-      const socket = dgram.createSocket('udp4');
-      const coaPort = this.config.coaPort || 3799;
-
-      const packet = this.buildCoAPacket(sessionId, username, action, attributes);
-
-      socket.send(packet, coaPort, this.config.ipAddress, (err) => {
-        if (err) {
-          socket.close();
-          resolve({ success: false, error: err.message });
-          return;
-        }
-
-        socket.on('message', () => {
-          socket.close();
-          resolve({ success: true });
-        });
-
-        socket.on('error', (err) => {
-          socket.close();
-          resolve({ success: false, error: err.message });
-        });
-
-        setTimeout(() => {
-          socket.close();
-          resolve({ success: false, error: 'Timeout' });
-        }, 5000);
-      });
-    });
-  }
-
-  /**
-   * Build CoA packet
-   */
-  private buildCoAPacket(
-    sessionId: string,
-    username: string,
-    action: 'disconnect' | 'update',
-    attributes?: Record<string, string>
-  ): Buffer {
-    const buffers: Buffer[] = [];
-    const code = action === 'disconnect' ? 40 : 43;
-    const identifier = crypto.getRandomValues(new Uint8Array(1))[0];
-    const authenticator = randomBytes(16);
-
-    const attrBuffers: Buffer[] = [];
-
-    const addAttr = (type: number, value: string | Buffer) => {
-      const valueBuffer = Buffer.isBuffer(value) ? value : Buffer.from(value);
-      const attrBuffer = Buffer.alloc(2 + valueBuffer.length);
-      attrBuffer.writeUInt8(type, 0);
-      attrBuffer.writeUInt8(2 + valueBuffer.length, 1);
-      valueBuffer.copy(attrBuffer, 2);
-      attrBuffers.push(attrBuffer);
-    };
-
-    addAttr(1, username); // User-Name
-    addAttr(44, sessionId); // Acct-Session-Id
-
-    // Grandstream VSA (Vendor ID: 10055)
-    if (attributes) {
-      if (attributes['download-speed']) {
-        addAttr(26, this.buildVSA(10055, GrandstreamVSA.BANDWIDTH_MAX_DOWN, attributes['download-speed']));
-      }
-      if (attributes['upload-speed']) {
-        addAttr(26, this.buildVSA(10055, GrandstreamVSA.BANDWIDTH_MAX_UP, attributes['upload-speed']));
-      }
-      if (attributes['vlan']) {
-        addAttr(26, this.buildVSA(10055, GrandstreamVSA.VLAN_ID, attributes['vlan']));
-      }
-      if (attributes['session-timeout']) {
-        addAttr(26, this.buildVSA(10055, GrandstreamVSA.SESSION_TIMEOUT, attributes['session-timeout']));
-      }
-    }
-
-    const attributesBuffer = Buffer.concat(attrBuffers);
-    const packetLength = 20 + attributesBuffer.length;
-
-    const header = Buffer.alloc(20);
-    header.writeUInt8(code, 0);
-    header.writeUInt8(identifier, 1);
-    header.writeUInt16BE(packetLength, 2);
-    authenticator.copy(header, 4);
-
-    buffers.push(header);
-    buffers.push(attributesBuffer);
-
-    return Buffer.concat(buffers);
-  }
-
-  /**
-   * Build VSA
-   */
-  private buildVSA(vendorId: number, type: number, value: string): Buffer {
-    const valueBuffer = Buffer.from(value);
-    const vsaBuffer = Buffer.alloc(6 + valueBuffer.length);
-    vsaBuffer.writeUInt32BE(vendorId, 0);
-    vsaBuffer.writeUInt8(type, 4);
-    vsaBuffer.writeUInt8(2 + valueBuffer.length, 5);
-    valueBuffer.copy(vsaBuffer, 6);
-    return vsaBuffer;
-  }
-}
-
-/**
- * Grandstream Adapter
+ * Grandstream GWN Gateway Adapter
+ * 
+ * Uses HTTP Basic authentication against GWN Manager API v1.
+ * All CoA operations are routed through freeradius-service.
  */
 export class GrandstreamAdapter extends GatewayAdapter {
   protected grandstreamConfig: GrandstreamConfig;
-  private gwnClient: GWNManagerClient;
-  private coaClient: GrandstreamCoAClient;
 
   constructor(config: GrandstreamConfig) {
     super(config);
     this.grandstreamConfig = config;
-    this.gwnClient = new GWNManagerClient(config);
-    this.coaClient = new GrandstreamCoAClient(config);
   }
 
   getVendor() {
@@ -468,105 +106,153 @@ export class GrandstreamAdapter extends GatewayAdapter {
   }
 
   /**
-   * Test connection
+   * Get the base URL for GWN Manager API
+   * Prefers explicit gwnManagerUrl, falls back to ip + port
    */
-  async testConnection(): Promise<{ success: boolean; latency?: number; error?: string }> {
-    const startTime = Date.now();
-
-    // Try GWN Manager
+  private getBaseUrl(): string {
     if (this.grandstreamConfig.gwnManagerUrl) {
-      const loginResult = await this.gwnClient.login();
-      
-      if (loginResult.success) {
-        return {
-          success: true,
-          latency: Date.now() - startTime,
-        };
-      }
-      
-      return {
-        success: false,
-        error: loginResult.error,
-      };
+      // Ensure no trailing slash
+      return this.grandstreamConfig.gwnManagerUrl.replace(/\/+$/, '');
+    }
+    const port = this.config.apiPort || 443;
+    return `https://${this.config.ipAddress}:${port}`;
+  }
+
+  /**
+   * Build Basic Authorization header from config credentials
+   * Supports both apiUsername/apiPassword and gwnManagerUsername/gwnManagerPassword
+   */
+  private getAuthHeaders(): Record<string, string> {
+    const username = this.config.apiUsername || this.grandstreamConfig.gwnManagerUsername || '';
+    const password = this.config.apiPassword || this.grandstreamConfig.gwnManagerPassword || '';
+
+    if (!username || !password) {
+      return {};
     }
 
-    // TCP ping fallback
-    return this.tcpPing(this.config.coaPort || 3799);
-  }
-
-  /**
-   * TCP Ping
-   */
-  private async tcpPing(port: number): Promise<{ success: boolean; latency?: number; error?: string }> {
-    return new Promise((resolve) => {
-      const startTime = Date.now();
-      const socket = new net.Socket();
-      socket.setTimeout(5000);
-
-      socket.connect(port, this.config.ipAddress, () => {
-        const latency = Date.now() - startTime;
-        socket.destroy();
-        resolve({ success: true, latency });
-      });
-
-      socket.on('error', (err) => {
-        resolve({ success: false, error: err.message });
-      });
-
-      socket.on('timeout', () => {
-        socket.destroy();
-        resolve({ success: false, error: 'Timeout' });
-      });
-    });
-  }
-
-  /**
-   * Send CoA
-   */
-  async sendCoA(request: CoARequest): Promise<CoAResponse> {
-    const action = request.action === 'disconnect' ? 'disconnect' : 'update';
-    
-    const result = await this.coaClient.sendCoA(
-      request.sessionId,
-      request.username,
-      action,
-      request.attributes
-    );
-
     return {
-      success: result.success,
-      error: result.error,
-      message: result.success ? `CoA ${request.action} successful` : undefined,
+      'Authorization': `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`,
     };
   }
 
   /**
-   * Get status
+   * Make an authenticated request to GWN Manager API
+   * Uses HTTP Basic auth for all requests
    */
-  async getStatus(): Promise<GatewayStatus> {
+  private async gwnRequest(
+    endpoint: string,
+    options: {
+      method?: string;
+      body?: string;
+    } = {}
+  ): Promise<{ ok: boolean; status: number; data?: any; error?: string }> {
+    const { method = 'GET', body } = options;
+    const baseUrl = this.getBaseUrl();
+
     try {
-      if (this.grandstreamConfig.gwnManagerUrl) {
-        const aps = await this.gwnClient.getAPs();
-        
-        if (aps.length > 0) {
-          const ap = aps[0];
-          return {
-            online: ap.status === 'online',
-            firmwareVersion: ap.firmware,
-            cpuUsage: ap.cpu,
-            memoryUsage: ap.memory,
-            uptime: ap.uptime,
-            totalClients: ap.clients,
-            lastSeen: new Date(ap.last_seen),
-          };
-        }
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...this.getAuthHeaders(),
+      };
+
+      // Add tenant header for multi-tenant deployments
+      if (this.grandstreamConfig.gwnManagerTenantId) {
+        headers['X-Tenant-ID'] = this.grandstreamConfig.gwnManagerTenantId;
+      }
+
+      const response = await fetch(`${baseUrl}${endpoint}`, {
+        method,
+        headers,
+        ...(body ? { body } : {}),
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        return {
+          ok: false,
+          status: response.status,
+          error: `GWN Manager authentication failed (status ${response.status})`,
+        };
+      }
+
+      if (!response.ok) {
+        return {
+          ok: false,
+          status: response.status,
+          error: `GWN Manager API returned status ${response.status}`,
+        };
+      }
+
+      const data = await response.json();
+      return { ok: true, status: response.status, data };
+    } catch (error) {
+      return {
+        ok: false,
+        status: 0,
+        error: error instanceof Error ? error.message : 'GWN Manager request failed',
+      };
+    }
+  }
+
+  /**
+   * Test connection to GWN Manager
+   * GET /api/v1/system/status
+   */
+  async testConnection(): Promise<{ success: boolean; latency?: number; error?: string }> {
+    const startTime = Date.now();
+
+    try {
+      const result = await this.gwnRequest('/api/v1/system/status');
+
+      const latency = Date.now() - startTime;
+
+      if (result.ok) {
+        return { success: true, latency };
       }
 
       return {
-        online: true,
-        lastSeen: new Date(),
+        success: false,
+        latency,
+        error: result.error || 'Connection test failed',
       };
     } catch (error) {
+      const latency = Date.now() - startTime;
+      return {
+        success: false,
+        latency,
+        error: error instanceof Error ? error.message : 'Connection failed',
+      };
+    }
+  }
+
+  /**
+   * Get gateway status from GWN Manager
+   * GET /api/v1/system/status
+   * Parses firmware, CPU, memory, uptime, and client counts
+   */
+  async getStatus(): Promise<GatewayStatus> {
+    try {
+      const result = await this.gwnRequest('/api/v1/system/status');
+
+      if (!result.ok || !result.data) {
+        return {
+          online: false,
+          lastSeen: new Date(),
+        };
+      }
+
+      const d = result.data;
+
+      return {
+        online: true,
+        firmwareVersion: d.firmwareVersion || d.firmware || d.version || undefined,
+        cpuUsage: d.cpuUsage !== undefined ? Number(d.cpuUsage) : undefined,
+        memoryUsage: d.memoryUsage !== undefined ? Number(d.memoryUsage) : undefined,
+        uptime: d.uptime !== undefined ? Number(d.uptime) : undefined,
+        totalClients: d.totalClients !== undefined ? Number(d.totalClients) : undefined,
+        lastSeen: new Date(),
+      };
+    } catch {
       return {
         online: false,
         lastSeen: new Date(),
@@ -575,52 +261,112 @@ export class GrandstreamAdapter extends GatewayAdapter {
   }
 
   /**
-   * Get active sessions
+   * Get active sessions from GWN Manager
+   * GET /api/v1/clients?status=connected
+   * Returns connected client list with MAC, IP, hostname, SSID, signal, data usage
    */
   async getActiveSessions(): Promise<SessionInfo[]> {
     try {
-      const clients = await this.gwnClient.getClients();
+      const result = await this.gwnRequest('/api/v1/clients?status=connected');
 
-      return clients.map((client: any) => ({
-        sessionId: client.mac,
-        username: client.hostname || client.mac,
-        ipAddress: client.ip,
-        macAddress: client.mac,
+      if (!result.ok || !result.data) {
+        return [];
+      }
+
+      const clients = Array.isArray(result.data) ? result.data : (result.data.clients || result.data.clientList || []);
+
+      return (Array.isArray(clients) ? clients : []).map((client: Record<string, unknown>) => ({
+        sessionId: String(client.mac || client.macAddress || ''),
+        username: String(client.hostname || client.name || client.mac || ''),
+        ipAddress: String(client.ip || client.ipAddress || ''),
+        macAddress: String(client.mac || client.macAddress || ''),
         nasIpAddress: this.config.ipAddress,
-        startTime: new Date(client.connected_time),
-        duration: Math.floor((Date.now() - client.connected_time) / 1000),
-        bytesIn: client.rx_bytes || 0,
-        bytesOut: client.tx_bytes || 0,
+        startTime: client.connectedTime || client.uptime || client.sessionStartTime
+          ? new Date(Date.now() - Number(client.connectedTime || client.uptime || client.sessionStartTime) * 1000)
+          : new Date(),
+        duration: Number(client.connectedTime || client.uptime || client.sessionTime || 0),
+        bytesIn: Number(client.rxBytes || client.bytesRx || client.downloadBytes || 0),
+        bytesOut: Number(client.txBytes || client.bytesTx || client.uploadBytes || 0),
         status: 'active' as const,
+        apName: String(client.apName || client.apMac || client.ap || ''),
+        ssid: String(client.ssid || client.ssidName || ''),
         additionalInfo: {
-          ssid: client.ssid,
-          signal: client.signal,
+          ssid: client.ssid || client.ssidName,
+          signal: client.signal || client.rssi,
           channel: client.channel,
           bandwidth: client.bandwidth,
+          vlan: client.vlanId || client.vlan,
+          device_type: client.deviceType || client.device_type,
         },
       }));
-    } catch (error) {
+    } catch {
       return [];
     }
   }
 
   /**
-   * Disconnect session
+   * Send CoA request through freeradius-service
+   * Routes through freeradius-service which uses radclient CLI
+   */
+  async sendCoA(request: CoARequest): Promise<CoAResponse> {
+    try {
+      const coaAttributes: Record<string, string> = {
+        'User-Name': request.username,
+        'Acct-Session-Id': request.sessionId,
+      };
+
+      // Include any additional attributes from the request
+      if (request.attributes) {
+        Object.assign(coaAttributes, request.attributes);
+      }
+
+      const result = await freeradiusRequest('/api/coa/disconnect', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: request.username,
+          sessionId: request.sessionId,
+          nasIp: this.config.ipAddress,
+          coaPort: this.config.coaPort,
+          secret: this.config.coaSecret || this.config.radiusSecret,
+          action: request.action,
+          attributes: coaAttributes,
+        }),
+      });
+
+      return {
+        success: result.success !== false,
+        message: result.message || `CoA ${request.action} sent`,
+        error: result.error,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'CoA failed',
+      };
+    }
+  }
+
+  /**
+   * Disconnect a session via CoA
    */
   async disconnectSession(sessionId: string, username: string): Promise<CoAResponse> {
-    // Try GWN Manager first
-    if (this.grandstreamConfig.gwnManagerUrl) {
-      const result = await this.gwnClient.disconnectClient(sessionId);
-      
-      if (result.success) {
+    // Try GWN Manager API first for direct disconnect
+    try {
+      const result = await this.gwnRequest(`/api/v1/clients/${sessionId}/disconnect`, {
+        method: 'POST',
+      });
+
+      if (result.ok) {
         return {
           success: true,
           message: 'Session disconnected via GWN Manager',
         };
       }
+    } catch {
+      // Fall through to CoA
     }
 
-    // Fallback to CoA
+    // Fallback to CoA via freeradius-service
     return this.sendCoA({
       username,
       sessionId,
@@ -629,33 +375,38 @@ export class GrandstreamAdapter extends GatewayAdapter {
   }
 
   /**
-   * Update bandwidth
+   * Update bandwidth for a session
+   * Tries GWN Manager API first, falls back to CoA
    */
   async updateBandwidth(
     sessionId: string,
     username: string,
     policy: BandwidthPolicy
   ): Promise<CoAResponse> {
-    // Try GWN Manager first
-    if (this.grandstreamConfig.gwnManagerUrl) {
+    // Try GWN Manager API for direct bandwidth update
+    try {
       const downloadKbps = Math.ceil(policy.downloadSpeed / 1000);
       const uploadKbps = Math.ceil(policy.uploadSpeed / 1000);
-      
-      const result = await this.gwnClient.updateClientBandwidth(
-        sessionId,
-        downloadKbps,
-        uploadKbps
-      );
-      
-      if (result.success) {
+
+      const result = await this.gwnRequest(`/api/v1/clients/${sessionId}/bandwidth`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          download_limit: downloadKbps,
+          upload_limit: uploadKbps,
+        }),
+      });
+
+      if (result.ok) {
         return {
           success: true,
           message: 'Bandwidth updated via GWN Manager',
         };
       }
+    } catch {
+      // Fall through to CoA
     }
 
-    // Fallback to CoA
+    // Fallback to CoA via freeradius-service
     const attrs = this.getRadiusAttributes(policy);
     return this.sendCoA({
       username,
@@ -666,19 +417,20 @@ export class GrandstreamAdapter extends GatewayAdapter {
   }
 
   /**
-   * Get RADIUS attributes
+   * Get Grandstream-specific RADIUS attributes for a policy
+   * Uses WISPr attributes (in Kbps) and Grandstream VSA attributes
    */
   getRadiusAttributes(policy: BandwidthPolicy): Record<string, string> {
     const attrs = super.getRadiusAttributes(policy);
 
-    // WISPr attributes (Grandstream supports these)
-    attrs['WISPr-Bandwidth-Max-Down'] = String(Math.ceil(policy.downloadSpeed / 1000));
-    attrs['WISPr-Bandwidth-Max-Up'] = String(Math.ceil(policy.uploadSpeed / 1000));
-
-    // Grandstream VSA format
+    // WISPr attributes (Grandstream supports these) — in Kbps
     const downloadKbps = Math.ceil(policy.downloadSpeed / 1000);
     const uploadKbps = Math.ceil(policy.uploadSpeed / 1000);
 
+    attrs['WISPr-Bandwidth-Max-Down'] = String(downloadKbps);
+    attrs['WISPr-Bandwidth-Max-Up'] = String(uploadKbps);
+
+    // Grandstream VSA attributes
     attrs['Grandstream-Bandwidth-Down'] = String(downloadKbps);
     attrs['Grandstream-Bandwidth-Up'] = String(uploadKbps);
 
@@ -686,7 +438,8 @@ export class GrandstreamAdapter extends GatewayAdapter {
   }
 
   /**
-   * Format bandwidth
+   * Format bandwidth for Grandstream
+   * Uses human-readable format: e.g., "10M/5M", "512K/256K", "1.5G/500M"
    */
   formatBandwidthLimit(download: number, upload: number): string {
     const formatRate = (bps: number): string => {
@@ -698,15 +451,12 @@ export class GrandstreamAdapter extends GatewayAdapter {
     return `${formatRate(download)}/${formatRate(upload)}`;
   }
 
-  /**
-   * Get health check endpoints
-   */
   getHealthCheckEndpoints(): string[] {
-    return ['/api/v1/status', '/api/v1/aps'];
+    return ['/api/v1/system/status', '/api/v1/clients'];
   }
 
   /**
-   * Configure SSID
+   * Configure SSID via GWN Manager API
    */
   async configureSSID(
     ssidName: string,
@@ -717,6 +467,62 @@ export class GrandstreamAdapter extends GatewayAdapter {
       captivePortal?: boolean;
     }
   ): Promise<{ success: boolean; error?: string }> {
-    return this.gwnClient.configureSSID(ssidName, options || {});
+    const opts = options || {};
+
+    try {
+      const result = await this.gwnRequest('/api/v1/ssids', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: ssidName,
+          security: opts.password ? 'wpa2-psk' : 'open',
+          password: opts.password,
+          vlan_id: opts.vlanId,
+          bandwidth_limit: opts.bandwidthLimit ? {
+            download: Math.ceil(opts.bandwidthLimit.download / 1000),
+            upload: Math.ceil(opts.bandwidthLimit.upload / 1000),
+          } : undefined,
+          captive_portal: opts.captivePortal,
+        }),
+      });
+
+      if (result.ok) {
+        return { success: true };
+      }
+
+      return {
+        success: false,
+        error: result.error || 'SSID configuration failed',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'SSID configuration failed',
+      };
+    }
+  }
+
+  /**
+   * Get access points from GWN Manager
+   */
+  async getAPs(): Promise<any[]> {
+    const result = await this.gwnRequest('/api/v1/aps');
+
+    if (!result.ok || !result.data) {
+      return [];
+    }
+
+    const aps = Array.isArray(result.data) ? result.data : (result.data.aps || []);
+    return Array.isArray(aps) ? aps : [];
+  }
+
+  /**
+   * Get AP statistics from GWN Manager
+   */
+  async getAPStats(apMac?: string): Promise<any> {
+    const mac = apMac || this.grandstreamConfig.apMacAddress;
+    if (!mac) return null;
+
+    const result = await this.gwnRequest(`/api/v1/aps/${mac}/stats`);
+    return result.ok ? result.data : null;
   }
 }
