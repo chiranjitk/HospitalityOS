@@ -133,24 +133,29 @@ SELECT (pa.id)::text AS id,
     pa.authdate AS "timestamp",
     pa.calledstationid AS called_station_id,
     pa.callingstationid AS calling_station_id,
-    ''::text AS nas_ip_address,
+    COALESCE(pa.nasipaddress, ''::text) AS nas_ip_address,
     ''::text AS mac_address,
     'PAP'::text AS auth_type,
-    CASE WHEN (pa.reply = 'Access-Accept'::text) THEN 'Authenticated successfully'::text
-         ELSE 'Authentication rejected'::text END AS reply_message,
+    CASE WHEN (pa.reply = 'Access-Accept'::text) THEN
+        CASE WHEN COALESCE(pa.nasipaddress, ''::text) != ''::text
+             THEN 'Authenticated successfully from ' || pa.nasipaddress
+             ELSE 'Authenticated successfully'::text END
+    ELSE
+        CASE WHEN (wu.id IS NOT NULL) THEN 'Authentication rejected — invalid password'::text
+             ELSE 'Authentication rejected — user not found'::text END
+    END AS reply_message,
     COALESCE(g."firstName", ''::text) AS guest_first_name,
     COALESCE(g."lastName", ''::text) AS guest_last_name,
     COALESCE(rm.number, ''::text) AS room_number,
     COALESCE(p.name, ''::text) AS property_name,
-    COALESCE(wp.name, ''::text) AS plan_name,
     pa.pass AS password_used
    FROM ((((((radpostauth pa
      LEFT JOIN "WiFiUser" u ON ((pa.username = u.username)))
+     LEFT JOIN "WiFiUser" wu ON ((pa.username = wu.username)))
      LEFT JOIN "Guest" g ON ((u."guestId" = g.id)))
      LEFT JOIN "Booking" b ON ((u."bookingId" = b.id)))
      LEFT JOIN "Room" rm ON ((b."roomId" = rm.id)))
-     LEFT JOIN "Property" p ON ((u."propertyId" = p.id)))
-     LEFT JOIN "WiFiPlan" wp ON ((u."planId" = wp.id)));
+     LEFT JOIN "Property" p ON ((u."propertyId" = p.id)));
 
 -- ============================================================================
 -- VIEW: v_user_usage

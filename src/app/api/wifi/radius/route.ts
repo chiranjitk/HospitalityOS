@@ -300,29 +300,27 @@ export async function GET(request: NextRequest) {
             authdate: string;
             callingstationid: string;
             calledstationid: string;
-            plan_name: string | null;
+            nasipaddress: string | null;
             property_name: string | null;
             guest_first_name: string | null;
             guest_last_name: string | null;
             room_number: string | null;
-            groupname: string | null;
+            user_exists: boolean;
           }[]>(`
             SELECT p.id, p.username, p.reply, p.authdate,
                    p.callingstationid, p.calledstationid,
-                   wp.name as plan_name,
+                   COALESCE(p.nasipaddress, '') as nasipaddress,
                    prop.name as property_name,
                    g."firstName" as guest_first_name,
                    g."lastName" as guest_last_name,
                    rm.number as room_number,
-                   ug.groupname
+                   CASE WHEN wu.id IS NOT NULL THEN true ELSE false END as user_exists
             FROM radpostauth p
             LEFT JOIN "WiFiUser" wu ON wu.username = p.username
-            LEFT JOIN "WiFiPlan" wp ON wp.id = wu."planId"
             LEFT JOIN "Guest" g ON g.id = wu."guestId"
             LEFT JOIN "Booking" b ON b.id = wu."bookingId"
             LEFT JOIN "Room" rm ON rm.id = b."roomId"
             LEFT JOIN "Property" prop ON prop.id = COALESCE(wu."propertyId", b."propertyId")
-            LEFT JOIN radusergroup ug ON ug.username = p.username AND ug.priority = 0
             ${whereClause}
             ORDER BY p.authdate DESC
             LIMIT $${sqlParams.length}
@@ -330,22 +328,43 @@ export async function GET(request: NextRequest) {
 
           const logs = JSON.parse(JSON.stringify(authEvents, (_, v) => typeof v === 'bigint' ? Number(v) : v));
 
-          const mapped = logs.map((e: Record<string, unknown>) => ({
-            id: `auth_${e.id}`,
-            timestamp: e.authdate || '',
-            username: e.username || '',
-            authResult: e.reply || '',
-            authType: 'RADIUS',
-            nasIpAddress: '',
-            callingStationId: e.callingstationid || '',
-            replyMessage: '',
-            // Enriched fields
-            planName: e.plan_name || e.groupname || '',
-            propertyName: e.property_name || '',
-            guestName: [e.guest_first_name, e.guest_last_name].filter(Boolean).join(' ') || '',
-            roomNumber: e.room_number || '',
-            calledStationId: e.calledstationid || '',
-          }));
+          const mapped = logs.map((e: Record<string, unknown>) => {
+            const reply = (e.reply || '').toLowerCase();
+            const isAccept = reply === 'access-accept';
+            const nasIp = (e.nasipaddress as string) || '';
+            const userExists = e.user_exists === true;
+
+            // Build contextual reply message
+            let replyMessage = '';
+            if (isAccept) {
+              replyMessage = nasIp
+                ? `Authenticated successfully from ${nasIp}`
+                : 'Authenticated successfully';
+            } else {
+              // Provide reject reason based on context
+              if (!userExists) {
+                replyMessage = 'Invalid credentials — user not found';
+              } else {
+                replyMessage = 'Authentication rejected — invalid password';
+              }
+            }
+
+            return {
+              id: `auth_${e.id}`,
+              timestamp: e.authdate || '',
+              username: e.username || '',
+              authResult: e.reply || '',
+              authType: 'RADIUS',
+              nasIpAddress: nasIp,
+              callingStationId: e.callingstationid || '',
+              replyMessage,
+              // Enriched fields (no plan name)
+              propertyName: e.property_name || '',
+              guestName: [e.guest_first_name, e.guest_last_name].filter(Boolean).join(' ') || '',
+              roomNumber: e.room_number || '',
+              calledStationId: e.calledstationid || '',
+            };
+          });
 
           return NextResponse.json({ success: true, data: mapped });
         } catch (error) {

@@ -47,10 +47,9 @@ import {
   Activity,
   Clock,
   Eye,
-  Tag,
   Building2,
-  UserCircle,
   Wifi,
+  Monitor,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -68,7 +67,6 @@ interface AuthLogEntry {
   callingStationId?: string;
   calledStationId?: string;
   replyMessage?: string;
-  planName?: string;
   propertyName?: string;
   guestName?: string;
   roomNumber?: string;
@@ -171,9 +169,9 @@ export default function AuthLogs() {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const matchesUsername = log.username.toLowerCase().includes(q);
-      const matchesPlan = (log.planName || '').toLowerCase().includes(q);
+      const matchesIp = (log.nasIpAddress || '').toLowerCase().includes(q);
       const matchesMac = (log.callingStationId || '').toLowerCase().includes(q);
-      if (!matchesUsername && !matchesPlan && !matchesMac) return false;
+      if (!matchesUsername && !matchesIp && !matchesMac) return false;
     }
     return true;
   });
@@ -198,14 +196,15 @@ export default function AuthLogs() {
     );
   };
 
-  const getPlanBadge = (planName: string | undefined) => {
-    if (!planName) return <span className="text-xs text-muted-foreground">—</span>;
-    const isReject = (selectedLog?.authResult || '').toLowerCase().includes('reject');
+  const getReplyMessageBadge = (message: string | undefined, isReject: boolean) => {
+    if (!message) return <span className="text-xs text-muted-foreground">—</span>;
     return (
-      <Badge variant="outline" className="text-[10px] font-normal gap-1">
-        <Tag className="h-3 w-3 text-teal-500 shrink-0" />
-        {planName}
-      </Badge>
+      <span className={cn(
+        'text-xs leading-tight',
+        isReject ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
+      )}>
+        {message}
+      </span>
     );
   };
 
@@ -300,7 +299,7 @@ export default function AuthLogs() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by username, plan, or MAC..."
+                placeholder="Search by username, IP, or MAC..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9"
@@ -372,10 +371,15 @@ export default function AuthLogs() {
                       </div>
                       {getResultBadge(log.authResult)}
                     </div>
-                    {log.planName && (
+                    {log.replyMessage && (
                       <div className="flex items-center gap-1.5">
-                        <Tag className="h-3 w-3 text-teal-500" />
-                        <span className="text-xs text-muted-foreground">{log.planName}</span>
+                        <Monitor className="h-3 w-3 text-muted-foreground" />
+                        <span className={cn(
+                          'text-xs',
+                          log.authResult?.toLowerCase().includes('reject')
+                            ? 'text-red-600 dark:text-red-400'
+                            : 'text-emerald-600 dark:text-emerald-400'
+                        )}>{log.replyMessage}</span>
                       </div>
                     )}
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -398,7 +402,7 @@ export default function AuthLogs() {
                     <TableRow>
                       <TableHead className="w-[70px]">Result</TableHead>
                       <TableHead>Username</TableHead>
-                      <TableHead>Plan</TableHead>
+                      <TableHead>Reply / Source</TableHead>
                       <TableHead>Property</TableHead>
                       <TableHead className="w-[160px]">Timestamp</TableHead>
                       <TableHead>Auth Type</TableHead>
@@ -425,14 +429,15 @@ export default function AuthLogs() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {log.planName ? (
-                              <Badge variant="outline" className="text-[10px] font-normal gap-1">
-                                <Tag className="h-3 w-3 text-teal-500 shrink-0" />
-                                {log.planName}
-                              </Badge>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            )}
+                            <div className="flex items-center gap-1.5 max-w-[240px]">
+                              <Monitor className="h-3 w-3 shrink-0 text-muted-foreground" />
+                              <span className={cn(
+                                'text-xs truncate',
+                                isReject ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
+                              )}>
+                                {log.replyMessage || '—'}
+                              </span>
+                            </div>
                           </TableCell>
                           <TableCell>
                             {log.propertyName ? (
@@ -494,12 +499,26 @@ export default function AuthLogs() {
                 </div>
               </div>
               <div className="border-t pt-4">
-                <p className="text-xs font-medium text-muted-foreground mb-3">WiFi Plan & Location</p>
-                <div className="grid grid-cols-2 gap-4">
+                <p className="text-xs font-medium text-muted-foreground mb-3">Reply & Source</p>
+                <div className="grid grid-cols-1 gap-4">
                   <div>
-                    <p className="text-xs text-muted-foreground">Plan</p>
-                    <div className="mt-1">{getPlanBadge(selectedLog.planName)}</div>
+                    <p className="text-xs text-muted-foreground">Reply Message</p>
+                    <div className="mt-1">
+                      {getReplyMessageBadge(
+                        selectedLog.replyMessage,
+                        (selectedLog.authResult || '').toLowerCase().includes('reject')
+                      )}
+                    </div>
                   </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Source IP (NAS)</p>
+                    <p className="text-sm font-mono">{selectedLog.nasIpAddress || '—'}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="border-t pt-4">
+                <p className="text-xs font-medium text-muted-foreground mb-3">Location</p>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Property</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
