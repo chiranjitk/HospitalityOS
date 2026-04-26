@@ -298,7 +298,9 @@ export async function GET(request: NextRequest) {
 
           const authEvents = await db.$queryRawUnsafe<Record<string, unknown>[]>(`
             SELECT id, "username", auth_result, "timestamp",
-                   client_ip_address, nas_ip_address, reply_message,
+                   client_ip_address, nas_ip_address,
+                   calling_station_id, called_station_id,
+                   reply_message,
                    guest_first_name, guest_last_name, room_number, property_name
             FROM v_auth_logs
             ${whereClause}
@@ -316,6 +318,9 @@ export async function GET(request: NextRequest) {
             clientIpAddress: (e.client_ip_address as string) || '',
             // NAS source IP (where auth request came from)
             nasIpAddress: (e.nas_ip_address as string) || '',
+            // MAC addresses
+            callingStationId: (e.calling_station_id as string) || '',
+            calledStationId: (e.called_station_id as string) || '',
             // Reply message (already built in view with client IP priority)
             replyMessage: e.reply_message || '',
             // Enriched fields

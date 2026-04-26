@@ -122,8 +122,9 @@ SELECT * FROM v_session_history WHERE session_status = 'active';
 -- ============================================================================
 -- VIEW: v_auth_logs
 -- Authentication attempt log based on FreeRADIUS radpostauth table.
--- Joins through WiFiUser → Guest → Booking → Room → Property → WiFiPlan
--- to enrich each auth attempt with guest/room/property context.
+-- Joins with radacct (LATERAL) to pull the user's assigned client IP (framedipaddress).
+-- Joins through WiFiUser → Guest → Booking → Room → Property to enrich context.
+-- Client IP priority: radacct.framedipaddress > radpostauth.clientipaddress > NAS IP.
 -- Used by: Auth Logs tab, security audit reports.
 -- ============================================================================
 CREATE OR REPLACE VIEW v_auth_logs AS
@@ -131,14 +132,22 @@ SELECT (pa.id)::text AS id,
     pa.username,
     pa.reply AS auth_result,
     pa.authdate AS "timestamp",
-    pa.calledstationid AS called_station_id,
-    pa.callingstationid AS calling_station_id,
+    -- Client IP from radacct (user's real assigned IP, strip /32 suffix)
+    COALESCE(
+        REPLACE(acct."framedipaddress"::text, '/32', ''),
+        pa.clientipaddress,
+        ''::text
+    ) AS client_ip_address,
+    -- NAS IP (source of auth request)
     COALESCE(pa.nasipaddress, ''::text) AS nas_ip_address,
-    COALESCE(pa.clientipaddress, ''::text) AS client_ip_address,
-    ''::text AS mac_address,
+    -- MAC addresses from radpostauth
+    COALESCE(pa.callingstationid, ''::text) AS calling_station_id,
+    COALESCE(pa.calledstationid, ''::text) AS called_station_id,
     'PAP'::text AS auth_type,
     CASE WHEN (pa.reply = 'Access-Accept'::text) THEN
-        CASE WHEN COALESCE(pa.clientipaddress, ''::text) != ''::text
+        CASE WHEN COALESCE(REPLACE(acct."framedipaddress"::text, '/32', ''), ''::text) != ''::text
+             THEN 'Authenticated — client IP: ' || REPLACE(acct."framedipaddress"::text, '/32', '')
+        WHEN COALESCE(pa.clientipaddress, ''::text) != ''::text
              THEN 'Authenticated — client IP: ' || pa.clientipaddress
         WHEN COALESCE(pa.nasipaddress, ''::text) != ''::text
              THEN 'Authenticated from NAS ' || pa.nasipaddress
@@ -152,7 +161,15 @@ SELECT (pa.id)::text AS id,
     COALESCE(rm.number, ''::text) AS room_number,
     COALESCE(p.name, ''::text) AS property_name,
     pa.pass AS password_used
-   FROM ((((((radpostauth pa
+   FROM (((((radpostauth pa
+     -- LATERAL join to get user's latest assigned IP from radacct
+     LEFT JOIN LATERAL (
+         SELECT "framedipaddress"
+         FROM radacct
+         WHERE username = pa.username
+         ORDER BY "acctstarttime" DESC
+         LIMIT 1
+     ) acct ON true
      LEFT JOIN "WiFiUser" u ON ((pa.username = u.username)))
      LEFT JOIN "WiFiUser" wu ON ((pa.username = wu.username)))
      LEFT JOIN "Guest" g ON ((u."guestId" = g.id)))

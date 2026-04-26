@@ -301,7 +301,7 @@ export default function AuthLogs() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by username, client IP, NAS IP, or MAC..."
+                placeholder="Search by username, client IP, or NAS IP..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9"
@@ -413,15 +413,15 @@ export default function AuthLogs() {
                       <TableHead className="w-[70px]">Result</TableHead>
                       <TableHead>Username</TableHead>
                       <TableHead>Client IP</TableHead>
-                      <TableHead>Message</TableHead>
-                      <TableHead>Property</TableHead>
-                      <TableHead className="w-[140px]">Timestamp</TableHead>
-                      <TableHead>MAC</TableHead>
+                      <TableHead>Reply</TableHead>
+                      <TableHead>MAC Address</TableHead>
+                      <TableHead className="w-[140px]">Time</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredLogs.map((log, index) => {
                       const isReject = log.authResult?.toLowerCase().includes('reject');
+                      const hasClientIp = !!log.clientIpAddress;
                       return (
                         <TableRow
                           key={log.id || index}
@@ -439,37 +439,28 @@ export default function AuthLogs() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <p className="text-xs font-mono">{log.clientIpAddress || '—'}</p>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1.5 max-w-[200px]">
-                              <Monitor className="h-3 w-3 shrink-0 text-muted-foreground" />
-                              <span className={cn(
-                                'text-xs truncate',
-                                isReject ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
-                              )}>
-                                {log.replyMessage || '—'}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {log.propertyName ? (
-                              <div className="flex items-center gap-1.5">
-                                <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
-                                <span className="text-xs">{log.propertyName}</span>
-                              </div>
+                            {hasClientIp ? (
+                              <Badge variant="outline" className="font-mono text-[11px] bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800 whitespace-nowrap">
+                                <Monitor className="h-2.5 w-2.5 mr-1" />
+                                {log.clientIpAddress}
+                              </Badge>
                             ) : (
                               <span className="text-xs text-muted-foreground">—</span>
                             )}
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Clock className="h-3 w-3 shrink-0" />
-                              <span>{log.timestamp ? formatDistanceToNow(new Date(log.timestamp)) + ' ago' : '—'}</span>
-                            </div>
+                            <span className={cn(
+                              'text-xs truncate max-w-[180px] block',
+                              isReject ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
+                            )}>
+                              {log.replyMessage || '—'}
+                            </span>
                           </TableCell>
                           <TableCell>
                             <p className="text-xs font-mono text-muted-foreground">{log.callingStationId || '—'}</p>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-xs text-muted-foreground">{log.timestamp ? formatDistanceToNow(new Date(log.timestamp)) + ' ago' : '—'}</span>
                           </TableCell>
                         </TableRow>
                       );
@@ -509,25 +500,42 @@ export default function AuthLogs() {
                 </div>
               </div>
               <div className="border-t pt-4">
-                <p className="text-xs font-medium text-muted-foreground mb-3">IP & Reply</p>
+                <p className="text-xs font-medium text-muted-foreground mb-3">IP Addresses</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-muted-foreground">Client IP (User)</p>
-                    <p className="text-sm font-mono font-medium">{selectedLog.clientIpAddress || '—'}</p>
+                    <p className="text-xs text-muted-foreground">Client IP (Assigned)</p>
+                    {selectedLog.clientIpAddress ? (
+                      <Badge variant="outline" className="mt-1 font-mono text-xs bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800">
+                        <Monitor className="h-3 w-3 mr-1" />
+                        {selectedLog.clientIpAddress}
+                      </Badge>
+                    ) : (
+                      <p className="text-sm text-muted-foreground mt-1">—</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">NAS IP (Source)</p>
-                    <p className="text-sm font-mono">{selectedLog.nasIpAddress || '—'}</p>
+                    <p className="text-sm font-mono mt-1">{selectedLog.nasIpAddress || '—'}</p>
                   </div>
-                  <div className="col-span-2">
-                    <p className="text-xs text-muted-foreground">Reply Message</p>
-                    <div className="mt-1">
-                      {getReplyMessageBadge(
-                        selectedLog.replyMessage,
-                        (selectedLog.authResult || '').toLowerCase().includes('reject')
-                      )}
-                    </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Client MAC</p>
+                    <p className="text-sm font-mono mt-1">{selectedLog.callingStationId || '—'}</p>
                   </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">AP MAC</p>
+                    <p className="text-sm font-mono mt-1">{selectedLog.calledStationId || '—'}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="border-t pt-4">
+                <p className="text-xs font-medium text-muted-foreground mb-3">Reply</p>
+                <div className={cn(
+                  'text-sm px-3 py-2 rounded-lg',
+                  (selectedLog.authResult || '').toLowerCase().includes('reject')
+                    ? 'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400'
+                    : 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400'
+                )}>
+                  {selectedLog.replyMessage || '—'}
                 </div>
               </div>
               <div className="border-t pt-4">
@@ -565,14 +573,6 @@ export default function AuthLogs() {
                   <div>
                     <p className="text-xs text-muted-foreground">Auth Type</p>
                     <Badge variant="outline" className="mt-1 text-xs">{selectedLog.authType || 'RADIUS'}</Badge>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Client MAC</p>
-                    <p className="text-sm font-mono">{selectedLog.callingStationId || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">AP MAC</p>
-                    <p className="text-sm font-mono">{selectedLog.calledStationId || '—'}</p>
                   </div>
                 </div>
               </div>
