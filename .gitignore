@@ -63,3 +63,11 @@ prompt
 server.log
 # Skills directory
 /skills/custom.db
+
+# RRD data files (tracked structure, not runtime data)
+data/rrd/users/*.rrd
+data/rrd/interfaces/*.rrd
+data/rrd/pools/*.rrd
+data/rrd/isp/*.rrd
+data/rrd/aggregate/*.rrd
+!data/rrd/.gitkeep

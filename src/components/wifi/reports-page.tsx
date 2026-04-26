@@ -1,6 +1,18 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -248,11 +260,26 @@ export default function ReportsPage() {
 
 // ==================== TAB 1: BANDWIDTH USAGE ====================
 
+// Custom Recharts tooltip matching shadcn/ui theme
+function BandwidthChartTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border bg-background p-2.5 shadow-lg text-xs">
+      <p className="font-medium mb-1">{label}</p>
+      {payload.map((entry: any, i: number) => (
+        <p key={i} className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full" style={{ background: entry.color }} />
+          <span className="text-muted-foreground">{entry.name}:</span>
+          <span className="font-mono font-medium">{formatMB(entry.value)}</span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function BandwidthUsageTab() {
   const [dateRange, setDateRange] = useState('30');
   const [property, setProperty] = useState('all');
-  const [showSubnet, setShowSubnet] = useState(false);
-  const [hoveredBar, setHoveredBar] = useState<number | null>(null);
   const [bandwidthData, setBandwidthData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -292,24 +319,23 @@ function BandwidthUsageTab() {
     return bandwidthData.slice(-count);
   }, [bandwidthData, dateRange]);
 
+  // Prepare chart data with formatted date labels
+  const chartData = useMemo(() => {
+    return filteredData.map(d => ({
+      ...d,
+      dateLabel: formatDate(d.date),
+    }));
+  }, [filteredData]);
+
   const summary = useMemo(() => {
-    if (filteredData.length === 0) return { totalDown: 0, totalUp: 0, uniqueUsers: 0, avgPerUser: 0, peakTime: '20:00', trend: 0 };
+    if (filteredData.length === 0) return { totalDown: 0, totalUp: 0, uniqueUsers: 0, peakTime: '—', activeSessions: 0 };
     const totalDown = filteredData.reduce((s, d) => s + d.download, 0);
     const totalUp = filteredData.reduce((s, d) => s + d.upload, 0);
     const uniqueUsers = Math.max(...filteredData.map(d => d.users));
-    const avgPerUser = totalDown / Math.max(1, uniqueUsers);
     const peakDay = filteredData.reduce((a, b) => a.download > b.download ? a : b);
-    return {
-      totalDown,
-      totalUp,
-      uniqueUsers,
-      avgPerUser,
-      peakTime: peakDay?.peakTime || '20:00',
-      trend: 8.3,
-    };
+    const activeSessions = filteredData[filteredData.length - 1]?.activeSessions || 0;
+    return { totalDown, totalUp, uniqueUsers, peakTime: peakDay?.peakTime || '—', activeSessions };
   }, [filteredData]);
-
-  const maxTotal = filteredData.length > 0 ? Math.max(...filteredData.map(d => d.total)) : 1;
 
   if (loading) return <LoadingSpinner message="Loading bandwidth data..." />;
 
@@ -346,8 +372,8 @@ function BandwidthUsageTab() {
             </Select>
             <div className="ml-auto flex gap-2">
               <Button variant="outline" size="sm" onClick={() => {
-                const headers = 'Date,Download (MB),Upload (MB),Total (MB),Users,Peak Time';
-                const rows = filteredData.map(d => `${d.date},${d.download},${d.upload},${d.total},${d.users},${d.peakTime}`);
+                const headers = 'Date,Download (MB),Upload (MB),Total (MB),Users,Peak Time,Active Sessions';
+                const rows = filteredData.map(d => `${d.date},${d.download},${d.upload},${d.total},${d.users},${d.peakTime},${d.activeSessions}`);
                 const csv = [headers, ...rows].join('\n');
                 const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
                 const url = URL.createObjectURL(blob);
@@ -375,94 +401,80 @@ function BandwidthUsageTab() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <SummaryCard icon={Download} label="Total Download" value={formatMB(summary.totalDown)} trend={summary.trend} color="teal" />
-        <SummaryCard icon={Upload} label="Total Upload" value={formatMB(summary.totalUp)} trend={5.1} color="amber" />
-        <SummaryCard icon={Users} label="Unique Users" value={summary.uniqueUsers.toString()} trend={12.4} color="emerald" />
-        <SummaryCard icon={BarChart3} label="Avg per User" value={formatMB(summary.avgPerUser)} trend={-2.1} color="teal" />
+        <SummaryCard icon={Download} label="Total Download" value={formatMB(summary.totalDown)} color="teal" />
+        <SummaryCard icon={Upload} label="Total Upload" value={formatMB(summary.totalUp)} color="amber" />
+        <SummaryCard icon={Users} label="Unique Users" value={summary.uniqueUsers.toString()} color="emerald" />
         <SummaryCard icon={Clock} label="Peak Usage" value={summary.peakTime} color="amber" />
+        <SummaryCard icon={Wifi} label="Active Sessions" value={summary.activeSessions.toString()} color="emerald" />
       </div>
 
-      {/* Bar Chart */}
+      {/* Recharts AreaChart */}
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Daily Bandwidth</CardTitle>
             <div className="flex items-center gap-4 text-xs">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-gradient-to-r from-teal-400 to-emerald-400" /> Download</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-gradient-to-r from-amber-400 to-orange-400" /> Upload</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-teal-500" /> Download</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-500" /> Upload</span>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex items-end gap-[3px] h-48" onMouseLeave={() => setHoveredBar(null)}>
-            {filteredData.map((day, i) => {
-              const downH = (day.download / maxTotal) * 100;
-              const upH = (day.upload / maxTotal) * 100;
-              return (
-                <Tooltip key={day.date}>
-                  <TooltipTrigger asChild>
-                    <div
-                      className="flex-1 flex flex-col justify-end cursor-pointer group relative min-w-[8px]"
-                      onMouseEnter={() => setHoveredBar(i)}
-                    >
-                      <div className="w-full rounded-t-sm bg-gradient-to-t from-amber-400 to-orange-400 transition-all duration-200 group-hover:opacity-80" style={{ height: `${upH}%` }} />
-                      <div className="w-full rounded-t-sm bg-gradient-to-t from-teal-400 to-emerald-400 transition-all duration-200 group-hover:opacity-80" style={{ height: `${downH}%` }} />
-                      {hoveredBar === i && (
-                        <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-popover border rounded-lg p-2 shadow-lg text-xs z-50 pointer-events-none whitespace-nowrap">
-                          <p className="font-medium">{formatDate(day.date)}</p>
-                          <p className="text-teal-600 dark:text-teal-400">↓ {formatMB(day.download)}</p>
-                          <p className="text-amber-600 dark:text-amber-400">↑ {formatMB(day.upload)}</p>
-                        </div>
-                      )}
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{formatDate(day.date)}</p>
-                    <p>↓ {formatMB(day.download)} | ↑ {formatMB(day.upload)}</p>
-                  </TooltipContent>
-                </Tooltip>
-              );
-            })}
-          </div>
-          <div className="flex justify-between mt-2 text-xs text-muted-foreground px-1">
-            <span>{formatDate(filteredData[0]?.date)}</span>
-            <span>{formatDate(filteredData[filteredData.length - 1]?.date)}</span>
-          </div>
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gradientDownload" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.05} />
+                  </linearGradient>
+                  <linearGradient id="gradientUpload" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis
+                  dataKey="dateLabel"
+                  tick={{ fontSize: 11 }}
+                  className="text-muted-foreground"
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  className="text-muted-foreground"
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => formatMB(v)}
+                  width={65}
+                />
+                <RechartsTooltip content={<BandwidthChartTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="download"
+                  name="Download"
+                  stroke="#14b8a6"
+                  fill="url(#gradientDownload)"
+                  strokeWidth={2}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="upload"
+                  name="Upload"
+                  stroke="#f59e0b"
+                  fill="url(#gradientUpload)"
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[280px] text-muted-foreground text-sm">
+              No bandwidth data available for the selected period
+            </div>
+          )}
         </CardContent>
       </Card>
-
-      {/* Subnet Toggle */}
-      <div className="flex items-center gap-2">
-        <Switch checked={showSubnet} onCheckedChange={setShowSubnet} />
-        <span className="text-sm font-medium">Show per-subnet breakdown</span>
-      </div>
-
-      {showSubnet && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Subnet Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3">
-              {[
-                { subnet: '10.0.1.0/24', label: 'Lobby & Reception', pct: 45 },
-                { subnet: '10.0.2.0/24', label: 'Floor 1-5', pct: 30 },
-                { subnet: '10.0.3.0/24', label: 'Floor 6-10', pct: 20 },
-                { subnet: '10.0.4.0/24', label: 'Conference & Events', pct: 5 },
-              ].map((s) => (
-                <div key={s.subnet} className="flex items-center gap-4">
-                  <span className="text-sm font-mono w-32 text-muted-foreground">{s.subnet}</span>
-                  <span className="text-sm w-36">{s.label}</span>
-                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-teal-400 to-emerald-400 rounded-full" style={{ width: `${s.pct}%` }} />
-                  </div>
-                  <span className="text-sm font-medium w-10 text-right">{s.pct}%</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Data Table */}
       <Card>
@@ -479,7 +491,9 @@ function BandwidthUsageTab() {
                   <TableHead className="text-right">Upload (MB)</TableHead>
                   <TableHead className="text-right">Total (MB)</TableHead>
                   <TableHead className="text-right">Users</TableHead>
+                  <TableHead className="text-right">Peak Users</TableHead>
                   <TableHead>Peak Time</TableHead>
+                  <TableHead className="text-right">Active</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -490,9 +504,18 @@ function BandwidthUsageTab() {
                     <TableCell className="text-right text-amber-600 dark:text-amber-400 font-mono text-sm">{day.upload.toLocaleString()}</TableCell>
                     <TableCell className="text-right font-mono text-sm font-medium">{day.total.toLocaleString()}</TableCell>
                     <TableCell className="text-right">{day.users}</TableCell>
+                    <TableCell className="text-right">{day.peakUsers || day.users}</TableCell>
                     <TableCell><Badge variant="secondary" className="text-xs">{day.peakTime}</Badge></TableCell>
+                    <TableCell className="text-right"><Badge variant={day.activeSessions > 0 ? 'default' : 'secondary'} className="text-xs">{day.activeSessions}</Badge></TableCell>
                   </TableRow>
                 ))}
+                {filteredData.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                      No data found for the selected period. Bandwidth data is sourced from RADIUS accounting sessions.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </ScrollArea>
@@ -532,6 +555,23 @@ function SummaryCard({ icon: Icon, label, value, trend, color }: { icon: React.E
 
 // ==================== TAB 2: USER BANDWIDTH ====================
 
+// Custom Recharts tooltip for user bar chart
+function UserBarTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border bg-background p-2.5 shadow-lg text-xs">
+      <p className="font-medium mb-1 truncate max-w-48">{label}</p>
+      {payload.map((entry: any, i: number) => (
+        <p key={i} className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full" style={{ background: entry.color }} />
+          <span className="text-muted-foreground">{entry.name}:</span>
+          <span className="font-mono font-medium">{formatMB(entry.value)}</span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function UserBandwidthTab() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortKey, setSortKey] = useState<string>('totalDown');
@@ -546,8 +586,7 @@ function UserBandwidthTab() {
     try {
       const params = new URLSearchParams();
       if (searchQuery) params.set('search', searchQuery);
-      params.set('sortKey', sortKey);
-      params.set('sortDir', sortDir);
+      params.set('limit', '100');
       const res = await fetch(`/api/wifi/reports/user-bandwidth?${params.toString()}`);
       const result = await res.json();
       if (result.success) {
@@ -561,7 +600,7 @@ function UserBandwidthTab() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, sortKey, sortDir, toast]);
+  }, [searchQuery, toast]);
 
   useEffect(() => {
     fetchUsers();
@@ -572,7 +611,7 @@ function UserBandwidthTab() {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       users = users.filter(u =>
-        u.username.includes(q) || u.ip.includes(q) || u.mac.toLowerCase().includes(q)
+        u.username.toLowerCase().includes(q) || u.ip.toLowerCase().includes(q) || (u.mac && u.mac.toLowerCase().includes(q))
       );
     }
     users.sort((a, b) => {
@@ -588,22 +627,50 @@ function UserBandwidthTab() {
 
   const topDownloaders = useMemo(() => [...usersData].sort((a, b) => b.totalDown - a.totalDown).slice(0, 10), [usersData]);
   const topUploaders = useMemo(() => [...usersData].sort((a, b) => b.totalUp - a.totalUp).slice(0, 10), [usersData]);
-  const maxDown = topDownloaders[0]?.totalDown || 1;
-  const maxUp = topUploaders[0]?.totalUp || 1;
+
+  // Prepare chart data for Recharts
+  const downloadChartData = useMemo(() =>
+    [...topDownloaders].reverse().map(u => ({
+      name: u.username.split('.').slice(-2).join('.'), // Short name
+      fullName: u.username,
+      download: u.totalDown,
+      upload: u.totalUp,
+    })),
+    [topDownloaders]
+  );
+
+  const uploadChartData = useMemo(() =>
+    [...topUploaders].reverse().map(u => ({
+      name: u.username.split('.').slice(-2).join('.'),
+      fullName: u.username,
+      download: u.totalDown,
+      upload: u.totalUp,
+    })),
+    [topUploaders]
+  );
 
   const planAgg = useMemo(() => {
-    const plans: Record<string, { count: number; avgDown: number; avgUp: number }> = {};
+    const plans: Record<string, { count: number; totalDown: number; totalUp: number }> = {};
     usersData.forEach(u => {
-      if (!plans[u.plan]) plans[u.plan] = { count: 0, avgDown: 0, avgUp: 0 };
-      plans[u.plan].count++;
-      plans[u.plan].avgDown += u.totalDown;
-      plans[u.plan].avgUp += u.totalUp;
-    });
-    Object.keys(plans).forEach(k => {
-      plans[k].avgDown = Math.floor(plans[k].avgDown / plans[k].count);
-      plans[k].avgUp = Math.floor(plans[k].avgUp / plans[k].count);
+      const plan = u.plan || 'Unknown';
+      if (!plans[plan]) plans[plan] = { count: 0, totalDown: 0, totalUp: 0 };
+      plans[plan].count++;
+      plans[plan].totalDown += u.totalDown;
+      plans[plan].totalUp += u.totalUp;
     });
     return plans;
+  }, [usersData]);
+
+  const summaryStats = useMemo(() => {
+    if (usersData.length === 0) return { totalUsers: 0, totalBw: 0, avgPerUser: 0, topConsumer: '—' };
+    const totalBw = usersData.reduce((s, u) => s + u.totalDown + u.totalUp, 0);
+    const top = usersData.reduce((a, b) => a.totalDown + a.totalUp > b.totalDown + b.totalUp ? a : b);
+    return {
+      totalUsers: usersData.length,
+      totalBw,
+      avgPerUser: totalBw / usersData.length,
+      topConsumer: top.username,
+    };
   }, [usersData]);
 
   const handleSort = (key: string) => {
@@ -630,67 +697,95 @@ function UserBandwidthTab() {
         </CardContent>
       </Card>
 
-      {/* Top 10 Charts */}
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <SummaryCard icon={Users} label="Total Users" value={summaryStats.totalUsers.toString()} color="emerald" />
+        <SummaryCard icon={BarChart3} label="Total Bandwidth" value={formatMB(summaryStats.totalBw)} color="teal" />
+        <SummaryCard icon={TrendingUp} label="Avg / User" value={formatMB(summaryStats.avgPerUser)} color="amber" />
+        <SummaryCard icon={Download} label="Top Consumer" value={summaryStats.topConsumer.split('.').slice(-2).join('.')} color="teal" />
+      </div>
+
+      {/* Top 10 Charts with Recharts */}
       <div className="grid md:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2"><Download className="h-4 w-4 text-teal-500 dark:text-teal-400" /> Top 10 by Download</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Download className="h-4 w-4 text-teal-500 dark:text-teal-400" /> Top 10 by Download
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1.5">
-            {topDownloaders.map((u, i) => (
-              <div key={u.username} className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground w-4">{i + 1}</span>
-                <span className="text-xs font-mono w-24 truncate">{u.username}</span>
-                <div className="flex-1 h-4 bg-muted rounded-sm overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-teal-400 to-emerald-400 rounded-sm" style={{ width: `${(u.totalDown / maxDown) * 100}%` }} />
-                </div>
-                <span className="text-xs font-mono w-16 text-right">{formatMB(u.totalDown)}</span>
-              </div>
-            ))}
+          <CardContent>
+            {downloadChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={downloadChartData} layout="vertical" margin={{ top: 0, right: 10, left: 80, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => formatMB(v)} tickLine={false} axisLine={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={75} />
+                  <RechartsTooltip content={<UserBarTooltip />} />
+                  <Bar dataKey="download" name="Download" fill="#14b8a6" radius={[0, 4, 4, 0]} barSize={14} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground text-sm">No data</div>
+            )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2"><Upload className="h-4 w-4 text-amber-500 dark:text-amber-400" /> Top 10 by Upload</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Upload className="h-4 w-4 text-amber-500 dark:text-amber-400" /> Top 10 by Upload
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1.5">
-            {topUploaders.map((u, i) => (
-              <div key={u.username} className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground w-4">{i + 1}</span>
-                <span className="text-xs font-mono w-24 truncate">{u.username}</span>
-                <div className="flex-1 h-4 bg-muted rounded-sm overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-amber-400 to-orange-400 rounded-sm" style={{ width: `${(u.totalUp / maxUp) * 100}%` }} />
-                </div>
-                <span className="text-xs font-mono w-16 text-right">{formatMB(u.totalUp)}</span>
-              </div>
-            ))}
+          <CardContent>
+            {uploadChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={uploadChartData} layout="vertical" margin={{ top: 0, right: 10, left: 80, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => formatMB(v)} tickLine={false} axisLine={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={75} />
+                  <RechartsTooltip content={<UserBarTooltip />} />
+                  <Bar dataKey="upload" name="Upload" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={14} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground text-sm">No data</div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Plan Aggregate */}
+      {/* Plan Aggregate Cards */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Average Usage per Plan Tier</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {Object.entries(planAgg).map(([plan, data]) => (
-              <div key={plan} className="rounded-lg border p-3">
-                <Badge variant={plan === 'VIP' ? 'default' : plan === 'Premium' ? 'secondary' : 'outline'} className="mb-2">{plan}</Badge>
-                <p className="text-xs text-muted-foreground">{data.count} users</p>
-                <div className="mt-2 space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-teal-600 dark:text-teal-400">↓ {formatMB(data.avgDown)}</span>
-                    <span className="text-amber-600 dark:text-amber-400">↑ {formatMB(data.avgUp)}</span>
-                  </div>
-                  <div className="flex gap-0.5 h-2">
-                    <div className="bg-gradient-to-r from-teal-400 to-emerald-400 rounded-l-sm" style={{ width: `${(data.avgDown / (data.avgDown + data.avgUp)) * 100}%` }} />
-                    <div className="bg-gradient-to-r from-amber-400 to-orange-400 rounded-r-sm" style={{ width: `${(data.avgUp / (data.avgDown + data.avgUp)) * 100}%` }} />
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {Object.entries(planAgg).map(([plan, data]) => {
+              const avgDown = Math.round(data.totalDown / data.count);
+              const avgUp = Math.round(data.totalUp / data.count);
+              const total = avgDown + avgUp;
+              const downPct = total > 0 ? (avgDown / total) * 100 : 50;
+              return (
+                <div key={plan} className="rounded-lg border p-3">
+                  <Badge variant={plan.includes('VIP') ? 'default' : plan.includes('Premium') ? 'secondary' : 'outline'} className="mb-2 text-xs">{plan}</Badge>
+                  <p className="text-xs text-muted-foreground">{data.count} user{data.count !== 1 ? 's' : ''}</p>
+                  <div className="mt-2 space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-teal-600 dark:text-teal-400">↓ {formatMB(avgDown)}</span>
+                      <span className="text-amber-600 dark:text-amber-400">↑ {formatMB(avgUp)}</span>
+                    </div>
+                    <div className="flex gap-0.5 h-2">
+                      <div className="bg-gradient-to-r from-teal-400 to-emerald-400 rounded-l-sm transition-all" style={{ width: `${downPct}%` }} />
+                      <div className="bg-gradient-to-r from-amber-400 to-orange-400 rounded-r-sm transition-all" style={{ width: `${100 - downPct}%` }} />
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Down</span>
+                      <span>Up</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -732,43 +827,58 @@ function UserBandwidthTab() {
                       <TableCell className="text-right text-teal-600 dark:text-teal-400 font-mono text-sm">{formatMB(user.totalDown)}</TableCell>
                       <TableCell className="text-right text-amber-600 dark:text-amber-400 font-mono text-sm">{formatMB(user.totalUp)}</TableCell>
                       <TableCell className="text-right">{formatDuration(user.avgDuration)}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{user.lastSeen}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{user.lastSeen ? new Date(user.lastSeen).toLocaleDateString() : '—'}</TableCell>
                     </TableRow>
                     {expandedUser === user.username && (
                       <TableRow className="bg-muted/10">
                         <TableCell colSpan={9}>
                           <div className="p-3 ml-4">
                             <p className="text-xs font-semibold mb-2 flex items-center gap-1.5"><Clock className="h-3 w-3" /> Session History for {user.username}</p>
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="text-xs">Session</TableHead>
-                                  <TableHead className="text-xs">Start</TableHead>
-                                  <TableHead className="text-xs">End</TableHead>
-                                  <TableHead className="text-xs text-right">Download</TableHead>
-                                  <TableHead className="text-xs text-right">Upload</TableHead>
-                                  <TableHead className="text-xs text-right">Duration</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {user.sessionHistory.map((s: any) => (
-                                  <TableRow key={s.id}>
-                                    <TableCell className="font-mono text-xs">{s.id}</TableCell>
-                                    <TableCell className="text-xs">{new Date(s.start).toLocaleString()}</TableCell>
-                                    <TableCell className="text-xs">{new Date(s.end).toLocaleString()}</TableCell>
-                                    <TableCell className="text-xs text-right text-teal-600 dark:text-teal-400 font-mono">{formatMB(s.download)}</TableCell>
-                                    <TableCell className="text-xs text-right text-amber-600 dark:text-amber-400 font-mono">{formatMB(s.upload)}</TableCell>
-                                    <TableCell className="text-xs text-right">{formatDuration(s.duration)}</TableCell>
+                            {user.sessionHistory && user.sessionHistory.length > 0 ? (
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead className="text-xs">Session</TableHead>
+                                    <TableHead className="text-xs">Start</TableHead>
+                                    <TableHead className="text-xs">End</TableHead>
+                                    <TableHead className="text-xs">NAS</TableHead>
+                                    <TableHead className="text-xs text-right">Download</TableHead>
+                                    <TableHead className="text-xs text-right">Upload</TableHead>
+                                    <TableHead className="text-xs text-right">Duration</TableHead>
                                   </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
+                                </TableHeader>
+                                <TableBody>
+                                  {user.sessionHistory.map((s: any) => (
+                                    <TableRow key={s.id}>
+                                      <TableCell className="font-mono text-xs">{s.id.substring(0, 8)}...</TableCell>
+                                      <TableCell className="text-xs">{s.start ? new Date(s.start).toLocaleString() : '—'}</TableCell>
+                                      <TableCell className="text-xs">{s.end ? new Date(s.end).toLocaleString() : 'Active'}</TableCell>
+                                      <TableCell className="font-mono text-xs text-muted-foreground">{s.nas || '—'}</TableCell>
+                                      <TableCell className="text-xs text-right text-teal-600 dark:text-teal-400 font-mono">{formatMB(s.download)}</TableCell>
+                                      <TableCell className="text-xs text-right text-amber-600 dark:text-amber-400 font-mono">{formatMB(s.upload)}</TableCell>
+                                      <TableCell className="text-xs text-right">{formatDuration(s.duration)}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">No session history available</p>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
                     )}
                   </React.Fragment>
                 ))}
+                {filteredUsers.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                      {usersData.length === 0
+                        ? 'No user bandwidth data. Data is sourced from RADIUS accounting sessions.'
+                        : 'No users match your search.'}
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </ScrollArea>
