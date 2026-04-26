@@ -3,8 +3,9 @@
 /**
  * Auth Logs Component
  *
- * Real authentication log viewer for RADIUS auth events.
- * Shows timestamp, username, result, auth type, NAS IP, client MAC, reply message.
+ * Real RADIUS authentication log viewer.
+ * Queries radpostauth (real auth events — includes both Accept AND Reject).
+ * Shows: timestamp, username, result, plan name, property, auth type.
  * Auto-refreshes every 30s. Fetches from /api/wifi/radius?action=auth-logs
  */
 
@@ -29,6 +30,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Shield,
   Search,
   Loader2,
@@ -38,12 +46,15 @@ import {
   TrendingUp,
   Activity,
   Clock,
-  Filter,
-  Monitor,
+  Eye,
+  Tag,
+  Building2,
+  UserCircle,
   Wifi,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -55,7 +66,12 @@ interface AuthLogEntry {
   authType: string;
   nasIpAddress?: string;
   callingStationId?: string;
+  calledStationId?: string;
   replyMessage?: string;
+  planName?: string;
+  propertyName?: string;
+  guestName?: string;
+  roomNumber?: string;
 }
 
 interface AuthLogStats {
@@ -81,10 +97,10 @@ export default function AuthLogs() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-
   const [resultFilter, setResultFilter] = useState<string>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedLog, setSelectedLog] = useState<AuthLogEntry | null>(null);
 
   // ─── Fetch Logs ────────────────────────────────────────────────────────────
 
@@ -154,10 +170,10 @@ export default function AuthLogs() {
   const filteredLogs = logs.filter(log => {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      const mac = log.callingStationId || '';
-      const matchesMac = mac.toLowerCase().includes(q);
-      // Username already filtered server-side, but MAC is filtered client-side
-      if (!matchesMac && !log.username.toLowerCase().includes(q)) return false;
+      const matchesUsername = log.username.toLowerCase().includes(q);
+      const matchesPlan = (log.planName || '').toLowerCase().includes(q);
+      const matchesMac = (log.callingStationId || '').toLowerCase().includes(q);
+      if (!matchesUsername && !matchesPlan && !matchesMac) return false;
     }
     return true;
   });
@@ -168,16 +184,27 @@ export default function AuthLogs() {
     const r = (authResult || '').toLowerCase();
     if (r === 'access-accept' || r === 'accept') {
       return (
-        <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0">
+        <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-[10px]">
           <CheckCircle className="h-3 w-3 mr-1" />
           Accept
         </Badge>
       );
     }
     return (
-      <Badge className="bg-red-500 hover:bg-red-600 text-white border-0">
+      <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 text-[10px]">
         <XCircle className="h-3 w-3 mr-1" />
         Reject
+      </Badge>
+    );
+  };
+
+  const getPlanBadge = (planName: string | undefined) => {
+    if (!planName) return <span className="text-xs text-muted-foreground">—</span>;
+    const isReject = (selectedLog?.authResult || '').toLowerCase().includes('reject');
+    return (
+      <Badge variant="outline" className="text-[10px] font-normal gap-1">
+        <Tag className="h-3 w-3 text-teal-500 shrink-0" />
+        {planName}
       </Badge>
     );
   };
@@ -185,7 +212,7 @@ export default function AuthLogs() {
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
@@ -193,8 +220,8 @@ export default function AuthLogs() {
             <Shield className="h-5 w-5" />
             Auth Logs
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Real-time RADIUS authentication log viewer. Auto-refreshes every 30s.
+          <p className="text-sm text-muted-foreground mt-1">
+            RADIUS authentication log · Source: radpostauth
           </p>
         </div>
         <div className="flex gap-2">
@@ -206,7 +233,7 @@ export default function AuthLogs() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-cyan-500/10">
@@ -269,17 +296,15 @@ export default function AuthLogs() {
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by username or MAC..."
-                  value={searchQuery}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by username, plan, or MAC..."
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-9"
+              />
             </div>
             <Select value={resultFilter} onValueChange={setResultFilter}>
               <SelectTrigger className="w-full sm:w-40">
@@ -331,65 +356,197 @@ export default function AuthLogs() {
               </p>
             </div>
           ) : (
-            <div className="max-h-[500px] overflow-y-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>Username</TableHead>
-                    <TableHead>Result</TableHead>
-                    <TableHead className="text-left">Reply Message</TableHead>
-                    <TableHead>Auth Type</TableHead>
-                    <TableHead>NAS IP</TableHead>
-                    <TableHead>Client MAC</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredLogs.map((log, index) => (
-                    <TableRow key={log.id || index} className={
-                      log.authResult === 'Access-Reject' ? 'bg-red-50/30 dark:bg-red-950/10' : ''
-                    }>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          <span>{log.timestamp ? formatDistanceToNow(new Date(log.timestamp)) + ' ago' : '—'}</span>
+            <>
+              {/* Mobile: Card Layout */}
+              <div className="sm:hidden divide-y">
+                {filteredLogs.map((log, index) => (
+                  <div
+                    key={log.id || index}
+                    className="p-4 space-y-2 cursor-pointer hover:bg-muted/30 transition-colors"
+                    onClick={() => setSelectedLog(log)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Wifi className="h-4 w-4 text-muted-foreground" />
+                        <p className="font-medium text-sm">{log.username}</p>
+                      </div>
+                      {getResultBadge(log.authResult)}
+                    </div>
+                    {log.planName && (
+                      <div className="flex items-center gap-1.5">
+                        <Tag className="h-3 w-3 text-teal-500" />
+                        <span className="text-xs text-muted-foreground">{log.planName}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{log.timestamp ? formatDistanceToNow(new Date(log.timestamp)) + ' ago' : '—'}</span>
+                      {log.propertyName && (
+                        <div className="flex items-center gap-1">
+                          <Building2 className="h-3 w-3" />
+                          <span>{log.propertyName}</span>
                         </div>
-                        <p className="text-xs text-muted-foreground/60 mt-0.5">
-                          {log.timestamp ? new Date(log.timestamp).toLocaleString() : ''}
-                        </p>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Wifi className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <p className="font-medium text-sm">{log.username}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>{getResultBadge(log.authResult)}</TableCell>
-                      <TableCell className="text-left">
-                        <p className="text-xs text-muted-foreground max-w-[280px] truncate cursor-default" title={log.replyMessage || undefined}>
-                          {log.replyMessage || '—'}
-                        </p>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">{log.authType || 'PAP'}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <Monitor className="h-3.5 w-3.5 text-muted-foreground" />
-                          <p className="text-sm font-mono text-xs">{log.nasIpAddress || '—'}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-sm font-mono text-xs">{log.callingStationId || '—'}</p>
-                      </TableCell>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop: Table Layout */}
+              <div className="hidden sm:block max-h-[500px] overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[70px]">Result</TableHead>
+                      <TableHead>Username</TableHead>
+                      <TableHead>Plan</TableHead>
+                      <TableHead>Property</TableHead>
+                      <TableHead className="w-[160px]">Timestamp</TableHead>
+                      <TableHead>Auth Type</TableHead>
+                      <TableHead>MAC</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredLogs.map((log, index) => {
+                      const isReject = log.authResult?.toLowerCase().includes('reject');
+                      return (
+                        <TableRow
+                          key={log.id || index}
+                          className={cn(
+                            'cursor-pointer hover:bg-muted/50 transition-colors',
+                            isReject && 'bg-red-50/30 dark:bg-red-950/10'
+                          )}
+                          onClick={() => setSelectedLog(log)}
+                        >
+                          <TableCell>{getResultBadge(log.authResult)}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Wifi className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                              <p className="font-medium text-sm">{log.username}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {log.planName ? (
+                              <Badge variant="outline" className="text-[10px] font-normal gap-1">
+                                <Tag className="h-3 w-3 text-teal-500 shrink-0" />
+                                {log.planName}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {log.propertyName ? (
+                              <div className="flex items-center gap-1.5">
+                                <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
+                                <span className="text-xs">{log.propertyName}</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3 shrink-0" />
+                              <span>{log.timestamp ? formatDistanceToNow(new Date(log.timestamp)) + ' ago' : '—'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[10px]">{log.authType || 'RADIUS'}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <p className="text-xs font-mono text-muted-foreground">{log.callingStationId || '—'}</p>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
+
+      {/* Auth Log Detail Dialog */}
+      <Dialog open={!!selectedLog} onOpenChange={(open) => { if (!open) setSelectedLog(null); }}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Auth Log Details
+            </DialogTitle>
+            <DialogDescription>RADIUS authentication event</DialogDescription>
+          </DialogHeader>
+          {selectedLog && (
+            <div className="grid gap-4 py-4">
+              <div className="flex items-center justify-between">{getResultBadge(selectedLog.authResult)}</div>
+              <div className="border-t pt-4">
+                <p className="text-xs font-medium text-muted-foreground mb-3">User Information</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Username</p>
+                    <p className="text-sm font-medium font-mono">{selectedLog.username || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Guest Name</p>
+                    <p className="text-sm">{selectedLog.guestName || '—'}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="border-t pt-4">
+                <p className="text-xs font-medium text-muted-foreground mb-3">WiFi Plan & Location</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Plan</p>
+                    <div className="mt-1">{getPlanBadge(selectedLog.planName)}</div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Property</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      <p className="text-sm">{selectedLog.propertyName || '—'}</p>
+                    </div>
+                  </div>
+                  {selectedLog.roomNumber && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Room</p>
+                      <p className="text-sm">{selectedLog.roomNumber}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="border-t pt-4">
+                <p className="text-xs font-medium text-muted-foreground mb-3">Authentication Details</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Timestamp</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                      <p className="text-sm">
+                        {selectedLog.timestamp
+                          ? new Date(selectedLog.timestamp).toLocaleString()
+                          : '—'}
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Auth Type</p>
+                    <Badge variant="outline" className="mt-1 text-xs">{selectedLog.authType || 'RADIUS'}</Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Client MAC</p>
+                    <p className="text-sm font-mono">{selectedLog.callingStationId || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">AP MAC</p>
+                    <p className="text-sm font-mono">{selectedLog.calledStationId || '—'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -283,81 +283,78 @@ export async function GET(request: NextRequest) {
           const endDateStr = searchParams.get('endDate');
           const usernameFilter = searchParams.get('username');
 
-          if (resultFilter === 'Access-Reject') {
-            // Rejects won't appear in radacct (they don't get accounting)
-            return NextResponse.json({ success: true, data: [] });
-          }
-
-          // Build SQL conditions on the view
+          // Query radpostauth — real RADIUS auth log (includes Accept AND Reject)
           const conditions: string[] = [];
           const sqlParams: unknown[] = [];
-          if (usernameFilter) { conditions.push(`username LIKE $${sqlParams.length + 1}`); sqlParams.push(`%${usernameFilter}%`); }
-          if (startDateStr) { conditions.push(`acctstarttime >= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(startDateStr); }
-          if (endDateStr) { conditions.push(`acctstarttime <= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(`${endDateStr} 23:59:59`); }
+          if (usernameFilter) { conditions.push(`p.username LIKE $${sqlParams.length + 1}`); sqlParams.push(`%${usernameFilter}%`); }
+          if (resultFilter) { conditions.push(`p.reply = $${sqlParams.length + 1}`); sqlParams.push(resultFilter); }
+          if (startDateStr) { conditions.push(`p.authdate >= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(startDateStr.length === 10 ? `${startDateStr} 00:00:00` : startDateStr); }
+          if (endDateStr) { conditions.push(`p.authdate <= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(endDateStr.length === 10 ? `${endDateStr} 23:59:59` : endDateStr); }
           const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
           sqlParams.push(limit);
 
           const authEvents = await db.$queryRawUnsafe<{
-            radacctid: number;
-            acctuniqueid: string;
+            id: number;
             username: string;
-            nasipaddress: string;
+            reply: string;
+            authdate: string;
             callingstationid: string;
-            acctstarttime: string | null;
-            nasporttype: string | null;
             calledstationid: string;
+            plan_name: string | null;
+            property_name: string | null;
             guest_first_name: string | null;
             guest_last_name: string | null;
             room_number: string | null;
-            property_name: string | null;
-            plan_name: string | null;
+            groupname: string | null;
           }[]>(`
-            SELECT MIN(radacctid) as radacctid, acctuniqueid,
-                   MAX(username) as username, MAX(nasipaddress) as nasipaddress,
-                   MAX(callingstationid) as callingstationid, MAX(acctstarttime) as acctstarttime,
-                   MAX(nasporttype) as nasporttype, MAX(calledstationid) as calledstationid,
-                   MAX(guest_first_name) as guest_first_name,
-                   MAX(guest_last_name) as guest_last_name,
-                   MAX(room_number) as room_number,
-                   MAX(property_name) as property_name,
-                   MAX(plan_name) as plan_name
-            FROM v_session_history ${whereClause}
-            GROUP BY acctuniqueid
-            ORDER BY MAX(acctstarttime) DESC
+            SELECT p.id, p.username, p.reply, p.authdate,
+                   p.callingstationid, p.calledstationid,
+                   wp.name as plan_name,
+                   prop.name as property_name,
+                   g."firstName" as guest_first_name,
+                   g."lastName" as guest_last_name,
+                   rm.number as room_number,
+                   ug.groupname
+            FROM radpostauth p
+            LEFT JOIN "WiFiUser" wu ON wu.username = p.username
+            LEFT JOIN "WiFiPlan" wp ON wp.id = wu."planId"
+            LEFT JOIN "Guest" g ON g.id = wu."guestId"
+            LEFT JOIN "Booking" b ON b.id = wu."bookingId"
+            LEFT JOIN "Room" rm ON rm.id = b."roomId"
+            LEFT JOIN "Property" prop ON prop.id = COALESCE(wu."propertyId", b."propertyId")
+            LEFT JOIN radusergroup ug ON ug.username = p.username AND ug.priority = 0
+            ${whereClause}
+            ORDER BY p.authdate DESC
             LIMIT $${sqlParams.length}
           `, ...sqlParams);
 
-          const logs = authEvents.map((e) => ({
-            id: `auth_${e.radacctid}`,
-            timestamp: e.acctstarttime || '',
+          const logs = JSON.parse(JSON.stringify(authEvents, (_, v) => typeof v === 'bigint' ? Number(v) : v));
+
+          const mapped = logs.map((e: Record<string, unknown>) => ({
+            id: `auth_${e.id}`,
+            timestamp: e.authdate || '',
             username: e.username || '',
-            authResult: 'Access-Accept',
-            authType: e.nasporttype || 'PAP',
-            nasIpAddress: e.nasipaddress || '',
+            authResult: e.reply || '',
+            authType: 'RADIUS',
+            nasIpAddress: '',
             callingStationId: e.callingstationid || '',
-            replyMessage: e.plan_name ? `Plan: ${e.plan_name}` : 'Authenticated successfully',
-            // Enriched fields from view
+            replyMessage: '',
+            // Enriched fields
+            planName: e.plan_name || e.groupname || '',
+            propertyName: e.property_name || '',
             guestName: [e.guest_first_name, e.guest_last_name].filter(Boolean).join(' ') || '',
             roomNumber: e.room_number || '',
-            propertyName: e.property_name || '',
-            planName: e.plan_name || '',
+            calledStationId: e.calledstationid || '',
           }));
 
-          return NextResponse.json({ success: true, data: logs });
+          return NextResponse.json({ success: true, data: mapped });
         } catch (error) {
           console.error('[auth-logs] Direct query error:', error);
-          const queryParams = new URLSearchParams();
-          const params = ['limit', 'offset', 'username', 'result', 'startDate', 'endDate'];
-          for (const p of params) {
-            const v = searchParams.get(p);
-            if (v) queryParams.set(p, v);
-          }
-          const data = await freeradiusRequest(`/api/auth-logs?${queryParams.toString()}`);
-          return NextResponse.json(data);
+          return NextResponse.json({ success: true, data: [] });
         }
       }
 
-      // ─── Auth Logs Stats: Query from v_session_history view ──────
+      // ─── Auth Logs Stats: Query from radpostauth ──────
       case 'auth-logs-stats': {
         try {
           const usernameFilter = searchParams.get('username');
@@ -365,52 +362,56 @@ export async function GET(request: NextRequest) {
           const startDateStr = searchParams.get('startDate');
           const endDateStr = searchParams.get('endDate');
 
-          // Build SQL conditions on the view
           const conditions: string[] = [];
           const params: unknown[] = [];
           if (usernameFilter) { conditions.push(`username LIKE $${params.length + 1}`); params.push(`%${usernameFilter}%`); }
-          if (startDateStr) { conditions.push(`acctstarttime >= $${params.length + 1}::timestamptz`); params.push(startDateStr); }
-          if (endDateStr) { conditions.push(`acctstarttime <= $${params.length + 1}::timestamptz`); params.push(`${endDateStr} 23:59:59`); }
+          if (resultFilter) { conditions.push(`reply = $${params.length + 1}`); params.push(resultFilter); }
+          if (startDateStr) { conditions.push(`authdate >= $${params.length + 1}::timestamptz`); params.push(startDateStr.length === 10 ? `${startDateStr} 00:00:00` : startDateStr); }
+          if (endDateStr) { conditions.push(`authdate <= $${params.length + 1}::timestamptz`); params.push(endDateStr.length === 10 ? `${endDateStr} 23:59:59` : endDateStr); }
           const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
           const totalAuths = Number((await db.$queryRawUnsafe<{ c: number | bigint }[]>(
-            `SELECT COUNT(DISTINCT acctuniqueid) as c FROM v_session_history ${whereClause}`,
+            `SELECT COUNT(*) as c FROM radpostauth ${whereClause}`,
             ...params
           ))[0]?.c ?? 0);
 
-          // All records in the view are successful auths (rejects don't get accounting)
-          const acceptCount = resultFilter === 'Access-Reject' ? 0 : totalAuths;
-          const rejectCount = 0;
-          const successRate = totalAuths > 0 ? 100 : 0;
+          // Count accepts and rejects using the same base conditions
+          const acceptWhere = conditions.length > 0
+            ? `${whereClause} AND reply = 'Access-Accept'`
+            : `WHERE reply = 'Access-Accept'`;
+          const acceptCount = Number((await db.$queryRawUnsafe<{ c: number | bigint }[]>(
+            `SELECT COUNT(*) as c FROM radpostauth ${acceptWhere}`,
+            ...params
+          ))[0]?.c ?? 0);
 
-          // Calculate 24h trend using separate queries
+          const rejectCount = totalAuths - acceptCount;
+          const successRate = totalAuths > 0 ? Math.round((acceptCount / totalAuths) * 100) : 0;
+
+          // Calculate 24h trend
           const yesterday = new Date();
           yesterday.setDate(yesterday.getDate() - 1);
           const dayBefore = new Date();
           dayBefore.setDate(dayBefore.getDate() - 2);
 
-          const nextParamIdx = params.length + 1;
-          const todayWhere = conditions.length > 0
-            ? `${whereClause} AND acctstarttime >= $${nextParamIdx}::timestamptz`
-            : `WHERE acctstarttime >= $${nextParamIdx}::timestamptz`;
-          const todayParams = [...params, yesterday.toISOString().slice(0, 10)];
-
-          const prevDayWhere = conditions.length > 0
-            ? `${whereClause} AND acctstarttime >= $${params.length + 1}::timestamptz AND acctstarttime < $${params.length + 2}::timestamptz`
-            : `WHERE acctstarttime >= $${params.length + 1}::timestamptz AND acctstarttime < $${params.length + 2}::timestamptz`;
-          const prevDayParams = [...params, dayBefore.toISOString().slice(0, 10), yesterday.toISOString().slice(0, 10)];
-
-          // Calculate 24h trend — wrap in try/catch so basic stats always return
           let last24hTrend = 0;
           try {
+            const nextParam = params.length + 1;
+            const todayWhere = conditions.length > 0
+              ? `${whereClause} AND authdate >= $${nextParam}::timestamptz`
+              : `WHERE authdate >= $${nextParam}::timestamptz`;
+
+            const prevDayWhere = conditions.length > 0
+              ? `${whereClause} AND authdate >= $${params.length + 1}::timestamptz AND authdate < $${params.length + 2}::timestamptz`
+              : `WHERE authdate >= $${params.length + 1}::timestamptz AND authdate < $${params.length + 2}::timestamptz`;
+
             const todayCount = Number((await db.$queryRawUnsafe<{ c: number | bigint }[]>(
-              `SELECT COUNT(DISTINCT acctuniqueid) as c FROM v_session_history ${todayWhere}`,
-              ...todayParams
+              `SELECT COUNT(*) as c FROM radpostauth ${todayWhere}`,
+              ...params, yesterday.toISOString().slice(0, 10)
             ))[0]?.c ?? 0);
 
             const prevDayCount = Number((await db.$queryRawUnsafe<{ c: number | bigint }[]>(
-              `SELECT COUNT(DISTINCT acctuniqueid) as c FROM v_session_history ${prevDayWhere}`,
-              ...prevDayParams
+              `SELECT COUNT(*) as c FROM radpostauth ${prevDayWhere}`,
+              ...params, dayBefore.toISOString().slice(0, 10), yesterday.toISOString().slice(0, 10)
             ))[0]?.c ?? 0);
 
             last24hTrend = prevDayCount > 0
@@ -418,7 +419,6 @@ export async function GET(request: NextRequest) {
               : (todayCount > 0 ? 100 : 0);
           } catch (trendErr) {
             console.error('[auth-logs-stats] Trend calculation error (non-fatal):', trendErr);
-            // Return basic stats without trend
           }
 
           return NextResponse.json({
@@ -433,7 +433,6 @@ export async function GET(request: NextRequest) {
           });
         } catch (error) {
           console.error('[auth-logs-stats] Direct query error:', error);
-          // Return zero stats instead of crashing or depending on freeradius-service
           return NextResponse.json({
             success: true,
             data: {
