@@ -451,25 +451,48 @@ export async function POST(request: NextRequest) {
       // The room-type check can incorrectly block valid bookings when room assignment happens
       // at check-in time (e.g., walk-in where user picks an available room).
       if (!roomType.overbookingEnabled && !roomId) {
-        const overlappingBookings = await tx.booking.count({
-          where: {
-            roomTypeId,
-            propertyId,
-            status: { in: ['confirmed', 'checked_in'] },
-            deletedAt: null,
-            AND: [
-              { checkIn: { lt: checkOutDate } },
-              { checkOut: { gt: checkInDate } },
-            ],
-          },
-        });
-
         const totalRooms = await tx.room.count({
           where: { roomTypeId, propertyId },
         });
 
-        if (overlappingBookings >= totalRooms) {
-          throw new Error('SOLD_OUT');
+        // Skip availability check if no rooms are configured for this room type —
+        // the admin hasn't set up rooms yet, so blocking is wrong
+        if (totalRooms > 0) {
+          const overlappingBookings = await tx.booking.count({
+            where: {
+              roomTypeId,
+              propertyId,
+              status: { in: ['confirmed', 'checked_in'] },
+              deletedAt: null,
+              AND: [
+                { checkIn: { lt: checkOutDate } },
+                { checkOut: { gt: checkInDate } },
+              ],
+            },
+          });
+
+          console.log(`[Booking Create] Availability check: roomTypeId=${roomTypeId} (${roomType.name}), propertyId=${propertyId}, checkIn=${checkInDate.toISOString()}, checkOut=${checkOutDate.toISOString()}, overlapping=${overlappingBookings}, totalRooms=${totalRooms}`);
+
+          if (overlappingBookings >= totalRooms) {
+            const overlapDetails = await tx.booking.findMany({
+              where: {
+                roomTypeId,
+                propertyId,
+                status: { in: ['confirmed', 'checked_in'] },
+                deletedAt: null,
+                AND: [
+                  { checkIn: { lt: checkOutDate } },
+                  { checkOut: { gt: checkInDate } },
+                ],
+              },
+              select: { id: true, confirmationCode: true, status: true, checkIn: true, checkOut: true, roomId: true },
+              take: 10,
+            });
+            console.error(`[Booking Create] SOLD_OUT: ${overlappingBookings}/${totalRooms} rooms booked for roomType=${roomType.name}. Overlapping:`, JSON.stringify(overlapDetails, null, 2));
+            throw new Error('SOLD_OUT');
+          }
+        } else {
+          console.log(`[Booking Create] Skipping availability check for roomType=${roomType.name} — no rooms configured (totalRooms=0). Room assignment will happen at check-in.`);
         }
       }
       
