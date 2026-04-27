@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    console.log('[AAA] Save request - propertyId:', body.propertyId, 'defaultPlanId:', body.defaultPlanId, 'tenantId:', body.tenantId);
+    console.log('[AAA] Save request - propertyId:', body.propertyId, 'defaultPlanId:', body.defaultPlanId, 'tenantId:', body.tenantId, 'usernameFormat:', body.usernameFormat, 'passwordFormat:', body.passwordFormat);
     const propertyId = await resolvePropertyId(user, body.propertyId);
     if (!propertyId) {
       return NextResponse.json({ success: false, error: 'No property found. Please create a property first.' }, { status: 400 });

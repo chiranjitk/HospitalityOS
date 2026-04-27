@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const booking = await db.booking.findFirst({
       where: { id: bookingId, status: 'confirmed', deletedAt: null },
       include: {
-        primaryGuest: { select: { id: true, firstName: true, lastName: true } },
+        primaryGuest: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
         room: { select: { id: true, number: true, floor: true, status: true } },
         property: { select: { id: true, name: true } },
         roomType: { select: { id: true, name: true } },
