@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         room: { select: { id: true, number: true, floor: true, status: true } },
         property: { select: { id: true, name: true, tenantId: true } },
         roomType: { select: { id: true, name: true } },
-        folio: {
+        folios: {
           select: { id: true, balance: true, totalAmount: true, paidAmount: true, status: true },
           where: { status: 'open' },
         },
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
           room: { select: { id: true, number: true, floor: true } },
           roomType: { select: { id: true, name: true } },
           property: { select: { id: true, name: true, tenantId: true } },
-          folio: {
+          folios: {
             select: {
               id: true,
               balance: true,
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
         where: { id: booking.room.id },
         data: {
           status: 'vacant',
-          housekeepingStatus: 'needs_cleaning',
+          housekeepingStatus: 'dirty',
         },
       });
 
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
         checkOut: booking.checkOut,
         actualCheckOut: now,
         totalAmount: booking.totalAmount,
-        paidAmount: booking.folio?.paidAmount ?? 0,
+        paidAmount: booking.folios?.[0]?.paidAmount ?? 0,
         performedBy: 'kiosk-self-service',
       });
     } catch (eventError) {
@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Build response
-    const folioBalance = booking.folio?.[0]?.balance ?? 0;
+    const folioBalance = booking.folios?.[0]?.balance ?? 0;
     const guestName = `${updatedBooking.primaryGuest.firstName} ${updatedBooking.primaryGuest.lastName}`;
 
     return NextResponse.json({
@@ -195,6 +195,9 @@ export async function POST(request: NextRequest) {
         roomNumber: updatedBooking.room?.number,
         folioBalance,
         hasBalance: folioBalance > 0,
+        currency: booking.currency || 'USD',
+        confirmationCode: booking.confirmationCode || '',
+        bookingId: booking.id,
       },
     });
   } catch (error) {

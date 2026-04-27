@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-// GET /api/frontdesk/kiosk-session - Verify booking code for kiosk check-in
+// GET /api/frontdesk/kiosk-session - Verify booking code for kiosk check-in/check-out
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const code = searchParams.get('code');
+    const purpose = searchParams.get('purpose'); // 'checkin' (default) or 'checkout'
 
     if (!code) {
       return NextResponse.json(
@@ -14,11 +15,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // For check-out, accept both 'confirmed' and 'checked_in' status
+    // For check-in, only accept 'confirmed' status
+    const isCheckOut = purpose === 'checkout';
+    const statusFilter = isCheckOut
+      ? { in: ['confirmed', 'checked_in'] }
+      : 'confirmed';
+
     // Find booking by confirmation code
     const booking = await db.booking.findFirst({
       where: {
         confirmationCode: code.toUpperCase().trim(),
-        status: 'confirmed',
+        status: statusFilter,
         deletedAt: null,
       },
       include: {
@@ -58,7 +66,7 @@ export async function GET(request: NextRequest) {
 
     if (!booking) {
       return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'No confirmed booking found with this code' } },
+        { success: false, error: { code: 'NOT_FOUND', message: isCheckOut ? 'No active booking found with this code' : 'No confirmed booking found with this code' } },
         { status: 404 }
       );
     }
@@ -129,26 +137,41 @@ export async function GET(request: NextRequest) {
       (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)
     );
 
+    // For check-out, also include folio information
+    const responseData: Record<string, any> = {
+      bookingId: booking.id,
+      confirmationCode: booking.confirmationCode,
+      guest: booking.primaryGuest,
+      room: booking.room,
+      roomType: booking.roomType,
+      property: booking.property,
+      ratePlan: booking.ratePlan,
+      checkIn: booking.checkIn,
+      checkOut: booking.checkOut,
+      nights,
+      adults: booking.adults,
+      children: booking.children,
+      totalAmount: booking.totalAmount,
+      currency: booking.currency,
+      specialRequests: booking.specialRequests,
+      wifiPlan: wifiPlan ? { name: wifiPlan.name, validityDays: wifiPlan.validityDays } : null,
+      bookingStatus: booking.status,
+    };
+
+    // For check-out: fetch folio summary
+    if (isCheckOut) {
+      const folio = await db.folio.findFirst({
+        where: { bookingId: booking.id },
+        select: { id: true, totalAmount: true, paidAmount: true, balance: true, status: true, currency: true },
+      });
+      responseData.folio = folio
+        ? { totalAmount: folio.totalAmount, paidAmount: folio.paidAmount, balance: folio.balance, status: folio.status }
+        : { totalAmount: booking.totalAmount, paidAmount: 0, balance: booking.totalAmount, status: 'open' };
+    }
+
     return NextResponse.json({
       success: true,
-      data: {
-        bookingId: booking.id,
-        confirmationCode: booking.confirmationCode,
-        guest: booking.primaryGuest,
-        room: booking.room,
-        roomType: booking.roomType,
-        property: booking.property,
-        ratePlan: booking.ratePlan,
-        checkIn: booking.checkIn,
-        checkOut: booking.checkOut,
-        nights,
-        adults: booking.adults,
-        children: booking.children,
-        totalAmount: booking.totalAmount,
-        currency: booking.currency,
-        specialRequests: booking.specialRequests,
-        wifiPlan: wifiPlan ? { name: wifiPlan.name, validityDays: wifiPlan.validityDays } : null,
-      },
+      data: responseData,
     });
   } catch (error) {
     console.error('Error verifying kiosk session:', error);

@@ -236,8 +236,8 @@ export async function POST(request: NextRequest) {
             receiptNumber,
             gatewayRef,
             guestName: `${booking.primaryGuest.firstName} ${booking.primaryGuest.lastName}`,
+            performedBy: 'kiosk-self-service',
           }),
-          performedBy: 'kiosk-self-service',
         },
       });
     } catch (auditError) {

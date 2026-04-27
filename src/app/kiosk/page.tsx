@@ -113,8 +113,41 @@ interface CheckOutResult {
    Constants
    ──────────────────────────────────────────────── */
 
-const TIMEOUT_SECONDS = 120;
-const HOTEL_NAME = 'StaySuite Grand Hotel';
+const DEFAULT_TIMEOUT_SECONDS = 120;
+const DEFAULT_HOTEL_NAME = 'StaySuite';
+const DEFAULT_TERMS = "By using this kiosk, I agree to the hotel's terms and conditions.";
+
+interface KioskSettings {
+  hotelName: string;
+  welcomeMessage: string;
+  primaryColor: string;
+  logoUrl: string | null;
+  backgroundStyle: string;
+  idleTimeout: number;
+  showClock: boolean;
+  showLanguageSwitch: boolean;
+  enableCheckIn: boolean;
+  enableCheckOut: boolean;
+  enablePayment: boolean;
+  termsContent: string;
+  requirePaymentOnCheckout: boolean;
+}
+
+const DEFAULT_SETTINGS: KioskSettings = {
+  hotelName: DEFAULT_HOTEL_NAME,
+  welcomeMessage: 'Welcome! Please select an option below.',
+  primaryColor: '#10b981',
+  logoUrl: null,
+  backgroundStyle: 'gradient',
+  idleTimeout: DEFAULT_TIMEOUT_SECONDS,
+  showClock: true,
+  showLanguageSwitch: true,
+  enableCheckIn: true,
+  enableCheckOut: true,
+  enablePayment: false,
+  termsContent: DEFAULT_TERMS,
+  requirePaymentOnCheckout: false,
+};
 
 const CHECKIN_STEPS = {
   enter_code: { step: 1, title: 'Find Your Booking' },
@@ -355,14 +388,31 @@ export default function KioskPage() {
   const [coVerifying, setCoVerifying] = useState(false);
   const [coChecking, setCoChecking] = useState(false);
 
+  // Kiosk settings
+  const [settings, setSettings] = useState<KioskSettings>(DEFAULT_SETTINGS);
+
   const [errorMsg, setErrorMsg] = useState('');
-  const [timeLeft, setTimeLeft] = useState(TIMEOUT_SECONDS);
+  const [timeLeft, setTimeLeft] = useState(DEFAULT_TIMEOUT_SECONDS);
   const [now, setNow] = useState(new Date());
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const t = T[lang];
+  const TIMEOUT_SECONDS = settings.idleTimeout || DEFAULT_TIMEOUT_SECONDS;
+  const HOTEL_NAME = settings.hotelName || DEFAULT_HOTEL_NAME;
+
+  /* ── Fetch kiosk settings on mount ── */
+  useEffect(() => {
+    fetch('/api/kiosk/public-settings')
+      .then(res => res.ok ? res.json() : null)
+      .then(result => {
+        if (result?.success?.data) {
+          setSettings(prev => ({ ...prev, ...result.data }));
+        }
+      })
+      .catch(() => { /* Use defaults on error */ });
+  }, []);
 
   /* ── Clock ── */
   useEffect(() => {
@@ -413,9 +463,8 @@ export default function KioskPage() {
       });
     }, 1000);
 
-    timeoutRef.current = setTimeout(() => {
-      onTimeoutRef.current();
-    }, TIMEOUT_SECONDS * 1000);
+    // Interval-based timeout — prevents double-fire from setTimeout drift
+    // No separate setTimeout needed since the interval handles the reset at prev <= 1
   }, []);
 
   const handleFullReset = useCallback(() => {
@@ -516,7 +565,7 @@ export default function KioskPage() {
     setCoVerifying(true);
     setErrorMsg('');
     try {
-      const res = await fetch(`/api/frontdesk/kiosk-session?code=${encodeURIComponent(coCode.trim())}`);
+      const res = await fetch(`/api/frontdesk/kiosk-session?code=${encodeURIComponent(coCode.trim())}&purpose=checkout`);
       if (!res.ok) { const txt = await res.text().catch(() => ''); throw new Error(txt); }
       const result = await res.json();
 
@@ -618,7 +667,8 @@ export default function KioskPage() {
 
         {/* Right side controls */}
         <div className="flex items-center gap-3 sm:gap-5">
-          {/* Clock */}
+          {/* Clock — only if enabled in settings */}
+          {settings.showClock && (
           <div className="text-right hidden sm:block">
             <p className="text-lg lg:text-xl font-mono font-semibold tabular-nums">
               {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -627,8 +677,10 @@ export default function KioskPage() {
               {now.toLocaleTimeString([], { second: '2-digit' })}
             </p>
           </div>
+          )}
 
-          {/* Language switch */}
+          {/* Language switch — only if enabled in settings */}
+          {settings.showLanguageSwitch && (
           <button
             onClick={() => setLang(l => l === 'en' ? 'hi' : 'en')}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 text-sm transition-colors"
@@ -637,6 +689,7 @@ export default function KioskPage() {
             <span className="hidden sm:inline">{lang === 'en' ? 'हिन्दी' : 'English'}</span>
             <span className="sm:hidden text-xs">{lang === 'en' ? 'HI' : 'EN'}</span>
           </button>
+          )}
 
           {/* Timeout indicator */}
           {mode !== 'select' && (
@@ -728,7 +781,8 @@ export default function KioskPage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                {/* Check-In Card */}
+                {/* Check-In Card — only if enabled in settings */}
+                {settings.enableCheckIn && (
                 <motion.button
                   whileHover={{ scale: 1.02, y: -4 }}
                   whileTap={{ scale: 0.98 }}
@@ -757,8 +811,10 @@ export default function KioskPage() {
                     </div>
                   </div>
                 </motion.button>
+                )}
 
-                {/* Check-Out Card */}
+                {/* Check-Out Card — only if enabled in settings */}
+                {settings.enableCheckOut && (
                 <motion.button
                   whileHover={{ scale: 1.02, y: -4 }}
                   whileTap={{ scale: 0.98 }}
@@ -786,6 +842,16 @@ export default function KioskPage() {
                     </div>
                   </div>
                 </motion.button>
+                )}
+
+                {/* Neither check-in nor check-out enabled message */}
+                {!settings.enableCheckIn && !settings.enableCheckOut && (
+                  <div className="col-span-full text-center py-12 text-slate-400">
+                    <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-amber-400" />
+                    <p className="text-lg">Kiosk is currently unavailable</p>
+                    <p className="text-sm mt-1">Please visit the front desk for assistance.</p>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -1007,7 +1073,7 @@ export default function KioskPage() {
                             </div>
                             <div>
                               <div className="font-medium">{t.acceptTerms}</div>
-                              <p className="text-sm text-slate-400 mt-1">{t.termsDesc}</p>
+                              <p className="text-sm text-slate-400 mt-1">{settings.termsContent || t.termsDesc}</p>
                             </div>
                           </div>
                         </label>

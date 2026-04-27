@@ -133,7 +133,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (!hasPermission(user, 'frontdesk.manage') && !hasPermission(user, 'frontdesk.view')) {
+    if (!hasPermission(user, 'frontdesk.manage')) {
       return NextResponse.json(
         { success: false, error: 'Permission denied' },
         { status: 403 }
