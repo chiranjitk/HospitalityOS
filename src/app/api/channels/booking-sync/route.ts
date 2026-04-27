@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
+// Bug Fix #7: Helper to safely fetch and parse JSON with proper error handling
+async function fetchJSON(url: string, options?: RequestInit) {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`API error ${response.status}: ${text.slice(0, 200)}`);
+  }
+  return response.json();
+}
+
 // GET /api/channels/booking-sync - Get booking sync status
 export async function GET(request: NextRequest) {
   try {
@@ -56,10 +66,13 @@ export async function GET(request: NextRequest) {
 
     // Build booking sync data
     const bookingData = bookings.map(booking => {
-      // Determine channel from booking source
-      const channelConnection = connections.find(c => 
-        c.channel.toLowerCase().includes(booking.source?.toLowerCase() || '')
-      );
+      // Bug Fix #12: Use exact match instead of includes() with empty string.
+      // includes('') returns true for all strings, so an empty booking.source
+      // would match every channel connection. Use strict equality instead.
+      const bookingSource = booking.source?.toLowerCase();
+      const channelConnection = bookingSource
+        ? connections.find(c => c.channel.toLowerCase() === bookingSource)
+        : undefined;
       
       const lastSyncLog = syncLogs.find(l => 
         l.connectionId === channelConnection?.id

@@ -4,6 +4,7 @@
  */
 
 import { db } from '@/lib/db';
+import { OTAClientFactory } from '@/lib/ota/client-factory';
 
 // Type definitions
 export interface RetryConfig {
@@ -253,23 +254,60 @@ async function retrySyncOperation(
       return { success: false, error: 'No active connection found' };
     }
 
-    // Simulate API call (in production, this would make actual API calls)
+    // Bug Fix #1: Replace hardcoded success with actual OTA client call
     console.log(`Retrying ${retry.operation} to ${retry.channelCode}:`, {
       propertyId: retry.propertyId,
       payload: retry.payload,
     });
 
-    // Execute the retry operation
-    // In production, this would make the actual OTA API call
-    // Default to success to avoid infinite retry loops; real failures
-    // should be caught by the try/catch around the OTA client call.
-    const success = true;
-
-    if (success) {
-      return { success: true };
-    } else {
-      return { success: false, error: 'Simulated API failure' };
+    // Create the OTA client and attempt the actual API call
+    const client = OTAClientFactory.createClient(connection.channel);
+    if (!client) {
+      return { success: false, error: `Unknown channel: ${connection.channel}` };
     }
+
+    // Connect to the channel using stored credentials
+    await client.connect({
+      apiKey: connection.apiKey || undefined,
+      apiSecret: connection.apiSecret || undefined,
+      hotelId: connection.hotelId || undefined,
+    });
+
+    // Route the payload to the correct sync method based on operation type
+    switch (retry.operation) {
+      case 'inventory': {
+        const result = await client.updateInventory(
+          (retry.payload as { updates: unknown[] }).updates as import('@/lib/ota/types').OTAInventoryUpdate[]
+        );
+        if (!result.success) {
+          return { success: false, error: result.errors?.map(e => e.message).join('; ') || 'Inventory sync failed' };
+        }
+        break;
+      }
+      case 'rates':
+      case 'rate': {
+        const result = await client.updateRates(
+          (retry.payload as { updates: unknown[] }).updates as import('@/lib/ota/types').OTARateUpdate[]
+        );
+        if (!result.success) {
+          return { success: false, error: result.errors?.map(e => e.message).join('; ') || 'Rate sync failed' };
+        }
+        break;
+      }
+      case 'restrictions': {
+        const result = await client.updateRestrictions(
+          (retry.payload as { updates: unknown[] }).updates as import('@/lib/ota/types').OTARestrictionUpdate[]
+        );
+        if (!result.success) {
+          return { success: false, error: result.errors?.map(e => e.message).join('; ') || 'Restriction sync failed' };
+        }
+        break;
+      }
+      default:
+        return { success: false, error: `Unknown operation type: ${retry.operation}` };
+    }
+
+    return { success: true };
   } catch (error) {
     return {
       success: false,

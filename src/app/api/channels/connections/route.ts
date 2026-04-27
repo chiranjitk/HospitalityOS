@@ -525,9 +525,23 @@ export async function PUT(request: NextRequest) {    const user = await requireP
       });
     }
 
+    // Bug Fix #8: Whitelist of allowed update fields to prevent users from
+    // setting sensitive fields like tenantId through the PUT handler.
+    const ALLOWED_UPDATE_FIELDS = [
+      'credentials', 'settings', 'status', 'lastSyncAt', 'lastError',
+      'autoSync', 'syncInterval', 'apiKey', 'apiSecret', 'accessToken',
+      'refreshToken', 'tokenExpiresAt', 'displayName', 'hotelId',
+      'endpointUrl', 'listingId', 'username', 'password',
+      'clientId', 'clientSecret', 'propertyId',
+    ];
+    const sanitizedUpdates: Record<string, unknown> = {};
+    for (const key of ALLOWED_UPDATE_FIELDS) {
+      if (key in updates) sanitizedUpdates[key] = updates[key];
+    }
+
     const connection = await db.channelConnection.update({
       where: { id },
-      data: updates,
+      data: sanitizedUpdates,
     });
 
     return NextResponse.json({ success: true, data: connection });

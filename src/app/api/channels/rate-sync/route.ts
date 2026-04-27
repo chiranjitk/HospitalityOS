@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
+// Bug Fix #7: Helper to safely fetch and parse JSON with proper error handling
+async function fetchJSON(url: string, options?: RequestInit) {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`API error ${response.status}: ${text.slice(0, 200)}`);
+  }
+  return response.json();
+}
+
 // GET /api/channels/rate-sync - Get rate sync status
 export async function GET(request: NextRequest) {
   try {
@@ -93,9 +103,10 @@ export async function GET(request: NextRequest) {
         const lastSyncLog = syncLogs.find(l => l.connectionId === connection.id);
         const mapping = mappings.find(m => m.connectionId === connection.id && m.roomTypeId === ratePlan.roomTypeId);
 
-        // Get base price from rate plan or override
+        // Bug Fix #11: Use nullish coalescing (??) instead of logical OR (||).
+        // A price of 0 is a valid value that || would incorrectly skip.
         const priceOverride = priceOverrides.find(po => po.ratePlanId === ratePlan.id);
-        const basePrice = priceOverride?.price || ratePlan.basePrice;
+        const basePrice = priceOverride?.price ?? ratePlan.basePrice;
 
         // Channel price comes from the mapping or sync log data
         // If we have a sync log with response data, use that

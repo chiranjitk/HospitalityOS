@@ -474,11 +474,16 @@ export class OTASyncService {
         });
       }
 
-      // Find room type from mapping
+      // Find room type from mapping (include connection to get propertyId)
+      // Bug Fix #3: Include the connection relation so we can read propertyId
+      // instead of incorrectly using mapping.roomTypeId as the propertyId.
       const mapping = await db.channelMapping.findFirst({
         where: {
           connection: { id: channelId },
           externalRoomId: bookingData.room?.externalRoomId,
+        },
+        include: {
+          connection: { select: { propertyId: true } },
         },
       });
 
@@ -486,7 +491,8 @@ export class OTASyncService {
       await db.booking.create({
         data: {
           tenantId,
-          propertyId: mapping?.roomTypeId || '', // Need to get from mapping
+          // Bug Fix #3: Use connection.propertyId instead of mapping.roomTypeId (copy-paste bug)
+          propertyId: mapping?.connection.propertyId || '',
           confirmationCode: `OTA-${Date.now().toString(36).toUpperCase()}`,
           externalRef: bookingData.externalBookingId || bookingData.reservationId,
           primaryGuestId: guest.id,
@@ -514,6 +520,8 @@ export class OTASyncService {
   // HELPER METHODS
   // ============================================
 
+  // Bug Fix #2: Added propertyId filter to where clause so connections
+  // are scoped to the correct property instead of returning all tenant connections.
   private static async getActiveConnections(
     tenantId: string,
     propertyId: string,
@@ -522,6 +530,7 @@ export class OTASyncService {
     return db.channelConnection.findMany({
       where: {
         tenantId,
+        propertyId,
         status: 'active',
         autoSync: true,
       },

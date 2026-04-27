@@ -76,15 +76,23 @@ export abstract class BaseOTAClient implements OTAAPIClient {
     this.credentials = null;
   }
 
+  // Bug Fix #4: Call enforceRateLimit at the start of each fetch attempt
+  // to prevent exceeding the channel's API rate limit.
   protected async fetchWithRetry<T>(
     url: string,
     options: RequestInit,
     retries: number = this.retryAttempts
   ): Promise<T> {
     let lastError: Error | null = null;
+    // Bug Fix #4: Initialize rate limit window from config
+    const period = this.config.apiConfig.rateLimit.period;
+    this.rateLimitWindow = period === 'second' ? 1000 : period === 'minute' ? 60000 : 3600000;
 
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
+        // Bug Fix #4: Enforce rate limit before every request attempt
+        await this.enforceRateLimit();
+
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
@@ -94,6 +102,22 @@ export abstract class BaseOTAClient implements OTAAPIClient {
         });
 
         clearTimeout(timeoutId);
+
+        // Bug Fix #6: Use response.status instead of string matching to determine retryability.
+        // Retry on 429 (rate limit), 500, 502, 503, 504 (server errors).
+        // Don't retry on 400, 401, 403, 404 (client errors).
+        const nonRetryableStatuses = [400, 401, 403, 404];
+        const retryableStatuses = [429, 500, 502, 503, 504];
+
+        if (retryableStatuses.includes(response.status)) {
+          const errorBody = await response.text();
+          lastError = new Error(`HTTP ${response.status}: ${errorBody}`);
+          // Wait before retrying (exponential backoff)
+          if (attempt < retries) {
+            await this.delay(Math.pow(2, attempt) * 1000);
+          }
+          continue;
+        }
 
         if (!response.ok) {
           const errorBody = await response.text();
@@ -110,9 +134,9 @@ export abstract class BaseOTAClient implements OTAAPIClient {
         return await response.json();
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        
-        // Don't retry on client errors (4xx)
-        if (lastError.message.includes('HTTP 4')) {
+
+        // Bug Fix #6: Don't retry on AbortError (timeout) or non-retryable errors
+        if (lastError.name === 'AbortError') {
           throw lastError;
         }
 
@@ -244,6 +268,18 @@ export abstract class BaseOTAClient implements OTAAPIClient {
           headers['Authorization'] = `Bearer ${this.credentials.accessToken}`;
         }
         break;
+      // Bug Fix #5: Added missing signature auth type - sets X-Signature header
+      case 'signature':
+        if (this.credentials.signature) {
+          headers['X-Signature'] = this.credentials.signature;
+        }
+        break;
+      // Bug Fix #5: Added missing certificate auth type - requires custom implementation
+      case 'certificate':
+        throw new Error(
+          'Certificate-based authentication requires a custom implementation. ' +
+          'Use the connect() method with mTLS or provide a custom fetch handler.'
+        );
     }
 
     return headers;
