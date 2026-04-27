@@ -54,6 +54,9 @@ import {
   Copy,
   CheckCircle,
   ShieldCheck,
+  FlaskConical,
+  XCircle,
+  Database,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -132,6 +135,7 @@ interface CredentialPolicyTabProps {
   onChange: (config: CredentialConfig) => void;
   saving?: boolean;
   onSave?: () => void;
+  propertyId?: string;
 }
 
 // ─── Simple client-side preview generator ────────────────────────────
@@ -182,9 +186,17 @@ function simplePasswordPreview(format: string, fixedValue?: string, length?: num
 
 // ─── Component ───────────────────────────────────────────────────────
 
-export default function CredentialPolicyTab({ config, onChange, saving, onSave }: CredentialPolicyTabProps) {
+export default function CredentialPolicyTab({ config, onChange, saving, onSave, propertyId }: CredentialPolicyTabProps) {
   const { toast } = useToast();
   const [previewKey, setPreviewKey] = useState(0);
+  const [testLoading, setTestLoading] = useState(false);
+  const [testResult, setTestResult] = useState<null | {
+    username: string;
+    password: string;
+    policy: { usernameFormat: string; passwordFormat: string; credentialSeparator: string };
+    configSource: string;
+    diagnostics: Record<string, string>;
+  }>(null);
 
   const updateConfig = useCallback((partial: Partial<CredentialConfig>) => {
     onChange({ ...config, ...partial });
@@ -209,6 +221,52 @@ export default function CredentialPolicyTab({ config, onChange, saving, onSave }
     }).catch(() => {
       toast({ title: 'Failed', description: 'Could not copy to clipboard', variant: 'destructive' });
     });
+  };
+
+  // Test credential generation against the LIVE database
+  const handleTestCredentials = async () => {
+    if (!propertyId) {
+      toast({ title: 'Error', description: 'Property ID not available. Make sure a property is selected.', variant: 'destructive' });
+      return;
+    }
+    setTestLoading(true);
+    setTestResult(null);
+    try {
+      const res = await fetch('/api/wifi/test-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          propertyId,
+          guestName: 'John Smith',
+          guestPhone: '9876543210',
+          guestEmail: 'john.smith@email.com',
+          roomNumber: '101',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTestResult(data.data);
+        // Check if the test result matches what the UI shows
+        if (data.data.policy.usernameFormat !== config.usernameFormat) {
+          toast({
+            title: '⚠ Format Mismatch Detected!',
+            description: `The database has '${data.data.policy.usernameFormat}' but your UI shows '${config.usernameFormat}'. Click "Save Credential Policy" to persist your settings.`,
+            variant: 'destructive',
+          });
+        } else {
+          toast({
+            title: '✓ Format Verified',
+            description: `Database format '${data.data.policy.usernameFormat}' matches your UI setting. Test credentials generated successfully.`,
+          });
+        }
+      } else {
+        toast({ title: 'Test Failed', description: data.error || 'Could not test credential generation', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Error', description: 'Failed to test credentials', variant: 'destructive' });
+    } finally {
+      setTestLoading(false);
+    }
   };
 
   // Get selected format info
@@ -648,10 +706,97 @@ export default function CredentialPolicyTab({ config, onChange, saving, onSave }
               Save Credential Policy
             </Button>
           )}
+          <Button
+            variant="outline"
+            onClick={handleTestCredentials}
+            disabled={testLoading || !propertyId}
+          >
+            {testLoading ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <FlaskConical className="h-4 w-4 mr-2" />}
+            Test on Database
+          </Button>
           <p className="text-xs text-muted-foreground">
             Changes apply to new credentials only. Existing users keep their current username/password.
           </p>
         </div>
+
+        {/* Test Result: Live Database Verification */}
+        {testResult && (
+          <Card className={testResult.policy.usernameFormat !== config.usernameFormat ? 'border-destructive' : 'border-emerald-300 dark:border-emerald-700'}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                Live Database Test Result
+                {testResult.policy.usernameFormat === config.usernameFormat ? (
+                  <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300 border-0">MATCH</Badge>
+                ) : (
+                  <Badge variant="destructive">MISMATCH</Badge>
+                )}
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Config source: <code className="font-mono">{testResult.configSource}</code>
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Generated credentials */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-2.5 bg-muted rounded-md">
+                  <div className="text-xs text-muted-foreground mb-1">Generated Username</div>
+                  <code className="font-mono font-bold text-base">{testResult.username}</code>
+                </div>
+                <div className="p-2.5 bg-muted rounded-md">
+                  <div className="text-xs text-muted-foreground mb-1">Generated Password</div>
+                  <code className="font-mono font-bold text-base">{testResult.password}</code>
+                </div>
+              </div>
+
+              {/* Format comparison */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">UI Setting:</span>
+                  <code className={testResult.policy.usernameFormat === config.usernameFormat ? 'text-emerald-700 dark:text-emerald-400 font-mono font-bold' : 'text-destructive font-mono font-bold'}>
+                    {config.usernameFormat}
+                  </code>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">DB Value:</span>
+                  <code className={testResult.policy.usernameFormat === config.usernameFormat ? 'text-emerald-700 dark:text-emerald-400 font-mono font-bold' : 'text-destructive font-mono font-bold'}>
+                    {testResult.policy.usernameFormat}
+                  </code>
+                </div>
+              </div>
+
+              {/* Mismatch warning */}
+              {testResult.policy.usernameFormat !== config.usernameFormat && (
+                <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-sm">
+                  <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium text-destructive">Mismatch: UI shows "{config.usernameFormat}" but database has "{testResult.policy.usernameFormat}"</p>
+                    <p className="text-destructive/80 mt-1">
+                      This means your credential format setting was NOT saved to the database. Click "Save Credential Policy" to fix this.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Diagnostics log */}
+              <details className="text-xs">
+                <summary className="cursor-pointer text-muted-foreground hover:text-foreground font-medium">
+                  Server Diagnostics
+                </summary>
+                <div className="mt-2 p-3 bg-muted/50 rounded font-mono space-y-1 overflow-x-auto">
+                  {Object.entries(testResult.diagnostics).map(([key, value]) => (
+                    <div key={key}>
+                      <span className="text-muted-foreground">{key}:</span>{' '}
+                      <span className={value.includes('⚠') || value.includes('✗') ? 'text-destructive' : 'text-foreground'}>
+                        {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </TooltipProvider>
   );

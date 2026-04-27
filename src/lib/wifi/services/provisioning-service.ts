@@ -554,26 +554,58 @@ class WiFiProvisioningService {
   /**
    * Load credential policy from WiFiAAAConfig for a property.
    * Falls back to tenant-level config if no property-specific config exists.
+   * 
+   * IMPORTANT: Logs a ⚠ WARNING whenever the resolved usernameFormat differs
+   * from what the admin configured, to catch silent fallbacks early.
    */
   private async loadCredentialPolicy(propertyId: string, tenantId: string): Promise<CredentialPolicy> {
     try {
+      console.log(`[WiFi Credential Policy] Loading for propertyId=${propertyId}, tenantId=${tenantId}`);
+
       // Try property-specific config first
       let config = await db.wiFiAAAConfig.findUnique({
         where: { propertyId },
       });
-      // Tenant-level fallback: use any config for the same tenant
-      if (!config) {
-        config = await db.wiFiAAAConfig.findFirst({
+
+      if (config) {
+        console.log(`[WiFi Credential Policy] ✓ Found property-specific config: id=${config.id}, usernameFormat=${JSON.stringify(config.usernameFormat)}, propertyId=${config.propertyId}`);
+      } else {
+        console.warn(`[WiFi Credential Policy] ⚠ No config found for propertyId=${propertyId} — trying tenant fallback`);
+
+        // Tenant-level fallback: use any config for the same tenant
+        const tenantConfigs = await db.wiFiAAAConfig.findMany({
           where: { tenantId },
+          select: { id: true, propertyId: true, usernameFormat: true },
         });
+        console.log(`[WiFi Credential Policy] Tenant has ${tenantConfigs.length} AAA config(s): ${tenantConfigs.map(c => `{propertyId: ${c.propertyId}, usernameFormat: ${JSON.stringify(c.usernameFormat)}}`).join(', ') || 'none'}`);
+
+        config = tenantConfigs.length > 0
+          ? await db.wiFiAAAConfig.findFirst({ where: { tenantId } })
+          : null;
+
         if (config) {
-          console.log(`[WiFi Provisioning] No property-specific AAA config for ${propertyId}, using tenant fallback (property: ${config.propertyId})`);
+          console.warn(`[WiFi Credential Policy] ⚠ Using tenant-fallback config from propertyId=${config.propertyId} (usernameFormat=${JSON.stringify(config.usernameFormat)}) — the booking's propertyId=${propertyId} has NO config. Save the AAA settings for the correct property!`);
         }
       }
+
       if (config) {
-        console.log(`[WiFi Provisioning] Loaded credential policy from DB: usernameFormat=${config.usernameFormat}, passwordFormat=${config.passwordFormat}`);
+        const rawFormat = config.usernameFormat;
+        const resolvedFormat = rawFormat || 'room_random';
+
+        // WARN if the DB value is null/empty and we're silently falling back
+        if (!rawFormat) {
+          console.warn(`[WiFi Credential Policy] ⚠ usernameFormat is NULL/EMPTY in DB for config id=${config.id}, propertyId=${config.propertyId}. Falling back to 'room_random'. This means the admin's credential format setting was NOT saved properly!`);
+        }
+
+        // WARN if format is room_random (default) — might indicate the setting was never changed or save failed
+        if (resolvedFormat === 'room_random') {
+          console.warn(`[WiFi Credential Policy] ⚠ Using 'room_random' format for propertyId=${config.propertyId}. If the admin intended a different format (e.g., 'mobile'), the save may have failed or the wrong property's config is being used.`);
+        }
+
+        console.log(`[WiFi Credential Policy] Resolved: usernameFormat=${resolvedFormat}, passwordFormat=${config.passwordFormat || 'random_alphanumeric'}, separator=${config.credentialSeparator || '_'}`);
+
         return {
-          usernameFormat: config.usernameFormat || 'room_random',
+          usernameFormat: resolvedFormat,
           usernamePrefix: config.usernamePrefix,
           usernameCase: (config.usernameCase as 'lowercase' | 'uppercase' | 'as_is') || 'lowercase',
           usernameMinLength: config.usernameMinLength || 4,
@@ -588,9 +620,10 @@ class WiFiProvisioningService {
           duplicateUsernameAction: (config.duplicateUsernameAction as 'append_random' | 'reject' | 'overwrite') || 'append_random',
         };
       }
-      console.warn(`[WiFi Provisioning] No AAA config found for property ${propertyId} or tenant ${tenantId} — using default credential policy (room_random)`);
+
+      console.error(`[WiFi Credential Policy] ✗ NO AAA config found for propertyId=${propertyId} OR tenantId=${tenantId}. Using hardcoded default (room_random). The admin MUST save the AAA Configuration before check-in will use the correct format!`);
     } catch (error) {
-      console.error('[WiFi Provisioning] Failed to load credential policy:', error);
+      console.error('[WiFi Credential Policy] ✗ Failed to load credential policy:', error);
     }
     return getDefaultCredentialPolicy();
   }
