@@ -94,8 +94,8 @@ export async function withLock<T>(
   fn: (tx: Prisma.TransactionClient) => Promise<T>
 ): Promise<T> {
   return await db.$transaction(async (tx) => {
-    // Lock the relevant rows by querying them (SQLite doesn't support explicit locks,
-    // but the transaction provides isolation)
+    // Lock the relevant rows by querying them (PostgreSQL row-level locking is available
+    // via SELECT ... FOR UPDATE, but the transaction provides sufficient isolation here)
     
     if (lockKey.roomId) {
       await tx.room.findUnique({

@@ -71,8 +71,8 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Department filter: SQLite doesn't support mode:'insensitive', so we
-    // skip it in the Prisma where-clause and post-filter after the query.
+    // Department filter: PostgreSQL supports mode:'insensitive', but we
+    // apply post-filter for consistency with other filtering logic.
     // (filterDepartment is handled via post-filter below)
 
     if (filterStatus) {
@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Post-filter: case-insensitive department match (SQLite compatibility)
+    // Post-filter: case-insensitive department match
     if (filterDepartment) {
       const deptLower = filterDepartment.toLowerCase();
       users = users.filter((u) =>

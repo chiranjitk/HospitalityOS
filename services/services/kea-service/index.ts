@@ -9,6 +9,8 @@
 
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { connect } from "node:net";
+import pg from "pg";
+const { Pool } = pg;
 import { readFile, writeFile, access, unlink } from "node:fs/promises";
 import { execSync, spawn } from "node:child_process";
 import * as path from "node:path";
@@ -25,7 +27,8 @@ const KEA_LOG_FILE = "/tmp/log/kea/kea-dhcp4.log";
 const KEA_SBIN = "/home/z/my-project/kea-local/extracted/usr/sbin/kea-dhcp4";
 const KEA_LIB = "/home/z/my-project/kea-local/extracted/usr/lib/x86_64-linux-gnu";
 const KEA_START_SCRIPT = "/home/z/my-project/kea-local/start-kea.sh";
-const DB_PATH = "/home/z/my-project/db/custom.db";
+const PG_URL = process.env.DATABASE_URL || "postgresql://z@localhost:5432/staysuite";
+const pgPool = new Pool({ connectionString: PG_URL });
 
 const SOCKET_TIMEOUT_MS = 5000;
 
@@ -952,40 +955,30 @@ async function handleSyncFromDatabase(req: IncomingMessage, res: ServerResponse)
     const body = JSON.parse(await readBody(req) || "{}");
     const { propertyId = "property-1" } = body;
 
-    // Read from the SQLite database using Bun's built-in SQLite
+    // Read from PostgreSQL
     let dbSubnets: any[] = [];
     let dbReservations: any[] = [];
 
     try {
-      // @ts-ignore - Bun built-in SQLite
-      const sqlite = require("bun:sqlite");
-      const db = new sqlite.Database(DB_PATH, { readonly: true });
-
       // Read subnets
-      const subnetRows = db
-        .query(
-          `SELECT id, name, subnet, gateway, poolStart, poolEnd, leaseTime, vlanId,
-                  domainName, dnsServers, ntpServers, bootFileName, nextServer, enabled
-           FROM DhcpSubnet WHERE propertyId = ?`
-        )
-        .all(propertyId) as any[];
-
-      dbSubnets = subnetRows || [];
+      const subnetResult = await pgPool.query(
+        `SELECT id, name, subnet, gateway, "poolStart", "poolEnd", "leaseTime", "vlanId",
+                "domainName", "dnsServers", "ntpServers", "bootFileName", "nextServer", enabled
+         FROM "DhcpSubnet" WHERE "propertyId" = $1`,
+        [propertyId]
+      );
+      dbSubnets = subnetResult.rows || [];
 
       // Read reservations
-      const reservationRows = db
-        .query(
-          `SELECT r.id, r.subnetId, r.macAddress, r.ipAddress, r.hostname,
-                  r.leaseTime, r.description, r.enabled, s.subnet as subnetAddress
-           FROM DhcpReservation r
-           JOIN DhcpSubnet s ON r.subnetId = s.id
-           WHERE r.propertyId = ? AND r.enabled = 1`
-        )
-        .all(propertyId) as any[];
-
-      dbReservations = reservationRows || [];
-
-      db.close();
+      const reservationResult = await pgPool.query(
+        `SELECT r.id, r."subnetId", r."macAddress", r."ipAddress", r.hostname,
+                r."leaseTime", r.description, r.enabled, s.subnet as "subnetAddress"
+         FROM "DhcpReservation" r
+         JOIN "DhcpSubnet" s ON r."subnetId" = s.id
+         WHERE r."propertyId" = $1 AND r.enabled = true`,
+        [propertyId]
+      );
+      dbReservations = reservationResult.rows || [];
     } catch (dbErr: any) {
       // If we can't read the database, just proceed with empty arrays
       console.warn("Could not read from database:", dbErr.message);

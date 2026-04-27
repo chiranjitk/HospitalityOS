@@ -362,7 +362,7 @@ export default function AuthLogs() {
               <div className="sm:hidden divide-y">
                 {filteredLogs.map((log, index) => (
                   <div
-                    key={log.id || index}
+                    key={`${index}-${log.id || ''}`}
                     className="p-4 space-y-2 cursor-pointer hover:bg-muted/30 transition-colors"
                     onClick={() => setSelectedLog(log)}
                   >
@@ -424,7 +424,7 @@ export default function AuthLogs() {
                       const hasClientIp = !!log.clientIpAddress;
                       return (
                         <TableRow
-                          key={log.id || index}
+                          key={`${index}-${log.id || ''}`}
                           className={cn(
                             'cursor-pointer hover:bg-muted/50 transition-colors',
                             isReject && 'bg-red-50/30 dark:bg-red-950/10'

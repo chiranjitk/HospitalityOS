@@ -1,139 +1,77 @@
 #!/usr/bin/env bash
 # ============================================================================
-# StaySuite-HospitalityOS — Production Database Deployment
+# StaySuite-HospitalityOS — Full Production Deploy
 # ============================================================================
-# Deploys the complete database schema, views, and seed data for the
-# StaySuite-HospitalityOS application (PostgreSQL + FreeRADIUS + Prisma).
+# Includes RADIUS seed data (radcheck, radgroupreply, nas, etc.)
+# Use setup.sh for a simpler fresh setup.
 #
-# Usage:
-#   bash pgsql-production/deploy.sh [database_url]
-#
-# Examples:
+# USAGE:
+#   cd StaySuite-HospitalityOS
 #   bash pgsql-production/deploy.sh
-#   bash pgsql-production/deploy.sh postgresql://user:pass@host:5432/dbname
 #
-# Prerequisites:
-#   - PostgreSQL client (psql) installed and accessible
-#   - Node.js + npm/npx installed
-#   - Bun runtime installed
-#   - Database server running and accessible
+# PREREQUISITES:
+#   - PostgreSQL 17+ running
+#   - Database created: CREATE DATABASE staysuite;
+#   - Node.js + Bun installed
 # ============================================================================
 
 set -euo pipefail
 
-DB_URL="${1:-postgresql://z@localhost:5432/staysuite}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-echo "╔══════════════════════════════════════════════════╗"
-echo "║  StaySuite-HospitalityOS — Database Deploy      ║"
-echo "╚══════════════════════════════════════════════════╝"
-echo "Database: $DB_URL"
-echo "Script directory: $SCRIPT_DIR"
-echo "Project directory: $PROJECT_DIR"
-echo ""
-
-# Check prerequisites
-if ! command -v psql &>/dev/null; then
-    echo "ERROR: psql not found. Install PostgreSQL client."
-    echo "  Ubuntu/Debian: sudo apt-get install postgresql-client"
-    echo "  macOS: brew install postgresql"
+PSQL=""
+if [ -x "$PROJECT_DIR/pgsql-runtime/bin/psql" ]; then
+    PSQL="$PROJECT_DIR/pgsql-runtime/bin/psql"
+elif command -v psql &>/dev/null; then
+    PSQL="psql"
+else
+    echo "ERROR: psql not found."
     exit 1
 fi
 
-if ! command -v npx &>/dev/null; then
-    echo "ERROR: npx not found. Install Node.js."
-    echo "  https://nodejs.org/"
-    exit 1
+DB_HOST="${DB_HOST:-localhost}"
+DB_PORT="${DB_PORT:-5432}"
+DB_NAME="${DB_NAME:-staysuite}"
+DB_USER="${DB_USER:-z}"
+DB_PASS="${DB_PASS:-postgres}"
+
+if [ -f "$PROJECT_DIR/.env" ]; then
+  set -a; source "$PROJECT_DIR/.env"; set +a
 fi
 
-if ! command -v bun &>/dev/null; then
-    echo "ERROR: bun not found. Install Bun runtime."
-    echo "  curl -fsSL https://bun.sh/install | bash"
-    exit 1
+if [ -n "${DATABASE_URL:-}" ]; then
+  DB_USER=$(echo "$DATABASE_URL" | sed -n 's|^postgresql://\([^:]*\):.\{0,\}@\([^:]*\):\{0,\}\([0-9]*\)/\(.*\)$|\1|p')
+  DB_PASS=$(echo "$DATABASE_URL" | sed -n 's|^postgresql://[^:]*:\([^@]*\)@.*$|\1|p')
+  DB_HOST=$(echo "$DATABASE_URL" | sed -n 's|^postgresql://[^@]*@\([^:]*\).*|\1|p')
+  DB_PORT=$(echo "$DATABASE_URL" | sed -n 's|^postgresql://[^@]*@\([^:]*\):\([0-9]*\)/.*$|\2|p')
+  DB_NAME=$(echo "$DATABASE_URL" | sed -n 's|^postgresql://.*/\([^?]*\).*|\1|p')
 fi
 
-# Verify database connectivity
-echo "[0/8] Verifying database connectivity..."
-if ! psql "$DB_URL" -c "SELECT 1;" &>/dev/null; then
-    echo "ERROR: Cannot connect to database: $DB_URL"
-    echo "  Ensure PostgreSQL is running and the URL is correct."
-    exit 1
-fi
-echo "  ✓ Database connection verified"
+export PGPASSWORD="$DB_PASS"
+DB_CONN="-h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME"
+SCHEMA_PATH="$PROJECT_DIR/prisma/schema.prisma"
+
+echo "╔══════════════════════════════════════════════════════════╗"
+echo "║  StaySuite-HospitalityOS — Full Production Deploy        ║"
+echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 
-# Step 1: Push Prisma schema
-echo "[1/9] Pushing Prisma schema (226 tables)..."
-DATABASE_URL="$DB_URL" npx prisma db push --schema "$SCRIPT_DIR/schema.prisma" --accept-data-loss 2>&1
-echo "  ✓ Prisma tables created"
+echo "[1/4] Ensuring citext extension..."
+$PSQL $DB_CONN -c "CREATE EXTENSION IF NOT EXISTS citext;" 2>&1 | grep -v NOTICE || true
 
-# Step 1b: Fix missing gen_random_uuid() defaults on all UUID primary keys
-# Prisma @default(uuid()) generates UUIDs client-side but does NOT set a DB default.
-# Raw SQL INSERTs (e.g., in API routes using $queryRawUnsafe) fail with NOT NULL violations.
-echo "[1b/9] Adding gen_random_uuid() defaults to all UUID primary keys..."
-psql "$DB_URL" -c "
-DO \$\$
-DECLARE tbl RECORD;
-BEGIN
-  FOR tbl IN
-    SELECT table_name FROM information_schema.columns
-    WHERE table_schema = 'public'
-      AND column_name = 'id'
-      AND data_type = 'uuid'
-      AND column_default IS NULL
-      AND is_nullable = 'NO'
-  LOOP
-    EXECUTE format('ALTER TABLE %I ALTER COLUMN id SET DEFAULT gen_random_uuid();', tbl.table_name);
-  END LOOP;
-END \$\$;
-" 2>&1
-echo "  ✓ UUID defaults set on all primary key columns"
+echo "[2/4] Pushing Prisma schema..."
+cd "$PROJECT_DIR"
+DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}" \
+  node "$PROJECT_DIR/node_modules/prisma/build/index.js" db push \
+  --schema="$SCHEMA_PATH" --skip-generate --accept-data-loss 2>&1
 
-# Step 2: FreeRADIUS schema
-echo "[2/9] Creating FreeRADIUS tables..."
-psql "$DB_URL" -f "$SCRIPT_DIR/01-freeradius-schema.sql" 2>&1
-echo "  ✓ 7 FreeRADIUS tables + indexes created"
+echo "[3/4] Creating database structure..."
+$PSQL $DB_CONN -f "$SCRIPT_DIR/complete-database.sql" 2>&1 | grep -v NOTICE
 
-# Step 3: Custom views + helper table
-echo "[3/9] Creating custom views..."
-psql "$DB_URL" -f "$SCRIPT_DIR/02-staysuite-views.sql" 2>&1
-echo "  ✓ 6 views + data_usage_by_period table created"
-
-# Step 4: IP Pool functions + default pool seed
-echo "[4/9] Creating IP pool functions & seeding default pool..."
-psql "$DB_URL" -f "$SCRIPT_DIR/04-ip-pool-functions.sql" 2>&1
-echo "  ✓ 3 IP pool functions + default pool seeded"
-
-# Step 5: FUP tables, views & functions
-echo "[5/9] Creating FUP tables & functions..."
-psql "$DB_URL" -f "$SCRIPT_DIR/05-fup-tables-and-functions.sql" 2>&1
-echo "  ✓ fup_switch_log table + 5 FUP functions + v_fup_switch_logs view created"
-
-# Step 6: App seed
-echo "[6/9] Seeding application data..."
-(cd "$PROJECT_DIR" && DATABASE_URL="$DB_URL" bun run prisma/seed.ts) 2>&1
-echo "  ✓ App data seeded"
-
-# Step 7: WiFi module seed
-echo "[7/9] Seeding WiFi module data..."
-(cd "$PROJECT_DIR" && DATABASE_URL="$DB_URL" bun run prisma/wifi-seed.ts) 2>&1
-echo "  ✓ WiFi data seeded"
-
-# Step 8: FreeRADIUS native seed
-echo "[8/9] Seeding FreeRADIUS native tables..."
-psql "$DB_URL" -f "$SCRIPT_DIR/03-radius-seed.sql" 2>&1
-echo "  ✓ RADIUS seed data inserted"
+echo "[4/4] Seeding demo data..."
+DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}" \
+  npx tsx prisma/seed.ts 2>&1
 
 echo ""
-echo "═══════════════════════════════════════════════════"
-echo "  ✅ Deployment complete!"
-echo ""
-echo "  Test logins:"
-echo "    admin@royalstay.in / admin123"
-echo "    frontdesk@royalstay.in / staff123"
-echo "    platform@staysuite.com / admin123"
-echo ""
-echo "  Test RADIUS:"
-echo "    radtest guest.amit.mukherjee Welcome@123 localhost 1812 testing123"
-echo "═══════════════════════════════════════════════════"
+echo "Deploy complete! Test: admin@royalstay.in / admin123"

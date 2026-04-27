@@ -28,20 +28,60 @@ async function seedHashPassword(password: string): Promise<string> {
 async function main() {
   console.log('Starting database seed...');
   
-  // Nuclear cleanup: truncate all tables (PostgreSQL TRUNCATE CASCADE handles FKs)
-  console.log('Cleaning all data...');
+  // ─── Clean seed data (safe deleteMany — never TRUNCATE CASCADE) ───
+  // TRUNCATE CASCADE destroys views, functions, and triggers.
+  // deleteMany is safe: it only removes data rows, never schema objects.
+  console.log('Cleaning core seed data...');
   try {
-    await prisma.$executeRawUnsafe(`TRUNCATE TABLE 
-      "User", "Role", "Tenant", "Property", "Room", "RoomType", "Guest", 
-      "Booking", "RatePlan", "Amenity", "Vendor", "StockItem", 
-      "OrderCategory", "MenuItem", "RestaurantTable",
-      "Task", "StaffSkill", "Asset", "PreventiveMaintenance", "StaffWorkload",
-      "Discount", "Folio", "FolioLineItem", "Payment", "Invoice",
-      "CancellationPolicy"
-      CASCADE;`);
+    // Order matters: child tables first due to FK constraints
+    await prisma.staffChatMessage.deleteMany({});
+    await prisma.staffChannelMember.deleteMany({});
+    await prisma.staffChannel.deleteMany({});
+    await prisma.guestJourney.deleteMany({});
+    await prisma.guestStay.deleteMany({});
+    await prisma.guestDocument.deleteMany({});
+    await prisma.vehicle.deleteMany({});
+    await prisma.chatMessage.deleteMany({});
+    await prisma.chatConversation.deleteMany({});
+    await prisma.workOrder.deleteMany({});
+    await prisma.purchaseOrderItem.deleteMany({});
+    await prisma.purchaseOrder.deleteMany({});
+    await prisma.pricingRule.deleteMany({});
+    await prisma.waitlistEntry.deleteMany({});
+    await prisma.groupBooking.deleteMany({});
+    await prisma.floorPlanRoom.deleteMany({});
+    await prisma.floorPlan.deleteMany({});
+    await prisma.competitorPrice.deleteMany({});
+    await prisma.cancellationPolicy.deleteMany({});
+    await prisma.payment.deleteMany({});
+    await prisma.invoice.deleteMany({});
+    await prisma.folioLineItem.deleteMany({});
+    await prisma.folio.deleteMany({});
+    await prisma.discount.deleteMany({});
+    await prisma.bookingGuest.deleteMany({});
+    await prisma.booking.deleteMany({});
+    await prisma.ratePlan.deleteMany({});
+    await prisma.restaurantTable.deleteMany({});
+    await prisma.menuItem.deleteMany({});
+    await prisma.orderCategory.deleteMany({});
+    await prisma.stockItem.deleteMany({});
+    await prisma.vendor.deleteMany({});
+    await prisma.preventiveMaintenance.deleteMany({});
+    await prisma.staffWorkload.deleteMany({});
+    await prisma.staffSkill.deleteMany({});
+    await prisma.asset.deleteMany({});
+    await prisma.task.deleteMany({});
+    await prisma.room.deleteMany({});
+    await prisma.roomType.deleteMany({});
+    await prisma.guest.deleteMany({});
+    await prisma.user.deleteMany({});
+    await prisma.role.deleteMany({});
+    await prisma.amenity.deleteMany({});
+    await prisma.property.deleteMany({});
+    await prisma.tenant.deleteMany({});
+    console.log('Core seed data cleaned.');
   } catch (e: any) {
-    // Tables may not exist yet on fresh install, that's OK
-    console.log('Note: Some tables may not exist yet (fresh install), continuing...');
+    console.log('Cleanup note:', e.message);
   }
   
   // Create tenant 1 - Royal Stay Hotels
@@ -3308,116 +3348,58 @@ async function main() {
 
   console.log('Addon module seed data completed!');
 
-  // ─── SQLite Views for WiFi Module ────────────────────────────
-  // These views provide an abstraction layer between raw data and GUI queries.
-  // In production with PostgreSQL, these are database views created by migration.
-  // In development with SQLite, we create them here after seeding.
-  if (process.env.DATABASE_URL?.startsWith('file:')) {
-    console.log('Creating SQLite views for WiFi module...');
+  // ─── PostgreSQL Views for WiFi Module ───────────────────────
+  // The canonical view definitions live in pgsql-production/02-staysuite-views.sql.
+  // After seeding, we ensure they exist by executing that file via a direct pg Pool
+  // (Prisma's $executeRawUnsafe cannot run multi-statement / DO-block SQL).
+  if (!process.env.DATABASE_URL?.startsWith('file:')) {
+    console.log('Ensuring PostgreSQL reporting views exist...');
     try {
-      await prisma.$executeRawUnsafe(`
-        CREATE VIEW IF NOT EXISTS v_wifi_users AS
-        SELECT
-          u.id, u.tenantId, u.propertyId, u.guestId, u.bookingId,
-          u.username, u.planId, u.status,
-          NULL as authMethod, NULL as macAddress,
-          u.validFrom, u.validUntil,
-          u.totalBytesIn, u.totalBytesOut, u.sessionCount,
-          u.lastAccountingAt as lastSeenAt,
-          u.createdAt, u.updatedAt,
-          (SELECT rc.value FROM radcheck rc WHERE rc.username = u.username AND rc.attribute = 'Cleartext-Password' LIMIT 1) as radius_password,
-          (SELECT rg.groupname FROM radusergroup rg WHERE rg.username = u.username LIMIT 1) as radius_group,
-          g.firstName as guest_first_name, g.lastName as guest_last_name,
-          g.email as guest_email, g.phone as guest_phone,
-          g.loyaltyTier as guest_loyalty_tier,
-          CASE WHEN g.isVip = 1 THEN 1 ELSE 0 END as guest_is_vip,
-          r.number as room_number, r.name as room_name, r.floor as room_floor,
-          p.name as property_name,
-          wp.name as plan_name, wp.downloadSpeed as plan_download_speed,
-          wp.uploadSpeed as plan_upload_speed, wp.dataLimit as plan_data_limit,
-          b.confirmationCode as booking_code, b.status as booking_status,
-          b.checkIn as booking_check_in, b.checkOut as booking_check_out
-        FROM WiFiUser u
-        LEFT JOIN Guest g ON u.guestId = g.id
-        LEFT JOIN Booking b ON u.bookingId = b.id
-        LEFT JOIN Room r ON b.roomId = r.id
-        LEFT JOIN Property p ON u.propertyId = p.id
-        LEFT JOIN WiFiPlan wp ON u.planId = wp.id
-      `);
-      await prisma.$executeRawUnsafe(`
-        CREATE VIEW IF NOT EXISTS v_session_history AS
-        SELECT
-          s.id as session_id, s.id as radacctid, s.id as acctsessionid,
-          s.tenantId, s.planId, s.guestId, s.bookingId,
-          s.macAddress as callingstationid, s.macAddress as wifi_mac,
-          s.ipAddress, s.ipAddress as framedipaddress,
-          s.deviceName, s.deviceType,
-          datetime(s.startTime / 1000, 'unixepoch') as acctstarttime,
-          datetime(s.startTime / 1000, 'unixepoch') as acctupdatetime,
-          CASE WHEN s.endTime IS NOT NULL THEN datetime(s.endTime / 1000, 'unixepoch') ELSE NULL END as acctstoptime,
-          s.dataUsed as total_data_used, s.duration as acctsessiontime,
-          s.dataUsed as acctinputoctets, 0 as acctoutputoctets,
-          s.authMethod, s.status as session_status, s.status as wifi_user_status, s.status,
-          CASE WHEN s.status = 'active' THEN 'User-Request' ELSE 'NAS-Request' END as acctterminatecause,
-          datetime(s.createdAt / 1000, 'unixepoch') as createdAt,
-          datetime(s.updatedAt / 1000, 'unixepoch') as updatedAt,
-          COALESCE(u.username, '') as username,
-          COALESCE(g.firstName, '') as guest_first_name, COALESCE(g.lastName, '') as guest_last_name,
-          COALESCE(g.email, '') as guest_email, COALESCE(g.phone, '') as guest_phone,
-          COALESCE(g.loyaltyTier, '') as guest_loyalty_tier,
-          CASE WHEN g.isVip = 1 THEN 1 ELSE 0 END as guest_is_vip,
-          COALESCE(r.number, '') as room_number, COALESCE(r.name, '') as room_name, COALESCE(r.floor, 0) as room_floor,
-          COALESCE(p.name, '') as property_name,
-          COALESCE(wp.name, '') as plan_name,
-          wp.downloadSpeed as downloadSpeed, wp.downloadSpeed as plan_download_speed,
-          wp.uploadSpeed as uploadSpeed, wp.uploadSpeed as plan_upload_speed,
-          wp.dataLimit as dataLimit, wp.dataLimit as plan_data_limit,
-          COALESCE(b.confirmationCode, '') as booking_code, COALESCE(b.status, '') as booking_status,
-          s.id as acctuniqueid, NULL as framedipv6address,
-          '0.0.0.0' as nasipaddress, '' as nasidentifier,
-          NULL as nasportid, 'Wireless-802.11' as nasporttype,
-          '' as calledstationid, NULL as connectinfo_start, NULL as connectinfo_stop
-        FROM WiFiSession s
-        LEFT JOIN WiFiUser u ON s.guestId = u.guestId
-        LEFT JOIN Guest g ON s.guestId = g.id
-        LEFT JOIN Booking b ON s.bookingId = b.id
-        LEFT JOIN Room r ON b.roomId = r.id
-        LEFT JOIN Property p ON b.propertyId = p.id
-        LEFT JOIN WiFiPlan wp ON s.planId = wp.id
-      `);
-      await prisma.$executeRawUnsafe(`
-        CREATE VIEW IF NOT EXISTS v_active_sessions AS
-        SELECT * FROM v_session_history WHERE session_status = 'active'
-      `);
-      await prisma.$executeRawUnsafe(`
-        CREATE VIEW IF NOT EXISTS v_user_usage AS
-        SELECT
-          u.id as user_id, u.tenantId, u.propertyId, u.guestId, u.bookingId,
-          u.username, u.planId, u.status,
-          u.totalBytesIn, u.totalBytesOut,
-          u.totalBytesIn + u.totalBytesOut as total_data_used,
-          u.sessionCount, u.lastAccountingAt as lastSeenAt,
-          u.createdAt, u.updatedAt,
-          COALESCE(g.firstName, '') as guest_first_name, COALESCE(g.lastName, '') as guest_last_name,
-          COALESCE(g.email, '') as guest_email,
-          COALESCE(g.loyaltyTier, '') as guest_loyalty_tier,
-          CASE WHEN g.isVip = 1 THEN 1 ELSE 0 END as guest_is_vip,
-          COALESCE(r.number, '') as room_number, COALESCE(r.name, '') as room_name,
-          COALESCE(p.name, '') as property_name,
-          COALESCE(wp.name, '') as plan_name,
-          wp.downloadSpeed as plan_download_speed, wp.uploadSpeed as plan_upload_speed,
-          wp.dataLimit as plan_data_limit,
-          COALESCE(b.confirmationCode, '') as booking_code, COALESCE(b.status, '') as booking_status
-        FROM WiFiUser u
-        LEFT JOIN Guest g ON u.guestId = g.id
-        LEFT JOIN Booking b ON u.bookingId = b.id
-        LEFT JOIN Room r ON b.roomId = r.id
-        LEFT JOIN Property p ON u.propertyId = p.id
-        LEFT JOIN WiFiPlan wp ON u.planId = wp.id
-      `);
-      console.log('✅ SQLite WiFi views created (v_wifi_users, v_session_history, v_active_sessions, v_user_usage)');
+      const { Pool } = await import('pg');
+      const { readFileSync } = await import('fs');
+      const { join } = await import('path');
+      const { fileURLToPath } = await import('url');
+      const path = await import('path');
+
+      const seedDir = path.dirname(fileURLToPath(import.meta.url));
+      const sqlPath = join(seedDir, '..', 'pgsql-production', '02-staysuite-views.sql');
+      const sql = readFileSync(sqlPath, 'utf-8');
+
+      // Strip outer transaction wrapper and split into individual statements
+      const stripped = sql
+        .replace(/^\s*BEGIN\s*;?\s*$/im, '')
+        .replace(/^\s*COMMIT\s*;?\s*$/im, '');
+
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      try {
+        // Split on top-level semicolons (respect DO $$ blocks)
+        const stmts: string[] = [];
+        let cur = '';
+        let inDollar = false;
+        for (let i = 0; i < stripped.length; i++) {
+          if (!inDollar && stripped.slice(i, i + 2) === '$$') {
+            inDollar = true; cur += '$$'; i++; continue;
+          }
+          if (inDollar && stripped.slice(i, i + 2) === '$$') {
+            inDollar = false; cur += '$$'; i++; continue;
+          }
+          if (stripped[i] === ';' && !inDollar) {
+            cur += ';'; stmts.push(cur); cur = '';
+          } else {
+            cur += stripped[i];
+          }
+        }
+        if (cur.trim()) stmts.push(cur);
+
+        for (const stmt of stmts) {
+          if (stmt.trim()) await pool.query(stmt);
+        }
+        console.log('✅ PostgreSQL reporting views ensured (v_session_history, v_active_sessions, v_wifi_users, v_user_usage, v_auth_logs, v_fup_switch_logs)');
+      } finally {
+        await pool.end();
+      }
     } catch (viewError: any) {
-      console.log('Note: SQLite view creation skipped:', viewError.message);
+      console.log('Note: PostgreSQL view creation skipped:', viewError.message);
     }
   }
 

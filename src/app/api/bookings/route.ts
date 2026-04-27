@@ -446,7 +446,11 @@ export async function POST(request: NextRequest) {
       }
 
       // Overbooking prevention: if overbooking is not enabled, check available room count
-      if (!roomType.overbookingEnabled) {
+      // Skip this room-type-level check when a specific roomId is provided — the per-room
+      // conflict check below (line ~496) is sufficient and more accurate for assigned rooms.
+      // The room-type check can incorrectly block valid bookings when room assignment happens
+      // at check-in time (e.g., walk-in where user picks an available room).
+      if (!roomType.overbookingEnabled && !roomId) {
         const overlappingBookings = await tx.booking.count({
           where: {
             roomTypeId,

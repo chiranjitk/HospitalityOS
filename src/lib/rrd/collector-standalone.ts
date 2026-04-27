@@ -9,7 +9,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 
-// Force-load project .env (overrides inherited shell env like file: custom.db)
+// Force-load project .env (overrides inherited shell env)
 const envPath = path.resolve(process.cwd(), '.env');
 if (fs.existsSync(envPath)) {
   dotenv.config({ path: envPath, override: true });

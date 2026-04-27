@@ -8,10 +8,10 @@
  * - CoA (Change of Authorization) for bandwidth/session changes
  * - Disconnect-Message for session termination
  * 
- * Uses the same SQLite database as the PMS and freeradius-service.
+ * Uses PostgreSQL (pg library) for database operations.
  */
 
-import Database from "bun:sqlite";
+import { Pool } from "pg";
 import {
   PacketType,
   AttributeType,
@@ -37,23 +37,125 @@ import {
 const CONFIG = {
   authPort: 1812,
   acctPort: 1813,
-  dbPath: "/home/z/my-project/db/custom.db",
+  databaseUrl: process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/staysuite",
   secret: "testing123", // Default shared secret for test NAS
   logLevel: "info" as "debug" | "info" | "warn" | "error",
 };
 
-// ── Database ──────────────────────────────────────────────────
-let db: Database;
+// ── Database Compatibility Layer — mimics bun:sqlite API using pg ──
+const pool = new Pool({
+  connectionString: CONFIG.databaseUrl,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
 
-function initDatabase() {
-  db = new Database(CONFIG.dbPath, { create: true });
-  db.exec("PRAGMA journal_mode=WAL;");
-  db.exec("PRAGMA wal_autocheckpoint = 1000;");
-  db.exec("PRAGMA busy_timeout=30000;");
-  db.exec("PRAGMA foreign_keys=ON;");
-  
+/**
+ * Convert SQLite ? placeholders to PostgreSQL $1, $2, ... placeholders.
+ * Correctly handles string literals (doesn't convert ? inside quotes).
+ */
+function convertPlaceholders(sql: string): string {
+  let paramIdx = 0;
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let result = '';
+  for (let i = 0; i < sql.length; i++) {
+    const ch = sql[i];
+    if (ch === "'" && !inDoubleQuote) { inSingleQuote = !inSingleQuote; result += ch; continue; }
+    if (ch === '"' && !inSingleQuote) { inDoubleQuote = !inDoubleQuote; result += ch; continue; }
+    if (ch === '?' && !inSingleQuote && !inDoubleQuote) {
+      paramIdx++;
+      result += '$' + paramIdx;
+      continue;
+    }
+    result += ch;
+  }
+  return result;
+}
+
+/**
+ * Convert SQLite-specific SQL syntax to PostgreSQL.
+ */
+function convertSQL(sql: string): string {
+  sql = sql.replace(/datetime\("now"\)/gi, 'NOW()');
+  sql = sql.replace(/datetime\('now'\)/gi, 'NOW()');
+  sql = sql.replace(/datetime\('now',\s*'(-?[\d]+)\s+(hours?|minutes?|seconds?|days?|weeks?|months?|years?)'\)/gi, "NOW() - INTERVAL '$1 $2'");
+  sql = sql.replace(/datetime\('now',\s*'start of day'\)/gi, 'CURRENT_DATE');
+  return sql;
+}
+
+/**
+ * Convert INSERT OR IGNORE to INSERT ... ON CONFLICT DO NOTHING.
+ */
+function convertInsertOrIgnore(sql: string): string {
+  const match = sql.match(/INSERT\s+OR\s+IGNORE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/is);
+  if (match) {
+    const table = match[1];
+    const columns = match[2].split(',').map((c: string) => c.trim());
+    const values = match[3];
+    let conflictColumn = '';
+    if (table === 'WiFiUser') conflictColumn = 'id';
+    else if (table === 'RadiusMacAuth') conflictColumn = 'macAddress';
+    else conflictColumn = columns[0];
+    if (conflictColumn) {
+      return `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${values}) ON CONFLICT (${conflictColumn}) DO NOTHING`;
+    }
+  }
+  return sql;
+}
+
+/**
+ * Convert INSERT OR REPLACE to INSERT ... ON CONFLICT DO UPDATE.
+ */
+function convertInsertOrReplace(sql: string): string {
+  const match = sql.match(/INSERT\s+OR\s+REPLACE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/is);
+  if (match) {
+    const table = match[1];
+    const columns = match[2].split(',').map((c: string) => c.trim());
+    const values = match[3];
+    const conflictColumn = columns[0]; // Use first column (likely 'id')
+    const updateSet = columns.map((c: string) => `${c} = EXCLUDED.${c}`).join(', ');
+    return `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${values}) ON CONFLICT (${conflictColumn}) DO UPDATE SET ${updateSet}`;
+  }
+  return sql;
+}
+
+const db = {
+  query(sql: string) {
+    let processedSQL = sql;
+    if (processedSQL.includes('INSERT OR IGNORE')) {
+      processedSQL = convertInsertOrIgnore(processedSQL);
+    }
+    if (processedSQL.includes('INSERT OR REPLACE')) {
+      processedSQL = convertInsertOrReplace(processedSQL);
+    }
+    processedSQL = convertSQL(processedSQL);
+    const convertedSQL = convertPlaceholders(processedSQL);
+    return {
+      all: async (...params: unknown[]) => {
+        const result = await pool.query(convertedSQL, params);
+        return result.rows;
+      },
+      get: async (...params: unknown[]) => {
+        const result = await pool.query(convertedSQL, params);
+        return result.rows[0] ?? null;
+      },
+      run: async (...params: unknown[]) => {
+        return await pool.query(convertedSQL, params);
+      },
+    };
+  },
+};
+
+// ── Database Init ─────────────────────────────────────────────
+async function initDatabase() {
   // Verify tables exist
-  const tables = db.query("SELECT name FROM sqlite_master WHERE type='table'").all().map((r: any) => r.name);
+  const result = await pool.query(`
+    SELECT table_name FROM information_schema.tables 
+    WHERE table_schema = 'public' 
+    AND table_name IN ('radcheck','radreply','radgroupcheck','radgroupreply','radusergroup','radacct','radpostauth','nas')
+  `);
+  const tables = result.rows.map((r: any) => r.table_name);
   const required = ["radcheck", "radreply", "radgroupcheck", "radgroupreply", "radusergroup", "radacct", "radpostauth", "nas"];
   const missing = required.filter((t) => !tables.includes(t));
   
@@ -88,7 +190,7 @@ interface CheckItem {
   value: string;
 }
 
-function authenticateUser(packet: RadiusPacket): { accept: boolean; replyAttrs: RadiusAttribute[]; reason: string } {
+async function authenticateUser(packet: RadiusPacket): Promise<{ accept: boolean; replyAttrs: RadiusAttribute[]; reason: string }> {
   const username = getAttributeString(packet, AttributeType.USER_NAME);
   const rawPassword = getAttributeString(packet, AttributeType.USER_PASSWORD);
   const callingStationId = getAttributeString(packet, AttributeType.CALLING_STATION_ID);
@@ -102,9 +204,9 @@ function authenticateUser(packet: RadiusPacket): { accept: boolean; replyAttrs: 
   log("debug", `Auth attempt: user="${username}" NAS=${nasIpAddress || nasIdentifier || "unknown"}`);
   
   // 1. Fetch radcheck entries for the user
-  const checkItems = db
+  const checkItems = (await db
     .query("SELECT attribute, op, value FROM radcheck WHERE username = ? ORDER BY id")
-    .all(username) as CheckItem[];
+    .all(username)) as CheckItem[];
   
   if (checkItems.length === 0) {
     log("info", `Auth REJECT: user="${username}" - no radcheck entries found`);
@@ -169,9 +271,9 @@ function authenticateUser(packet: RadiusPacket): { accept: boolean; replyAttrs: 
   
   // 4. Get reply attributes from radreply
   const replyAttrs: RadiusAttribute[] = [];
-  const replyItems = db
+  const replyItems = (await db
     .query("SELECT attribute, value FROM radreply WHERE username = ? ORDER BY id")
-    .all(username) as { attribute: string; value: string }[];
+    .all(username)) as { attribute: string; value: string }[];
   
   for (const item of replyItems) {
     const attr = parseReplyAttribute(item.attribute, item.value);
@@ -179,14 +281,14 @@ function authenticateUser(packet: RadiusPacket): { accept: boolean; replyAttrs: 
   }
   
   // 5. Get group reply attributes from radusergroup → radgroupreply
-  const groups = db
+  const groups = (await db
     .query("SELECT groupname FROM radusergroup WHERE username = ? ORDER BY priority")
-    .all(username) as { groupname: string }[];
+    .all(username)) as { groupname: string }[];
   
   for (const group of groups) {
-    const groupReplyItems = db
+    const groupReplyItems = (await db
       .query("SELECT attribute, value FROM radgroupreply WHERE groupname = ? ORDER BY id")
-      .all(group.groupname) as { attribute: string; value: string }[];
+      .all(group.groupname)) as { attribute: string; value: string }[];
     
     for (const item of groupReplyItems) {
       // Don't override user-specific reply attrs
@@ -197,16 +299,16 @@ function authenticateUser(packet: RadiusPacket): { accept: boolean; replyAttrs: 
     }
     
     // Check group check items (e.g., Simultaneous-Use)
-    const groupCheckItems = db
+    const groupCheckItems = (await db
       .query("SELECT attribute, op, value FROM radgroupcheck WHERE groupname = ? ORDER BY id")
-      .all(group.groupname) as CheckItem[];
+      .all(group.groupname)) as CheckItem[];
     
     for (const item of groupCheckItems) {
       if (item.attribute === "Simultaneous-Use") {
         const maxSessions = parseInt(item.value, 10);
-        const activeCount = db
-          .query("SELECT COUNT(*) as cnt FROM radacct WHERE username = ? AND acctstoptime IS NULL")
-          .get(username) as { cnt: number };
+        const activeCount = (await db
+          .query("SELECT COUNT(*)::int as cnt FROM radacct WHERE username = ? AND acctstoptime IS NULL")
+          .get(username)) as { cnt: number };
         
         if (activeCount.cnt >= maxSessions) {
           log("info", `Auth REJECT: user="${username}" - max concurrent sessions reached (${activeCount.cnt}/${maxSessions})`);
@@ -263,7 +365,7 @@ function parseReplyAttribute(attribute: string, value: string): RadiusAttribute 
 }
 
 // ── Accounting Engine ─────────────────────────────────────────
-function processAccounting(packet: RadiusPacket): void {
+async function processAccounting(packet: RadiusPacket): Promise<void> {
   const username = getAttributeString(packet, AttributeType.USER_NAME);
   const sessionId = getAttributeString(packet, AttributeType.ACCT_SESSION_ID);
   const statusType = getAttributeNumber(packet, AttributeType.ACCT_STATUS_TYPE);
@@ -290,21 +392,21 @@ function processAccounting(packet: RadiusPacket): void {
   
   switch (statusType) {
     case AcctStatusType.START:
-      handleAccountingStart({
+      await handleAccountingStart({
         username, sessionId, nasIpAddress, nasIdentifier, nasPortId,
         calledStationId, callingStationId, framedIpAddress, acctDelayTime,
         acctStartTime: now,
       });
       break;
     case AcctStatusType.INTERIM_UPDATE:
-      handleAccountingInterim({
+      await handleAccountingInterim({
         username, sessionId, nasIpAddress, nasIdentifier, nasPortId,
         acctSessionTime, inputOctets, outputOctets, inputPackets, outputPackets,
         updateTime: now,
       });
       break;
     case AcctStatusType.STOP:
-      handleAccountingStop({
+      await handleAccountingStop({
         username, sessionId, nasIpAddress, nasIdentifier, nasPortId,
         acctSessionTime, inputOctets, outputOctets, inputPackets, outputPackets,
         terminateCause, updateTime: now, stopTime: now,
@@ -315,19 +417,19 @@ function processAccounting(packet: RadiusPacket): void {
   }
 }
 
-function handleAccountingStart(data: {
+async function handleAccountingStart(data: {
   username: string; sessionId: string; nasIpAddress: string; nasIdentifier: string;
   nasPortId: string; calledStationId: string; callingStationId: string;
   framedIpAddress: string; acctDelayTime: number; acctStartTime: string;
 }) {
   // Check if session already exists (duplicate start)
-  const existing = db
+  const existing = (await db
     .query("SELECT acctuniqueid FROM radacct WHERE acctsessionid = ? AND acctstoptime IS NULL")
-    .get(data.sessionId) as any;
+    .get(data.sessionId)) as any;
   
   if (existing) {
     log("warn", `Duplicate Accounting-Start for session "${data.sessionId}" - updating existing record`);
-    db.prepare(`
+    await db.query(`
       UPDATE radacct SET 
         username = ?, nasipaddress = ?, nasportid = ?,
         calledstationid = ?, callingstationid = ?, framedipaddress = ?,
@@ -345,7 +447,7 @@ function handleAccountingStart(data: {
   const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
   
   try {
-    db.prepare(`
+    await db.query(`
       INSERT INTO radacct (
         acctsessionid, acctuniqueid, username, nasipaddress,
         nasportid, calledstationid, callingstationid, framedipaddress,
@@ -365,20 +467,20 @@ function handleAccountingStart(data: {
     log("info", `Accounting START: user="${data.username}" session="${data.sessionId}" IP=${data.framedIpAddress}`);
     
     // Also create/update post-auth log
-    upsertPostAuth(data.username, "Accept", data.nasIpAddress, data.callingStationId, "OK");
+    await upsertPostAuth(data.username, "Accept", data.nasIpAddress, data.callingStationId, "OK");
 
     // Also create PMS LiveSession record for GUI Active Users tab
     try {
       // Get WiFiUser and plan info for enrichment
-      const wifiUser = db.query("SELECT id, planId, propertyId FROM WiFiUser WHERE username = ? LIMIT 1").get(data.username) as any;
+      const wifiUser = (await db.query("SELECT id, planId, propertyId FROM WiFiUser WHERE username = ? LIMIT 1").get(data.username)) as any;
       const liveId = `ls_${data.sessionId}`;
       
       // Get bandwidth from radreply for this user
-      const bwDown = db.query("SELECT value FROM radreply WHERE username = ? AND attribute LIKE '%Bandwidth-Max-Down%'").get(data.username) as any;
-      const bwUp = db.query("SELECT value FROM radreply WHERE username = ? AND attribute LIKE '%Bandwidth-Max-Up%'").get(data.username) as any;
-      const sessionTimeout = db.query("SELECT value FROM radreply WHERE username = ? AND attribute = 'Session-Timeout'").get(data.username) as any;
+      const bwDown = (await db.query("SELECT value FROM radreply WHERE username = ? AND attribute LIKE '%Bandwidth-Max-Down%'").get(data.username)) as any;
+      const bwUp = (await db.query("SELECT value FROM radreply WHERE username = ? AND attribute LIKE '%Bandwidth-Max-Up%'").get(data.username)) as any;
+      const sessionTimeout = (await db.query("SELECT value FROM radreply WHERE username = ? AND attribute = 'Session-Timeout'").get(data.username)) as any;
 
-      db.prepare(`
+      await db.query(`
         INSERT OR REPLACE INTO LiveSession (
           id, tenantId, propertyId, acctSessionId, username, userId,
           planId, nasIpAddress, framedIpAddress, macAddress,
@@ -413,7 +515,7 @@ function handleAccountingStart(data: {
     log("error", `Failed to insert accounting start: ${err.message}`);
     
     // Fallback: try update if insert fails (race condition)
-    db.prepare(`
+    await db.query(`
       UPDATE radacct SET 
         username = ?, nasipaddress = ?, nasportid = ?, 
         calledstationid = ?, callingstationid = ?, framedipaddress = ?,
@@ -427,19 +529,19 @@ function handleAccountingStart(data: {
   }
 }
 
-function handleAccountingInterim(data: {
+async function handleAccountingInterim(data: {
   username: string; sessionId: string; nasIpAddress: string; nasIdentifier: string;
   nasPortId: string; acctSessionTime: number; inputOctets: number;
   outputOctets: number; inputPackets: number; outputPackets: number; updateTime: string;
 }) {
-  const session = db
+  const session = (await db
     .query("SELECT acctuniqueid, acctstarttime FROM radacct WHERE acctsessionid = ? AND acctstoptime IS NULL")
-    .get(data.sessionId) as any;
+    .get(data.sessionId)) as any;
   
   if (!session) {
     log("warn", `Accounting Interim for unknown/stoppped session "${data.sessionId}" - inserting as new`);
     // Insert as a new start + interim combined
-    handleAccountingStart({
+    await handleAccountingStart({
       username: data.username, sessionId: data.sessionId,
       nasIpAddress: data.nasIpAddress, nasIdentifier: data.nasIdentifier,
       nasPortId: data.nasPortId, calledStationId: "", callingStationId: "",
@@ -448,7 +550,7 @@ function handleAccountingInterim(data: {
     return;
   }
   
-  db.prepare(`
+  await db.query(`
     UPDATE radacct SET
       acctsessiontime = ?,
       acctinputoctets = ?,
@@ -468,7 +570,7 @@ function handleAccountingInterim(data: {
 
   // Also update PMS LiveSession for GUI Active Users tab
   try {
-    db.prepare(`
+    await db.query(`
       UPDATE LiveSession SET
         currentInputBytes = ?,
         currentOutputBytes = ?,
@@ -483,28 +585,28 @@ function handleAccountingInterim(data: {
   }
 }
 
-function handleAccountingStop(data: {
+async function handleAccountingStop(data: {
   username: string; sessionId: string; nasIpAddress: string; nasIdentifier: string;
   nasPortId: string; acctSessionTime: number; inputOctets: number;
   outputOctets: number; inputPackets: number; outputPackets: number;
   terminateCause: number; updateTime: string; stopTime: string;
 }) {
-  const session = db
+  const session = (await db
     .query("SELECT acctuniqueid FROM radacct WHERE acctsessionid = ? AND acctstoptime IS NULL")
-    .get(data.sessionId) as any;
+    .get(data.sessionId)) as any;
   
   if (!session) {
     log("warn", `Accounting STOP for unknown/stopped session "${data.sessionId}" - inserting as closed record`);
     const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
     try {
-      db.prepare(`
+      await db.query(`
         INSERT INTO radacct (
           acctsessionid, acctuniqueid, username, nasipaddress,
           nasportid, framedipaddress, acctstarttime, acctstoptime,
           acctsessiontime, acctinputoctets, acctoutputoctets,
           acctinputpackets, acctoutputpackets, acctterminatecause,
           acctauthentic, createdAt, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, 'RADIUS', datetime('now'), datetime('now'))
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RADIUS', datetime('now'), datetime('now'))
       `).run(
         data.sessionId, uniqueId, data.username, data.nasIpAddress,
         data.nasPortId,
@@ -518,7 +620,7 @@ function handleAccountingStop(data: {
     return;
   }
   
-  db.prepare(`
+  await db.query(`
     UPDATE radacct SET
       acctstoptime = ?,
       acctsessiontime = ?,
@@ -541,7 +643,7 @@ function handleAccountingStop(data: {
 
   // Also update PMS LiveSession for GUI (mark as ended)
   try {
-    db.prepare(`
+    await db.query(`
       UPDATE LiveSession SET
         currentInputBytes = ?,
         currentOutputBytes = ?,
@@ -556,12 +658,12 @@ function handleAccountingStop(data: {
 }
 
 // ── Post-Auth Logging ─────────────────────────────────────────
-function upsertPostAuth(username: string, reply: string, nasIp: string, callingStationId: string, reason?: string, extra?: { nasIdentifier?: string; calledStationId?: string; clientIpAddress?: string }) {
+async function upsertPostAuth(username: string, reply: string, nasIp: string, callingStationId: string, reason?: string, extra?: { nasIdentifier?: string; calledStationId?: string; clientIpAddress?: string }) {
   const now = new Date().toISOString();
   
   // 1. Write to raw FreeRADIUS table (radpostauth)
   try {
-    db.prepare(`
+    await db.query(`
       INSERT INTO radpostauth (username, pass, reply, authdate, nasipaddress, propertyId)
       VALUES (?, '', ?, ?, ?, 'property-1')
     `).run(username, reply, now, nasIp);
@@ -571,7 +673,7 @@ function upsertPostAuth(username: string, reply: string, nasIp: string, callingS
 
   // 2. Also write to PMS application table (RadiusAuthLog) so GUI can display it
   try {
-    db.prepare(`
+    await db.query(`
       INSERT INTO RadiusAuthLog (id, propertyId, username, authResult, authType, nasIpAddress, nasIdentifier, callingStationId, calledStationId, clientIpAddress, replyMessage, timestamp)
       VALUES (?, 'property-1', ?, ?, 'RADIUS', ?, ?, ?, ?, ?, ?, ?)
     `).run(
@@ -597,11 +699,11 @@ function formatBytes(bytes: number): string {
 }
 
 // ── NAS Secret Lookup ─────────────────────────────────────────
-function getNasSecret(nasIp: string, nasIdentifier: string): string {
+async function getNasSecret(nasIp: string, nasIdentifier: string): Promise<string> {
   // Check NAS table for configured secret
-  const nas = db
+  const nas = (await db
     .query("SELECT secret FROM nas WHERE nasname = ? OR nasname = ? LIMIT 1")
-    .get(nasIp, nasIdentifier) as { secret: string } | undefined;
+    .get(nasIp, nasIdentifier)) as { secret: string } | undefined;
   
   if (nas) return nas.secret;
   
@@ -610,10 +712,10 @@ function getNasSecret(nasIp: string, nasIdentifier: string): string {
 }
 
 // ── UDP Server ────────────────────────────────────────────────
-function startServer() {
-  initDatabase();
+async function startServer() {
+  await initDatabase();
   
-  log("info", `Database: ${CONFIG.dbPath}`);
+  log("info", `Database: PostgreSQL (${CONFIG.databaseUrl.replace(/\/\/[^:]+:[^@]+@/, '//***:***@')})`);
   log("info", `Default shared secret: "${CONFIG.secret}"`);
   
   // Bun UDP server for auth (port 1812) - uses data callback
@@ -645,7 +747,7 @@ function startServer() {
   log("info", "Ready to process RADIUS packets");
 }
 
-function handleAuthPacket(data: Buffer, rinfo: { address: string; port: number }, socket: any) {
+async function handleAuthPacket(data: Buffer, rinfo: { address: string; port: number }, socket: any) {
   const sendData = (buf: Buffer) => {
     try { socket.send(buf, rinfo.port, rinfo.address); } catch(e: any) { log("error", `Send error: ${e.message}`); }
   };
@@ -654,7 +756,7 @@ function handleAuthPacket(data: Buffer, rinfo: { address: string; port: number }
     const tempPacket = decodePacket(data);
     const nasIp = getAttributeString(tempPacket, AttributeType.NAS_IP_ADDRESS) || rinfo.address;
     const nasId = getAttributeString(tempPacket, AttributeType.NAS_IDENTIFIER);
-    const secret = getNasSecret(nasIp, nasId);
+    const secret = await getNasSecret(nasIp, nasId);
     
     // Re-decode with correct secret to decrypt password
     const packet = decodePacket(data, secret);
@@ -662,7 +764,7 @@ function handleAuthPacket(data: Buffer, rinfo: { address: string; port: number }
     log("info", `${packetSummary(packet)} from ${rinfo.address}:${rinfo.port}`);
     
     // Authenticate
-    const result = authenticateUser(packet);
+    const result = await authenticateUser(packet);
     
     // Build response
     const response = createResponse(
@@ -673,7 +775,7 @@ function handleAuthPacket(data: Buffer, rinfo: { address: string; port: number }
     );
     
     // Log post-auth with full packet context
-    upsertPostAuth(
+    await upsertPostAuth(
       getAttributeString(packet, AttributeType.USER_NAME),
       result.accept ? "Accept" : "Reject",
       nasIp,
@@ -696,7 +798,7 @@ function handleAuthPacket(data: Buffer, rinfo: { address: string; port: number }
   }
 }
 
-function handleAcctPacket(data: Buffer, rinfo: { address: string; port: number }, socket: any) {
+async function handleAcctPacket(data: Buffer, rinfo: { address: string; port: number }, socket: any) {
   const sendData = (buf: Buffer) => {
     try { socket.send(buf, rinfo.port, rinfo.address); } catch(e: any) { log("error", `Send error: ${e.message}`); }
   };
@@ -704,14 +806,14 @@ function handleAcctPacket(data: Buffer, rinfo: { address: string; port: number }
     const tempPacket = decodePacket(data);
     const nasIp = getAttributeString(tempPacket, AttributeType.NAS_IP_ADDRESS) || rinfo.address;
     const nasId = getAttributeString(tempPacket, AttributeType.NAS_IDENTIFIER);
-    const secret = getNasSecret(nasIp, nasId);
+    const secret = await getNasSecret(nasIp, nasId);
     
     const packet = decodePacket(data, secret);
     
     log("info", `${packetSummary(packet)} from ${rinfo.address}:${rinfo.port}`);
     
     // Process accounting
-    processAccounting(packet);
+    await processAccounting(packet);
     
     // Always send Accounting-Response
     const response = createResponse(packet, PacketType.ACCOUNTING_RESPONSE, [], secret);
@@ -735,17 +837,17 @@ app.get("/health", (c) => {
     status: "running",
     authPort: CONFIG.authPort,
     acctPort: CONFIG.acctPort,
-    db: CONFIG.dbPath,
+    db: "PostgreSQL",
     uptime: process.uptime(),
   });
 });
 
-app.get("/status", (c) => {
-  const activeSessions = (db.query("SELECT COUNT(*) as cnt FROM radacct WHERE acctstoptime IS NULL").get() as any)?.cnt || 0;
-  const totalSessions = (db.query("SELECT COUNT(*) as cnt FROM radacct").get() as any)?.cnt || 0;
-  const totalAuth = (db.query("SELECT COUNT(*) as cnt FROM radpostauth").get() as any)?.cnt || 0;
-  const acceptCount = (db.query("SELECT COUNT(*) as cnt FROM radpostauth WHERE reply = 'Accept'").get() as any)?.cnt || 0;
-  const rejectCount = (db.query("SELECT COUNT(*) as cnt FROM radpostauth WHERE reply = 'Reject'").get() as any)?.cnt || 0;
+app.get("/status", async (c) => {
+  const activeSessions = Number((await db.query("SELECT COUNT(*)::int as cnt FROM radacct WHERE acctstoptime IS NULL").get() as any)?.cnt || 0);
+  const totalSessions = Number((await db.query("SELECT COUNT(*)::int as cnt FROM radacct").get() as any)?.cnt || 0);
+  const totalAuth = Number((await db.query("SELECT COUNT(*)::int as cnt FROM radpostauth").get() as any)?.cnt || 0);
+  const acceptCount = Number((await db.query("SELECT COUNT(*)::int as cnt FROM radpostauth WHERE reply = 'Accept'").get() as any)?.cnt || 0);
+  const rejectCount = Number((await db.query("SELECT COUNT(*)::int as cnt FROM radpostauth WHERE reply = 'Reject'").get() as any)?.cnt || 0);
   
   return c.json({
     running: true,
@@ -768,14 +870,14 @@ app.post("/api/simulate-auth", async (c) => {
   
   if (!username) return c.json({ error: "username required" }, 400);
   
-  const secret = getNasSecret(nasIp, "");
+  const secret = await getNasSecret(nasIp, "");
   const sid = sessionId || `test-${Date.now()}`;
   
   // Simulate auth by checking database directly
-  const checkItems = db.query("SELECT attribute, op, value FROM radcheck WHERE username = ?").all(username) as CheckItem[];
+  const checkItems = (await db.query("SELECT attribute, op, value FROM radcheck WHERE username = ?").all(username)) as CheckItem[];
   
   if (checkItems.length === 0) {
-    upsertPostAuth(username, "Reject", nasIp, callingStationId, "User not found");
+    await upsertPostAuth(username, "Reject", nasIp, callingStationId, "User not found");
     return c.json({ success: false, message: "User not found in radcheck" });
   }
   
@@ -797,10 +899,10 @@ app.post("/api/simulate-auth", async (c) => {
   }
   
   if (accepted) {
-    upsertPostAuth(username, "Accept", nasIp, callingStationId, "OK");
+    await upsertPostAuth(username, "Accept", nasIp, callingStationId, "OK");
     
     // Create accounting start
-    handleAccountingStart({
+    await handleAccountingStart({
       username, sessionId: sid, nasIpAddress: nasIp, nasIdentifier: "",
       nasPortId: "0", calledStationId: "", callingStationId,
       framedIpAddress: `10.0.0.${Math.floor(Math.random() * 254) + 1}`,
@@ -810,7 +912,7 @@ app.post("/api/simulate-auth", async (c) => {
     
     return c.json({ success: true, message: "Access-Accept", sessionId: sid });
   } else {
-    upsertPostAuth(username, "Reject", nasIp, callingStationId, "Invalid password");
+    await upsertPostAuth(username, "Reject", nasIp, callingStationId, "Invalid password");
     return c.json({ success: false, message: "Access-Reject (invalid password)" });
   }
 });
@@ -822,13 +924,13 @@ app.post("/api/simulate-accounting", async (c) => {
   
   if (!sessionId) return c.json({ error: "sessionId required" }, 400);
   
-  const session = db.query("SELECT username FROM radacct WHERE acctsessionid = ? AND acctstoptime IS NULL").get(sessionId) as any;
+  const session = (await db.query("SELECT username FROM radacct WHERE acctsessionid = ? AND acctstoptime IS NULL").get(sessionId)) as any;
   if (!session) return c.json({ error: "No active session found" }, 404);
   
   const now = new Date().toISOString();
   
   if (stop) {
-    handleAccountingStop({
+    await handleAccountingStop({
       username: session.username, sessionId, nasIpAddress: "", nasIdentifier: "",
       nasPortId: "", acctSessionTime: sessionTime, inputOctets, outputOctets,
       inputPackets: Math.floor(inputOctets / 1500), outputPackets: Math.floor(outputOctets / 1500),
@@ -837,7 +939,7 @@ app.post("/api/simulate-accounting", async (c) => {
     });
     return c.json({ success: true, message: "Session stopped", username: session.username });
   } else {
-    handleAccountingInterim({
+    await handleAccountingInterim({
       username: session.username, sessionId, nasIpAddress: "", nasIdentifier: "",
       nasPortId: "", acctSessionTime: sessionTime, inputOctets, outputOctets,
       inputPackets: Math.floor(inputOctets / 1500), outputPackets: Math.floor(outputOctets / 1500),
@@ -851,7 +953,7 @@ app.post("/api/simulate-accounting", async (c) => {
 const HTTP_PORT = 3012;
 
 console.log("=".repeat(60));
-console.log("  RADIUS Protocol Server v1.0 (Bun/TypeScript)");
+console.log("  RADIUS Protocol Server v1.0 (Bun/TypeScript + PostgreSQL)");
 console.log("  Authentication: RFC 2865 | Accounting: RFC 2866");
 console.log("=".repeat(60));
 

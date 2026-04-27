@@ -42,10 +42,10 @@ sudo systemctl enable --now radiusd
 
 | Component | Rocky 10 (dnf install) | Sandbox (source compile) |
 |-----------|----------------------|--------------------------|
-| FR binary | `/usr/sbin/radiusd` | `/home/z/freeradius-install/sbin/radiusd` |
-| FR config | `/etc/raddb/` | `/home/z/freeradius-install/etc/raddb/` |
-| FR logs | `/var/log/radiusd/` | `/home/z/freeradius-install/var/log/radiusd/` |
-| sql symlink | `../mods-available/sql` (relative) | `/home/z/freeradius-install/...` (absolute) |
+| FR binary | `/usr/sbin/radiusd` | `$PROJECT_ROOT/freeradius-install/sbin/radiusd` |
+| FR config | `/etc/raddb/` | `$PROJECT_ROOT/freeradius-install/etc/raddb/` |
+| FR logs | `/var/log/radiusd/` | `$PROJECT_ROOT/freeradius-install/var/log/radiusd/` |
+| sql symlink | `../mods-available/sql` (relative) | `$PROJECT_ROOT/freeradius-install/...` (absolute) |
 | PG binary | `/usr/pgsql-17/bin/` | `/home/z/pgsql-17/bin/` |
 | PG data | `/var/lib/pgsql/17/data/` | `/home/z/pgsql-17/data/` |
 

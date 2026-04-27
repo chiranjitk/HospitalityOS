@@ -221,6 +221,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    console.log(`[AAA] ✓ Config saved for property ${propertyId} — defaultPlanId: ${config.defaultPlanId || 'none'}, bandwidth: ${config.defaultDownloadSpeed}M/${config.defaultUploadSpeed}M, autoProvision: ${config.autoProvisionOnCheckin}`);
+
     return NextResponse.json({
       success: true,
       data: config,

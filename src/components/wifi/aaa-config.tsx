@@ -89,6 +89,7 @@ import {
   Loader2,
   UserCog,
   Info,
+  Building2,
 } from 'lucide-react';
 import CredentialPolicyTab, { type CredentialConfig } from './credential-policy-tab';
 import { useToast } from '@/hooks/use-toast';
@@ -482,7 +483,19 @@ const RADIUS_AUTH_PORT = 1812;
 
 export default function AAAConfig() {
   const { toast } = useToast();
-  const { propertyId } = usePropertyId();
+  const { propertyId: hookPropertyId, properties } = usePropertyId();
+
+  // Local property selector — allows switching between properties to configure each independently
+  // Initialized from the hook's propertyId but can be changed independently
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>('');
+  const propertyId = selectedPropertyId || hookPropertyId;
+
+  // Sync local state once hook propertyId becomes available
+  useEffect(() => {
+    if (hookPropertyId && !selectedPropertyId) {
+      setSelectedPropertyId(hookPropertyId);
+    }
+  }, [hookPropertyId, selectedPropertyId]);
   
   // State
   const [loading, setLoading] = useState(true);
@@ -545,6 +558,18 @@ export default function AAAConfig() {
 
   // WiFi Plans (for Default Plan dropdown)
   const [wifiPlans, setWifiPlans] = useState<WifiPlan[]>([]);
+
+  // Property-wide AAA configs summary (for property binding overview)
+  interface PropertyAaaSummary {
+    propertyId: string;
+    propertyName: string;
+    defaultPlanId?: string | null;
+    defaultPlanName?: string;
+    defaultDownloadSpeed: number;
+    defaultUploadSpeed: number;
+    autoProvisionOnCheckin: boolean;
+  }
+  const [allPropertyConfigs, setAllPropertyConfigs] = useState<PropertyAaaSummary[]>([]);
   
   // Server Config
   const [serverConfig, setServerConfig] = useState<RadiusServerConfig>({
@@ -558,26 +583,55 @@ export default function AAAConfig() {
     logDestination: 'files',
   });
 
-  // Fetch initial data
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  // Fetch active WiFi plans
-  useEffect(() => {
-    const fetchPlans = async () => {
+  // Fetch active WiFi plans AND all property AAA configs (for summary)
+  const fetchPropertySummary = async (props: any[], plans: WifiPlan[]) => {
+    if (!props || props.length === 0) return [];
+    const configPromises = props.map(async (prop: any) => {
       try {
-        const res = await fetch('/api/wifi/plans?status=active');
+        const res = await fetch(`/api/wifi/aaa?propertyId=${prop.id}`);
         const data = await res.json();
-        if (data.success && Array.isArray(data.data)) {
-          setWifiPlans(data.data.filter((p: WifiPlan) => p.status === 'active'));
+        if (data.success && data.data) {
+          const planName = data.data.defaultPlanId
+            ? (plans.find((p: WifiPlan) => p.id === data.data.defaultPlanId)?.name || 'Unknown Plan')
+            : null;
+          return {
+            propertyId: prop.id,
+            propertyName: prop.name,
+            defaultPlanId: data.data.defaultPlanId,
+            defaultPlanName: planName || undefined,
+            defaultDownloadSpeed: data.data.defaultDownloadSpeed || 10,
+            defaultUploadSpeed: data.data.defaultUploadSpeed || 10,
+            autoProvisionOnCheckin: data.data.autoProvisionOnCheckin ?? true,
+          };
+        }
+      } catch {
+        // Silently skip failed property config fetches
+      }
+      return null;
+    });
+    const results = (await Promise.all(configPromises)).filter(Boolean) as PropertyAaaSummary[];
+    setAllPropertyConfigs(results);
+    return results;
+  };
+
+  useEffect(() => {
+    const fetchDataOverview = async () => {
+      try {
+        // Fetch plans
+        const plansRes = await fetch('/api/wifi/plans?status=active');
+        const plansData = await plansRes.json();
+        if (plansData.success && Array.isArray(plansData.data)) {
+          const activePlans = plansData.data.filter((p: WifiPlan) => p.status === 'active');
+          setWifiPlans(activePlans);
+          // Fetch property summary using the loaded plans
+          await fetchPropertySummary(properties, activePlans);
         }
       } catch (e) {
-        console.error('Failed to fetch WiFi plans:', e);
+        console.error('Failed to fetch overview data:', e);
       }
     };
-    fetchPlans();
-  }, []);
+    fetchDataOverview();
+  }, [properties]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -618,6 +672,20 @@ export default function AAAConfig() {
       setLoading(false);
     }
   };
+
+  // Switch to a different property and reload its config
+  const handlePropertyChange = (newPropertyId: string) => {
+    setSelectedPropertyId(newPropertyId);
+    // Reset config to defaults while loading
+    setAaaConfig(prev => ({ ...prev, defaultPlanId: undefined, propertyId: newPropertyId }));
+    setNasClients([]);
+  };
+
+  // Fetch initial data — wait until propertyId is available
+  useEffect(() => {
+    if (!propertyId) return;
+    fetchData();
+  }, [propertyId]);
 
   // RADIUS Service Control
   const handleServiceAction = async (action: 'start' | 'stop' | 'restart') => {
@@ -825,7 +893,9 @@ export default function AAAConfig() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tenantId: 'default',
-          propertyId: aaaConfig.propertyId || propertyId,
+          // Always use the hook's propertyId (authoritative), NOT aaaConfig.propertyId
+          // which may still be the initial 'property-1' placeholder if fetch hasn't loaded yet
+          propertyId: propertyId,
           ...saveData,
         }),
       });
@@ -833,9 +903,17 @@ export default function AAAConfig() {
       const data = await res.json();
       
       if (data.success) {
+        // Re-fetch to get the latest config (including plan relation)
+        const aaaRes = await fetch(`/api/wifi/aaa?propertyId=${propertyId}`);
+        const aaaData = await aaaRes.json();
+        if (aaaData.success) {
+          setAaaConfig(prev => ({ ...prev, ...aaaData.data }));
+        }
+        // Refresh property summary table to reflect updated plan binding
+        await fetchPropertySummary(properties, wifiPlans);
         toast({
           title: 'Success',
-          description: 'AAA configuration saved successfully',
+          description: `AAA configuration saved — Default Plan: ${aaaConfig.defaultPlanId ? wifiPlans.find(p => p.id === aaaConfig.defaultPlanId)?.name || 'set' : 'None (using default bandwidth)'}`,
         });
       } else {
         toast({
@@ -911,6 +989,36 @@ export default function AAAConfig() {
           Refresh
         </Button>
       </div>
+
+      {/* Property Selector — switch between properties to configure each independently */}
+      {properties.length > 1 && (
+        <Card>
+          <CardContent className="py-3">
+            <div className="flex items-center gap-3">
+              <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              <Label className="text-sm font-medium shrink-0">Configure property:</Label>
+              <Select value={propertyId} onValueChange={handlePropertyChange}>
+                <SelectTrigger className="w-full max-w-xs">
+                  <SelectValue placeholder="Select property" />
+                </SelectTrigger>
+                <SelectContent>
+                  {properties.map((prop: { id: string; name: string }) => (
+                    <SelectItem key={prop.id} value={prop.id}>
+                      {prop.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {allPropertyConfigs.length > 0 && (
+                <span className="text-xs text-muted-foreground hidden sm:inline">
+                  Showing settings for <strong>{properties.find((p: { id: string }) => p.id === propertyId)?.name || 'selected property'}</strong>
+                  — switch to configure another property's default plan
+                </span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Status Banner */}
       {serviceStatus && (
@@ -1337,6 +1445,79 @@ export default function AAAConfig() {
 
         {/* Authentication Tab */}
         <TabsContent value="authentication" className="space-y-4">
+          {/* Property-wise Default Plan Summary */}
+          {allPropertyConfigs.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Info className="h-5 w-5" />
+                  Property-wise Default Plan Binding
+                </CardTitle>
+                <CardDescription>
+                  Overview of default WiFi plans per property — click a row to switch and edit that property's settings
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Property</TableHead>
+                      <TableHead>Default Plan</TableHead>
+                      <TableHead>Fallback Bandwidth</TableHead>
+                      <TableHead>Auto-Provision</TableHead>
+                      <TableHead className="text-right">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {allPropertyConfigs.map((config) => (
+                      <TableRow
+                        key={config.propertyId}
+                        className={cn(
+                          'cursor-pointer hover:bg-muted/80',
+                          config.propertyId === propertyId && 'bg-muted/50 font-medium'
+                        )}
+                        onClick={() => handlePropertyChange(config.propertyId)}
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {config.propertyName}
+                            {config.propertyId === propertyId && (
+                              <Badge variant="default" className="text-xs">Active</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {config.defaultPlanId && config.defaultPlanName ? (
+                            <Badge variant="secondary" className="font-mono">
+                              {config.defaultPlanName}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">None (using fallback bandwidth)</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="font-mono">
+                            {config.defaultDownloadSpeed}M / {config.defaultUploadSpeed}M
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={config.autoProvisionOnCheckin ? 'default' : 'secondary'}>
+                            {config.autoProvisionOnCheckin ? 'Enabled' : 'Disabled'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={config.defaultPlanId ? 'default' : 'outline'}>
+                            {config.defaultPlanId ? 'Plan Bound' : 'Using Bandwidth'}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Authentication Settings</CardTitle>
@@ -1453,19 +1634,24 @@ export default function AAAConfig() {
 
                 {aaaConfig.defaultPlanId && (() => {
                   const selectedPlan = wifiPlans.find(p => p.id === aaaConfig.defaultPlanId);
-                  if (!selectedPlan) return null;
+                  if (!selectedPlan) return (
+                    <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 text-sm">
+                      <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 shrink-0" />
+                      <span className="text-yellow-700 dark:text-yellow-300">
+                        Selected plan not found in active plans list (may be inactive or deleted). Please re-select.
+                      </span>
+                    </div>
+                  );
                   return (
                     <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-muted/50 border text-sm">
                       <Info className="h-4 w-4 text-muted-foreground shrink-0" />
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="secondary" className="font-mono">
+                          {selectedPlan.name}
+                        </Badge>
+                        <Badge variant="outline" className="font-mono">
                           {selectedPlan.downloadSpeed}M/{selectedPlan.uploadSpeed}M
                         </Badge>
-                        {selectedPlan.validity != null && selectedPlan.validity > 0 && (
-                          <Badge variant="outline">
-                            {selectedPlan.validity}h validity
-                          </Badge>
-                        )}
                         {selectedPlan.dataLimit != null && selectedPlan.dataLimit > 0 && (
                           <Badge variant="outline">
                             {selectedPlan.dataLimit >= 1024
@@ -1478,6 +1664,15 @@ export default function AAAConfig() {
                     </div>
                   );
                 })()}
+
+                {!aaaConfig.defaultPlanId && (
+                  <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-muted/50 border text-sm">
+                    <Info className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-muted-foreground">
+                      No plan selected — guests will use the default bandwidth ({aaaConfig.defaultDownloadSpeed}M / {aaaConfig.defaultUploadSpeed}M) on check-in.
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="pt-4 border-t">

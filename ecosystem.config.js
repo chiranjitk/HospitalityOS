@@ -68,7 +68,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3002,
-        DATABASE_PATH: `${APP_DIR}/db/custom.db`,
+        DATABASE_URL: 'postgresql://z@localhost:5432/staysuite',
       },
     },
     {
@@ -83,7 +83,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3003,
-        DATABASE_PATH: `${APP_DIR}/db/custom.db`,
+        DATABASE_URL: 'postgresql://z@localhost:5432/staysuite',
       },
     },
     {
@@ -98,7 +98,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3011,
-        DATABASE_PATH: `${APP_DIR}/db/custom.db`,
+        DATABASE_URL: 'postgresql://z@localhost:5432/staysuite',
       },
     },
     {
@@ -113,8 +113,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3012,
-        DATABASE_PATH: `${APP_DIR}/db/dns-service.db`,
-        PRISMA_DATABASE_PATH: `${APP_DIR}/db/custom.db`,
+        DATABASE_URL: 'postgresql://z@localhost:5432/staysuite',
       },
     },
     {

@@ -25,15 +25,8 @@ export const db = (() => {
       console.log('[DB] PrismaClient initialized (production mode)')
     }
 
-    // SQLite pragmas (only for dev with SQLite, PostgreSQL ignores these safely)
     if (!prismaInitialized) {
       prismaInitialized = true
-      const isPostgres = (process.env.DATABASE_URL || '').startsWith('postgresql')
-      if (!isPostgres) {
-        prismaClient.$executeRawUnsafe('PRAGMA busy_timeout = 5000').catch(() => {})
-        prismaClient.$queryRawUnsafe('PRAGMA journal_mode = WAL').catch(() => {})
-        prismaClient.$queryRawUnsafe('PRAGMA synchronous = NORMAL').catch(() => {})
-      }
     }
   }
   return prismaClient

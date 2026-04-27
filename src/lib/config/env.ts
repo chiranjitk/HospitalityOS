@@ -9,7 +9,7 @@
 export type Environment = 'development' | 'sandbox' | 'production';
 
 // Database types
-export type DatabaseType = 'sqlite' | 'postgresql';
+export type DatabaseType = 'postgresql';
 
 // Service configuration interface
 export interface ServiceConfig {
@@ -31,7 +31,6 @@ export interface EnvironmentConfig {
     type: DatabaseType;
     url: string;
     isPostgreSQL: boolean;
-    isSQLite: boolean;
   };
   
   // Redis/Cache
@@ -128,8 +127,7 @@ function detectEnvironment(): Environment {
   // Check if we're in a sandbox environment
   const isSandboxEnv = 
     process.env.SANDBOX_MODE === 'true' ||
-    (!process.env.REDIS_URL && !process.env.SMTP_HOST) ||
-    (process.env.DATABASE_URL?.startsWith('file:') ?? false);
+    (!process.env.REDIS_URL && !process.env.SMTP_HOST);
   
   if (nodeEnv === 'production' && !isSandboxEnv) {
     return 'production';
@@ -143,16 +141,10 @@ function detectEnvironment(): Environment {
 }
 
 /**
- * Detect database type from connection string
+ * Get database type — always PostgreSQL in production and sandbox
  */
 function detectDatabaseType(): DatabaseType {
-  const dbUrl = process.env.DATABASE_URL || '';
-  
-  if (dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://')) {
-    return 'postgresql';
-  }
-  
-  return 'sqlite';
+  return 'postgresql';
 }
 
 /**
@@ -219,9 +211,8 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     // Database
     database: {
       type: dbType,
-      url: process.env.DATABASE_URL || 'file:./dev.db',
-      isPostgreSQL: dbType === 'postgresql',
-      isSQLite: dbType === 'sqlite',
+      url: process.env.DATABASE_URL || 'postgresql://localhost:5432/staysuite',
+      isPostgreSQL: true,
     },
     
     // Redis/Cache

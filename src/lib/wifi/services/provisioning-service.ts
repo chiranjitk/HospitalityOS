@@ -360,6 +360,13 @@ class WiFiProvisioningService {
         console.warn(`[WiFi Provisioning] No plan configured — using AAA default bandwidth (${bandwidth.download / 1000000}M/${bandwidth.upload / 1000000}M). Configure a WiFi plan in Room Type or AAA Settings.`);
       }
 
+      // ─── PLAN SELECTION SUMMARY ─────────────────────────────────────────
+      console.log(`[WiFi Provisioning] ✓ Plan resolved for booking ${input.bookingId}: source=${planSource}, planId=${planId || 'none'}, bandwidth=${bandwidth.download / 1000000}M/${bandwidth.upload / 1000000}M, validity=${planValidityDays}d`);
+      if (!planId) {
+        console.warn(`[WiFi Provisioning] ⚠ No WiFi plan assigned — user will get raw bandwidth only (no plan tracking, no data limits). Set a default plan in AAA Configuration > Auth tab.`);
+      }
+      // ────────────────────────────────────────────────────────────────────
+
       // Load credential policy from WiFiAAAConfig (also with tenant fallback)
       const credentialPolicy = await this.loadCredentialPolicy(input.propertyId, input.tenantId);
 

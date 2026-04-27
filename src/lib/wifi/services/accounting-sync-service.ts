@@ -5,9 +5,9 @@
  * Reads from RadAcct table (written by FreeRADIUS SQL module via detail files)
  * and updates WiFiSession + WiFiUser.totalBytesIn/totalBytesOut.
  * 
- * Architecture (SINGLE SQLite DATABASE):
+ * Architecture (PostgreSQL database):
  * ┌──────────────────────────────────────────────────────┐
- * │  db/custom.db                                        │
+ * │  PostgreSQL database                                  │
  * │  ┌──────────┐  ┌──────────────┐  ┌──────────────┐   │
  * │  │ RadAcct  │→ │ WiFiSession  │  │ WiFiUser     │   │
  * │  │ (source) │  │ (enriched)   │  │ (totals)     │   │

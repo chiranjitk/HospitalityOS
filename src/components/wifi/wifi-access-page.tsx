@@ -7,11 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { ErrorBoundary } from '@/components/common/error-boundary';
 
 // ─── Lazy imports for tab content ─────────────────────────────────────────
 // Keep 10 essential tabs — removed: Bandwidth Scheduler, Content Filter, Smart Bandwidth,
 // NAS Health, Provisioning Logs, CoA Audit (duplicates or low-usage)
 
+// v2: Force recompile of live-sessions (dedup fix + uniqueSessions useMemo)
 const LiveSessions = lazy(() => import('@/components/wifi/live-sessions'));
 const AuthLogsTab = lazy(() => import('@/components/wifi/auth-logs'));
 const RadiusUsersTab = lazy(() => import('@/components/wifi/radius-users-tab'));
@@ -303,24 +305,43 @@ export function WifiAccessPage() {
       {/* Tab Content */}
       <div className="mt-2" key={refreshKey}>
         <Suspense fallback={<TabSkeleton />}>
-          {/* Live */}
-          {activeTab === 'live-sessions' && <LiveSessions />}
-          {activeTab === 'users' && <RadiusUsersTab />}
-          {activeTab === 'auth-logs' && <AuthLogsTab />}
-
-          {/* History */}
-          {activeTab === 'session-history' && <SessionHistory />}
-          {activeTab === 'user-usage' && <UserUsageDashboard />}
-
-          {/* Policy */}
-          {activeTab === 'plans' && <WifiPlans />}
-          {activeTab === 'fup-policy' && <WifiFupPolicy />}
-          {activeTab === 'ip-pools' && <IpPoolManagement />}
-
-          {/* Access */}
-          {activeTab === 'vouchers' && <WifiVouchers />}
-          {activeTab === 'mac-auth' && <MacAuthTab />}
-          {activeTab === 'event-wifi' && <EventWifiTab />}
+          <ErrorBoundary section="Active Users">
+            {/* Live */}
+            {activeTab === 'live-sessions' && <LiveSessions />}
+          </ErrorBoundary>
+          <ErrorBoundary section="RADIUS Users">
+            {activeTab === 'users' && <RadiusUsersTab />}
+          </ErrorBoundary>
+          <ErrorBoundary section="Auth Logs">
+            {activeTab === 'auth-logs' && <AuthLogsTab />}
+          </ErrorBoundary>
+          <ErrorBoundary section="Session History">
+            {/* History */}
+            {activeTab === 'session-history' && <SessionHistory />}
+          </ErrorBoundary>
+          <ErrorBoundary section="User Usage">
+            {activeTab === 'user-usage' && <UserUsageDashboard />}
+          </ErrorBoundary>
+          <ErrorBoundary section="WiFi Plans">
+            {/* Policy */}
+            {activeTab === 'plans' && <WifiPlans />}
+          </ErrorBoundary>
+          <ErrorBoundary section="FUP Policy">
+            {activeTab === 'fup-policy' && <WifiFupPolicy />}
+          </ErrorBoundary>
+          <ErrorBoundary section="IP Pools">
+            {activeTab === 'ip-pools' && <IpPoolManagement />}
+          </ErrorBoundary>
+          <ErrorBoundary section="Vouchers">
+            {/* Access */}
+            {activeTab === 'vouchers' && <WifiVouchers />}
+          </ErrorBoundary>
+          <ErrorBoundary section="MAC Auth">
+            {activeTab === 'mac-auth' && <MacAuthTab />}
+          </ErrorBoundary>
+          <ErrorBoundary section="Event WiFi">
+            {activeTab === 'event-wifi' && <EventWifiTab />}
+          </ErrorBoundary>
         </Suspense>
       </div>
     </div>

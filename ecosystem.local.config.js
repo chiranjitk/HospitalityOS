@@ -8,8 +8,10 @@
  *   pm2 logs
  */
 
-const APP_DIR = '/home/z/my-project';
+const APP_DIR = '/home/z/my-project/StaySuite-HospitalityOS';
 const LOG_DIR = `${APP_DIR}/logs`;
+const BUN_PATH = '/usr/local/bin/bun';
+const DATABASE_URL = 'postgresql://z@localhost:5432/staysuite';
 
 module.exports = {
   apps: [
@@ -18,12 +20,12 @@ module.exports = {
     // =========================================================================
     {
       name: 'staysuite-nextjs',
-      script: 'npx',
-      args: 'next dev -p 3000',
+      script: BUN_PATH,
+      args: 'run dev',
       cwd: APP_DIR,
       env: {
         NODE_ENV: 'development',
-        DATABASE_URL: 'file:../db/custom.db',
+        DATABASE_URL: DATABASE_URL,
         PORT: 3000,
         NEXT_DISABLE_TURBOPACK: '1',
       },
@@ -40,14 +42,13 @@ module.exports = {
     // =========================================================================
     {
       name: 'availability-service',
-      script: '/usr/local/bin/bun',
+      script: BUN_PATH,
       args: 'server.ts',
       cwd: `${APP_DIR}/mini-services/availability-service`,
       env: {
         NODE_ENV: 'development',
         PORT: 3002,
-        DATABASE_PATH: `${APP_DIR}/db/custom.db`,
-        DATABASE_URL: `file:${APP_DIR}/db/custom.db`,
+        DATABASE_URL: DATABASE_URL,
       },
       error_file: `${LOG_DIR}/availability-service-error.log`,
       out_file: `${LOG_DIR}/availability-service-out.log`,
@@ -56,14 +57,13 @@ module.exports = {
     },
     {
       name: 'realtime-service',
-      script: '/usr/local/bin/bun',
+      script: BUN_PATH,
       args: 'index.ts',
       cwd: `${APP_DIR}/mini-services/realtime-service`,
       env: {
         NODE_ENV: 'development',
         PORT: 3003,
-        DATABASE_PATH: `${APP_DIR}/db/custom.db`,
-        DATABASE_URL: `file:${APP_DIR}/db/custom.db`,
+        DATABASE_URL: DATABASE_URL,
       },
       error_file: `${LOG_DIR}/realtime-service-error.log`,
       out_file: `${LOG_DIR}/realtime-service-out.log`,
@@ -72,14 +72,13 @@ module.exports = {
     },
     {
       name: 'dhcp-service',
-      script: '/usr/local/bin/bun',
+      script: BUN_PATH,
       args: 'index.ts',
       cwd: `${APP_DIR}/mini-services/dhcp-service`,
       env: {
         NODE_ENV: 'development',
         PORT: 3011,
-        DATABASE_PATH: `${APP_DIR}/db/custom.db`,
-        DATABASE_URL: `file:${APP_DIR}/db/custom.db`,
+        DATABASE_URL: DATABASE_URL,
       },
       error_file: `${LOG_DIR}/dhcp-service-error.log`,
       out_file: `${LOG_DIR}/dhcp-service-out.log`,
@@ -88,16 +87,13 @@ module.exports = {
     },
     {
       name: 'dns-service',
-      script: '/usr/local/bin/bun',
+      script: BUN_PATH,
       args: 'run index.ts',
       cwd: `${APP_DIR}/mini-services/dns-service`,
       env: {
-        NODE_ENV: 'production',
-        BUN_ENV: 'production',
+        NODE_ENV: 'development',
         PORT: 3012,
-        DATABASE_PATH: `${APP_DIR}/db/custom.db`,
-        DATABASE_URL: `file:${APP_DIR}/db/custom.db`,
-        PRISMA_DATABASE_PATH: `${APP_DIR}/db/custom.db`,
+        DATABASE_URL: DATABASE_URL,
       },
       error_file: `${LOG_DIR}/dns-service-error.log`,
       out_file: `${LOG_DIR}/dns-service-out.log`,
@@ -106,13 +102,13 @@ module.exports = {
     },
     {
       name: 'freeradius-service',
-      script: '/usr/local/bin/bun',
+      script: BUN_PATH,
       args: 'run index.ts',
       cwd: `${APP_DIR}/mini-services/freeradius-service`,
       env: {
-        NODE_ENV: 'production',
-        BUN_ENV: 'production',
+        NODE_ENV: 'development',
         PORT: 3010,
+        DATABASE_URL: DATABASE_URL,
       },
       error_file: `${LOG_DIR}/freeradius-service-error.log`,
       out_file: `${LOG_DIR}/freeradius-service-out.log`,
@@ -121,12 +117,11 @@ module.exports = {
     },
     {
       name: 'nftables-service',
-      script: '/usr/local/bin/bun',
+      script: BUN_PATH,
       args: 'run index.ts',
       cwd: `${APP_DIR}/mini-services/nftables-service`,
       env: {
-        NODE_ENV: 'production',
-        BUN_ENV: 'production',
+        NODE_ENV: 'development',
         PORT: 3013,
       },
       error_file: `${LOG_DIR}/nftables-service-error.log`,

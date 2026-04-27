@@ -394,7 +394,7 @@ async function getRADIUSUserByUsername(username: string): RADIUSUser | null {
   const replyRows = await db.query('SELECT * FROM radreply WHERE username = ?').all(username) as Array<Record<string, unknown>>;
   const groupRows = await db.query('SELECT * FROM radusergroup WHERE username = ? ORDER BY priority').all(username) as Array<Record<string, unknown>>;
   // Get PMS WiFiUser metadata for guest/booking info
-  const wifiUser = await db.query('SELECT * FROM WiFiUser WHERE username = ?').get(username) as Record<string, unknown> | null;
+  const wifiUser = await db.query('SELECT * FROM "WiFiUser" WHERE username = ?').get(username) as Record<string, unknown> | null;
 
   if (checkRows.length === 0 && replyRows.length === 0 && !wifiUser) return null;
 
@@ -416,11 +416,11 @@ async function getRADIUSUserByUsername(username: string): RADIUSUser | null {
   let fupPolicy: RADIUSUser['fupPolicy'] = undefined;
   if (group) {
     const plan = db.query(
-      "SELECT p.id, p.name, p.fupPolicyId FROM WiFiPlan p WHERE REPLACE(LOWER(p.name), ' ', '_') = REPLACE(LOWER(?), ' ', '_') AND p.status = 'active' LIMIT 1"
+      "SELECT p.id, p.name, p.fupPolicyId FROM \"WiFiPlan\" p WHERE REPLACE(LOWER(p.name), ' ', '_') = REPLACE(LOWER(?), ' ', '_') AND p.status = 'active' LIMIT 1"
     ).get(group) as { id: string; name: string; fupPolicyId: string | null } | undefined;
     if (plan?.fupPolicyId) {
       const fap = await db.query(
-        'SELECT id, name, cycleType, dataLimitMb, dataLimitUnit, applicableOn FROM FairAccessPolicy WHERE id = ? AND isEnabled = 1'
+        'SELECT id, name, cycleType, dataLimitMb, dataLimitUnit, applicableOn FROM "FairAccessPolicy" WHERE id = ? AND isEnabled = 1'
       ).get(plan.fupPolicyId) as { id: string; name: string; cycleType: string; dataLimitMb: number; dataLimitUnit: string; applicableOn: string } | undefined;
       if (fap) {
         fupPolicy = { id: fap.id, name: fap.name, cycleType: fap.cycleType, dataLimitMb: fap.dataLimitMb, dataLimitUnit: fap.dataLimitUnit, applicableOn: fap.applicableOn };
@@ -448,14 +448,14 @@ async function getRADIUSUserByUsername(username: string): RADIUSUser | null {
 
 async function getAllRADIUSUsers(): RADIUSUser[] {
   // Read from PMS WiFiUser table (includes guest check-in users AND manual users)
-  const rows = await db.query('SELECT username FROM WiFiUser ORDER BY createdAt DESC').all() as Array<{ username: string }>;
+  const rows = await db.query('SELECT username FROM "WiFiUser" ORDER BY "createdAt" DESC').all() as Array<{ username: string }>;
   const users = await Promise.all(rows.map(async r => await getRADIUSUserByUsername(r.username)));
   return users.filter((u): u is RADIUSUser => u !== null);
 }
 
 async function getRADIUSUserById(id: string): RADIUSUser | null {
   // Look up by WiFiUser id (PMS table)
-  const wifiUser = await db.query('SELECT username FROM WiFiUser WHERE id = ?').get(id) as { username: string } | null;
+  const wifiUser = await db.query('SELECT username FROM "WiFiUser" WHERE id = ?').get(id) as { username: string } | null;
   if (!wifiUser) return null;
   return await getRADIUSUserByUsername(wifiUser.username);
 }
@@ -476,7 +476,7 @@ async function createRADIUSUser(user: RADIUSUser): void {
   const propertyId = user.propertyId || 'property-1';
 
   // Insert into PMS WiFiUser table (requires tenantId and propertyId — NOT NULL columns)
-  db.query(`INSERT OR IGNORE INTO WiFiUser (id, tenantId, propertyId, username, password, status, validFrom, validUntil, radiusSynced, createdAt, updatedAt, guestId, bookingId, userType)
+  db.query(`INSERT OR IGNORE INTO "WiFiUser" (id, tenantId, propertyId, username, password, status, validFrom, validUntil, radiusSynced, createdAt, updatedAt, guestId, bookingId, userType)
     VALUES (?, ?, ?, ?, ?, 'active', ?, ?, 1, ?, ?, ?, ?, ?)`
   ).run(id, tenantId, propertyId, user.username, user.password, now, validUntil, now, now, user.guestId || null, user.bookingId || null, user.userType || 'guest');
 
@@ -519,7 +519,7 @@ async function updateRADIUSUser(id: string, updates: Partial<RADIUSUser>): RADIU
   // for correct comparison in the auto-expiry timer (Date.now() vs numeric).
   const validUntil = updated.validUntil || String(Date.now() + 24 * 60 * 60 * 1000);
   const now = new Date().toISOString();
-  await db.query(`UPDATE WiFiUser SET password = ?, status = ?, validUntil = ?, radiusSynced = 1, updatedAt = ?, userType = ?
+  await db.query(`UPDATE "WiFiUser" SET password = ?, status = ?, validUntil = ?, radiusSynced = 1, updatedAt = ?, userType = ?
     WHERE id = ?`).run(
     updated.password, 'active', validUntil, now, updated.userType || 'guest', id
   );
@@ -553,7 +553,7 @@ async function deleteRADIUSUser(id: string): boolean {
   await db.query('DELETE FROM radcheck WHERE username = ?').run(username);
   await db.query('DELETE FROM radreply WHERE username = ?').run(username);
   await db.query('DELETE FROM radusergroup WHERE username = ?').run(username);
-  await db.query('DELETE FROM WiFiUser WHERE username = ?').run(username);
+  await db.query('DELETE FROM "WiFiUser" WHERE username = ?').run(username);
 
   return true;
 }
@@ -711,7 +711,7 @@ async function resolveEventGroupFromPlan(eventId: string, eventName: string): st
   try {
     const event = await db.query('SELECT planId FROM "RadiusEvent" WHERE id = ?').get(eventId) as { planId: string | null } | undefined;
     if (event?.planId) {
-      const plan = await db.query('SELECT name FROM WiFiPlan WHERE id = ? AND status = ?').get(event.planId, 'active') as { name: string } | undefined;
+      const plan = await db.query('SELECT name FROM "WiFiPlan" WHERE id = ? AND status = ?').get(event.planId, 'active') as { name: string } | undefined;
       if (plan?.name) {
         return plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard-guests';
       }
@@ -753,12 +753,12 @@ function generateId(prefix: string = 'nas'): string {
 async function resolveTenantAndProperty(tenantId?: string, propertyId?: string): { tenantId: string; propertyId: string } {
   let resolvedTenantId = tenantId;
   if (!resolvedTenantId) {
-    const firstTenant = await db.query("SELECT id FROM Tenant LIMIT 1").get() as { id: string } | undefined;
+    const firstTenant = await db.query("SELECT id FROM \"Tenant\" LIMIT 1").get() as { id: string } | undefined;
     resolvedTenantId = firstTenant?.id || 'tenant-1';
   }
   let resolvedPropertyId = propertyId;
   if (!resolvedPropertyId) {
-    const firstProp = await db.query("SELECT id FROM Property LIMIT 1").get() as { id: string } | undefined;
+    const firstProp = await db.query("SELECT id FROM \"Property\" LIMIT 1").get() as { id: string } | undefined;
     resolvedPropertyId = firstProp?.id || 'property-1';
   }
   return { tenantId: resolvedTenantId, propertyId: resolvedPropertyId };
@@ -767,7 +767,7 @@ async function resolveTenantAndProperty(tenantId?: string, propertyId?: string):
 /** Shortcut: resolve tenantId only */
 async function resolveTenantId(tenantId?: string): string {
   if (tenantId) return tenantId;
-  const first = await db.query("SELECT id FROM Tenant LIMIT 1").get() as { id: string } | undefined;
+  const first = await db.query("SELECT id FROM \"Tenant\" LIMIT 1").get() as { id: string } | undefined;
   return first?.id || 'tenant-1';
 }
 
@@ -2219,7 +2219,7 @@ app.delete('/api/provision/:username', async (c) => {
     await db.query('DELETE FROM radcheck WHERE username = ?').run(username);
     await db.query('DELETE FROM radreply WHERE username = ?').run(username);
     await db.query('DELETE FROM radusergroup WHERE username = ?').run(username);
-    await db.query('DELETE FROM WiFiUser WHERE username = ?').run(username);
+    await db.query('DELETE FROM "WiFiUser" WHERE username = ?').run(username);
 
     log.info(`Deprovisioned RADIUS user: ${username}`);
 
@@ -3208,7 +3208,7 @@ app.get('/api/auth-logs', async (c) => {
     const startDate = c.req.query('startDate') || '';
     const endDate = c.req.query('endDate') || '';
 
-    let sql = 'SELECT * FROM RadiusAuthLog WHERE 1=1';
+    let sql = 'SELECT * FROM "RadiusAuthLog" WHERE 1=1';
     const params: unknown[] = [];
 
     if (username) {
@@ -3249,7 +3249,7 @@ app.post('/api/auth-logs', async (c) => {
     const now = new Date().toISOString();
 
     db.query(
-      `INSERT INTO RadiusAuthLog (id, propertyId, username, authResult, authType, nasIpAddress, nasIdentifier, callingStationId, calledStationId, clientIpAddress, replyMessage, terminateReason, timestamp)
+      `INSERT INTO "RadiusAuthLog" (id, propertyId, username, authResult, authType, nasIpAddress, nasIdentifier, callingStationId, calledStationId, clientIpAddress, replyMessage, terminateReason, timestamp)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       id,
@@ -3299,7 +3299,7 @@ app.delete('/api/auth-logs', async (c) => {
       return c.json({ success: false, error: '?before=YYYY-MM-DD query parameter is required' }, 400);
     }
 
-    const result = await db.query("DELETE FROM RadiusAuthLog WHERE timestamp < ?").run(before + 'T00:00:00');
+    const result = await db.query("DELETE FROM \"RadiusAuthLog\" WHERE timestamp < ?").run(before + 'T00:00:00');
     return c.json({ success: true, deleted: result.rowCount });
   } catch (error) {
     return c.json({ success: false, error: String(error) }, 500);
@@ -3309,17 +3309,17 @@ app.delete('/api/auth-logs', async (c) => {
 app.get('/api/auth-logs/stats', async (c) => {
   try {
     // Match both RADIUS standard values (Access-Accept/Reject) and short form (Accept/Reject)
-    const totalAccept = (db.query("SELECT COUNT(*) as c FROM RadiusAuthLog WHERE authResult IN ('Accept', 'Access-Accept')").get() as { c: number })?.c || 0;
-    const totalReject = (db.query("SELECT COUNT(*) as c FROM RadiusAuthLog WHERE authResult IN ('Reject', 'Access-Reject')").get() as { c: number })?.c || 0;
+    const totalAccept = (db.query("SELECT COUNT(*) as c FROM \"RadiusAuthLog\" WHERE authResult IN ('Accept', 'Access-Accept')").get() as { c: number })?.c || 0;
+    const totalReject = (db.query("SELECT COUNT(*) as c FROM \"RadiusAuthLog\" WHERE authResult IN ('Reject', 'Access-Reject')").get() as { c: number })?.c || 0;
     const total = totalAccept + totalReject;
 
     // Last hour
-    const lastHour = (db.query("SELECT COUNT(*) as c FROM RadiusAuthLog WHERE timestamp >= datetime('now', '-1 hour') AND authResult IN ('Accept', 'Access-Accept')").get() as { c: number })?.c || 0;
-    const lastHourReject = (db.query("SELECT COUNT(*) as c FROM RadiusAuthLog WHERE timestamp >= datetime('now', '-1 hour') AND authResult IN ('Reject', 'Access-Reject')").get() as { c: number })?.c || 0;
+    const lastHour = (db.query("SELECT COUNT(*) as c FROM \"RadiusAuthLog\" WHERE timestamp >= datetime('now', '-1 hour') AND authResult IN ('Accept', 'Access-Accept')").get() as { c: number })?.c || 0;
+    const lastHourReject = (db.query("SELECT COUNT(*) as c FROM \"RadiusAuthLog\" WHERE timestamp >= datetime('now', '-1 hour') AND authResult IN ('Reject', 'Access-Reject')").get() as { c: number })?.c || 0;
 
     // Today
-    const todayAccept = (db.query("SELECT COUNT(*) as c FROM RadiusAuthLog WHERE timestamp >= datetime('now', 'start of day') AND authResult IN ('Accept', 'Access-Accept')").get() as { c: number })?.c || 0;
-    const todayReject = (db.query("SELECT COUNT(*) as c FROM RadiusAuthLog WHERE timestamp >= datetime('now', 'start of day') AND authResult IN ('Reject', 'Access-Reject')").get() as { c: number })?.c || 0;
+    const todayAccept = (db.query("SELECT COUNT(*) as c FROM \"RadiusAuthLog\" WHERE timestamp >= datetime('now', 'start of day') AND authResult IN ('Accept', 'Access-Accept')").get() as { c: number })?.c || 0;
+    const todayReject = (db.query("SELECT COUNT(*) as c FROM \"RadiusAuthLog\" WHERE timestamp >= datetime('now', 'start of day') AND authResult IN ('Reject', 'Access-Reject')").get() as { c: number })?.c || 0;
 
     return c.json({
       success: true,
@@ -3425,7 +3425,7 @@ async function logCoaAction(params: {
 }): void {
   try {
     db.query(
-      `INSERT INTO RadiusCoaLog (id, propertyId, action, username, sessionId, nasIpAddress, sharedSecret, attributes, result, responseCode, errorMessage, triggeredBy, triggeredById, timestamp)
+      `INSERT INTO "RadiusCoaLog" (id, propertyId, action, username, sessionId, nasIpAddress, sharedSecret, attributes, result, responseCode, errorMessage, triggeredBy, triggeredById, timestamp)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       generateId('coa'),
@@ -3645,10 +3645,10 @@ app.get('/api/coa/logs', async (c) => {
     const limit = Math.min(parseInt(c.req.query('limit') || '100', 10) || 100, 1000);
     const offset = parseInt(c.req.query('offset') || '0', 10) || 0;
 
-    const totalRow = await db.query('SELECT COUNT(*) as c FROM RadiusCoaLog').get() as { c: number } | undefined;
+    const totalRow = await db.query('SELECT COUNT(*) as c FROM "RadiusCoaLog"').get() as { c: number } | undefined;
     const total = totalRow?.c || 0;
 
-    const rows = await db.query('SELECT * FROM RadiusCoaLog ORDER BY timestamp DESC LIMIT ? OFFSET ?').all(limit, offset) as Record<string, unknown>[];
+    const rows = await db.query('SELECT * FROM "RadiusCoaLog" ORDER BY timestamp DESC LIMIT ? OFFSET ?').all(limit, offset) as Record<string, unknown>[];
     return c.json({ success: true, data: rows, total });
   } catch (error) {
     return c.json({ success: false, error: String(error) }, 500);
@@ -3748,7 +3748,7 @@ app.post('/api/data-cap/enforce', async (c) => {
         // This ensures the session is terminated in the DB even if CoA to NAS fails
         db.query("UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'Data-Cap-Exceeded', acctupdatetime = NOW(), updatedAt = NOW() WHERE username = ? AND acctsessionid = ? AND acctstoptime IS NULL")
           .run(username, session.acctsessionid);
-        db.query("UPDATE "LiveSession" SET status = 'ended', updatedAt = NOW() WHERE username = ? AND status = 'active'")
+        db.query(`UPDATE "LiveSession" SET status = 'ended', updatedAt = NOW() WHERE username = ? AND status = 'active'`)
           .run(username);
 
         await logCoaAction({
@@ -3980,7 +3980,7 @@ app.put('/api/mac-auth/:id', async (c) => {
     fields.push("updatedAt = ?");
     params.push(now, id);
 
-    await db.query(`UPDATE RadiusMacAuth SET ${fields.join(', ')} WHERE id = ?`).run(...params);
+    await db.query(`UPDATE "RadiusMacAuth" SET ${fields.join(', ')} WHERE id = ?`).run(...params);
 
     return c.json({ success: true, message: 'MAC auth entry updated' });
   } catch (error) {
@@ -4021,7 +4021,7 @@ app.post('/api/mac-auth/check', async (c) => {
     const now = new Date().toISOString();
 
     const entry = await db.query(
-      "SELECT * FROM "RadiusMacAuth" WHERE macAddress = ? AND status = 'active' ORDER BY createdAt DESC LIMIT 1"
+      `SELECT * FROM "RadiusMacAuth" WHERE macAddress = ? AND status = 'active' ORDER BY createdAt DESC LIMIT 1`
     ).get(normalizedMac) as Record<string, unknown> | null;
 
     if (!entry) {
@@ -4039,8 +4039,8 @@ app.post('/api/mac-auth/check', async (c) => {
     }
 
     // Update last seen
-    await db.query('UPDATE RadiusMacAuth SET lastSeenAt = ?, loginCount = loginCount + 1 WHERE id = ?').run(now, entry.id);
-    await db.query('UPDATE RadiusMacAuth SET updatedAt = ? WHERE id = ?').run(now, entry.id);
+    await db.query('UPDATE "RadiusMacAuth" SET lastSeenAt = ?, loginCount = loginCount + 1 WHERE id = ?').run(now, entry.id);
+    await db.query('UPDATE "RadiusMacAuth" SET updatedAt = ? WHERE id = ?').run(now, entry.id);
 
     return c.json({ success: true, data: { allowed: true, entry } });
   } catch (error) {
@@ -4317,13 +4317,13 @@ app.post('/api/event-users/:id/revoke', async (c) => {
     const username = existing.username as string;
     const now = new Date().toISOString();
 
-    await db.query("UPDATE RadiusEventUser SET status = 'revoked', updatedAt = ? WHERE id = ?").run(now, id);
+    await db.query("UPDATE \"RadiusEventUser\" SET status = 'revoked', updatedAt = ? WHERE id = ?").run(now, id);
 
     // Remove RADIUS user
     await db.query('DELETE FROM radcheck WHERE username = ?').run(username);
     await db.query('DELETE FROM radreply WHERE username = ?').run(username);
     await db.query('DELETE FROM radusergroup WHERE username = ?').run(username);
-    await db.query('DELETE FROM WiFiUser WHERE username = ?').run(username);
+    await db.query('DELETE FROM "WiFiUser" WHERE username = ?').run(username);
 
     return c.json({ success: true, message: 'Event user revoked' });
   } catch (error) {
@@ -4347,7 +4347,7 @@ app.delete('/api/event-users/bulk', async (c) => {
         await db.query('DELETE FROM radcheck WHERE username = ?').run(existing.username);
         await db.query('DELETE FROM radreply WHERE username = ?').run(existing.username);
         await db.query('DELETE FROM radusergroup WHERE username = ?').run(existing.username);
-        await db.query('DELETE FROM WiFiUser WHERE username = ?').run(existing.username);
+        await db.query('DELETE FROM "WiFiUser" WHERE username = ?').run(existing.username);
       }
       const result = await db.query('DELETE FROM "RadiusEventUser" WHERE id = ?').run(uid);
       deletedCount += result.rowCount;
@@ -4402,7 +4402,7 @@ app.post('/api/event-users/attendee', async (c) => {
 
     // Also set guest details
     try {
-      db.query('UPDATE RadiusEventUser SET guestName = ?, guestEmail = ?, guestCompany = ? WHERE id = ?')
+      db.query('UPDATE "RadiusEventUser" SET guestName = ?, guestEmail = ?, guestCompany = ? WHERE id = ?')
         .run(guestName || null, guestEmail || null, guestCompany || null, id);
     } catch { /* columns may not exist yet */ }
 
@@ -4452,7 +4452,7 @@ app.delete('/api/event-users/event/:eventId', async (c) => {
       await db.query('DELETE FROM radcheck WHERE username = ?').run(eu.username);
       await db.query('DELETE FROM radreply WHERE username = ?').run(eu.username);
       await db.query('DELETE FROM radusergroup WHERE username = ?').run(eu.username);
-      await db.query('DELETE FROM WiFiUser WHERE username = ?').run(eu.username);
+      await db.query('DELETE FROM "WiFiUser" WHERE username = ?').run(eu.username);
     }
 
     // 3. Delete all event users
@@ -4578,7 +4578,7 @@ app.put('/api/portal-whitelist/:id', async (c) => {
     fields.push("updatedAt = ?");
     params.push(now, id);
 
-    await db.query(`UPDATE PortalWhitelist SET ${fields.join(', ')} WHERE id = ?`).run(...params);
+    await db.query(`UPDATE "PortalWhitelist" SET ${fields.join(', ')} WHERE id = ?`).run(...params);
     return c.json({ success: true, message: 'Whitelist entry updated' });
   } catch (error) {
     return c.json({ success: false, error: String(error) }, 500);
@@ -4601,7 +4601,7 @@ app.delete('/api/portal-whitelist/:id', async (c) => {
 app.get('/api/portal-whitelist/export', async (c) => {
   try {
     const rows = await db.query(
-      "SELECT * FROM "PortalWhitelist" WHERE status = 'active' ORDER BY priority ASC"
+      `SELECT * FROM "PortalWhitelist" WHERE status = 'active' ORDER BY priority ASC`
     ).all() as Array<Record<string, unknown>>;
 
     // Generate DNS config format
@@ -4640,7 +4640,7 @@ app.get('/api/portal-whitelist/export', async (c) => {
 app.post('/api/sync/users', async (c) => {
   try {
     const startTimeMs = Date.now();
-    const wifiUsers = await db.query('SELECT * FROM WiFiUser WHERE status = ? AND radiusSynced = 0', ['active']).all() as Array<Record<string, unknown>>;
+    const wifiUsers = await db.query('SELECT * FROM "WiFiUser" WHERE status = ? AND "radiusSynced" = 0').all('active') as Array<Record<string, unknown>>;
     let syncedCount = 0;
 
     for (const wu of wifiUsers) {
@@ -4707,7 +4707,7 @@ app.post('/api/sync/users', async (c) => {
         await insertRadUserGroup(username, group, 0);
 
         // Mark as synced
-        await db.query('UPDATE WiFiUser SET radiusSynced = 1, "updatedAt" = NOW() WHERE id = ?').run(wu.id);
+        await db.query('UPDATE "WiFiUser" SET "radiusSynced" = 1, "updatedAt" = NOW() WHERE id = ?').run(wu.id);
         syncedCount++;
       } catch (err) {
         log.error('Failed to sync WiFiUser to RADIUS', { username: wu.username, error: String(err) });
@@ -4717,7 +4717,7 @@ app.post('/api/sync/users', async (c) => {
     // Log provisioning
     if (syncedCount > 0) {
       db.query(
-        `INSERT INTO RadiusProvisioningLog (id, propertyId, action, username, result, details, durationMs, timestamp)
+        `INSERT INTO "RadiusProvisioningLog" (id, propertyId, action, username, result, details, durationMs, timestamp)
          VALUES (?, null, 'sync-users', ?, ?, ?, ?, ?)`
       ).run(
         generateId('plog'), `batch-${syncedCount}`, 'success',
@@ -5167,7 +5167,7 @@ setInterval(async () => {
 
     // Mark expired users in WiFiUser (preserves audit trail)
     const result = await db.query(
-      "UPDATE WiFiUser SET status = 'expired', updatedAt = ? WHERE status = 'active' AND validUntil IS NOT NULL AND validUntil < ?"
+      "UPDATE \"WiFiUser\" SET status = 'expired', updatedAt = ? WHERE status = 'active' AND validUntil IS NOT NULL AND validUntil < ?"
     ).run(nowISO, nowMs);
 
     if (result.rowCount > 0) {
@@ -5175,7 +5175,7 @@ setInterval(async () => {
 
       // HARD DELETE RADIUS credentials — FreeRADIUS will return 'User not found' for expired users
       const justExpired = await db.query(
-        "SELECT username FROM WiFiUser WHERE status = 'expired' AND radiusSynced = 1"
+        "SELECT username FROM \"WiFiUser\" WHERE status = 'expired' AND radiusSynced = 1"
       ).all() as Array<{ username: string }>;
 
       for (const u of justExpired) {
@@ -5183,7 +5183,7 @@ setInterval(async () => {
           await db.query('DELETE FROM radcheck WHERE username = ?').run(u.username);
           await db.query('DELETE FROM radreply WHERE username = ?').run(u.username);
           await db.query('DELETE FROM radusergroup WHERE username = ?').run(u.username);
-          await db.query('UPDATE WiFiUser SET radiusSynced = 0 WHERE username = ?').run(u.username);
+          await db.query('UPDATE "WiFiUser" SET radiusSynced = 0 WHERE username = ?').run(u.username);
           log.info(`Deleted RADIUS credentials for expired user: ${u.username}`);
         } catch {
           // non-critical
@@ -5241,7 +5241,7 @@ setInterval(async () => {
       if (usedBytes >= capBytes) {
         // Check if we already enforced for this user recently (avoid spamming)
         const recentCoa = await db.query(
-          "SELECT id FROM RadiusCoaLog WHERE username = ? AND action = 'data-cap-disconnect' AND timestamp > NOW() - INTERVAL '5 minutes' LIMIT 1"
+          "SELECT id FROM \"RadiusCoaLog\" WHERE username = ? AND action = 'data-cap-disconnect' AND timestamp > NOW() - INTERVAL '5 minutes' LIMIT 1"
         ).get(u.username);
 
         if (!recentCoa) {
@@ -5259,7 +5259,7 @@ setInterval(async () => {
                 // Always close session locally regardless of radclient result
                 db.query("UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'Data-Cap-Exceeded', acctupdatetime = NOW(), updatedAt = NOW() WHERE username = ? AND acctsessionid = ? AND acctstoptime IS NULL")
                   .run(u.username, session.acctsessionid);
-                db.query("UPDATE "LiveSession" SET status = 'ended', updatedAt = NOW() WHERE username = ? AND status = 'active'")
+                db.query(`UPDATE "LiveSession" SET status = 'ended', updatedAt = NOW() WHERE username = ? AND status = 'active'`)
                   .run(u.username);
 
                 await logCoaAction({
@@ -5272,7 +5272,7 @@ setInterval(async () => {
                 // Even on exception, close locally
                 db.query("UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'Data-Cap-Exceeded', acctupdatetime = NOW(), updatedAt = NOW() WHERE username = ? AND acctsessionid = ? AND acctstoptime IS NULL")
                   .run(u.username, session.acctsessionid);
-                db.query("UPDATE "LiveSession" SET status = 'ended', updatedAt = NOW() WHERE username = ? AND status = 'active'")
+                db.query(`UPDATE "LiveSession" SET status = 'ended', updatedAt = NOW() WHERE username = ? AND status = 'active'`)
                   .run(u.username);
               });
             }
@@ -5291,7 +5291,7 @@ setInterval(async () => {
 
 app.get('/api/concurrent-sessions', async (c) => {
   try {
-    const groups = await db.query('SELECT groupname FROM radgroupcheck WHERE attribute = ?', ['Simultaneous-Use']).all() as Array<{ groupname: string }>;
+    const groups = await db.query('SELECT groupname FROM radgroupcheck WHERE attribute = ?').all('Simultaneous-Use') as Array<{ groupname: string }>;
     const result: Record<string, number> = {};
     for (const g of groups) {
       const row = await db.query("SELECT value FROM radgroupcheck WHERE groupname = ? AND attribute = 'Simultaneous-Use'").get(g.groupname) as { value: string } | undefined;
@@ -5396,7 +5396,7 @@ app.get('/api/provisioning-logs', async (c) => {
     const result = c.req.query('result') || '';
     const username = c.req.query('username') || '';
 
-    let sql = 'SELECT * FROM RadiusProvisioningLog WHERE 1=1';
+    let sql = 'SELECT * FROM "RadiusProvisioningLog" WHERE 1=1';
     const params: unknown[] = [];
 
     if (action) { sql += ' AND action = ?'; params.push(action); }
@@ -5418,13 +5418,13 @@ app.get('/api/provisioning-logs', async (c) => {
 
 app.get('/api/provisioning-logs/stats', async (c) => {
   try {
-    const successCount = (await db.query("SELECT COUNT(*) as cnt FROM RadiusProvisioningLog WHERE result = 'success'").get() as { cnt: number } | undefined)?.cnt || 0;
-    const failCount = (await db.query("SELECT COUNT(*) as cnt FROM RadiusProvisioningLog WHERE result != 'success'").get() as { cnt: number } | undefined)?.cnt || 0;
+    const successCount = (await db.query("SELECT COUNT(*) as cnt FROM \"RadiusProvisioningLog\" WHERE result = 'success'").get() as { cnt: number } | undefined)?.cnt || 0;
+    const failCount = (await db.query("SELECT COUNT(*) as cnt FROM \"RadiusProvisioningLog\" WHERE result != 'success'").get() as { cnt: number } | undefined)?.cnt || 0;
     const total = successCount + failCount;
-    const lastLog = await db.query('SELECT * FROM RadiusProvisioningLog ORDER BY timestamp DESC LIMIT 1').get() as Record<string, unknown> | undefined;
+    const lastLog = await db.query('SELECT * FROM "RadiusProvisioningLog" ORDER BY timestamp DESC LIMIT 1').get() as Record<string, unknown> | undefined;
 
     // Action breakdown
-    const actions = await db.query('SELECT action, COUNT(*) as cnt FROM RadiusProvisioningLog GROUP BY action ORDER BY cnt DESC').all() as Array<{ action: string; cnt: number }>;
+    const actions = await db.query('SELECT action, COUNT(*) as cnt FROM "RadiusProvisioningLog" GROUP BY action ORDER BY cnt DESC').all() as Array<{ action: string; cnt: number }>;
 
     return c.json({
       success: true,
@@ -5510,7 +5510,7 @@ app.put('/api/content-filter/:id', async (c) => {
     if (updates.length === 1) return c.json({ success: false, error: 'No fields to update' }, 400);
 
     params.push(id);
-    await db.query(`UPDATE ContentFilter SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    await db.query(`UPDATE "ContentFilter" SET ${updates.join(', ')} WHERE id = ?`).run(...params);
     return c.json({ success: true, message: 'Content filter rule updated' });
   } catch (error) {
     return c.json({ success: false, error: String(error) }, 500);
@@ -5636,10 +5636,10 @@ app.get('/api/guest-wifi-link', async (c) => {
     const wifiUsername = c.req.query('username') || '';
 
     if (guestId) {
-      const guest = await db.query('SELECT id, firstName, lastName, roomNumber, checkinStatus FROM Guest WHERE id = ?').get(guestId) as Record<string, unknown> | undefined;
+      const guest = await db.query('SELECT id, firstName, lastName, roomNumber, checkinStatus FROM "Guest" WHERE id = ?').get(guestId) as Record<string, unknown> | undefined;
       if (!guest) return c.json({ success: false, error: 'Guest not found' }, 404);
 
-      const wifiLink = await db.query('SELECT * FROM WiFiUser WHERE guestId = ?').get(guestId) as Record<string, unknown> | undefined;
+      const wifiLink = await db.query('SELECT * FROM "WiFiUser" WHERE guestId = ?').get(guestId) as Record<string, unknown> | undefined;
       const radCheck = wifiLink ? await db.query('SELECT * FROM radcheck WHERE username = ?').get(wifiLink.username) as Record<string, unknown> | undefined : null;
       const activeSession = wifiLink ? await db.query('SELECT * FROM radacct WHERE username = ? AND acctstoptime IS NULL ORDER BY acctstarttime DESC LIMIT 1').get(wifiLink.username) as Record<string, unknown> | undefined : null;
 
@@ -5656,12 +5656,12 @@ app.get('/api/guest-wifi-link', async (c) => {
     }
 
     if (wifiUsername) {
-      const wifiUser = await db.query('SELECT * FROM WiFiUser WHERE username = ?').get(wifiUsername) as Record<string, unknown> | undefined;
+      const wifiUser = await db.query('SELECT * FROM "WiFiUser" WHERE username = ?').get(wifiUsername) as Record<string, unknown> | undefined;
       if (!wifiUser || !wifiUser.guestId) {
         return c.json({ success: true, data: { linked: false, wifiUser: wifiUser || null, guest: null } });
       }
 
-      const guest = await db.query('SELECT id, firstName, lastName, roomNumber, checkinStatus FROM Guest WHERE id = ?').get(wifiUser.guestId) as Record<string, unknown> | undefined;
+      const guest = await db.query('SELECT id, firstName, lastName, roomNumber, checkinStatus FROM "Guest" WHERE id = ?').get(wifiUser.guestId) as Record<string, unknown> | undefined;
       return c.json({
         success: true,
         data: {
@@ -5676,8 +5676,8 @@ app.get('/api/guest-wifi-link', async (c) => {
     const links = await db.query(
       `SELECT wu.id, wu.username, wu.guestId, wu.status,
               g.firstName, g.lastName, g.roomNumber, g.checkinStatus
-       FROM WiFiUser wu
-       LEFT JOIN Guest g ON wu.guestId = g.id
+       FROM "WiFiUser" wu
+       LEFT JOIN "Guest" g ON wu.guestId = g.id
        WHERE wu.guestId IS NOT NULL
        ORDER BY wu.createdAt DESC`
     ).all() as Record<string, unknown>[];
@@ -5700,14 +5700,14 @@ app.post('/api/guest-wifi-link', async (c) => {
     }
 
     // Check guest exists (include tenantId for WiFiUser)
-    const guest = await db.query('SELECT id, firstName, lastName, roomNumber, checkinStatus, tenantId FROM Guest WHERE id = ?').get(guestId) as Record<string, unknown> | undefined;
+    const guest = await db.query('SELECT id, firstName, lastName, roomNumber, checkinStatus, tenantId FROM "Guest" WHERE id = ?').get(guestId) as Record<string, unknown> | undefined;
     if (!guest) return c.json({ success: false, error: 'Guest not found' }, 404);
 
     const guestTenantId = (guest.tenantId as string) || 'tenant-1';
 
     // Try to find propertyId from guest's active booking, fallback to 'property-1'
     const booking = await db.query(
-      `SELECT propertyId FROM Booking WHERE primaryGuestId = ? AND status IN ('confirmed', 'checked_in') ORDER BY checkIn DESC LIMIT 1`
+      `SELECT propertyId FROM "Booking" WHERE primaryGuestId = ? AND status IN ('confirmed', 'checked_in') ORDER BY checkIn DESC LIMIT 1`
     ).get(guestId) as Record<string, unknown> | undefined;
     const guestPropertyId = (booking?.propertyId as string) || 'property-1';
 
@@ -5715,7 +5715,7 @@ app.post('/api/guest-wifi-link', async (c) => {
     const password = wifiPassword || generateSharedSecret(8);
 
     // Create WiFiUser if not exists
-    const existing = await db.query('SELECT * FROM WiFiUser WHERE guestId = ?').get(guestId) as Record<string, unknown> | undefined;
+    const existing = await db.query('SELECT * FROM "WiFiUser" WHERE guestId = ?').get(guestId) as Record<string, unknown> | undefined;
     if (existing) {
       return c.json({ success: false, error: 'Guest already linked to a WiFi account', data: { existingUsername: existing.username } }, 409);
     }
@@ -5724,7 +5724,7 @@ app.post('/api/guest-wifi-link', async (c) => {
     const wifiId = generateId('wfu');
 
     db.query(
-      `INSERT INTO WiFiUser (id, tenantId, propertyId, username, password, guestId, bookingId, planId, status, validFrom, validUntil, radiusSynced, createdAt, updatedAt)
+      `INSERT INTO "WiFiUser" (id, tenantId, propertyId, username, password, guestId, bookingId, planId, status, validFrom, validUntil, radiusSynced, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, null, ?, 'active', ?, ?, 0, ?, ?)`
     ).run(wifiId, guestTenantId, guestPropertyId, username, password, guestId, planId || null, now, now, now, now);
 
@@ -5740,7 +5740,7 @@ app.post('/api/guest-wifi-link', async (c) => {
 
     // Log provisioning
     db.query(
-      `INSERT INTO RadiusProvisioningLog (id, propertyId, action, username, result, details, durationMs, timestamp)
+      `INSERT INTO "RadiusProvisioningLog" (id, propertyId, action, username, result, details, durationMs, timestamp)
        VALUES (?, null, 'guest-wifi-link', ?, 'success', ?, 0, ?)`
     ).run(generateId('plog'), username, `Linked guest ${guest.firstName} ${guest.lastName} (room ${guest.roomNumber}) to WiFi user "${username}"`, now);
 
@@ -5757,7 +5757,7 @@ app.post('/api/guest-wifi-link', async (c) => {
 app.delete('/api/guest-wifi-link/:guestId', async (c) => {
   try {
     const guestId = c.req.param('guestId');
-    const wifiUser = await db.query('SELECT * FROM WiFiUser WHERE guestId = ?').get(guestId) as Record<string, unknown> | undefined;
+    const wifiUser = await db.query('SELECT * FROM "WiFiUser" WHERE guestId = ?').get(guestId) as Record<string, unknown> | undefined;
 
     if (wifiUser) {
       const username = wifiUser.username as string;
@@ -5780,11 +5780,11 @@ app.delete('/api/guest-wifi-link/:guestId', async (c) => {
       await db.query('DELETE FROM radusergroup WHERE username = ?').run(username);
 
       // Remove WiFiUser link
-      await db.query('DELETE FROM WiFiUser WHERE guestId = ?').run(guestId);
+      await db.query('DELETE FROM "WiFiUser" WHERE guestId = ?').run(guestId);
 
       // Log
       db.query(
-        `INSERT INTO RadiusProvisioningLog (id, propertyId, action, username, result, details, durationMs, timestamp)
+        `INSERT INTO "RadiusProvisioningLog" (id, propertyId, action, username, result, details, durationMs, timestamp)
          VALUES (?, null, 'guest-wifi-unlink', ?, 'success', ?, 0, ?)`
       ).run(generateId('plog'), username, `Unlinked WiFi user "${username}" from guest`, new Date().toISOString());
 
@@ -5941,8 +5941,8 @@ app.post('/api/bandwidth-schedules', async (c) => {
     const now = new Date().toISOString();
 
     // Ensure downloadMbps/uploadMbps columns exist (add if missing)
-    try { await db.query('ALTER TABLE ScheduleAccess ADD COLUMN downloadMbps INTEGER DEFAULT 0').run(); } catch { /* column exists */ }
-    try { await db.query('ALTER TABLE ScheduleAccess ADD COLUMN uploadMbps INTEGER DEFAULT 0').run(); } catch { /* column exists */ }
+    try { await db.query('ALTER TABLE "ScheduleAccess" ADD COLUMN downloadMbps INTEGER DEFAULT 0').run(); } catch { /* column exists */ }
+    try { await db.query('ALTER TABLE "ScheduleAccess" ADD COLUMN uploadMbps INTEGER DEFAULT 0').run(); } catch { /* column exists */ }
 
     db.query(
       `INSERT INTO "ScheduleAccess" (id, tenantId, propertyId, name, daysOfWeek, startTime, endTime, downloadMbps, uploadMbps, applyTo, applyToPlanId, bandwidthPolicyId, action, description, enabled, createdAt, updatedAt)
@@ -6206,7 +6206,7 @@ async function enforceBandwidthSchedules(
   const activeSessions = await db.query(
     `SELECT ls.*, wu.userType AS sessionUserType
      FROM "LiveSession" ls
-     LEFT JOIN WiFiUser wu ON wu.username = ls.username
+     LEFT JOIN "WiFiUser" wu ON wu.username = ls.username
      WHERE ls.status = 'active'`
   ).all() as Array<Record<string, unknown>>;
 
@@ -6256,7 +6256,7 @@ async function enforceBandwidthSchedules(
         if (scheduleAction === 'limit' && (downloadMbps > 0 || uploadMbps > 0)) {
           // Check if we already enforced this schedule recently (within 2 min) to avoid duplicate CoA
           const recentCoa = await db.query(
-            "SELECT id FROM RadiusCoaLog WHERE username = ? AND action = 'bw-schedule' AND triggeredById = ? AND result = 'success' AND timestamp > datetime('now', '-2 minutes') LIMIT 1"
+            "SELECT id FROM \"RadiusCoaLog\" WHERE username = ? AND action = 'bw-schedule' AND triggeredById = ? AND result = 'success' AND timestamp > datetime('now', '-2 minutes') LIMIT 1"
           ).get(sessionUsername, scheduleId) as { id: string } | undefined;
 
           if (!recentCoa) {
@@ -6279,7 +6279,7 @@ async function enforceBandwidthSchedules(
           const nas = await lookupNAS(sessionNasIp);
           if (nas) {
             const recentCoa = await db.query(
-              "SELECT id FROM RadiusCoaLog WHERE username = ? AND action = 'bw-schedule' AND triggeredById = ? AND timestamp > datetime('now', '-2 minutes') LIMIT 1"
+              "SELECT id FROM \"RadiusCoaLog\" WHERE username = ? AND action = 'bw-schedule' AND triggeredById = ? AND timestamp > datetime('now', '-2 minutes') LIMIT 1"
             ).get(sessionUsername, scheduleId) as { id: string } | undefined;
 
             if (!recentCoa) {
@@ -6303,7 +6303,7 @@ async function enforceBandwidthSchedules(
         // Schedule is NOT active — check if it was recently active and revert
         // Look for a recent successful CoA from this schedule
         const recentApplyCoa = await db.query(
-          "SELECT id, timestamp FROM RadiusCoaLog WHERE username = ? AND action = 'bw-schedule' AND triggeredById = ? AND result = 'success' ORDER BY timestamp DESC LIMIT 1"
+          "SELECT id, timestamp FROM \"RadiusCoaLog\" WHERE username = ? AND action = 'bw-schedule' AND triggeredById = ? AND result = 'success' ORDER BY timestamp DESC LIMIT 1"
         ).get(sessionUsername, scheduleId) as { id: string; timestamp: string } | undefined;
 
         if (recentApplyCoa) {
@@ -6317,7 +6317,7 @@ async function enforceBandwidthSchedules(
           if (timeSinceCoA <= 300) {
             // Check if we already reverted recently
             const recentRevert = await db.query(
-              "SELECT id FROM RadiusCoaLog WHERE username = ? AND action = 'bw-schedule-revert' AND triggeredById = ? AND result = 'success' AND timestamp > datetime('now', '-2 minutes') LIMIT 1"
+              "SELECT id FROM \"RadiusCoaLog\" WHERE username = ? AND action = 'bw-schedule-revert' AND triggeredById = ? AND result = 'success' AND timestamp > datetime('now', '-2 minutes') LIMIT 1"
             ).get(sessionUsername, scheduleId) as { id: string } | undefined;
 
             if (!recentRevert) {
@@ -6326,7 +6326,7 @@ async function enforceBandwidthSchedules(
               let planUploadMbps = 5;
 
               if (sessionPlanId) {
-                const plan = await db.query('SELECT downloadSpeed, uploadSpeed FROM WiFiPlan WHERE id = ?').get(sessionPlanId) as { downloadSpeed: number; uploadSpeed: number } | undefined;
+                const plan = await db.query('SELECT downloadSpeed, uploadSpeed FROM "WiFiPlan" WHERE id = ?').get(sessionPlanId) as { downloadSpeed: number; uploadSpeed: number } | undefined;
                 if (plan) {
                   planDownloadMbps = plan.downloadSpeed || 10;
                   planUploadMbps = plan.uploadSpeed || 5;
@@ -6545,7 +6545,7 @@ app.put('/api/live-sessions/:id', async (c) => {
 app.delete('/api/live-sessions/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    const result = await db.query("DELETE FROM "LiveSession" WHERE id = ?").run(id);
+    const result = await db.query(`DELETE FROM "LiveSession" WHERE id = ?`).run(id);
     if (result.rowCount === 0) return c.json({ success: false, error: 'Live session not found' }, 404);
     return c.json({ success: true, message: 'Live session ended' });
   } catch (error) {
@@ -6584,7 +6584,7 @@ app.post('/api/live-sessions/end-local', async (c) => {
       matchedUsername = matchedUsername || (liveSession.username as string) || '';
 
       // Mark LiveSession as ended
-      const r = await db.query("UPDATE "LiveSession" SET status = 'ended', updatedAt = NOW() WHERE id = ?").run(liveSession.id);
+      const r = await db.query(`UPDATE "LiveSession" SET status = 'ended', updatedAt = NOW() WHERE id = ?`).run(liveSession.id);
       changes += r.rowCount;
     }
 
@@ -6737,7 +6737,7 @@ app.get('/api/fap-policies', async (c) => {
     const propertyId = c.req.query('propertyId') || '';
     const isEnabled = c.req.query('isEnabled') || '';
 
-    let sql = 'SELECT * FROM FairAccessPolicy WHERE 1=1';
+    let sql = 'SELECT * FROM "FairAccessPolicy" WHERE 1=1';
     const params: unknown[] = [];
     if (propertyId) { sql += ' AND propertyId = ?'; params.push(propertyId); }
     if (isEnabled !== '') { sql += ' AND isEnabled = ?'; params.push(parseInt(isEnabled, 10)); }
@@ -6762,7 +6762,7 @@ app.post('/api/fap-policies', async (c) => {
 
     const id = generateId('fap');
     db.query(
-      `INSERT INTO FairAccessPolicy (id, tenantId, propertyId, name, description, cycleType, limitType, dataLimitMb, dataLimitUnit,
+      `INSERT INTO "FairAccessPolicy" (id, tenantId, propertyId, name, description, cycleType, limitType, dataLimitMb, dataLimitUnit,
         switchOverBwPolicyId, cycleResetHour, cycleResetMinute, applicableOn, isEnabled, priority, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
     ).run(
@@ -6784,7 +6784,7 @@ app.put('/api/fap-policies/:id', async (c) => {
     const allowedFields = ['name', 'description', 'cycleType', 'limitType', 'dataLimitMb', 'dataLimitUnit',
       'switchOverBwPolicyId', 'cycleResetHour', 'cycleResetMinute', 'applicableOn', 'isEnabled', 'priority'];
 
-    const existing = await db.query('SELECT * FROM FairAccessPolicy WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    const existing = await db.query('SELECT * FROM "FairAccessPolicy" WHERE id = ?').get(id) as Record<string, unknown> | undefined;
     if (!existing) return c.json({ success: false, error: 'FAP policy not found' }, 404);
 
     const updates: string[] = [];
@@ -6799,7 +6799,7 @@ app.put('/api/fap-policies/:id', async (c) => {
     if (updates.length === 1) return c.json({ success: false, error: 'No fields to update' }, 400);
 
     params.push(id);
-    await db.query(`UPDATE FairAccessPolicy SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    await db.query(`UPDATE "FairAccessPolicy" SET ${updates.join(', ')} WHERE id = ?`).run(...params);
 
     return c.json({ success: true, message: 'FAP policy updated' });
   } catch (error) {
@@ -6810,7 +6810,7 @@ app.put('/api/fap-policies/:id', async (c) => {
 app.delete('/api/fap-policies/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    const result = await db.query('DELETE FROM FairAccessPolicy WHERE id = ?').run(id);
+    const result = await db.query('DELETE FROM "FairAccessPolicy" WHERE id = ?').run(id);
     if (result.rowCount === 0) return c.json({ success: false, error: 'FAP policy not found' }, 404);
     return c.json({ success: true, message: 'FAP policy deleted' });
   } catch (error) {
@@ -6824,7 +6824,7 @@ app.post('/api/fap-policies/:id/check', async (c) => {
     const body = await c.req.json();
     const { username, currentUploadMb, currentDownloadMb } = body;
 
-    const policy = await db.query('SELECT * FROM FairAccessPolicy WHERE id = ? AND isEnabled = 1').get(id) as Record<string, unknown> | undefined;
+    const policy = await db.query('SELECT * FROM "FairAccessPolicy" WHERE id = ? AND isEnabled = 1').get(id) as Record<string, unknown> | undefined;
     if (!policy) return c.json({ success: false, error: 'FAP policy not found or disabled' }, 404);
 
     // Convert dataLimitMb to MB based on dataLimitUnit (gb → multiply by 1024)
@@ -6861,7 +6861,7 @@ app.post('/api/fap-policies/enforce-all', async (c) => {
 
     for (const session of activeSessions) {
       const fapPolicies = await db.query(
-        'SELECT * FROM FairAccessPolicy WHERE isEnabled = 1 AND propertyId = ? ORDER BY priority ASC LIMIT 1'
+        'SELECT * FROM "FairAccessPolicy" WHERE isEnabled = 1 AND propertyId = ? ORDER BY priority ASC LIMIT 1'
       ).all(session.propertyId) as Array<Record<string, unknown>>;
 
       if (fapPolicies.length === 0) { skipped++; continue; }
@@ -6969,7 +6969,7 @@ app.put('/api/web-categories/:id', async (c) => {
     if (updates.length === 1) return c.json({ success: false, error: 'No fields to update' }, 400);
 
     params.push(id);
-    await db.query(`UPDATE WebCategory SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    await db.query(`UPDATE "WebCategory" SET ${updates.join(', ')} WHERE id = ?`).run(...params);
     return c.json({ success: true, message: 'Web category updated' });
   } catch (error) {
     return c.json({ success: false, error: String(error) }, 500);
@@ -7039,7 +7039,7 @@ app.put('/api/web-categories/schedules/:id', async (c) => {
     if (updates.length === 1) return c.json({ success: false, error: 'No fields to update' }, 400);
 
     params.push(id);
-    await db.query(`UPDATE WebCategorySchedule SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    await db.query(`UPDATE "WebCategorySchedule" SET ${updates.join(', ')} WHERE id = ?`).run(...params);
     return c.json({ success: true, message: 'Web category schedule updated' });
   } catch (error) {
     return c.json({ success: false, error: String(error) }, 500);
@@ -7214,7 +7214,7 @@ app.post('/api/nas-health/check', async (c) => {
     }
 
     // Count live users from this NAS
-    const liveCount = (await db.query("SELECT COUNT(*) as c FROM "LiveSession" WHERE nasIpAddress = ? AND status = 'active'").get(nasIpAddress) as { c: number } | undefined)?.c || 0;
+    const liveCount = (await db.query(`SELECT COUNT(*) as c FROM "LiveSession" WHERE nasIpAddress = ? AND status = 'active'`).get(nasIpAddress) as { c: number } | undefined)?.c || 0;
 
     const id = generateId('nhl');
     db.query(
@@ -7322,7 +7322,7 @@ app.put('/api/bw-policy-details/:id', async (c) => {
     if (updates.length === 1) return c.json({ success: false, error: 'No fields to update' }, 400);
 
     params.push(id);
-    await db.query(`UPDATE BandwidthPolicyDetail SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    await db.query(`UPDATE "BandwidthPolicyDetail" SET ${updates.join(', ')} WHERE id = ?`).run(...params);
     return c.json({ success: true, message: 'BW policy detail updated' });
   } catch (error) {
     return c.json({ success: false, error: String(error) }, 500);
@@ -7350,7 +7350,7 @@ setInterval(async () => {
 
     // Get all active sessions that haven't been checked recently
     const activeSessions = await db.query(
-      "SELECT * FROM "LiveSession" WHERE status = 'active'"
+      `SELECT * FROM "LiveSession" WHERE status = 'active'`
     ).all() as Array<Record<string, unknown>>;
 
     let enforced = 0;
@@ -7361,7 +7361,7 @@ setInterval(async () => {
 
       // Find applicable FAP policy for this session's property
       const fapPolicies = await db.query(
-        'SELECT * FROM FairAccessPolicy WHERE isEnabled = 1 AND propertyId = ? ORDER BY priority ASC LIMIT 1'
+        'SELECT * FROM "FairAccessPolicy" WHERE isEnabled = 1 AND propertyId = ? ORDER BY priority ASC LIMIT 1'
       ).all(session.propertyId) as Array<Record<string, unknown>>;
 
       if (fapPolicies.length === 0) continue;
@@ -7387,12 +7387,12 @@ setInterval(async () => {
       if (usedMb >= limitMb && policy.switchOverBwPolicyId) {
         // Check if we already throttled this session recently (avoid duplicate CoA)
         const recentCoa = await db.query(
-          "SELECT id FROM "CoaSessionDetail" WHERE username = ? AND coaType = 'fap-throttle' AND result = 'success' AND createdAt > NOW() - INTERVAL '5 minutes' LIMIT 1"
+          `SELECT id FROM "CoaSessionDetail" WHERE username = ? AND coaType = 'fap-throttle' AND result = 'success' AND createdAt > NOW() - INTERVAL '5 minutes' LIMIT 1`
         ).get(session.username) as { id: string } | undefined;
 
         if (!recentCoa) {
           // Look up the switch-over bandwidth policy instead of hardcoding
-          const bwPolicy = await db.query('SELECT * FROM BandwidthPolicy WHERE id = ?').get(policy.switchOverBwPolicyId) as Record<string, unknown> | undefined;
+          const bwPolicy = await db.query('SELECT * FROM "BandwidthPolicy" WHERE id = ?').get(policy.switchOverBwPolicyId) as Record<string, unknown> | undefined;
           const throttleDown = ((bwPolicy?.downloadKbps as number) || 1000); // default 1 Mbps
           const throttleUp = ((bwPolicy?.uploadKbps as number) || 512);    // default 512 kbps
 
@@ -7433,7 +7433,7 @@ setInterval(async () => {
             }
             executeRadclient(nas.ip, nas.coaPort, 'coa', nas.secret, attrs).then(async (radResult) => {
               if (!radResult.success) {
-                await db.query("UPDATE "CoaSessionDetail" SET result = 'failed', errorMessage = ? WHERE id = (SELECT id FROM "CoaSessionDetail" WHERE username = ? AND coaType = 'fap-throttle' ORDER BY createdAt DESC LIMIT 1)")
+                await db.query(`UPDATE "CoaSessionDetail" SET result = 'failed', errorMessage = ? WHERE id = (SELECT id FROM "CoaSessionDetail" WHERE username = ? AND coaType = 'fap-throttle' ORDER BY createdAt DESC LIMIT 1)`)
                   .run(radResult.error?.substring(0, 500), session.username);
               }
             }).catch(() => {});

@@ -38,9 +38,7 @@ const serviceRegistry: Record<ServiceName, {
       name: 'Database',
       enabled: true,
       type: config.database.isPostgreSQL ? 'real' : 'mock',
-      message: config.database.isPostgreSQL 
-        ? 'PostgreSQL connected' 
-        : 'SQLite (development mode)',
+      message: 'PostgreSQL connected',
       lastChecked: new Date(),
     }),
   },
@@ -247,10 +245,7 @@ export function getSandboxLimitations(): string[] {
   const config = getConfig();
   const limitations: string[] = [];
   
-  if (config.database.isSQLite) {
-    limitations.push('Using SQLite - No Row-Level Security');
-    limitations.push('Limited concurrent connections');
-  }
+  // No SQLite limitations — always PostgreSQL
   
   if (!config.redis.enabled) {
     limitations.push('In-memory cache - Data lost on restart');

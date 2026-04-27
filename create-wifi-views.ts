@@ -1,282 +1,98 @@
-import { Database } from 'bun:sqlite';
+/**
+ * create-wifi-views.ts
+ *
+ * Creates / recreates the StaySuite reporting views in PostgreSQL.
+ * The view definitions are the single source of truth in:
+ *   pgsql-production/02-staysuite-views.sql
+ *
+ * Usage:
+ *   bun run create-wifi-views.ts
+ */
 
-const sqlite = new Database('./db/custom.db');
+import { Pool } from 'pg';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-console.log('Creating SQLite views with datetime formatting...');
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-sqlite.exec('DROP VIEW IF EXISTS v_session_history');
-sqlite.exec('DROP VIEW IF EXISTS v_active_sessions');
-sqlite.exec('DROP VIEW IF EXISTS v_user_usage');
-sqlite.exec('DROP VIEW IF EXISTS v_wifi_users');
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://z@localhost:5432/staysuite';
 
-// In SQLite, DateTime values are stored as Unix epoch milliseconds (integers).
-// We need to format them as ISO strings for the API queries that compare with date strings.
+async function main() {
+  const pool = new Pool({ connectionString: DATABASE_URL });
 
-sqlite.exec(`
-CREATE VIEW v_session_history AS
-SELECT
-  s.id as session_id,
-  s.id as radacctid,
-  s.id as acctsessionid,
-  s.tenantId,
-  s.planId,
-  s.guestId,
-  s.bookingId,
-  s.macAddress as callingstationid,
-  s.macAddress as wifi_mac,
-  s.ipAddress,
-  s.ipAddress as framedipaddress,
-  s.deviceName,
-  s.deviceType,
-  datetime(s.startTime / 1000, 'unixepoch') as acctstarttime,
-  datetime(s.startTime / 1000, 'unixepoch') as acctupdatetime,
-  CASE WHEN s.endTime IS NOT NULL THEN datetime(s.endTime / 1000, 'unixepoch') ELSE NULL END as acctstoptime,
-  s.dataUsed as total_data_used,
-  s.duration as acctsessiontime,
-  -- Split dataUsed: 70% download (NAS→user), 30% upload (user→NAS)
-  CAST(s.dataUsed * 0.7 AS INTEGER) as acctoutputoctets,
-  CAST(s.dataUsed * 0.3 AS INTEGER) as acctinputoctets,
-  s.authMethod,
-  s.status as session_status,
-  s.status as wifi_user_status,
-  s.status,
-  CASE WHEN s.status = 'active' THEN 'User-Request' ELSE 'NAS-Request' END as acctterminatecause,
-  datetime(s.createdAt / 1000, 'unixepoch') as createdAt,
-  datetime(s.updatedAt / 1000, 'unixepoch') as updatedAt,
-  COALESCE(u.username, '') as username,
-  COALESCE(g.firstName, '') as guest_first_name,
-  COALESCE(g.lastName, '') as guest_last_name,
-  COALESCE(g.email, '') as guest_email,
-  COALESCE(g.phone, '') as guest_phone,
-  COALESCE(g.loyaltyTier, '') as guest_loyalty_tier,
-  CASE WHEN g.isVip = 1 THEN 1 ELSE 0 END as guest_is_vip,
-  COALESCE(r.number, '') as room_number,
-  COALESCE(r.name, '') as room_name,
-  COALESCE(r.floor, 0) as room_floor,
-  COALESCE(p.name, '') as property_name,
-  COALESCE(wp.name, '') as plan_name,
-  wp.downloadSpeed as downloadSpeed,
-  wp.downloadSpeed as plan_download_speed,
-  wp.uploadSpeed as uploadSpeed,
-  wp.uploadSpeed as plan_upload_speed,
-  wp.dataLimit as dataLimit,
-  wp.dataLimit as plan_data_limit,
-  COALESCE(b.confirmationCode, '') as booking_code,
-  COALESCE(b.status, '') as booking_status,
-  s.id as acctuniqueid,
-  NULL as framedipv6address,
-  '0.0.0.0' as nasipaddress,
-  '' as nasidentifier,
-  NULL as nasportid,
-  'Wireless-802.11' as nasporttype,
-  '' as calledstationid,
-  NULL as connectinfo_start,
-  NULL as connectinfo_stop
-FROM WiFiSession s
-LEFT JOIN WiFiUser u ON s.guestId = u.guestId
-LEFT JOIN Guest g ON s.guestId = g.id
-LEFT JOIN Booking b ON s.bookingId = b.id
-LEFT JOIN Room r ON b.roomId = r.id
-LEFT JOIN Property p ON b.propertyId = p.id
-LEFT JOIN WiFiPlan wp ON s.planId = wp.id
-`);
-console.log('✓ v_session_history view created');
+  try {
+    // Read the PostgreSQL views SQL file
+    const sqlPath = join(__dirname, 'pgsql-production', '02-staysuite-views.sql');
+    const sql = readFileSync(sqlPath, 'utf-8');
 
-sqlite.exec(`
-CREATE VIEW v_active_sessions AS
-SELECT
-  s.id as session_id,
-  s.id as radacctid,
-  s.id as acctsessionid,
-  s.tenantId,
-  s.planId,
-  s.guestId,
-  s.bookingId,
-  s.macAddress as callingstationid,
-  s.macAddress as wifi_mac,
-  s.ipAddress,
-  s.ipAddress as framedipaddress,
-  s.deviceName,
-  s.deviceType,
-  datetime(s.startTime / 1000, 'unixepoch') as acctstarttime,
-  datetime(s.startTime / 1000, 'unixepoch') as acctupdatetime,
-  CASE WHEN s.endTime IS NOT NULL THEN datetime(s.endTime / 1000, 'unixepoch') ELSE NULL END as acctstoptime,
-  s.dataUsed as total_data_used,
-  s.duration as acctsessiontime,
-  -- Split dataUsed: 70% download (NAS→user), 30% upload (user→NAS)
-  CAST(s.dataUsed * 0.7 AS INTEGER) as acctoutputoctets,
-  CAST(s.dataUsed * 0.3 AS INTEGER) as acctinputoctets,
-  s.authMethod,
-  s.status as session_status,
-  s.status as wifi_user_status,
-  s.status,
-  CASE WHEN s.status = 'active' THEN 'User-Request' ELSE 'NAS-Request' END as acctterminatecause,
-  datetime(s.createdAt / 1000, 'unixepoch') as createdAt,
-  datetime(s.updatedAt / 1000, 'unixepoch') as updatedAt,
-  COALESCE(u.username, '') as username,
-  COALESCE(g.firstName, '') as guest_first_name,
-  COALESCE(g.lastName, '') as guest_last_name,
-  COALESCE(g.email, '') as guest_email,
-  COALESCE(g.loyaltyTier, '') as guest_loyalty_tier,
-  CASE WHEN g.isVip = 1 THEN 1 ELSE 0 END as guest_is_vip,
-  COALESCE(r.number, '') as room_number,
-  COALESCE(r.name, '') as room_name,
-  COALESCE(r.floor, 0) as room_floor,
-  COALESCE(p.name, '') as property_name,
-  COALESCE(wp.name, '') as plan_name,
-  wp.downloadSpeed as downloadSpeed,
-  wp.downloadSpeed as plan_download_speed,
-  wp.uploadSpeed as uploadSpeed,
-  wp.uploadSpeed as plan_upload_speed,
-  wp.dataLimit as dataLimit,
-  wp.dataLimit as plan_data_limit,
-  COALESCE(b.confirmationCode, '') as booking_code,
-  COALESCE(b.status, '') as booking_status,
-  s.id as acctuniqueid,
-  NULL as framedipv6address,
-  '0.0.0.0' as nasipaddress,
-  '' as nasidentifier,
-  NULL as nasportid,
-  'Wireless-802.11' as nasporttype,
-  '' as calledstationid,
-  NULL as connectinfo_start,
-  NULL as connectinfo_stop
-FROM WiFiSession s
-LEFT JOIN WiFiUser u ON s.guestId = u.guestId
-LEFT JOIN Guest g ON s.guestId = g.id
-LEFT JOIN Booking b ON s.bookingId = b.id
-LEFT JOIN Room r ON b.roomId = r.id
-LEFT JOIN Property p ON b.propertyId = p.id
-LEFT JOIN WiFiPlan wp ON s.planId = wp.id
-WHERE s.status = 'active'
-`);
-console.log('✓ v_active_sessions view created');
+    console.log('Executing pgsql-production/02-staysuite-views.sql ...');
 
-// v_wifi_users — WiFi user list with RADIUS credentials
-sqlite.exec(`
-CREATE VIEW v_wifi_users AS
-SELECT
-  u.id,
-  u.tenantId,
-  u.propertyId,
-  u.guestId,
-  u.bookingId,
-  u.username,
-  u.planId,
-  u.status,
-  NULL as authMethod,
-  NULL as macAddress,
-  u.validFrom,
-  u.validUntil,
-  u.totalBytesIn,
-  u.totalBytesOut,
-  u.sessionCount,
-  u.lastAccountingAt as lastSeenAt,
-  u.createdAt,
-  u.updatedAt,
-  (SELECT rc.value FROM radcheck rc WHERE rc.username = u.username AND rc.attribute = 'Cleartext-Password' LIMIT 1) as radius_password,
-  (SELECT rg.groupname FROM radusergroup rg WHERE rg.username = u.username LIMIT 1) as radius_group,
-  g.firstName as guest_first_name,
-  g.lastName as guest_last_name,
-  g.email as guest_email,
-  g.phone as guest_phone,
-  g.loyaltyTier as guest_loyalty_tier,
-  CASE WHEN g.isVip = 1 THEN 1 ELSE 0 END as guest_is_vip,
-  r.number as room_number,
-  r.name as room_name,
-  r.floor as room_floor,
-  p.name as property_name,
-  wp.name as plan_name,
-  wp.downloadSpeed as plan_download_speed,
-  wp.uploadSpeed as plan_upload_speed,
-  wp.dataLimit as plan_data_limit,
-  b.confirmationCode as booking_code,
-  b.status as booking_status,
-  b.checkIn as booking_check_in,
-  b.checkOut as booking_check_out
-FROM WiFiUser u
-LEFT JOIN Guest g ON u.guestId = g.id
-LEFT JOIN Booking b ON u.bookingId = b.id
-LEFT JOIN Room r ON b.roomId = r.id
-LEFT JOIN Property p ON u.propertyId = p.id
-LEFT JOIN WiFiPlan wp ON u.planId = wp.id
-`);
-console.log('✓ v_wifi_users view created');
+    // The SQL file contains a transaction (BEGIN … COMMIT), so we can run it as-is.
+    // However, pg Pool does not support multi-statement queries by default,
+    // so we strip the outer BEGIN/COMMIT and execute the statements sequentially.
+    const stripped = sql
+      .replace(/^\s*BEGIN\s*;?\s*$/im, '')
+      .replace(/^\s*COMMIT\s*;?\s*$/im, '');
 
-// v_user_usage — Per-user aggregated usage for the Usage Dashboard
-// Columns match what the API's user-usage-summary action expects
-sqlite.exec(`
-CREATE VIEW v_user_usage AS
-SELECT
-  u.id as user_id,
-  u.tenantId,
-  u.propertyId,
-  u.guestId,
-  u.bookingId,
-  u.username,
-  u.planId,
-  u.status,
-  u.totalBytesIn as totalBytesIn,
-  u.totalBytesOut as totalBytesOut,
-  u.totalBytesIn + u.totalBytesOut as total_data_used,
-  -- Column aliases matching what the API expects
-  u.sessionCount as total_sessions,
-  (SELECT COUNT(*) FROM WiFiSession ws WHERE ws.guestId = u.guestId AND ws.status = 'active') as active_sessions,
-  u.totalBytesIn as total_download_bytes,
-  u.totalBytesOut as total_upload_bytes,
-  COALESCE((SELECT SUM(ws.duration) FROM WiFiSession ws WHERE ws.guestId = u.guestId), 0) as total_session_time,
-  -- Date fields for filtering
-  datetime(u.lastAccountingAt / 1000, 'unixepoch') as last_session_start,
-  COALESCE(
-    (SELECT datetime(MIN(ws.startTime) / 1000, 'unixepoch') FROM WiFiSession ws WHERE ws.guestId = u.guestId),
-    ''
-  ) as first_session_start,
-  u.lastAccountingAt as lastSeenAt,
-  u.createdAt,
-  u.updatedAt,
-  -- Enriched fields
-  COALESCE(g.firstName, '') as guest_first_name,
-  COALESCE(g.lastName, '') as guest_last_name,
-  COALESCE(g.email, '') as guest_email,
-  COALESCE(g.loyaltyTier, '') as guest_loyalty_tier,
-  CASE WHEN g.isVip = 1 THEN 1 ELSE 0 END as guest_is_vip,
-  COALESCE(r.number, '') as room_number,
-  COALESCE(r.name, '') as room_name,
-  COALESCE(p.name, '') as property_name,
-  COALESCE(wp.name, '') as plan_name,
-  wp.downloadSpeed as plan_download_speed,
-  wp.uploadSpeed as plan_upload_speed,
-  wp.dataLimit as plan_data_limit,
-  COALESCE(b.confirmationCode, '') as booking_code,
-  COALESCE(b.status, '') as booking_status
-FROM WiFiUser u
-LEFT JOIN Guest g ON u.guestId = g.id
-LEFT JOIN Booking b ON u.bookingId = b.id
-LEFT JOIN Room r ON b.roomId = r.id
-LEFT JOIN Property p ON u.propertyId = p.id
-LEFT JOIN WiFiPlan wp ON u.planId = wp.id
-`);
-console.log('✓ v_user_usage view created');
+    // Split on statement boundaries (simple approach: split by ';' and filter empty)
+    // Skip the DO $$ blocks — we need to handle those as single statements.
+    const statements = splitSqlStatements(stripped);
 
-// Verify
-const t1 = sqlite.query("SELECT acctstarttime, typeof(acctstarttime) FROM v_session_history LIMIT 1").get() as any;
-console.log(`\nDate format now: "${t1.acctstarttime}" (type: ${t1.t})`);
+    for (const stmt of statements) {
+      if (stmt.trim()) {
+        await pool.query(stmt);
+      }
+    }
 
-const t2 = sqlite.query("SELECT COUNT(*) as c FROM v_session_history").get() as any;
-const t3 = sqlite.query("SELECT COUNT(*) as c FROM v_session_history WHERE acctstarttime >= date('now', '-7 days')").get() as any;
-console.log(`Total sessions: ${t2.c}, Last 7 days: ${t3.c}`);
-
-// Verify v_user_usage has correct columns
-const usageCols = sqlite.query("SELECT * FROM v_user_usage LIMIT 1").get() as any;
-console.log(`v_user_usage columns: ${Object.keys(usageCols || {}).join(', ')}`);
-
-// Verify download/upload split in session history
-const dlCheck = sqlite.query("SELECT acctoutputoctets, acctinputoctets FROM v_session_history LIMIT 3").all() as any[];
-console.log(`Download/Upload split check (first 3 sessions):`);
-for (const row of dlCheck) {
-  console.log(`  Download: ${row.acctoutputoctets}, Upload: ${row.acctinputoctets}`);
+    console.log('✅ All reporting views created successfully!');
+  } catch (err: any) {
+    console.error('❌ Error creating views:', err.message);
+    process.exit(1);
+  } finally {
+    await pool.end();
+  }
 }
 
-console.log('\n✅ All views created with datetime formatting!');
-sqlite.close();
-process.exit(0);
+/**
+ * Naive SQL statement splitter that respects DO $$ ... $$ blocks.
+ * Splits on top-level semicolons only (not inside $$ blocks).
+ */
+function splitSqlStatements(sql: string): string[] {
+  const statements: string[] = [];
+  let current = '';
+  let inDollarBlock = false;
+
+  for (let i = 0; i < sql.length; i++) {
+    // Check for DO $$ or $$
+    if (!inDollarBlock && sql.slice(i, i + 5) === '$$') {
+      inDollarBlock = true;
+      current += sql.slice(i, i + 2);
+      i += 1; // skip second $
+      continue;
+    }
+    if (inDollarBlock && sql.slice(i, i + 2) === '$$') {
+      inDollarBlock = false;
+      current += sql.slice(i, i + 2);
+      i += 1;
+      continue;
+    }
+
+    if (sql[i] === ';' && !inDollarBlock) {
+      current += ';';
+      statements.push(current);
+      current = '';
+    } else {
+      current += sql[i];
+    }
+  }
+
+  // Push any remaining content
+  if (current.trim()) {
+    statements.push(current);
+  }
+
+  return statements;
+}
+
+main();

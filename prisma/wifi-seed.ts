@@ -144,6 +144,9 @@ export async function seedWiFiData() {
     await prisma.radUserGroup.deleteMany({});
     await prisma.radReply.deleteMany({});
     await prisma.radCheck.deleteMany({});
+    await prisma.radGroupCheck.deleteMany({});
+    await prisma.radGroupReply.deleteMany({});
+    await prisma.radPostAuth.deleteMany({});
     await prisma.wiFiUser.deleteMany({});
     await prisma.wiFiPlan.deleteMany({});
     console.log('WiFi module data cleaned.');
@@ -513,6 +516,92 @@ export async function seedWiFiData() {
     ],
   });
   console.log('✓ RadUserGroup records seeded');
+
+  // RadGroupCheck — group-level authentication checks (bandwidth limits, session limits)
+  await prisma.radGroupCheck.createMany({
+    data: [
+      // free_plan group
+      { groupname: 'free_plan', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '5M/2M', priority: 0 },
+      { groupname: 'free_plan', attribute: 'Session-Timeout', op: ':=', value: '86400', priority: 1 },
+      // basic_plan group
+      { groupname: 'basic_plan', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '10M/5M', priority: 0 },
+      { groupname: 'basic_plan', attribute: 'Mikrotik-Total-Limit', op: ':=', value: '2147483648', priority: 1 },
+      { groupname: 'basic_plan', attribute: 'Session-Timeout', op: ':=', value: '86400', priority: 2 },
+      // standard_plan group
+      { groupname: 'standard_plan', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '25M/10M', priority: 0 },
+      { groupname: 'standard_plan', attribute: 'Mikrotik-Total-Limit', op: ':=', value: '5368709120', priority: 1 },
+      { groupname: 'standard_plan', attribute: 'Session-Timeout', op: ':=', value: '259200', priority: 2 },
+      // premium_plan group
+      { groupname: 'premium_plan', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '50M/25M', priority: 0 },
+      { groupname: 'premium_plan', attribute: 'Mikrotik-Total-Limit', op: ':=', value: '16106127360', priority: 1 },
+      { groupname: 'premium_plan', attribute: 'Session-Timeout', op: ':=', value: '432000', priority: 2 },
+      // vip_suite_plan group
+      { groupname: 'vip_suite_plan', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '100M/50M', priority: 0 },
+      { groupname: 'vip_suite_plan', attribute: 'Session-Timeout', op: ':=', value: '604800', priority: 1 },
+      // conference_plan group
+      { groupname: 'conference_plan', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '30M/15M', priority: 0 },
+      { groupname: 'conference_plan', attribute: 'Mikrotik-Total-Limit', op: ':=', value: '10737418240', priority: 1 },
+      { groupname: 'conference_plan', attribute: 'Simultaneous-Use', op: ':=', value: '25', priority: 2 },
+    ],
+  });
+  console.log('✓ RadGroupCheck records seeded (6 plan groups)');
+
+  // RadGroupReply — group-level reply attributes
+  await prisma.radGroupReply.createMany({
+    data: [
+      // free_plan
+      { groupname: 'free_plan', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '5000000', priority: 0 },
+      { groupname: 'free_plan', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '2000000', priority: 1 },
+      // basic_plan
+      { groupname: 'basic_plan', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '10000000', priority: 0 },
+      { groupname: 'basic_plan', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '5000000', priority: 1 },
+      // standard_plan
+      { groupname: 'standard_plan', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '25000000', priority: 0 },
+      { groupname: 'standard_plan', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '10000000', priority: 1 },
+      // premium_plan
+      { groupname: 'premium_plan', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '50000000', priority: 0 },
+      { groupname: 'premium_plan', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '25000000', priority: 1 },
+      // vip_suite_plan
+      { groupname: 'vip_suite_plan', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '100000000', priority: 0 },
+      { groupname: 'vip_suite_plan', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '50000000', priority: 1 },
+      // conference_plan
+      { groupname: 'conference_plan', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '30000000', priority: 0 },
+      { groupname: 'conference_plan', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '15000000', priority: 1 },
+    ],
+  });
+  console.log('✓ RadGroupReply records seeded (6 plan groups)');
+
+  // RadPostAuth — RADIUS post-authentication logs (Accept + Reject)
+  await prisma.radPostAuth.createMany({
+    data: [
+      // Recent accepts (12)
+      { username: 'guest.amit.mukherjee', pass: 'Amit@2024', reply: 'Access-Accept', calledstationid: 'AA:BB:CC:11:22:33', callingstationid: 'AA:BB:CC:11:22:33', authdate: hour(-3), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      { username: 'guest.rahul.banerjee', pass: 'Rahul@2024', reply: 'Access-Accept', calledstationid: 'AA:BB:CC:44:55:66', callingstationid: 'AA:BB:CC:44:55:66', authdate: hour(-5), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      { username: 'guest.sneha.gupta', pass: 'Sneha@2024', reply: 'Access-Accept', calledstationid: 'AA:BB:CC:77:88:99', callingstationid: 'AA:BB:CC:77:88:99', authdate: hour(-8), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.2' },
+      { username: 'guest.vikram.singh', pass: 'Vikram@2024', reply: 'Access-Accept', calledstationid: 'AA:BB:CC:AA:BB:CC', callingstationid: 'AA:BB:CC:AA:BB:CC', authdate: hour(-1), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      { username: 'staff.priya.das', pass: 'Staff@Priya', reply: 'Access-Accept', calledstationid: 'AA:BB:CC:55:66:77', callingstationid: 'AA:BB:CC:55:66:77', authdate: hour(-6), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      { username: 'staff.anita.roy', pass: 'Staff@Anita', reply: 'Access-Accept', calledstationid: 'AA:BB:CC:66:77:88', callingstationid: 'AA:BB:CC:66:77:88', authdate: day(-1), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.2' },
+      { username: 'conference.room1', pass: 'Conf@2024', reply: 'Access-Accept', calledstationid: 'DD:EE:FF:11:22:33', callingstationid: 'DD:EE:FF:11:22:33', authdate: hour(-1), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.2' },
+      { username: 'guest.amit.mukherjee', pass: 'Amit@2024', reply: 'Access-Accept', calledstationid: 'AA:BB:CC:11:22:34', callingstationid: 'AA:BB:CC:11:22:34', authdate: day(-1), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      { username: 'guest.rina.chatterjee', pass: 'Rina@2024', reply: 'Access-Accept', calledstationid: 'AA:BB:CC:DD:EE:FF', callingstationid: 'AA:BB:CC:DD:EE:FF', authdate: day(-2), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      { username: 'guest.sneha.gupta', pass: 'Sneha@2024', reply: 'Access-Accept', calledstationid: 'AA:BB:CC:77:88:99', callingstationid: 'AA:BB:CC:77:88:99', authdate: hour(-2), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.2' },
+      { username: 'guest.rahul.banerjee', pass: 'Rahul@2024', reply: 'Access-Accept', calledstationid: 'AA:BB:CC:44:55:66', callingstationid: 'AA:BB:CC:44:55:66', authdate: day(-1), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      { username: 'guest.vikram.singh', pass: 'Vikram@2024', reply: 'Access-Accept', calledstationid: 'AA:BB:CC:AA:BB:CC', callingstationid: 'AA:BB:CC:AA:BB:CC', authdate: hour(-4), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      // Rejects (12)
+      { username: 'unknown_user_1', pass: 'wrong', reply: 'Access-Reject', calledstationid: '22:33:44:55:66:77', callingstationid: '22:33:44:55:66:77', authdate: hour(-6), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      { username: 'expired_guest', pass: 'Expired@2024', reply: 'Access-Reject', calledstationid: '33:44:55:66:77:88', callingstationid: '33:44:55:66:77:88', authdate: hour(-5), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      { username: 'guest.rina.chatterjee', pass: 'WrongPassword', reply: 'Access-Reject', calledstationid: 'AA:BB:CC:DD:EE:FF', callingstationid: 'AA:BB:CC:DD:EE:FF', authdate: min(-30), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      { username: 'suspicious_mac_auth', pass: '', reply: 'Access-Reject', calledstationid: '22:33:44:55:66:77', callingstationid: '22:33:44:55:66:77', authdate: hour(-6), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      { username: 'rogue_client', pass: 'hacked', reply: 'Access-Reject', calledstationid: '33:44:55:66:77:88', callingstationid: '33:44:55:66:77:88', authdate: day(-1), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.2' },
+      { username: 'brute_force_1', pass: 'guess1', reply: 'Access-Reject', calledstationid: '44:55:66:77:88:99', callingstationid: '44:55:66:77:88:99', authdate: min(-45), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      { username: 'brute_force_2', pass: 'guess2', reply: 'Access-Reject', calledstationid: '44:55:66:77:88:99', callingstationid: '44:55:66:77:88:99', authdate: min(-44), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      { username: 'brute_force_3', pass: 'guess3', reply: 'Access-Reject', calledstationid: '44:55:66:77:88:99', callingstationid: '44:55:66:77:88:99', authdate: min(-43), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      { username: 'unknown_user_2', pass: 'test123', reply: 'Access-Reject', calledstationid: '55:66:77:88:99:AA', callingstationid: '55:66:77:88:99:AA', authdate: hour(-3), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.2' },
+      { username: 'denied_user', pass: 'NoAccess', reply: 'Access-Reject', calledstationid: '66:77:88:99:AA:BB', callingstationid: '66:77:88:99:AA:BB', authdate: hour(-2), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.1' },
+      { username: 'staff.fired', pass: 'OldPassword', reply: 'Access-Reject', calledstationid: '77:88:99:AA:BB:CC', callingstationid: '77:88:99:AA:BB:CC', authdate: day(-1), propertyId: PROPERTY_ID, nasIpAddress: '10.0.1.2' },
+    ],
+  });
+  console.log('✓ RadPostAuth records seeded (12 accepts + 12 rejects)');
 
   // ═══════════════════════════════════════════════════════════════
   // 3. WiFi SESSIONS (10)

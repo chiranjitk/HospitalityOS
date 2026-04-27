@@ -4,9 +4,9 @@
  * Handles provisioning and deprovisioning of WiFi users.
  * This is the PMS-side logic that manages the RADIUS database.
  * 
- * Architecture (SINGLE SQLite DATABASE):
+ * Architecture (PostgreSQL database):
  * ┌─────────────────────────────────────────────────────┐
- * │  db/custom.db (single SQLite file)                  │
+ * │  PostgreSQL database                                │
  * │  ┌──────────────┐  ┌──────────────┐                 │
  * │  │ WiFiUser     │  │ RadCheck     │                 │
  * │  │ RadReply     │  │ RadUserGroup │                 │
@@ -97,7 +97,7 @@ export class WiFiUserService {
   /**
    * Create a new WiFi user with RADIUS credentials
    * 
-   * Since both PMS and FreeRADIUS service use the SAME SQLite database,
+   * Since both PMS and FreeRADIUS service use the SAME PostgreSQL database,
    * writing to RadCheck/RadReply/RadUserGroup via Prisma is all that's needed.
    * The FreeRADIUS service will immediately see the new user.
    * 

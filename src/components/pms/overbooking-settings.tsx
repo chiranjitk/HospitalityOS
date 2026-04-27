@@ -193,7 +193,7 @@ export default function OverbookingSettings() {
 
   // Quick toggle overbooking
   const handleToggle = async (roomType: RoomType, enabled: boolean) => {
-    setConfirmDialog({open:true, title:'Enable Overbooking', message:'Enable overbooking? This allows accepting more bookings than available rooms.', onConfirm:() => {
+    setConfirmDialog({open:true, title:'Enable Overbooking', message:'Enable overbooking? This allows accepting more bookings than available rooms.', onConfirm:async () => {
     // Optimistic update
     setRoomTypes(prev =>
       prev.map(rt =>

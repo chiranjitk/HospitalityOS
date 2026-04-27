@@ -1720,6 +1720,30 @@ model FairAccessPolicy {
   @@index([cycleType])
 }
 
+model FupSwitchLog {
+  id                BigInt    @id @default(autoincrement()) @db.BigInt
+  username          String    @db.Text
+  fupPolicyName     String?   @map("fup_policy_name") @db.Text
+  usageMb           Float     @default(0) @map("usage_mb")
+  limitMb           Float     @default(0) @map("limit_mb")
+  throttleDownKbps  Int       @default(0) @map("throttle_down_kbps")
+  throttleUpKbps    Int       @default(0) @map("throttle_up_kbps")
+  triggeredAt       DateTime  @default(now()) @map("triggered_at") @db.Timestamptz
+  propertyId        String?   @map("property_id") @db.Uuid
+  planName          String?   @map("plan_name") @db.Text
+  cycleType         String?   @map("cycle_type") @db.Text
+  action            String    @default("throttle") @db.Text
+  originalDownKbps  Int       @default(0) @map("original_down_kbps")
+  originalUpKbps    Int       @default(0) @map("original_up_kbps")
+  nasIp             String?   @map("nas_ip") @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([triggeredAt], map: "fup_switch_log_triggered_idx")
+  @@index([username], map: "fup_switch_log_username_idx")
+  @@index([createdAt], map: "idx_fup_switch_log_created_at")
+  @@map("fup_switch_log")
+}
+
 model FeatureAnnouncement {
   id          String    @id @default(uuid()) @db.Uuid
   title       String
@@ -3881,6 +3905,7 @@ model RadCheck {
 
   @@index([username])
   @@index([attribute])
+  @@map("radcheck")
 }
 
 model RadGroupCheck {
@@ -3893,6 +3918,7 @@ model RadGroupCheck {
   createdAt DateTime @default(now()) @db.Timestamptz
 
   @@index([groupname])
+  @@map("radgroupcheck")
 }
 
 model RadGroupReply {
@@ -3905,6 +3931,7 @@ model RadGroupReply {
   createdAt DateTime @default(now()) @db.Timestamptz
 
   @@index([groupname])
+  @@map("radgroupreply")
 }
 
 /// RadiusAuthLog - RADIUS authentication attempt logging (Accept/Reject)
@@ -4140,6 +4167,7 @@ model RadReply {
 
   @@index([username])
   @@index([attribute])
+  @@map("radreply")
 }
 
 model RadUserGroup {
@@ -4151,6 +4179,23 @@ model RadUserGroup {
 
   @@index([username])
   @@index([groupname])
+  @@map("radusergroup")
+}
+
+/// NAS - FreeRADIUS NAS client registry (not managed by standard Prisma auto-delete)
+model Nas {
+  id          Int      @id @default(autoincrement())
+  nasname     String
+  shortname   String
+  type        String   @default("other")
+  ports       Int?
+  secret      String
+  server      String?
+  community   String?
+  description String?
+
+  @@index([nasname])
+  @@map("nas")
 }
 
 model RatePlan {
@@ -6114,7 +6159,7 @@ model WiFiSession {
   deviceType String?
   startTime  DateTime  @default(now()) @db.Timestamptz
   endTime    DateTime? @db.Timestamptz
-  dataUsed   Int       @default(0)
+  dataUsed   BigInt    @default(0)
   duration   Int       @default(0)
   authMethod String    @default("voucher")
   status     String    @default("active")
@@ -6143,8 +6188,8 @@ model WiFiUser {
   validUntil       DateTime   @db.Timestamptz
   maxSessions      Int        @default(1)
   sessionCount     Int        @default(0)
-  totalBytesIn     Int        @default(0)
-  totalBytesOut    Int        @default(0)
+  totalBytesIn     BigInt     @default(0)
+  totalBytesOut    BigInt     @default(0)
   status           String     @default("active")
   radiusSynced     Boolean    @default(false)
   radiusSyncedAt   DateTime?  @db.Timestamptz

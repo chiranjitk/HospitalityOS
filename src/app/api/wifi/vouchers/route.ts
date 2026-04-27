@@ -242,15 +242,15 @@ export async function POST(request: NextRequest) {    const user = await require
       // This is the industry-standard approach for captive portal voucher systems.
       try {
         const expirationDate = voucherValidUntil.toISOString().split('T')[0]; // FreeRADIUS format: YYYY-MM-DD
-        const nowISO = new Date().toISOString().replace('T', ' ').split('.')[0]; // SQLite format
+        const nowISO = new Date().toISOString().replace('T', ' ').split('.')[0]; // PostgreSQL timestamp format
 
         // Insert radcheck entries (raw SQL for FreeRADIUS compatibility — includes required timestamps)
         await db.$executeRawUnsafe(
-          `INSERT INTO radcheck (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (?, 'Cleartext-Password', ':=', ?, 1, ?, ?)`,
+          `INSERT INTO radcheck (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES ($1, 'Cleartext-Password', ':=', $2, 1, $3, $4)`,
           currentCode, currentCode, nowISO, nowISO
         );
         await db.$executeRawUnsafe(
-          `INSERT INTO radcheck (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (?, 'Expiration', ':=', ?, 1, ?, ?)`,
+          `INSERT INTO radcheck (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES ($1, 'Expiration', ':=', $2, 1, $3, $4)`,
           currentCode, expirationDate, nowISO, nowISO
         );
 
@@ -258,20 +258,20 @@ export async function POST(request: NextRequest) {    const user = await require
         if (plan.downloadSpeed) {
           const downBps = plan.downloadSpeed * 1000000; // Mbps to bps
           await db.$executeRawUnsafe(
-            `INSERT INTO radreply (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (?, 'WISPr-Bandwidth-Max-Down', '=', ?, 1, ?, ?)`,
+            `INSERT INTO radreply (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES ($1, 'WISPr-Bandwidth-Max-Down', '=', $2, 1, $3, $4)`,
             currentCode, String(downBps), nowISO, nowISO
           );
         }
         if (plan.uploadSpeed) {
           const upBps = plan.uploadSpeed * 1000000;
           await db.$executeRawUnsafe(
-            `INSERT INTO radreply (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (?, 'WISPr-Bandwidth-Max-Up', '=', ?, 1, ?, ?)`,
+            `INSERT INTO radreply (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES ($1, 'WISPr-Bandwidth-Max-Up', '=', $2, 1, $3, $4)`,
             currentCode, String(upBps), nowISO, nowISO
           );
         }
         if (plan.sessionLimit) {
           await db.$executeRawUnsafe(
-            `INSERT INTO radreply (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (?, 'Session-Timeout', '=', ?, 1, ?, ?)`,
+            `INSERT INTO radreply (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES ($1, 'Session-Timeout', '=', $2, 1, $3, $4)`,
             currentCode, String(plan.sessionLimit), nowISO, nowISO
           );
         }
@@ -279,7 +279,7 @@ export async function POST(request: NextRequest) {    const user = await require
         if (!plan.sessionLimit) {
           const sessionTimeoutSec = voucherValidityDays * 24 * 60 * 60;
           await db.$executeRawUnsafe(
-            `INSERT INTO radreply (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (?, 'Session-Timeout', '=', ?, 1, ?, ?)`,
+            `INSERT INTO radreply (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES ($1, 'Session-Timeout', '=', $2, 1, $3, $4)`,
             currentCode, String(sessionTimeoutSec), nowISO, nowISO
           );
         }
@@ -729,8 +729,8 @@ export async function DELETE(request: NextRequest) {    const user = await requi
 
     // Remove RADIUS credentials so the code can no longer authenticate
     try {
-      await db.$executeRawUnsafe(`DELETE FROM radcheck WHERE username = ? AND wifiUserId IS NULL`, voucher.code);
-      await db.$executeRawUnsafe(`DELETE FROM radreply WHERE username = ? AND wifiUserId IS NULL`, voucher.code);
+      await db.$executeRawUnsafe(`DELETE FROM radcheck WHERE username = $1 AND "wifiUserId" IS NULL`, voucher.code);
+      await db.$executeRawUnsafe(`DELETE FROM radreply WHERE username = $1 AND "wifiUserId" IS NULL`, voucher.code);
       console.log(`[Voucher] Removed RADIUS credentials for revoked voucher ${voucher.code}`);
     } catch (radiusError) {
       console.error(`[Voucher] Failed to remove RADIUS credentials for ${voucher.code}:`, radiusError);

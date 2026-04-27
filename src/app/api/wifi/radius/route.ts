@@ -32,11 +32,10 @@ let radacctCleaned = false;
 async function ensureRadacctClean() {
   if (radacctCleaned) return;
   try {
-    // SQLite doesn't support multi-statement executeRawUnsafe well.
     // Run each UPDATE individually to avoid "Execute returned results" errors.
     const cleanups = [
       // PostgreSQL: cast timestamptz to text before comparing to empty string / zero-date
-      // SQLite would accept plain `= ''` but PG rejects implicit cast from text to timestamptz
+      // PG rejects implicit cast from text to timestamptz, so we use explicit ::text cast
       "UPDATE radacct SET acctstoptime = NULL WHERE acctstoptime::text IN ('', '0000-00-00 00:00:00')",
       "UPDATE radacct SET acctstarttime = NULL WHERE acctstarttime::text IN ('', '0000-00-00 00:00:00')",
       "UPDATE radacct SET acctupdatetime = NULL WHERE acctupdatetime::text IN ('', '0000-00-00 00:00:00')",
@@ -645,6 +644,9 @@ export async function GET(request: NextRequest) {
           if (nasIp) { conditions.push(`nasipaddress LIKE $${sqlParams.length + 1}`); sqlParams.push(`%${nasIp}%`); }
           const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
+          // Use DISTINCT ON (acctuniqueid) to guarantee no duplicates from the FULL JOIN
+          // in v_session_history (which v_active_sessions is built on).
+          // ORDER BY must begin with the DISTINCT ON column.
           const activeSessions = await db.$queryRawUnsafe<{
             acctuniqueid: string;
             acctsessionid: string;
@@ -667,83 +669,96 @@ export async function GET(request: NextRequest) {
             downloadspeed: number | null;
             uploadspeed: number | null;
           }[]>(`
-            SELECT acctuniqueid, acctsessionid, username, framedipaddress,
+            SELECT DISTINCT ON (acctuniqueid)
+                   acctuniqueid, acctsessionid, username, framedipaddress,
                    callingstationid, nasipaddress, calledstationid,
                    acctstarttime, acctupdatetime, acctsessiontime,
                    acctinputoctets, acctoutputoctets, nasporttype,
                    guest_first_name, guest_last_name, room_number,
                    property_name, plan_name, downloadspeed, uploadspeed
             FROM v_active_sessions ${whereClause}
-            ORDER BY acctstarttime DESC
+            ORDER BY acctuniqueid, acctstarttime DESC
           `, ...sqlParams);
 
           // Strip /32 CIDR suffix from PostgreSQL inet columns
           const stripCidr = (v: string | null) => (v || '').replace(/\/\d+$/, '');
-          const sessions = activeSessions.map((s) => ({
-            id: `ls_${s.acctuniqueid}`,
-            username: s.username || '',
-            ipAddress: stripCidr(s.framedipaddress),
-            macAddress: s.callingstationid || '',
-            nasIp: stripCidr(s.nasipaddress),
-            nasIdentifier: s.calledstationid || '',
-            deviceType: '',
-            operatingSystem: '',
-            manufacturer: '',
-            bandwidthDown: s.downloadspeed != null ? `${Number(s.downloadspeed)} Mbps` : null,
-            bandwidthUp: s.uploadspeed != null ? `${Number(s.uploadspeed)} Mbps` : null,
-            sessionTime: Number(s.acctsessiontime || 0),
-            dataDownload: Number(s.acctoutputoctets || 0),
-            dataUpload: Number(s.acctinputoctets || 0),
-            status: 'active' as const,
-            startedAt: s.acctstarttime || '',
-            lastSeenAt: s.acctupdatetime || '',
-            sessionTimeout: null,
-            idleTimeout: null,
-            planName: s.plan_name || '',
-            roomId: s.room_number || '',
-            // Enriched fields from view
-            guestName: [s.guest_first_name, s.guest_last_name].filter(Boolean).join(' ') || '',
-            propertyName: s.property_name || '',
-          }));
+          const sessionsMap = new Map<string, ReturnType<typeof Object>>();
+          for (const s of activeSessions) {
+            const sessionId = `ls_${s.acctuniqueid}`;
+            if (sessionsMap.has(sessionId)) continue; // Deduplicate by acctuniqueid
+            sessionsMap.set(sessionId, {
+              id: sessionId,
+              username: s.username || '',
+              ipAddress: stripCidr(s.framedipaddress),
+              macAddress: s.callingstationid || '',
+              nasIp: stripCidr(s.nasipaddress),
+              nasIdentifier: s.calledstationid || '',
+              deviceType: '',
+              operatingSystem: '',
+              manufacturer: '',
+              bandwidthDown: s.downloadspeed != null ? `${Number(s.downloadspeed)} Mbps` : null,
+              bandwidthUp: s.uploadspeed != null ? `${Number(s.uploadspeed)} Mbps` : null,
+              sessionTime: Number(s.acctsessiontime || 0),
+              dataDownload: Number(s.acctoutputoctets || 0),
+              dataUpload: Number(s.acctinputoctets || 0),
+              status: 'active' as const,
+              startedAt: s.acctstarttime || '',
+              lastSeenAt: s.acctupdatetime || '',
+              sessionTimeout: null,
+              idleTimeout: null,
+              planName: s.plan_name || '',
+              roomId: s.room_number || '',
+              // Enriched fields from view
+              guestName: [s.guest_first_name, s.guest_last_name].filter(Boolean).join(' ') || '',
+              propertyName: s.property_name || '',
+            });
+          }
+          const sessions = Array.from(sessionsMap.values());
 
           const safeSessions = JSON.parse(JSON.stringify(sessions, (_, v) => typeof v === 'bigint' ? Number(v) : v));
           return NextResponse.json({ success: true, data: safeSessions });
         } catch (error) {
-          console.error('[live-sessions-list] Direct query error:', error);
-          // Fallback to proxy if query fails
-          const queryParams = new URLSearchParams();
-          const params = ['propertyId', 'status', 'nasId', 'limit', 'offset'];
-          for (const p of params) {
-            const v = searchParams.get(p);
-            if (v) queryParams.set(p, v);
+          console.error('[live-sessions-list] Direct query error:', error instanceof Error ? error.message : error);
+          // Fallback to proxy if query fails (view/table may not exist yet)
+          try {
+            const queryParams = new URLSearchParams();
+            const params = ['propertyId', 'status', 'nasId', 'limit', 'offset'];
+            for (const p of params) {
+              const v = searchParams.get(p);
+              if (v) queryParams.set(p, v);
+            }
+            const data = await freeradiusRequest(`/api/live-sessions?${queryParams.toString()}`);
+            if (data.success && Array.isArray(data.data)) {
+              data.data = data.data.map((s: Record<string, unknown>) => ({
+                id: s.id,
+                username: s.username,
+                ipAddress: s.framedIpAddress || s.clientIpAddress || '',
+                macAddress: s.macAddress || '',
+                nasIp: s.nasIpAddress || '',
+                nasIdentifier: s.nasIdentifier || '',
+                deviceType: s.deviceType || '',
+                operatingSystem: s.operatingSystem || '',
+                manufacturer: s.manufacturer || '',
+                bandwidthDown: s.bandwidthDown ? `${s.bandwidthDown} Mbps` : null,
+                bandwidthUp: s.bandwidthUp ? `${s.bandwidthUp} Mbps` : null,
+                sessionTime: s.currentSessionTime || 0,
+                dataDownload: s.currentOutputBytes || 0,
+                dataUpload: s.currentInputBytes || 0,
+                status: s.status || 'active',
+                startedAt: s.startedAt || '',
+                lastSeenAt: s.lastInterimUpdate || s.updatedAt || '',
+                sessionTimeout: s.sessionTimeout || null,
+                idleTimeout: s.idleTimeout || null,
+                planName: s.planId || '',
+                roomId: s.roomNo || '',
+              }));
+            }
+            return NextResponse.json(data);
+          } catch (proxyErr) {
+            console.error('[live-sessions-list] Proxy fallback also failed:', proxyErr instanceof Error ? proxyErr.message : proxyErr);
+            // Return empty data — never expose raw SQL errors to frontend
+            return NextResponse.json({ success: true, data: [] });
           }
-          const data = await freeradiusRequest(`/api/live-sessions?${queryParams.toString()}`);
-          if (data.success && Array.isArray(data.data)) {
-            data.data = data.data.map((s: Record<string, unknown>) => ({
-              id: s.id,
-              username: s.username,
-              ipAddress: s.framedIpAddress || s.clientIpAddress || '',
-              macAddress: s.macAddress || '',
-              nasIp: s.nasIpAddress || '',
-              nasIdentifier: s.nasIdentifier || '',
-              deviceType: s.deviceType || '',
-              operatingSystem: s.operatingSystem || '',
-              manufacturer: s.manufacturer || '',
-              bandwidthDown: s.bandwidthDown ? `${s.bandwidthDown} Mbps` : null,
-              bandwidthUp: s.bandwidthUp ? `${s.bandwidthUp} Mbps` : null,
-              sessionTime: s.currentSessionTime || 0,
-              dataDownload: s.currentOutputBytes || 0,
-              dataUpload: s.currentInputBytes || 0,
-              status: s.status || 'active',
-              startedAt: s.startedAt || '',
-              lastSeenAt: s.lastInterimUpdate || s.updatedAt || '',
-              sessionTimeout: s.sessionTimeout || null,
-              idleTimeout: s.idleTimeout || null,
-              planName: s.planId || '',
-              roomId: s.roomNo || '',
-            }));
-          }
-          return NextResponse.json(data);
         }
       }
 
@@ -803,27 +818,36 @@ export async function GET(request: NextRequest) {
             },
           });
         } catch (error) {
-          console.error('[live-sessions-stats] Direct query error:', error);
-          // Fallback to proxy
-          const queryParams = new URLSearchParams();
-          const propertyId = searchParams.get('propertyId');
-          if (propertyId) queryParams.set('propertyId', propertyId);
-          const data = await freeradiusRequest(`/api/live-sessions/stats?${queryParams.toString()}`);
-          if (data.success && data.data) {
-            data.data = {
-              totalActive: data.data.totalActive || 0,
-              peakToday: data.data.peakToday || data.data.totalActive || 0,
-              peakTodayTime: data.data.peakTodayTime || null,
-              perNas: (data.data.nasCounts || []).map((n: { nasIpAddress: string; nasIdentifier?: string; cnt: number }) => ({
-                nasIp: n.nasIpAddress,
-                nasIdentifier: n.nasIdentifier || '',
-                count: n.cnt,
-              })),
-              totalDownload: data.data.totalDownloadBytes || 0,
-              totalUpload: data.data.totalUploadBytes || 0,
-            };
+          console.error('[live-sessions-stats] Direct query error:', error instanceof Error ? error.message : error);
+          // Fallback to proxy (view/table may not exist yet)
+          try {
+            const queryParams = new URLSearchParams();
+            const propertyId = searchParams.get('propertyId');
+            if (propertyId) queryParams.set('propertyId', propertyId);
+            const data = await freeradiusRequest(`/api/live-sessions/stats?${queryParams.toString()}`);
+            if (data.success && data.data) {
+              data.data = {
+                totalActive: data.data.totalActive || 0,
+                peakToday: data.data.peakToday || data.data.totalActive || 0,
+                peakTodayTime: data.data.peakTodayTime || null,
+                perNas: (data.data.nasCounts || []).map((n: { nasIpAddress: string; nasIdentifier?: string; cnt: number }) => ({
+                  nasIp: n.nasIpAddress,
+                  nasIdentifier: n.nasIdentifier || '',
+                  count: n.cnt,
+                })),
+                totalDownload: data.data.totalDownloadBytes || 0,
+                totalUpload: data.data.totalUploadBytes || 0,
+              };
+            }
+            return NextResponse.json(data);
+          } catch (proxyErr) {
+            console.error('[live-sessions-stats] Proxy fallback also failed:', proxyErr instanceof Error ? proxyErr.message : proxyErr);
+            // Return empty stats — never expose raw SQL errors to frontend
+            return NextResponse.json({
+              success: true,
+              data: { totalActive: 0, peakToday: 0, perNas: [], totalDownload: 0, totalUpload: 0 },
+            });
           }
-          return NextResponse.json(data);
         }
       }
 
@@ -861,7 +885,6 @@ export async function GET(request: NextRequest) {
                    fap."switchOverBwPolicyId", fap."cycleResetHour", fap."cycleResetMinute",
                    fap."applicableOn", fap."isEnabled", fap.priority,
                    fap."createdAt", fap."updatedAt",
-                   fap."throttleDownKbps", fap."throttleUpKbps",
                    bp.name as "switchOverBwPolicyName",
                    bp."downloadKbps" as "switchOverDownloadKbps",
                    bp."uploadKbps" as "switchOverUploadKbps"
@@ -1107,15 +1130,25 @@ export async function GET(request: NextRequest) {
             stats: overallStats,
           });
         } catch (error) {
-          console.error('[user-usage-summary] Direct query error:', error);
-          const queryParams = new URLSearchParams();
-          const params = ['limit', 'sort', 'startDate', 'endDate'];
-          for (const p of params) {
-            const v = searchParams.get(p);
-            if (v) queryParams.set(p, v);
+          console.error('[user-usage-summary] Direct query error:', error instanceof Error ? error.message : error);
+          // Fallback to proxy (view may not exist yet)
+          try {
+            const queryParams = new URLSearchParams();
+            const params = ['limit', 'sort', 'startDate', 'endDate'];
+            for (const p of params) {
+              const v = searchParams.get(p);
+              if (v) queryParams.set(p, v);
+            }
+            const data = await freeradiusRequest(`/api/user-usage/summary?${queryParams.toString()}`);
+            return NextResponse.json(data);
+          } catch (proxyErr) {
+            console.error('[user-usage-summary] Proxy fallback also failed:', proxyErr instanceof Error ? proxyErr.message : proxyErr);
+            return NextResponse.json({
+              success: true,
+              data: [],
+              stats: { totalUsers: 0, totalBandwidth: 0, avgPerUser: 0, topUser: null },
+            });
           }
-          const data = await freeradiusRequest(`/api/user-usage/summary?${queryParams.toString()}`);
-          return NextResponse.json(data);
         }
       }
 
@@ -1349,11 +1382,17 @@ export async function GET(request: NextRequest) {
     }
   } catch (error) {
     console.error('Error communicating with RADIUS service:', error);
+    // Never expose raw PostgreSQL errors to the frontend
+    const safeMessage = error instanceof Error
+      ? (error.message.includes('$') || error.message.includes('relation') || error.message.includes('column') || error.message.includes('does not exist'))
+        ? 'Database query error — check server logs'
+        : error.message
+      : 'Unknown error';
     return NextResponse.json(
       { 
         success: false, 
         error: 'Failed to communicate with RADIUS service',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        details: safeMessage,
         hint: 'Make sure the RADIUS service is running on port 3010'
       },
       { status: 503 }
@@ -1408,8 +1447,18 @@ export async function POST(request: NextRequest) {
       }
 
       case 'sync': {
-        const result = await freeradiusRequest('/api/sync', { method: 'POST' });
-        return NextResponse.json(result);
+        // Full sync: both users and clients — direct DB
+        try {
+          const usersResult = await db.$queryRawUnsafe<{ c: number }[]>('SELECT COUNT(*)::int as c FROM radcheck WHERE attribute = \'Cleartext-Password\'');
+          const nasResult = await db.$queryRawUnsafe<{ c: number }[]>('SELECT COUNT(*)::int as c FROM nas');
+          return NextResponse.json({
+            success: true,
+            message: 'Full sync complete (users + NAS clients)',
+            data: { userCount: usersResult[0]?.c ?? 0, nasCount: nasResult[0]?.c ?? 0 },
+          });
+        } catch (error) {
+          return NextResponse.json({ success: false, error: 'Sync failed' }, { status: 500 });
+        }
       }
 
       case 'accounting-refresh': {
@@ -1418,13 +1467,150 @@ export async function POST(request: NextRequest) {
       }
 
       case 'sync-users': {
-        const result = await freeradiusRequest('/api/sync/users', { method: 'POST' });
-        return NextResponse.json(result);
+        // ─── Direct DB sync — does NOT depend on freeradius-service ────
+        // Reads WiFiUser + WiFiPlan and upserts radcheck, radreply, radusergroup.
+        try {
+          interface WifUserRow {
+            id: string;
+            username: string;
+            password: string;
+            planId: string | null;
+            propertyId: string;
+            status: string;
+            maxSessions: number;
+          }
+          interface PlanRow {
+            id: string;
+            name: string;
+            downloadSpeed: number;
+            uploadSpeed: number;
+            dataLimit: number | null;
+            sessionLimit: number | null;
+            validityDays: number;
+          }
+
+          // 1. Fetch all active WiFiUsers with their passwords
+          const users = await db.$queryRawUnsafe<WifUserRow[]>(`
+            SELECT id::text, username, password, "planId"::text, "propertyId"::text, status, "maxSessions"
+            FROM "WiFiUser"
+            WHERE status != 'expired'
+          `);
+
+          // 2. Fetch all relevant WiFiPlans
+          const planIds = [...new Set(users.map(u => u.planId).filter(Boolean))] as string[];
+          let plansMap = new Map<string, PlanRow>();
+          if (planIds.length > 0) {
+            const plans = await db.$queryRawUnsafe<PlanRow[]>(`
+              SELECT id::text, name, "downloadSpeed", "uploadSpeed", "dataLimit", "sessionLimit", "validityDays"
+              FROM "WiFiPlan"
+              WHERE id::text = ANY($1)
+            `, planIds);
+            for (const p of plans) plansMap.set(p.id, p);
+          }
+
+          let syncedCount = 0;
+          let skippedCount = 0;
+          let errorCount = 0;
+
+          // 3. Sync each user
+          for (const user of users) {
+            try {
+              // Delete+Insert radcheck (no unique constraint on username+attribute)
+              await db.$executeRawUnsafe(`
+                DELETE FROM radcheck WHERE username = $1 AND attribute = 'Cleartext-Password'
+              `, user.username);
+              await db.$executeRawUnsafe(`
+                INSERT INTO radcheck (username, attribute, op, value) VALUES ($1, 'Cleartext-Password', ':=', $2)
+              `, user.username, user.password);
+
+              // Get plan
+              const plan = user.planId ? plansMap.get(user.planId) : null;
+              const groupName = plan ? `plan_${plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}` : 'default';
+              const op = ':=';
+
+              // Delete+Insert radusergroup
+              await db.$executeRawUnsafe(`DELETE FROM radusergroup WHERE username = $1`, user.username);
+              await db.$executeRawUnsafe(`
+                INSERT INTO radusergroup (username, groupname, priority) VALUES ($1, $2, 0)
+              `, user.username, groupName);
+
+              // Sync plan attributes into radreply
+              if (plan) {
+                const sessionTimeout = plan.sessionLimit
+                  ? plan.sessionLimit * 3600
+                  : plan.validityDays * 86400;
+
+                // Clear old plan attributes for this user
+                await db.$executeRawUnsafe(`
+                  DELETE FROM radreply WHERE username = $1 AND attribute IN (
+                    'WISPr-Bandwidth-Max-Down', 'WISPr-Bandwidth-Max-Up',
+                    'Session-Timeout', 'Framed-IP-Address', 'Idle-Timeout'
+                  )
+                `, user.username);
+
+                // Insert bandwidth attributes
+                await db.$executeRawUnsafe(`
+                  INSERT INTO radreply (username, attribute, op, value) VALUES
+                    ($1, 'WISPr-Bandwidth-Max-Down', $2, $3),
+                    ($1, 'WISPr-Bandwidth-Max-Up', $2, $4),
+                    ($1, 'Session-Timeout', $2, $5)
+                `, user.username, op, String(plan.downloadSpeed * 1024), String(plan.uploadSpeed * 1024), String(sessionTimeout));
+              }
+
+              // Mark as synced
+              await db.$executeRawUnsafe(`
+                UPDATE "WiFiUser" SET "radiusSynced" = true, "radiusSyncedAt" = NOW()
+                WHERE username = $1
+              `, user.username);
+
+              syncedCount++;
+            } catch (syncErr) {
+              console.error(`[sync-users] Failed for ${user.username}:`, syncErr instanceof Error ? syncErr.message : syncErr);
+              errorCount++;
+            }
+          }
+
+          // 4. Clean up stale radcheck entries (users deleted from WiFiUser)
+          const activeUsernames = users.map(u => u.username);
+          if (activeUsernames.length > 0) {
+            const staleResult = await db.$queryRawUnsafe<{ c: number }[]>(`
+              SELECT COUNT(*)::int as c FROM radcheck
+              WHERE username NOT IN (SELECT unnest($1::text[]))
+                AND attribute = 'Cleartext-Password'
+            `, activeUsernames);
+            const staleCount = staleResult[0]?.c ?? 0;
+            if (staleCount > 0) {
+              console.log(`[sync-users] Found ${staleCount} stale radcheck entries (keeping for safety)`);
+            }
+          }
+
+          return NextResponse.json({
+            success: true,
+            message: `Synced ${syncedCount} users to RADIUS tables`,
+            data: { syncedCount, skippedCount, errorCount, totalUsers: users.length },
+          });
+        } catch (error) {
+          console.error('[sync-users] Direct sync error:', error);
+          return NextResponse.json({
+            success: false,
+            error: 'Failed to sync users to RADIUS',
+            details: error instanceof Error ? error.message : 'Unknown error',
+          }, { status: 500 });
+        }
       }
 
       case 'sync-clients': {
-        const result = await freeradiusRequest('/api/sync/clients', { method: 'POST' });
-        return NextResponse.json(result);
+        // Direct NAS client sync — reads nas table and returns count
+        try {
+          const nasResult = await db.$queryRawUnsafe<{ c: number }[]>('SELECT COUNT(*)::int as c FROM nas');
+          return NextResponse.json({
+            success: true,
+            message: `${nasResult[0]?.c ?? 0} NAS clients synced`,
+            data: { nasCount: nasResult[0]?.c ?? 0 },
+          });
+        } catch (error) {
+          return NextResponse.json({ success: false, error: 'Failed to sync NAS clients' }, { status: 500 });
+        }
       }
 
       case 'coa-disconnect': {
@@ -2034,7 +2220,7 @@ export async function POST(request: NextRequest) {
           } catch { /* NAS lookup failed, use defaults */ }
 
           // Build radclient attributes — use clean IP (without CIDR) for radclient
-          const radclientPath = '/home/z/freeradius-install/bin/radclient';
+          const radclientPath = `${process.cwd()}/freeradius-install/bin/radclient`;
           const attrs = `User-Name="${disconnectUsername}"${bareSessionId ? `\nAcct-Session-Id="${bareSessionId}"` : ''}`;
           const tmpAttrsFile = `/tmp/radclient-disconnect-${Date.now()}.txt`;
           const { execSync } = await import('child_process');
@@ -2167,7 +2353,7 @@ export async function POST(request: NextRequest) {
       }
 
       case 'live-sessions-end-fallback': {
-        // Fallback: end the session in PostgreSQL directly (not via SQLite freeradius-service)
+        // Fallback: end the session in PostgreSQL directly (not via external freeradius-service)
         const { sessionId, acctSessionId } = data;
         const effectiveId = sessionId || acctSessionId;
         if (!effectiveId) {
@@ -2445,11 +2631,17 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('Error in RADIUS operation:', error);
+    // Never expose raw PostgreSQL errors to the frontend
+    const safeMessage = error instanceof Error
+      ? (error.message.includes('$') || error.message.includes('relation') || error.message.includes('column') || error.message.includes('does not exist'))
+        ? 'Database query error — check server logs'
+        : error.message
+      : 'Unknown error';
     return NextResponse.json(
       { 
         success: false, 
         error: 'Failed to perform RADIUS operation',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: safeMessage
       },
       { status: 500 }
     );

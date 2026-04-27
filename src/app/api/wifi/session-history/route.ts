@@ -341,7 +341,7 @@ export async function GET(request: NextRequest) {
     const totalPages = Math.ceil(total / limit)
 
     // ── Build response ──────────────────────────────────────────────────────
-    // Convert BigInt values from SQLite to Number for JSON serialization
+    // Convert BigInt values from PostgreSQL to Number for JSON serialization
     // Strip /32 CIDR suffix from PostgreSQL inet columns
     const safeData = JSON.parse(JSON.stringify(paginatedSessions, (_, v) => typeof v === 'bigint' ? Number(v) : v));
     const stripCidr = (v: unknown) => String(v ?? '').replace(/\/\d+$/, '');

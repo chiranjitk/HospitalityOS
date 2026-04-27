@@ -53,6 +53,9 @@ local-*
 pgsql-runtime/pgsql.log
 pgsql-runtime/data/log/
 
+# FreeRADIUS runtime logs (binaries/configs stay, logs don't)
+freeradius-install/var/log/radiusd/*.log
+
 # logs directory
 /logs/
 

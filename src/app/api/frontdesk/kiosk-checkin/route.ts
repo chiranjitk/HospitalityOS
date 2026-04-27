@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { db } from '@/lib/db';
+import { emitBookingCheckedIn } from '@/lib/events/booking-events';
 
 // POST /api/frontdesk/kiosk-checkin - Process express check-in from kiosk
 export async function POST(request: NextRequest) {
@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
         primaryGuest: { select: { id: true, firstName: true, lastName: true } },
         room: { select: { id: true, number: true, floor: true, status: true } },
         property: { select: { id: true, name: true } },
+        roomType: { select: { id: true, name: true } },
       },
     });
 
@@ -62,10 +63,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Process everything in a transaction
-    const result = await db.$transaction(async (tx) => {
+    // Process booking/room updates in a transaction
+    const updatedBooking = await db.$transaction(async (tx) => {
       // 1. Update booking status
-      const updatedBooking = await tx.booking.update({
+      const updated = await tx.booking.update({
         where: { id: bookingId },
         data: {
           status: 'checked_in',
@@ -73,15 +74,14 @@ export async function POST(request: NextRequest) {
           checkedInBy: 'kiosk-self-service',
         },
         include: {
-          primaryGuest: { select: { id: true, firstName: true, lastName: true, email: true } },
+          primaryGuest: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
           room: { select: { id: true, number: true, floor: true } },
           roomType: { select: { id: true, name: true } },
-          property: { select: { id: true, name: true } },
+          property: { select: { id: true, name: true, tenantId: true } },
         },
       });
 
       // 2. Update room status to occupied
-      if (!booking.room) throw new Error('No room assigned');
       await tx.room.update({
         where: { id: booking.room.id },
         data: { status: 'occupied' },
@@ -99,68 +99,90 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // 4. Auto-provision WiFi
-      let wifiCredentials: { username: string; password: string; validUntil: string } | null = null;
+      return updated;
+    });
 
-      const wifiPlan = await tx.wiFiPlan.findFirst({
-        where: {
-          tenantId: booking.tenantId,
-          status: 'active',
-        },
-        select: { id: true, name: true, validityDays: true, sessionLimit: true, dataLimit: true },
-        orderBy: { createdAt: 'asc' },
+    // WiFi provisioning — OUTSIDE the transaction (same pattern as main check-in route)
+    // Uses the provisioning service which reads AAA default plan properly
+    let wifiCredentials: { username: string; password: string; validUntil: Date } | null = null;
+
+    try {
+      // Check autoProvisionOnCheckin flag
+      const aaaConfig = await db.wiFiAAAConfig.findUnique({
+        where: { propertyId: booking.propertyId },
+        select: { autoProvisionOnCheckin: true },
       });
 
-      if (wifiPlan) {
-        const guest = booking.primaryGuest;
-        const username = `guest_${guest.id.slice(-6).toLowerCase()}`;
-        const password = crypto.randomBytes(4).toString('hex').toUpperCase();
-
-        // Calculate validUntil: max of checkout+12h and now+validityDays*24h
-        const checkoutPlus12h = new Date(booking.checkOut.getTime() + 12 * 60 * 60 * 1000);
-        const nowPlusValidity = new Date(Date.now() + (wifiPlan.validityDays || 1) * 24 * 60 * 60 * 1000);
-        const validUntil = new Date(Math.max(checkoutPlus12h.getTime(), nowPlusValidity.getTime()));
-
-        // Create WiFi user
-        await tx.wiFiUser.create({
-          data: {
-            tenantId: booking.tenantId,
-            propertyId: booking.propertyId,
-            username,
-            password,
-            planId: wifiPlan.id,
-            guestId: guest.id,
-            bookingId,
-            status: 'active',
-            validFrom: new Date(),
-            validUntil,
-            maxSessions: wifiPlan.sessionLimit || 1,
-          },
+      if (aaaConfig?.autoProvisionOnCheckin !== false) {
+        const { wifiProvisioningService } = await import('@/lib/wifi/services/provisioning-service');
+        const provisionResult = await wifiProvisioningService.provisionWiFiForBooking({
+          bookingId: booking.id,
+          tenantId: booking.tenantId,
+          propertyId: booking.propertyId,
+          guestId: booking.primaryGuest.id,
+          guestName: `${booking.primaryGuest.firstName} ${booking.primaryGuest.lastName}`,
+          roomTypeId: booking.roomType?.id || booking.roomTypeId || '',
+          roomTypeName: booking.roomType?.name || '',
+          checkIn: booking.checkIn,
+          checkOut: booking.checkOut,
+          roomNumber: booking.room.number,
         });
 
-        wifiCredentials = {
-          username,
-          password,
-          validUntil: validUntil.toISOString(),
-        };
+        if (provisionResult.success) {
+          console.log(`[Kiosk Check-in] WiFi provisioned: ${provisionResult.username} for booking ${booking.id}`);
+          wifiCredentials = {
+            username: provisionResult.username!,
+            password: provisionResult.password!,
+            validUntil: provisionResult.validUntil!,
+          };
+        } else {
+          console.error(`[Kiosk Check-in] WiFi provisioning failed for booking ${booking.id}: ${provisionResult.error}`);
+        }
       }
+    } catch (wifiError) {
+      console.error('[Kiosk Check-in] Failed to provision WiFi:', wifiError);
+      // Don't fail the check-in if WiFi provisioning fails
+    }
 
-      return {
-        booking: updatedBooking,
-        wifiCredentials,
-      };
-    });
+    // Emit booking event for other consumers (realtime, notifications, etc.)
+    try {
+      await emitBookingCheckedIn({
+        bookingId: booking.id,
+        tenantId: booking.tenantId,
+        propertyId: booking.propertyId,
+        confirmationCode: booking.confirmationCode || '',
+        guestId: booking.primaryGuest.id,
+        guestName: `${booking.primaryGuest.firstName} ${booking.primaryGuest.lastName}`,
+        guestEmail: booking.primaryGuest.email ?? undefined,
+        roomTypeId: booking.roomType?.id || booking.roomTypeId || '',
+        roomTypeName: booking.roomType?.name || '',
+        roomId: booking.room.id,
+        roomNumber: booking.room.number,
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        actualCheckIn: new Date(),
+        assignedRoomId: booking.room.id,
+        assignedRoomNumber: booking.room.number,
+        performedBy: 'kiosk-self-service',
+      });
+    } catch (eventError) {
+      console.warn('[Kiosk Check-in] Failed to emit booking event:', eventError);
+    }
 
     return NextResponse.json({
       success: true,
       data: {
-        roomNumber: result.booking.room?.number,
-        roomFloor: result.booking.room?.floor,
-        roomType: result.booking.roomType?.name,
-        propertyName: result.booking.property?.name,
-        guestName: `${result.booking.primaryGuest.firstName} ${result.booking.primaryGuest.lastName}`,
-        checkInTime: result.booking.actualCheckIn,
-        wifiCredentials: result.wifiCredentials,
+        roomNumber: updatedBooking.room?.number,
+        roomFloor: updatedBooking.room?.floor,
+        roomType: updatedBooking.roomType?.name,
+        propertyName: updatedBooking.property?.name,
+        guestName: `${updatedBooking.primaryGuest.firstName} ${updatedBooking.primaryGuest.lastName}`,
+        checkInTime: updatedBooking.actualCheckIn,
+        wifiCredentials: wifiCredentials ? {
+          username: wifiCredentials.username,
+          password: wifiCredentials.password,
+          validUntil: wifiCredentials.validUntil.toISOString(),
+        } : null,
       },
     });
   } catch (error) {

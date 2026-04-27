@@ -354,23 +354,29 @@ export default function WalkIn() {
     return () => controller.abort();
   }, [selectedPropertyId]);
 
-  // Fetch available rooms when room type changes
+  // Fetch available rooms when room type or dates change
+  // Uses /api/rooms/available which checks actual booking conflicts
   useEffect(() => {
     const controller = new AbortController();
     const fetchAvailableRooms = async () => {
       if (!selectedPropertyId || !selectedRoomTypeId) return;
+      if (nights <= 0) return; // Don't fetch if dates are invalid
       try {
         setIsLoading(true);
         const response = await fetch(
-          `/api/rooms?propertyId=${selectedPropertyId}&roomTypeId=${selectedRoomTypeId}&status=available`,
+          `/api/rooms/available?propertyId=${selectedPropertyId}&checkIn=${bookingForm.checkIn}&checkOut=${bookingForm.checkOut}`,
           { signal: controller.signal }
         );
         if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
         const result = await response.json();
         if (result.success) {
-          setAvailableRooms(result.data);
-          if (result.data.length > 0) {
-            setSelectedRoomId(result.data[0].id);
+          // Filter by selected room type (API returns all rooms for property)
+          const filtered = (result.data || []).filter((room: Room) => room.roomType?.id === selectedRoomTypeId);
+          setAvailableRooms(filtered);
+          if (filtered.length > 0) {
+            setSelectedRoomId(filtered[0].id);
+          } else {
+            setSelectedRoomId('');
           }
         }
       } catch (error) {
@@ -382,7 +388,7 @@ export default function WalkIn() {
     };
     fetchAvailableRooms();
     return () => controller.abort();
-  }, [selectedPropertyId, selectedRoomTypeId]);
+  }, [selectedPropertyId, selectedRoomTypeId, bookingForm.checkIn, bookingForm.checkOut]);
 
   // Search existing guests
   const searchGuests = async (query: string) => {
@@ -506,9 +512,12 @@ export default function WalkIn() {
         if (!guestResponse.ok) { const text = await guestResponse.text().catch(() => 'Unknown error'); throw new Error(text); }
         const guestResult = await guestResponse.json();
         if (!guestResult.success) {
+          const errorMsg = typeof guestResult.error === 'string'
+            ? guestResult.error
+            : guestResult.error?.message || 'Failed to create guest';
           toast({
-            title: 'Error',
-            description: guestResult.error?.message || 'Failed to create guest',
+            title: 'Guest Creation Failed',
+            description: errorMsg,
             variant: 'destructive',
           });
           setIsSaving(false);
@@ -569,32 +578,47 @@ export default function WalkIn() {
           children: 0,
           specialRequests: '',
         }));
-        // Refresh available rooms
-        if (selectedPropertyId && selectedRoomTypeId) {
-          const response = await fetch(
-            `/api/rooms?propertyId=${selectedPropertyId}&roomTypeId=${selectedRoomTypeId}&status=available`
-          );
-          if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
-          const result = await response.json();
-          if (result.success) {
-            setAvailableRooms(result.data);
-            if (result.data.length > 0) {
-              setSelectedRoomId(result.data[0].id);
+        // Refresh available rooms (non-blocking — don't fail if this fails)
+        try {
+          if (selectedPropertyId && bookingForm.checkIn && bookingForm.checkOut) {
+            const response = await fetch(
+              `/api/rooms/available?propertyId=${selectedPropertyId}&checkIn=${bookingForm.checkIn}&checkOut=${bookingForm.checkOut}`
+            );
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success) {
+                const filtered = (result.data || []).filter((room: Room) => room.roomType?.id === selectedRoomTypeId);
+                setAvailableRooms(filtered);
+                if (filtered.length > 0) {
+                  setSelectedRoomId(filtered[0].id);
+                } else {
+                  setSelectedRoomId('');
+                }
+              }
             }
           }
+        } catch (refreshError) {
+          console.warn('[Walk-in] Room refresh failed after booking (non-blocking):', refreshError);
         }
       } else {
+        // Extract error message — handle both { error: { message } } and { error: 'string' }
+        const errorMsg = typeof bookingResult.error === 'string'
+          ? bookingResult.error
+          : bookingResult.error?.message || bookingResult.error?.code || 'Failed to create booking';
         toast({
-          title: 'Error',
-          description: bookingResult.error?.message || 'Failed to create booking',
+          title: 'Booking Failed',
+          description: errorMsg,
           variant: 'destructive',
         });
       }
     } catch (error) {
       if (error?.name === 'AbortError') return;
+      // Log the actual error for debugging
+      console.error('[Walk-in] Booking creation error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       toast({
         title: 'Error',
-        description: 'Failed to create walk-in booking',
+        description: errorMessage === 'Unknown error' ? 'Failed to create walk-in booking' : errorMessage,
         variant: 'destructive',
       });
     } finally {

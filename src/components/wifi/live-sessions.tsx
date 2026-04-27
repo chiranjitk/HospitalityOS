@@ -7,9 +7,10 @@
  * Mobile: card-based layout with prominent disconnect buttons.
  * Desktop: table view with inline actions.
  * Supports search/filter, session details, CoA disconnect, stats cards, auto-refresh.
+ * v2: sessions deduplicated at state level + index-fallback keys to prevent duplicate React keys.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -121,6 +122,18 @@ export default function LiveSessions() {
   const [isBulkDisconnecting, setIsBulkDisconnecting] = useState(false);
   const [bulkDisconnectTarget, setBulkDisconnectTarget] = useState(false);
 
+  // CRITICAL: Always deduplicate sessions by id before rendering.
+  // Even though the backend uses DISTINCT ON + Map dedup, and fetchSessions()
+  // also filters via Set, this useMemo is the final safety net to guarantee
+  // no duplicate React keys regardless of any race condition or stale data.
+  const uniqueSessions = useMemo(() => {
+    const seen = new Map<string, LiveSession>();
+    for (const s of sessions) {
+      if (!seen.has(s.id)) seen.set(s.id, s);
+    }
+    return Array.from(seen.values());
+  }, [sessions]);
+
   // ─── Debounce search query (300ms) ───────────────────────────────────────
 
   useEffect(() => {
@@ -146,7 +159,15 @@ export default function LiveSessions() {
       const statsData = await statsRes.json();
 
       if (sessionData.success && sessionData.data) {
-        setSessions(Array.isArray(sessionData.data) ? sessionData.data : []);
+        const rawData = Array.isArray(sessionData.data) ? sessionData.data : [];
+        // Deduplicate by id (safety net — backend also deduplicates via v_active_sessions)
+        const seen = new Set<string>();
+        const deduped = rawData.filter((s: { id: string }) => {
+          if (seen.has(s.id)) return false;
+          seen.add(s.id);
+          return true;
+        });
+        setSessions(deduped);
       } else {
         setSessions([]);
       }
@@ -242,15 +263,15 @@ export default function LiveSessions() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === sessions.length) {
+    if (selectedIds.size === uniqueSessions.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(sessions.map(s => s.id)));
+      setSelectedIds(new Set(uniqueSessions.map(s => s.id)));
     }
   };
 
-  const isAllSelected = sessions.length > 0 && selectedIds.size === sessions.length;
-  const isSomeSelected = selectedIds.size > 0 && selectedIds.size < sessions.length;
+  const isAllSelected = uniqueSessions.length > 0 && selectedIds.size === uniqueSessions.length;
+  const isSomeSelected = selectedIds.size > 0 && selectedIds.size < uniqueSessions.length;
 
   // ─── Bulk Disconnect ────────────────────────────────────────────────────
 
@@ -259,7 +280,7 @@ export default function LiveSessions() {
     setIsBulkDisconnecting(true);
     setBulkDisconnectTarget(false);
 
-    const targets = sessions.filter(s => selectedIds.has(s.id));
+    const targets = uniqueSessions.filter(s => selectedIds.has(s.id));
     let successCount = 0;
     let failCount = 0;
 
@@ -355,7 +376,7 @@ export default function LiveSessions() {
   };
 
   // Unique NAS list for filter
-  const nasList = Array.from(new Set(sessions.map(s => s.nasIp).filter(Boolean)));
+  const nasList = Array.from(new Set(uniqueSessions.map(s => s.nasIp).filter(Boolean)));
 
   // ─── Mobile Card for each session ─────────────────────────────────────────
 
@@ -575,8 +596,8 @@ export default function LiveSessions() {
               <p className="text-sm font-medium">Per-NAS Breakdown</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {stats.perNas.map(nas => (
-                <Badge key={nas.nasIp} variant="outline" className="text-xs gap-1">
+              {stats.perNas.map((nas, idx) => (
+                <Badge key={`${nas.nasIp}_${idx}`} variant="outline" className="text-xs gap-1">
                   <Router className="h-3 w-3" />
                   {nas.nasIdentifier || nas.nasIp}: {nas.count}
                 </Badge>
@@ -635,7 +656,7 @@ export default function LiveSessions() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      ) : sessions.length === 0 ? (
+      ) : uniqueSessions.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center px-4">
           <div className="rounded-full bg-muted/50 p-4 mb-3">
             <Wifi className="h-8 w-8 text-muted-foreground/40" />
@@ -660,14 +681,14 @@ export default function LiveSessions() {
                   onCheckedChange={toggleSelectAll}
                   aria-label="Select all sessions"
                 />
-                <span className="text-muted-foreground">Select All ({sessions.length})</span>
+                <span className="text-muted-foreground">Select All ({uniqueSessions.length})</span>
               </label>
               {selectedIds.size > 0 && (
                 <span className="text-xs text-muted-foreground">{selectedIds.size} selected</span>
               )}
             </div>
-            {sessions.map((session) => (
-              <SessionCard key={session.id} session={session} />
+            {uniqueSessions.map((session, idx) => (
+              <SessionCard key={`${session.id}_${idx}`} session={session} />
             ))}
           </div>
 
@@ -701,8 +722,8 @@ export default function LiveSessions() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sessions.map((session) => (
-                        <TableRow key={session.id} className={cn(
+                      {uniqueSessions.map((session, idx) => (
+                        <TableRow key={`${session.id}_${idx}`} className={cn(
                           selectedIds.has(session.id) && 'bg-primary/5',
                           session.status === 'active' && !selectedIds.has(session.id) && 'bg-emerald-50/50 dark:bg-emerald-950/10',
                           session.status === 'idle' && !selectedIds.has(session.id) && 'bg-amber-50/30 dark:bg-amber-950/10'
@@ -924,8 +945,8 @@ export default function LiveSessions() {
             <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
               <p className="text-sm font-medium">{selectedIds.size} session{selectedIds.size !== 1 ? 's' : ''} selected</p>
               <div className="mt-2 max-h-32 overflow-y-auto space-y-1">
-                {sessions.filter(s => selectedIds.has(s.id)).map(s => (
-                  <div key={s.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                {uniqueSessions.filter(s => selectedIds.has(s.id)).map((s, idx) => (
+                  <div key={`${s.id}_${idx}`} className="flex items-center gap-2 text-xs text-muted-foreground">
                     <UserCircle className="h-3.5 w-3.5 shrink-0" />
                     <span className="truncate">{s.username}</span>
                     <span className="ml-auto font-mono shrink-0">{s.ipAddress || '—'}</span>

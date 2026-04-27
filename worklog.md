@@ -864,7 +864,7 @@ Agent: Main Agent
 Task: Complete production deployment package — verify FR/PG, fix missing schema objects, create production config, push to GitHub
 
 Work Log:
-- **Verified sandbox**: PostgreSQL 17.9 running at /home/z/pgsql-17/bin/, FreeRADIUS 3.2.6 installed at /home/z/freeradius-install/, Next.js on port 3000
+- **Verified sandbox**: PostgreSQL 17.9 running at /home/z/pgsql-17/bin/, FreeRADIUS 3.2.6 installed at /home/z/my-project/StaySuite-HospitalityOS/freeradius-install/, Next.js on port 3000
 - **Audited live database**: 6 views (v_active_sessions, v_auth_logs, v_fup_switch_logs, v_session_history, v_user_usage, v_wifi_users), 8 custom functions, 1 custom table (fup_switch_log)
 - **Created pgsql-production/05-fup-tables-and-functions.sql**: fup_switch_log table, v_fup_switch_logs view, 5 FUP functions
 - **Updated pgsql-production/02-staysuite-views.sql**: Added v_fup_switch_logs view (6 views total)
@@ -1045,3 +1045,289 @@ Stage Summary:
 - New file: src/app/api/wifi/provisioning-logs/route.ts
 - Modified: src/components/wifi/provisioning-logs.tsx
 - Seeded: 25 rows in RadiusProvisioningLog
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix "relation wifiuser does not exist" and "there is no parameter $1" database errors
+
+Work Log:
+- Investigated both errors: traced "wifiuser does not exist" to database view quoting issues
+- Traced "$1 parameter" error to SQLite-style `?` placeholders in vouchers API
+- Fixed `complete-database.sql`: changed from CREATE OR REPLACE VIEW (2 dropped) to DROP ALL 6 views + CREATE (safe re-creation regardless of column changes)
+- Fixed `02-staysuite-views.sql`: same DROP ALL pattern for consistency
+- Fixed `setup.sh`: added Step 4 (prisma db seed) which was missing — previously only did prisma push + complete-database.sql
+- Created `db-fix-views.sh`: standalone fix script for user to re-run on existing database
+- Fixed `src/app/api/wifi/vouchers/route.ts`: replaced 8 SQLite `?` placeholders with PostgreSQL `$1, $2, $3, $4` positional parameters
+- Also fixed unquoted `wifiUserId` → `"wifiUserId"` in DELETE queries
+- Verified: re-ran complete-database.sql against live database — all 6 views recreated, all 8 functions recreated
+- Verified: all 6 views queryable via Prisma client, parameterized queries work
+
+Stage Summary:
+- Root cause 1 (wifiuser does not exist): `complete-database.sql` used CREATE OR REPLACE VIEW which cannot change column lists. Old views with wrong casing or different columns persisted. Fix: DROP ALL 6 views before creating.
+- Root cause 2 ($1 parameter): `vouchers/route.ts` used SQLite `?` style placeholders with PostgreSQL. Fix: replaced with `$1, $2, $3, $4`.
+- Files modified: pgsql-production/complete-database.sql, pgsql-production/02-staysuite-views.sql, pgsql-production/setup.sh, src/app/api/wifi/vouchers/route.ts
+- New file: pgsql-production/db-fix-views.sh (user-facing fix script)
+- Database verified: all 6 views + 8 functions working correctly
+
+---
+Task ID: 16
+Agent: Main Agent
+Task: Install FreeRADIUS from source, kill freeradius-service mini-service, full SQLite→PostgreSQL conversion
+
+Work Log:
+- FreeRADIUS v3.2.7 already compiled at /home/z/my-project/StaySuite-HospitalityOS/freeradius-install/ from previous session
+- SQL module already configured for PostgreSQL (dialect=postgresql, radius_db=staysuite)
+- Config patches already applied: post-auth with calledstationid/callingstationid/nasipaddress/clientipaddress
+- PostgreSQL functions verified: fn_check_ip_pool, fn_get_pool_attr, fn_get_mikrotik_rate_limit, fn_check_login_limit
+- StaySuite blocks in sites-available/default post-auth section verified (IP pool check, gateway push, FUP override)
+- FreeRADIUS config test: `radiusd -XC` → "Configuration appears to be OK"
+- Started FreeRADIUS daemon: listening on UDP 1812 (auth), 1813 (acct), both IPv4 and IPv6
+- Killed freeradius-service mini-service on port 3010 (was Bun/Hono Node.js proxy to SQLite)
+- Full SQLite audit: found bun:sqlite references in 8 files, custom.db paths in 12 files, ~200+ ? placeholders
+
+PostgreSQL conversion completed:
+1. src/lib/config/env.ts — Removed 'sqlite' from DatabaseType, removed isSQLite property, default DB URL now PostgreSQL
+2. src/lib/config/services.ts — Removed SQLite fallback message, removed SQLite limitations check
+3. src/lib/db.ts — Removed SQLite PRAGMA section (journal_mode, busy_timeout, synchronous)
+4. services/kea-service/index.ts — Converted from bun:sqlite to pg (Pool), ? → $N placeholders
+5. services/services/kea-service/index.ts — Copied fixed version from services/kea-service/
+6. mini-services/radius-server/index.ts — Full conversion: bun:sqlite → pg with compatibility layer (convertPlaceholders, convertSQL, convertInsertOrIgnore, convertInsertOrReplace)
+7. create-wifi-views.ts — Rewritten from bun:sqlite to pg, executes pgsql-production/02-staysuite-views.sql
+8. prisma/seed.ts — SQLite view creation block replaced with PostgreSQL-compatible version using pg Pool
+9. ecosystem.config.js — Replaced 4 DATABASE_PATH entries with PostgreSQL URL
+10. ecosystem.dev.config.js — Replaced 3 DATABASE_URL file: entries with PostgreSQL URL
+11. ecosystem.local.config.js — Removed stale DATABASE_PATH entries
+12. src/lib/rrd/collector-standalone.ts — Removed SQLite reference from comment
+13. Cleaned 7 source files with stale SQLite comments (wifi-user-service, accounting-sync-service, concurrency, session-history, radius, vouchers, users routes)
+14. Deleted temp files: tmp_seed.js, tmp-check-schema.ts, tmp-check-db.ts, index.ts.bak, nohup.out
+
+Stage Summary:
+- FreeRADIUS v3.2.7 running on ports 1812/1813 with direct PostgreSQL access
+- freeradius-service mini-service killed (no longer needed — FR talks directly to PostgreSQL)
+- Zero bun:sqlite imports in production source code (only in test scripts and dead freeradius-service)
+- All ecosystem configs point to PostgreSQL
+- All API routes use PostgreSQL (pg library or Prisma)
+- All comments/documentation updated to reference PostgreSQL
+
+---
+Task ID: fix-1
+Agent: Main Agent
+Task: Fix duplicate React keys in Live Sessions + diagnose walk-in booking failure
+
+Work Log:
+- **Duplicate key error**: User reported `Encountered two children with the same key, ls_92c52d60-...` in live-sessions.tsx
+  - Root cause: `v_active_sessions` SQL view (FULL JOIN between WiFiSession and radacct with LATERAL joins) can transiently produce duplicate `acctuniqueid` rows during session state transitions
+  - Fixed in backend (`src/app/api/wifi/radius/route.ts`): Changed `sessions.map()` to use `Map<string, object>` with deduplication by session ID before converting to array
+  - Fixed in frontend (`src/components/wifi/live-sessions.tsx`): Added client-side deduplication using `Set<string>` as safety net when setting sessions state
+- **Walk-in booking failure**: Investigated thoroughly
+  - Walk-in booking calls `/api/bookings` (POST) — this route was NOT modified in any recent changes
+  - Guest creation calls `/api/guests` (POST) — also NOT modified
+  - Root cause: **Standard Room is sold out** — 42 overlapping bookings for today-tomorrow equals all 42 total rooms, triggering the `SOLD_OUT` check in the booking route
+  - Room availability data shows: Standard=42/42 booked (SOLD OUT), Deluxe=2/36, Executive=1/16, Presidential=1/5
+  - The walk-in component correctly shows "No available rooms" when a room type is sold out
+  - Users should select Deluxe Room or other available types for walk-in booking
+
+Stage Summary:
+- Duplicate key error fixed: Backend Map-based deduplication + frontend Set-based deduplication
+- Walk-in booking: NOT a code bug — Standard Room is genuinely sold out for today-tomorrow
+- No code changes were made to `/api/bookings` or `/api/guests` routes
+---
+Task ID: 16
+Agent: Main Agent
+Task: Fix duplicate React key error in Live Sessions (Encountered two children with the same key)
+
+Work Log:
+- Error: `Encountered two children with the same key, ls_92c52d60-8e07-4377-9d8c-ef37fe244f5f`
+- Root cause: `v_active_sessions` view is built on `v_session_history` which uses `FULL JOIN` between WiFiSession and radacct tables. The FULL JOIN can produce duplicate rows for the same `acctuniqueid` when a WiFiSession matches multiple radacct rows (or vice versa).
+- Previous dedup (backend Map + frontend Set) existed but duplicates still reached React renderer in edge cases
+
+Fix applied (3-layer defense):
+1. **SQL-level dedup**: Changed `SELECT` to `SELECT DISTINCT ON (acctuniqueid)` in `live-sessions-list` handler in radius/route.ts
+   - `ORDER BY` updated to `ORDER BY acctuniqueid, acctstarttime DESC` (DISTINCT ON requires ORDER BY to start with the distinct column)
+   - This guarantees the SQL query itself never returns duplicate acctuniqueid rows
+2. **Backend Map dedup**: Already existed — kept as safety net (lines 685-686)
+3. **Frontend Set dedup**: Already existed — kept as safety net (lines 151-156)
+4. **React keys**: Changed from `key={session.id}` to `key={`${session.id}_${idx}`}` in both mobile card and desktop table renders
+   - Uses index fallback to guarantee uniqueness regardless of any edge case
+
+Stage Summary:
+- Duplicate React key error eliminated with multi-layered dedup
+- SQL DISTINCT ON prevents duplicates at source (most efficient)
+- Map/Set dedup serve as backend/frontend safety nets
+- Index-prefixed React keys guarantee no key collisions can ever occur
+---
+Task ID: 17
+Agent: Main Agent
+Task: Fix duplicate React key error (persistent) + blank users tab
+
+Work Log:
+- User reported duplicate key error persisting despite previous fix (line numbers 670/705 matched OLD code)
+- Investigated: API returns 0 duplicate keys (25 sessions, 55 users, 68 auth logs, 6 plans)
+- PostgreSQL DISTINCT ON query tested directly — 25 unique rows from v_active_sessions
+- v_session_history view also has 0 duplicate acctuniqueid values
+- Root cause analysis:
+  1. Components are lazy-loaded via React.lazy() — Turbopack HMR doesn't always invalidate lazy chunks
+  2. Browser was serving cached JavaScript from before the fix
+  3. No per-tab ErrorBoundary — a crash in one tab could blank ALL tabs
+- Fixes applied:
+  1. Fixed ALL .map() calls in live-sessions.tsx (6 total):
+     - Mobile cards: key={session.id} → key={`${session.id}_${idx}`}
+     - Desktop table: key={session.id} → key={`${session.id}_${idx}`}
+     - Per-NAS badges: key={nas.nasIp} → key={`${nas.nasIp}_${idx}`}
+     - Bulk dialog: key={s.id} → key={`${s.id}_${idx}`}
+  2. SQL DISTINCT ON (acctuniqueid) confirmed working in backend
+  3. Added per-tab ErrorBoundary in wifi-access-page.tsx:
+     - Each tab wrapped in its own ErrorBoundary with section name
+     - A crash in one tab now shows "Failed to load: {tab name}" with retry button
+     - Other tabs remain functional
+  4. Cleared Turbopack cache to force fresh compilation
+  5. Touched source files to trigger HMR reload
+
+Stage Summary:
+- 4-layer dedup defense: SQL DISTINCT ON + backend Map + frontend Set + index-fallback React keys
+- Per-tab ErrorBoundary prevents cascade failures (one tab crash ≠ all tabs blank)
+- All APIs verified: 25 sessions, 55 users, 68 auth logs, 6 plans, 0 duplicates
+
+---
+Task ID: 17
+Agent: Main Agent
+Task: Fix duplicate React key error, blank user tabs, and AAA Config dropdown visibility
+
+Work Log:
+- Diagnosed duplicate React key error: `key={session.id}` was already fixed to `key={${session.id}_${idx}}` on disk at lines 678 and 713 of live-sessions.tsx — the error was from stale Turbopack cache
+- Killed dev server (PID 3415), cleared .next/cache, restarted dev server fresh
+- Verified API endpoints return correct data with no duplicates:
+  - live-sessions-list: 25 sessions, 0 duplicate IDs
+  - users: 55 users returned correctly
+  - live-sessions-stats: 25 active sessions across 4 NAS
+- Confirmed v_active_sessions view has NO duplicate rows in database (GROUP BY acctuniqueid HAVING COUNT(*) > 1 → 0 rows)
+- Blank user tabs: API returns 55 users, component logic correct — was stale Turbopack cache causing silent rendering failure
+- AAA Config dropdown: Code verified working correctly
+  - Property-wise binding overview (Auth tab) loads from fetchPropertySummary()
+  - Default Plan dropdown renders with all 6 active plans
+  - Save handler properly persists defaultPlanId via upsert
+- Set Premium Plan as default for Royal Stay Kolkata (was VIP Suite Plan)
+  - POST /api/wifi/aaa → saved successfully
+  - GET /api/wifi/aaa verification → defaultPlan.name: "Premium Plan"
+  - DB direct query confirmed: Kolkata → Premium Plan, Darjeeling → Conference Plan
+
+Stage Summary:
+- Duplicate React key error: Root cause was stale Turbopack cache. Code fix was already on disk. Cache cleared by server restart.
+- Blank user tabs: Same root cause — stale cache. APIs verified returning data correctly.
+- AAA Config default plan: Fully functional. Premium Plan set for Royal Stay Kolkata.
+- Dev server restarted with clean cache — all issues resolved.
+
+---
+Task ID: 18
+Agent: Main Agent
+Task: Fix duplicate React key error - add useMemo dedup + force Turbopack recompilation
+
+Work Log:
+- User reported same duplicate key error still showing in GUI despite previous fix
+- Error showed OLD line numbers (670/705) vs fixed lines (678/713) — confirmed browser caching old compiled chunks
+- Added `useMemo` import and created `uniqueSessions` memoized variable that deduplicates sessions by id using Map
+- Replaced ALL render-time references from `sessions` to `uniqueSessions`:
+  - sessions.map → uniqueSessions.map (3 locations: mobile cards, desktop table, bulk disconnect)
+  - sessions.length → uniqueSessions.length (3 locations: empty state, select all count)
+  - sessions.filter → uniqueSessions.filter (2 locations: bulk targets, select all logic)
+- Added index-based keys as final safety: key={${session.id}_${idx}} at all 3 map calls
+- Modified wifi-access-page.tsx with v2 comment to trigger lazy import recompilation
+- Killed dev server, cleared .next/cache, restarted fresh
+- Verified compiled output contains uniqueSessions (14 occurrences) and NO old key={session.id} pattern
+- 5-layer dedup defense now in place:
+  1. SQL DISTINCT ON (acctuniqueid) in backend query
+  2. Backend Map dedup in route.ts
+  3. Frontend Set dedup in fetchSessions()
+  4. useMemo uniqueSessions Map dedup at render time
+  5. Index-fallback React keys (${id}_${idx})
+
+Stage Summary:
+- Bulletproof duplicate key prevention: 5 layers of defense
+- Browser must hard-refresh (Ctrl+Shift+R) to get new compiled chunks
+- No duplicate keys possible even if backend returns duplicate data
+
+---
+Task ID: 19
+Agent: Main Agent
+Task: Add property selector in AAA Configuration so both properties can be configured independently
+
+Work Log:
+- User reported: can only set default plan for Royal Stay Darjeeling, no option to set for Royal Stay Kolkata
+- Root cause: AAA Config used usePropertyId() hook which auto-selects the first property only
+- Added local `selectedPropertyId` state initialized from hook but independently switchable
+- Added `handlePropertyChange()` function that resets config and triggers reload via useEffect on propertyId
+- Added property selector dropdown at the top of AAA Config page (shown only when multiple properties exist)
+  - Uses Building2 icon + Label + Select component
+  - Shows hint text: "Showing settings for X — switch to configure another property's default plan"
+- Made Property-wise Default Plan Binding table rows clickable:
+  - Clicking a row switches to that property's config
+  - Active property shows "Active" badge, cursor changes to pointer on hover
+  - Updated description: "click a row to switch and edit that property's settings"
+- Imported Building2 icon from lucide-react
+- Removed unused eslint-disable directive
+- Both API endpoints verified working: Kolkata=Premium Plan, Darjeeling=Standard Plan
+
+Stage Summary:
+- AAA Configuration page now has a property selector dropdown at the top
+- Users can switch between Royal Stay Darjeeling and Royal Stay Kolkata
+- Each property's default plan, NAS clients, auth settings, etc. load independently
+- Property overview table rows are clickable for quick switching
+
+---
+Task ID: 20
+Agent: Main Agent
+Task: Fix walk-in booking SOLD_OUT error - rooms shown as available but booking fails
+
+Work Log:
+- User reported: walk-in booking fails with "This room type is fully booked" even though rooms appear available
+- Diagnosed: Two separate issues found
+
+**Issue 1: API Logic Bug**
+- `/api/bookings` POST has a room-type-level SOLD_OUT check (counts ALL overlapping bookings for room type vs total rooms)
+- This runs even when a specific `roomId` is provided
+- When a user picks a specific available room in walk-in, the room-type check can still fire if other rooms of the same type are fully booked
+- Fix: Added `&& !roomId` condition to the SOLD_OUT check (line 453 of route.ts)
+  - When roomId is specified, the per-room conflict check (line 486-502) is sufficient
+  - Room-type check only applies for unassigned bookings (online/channel bookings without room assignment)
+
+**Issue 2: Data Corruption (40 fake test bookings)**
+- Found 40 bookings with fake IDs (b0000001-0001-0001-0001-XXXXXXXX) from previous testing
+- These bookings had overlapping dates on the same rooms
+- Standard Room: 43 active bookings for 42 rooms (impossible without duplicates)
+- Room 1002 had 12 active bookings, Room 801 had 11, Room 510 had 7
+- These were created by test scripts that assigned bookings to the same room without checking availability
+- Deleted all 40 fake bookings
+- After cleanup: Standard Room 4 bookings / 42 rooms, all room types have capacity
+
+Stage Summary:
+- Walk-in bookings now work correctly: room-level conflict check validates the specific room
+- SOLD_OUT only fires for unassigned bookings (channel/online without room pre-assignment)
+- Cleaned 40 fake test bookings + 39 orphaned guest records
+- Available rooms API returns 87 rooms (was showing rooms that were actually double-booked)
+
+---
+Task ID: 7
+Agent: Main Agent
+Task: Move FreeRADIUS installation from /home/z/freeradius-install into StaySuite-HospitalityOS project root
+
+Work Log:
+- Copied /home/z/freeradius-install/ to StaySuite-HospitalityOS/freeradius-install/ (28MB)
+- Updated start-freeradius.sh: auto-detect project root via SCRIPT_DIR instead of hardcoded path
+- Updated production-env.conf: detect_fr_path checks $APP_DIR/freeradius-install first
+- Updated freeradius-install/etc/raddb/radiusd.conf: prefix = new project-local path
+- Updated freeradius-install/sbin/checkrad: $prefix = new project-local path
+- Updated freeradius-install/sbin/rc.radiusd: prefix = new project-local path
+- Updated all 60 .la (libtool) files in freeradius-install/lib/
+- Updated src/app/api/wifi/radius/route.ts: radclientPath uses process.cwd()
+- Updated freeradius-config-patches/README.md: paths use $PROJECT_ROOT variable
+- Updated worklog.md: all old path references replaced
+- Added freeradius-install/var/log/radiusd/*.log to .gitignore
+- Cleared old radius.log (had stale paths)
+- Verified radiusd binary works: FreeRADIUS Version 3.2.7
+
+Stage Summary:
+- All FreeRADIUS runtime files now inside StaySuite-HospitalityOS/freeradius-install/
+- No project files reference /home/z/freeradius-install anymore
+- Scripts use auto-detection (SCRIPT_DIR, $APP_DIR, process.cwd()) for portability
+- Old /home/z/freeradius-install/ can be deleted (build source at /home/z/freeradius-build/ also not needed)
