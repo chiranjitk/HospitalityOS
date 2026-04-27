@@ -1,3 +1,55 @@
+---
+Task ID: 6
+Agent: Main
+Task: Fix remaining Channel Manager module issues (28 bug fixes)
+
+Work Log:
+- Deep scan of all Channel Manager files: 8 lib files, 13 API routes, 12 UI components
+- Identified 7 critical lib bugs, 7 critical API bugs, 11 critical UI bugs, 16 medium bugs
+- Fixed missing crypto import in sync-service.ts
+- Fixed retry queue payload string parsing (was cast as object without JSON.parse)
+- Fixed rate limit window reset on every request (moved to constructor)
+- Fixed Math.min RangeError on large arrays
+- Removed dead constructor_rateLimit() method
+- Fixed stale cached client in getAuthenticatedClient
+- Added JSON fallback for unknown content-types
+- Fixed timing-safe HMAC comparison in webhook handlers
+- Added zero-nights division guard in booking creation
+- Wrapped webhook booking creation in db.$transaction
+- Added date validation in processIncomingBooking and webhook handlers
+- Redacted sensitive headers in webhook sync logs
+- Enforced webhook signature requirement in production
+- Fixed IDOR in staff channels (removed userId query param override)
+- Fixed NaN-safe limit parsing in sync-logs
+- Removed 7 unused fetchJSON helpers from API routes
+- Fixed division-by-zero on Progress bar in ota-connections
+- Fixed settings dialog leaking credentials on update
+- Fixed parseCompositeId to use :: delimiter (UUID-safe)
+- Added price validation in handleEditPrice
+- Fixed CRS type-unsafe cast (disabled save for booking sources)
+- Added XML injection prevention (escapeXml helper in Booking.com client)
+- Fixed channel priority keys to match actual OTA config IDs
+- Fixed sync type value mismatch (syncMessageToSyncType mapping)
+- Added dynamic Content-Type based on apiConfig.type
+- Fixed disconnect sending JSON headers to XML endpoint
+- Fixed testConnection truthy check to strict equality
+- Fixed dynamic byRegion computation in getOTACount
+- Added duplicate mapping check (409 response)
+- Fixed unique correlationId in webhook logs
+- Fixed malformed JSON crash in staff messages
+- Fixed retry queue deadLettered counter
+- Fixed retry queue dead letter stats accuracy
+- Added PUT handler for channel mapping (was missing)
+- TypeScript: 0 errors in src/ directory
+- ESLint: 0 errors in modified channel manager files
+- Pushed to GitHub (commit 9568e6d) after successful rebase
+
+Stage Summary:
+- 28 bugs fixed across 22 files (+414/-262 lines)
+- 7 critical + 7 critical API + 11 critical UI + 3 medium fixes
+- All changes compile and lint cleanly
+- Successfully rebased over another agent's changes (no conflicts)
+- Dev server running and responding (HTTP 200)
 # StaySuite HospitalityOS — Worklog
 
 ---
