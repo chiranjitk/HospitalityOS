@@ -18,6 +18,7 @@ export default async function masterLoader(section: string): Promise<{ default: 
     case 'room':
     case 'registration':
     case 'express':
+    case 'kiosk':
     case 'revenue':
       return (await import('./tier2-core')).default(section);
 
