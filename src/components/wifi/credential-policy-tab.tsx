@@ -249,14 +249,14 @@ export default function CredentialPolicyTab({ config, onChange, saving, onSave }
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground uppercase tracking-wider">Username</Label>
                 <div className="flex items-center gap-2">
-                  <code className="bg-muted px-3 py-2 rounded-md font-mono text-lg font-bold tracking-wide flex-1">
+                  <code className="bg-muted px-3 py-2 rounded-md font-mono text-base sm:text-lg font-bold tracking-wide flex-1 min-w-0 break-all">
                     {usernamePreview}
                   </code>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyToClipboard(usernamePreview, 'Username')}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => copyToClipboard(usernamePreview, 'Username')}>
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -264,10 +264,10 @@ export default function CredentialPolicyTab({ config, onChange, saving, onSave }
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground uppercase tracking-wider">Password</Label>
                 <div className="flex items-center gap-2">
-                  <code className="bg-muted px-3 py-2 rounded-md font-mono text-lg font-bold tracking-wide flex-1">
+                  <code className="bg-muted px-3 py-2 rounded-md font-mono text-base sm:text-lg font-bold tracking-wide flex-1 min-w-0 break-all">
                     {passwordPreview}
                   </code>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyToClipboard(passwordPreview, 'Password')}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => copyToClipboard(passwordPreview, 'Password')}>
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -326,7 +326,7 @@ export default function CredentialPolicyTab({ config, onChange, saving, onSave }
 
             {/* Selected format description */}
             {selectedUsernameFormat && (
-              <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+              <div className="flex flex-col sm:flex-row sm:items-start gap-3 p-3 bg-muted/50 rounded-lg">
                 <Badge variant="outline" className={CATEGORY_COLORS[selectedUsernameFormat.category]}>
                   {CATEGORY_LABELS[selectedUsernameFormat.category]}
                 </Badge>
@@ -339,7 +339,7 @@ export default function CredentialPolicyTab({ config, onChange, saving, onSave }
 
             {/* Requirements warnings */}
             {usernameRequires.length > 0 && (
-              <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
                 <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                 <div className="text-sm">
                   <p className="font-medium text-amber-800 dark:text-amber-200">Requirements</p>
@@ -360,7 +360,7 @@ export default function CredentialPolicyTab({ config, onChange, saving, onSave }
                   value={config.usernamePrefix || ''}
                   onChange={(e) => updateConfig({ usernamePrefix: e.target.value })}
                   placeholder="e.g., hotel, resort, wifi"
-                  className="w-64"
+                  className="w-full sm:w-64"
                 />
                 <p className="text-xs text-muted-foreground">
                   This prefix will be combined with a random suffix
@@ -466,7 +466,7 @@ export default function CredentialPolicyTab({ config, onChange, saving, onSave }
 
             {/* Selected format description */}
             {selectedPasswordFormat && (
-              <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+              <div className="flex flex-col sm:flex-row sm:items-start gap-3 p-3 bg-muted/50 rounded-lg">
                 <Badge variant="outline" className={CATEGORY_COLORS[selectedPasswordFormat.category]}>
                   {CATEGORY_LABELS[selectedPasswordFormat.category]}
                 </Badge>
@@ -479,7 +479,7 @@ export default function CredentialPolicyTab({ config, onChange, saving, onSave }
 
             {/* Security warning for weak passwords */}
             {['room_number', 'lastname', 'lastname_room', 'fixed'].includes(config.passwordFormat) && (
-              <div className="flex items-start gap-2 p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 rounded-lg">
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 rounded-lg">
                 <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
                 <div className="text-sm">
                   <p className="font-medium text-rose-800 dark:text-rose-200">Low Security</p>
@@ -498,7 +498,7 @@ export default function CredentialPolicyTab({ config, onChange, saving, onSave }
                   value={config.passwordFixedValue || ''}
                   onChange={(e) => updateConfig({ passwordFixedValue: e.target.value })}
                   placeholder="e.g., welcome, hotel2024"
-                  className="w-64"
+                  className="w-full sm:w-64"
                 />
                 <p className="text-xs text-rose-600 dark:text-rose-400 flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" />
@@ -641,7 +641,7 @@ export default function CredentialPolicyTab({ config, onChange, saving, onSave }
         </Card>
 
         {/* Save Button */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           {onSave && (
             <Button onClick={onSave} disabled={saving}>
               {saving ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />}

@@ -977,14 +977,14 @@ export default function AAAConfig() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">AAA Configuration</h2>
           <p className="text-muted-foreground">
             Configure RADIUS Authentication, Authorization, and Accounting
           </p>
         </div>
-        <Button onClick={fetchData} variant="outline" size="sm">
+        <Button onClick={fetchData} variant="outline" size="sm" className="w-full sm:w-auto">
           <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
         </Button>
@@ -994,9 +994,11 @@ export default function AAAConfig() {
       {properties.length > 1 && (
         <Card>
           <CardContent className="py-3">
-            <div className="flex items-center gap-3">
-              <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-              <Label className="text-sm font-medium shrink-0">Configure property:</Label>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                <Label className="text-sm font-medium shrink-0">Property:</Label>
+              </div>
               <Select value={propertyId} onValueChange={handlePropertyChange}>
                 <SelectTrigger className="w-full max-w-xs">
                   <SelectValue placeholder="Select property" />
@@ -1023,7 +1025,7 @@ export default function AAAConfig() {
       {/* Status Banner */}
       {serviceStatus && (
         <Card className={serviceStatus.running ? 'border-green-500' : 'border-yellow-500'}>
-          <CardContent className="flex items-center justify-between py-4">
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between py-4">
             <div className="flex items-center gap-3">
               {serviceStatus.running ? (
                 <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />
@@ -1043,7 +1045,7 @@ export default function AAAConfig() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 self-start sm:self-center">
               <Badge variant={serviceStatus.running ? 'default' : 'secondary'}>
                 {serviceStatus.running ? 'Running' : 'Stopped'}
               </Badge>
@@ -1055,30 +1057,37 @@ export default function AAAConfig() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-6 w-full max-w-5xl">
-          <TabsTrigger value="status" className="flex items-center gap-2">
-            <Server className="h-4 w-4" />
-            Status
+        <TabsList className="flex flex-wrap w-full max-w-5xl">
+          <TabsTrigger value="status" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Server className="h-3.5 w-3.5" />
+            <span className="hidden xs:inline">Status</span>
+            <span className="xs:hidden">Stat</span>
           </TabsTrigger>
-          <TabsTrigger value="nas" className="flex items-center gap-2">
-            <Wifi className="h-4 w-4" />
-            NAS Clients
+          <TabsTrigger value="nas" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Wifi className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">NAS Clients</span>
+            <span className="sm:hidden">NAS</span>
           </TabsTrigger>
-          <TabsTrigger value="authentication" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            Auth
+          <TabsTrigger value="authentication" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Shield className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Auth</span>
+            <span className="sm:hidden">Auth</span>
           </TabsTrigger>
-          <TabsTrigger value="credentials" className="flex items-center gap-2">
-            <UserCog className="h-4 w-4" />
-            Credentials
+          <TabsTrigger value="credentials" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <UserCog className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Credentials</span>
+            <span className="sm:hidden">Cred</span>
           </TabsTrigger>
-          <TabsTrigger value="authorization" className="flex items-center gap-2">
-            <Key className="h-4 w-4" />
-            Authorization
+          <TabsTrigger value="authorization" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Key className="h-3.5 w-3.5" />
+            <span className="hidden md:inline">Authorization</span>
+            <span className="md:hidden sm:inline">Author</span>
+            <span className="sm:hidden">Authz</span>
           </TabsTrigger>
-          <TabsTrigger value="accounting" className="flex items-center gap-2">
-            <Database className="h-4 w-4" />
-            Accounting
+          <TabsTrigger value="accounting" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Database className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Accounting</span>
+            <span className="sm:hidden">Acct</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1156,7 +1165,7 @@ export default function AAAConfig() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Server IP</Label>
                   <Input
@@ -1194,12 +1203,12 @@ export default function AAAConfig() {
                 </div>
               </div>
               
-              <div className="flex items-center justify-between pt-4 border-t">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-4 border-t">
                 <div className="flex items-center gap-2">
                   <Activity className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">Test connection to RADIUS server</span>
                 </div>
-                <Button onClick={handleTestConnection} disabled={testing} variant="outline">
+                <Button onClick={handleTestConnection} disabled={testing} variant="outline" className="w-full sm:w-auto">
                   {testing ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
@@ -1215,7 +1224,7 @@ export default function AAAConfig() {
         {/* NAS Clients Tab */}
         <TabsContent value="nas" className="space-y-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle>NAS Clients</CardTitle>
                 <CardDescription>
@@ -1239,7 +1248,7 @@ export default function AAAConfig() {
                     </DialogDescription>
                   </DialogHeader>
                   
-                  <div className="grid grid-cols-2 gap-4 py-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
                     <div className="space-y-2">
                       <Label>Name *</Label>
                       <Input
@@ -1311,7 +1320,7 @@ export default function AAAConfig() {
                         </PopoverContent>
                       </Popover>
                     </div>
-                    <div className="space-y-2 col-span-2">
+                    <div className="space-y-2 sm:col-span-2">
                       <div className="flex items-center justify-between">
                         <Label>Shared Secret *</Label>
                         <Button
@@ -1355,7 +1364,7 @@ export default function AAAConfig() {
                         onChange={(e) => setNasForm(prev => ({ ...prev, coaPort: parseInt(e.target.value) }))}
                       />
                     </div>
-                    <div className="flex items-center space-x-2 col-span-2">
+                    <div className="flex items-center space-x-2 sm:col-span-2">
                       <Switch
                         checked={nasForm.coaEnabled}
                         onCheckedChange={(checked) => setNasForm(prev => ({ ...prev, coaEnabled: checked }))}
@@ -1709,7 +1718,7 @@ export default function AAAConfig() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Default Download Speed (Mbps)</Label>
                   <Input
@@ -1728,7 +1737,7 @@ export default function AAAConfig() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Default Session Limit (minutes)</Label>
                   <Input
