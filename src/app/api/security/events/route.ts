@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {    const user = await require
         description,
         thumbnail,
         recordingId,
-        metadata: metadata || {},
+        metadata: typeof metadata === 'string' ? metadata : JSON.stringify(metadata || {}),
         timestamp: timestamp ? new Date(timestamp) : new Date(),
         acknowledged: false,
       },

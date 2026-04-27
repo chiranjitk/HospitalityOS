@@ -283,10 +283,12 @@ export const navigationConfig: NavSection[] = [
     icon: Video,
     category: 'addons',
     items: [
+      { id: 'security-cameras', title: 'Camera Management', href: '#security-cameras', icon: Settings },
       { id: 'security-live', title: 'Live Camera View', href: '#security-live', icon: Video },
       { id: 'security-playback', title: 'Camera Playback', href: '#security-playback', icon: History },
       { id: 'security-alerts', title: 'Event Alerts', href: '#security-alerts', icon: Bell },
       { id: 'security-incidents', title: 'Incident Logs', href: '#security-incidents', icon: FileText },
+      { id: 'surveillance-settings', title: 'Surveillance Settings', href: '#surveillance-settings', icon: Settings },
     ],
   },
   {

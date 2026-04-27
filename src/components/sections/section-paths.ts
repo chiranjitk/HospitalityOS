@@ -135,6 +135,7 @@ const sectionPaths: Record<string, string> = {
   'parking-billing': '@/components/parking/vehicle-tracking',
 
   // Security
+  'security-cameras': '@/components/security/camera-management',
   'security-live': '@/components/security/live-camera',
   'security-playback': '@/components/security/camera-playback',
   'security-alerts': '@/components/security/incidents',
@@ -144,6 +145,7 @@ const sectionPaths: Record<string, string> = {
   'security-2fa': '@/components/security/two-factor-setup',
   'security-sessions': '@/components/security/device-sessions',
   'security-sso': '@/components/security/sso-config',
+  'surveillance-settings': '@/components/security/surveillance-settings',
 
   // Channels
   'channel-ota': '@/components/channels/ota-connections',

@@ -1,13 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requirePermission } from '@/lib/auth/tenant-context';// GET /api/security/cameras/[id]/recordings - Get recordings for a camera on a specific date
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+
+// GET /api/security/cameras/[id]/recordings - Get recordings for a camera on a specific date
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {    const user = await requirePermission(request, 'surveillance.view');
-    if (user instanceof NextResponse) return user;
+) {
+  try {
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+        { status: 401 }
+      );
+    }
 
-      try {
+    // Check permission — match the cameras route pattern
+    if (!hasPermission(user, 'security.view') && !hasPermission(user, 'security.*')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const { id: cameraId } = await params;
     const searchParams = request.nextUrl.searchParams;
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
@@ -83,6 +99,9 @@ export async function GET(
           name: camera.name,
           location: camera.location,
           status: camera.status,
+          isRecording: camera.isRecording,
+          streamUrl: camera.streamUrl || undefined,
+          streamType: camera.streamType,
         },
         date,
         recordings: eventsWithRecordings.map((e) => ({
@@ -93,7 +112,7 @@ export async function GET(
           fileSize: null,
           hasEvents: true,
           thumbnailUrl: e.thumbnail,
-          streamUrl: null,
+          streamUrl: camera.streamUrl || null,
         })),
         events: events.map((e) => ({
           id: e.id,

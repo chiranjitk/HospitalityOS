@@ -355,6 +355,10 @@ export const menuPermissions: PermissionConfig = {
   },
 
   // ---- Surveillance ----
+  'security-cameras': {
+    permissions: ['surveillance.manage', 'surveillance.*', '*'],
+    description: 'Manage surveillance cameras and groups'
+  },
   'security-live': {
     permissions: ['surveillance.view', 'surveillance.*', '*'],
     description: 'View live cameras'
@@ -370,6 +374,10 @@ export const menuPermissions: PermissionConfig = {
   'security-incidents': {
     permissions: ['surveillance.incidents', 'surveillance.*', '*'],
     description: 'View incident logs'
+  },
+  'surveillance-settings': {
+    permissions: ['surveillance.manage', 'surveillance.*', '*'],
+    description: 'Configure surveillance settings'
   },
 
   // ---- WiFi ----
