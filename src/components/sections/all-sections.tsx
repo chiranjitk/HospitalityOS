@@ -151,6 +151,8 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'frontdesk-walkin': () => import('@/components/frontdesk/walk-in'),
   'frontdesk-room-grid': () => import('@/components/frontdesk/room-grid'),
   'frontdesk-assignment': () => import('@/components/frontdesk/room-assignment'),
+  'express-kiosk': () => import('@/components/frontdesk/express-kiosk'),
+  'kiosk-settings': () => import('@/components/frontdesk/kiosk-settings'),
 
   // ── pos (section-map-pos.tsx) ──
   'pos-orders': () => import('@/components/pos/orders'),

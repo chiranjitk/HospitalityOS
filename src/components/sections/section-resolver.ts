@@ -21,6 +21,7 @@ function getCategoryLoader(section: string): Promise<any> | null {
     case 'guests':
       return import('./loaders/load-guests');
     case 'frontdesk':
+    case 'kiosk':
       return import('./loaders/load-frontdesk');
     case 'wifi':
       return import('./loaders/load-wifi');
@@ -103,7 +104,7 @@ export async function loadSection(section: string): Promise<{ default: React.Com
 export function hasSection(section: string): boolean {
   const prefix = section.split('-')[0];
   const knownPrefixes = [
-    'dashboard', 'admin', 'pms', 'bookings', 'guests', 'frontdesk',
+    'dashboard', 'admin', 'pms', 'bookings', 'guests', 'frontdesk', 'kiosk',
     'wifi', 'billing', 'saas', 'inventory', 'housekeeping', 'pos',
     'experience', 'parking', 'security', 'channel', 'reports', 'revenue',
     'crm', 'settings', 'chain', 'marketing', 'events', 'iot', 'staff',
