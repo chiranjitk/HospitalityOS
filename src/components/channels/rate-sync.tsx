@@ -146,7 +146,13 @@ export default function RateSync() {
 
   const handleEditPrice = async () => {
     if (!editDialog.item) return;
-    
+
+    const price = parseFloat(editPrice);
+    if (isNaN(price) || price < 0) {
+      toast.error('Please enter a valid price');
+      return;
+    }
+
     try {
       const response = await fetch('/api/channels/rate-sync', {
         method: 'POST',
@@ -154,26 +160,29 @@ export default function RateSync() {
         body: JSON.stringify({
           action: 'updatePrice',
           id: editDialog.item.id,
-          channelPrice: parseFloat(editPrice),
+          channelPrice: price,
         }),
       });
       const result = await response.json();
       if (result.success) {
         setRateData(prev => prev.map(item =>
           item.id === editDialog.item!.id
-            ? { ...item, channelPrice: parseFloat(editPrice), priceDiff: parseFloat(editPrice) - item.basePrice }
+            ? { ...item, channelPrice: price, priceDiff: price - item.basePrice }
             : item
         ));
         toast.success('Price updated successfully');
+        setEditDialog({ open: false, item: null });
       } else {
         toast.error(result.error?.message || 'Failed to update price');
       }
     } catch {
       toast.error('Failed to connect to server');
     }
-    setEditDialog({ open: false, item: null });
   };
 
+  // Note: The backend connection model uses `autoSync` field for all sync toggles.
+  // The `autoAdjust` parameter here controls rate parity auto-adjustment,
+  // which maps to `autoSync` on the connection record. This is intentional.
   const handleToggleAutoAdjust = async (connectionId: string, autoAdjust: boolean) => {
     try {
       await fetch('/api/channels/connections', {

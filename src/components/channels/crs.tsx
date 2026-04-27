@@ -93,7 +93,7 @@ export default function CRS() {
   const [bookingSources, setBookingSources] = useState<BookingSource[]>([]);
   const [stats, setStats] = useState<CRSStats>({ totalConnections: 0, activeConnections: 0, totalSources: 0, enabledSources: 0, totalBookings: 0, totalRevenue: 0 });
   const [loading, setLoading] = useState(true);
-  const [editDialog, setEditDialog] = useState<{ open: boolean; item: CRSConnection | null }>({ open: false, item: null });
+  const [editDialog, setEditDialog] = useState<{ open: boolean; item: CRSConnection | null; isBookingSource?: boolean }>({ open: false, item: null, isBookingSource: false });
   const [editForm, setEditForm] = useState({
     name: '',
     endpoint: '',
@@ -455,7 +455,7 @@ export default function CRS() {
                         </TableCell>
                         <TableCell>
                           <Button variant="ghost" size="icon" onClick={() => {
-                            setEditDialog({ open: true, item: source as unknown as CRSConnection });
+                            setEditDialog({ open: true, item: source as unknown as CRSConnection, isBookingSource: true });
                             setEditForm({
                               name: source.name,
                               endpoint: '',
@@ -578,9 +578,9 @@ export default function CRS() {
             <Button variant="outline" onClick={() => setEditDialog({ open: false, item: null })}>
               Cancel
             </Button>
-            <Button onClick={handleSaveConnection}>
+            <Button onClick={handleSaveConnection} disabled={editDialog.isBookingSource}>
               <Save className="h-4 w-4 mr-2" />
-              Save Changes
+              {editDialog.isBookingSource ? 'Read Only' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>

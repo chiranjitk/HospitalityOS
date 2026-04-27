@@ -1398,15 +1398,11 @@ export function getOTAsWithFeature(feature: OTAFeature): OTAConfig[] {
 export function getOTACount(): { total: number; byRegion: Record<string, number>; byPriority: Record<string, number> } {
   return {
     total: ALL_OTAS.length,
-    byRegion: {
-      global: GLOBAL_OTAS.length,
-      india: INDIAN_OTAS.length,
-      asia_pacific: ASIA_PACIFIC_OTAS.length,
-      europe: EUROPEAN_OTAS.length,
-      middle_east: MIDDLE_EAST_AFRICA_OTAS.length,
-      vacation_rental: VACATION_RENTAL_OTAS.length,
-      metasearch: METASEARCH_OTAS.length,
-    },
+    byRegion: ALL_OTAS.reduce((acc, ota) => {
+      const region = ota.region || 'global';
+      acc[region] = (acc[region] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>),
     byPriority: {
       critical: ALL_OTAS.filter(ota => ota.priority === 'critical').length,
       high: ALL_OTAS.filter(ota => ota.priority === 'high').length,

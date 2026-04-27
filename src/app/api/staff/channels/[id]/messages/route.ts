@@ -129,11 +129,11 @@ export async function GET(
       senderAvatar: msg.sender.avatar,
       timestamp: msg.sentAt,
       type: msg.messageType,
-      attachments: JSON.parse(msg.attachments || '[]'),
+      attachments: (() => { try { return JSON.parse(msg.attachments || '[]'); } catch { return []; } })(),
       isEdited: msg.isEdited,
       editedAt: msg.editedAt,
       replyToId: msg.replyToId,
-      readBy: JSON.parse(msg.readBy || '[]'),
+      readBy: (() => { try { return JSON.parse(msg.readBy || '[]'); } catch { return []; } })(),
       replies: msg.replies.map((reply: { id: string; content: string; senderId: string; sender: { id: string; firstName: string; lastName: string; avatar: string | null }; sentAt: Date; messageType: string }) => ({
         id: reply.id,
         content: reply.content,
@@ -276,7 +276,7 @@ export async function POST(
       senderAvatar: message.sender.avatar,
       timestamp: message.sentAt,
       type: message.messageType,
-      attachments: JSON.parse(message.attachments || '[]'),
+      attachments: (() => { try { return JSON.parse(message.attachments || '[]'); } catch { return []; } })(),
       isEdited: message.isEdited,
       replyToId: message.replyToId,
     };

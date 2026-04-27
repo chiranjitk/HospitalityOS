@@ -34,16 +34,21 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 // Helper function to safely parse composite IDs
+// Prefers :: delimiter, falls back to : delimiter for legacy UUID support
 function parseCompositeId(id: string): { connectionId: string; roomTypeId: string } | null {
-  const parts = id.split('-');
-  if (parts.length < 2) {
-    console.error('Invalid composite ID format:', id);
-    return null;
+  // Prefer :: delimiter
+  if (id.includes('::')) {
+    const parts = id.split('::');
+    return { connectionId: parts[0], roomTypeId: parts.slice(1).join('::') };
   }
-  return {
-    connectionId: parts[0],
-    roomTypeId: parts.slice(1).join('-'), // Handle roomTypeId that might contain dashes
-  };
+  // Legacy :: not found — try : delimiter
+  if (id.includes(':')) {
+    const idx = id.indexOf(':');
+    return { connectionId: id.substring(0, idx), roomTypeId: id.substring(idx + 1) };
+  }
+  // Absolute fallback — return as-is (may not work for UUIDs)
+  console.error('Invalid composite ID format, no delimiter found:', id);
+  return null;
 }
 
 interface RestrictionItem {

@@ -213,15 +213,17 @@ export async function processRetryQueue(
         succeeded++;
       } else {
         // Failed again - add back to queue
-        await addToRetryQueue(retry.syncLogId || '', result.error || 'Unknown error');
+        const retryResult = await addToRetryQueue(retry.syncLogId || '', result.error || 'Unknown error');
+        if (retryResult === 'dead_letter') deadLettered++;
         failed++;
       }
     } catch (error) {
       console.error(`Error processing retry ${retry.id}:`, error);
-      await addToRetryQueue(
+      const retryResult = await addToRetryQueue(
         retry.syncLogId || '',
         error instanceof Error ? error.message : 'Unknown error'
       );
+      if (retryResult === 'dead_letter') deadLettered++;
       failed++;
     }
   }
@@ -273,11 +275,23 @@ async function retrySyncOperation(
       hotelId: connection.hotelId || undefined,
     });
 
+    // Parse payload - it comes from the database as a string (Prisma String @default("{}"))
+    let parsedPayload: Record<string, unknown>;
+    try {
+      parsedPayload = typeof retry.payload === 'string' ? JSON.parse(retry.payload) : (retry.payload || {});
+    } catch {
+      return { success: false, error: 'Invalid payload format in retry queue' };
+    }
+    const updates = (parsedPayload as { updates?: unknown[] }).updates;
+    if (!updates || !Array.isArray(updates)) {
+      return { success: false, error: 'No valid updates array in retry payload' };
+    }
+
     // Route the payload to the correct sync method based on operation type
     switch (retry.operation) {
       case 'inventory': {
         const result = await client.updateInventory(
-          (retry.payload as { updates: unknown[] }).updates as import('@/lib/ota/types').OTAInventoryUpdate[]
+          updates as import('@/lib/ota/types').OTAInventoryUpdate[]
         );
         if (!result.success) {
           return { success: false, error: result.errors?.map(e => e.message).join('; ') || 'Inventory sync failed' };
@@ -287,7 +301,7 @@ async function retrySyncOperation(
       case 'rates':
       case 'rate': {
         const result = await client.updateRates(
-          (retry.payload as { updates: unknown[] }).updates as import('@/lib/ota/types').OTARateUpdate[]
+          updates as import('@/lib/ota/types').OTARateUpdate[]
         );
         if (!result.success) {
           return { success: false, error: result.errors?.map(e => e.message).join('; ') || 'Rate sync failed' };
@@ -296,7 +310,7 @@ async function retrySyncOperation(
       }
       case 'restrictions': {
         const result = await client.updateRestrictions(
-          (retry.payload as { updates: unknown[] }).updates as import('@/lib/ota/types').OTARestrictionUpdate[]
+          updates as import('@/lib/ota/types').OTARestrictionUpdate[]
         );
         if (!result.success) {
           return { success: false, error: result.errors?.map(e => e.message).join('; ') || 'Restriction sync failed' };
@@ -359,13 +373,15 @@ export async function getRetryQueueStats(tenantId: string): Promise<{
     }
   });
 
+  const deadLetterCount = await db.channelDeadLetterQueue.count({ where: { tenantId } });
+
   return {
     pending: result.pending,
     processing: result.processing,
     retrying: result.retrying,
     completed: result.completed,
     failed: result.failed,
-    deadLetter: result.dead_letter,
+    deadLetter: deadLetterCount,
     averageAttempts: avgAttempts,
     oldestPending,
   };

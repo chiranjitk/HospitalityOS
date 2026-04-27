@@ -27,6 +27,7 @@ export async function POST(
     // a warning is logged but the request is still processed.
     const signature = headers['x-signature'] || headers['X-Signature'] || '';
 
+    // Note: No tenantId filter - OTAs don't send tenant identifiers. The channel name is used to route.
     // Get connections for this channel to retrieve the apiSecret for verification
     const connections = await db.channelConnection.findMany({
       where: {
@@ -34,6 +35,18 @@ export async function POST(
         status: 'active',
       },
     });
+
+    // If multiple connections exist for this channel, try to narrow down by propertyId from payload
+    if (connections.length > 1) {
+      const payloadPropertyId = (body.propertyId || body.property_id || body.hotelId) as string | undefined;
+      if (payloadPropertyId) {
+        const narrowed = connections.filter(c => c.propertyId === payloadPropertyId);
+        if (narrowed.length > 0) {
+          connections.length = 0;
+          connections.push(...narrowed);
+        }
+      }
+    }
 
     if (connections.length === 0) {
       return NextResponse.json(
@@ -51,10 +64,13 @@ export async function POST(
             .createHmac('sha256', conn.apiSecret)
             .update(rawBody)
             .digest('hex');
-          if (signature === expectedSig) {
-            signatureValid = true;
-            break;
+          try {
+            if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) continue;
+          } catch {
+            continue;
           }
+          signatureValid = true;
+          break;
         }
       }
       if (!signatureValid) {
@@ -120,9 +136,13 @@ export async function POST(
           syncType: 'booking',
           direction: 'inbound',
           status: 'success',
-          requestPayload: JSON.stringify(headers),
+          requestPayload: JSON.stringify({
+            'content-type': headers['content-type'],
+            'x-signature': headers['x-signature'] ? '***' : undefined,
+            'user-agent': headers['user-agent'],
+          }),
           responsePayload: JSON.stringify(body),
-          correlationId: `webhook-${Date.now()}`,
+          correlationId: `webhook-${crypto.randomUUID().replace(/-/g, '').substring(0, 12)}-${Date.now()}`,
         },
       });
     }
@@ -153,10 +173,14 @@ export async function GET(
   if (mode === 'subscribe' && token && challenge) {
     // Verify the token matches our expected token
     const expectedToken = process.env[`${channel.toUpperCase()}_VERIFY_TOKEN`];
-    if (expectedToken && token === expectedToken) {
-      return new NextResponse(challenge, { status: 200 });
+    if (expectedToken) {
+      try {
+        if (crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken))) {
+          return new NextResponse(challenge, { status: 200 });
+        }
+      } catch { /* ignore */ }
+      return NextResponse.json({ error: 'Invalid verify token' }, { status: 403 });
     }
-    return NextResponse.json({ error: 'Invalid verify token' }, { status: 403 });
   }
 
   // Return webhook URL info
@@ -170,6 +194,7 @@ export async function GET(
 
 // Webhook event handlers
 async function handleBookingCreated(channel: string, eventData: Record<string, unknown>): Promise<void> {
+  // TODO: Add tenantId filter when multi-tenant webhook routing is implemented
   const connection = await db.channelConnection.findFirst({
     where: { channel, status: 'active' },
   });
@@ -240,6 +265,15 @@ async function handleBookingCreated(channel: string, eventData: Record<string, u
     },
   });
 
+  // Extract dates for validation
+  const checkIn = dates?.checkIn ? new Date(dates.checkIn) : undefined;
+  const checkOut = dates?.checkOut ? new Date(dates.checkOut) : undefined;
+
+  if (!checkIn || !checkOut || isNaN(checkIn.getTime()) || isNaN(checkOut.getTime()) || checkIn >= checkOut) {
+    console.error(`[Webhook] Invalid dates for booking ${reservationId}: checkIn=${dates?.checkIn}, checkOut=${dates?.checkOut}`);
+    return;
+  }
+
   await db.booking.create({
     data: {
       tenantId: connection.tenantId,
@@ -248,8 +282,8 @@ async function handleBookingCreated(channel: string, eventData: Record<string, u
       externalRef: reservationId,
       primaryGuestId: guestId,
       roomTypeId: mapping?.roomTypeId || '',
-      checkIn: dates?.checkIn ? new Date(dates.checkIn) : new Date(),
-      checkOut: dates?.checkOut ? new Date(dates.checkOut) : new Date(),
+      checkIn: dates?.checkIn ? new Date(dates.checkIn) : undefined,
+      checkOut: dates?.checkOut ? new Date(dates.checkOut) : undefined,
       adults: guests?.adults || 1,
       children: guests?.children || 0,
       roomRate: pricing?.roomRate || pricing?.totalAmount || 0,
@@ -267,6 +301,7 @@ async function handleBookingCreated(channel: string, eventData: Record<string, u
 }
 
 async function handleBookingModified(channel: string, eventData: Record<string, unknown>): Promise<void> {
+  // TODO: Add tenantId filter when multi-tenant webhook routing is implemented
   const connection = await db.channelConnection.findFirst({
     where: { channel, status: 'active' },
   });
@@ -304,6 +339,7 @@ async function handleBookingModified(channel: string, eventData: Record<string, 
 }
 
 async function handleBookingCancelled(channel: string, eventData: Record<string, unknown>): Promise<void> {
+  // TODO: Add tenantId filter when multi-tenant webhook routing is implemented
   const connection = await db.channelConnection.findFirst({
     where: { channel, status: 'active' },
   });
@@ -333,6 +369,7 @@ async function handleBookingCancelled(channel: string, eventData: Record<string,
 }
 
 async function handleBookingNoShow(channel: string, eventData: Record<string, unknown>): Promise<void> {
+  // TODO: Add tenantId filter when multi-tenant webhook routing is implemented
   const connection = await db.channelConnection.findFirst({
     where: { channel, status: 'active' },
   });

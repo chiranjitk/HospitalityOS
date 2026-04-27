@@ -8,6 +8,19 @@ import { ALL_OTAS, getOTAById } from './config';
 import { BaseOTAClient } from './base-client';
 
 // ============================================
+// XML ESCAPE HELPER
+// ============================================
+
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+// ============================================
 // SPECIFIC OTA CLIENT IMPLEMENTATIONS
 // ============================================
 
@@ -34,7 +47,7 @@ class BookingComClient extends BaseOTAClient {
         }
       );
 
-      if (response.success !== false) {
+      if (response.success === true) {
         this.sessionId = response.session_id;
         return await this.testConnection();
       }
@@ -60,7 +73,10 @@ class BookingComClient extends BaseOTAClient {
           `${this.baseUrl}/xml/logout`,
           {
             method: 'POST',
-            headers: this.getCommonHeaders(),
+            headers: {
+              ...this.getCommonHeaders(),
+              'Content-Type': 'application/xml',
+            },
           }
         );
       } catch (error) {
@@ -326,23 +342,23 @@ class BookingComClient extends BaseOTAClient {
   private buildLoginXML(credentials: OTACredentials): string {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <request>
-  <username>${credentials.username || ''}</username>
-  <password>${credentials.password || ''}</password>
+  <username>${escapeXml(credentials.username || '')}</username>
+  <password>${escapeXml(credentials.password || '')}</password>
 </request>`;
   }
 
   private buildHotelRequestXML(): string {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <request>
-  <hotel_id>${this.credentials?.hotelId || ''}</hotel_id>
+  <hotel_id>${escapeXml(this.credentials?.hotelId || '')}</hotel_id>
 </request>`;
   }
 
   private buildInventoryRequestXML(startDate: Date, endDate: Date, roomTypeIds?: string[]): string {
-    const roomsXml = roomTypeIds?.map(id => `<room_id>${id}</room_id>`).join('') || '';
+    const roomsXml = roomTypeIds?.map(id => `<room_id>${escapeXml(id)}</room_id>`).join('') || '';
     return `<?xml version="1.0" encoding="UTF-8"?>
 <request>
-  <hotel_id>${this.credentials?.hotelId || ''}</hotel_id>
+  <hotel_id>${escapeXml(this.credentials?.hotelId || '')}</hotel_id>
   <date_from>${this.formatDate(startDate)}</date_from>
   <date_to>${this.formatDate(endDate)}</date_to>
   <rooms>${roomsXml}</rooms>
@@ -352,14 +368,14 @@ class BookingComClient extends BaseOTAClient {
   private buildInventoryUpdateXML(updates: any[]): string {
     const updatesXml = updates.map(u => `
     <room>
-      <room_id>${u.externalRoomId}</room_id>
-      <date>${u.date}</date>
+      <room_id>${escapeXml(u.externalRoomId)}</room_id>
+      <date>${escapeXml(u.date)}</date>
       <availability>${u.availableRooms}</availability>
     </room>`).join('');
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <request>
-  <hotel_id>${this.credentials?.hotelId || ''}</hotel_id>
+  <hotel_id>${escapeXml(this.credentials?.hotelId || '')}</hotel_id>
   <rooms>${updatesXml}
   </rooms>
 </request>`;
@@ -368,7 +384,7 @@ class BookingComClient extends BaseOTAClient {
   private buildRateRequestXML(startDate: Date, endDate: Date, roomTypeIds?: string[], ratePlanIds?: string[]): string {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <request>
-  <hotel_id>${this.credentials?.hotelId || ''}</hotel_id>
+  <hotel_id>${escapeXml(this.credentials?.hotelId || '')}</hotel_id>
   <date_from>${this.formatDate(startDate)}</date_from>
   <date_to>${this.formatDate(endDate)}</date_to>
 </request>`;
@@ -377,16 +393,16 @@ class BookingComClient extends BaseOTAClient {
   private buildRateUpdateXML(updates: any[]): string {
     const updatesXml = updates.map(u => `
     <rate>
-      <room_id>${u.externalRoomId}</room_id>
-      <rate_plan_id>${u.externalRatePlanId}</rate_plan_id>
-      <date>${u.date}</date>
+      <room_id>${escapeXml(u.externalRoomId)}</room_id>
+      <rate_plan_id>${escapeXml(u.externalRatePlanId)}</rate_plan_id>
+      <date>${escapeXml(u.date)}</date>
       <price>${u.baseRate}</price>
-      <currency>${u.currency}</currency>
+      <currency>${escapeXml(u.currency)}</currency>
     </rate>`).join('');
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <request>
-  <hotel_id>${this.credentials?.hotelId || ''}</hotel_id>
+  <hotel_id>${escapeXml(this.credentials?.hotelId || '')}</hotel_id>
   <rates>${updatesXml}
   </rates>
 </request>`;
@@ -395,7 +411,7 @@ class BookingComClient extends BaseOTAClient {
   private buildRestrictionsRequestXML(startDate: Date, endDate: Date, roomTypeIds?: string[]): string {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <request>
-  <hotel_id>${this.credentials?.hotelId || ''}</hotel_id>
+  <hotel_id>${escapeXml(this.credentials?.hotelId || '')}</hotel_id>
   <date_from>${this.formatDate(startDate)}</date_from>
   <date_to>${this.formatDate(endDate)}</date_to>
 </request>`;
@@ -404,8 +420,8 @@ class BookingComClient extends BaseOTAClient {
   private buildRestrictionsUpdateXML(updates: any[]): string {
     const updatesXml = updates.map(u => `
     <restriction>
-      <room_id>${u.externalRoomId}</room_id>
-      <date>${u.date}</date>
+      <room_id>${escapeXml(u.externalRoomId)}</room_id>
+      <date>${escapeXml(u.date)}</date>
       <closed_to_arrival>${u.closedToArrival ? 1 : 0}</closed_to_arrival>
       <closed_to_departure>${u.closedToDeparture ? 1 : 0}</closed_to_departure>
       <closed>${u.closed ? 1 : 0}</closed>
@@ -414,7 +430,7 @@ class BookingComClient extends BaseOTAClient {
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <request>
-  <hotel_id>${this.credentials?.hotelId || ''}</hotel_id>
+  <hotel_id>${escapeXml(this.credentials?.hotelId || '')}</hotel_id>
   <restrictions>${updatesXml}
   </restrictions>
 </request>`;
@@ -423,7 +439,7 @@ class BookingComClient extends BaseOTAClient {
   private buildBookingsRequestXML(startDate: Date, endDate: Date, status?: string[]): string {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <request>
-  <hotel_id>${this.credentials?.hotelId || ''}</hotel_id>
+  <hotel_id>${escapeXml(this.credentials?.hotelId || '')}</hotel_id>
   <checkin_from>${this.formatDate(startDate)}</checkin_from>
   <checkin_to>${this.formatDate(endDate)}</checkin_to>
 </request>`;
@@ -432,14 +448,14 @@ class BookingComClient extends BaseOTAClient {
   private buildSingleBookingRequestXML(externalId: string): string {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <request>
-  <reservation_id>${externalId}</reservation_id>
+  <reservation_id>${escapeXml(externalId)}</reservation_id>
 </request>`;
   }
 
   private buildConfirmBookingXML(externalId: string): string {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <request>
-  <reservation_id>${externalId}</reservation_id>
+  <reservation_id>${escapeXml(externalId)}</reservation_id>
   <status>confirmed</status>
 </request>`;
   }
@@ -447,9 +463,9 @@ class BookingComClient extends BaseOTAClient {
   private buildCancelBookingXML(externalId: string, reason: string): string {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <request>
-  <reservation_id>${externalId}</reservation_id>
+  <reservation_id>${escapeXml(externalId)}</reservation_id>
   <status>cancelled</status>
-  <cancellation_reason>${reason}</cancellation_reason>
+  <cancellation_reason>${escapeXml(reason)}</cancellation_reason>
 </request>`;
   }
 
@@ -1141,6 +1157,7 @@ export class OTAClientFactory {
     channelId: string,
     credentials: OTACredentials
   ): Promise<OTAAPIClient | null> {
+    this.clients.delete(channelId);
     const client = this.createClient(channelId);
     if (!client) return null;
 

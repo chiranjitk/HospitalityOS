@@ -685,7 +685,9 @@ export default function OTAConnections() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: selectedConnection.id,
-          ...formData,
+          displayName: formData.displayName,
+          autoSync: formData.autoSync === 'true',
+          syncInterval: parseInt(formData.syncInterval) || 60,
         }),
       });
 
@@ -1329,7 +1331,7 @@ export default function OTAConnections() {
               {stats.activeConnections} of {otaStats.total} channels
             </span>
           </div>
-          <Progress value={(stats.activeConnections / otaStats.total) * 100} className="h-2 [&>div]:bg-gradient-to-r [&>div]:from-emerald-500 [&>div]:to-teal-500" />
+          <Progress value={otaStats.total > 0 ? (stats.activeConnections / otaStats.total) * 100 : 0} className="h-2 [&>div]:bg-gradient-to-r [&>div]:from-emerald-500 [&>div]:to-teal-500" />
         </CardContent>
       </Card>
 

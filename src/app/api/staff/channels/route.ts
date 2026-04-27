@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     }
 
     const searchParams = request.nextUrl.searchParams;
-    const userId = searchParams.get('userId') || user.id;
+    const userId = user.id;
     const type = searchParams.get('type');
     const limit = searchParams.get('limit');
 

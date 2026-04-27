@@ -13,6 +13,7 @@ import {
   OTARestrictionUpdate,
   OTASyncLog,
 } from './types';
+import crypto from 'crypto';
 
 // ============================================
 // SYNC SERVICE CLASS
@@ -487,6 +488,16 @@ export class OTASyncService {
         },
       });
 
+      // Validate booking dates
+      const checkInDate = new Date(bookingData.dates?.checkIn);
+      const checkOutDate = new Date(bookingData.dates?.checkOut);
+      if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+        throw new Error(`Invalid booking dates: checkIn=${bookingData.dates?.checkIn}, checkOut=${bookingData.dates?.checkOut}`);
+      }
+      if (checkInDate >= checkOutDate) {
+        throw new Error('Invalid booking: checkOut must be after checkIn');
+      }
+
       // Create booking
       await db.booking.create({
         data: {
@@ -497,8 +508,8 @@ export class OTASyncService {
           externalRef: bookingData.externalBookingId || bookingData.reservationId,
           primaryGuestId: guest.id,
           roomTypeId: mapping?.roomTypeId || '',
-          checkIn: new Date(bookingData.dates?.checkIn),
-          checkOut: new Date(bookingData.dates?.checkOut),
+          checkIn: checkInDate,
+          checkOut: checkOutDate,
           adults: bookingData.guests?.adults || 1,
           children: bookingData.guests?.children || 0,
           roomRate: bookingData.pricing?.roomRate || 0,

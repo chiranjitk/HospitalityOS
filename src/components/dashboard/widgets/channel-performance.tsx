@@ -81,7 +81,8 @@ export default function ChannelPerformanceWidget() {
               name: conn.displayName || conn.channel || 'Unknown',
               icon: getChannelIcon(conn.displayName || conn.channel || ''),
               bookings: count,
-              revenue: 0,
+              // TODO: Fetch actual revenue from bookings API
+              revenue: conn.totalRevenue || 0,
               share,
               ...colors,
             };

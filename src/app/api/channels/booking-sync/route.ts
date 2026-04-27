@@ -2,16 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
-// Bug Fix #7: Helper to safely fetch and parse JSON with proper error handling
-async function fetchJSON(url: string, options?: RequestInit) {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`API error ${response.status}: ${text.slice(0, 200)}`);
-  }
-  return response.json();
-}
-
 // GET /api/channels/booking-sync - Get booking sync status
 export async function GET(request: NextRequest) {
   try {

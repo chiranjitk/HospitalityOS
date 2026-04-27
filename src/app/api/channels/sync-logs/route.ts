@@ -2,16 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
-// Bug Fix #7: Helper to safely fetch and parse JSON with proper error handling
-async function fetchJSON(url: string, options?: RequestInit) {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`API error ${response.status}: ${text.slice(0, 200)}`);
-  }
-  return response.json();
-}
-
 // GET /api/channels/sync-logs - List all sync logs
 export async function GET(request: NextRequest) {
   try {
@@ -38,7 +28,8 @@ export async function GET(request: NextRequest) {
     const syncType = searchParams.get('syncType');
     const direction = searchParams.get('direction');
     const status = searchParams.get('status');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100);
+    const limitParam = parseInt(searchParams.get('limit') || '50', 10);
+    const limit = isNaN(limitParam) ? 50 : Math.min(Math.max(limitParam, 1), 100);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
     // Build connection filter

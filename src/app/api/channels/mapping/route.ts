@@ -2,16 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
-// Bug Fix #7: Helper to safely fetch and parse JSON with proper error handling
-async function fetchJSON(url: string, options?: RequestInit) {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`API error ${response.status}: ${text.slice(0, 200)}`);
-  }
-  return response.json();
-}
-
 // GET /api/channels/mapping - Get channel mappings
 export async function GET(request: NextRequest) {
   try {
@@ -212,6 +202,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check for existing mapping to prevent duplicates
+    const existing = await db.channelMapping.findFirst({
+      where: {
+        connectionId: body.connectionId,
+        roomTypeId: body.roomTypeId,
+        ratePlanId: body.ratePlanId || null,
+      },
+    });
+    if (existing) {
+      return NextResponse.json({ success: false, error: 'Mapping already exists for this connection, room type, and rate plan' }, { status: 409 });
+    }
+
     const mapping = await db.channelMapping.create({
       data: {
         connectionId,
@@ -303,6 +305,90 @@ export async function DELETE(request: NextRequest) {
     console.error('Error deleting mapping:', error);
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete mapping' } },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT /api/channels/mapping - Update a mapping (e.g., toggle sync fields)
+export async function PUT(request: NextRequest) {
+  try {
+    // Authentication check
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+        { status: 401 }
+      );
+    }
+
+    // Permission check
+    if (!hasPermission(user, 'channels.update')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'You do not have permission to update channel mappings' } },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const { id, ...updateFields } = body;
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Mapping ID is required' } },
+        { status: 400 }
+      );
+    }
+
+    // Verify mapping belongs to user's tenant through connection
+    const mapping = await db.channelMapping.findUnique({
+      where: { id },
+      include: { connection: { select: { tenantId: true } } },
+    });
+
+    if (!mapping) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Mapping not found' } },
+        { status: 404 }
+      );
+    }
+
+    if (mapping.connection.tenantId !== user.tenantId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'You do not have access to this mapping' } },
+        { status: 403 }
+      );
+    }
+
+    // Only allow updating sync toggle fields
+    const allowedFields = ['syncInventory', 'syncRates', 'syncRestrictions'];
+    const sanitizedUpdate: Record<string, boolean> = {};
+    for (const field of allowedFields) {
+      if (field in updateFields && typeof updateFields[field] === 'boolean') {
+        sanitizedUpdate[field] = updateFields[field];
+      }
+    }
+
+    if (Object.keys(sanitizedUpdate).length === 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'No valid fields to update' } },
+        { status: 400 }
+      );
+    }
+
+    const updatedMapping = await db.channelMapping.update({
+      where: { id },
+      data: sanitizedUpdate,
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: updatedMapping,
+    });
+  } catch (error) {
+    console.error('Error updating mapping:', error);
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update mapping' } },
       { status: 500 }
     );
   }

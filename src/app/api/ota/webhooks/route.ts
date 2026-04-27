@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
                       request.headers.get('x-expedia-signature') || '';
     const channel = payload.data.channel;
 
+    // Note: No tenantId filter - OTAs don't send tenant identifiers. The channel name is used to route.
     // Get channel connection to verify signature
     const connection = await db.channelConnection.findFirst({
       where: {
@@ -93,16 +94,12 @@ export async function POST(request: NextRequest) {
 
     // Verify signature in production
     if (process.env.NODE_ENV === 'production') {
-      // Get webhook secret from connection config or environment
       const config = connection.apiSecret || process.env[`${channel.toUpperCase()}_WEBHOOK_SECRET`];
-      
-      if (config) {
-        if (!verifySignature(rawPayload, signature, config)) {
-          return NextResponse.json(
-            { error: 'Invalid signature' },
-            { status: 401 }
-          );
-        }
+      if (!config) {
+        return NextResponse.json({ error: 'No webhook secret configured' }, { status: 500 });
+      }
+      if (!verifySignature(rawPayload, signature, config)) {
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
       }
     }
 
@@ -204,108 +201,120 @@ async function handleReservationCreated(
 ) {
   const { data } = payload;
 
-  // Find or create guest (email is not unique, so use findFirst)
-  let guest = data.guest.email ? await db.guest.findFirst({
-    where: { email: data.guest.email, tenantId },
-  }) : null;
+  return await db.$transaction(async (tx) => {
+    // Find or create guest (email is not unique, so use findFirst)
+    let guest = data.guest.email ? await tx.guest.findFirst({
+      where: { email: data.guest.email, tenantId },
+    }) : null;
 
-  if (!guest) {
-    guest = await db.guest.create({
-      data: {
+    if (!guest) {
+      guest = await tx.guest.create({
+        data: {
+          tenantId,
+          firstName: data.guest.first_name,
+          lastName: data.guest.last_name,
+          email: data.guest.email,
+          phone: data.guest.phone,
+          nationality: data.guest.country,
+          source: data.channel === 'booking_com' ? 'booking_com' : 
+                  data.channel === 'airbnb' ? 'airbnb' : 'expedia',
+          kycStatus: 'pending',
+        },
+      });
+    }
+
+    // Find room type mapping
+    const mapping = await tx.channelMapping.findFirst({
+      where: {
+        connectionId: connection.id,
+        externalRoomId: data.room_type_id,
+      },
+      include: { roomType: true },
+    });
+
+    if (!mapping) {
+      throw new Error('Room type mapping not found');
+    }
+
+    // Find available room
+    const checkIn = new Date(data.check_in);
+    const checkOut = new Date(data.check_out);
+
+    if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
+      throw new Error(`Invalid booking dates: check_in=${data.check_in}, check_out=${data.check_out}`);
+    }
+    if (checkIn >= checkOut) {
+      throw new Error(`Invalid booking: check_out must be after check_in`);
+    }
+
+    // Check for available rooms
+    const bookedRoomIds = await tx.booking.findMany({
+      where: {
         tenantId,
-        firstName: data.guest.first_name,
-        lastName: data.guest.last_name,
-        email: data.guest.email,
-        phone: data.guest.phone,
-        nationality: data.guest.country,
-        source: data.channel === 'booking_com' ? 'booking_com' : 
-                data.channel === 'airbnb' ? 'airbnb' : 'expedia',
-        kycStatus: 'pending',
+        roomTypeId: mapping.roomTypeId,
+        status: { notIn: ['cancelled', 'no_show'] },
+        OR: [
+          {
+            checkIn: { lt: checkOut },
+            checkOut: { gt: checkIn },
+          },
+        ],
+      },
+      select: { roomId: true },
+    });
+
+    const bookedIds = bookedRoomIds.map(b => b.roomId).filter((id): id is string => id !== null);
+
+    const availableRoom = await tx.room.findFirst({
+      where: {
+        roomTypeId: mapping.roomTypeId,
+        id: { notIn: bookedIds },
+        status: 'available',
       },
     });
-  }
 
-  // Find room type mapping
-  const mapping = await db.channelMapping.findFirst({
-    where: {
-      connectionId: connection.id,
-      externalRoomId: data.room_type_id,
-    },
-    include: { roomType: true },
+    if (!availableRoom) {
+      throw new Error('No available room for this booking');
+    }
+
+    // Generate confirmation code
+    const confirmationCode = `OTA-${Date.now().toString(36).toUpperCase()}`;
+
+    // Calculate nights and room rate
+    const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+    if (nights <= 0) {
+      throw new Error(`Invalid booking dates: check_in and check_out must be different nights, got ${nights} nights`);
+    }
+    const roomRate = data.total_amount / nights;
+
+    // Create booking
+    const booking = await tx.booking.create({
+      data: {
+        tenantId,
+        propertyId: mapping.roomType.propertyId,
+        confirmationCode,
+        primaryGuestId: guest.id,
+        roomId: availableRoom.id,
+        roomTypeId: mapping.roomTypeId,
+        checkIn,
+        checkOut,
+        adults: data.guests,
+        children: 0,
+        roomRate,
+        taxes: 0,
+        fees: 0,
+        totalAmount: data.total_amount,
+        currency: data.currency || 'USD',
+        source: data.channel === 'booking_com' ? 'booking_com' : 
+                data.channel === 'airbnb' ? 'airbnb' : 'expedia',
+        externalRef: data.reservation_id,
+        status: 'confirmed',
+        specialRequests: data.special_requests,
+      },
+    });
+
+    return booking;
   });
-
-  if (!mapping) {
-    throw new Error('Room type mapping not found');
-  }
-
-  // Find available room
-  const checkIn = new Date(data.check_in);
-  const checkOut = new Date(data.check_out);
-
-  // Check for available rooms
-  const bookedRoomIds = await db.booking.findMany({
-    where: {
-      tenantId,
-      roomTypeId: mapping.roomTypeId,
-      status: { notIn: ['cancelled', 'no_show'] },
-      OR: [
-        {
-          checkIn: { lt: checkOut },
-          checkOut: { gt: checkIn },
-        },
-      ],
-    },
-    select: { roomId: true },
-  });
-
-  const bookedIds = bookedRoomIds.map(b => b.roomId).filter((id): id is string => id !== null);
-
-  const availableRoom = await db.room.findFirst({
-    where: {
-      roomTypeId: mapping.roomTypeId,
-      id: { notIn: bookedIds },
-      status: 'available',
-    },
-  });
-
-  if (!availableRoom) {
-    throw new Error('No available room for this booking');
-  }
-
-  // Generate confirmation code
-  const confirmationCode = `OTA-${Date.now().toString(36).toUpperCase()}`;
-
-  // Calculate nights and room rate
-  const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-  const roomRate = data.total_amount / nights;
-
-  // Create booking
-  const booking = await db.booking.create({
-    data: {
-      tenantId,
-      propertyId: mapping.roomType.propertyId,
-      confirmationCode,
-      primaryGuestId: guest.id,
-      roomId: availableRoom.id,
-      roomTypeId: mapping.roomTypeId,
-      checkIn,
-      checkOut,
-      adults: data.guests,
-      children: 0,
-      roomRate,
-      taxes: 0,
-      fees: 0,
-      totalAmount: data.total_amount,
-      currency: data.currency || 'USD',
-      source: data.channel === 'booking_com' ? 'booking_com' : 
-              data.channel === 'airbnb' ? 'airbnb' : 'expedia',
-      externalRef: data.reservation_id,
-      status: 'confirmed',
-      specialRequests: data.special_requests,
-    },
-  });
-
-  return booking;
 }
 
 async function handleReservationModified(

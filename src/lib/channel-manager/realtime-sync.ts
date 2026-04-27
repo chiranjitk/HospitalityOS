@@ -5,6 +5,20 @@
 
 import { db } from '@/lib/db';
 
+// ============================================
+// SYNC TYPE MAPPING
+// ============================================
+
+function syncMessageToSyncType(type: SyncMessage['type']): string {
+  const map: Record<string, string> = {
+    inventory_update: 'inventory',
+    rate_update: 'rates',
+    restriction_update: 'restrictions',
+    booking_update: 'bookings',
+  };
+  return map[type] || type;
+}
+
 // Type definitions
 export interface SyncMessage {
   type: 'inventory_update' | 'rate_update' | 'booking_update' | 'restriction_update';
@@ -35,14 +49,18 @@ export interface SyncResult {
 
 // Channel priority mapping for sync order
 const CHANNEL_PRIORITY: Record<string, number> = {
-  booking: 1,     // Highest priority
+  booking_com: 1,
   expedia: 2,
   airbnb: 3,
-  agoda: 4,
-  hotels: 5,
+  hotels_com: 4,
+  agoda: 5,
   tripadvisor: 6,
-  make_my_trip: 7,
-  google: 8,
+  makemytrip: 7,
+  google_hotels: 8,
+  goibibo: 9,
+  booking: 1,        // alias
+  airbnb: 3,         // alias
+  expedia: 2,        // alias
 };
 
 /**
@@ -74,7 +92,7 @@ export async function queueSyncMessage(message: SyncMessage): Promise<string> {
     const syncLog = await db.channelSyncLog.create({
       data: {
         connectionId: primaryConnection.id,
-        syncType: message.type,
+        syncType: syncMessageToSyncType(message.type),
         direction: 'outbound',
         requestPayload: JSON.stringify(message.data),
         status: 'pending',
@@ -151,7 +169,7 @@ export async function processSyncMessage(syncLogId: string, message: SyncMessage
         await db.channelSyncLog.create({
           data: {
             connectionId: connection.id,
-            syncType: message.type,
+            syncType: syncMessageToSyncType(message.type),
             direction: 'outbound',
             requestPayload: JSON.stringify(message.data),
             responsePayload: JSON.stringify(result),

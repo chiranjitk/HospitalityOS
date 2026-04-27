@@ -35,6 +35,8 @@ export abstract class BaseOTAClient implements OTAAPIClient {
     this.baseUrl = config.apiConfig.sandboxUrl || config.apiConfig.baseUrl;
     this.timeout = config.apiConfig.timeout;
     this.retryAttempts = config.apiConfig.retryAttempts;
+    const period = this.config.apiConfig.rateLimit.period;
+    this.rateLimitWindow = period === 'second' ? 1000 : period === 'minute' ? 60000 : 3600000;
   }
 
   // ============================================
@@ -84,9 +86,6 @@ export abstract class BaseOTAClient implements OTAAPIClient {
     retries: number = this.retryAttempts
   ): Promise<T> {
     let lastError: Error | null = null;
-    // Bug Fix #4: Initialize rate limit window from config
-    const period = this.config.apiConfig.rateLimit.period;
-    this.rateLimitWindow = period === 'second' ? 1000 : period === 'minute' ? 60000 : 3600000;
 
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -130,8 +129,14 @@ export abstract class BaseOTAClient implements OTAAPIClient {
         } else if (contentType?.includes('application/xml') || contentType?.includes('text/xml')) {
           const text = await response.text();
           return text as T;
+        } else {
+          const text = await response.text();
+          try {
+            return JSON.parse(text) as T;
+          } catch {
+            return text as T;
+          }
         }
-        return await response.json();
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
@@ -286,9 +291,10 @@ export abstract class BaseOTAClient implements OTAAPIClient {
   }
 
   protected getCommonHeaders(): Record<string, string> {
+    const contentType = this.config.apiConfig.type === 'xml' ? 'application/xml' : 'application/json';
     return {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
+      'Content-Type': contentType,
+      'Accept': contentType,
       'User-Agent': `StaySuite-ChannelManager/1.0`,
       'X-Request-ID': this.generateCorrelationId(),
       ...this.getAuthHeaders(),
@@ -302,11 +308,6 @@ export abstract class BaseOTAClient implements OTAAPIClient {
   private requestTimestamps: number[] = [];
   private rateLimitWindow: number = 60000;
 
-  constructor_rateLimit() {
-    const period = this.config.apiConfig.rateLimit.period;
-    this.rateLimitWindow = period === 'second' ? 1000 : period === 'minute' ? 60000 : 3600000;
-  }
-
   protected async enforceRateLimit(): Promise<void> {
     const now = Date.now();
     const windowStart = now - this.rateLimitWindow;
@@ -316,7 +317,10 @@ export abstract class BaseOTAClient implements OTAAPIClient {
     
     // Check if we're at the limit
     if (this.requestTimestamps.length >= this.config.apiConfig.rateLimit.requests) {
-      const oldestRequest = Math.min(...this.requestTimestamps);
+      let oldestRequest = Infinity;
+      for (const ts of this.requestTimestamps) {
+        if (ts < oldestRequest) oldestRequest = ts;
+      }
       const waitTime = oldestRequest + this.rateLimitWindow - now;
       
       if (waitTime > 0) {
