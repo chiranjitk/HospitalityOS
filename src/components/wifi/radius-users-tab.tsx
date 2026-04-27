@@ -268,10 +268,12 @@ export default function RadiusUsersTab() {
       dataLimitVal = user.dataLimit;
     }
 
-    // Match user group to a plan for pre-selection
+    // Match user group to a plan for pre-selection (handle both plan_xxx and xxx formats)
+    const userGroup = (user.group || '').toLowerCase();
+    const cleanUserGroup = stripPlanPrefix(userGroup);
     const matchedPlan = wifiPlans.find(p => {
       const groupName = p.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-      return groupName === (user.group || '').toLowerCase();
+      return groupName === cleanUserGroup || groupName === userGroup;
     });
 
     const sessionMins = getSessionMinutes(user);
@@ -425,10 +427,15 @@ export default function RadiusUsersTab() {
     });
   };
 
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  /** Strip the 'plan_' prefix that the backend prepends to RADIUS group names */
+  const stripPlanPrefix = (group: string) => group.replace(/^plan_/, '');
+
   // ─── Filtering ────────────────────────────────────────────────────────────
 
   const filteredUsers = users.filter(u => {
-    if (groupFilter !== 'all' && u.group !== groupFilter) return false;
+    if (groupFilter !== 'all' && stripPlanPrefix(u.group || '') !== groupFilter && u.group !== groupFilter) return false;
     if (userTypeFilter !== 'all' && (u.userType || 'guest') !== userTypeFilter) return false;
     if (statusFilter !== 'all' && (u.status || 'active') !== statusFilter) return false;
     if (searchQuery) {
@@ -562,9 +569,11 @@ export default function RadiusUsersTab() {
   // ─── Display Helpers ──────────────────────────────────────────────────────
 
   const getGroupBadge = (group: string) => {
+    // Strip 'plan_' prefix for matching (backend stores groups as plan_xxx)
+    const cleanGroup = stripPlanPrefix(group);
     const matchingPlan = wifiPlans.find(p => {
       const groupName = p.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-      return groupName === group;
+      return groupName === cleanGroup || groupName === group;
     });
     if (matchingPlan) {
       const downMbps = matchingPlan.downloadSpeed;
@@ -573,7 +582,9 @@ export default function RadiusUsersTab() {
       if (downMbps >= 20) return <Badge className="bg-sky-500 hover:bg-sky-600 text-white border-0">{matchingPlan.name}</Badge>;
       return <Badge className="bg-teal-500 hover:bg-teal-600 text-white border-0">{matchingPlan.name}</Badge>;
     }
-    return <Badge variant="outline">{group}</Badge>;
+    // No matching plan — display cleaned-up name (without plan_ prefix, title-cased)
+    const displayName = cleanGroup.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return <Badge variant="outline">{displayName}</Badge>;
   };
 
   const getUserBandwidthDisplay = (user: RadiusUser): string => {
@@ -642,6 +653,7 @@ export default function RadiusUsersTab() {
     switch (user.status) {
       case 'active': return <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-xs">Active</Badge>;
       case 'suspended': return <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-xs">Suspended</Badge>;
+      case 'deactivated': return <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 text-xs">Deactivated</Badge>;
       case 'revoked': return <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 text-xs">Revoked</Badge>;
       case 'expired': return <Badge className="bg-gray-500 hover:bg-gray-600 text-white border-0 text-xs">Expired</Badge>;
       default: return null;
@@ -751,10 +763,10 @@ export default function RadiusUsersTab() {
             </div>
             <Select value={groupFilter} onValueChange={setGroupFilter}>
               <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="All Groups" />
+                <SelectValue placeholder="All Plans" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Groups</SelectItem>
+                <SelectItem value="all">All Plans</SelectItem>
                 {wifiPlans.filter(p => p.status === 'active').map(plan => {
                   const groupName = plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard-guests';
                   return (
@@ -817,7 +829,7 @@ export default function RadiusUsersTab() {
                   <TableRow>
                     <TableHead>User</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Plan / Group</TableHead>
+                    <TableHead>Plan</TableHead>
                     <TableHead>Password</TableHead>
                     <TableHead>Bandwidth</TableHead>
                     <TableHead>Validity</TableHead>
@@ -1043,16 +1055,6 @@ export default function RadiusUsersTab() {
                 </SelectContent>
               </Select>
               <p className="text-[11px] text-muted-foreground">Selecting a plan auto-fills bandwidth, timeout, and data limit below</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>RADIUS Group</Label>
-              <Input
-                value={form.group}
-                onChange={(e) => setForm(prev => ({ ...prev, group: e.target.value }))}
-                placeholder="standard-guests"
-              />
-              <p className="text-[11px] text-muted-foreground">Auto-set from plan; change only if you need a custom group</p>
             </div>
 
             <div className="space-y-2">
