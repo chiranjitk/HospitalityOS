@@ -2651,6 +2651,46 @@ model IoTReading {
 /// Based on analysis of 24online AAA database schema (400+ tables)
 /// ============================================================================
 
+/// KioskSettings - Self-service kiosk configuration per property
+model KioskSettings {
+  id              String   @id @default(cuid())
+  propertyId      String   @db.Uuid
+  tenantId        String   @db.Uuid
+
+  // Display settings
+  hotelName       String   @default("StaySuite")
+  welcomeMessage  String   @default("Welcome! Please select an option below.")
+  primaryColor    String   @default("#10b981")  // emerald
+  logoUrl         String?
+  backgroundStyle String   @default("gradient")  // gradient, solid, image
+
+  // Timeout settings
+  idleTimeout     Int      @default(120)  // seconds
+  showClock       Boolean  @default(true)
+  showLanguageSwitch Boolean @default(true)
+
+  // Feature toggles
+  enableCheckIn   Boolean  @default(true)
+  enableCheckOut  Boolean  @default(true)
+  enablePayment   Boolean  @default(false)
+
+  // Terms & conditions
+  termsContent    String   @default("By using this kiosk, I agree to the hotel's terms and conditions.")
+
+  // Payment
+  requirePaymentOnCheckout Boolean @default(false)
+
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+
+  property        Property @relation(fields: [propertyId], references: [id])
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId])
+  @@index([propertyId])
+  @@index([tenantId])
+}
+
 /// LiveSession - Real-time active session tracking (Accsium tblliveuser equivalent)
 /// O(1) session lookup by username/IP — replaces slow radacct file parsing
 model LiveSession {
@@ -3800,6 +3840,7 @@ model Property {
   nasHealthLogs          NasHealthLog[]
   staticRoutes           StaticRoute[]
   multiWanConfig         MultiWanConfig?
+  kioskSettings          KioskSettings?
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -5516,6 +5557,7 @@ model Tenant {
   channelRetryQueues        ChannelRetryQueue[]
   channelDeadLetterQueues   ChannelDeadLetterQueue[]
   externalReviews           ExternalReview[]
+  kioskSettings             KioskSettings[]
   networkInterfaces         NetworkInterface[]
   interfaceRoles            InterfaceRole[]
   interfaceConfigs          InterfaceConfig[]

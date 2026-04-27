@@ -16,6 +16,8 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/frontdesk/registration-card');
     case 'express-kiosk':
       return import('@/components/frontdesk/express-kiosk');
+    case 'kiosk-settings':
+      return import('@/components/frontdesk/kiosk-settings');
     case 'room-move':
       return import('@/components/frontdesk/room-move');
     default:

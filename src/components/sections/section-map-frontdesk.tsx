@@ -4,6 +4,7 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'frontdesk-walkin': () => import('@/components/frontdesk/walk-in'),
   'frontdesk-room-grid': () => import('@/components/frontdesk/room-grid'),
   'frontdesk-assignment': () => import('@/components/frontdesk/room-assignment'),
+  'kiosk-settings': () => import('@/components/frontdesk/kiosk-settings'),
 };
 
 export const frontdeskMap = sectionMap;

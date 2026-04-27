@@ -155,6 +155,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['frontdesk.view', 'frontdesk.manage', 'frontdesk.*', '*'],
     description: 'Manage express check-in kiosk'
   },
+  'kiosk-settings': {
+    permissions: ['frontdesk.view', 'frontdesk.manage', 'frontdesk.*', '*'],
+    description: 'Configure self-service kiosk settings'
+  },
   'room-move': {
     permissions: ['frontdesk.assign', 'rooms.update', 'frontdesk.*', '*'],
     description: 'Move guest between rooms'

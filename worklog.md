@@ -1331,3 +1331,37 @@ Stage Summary:
 - No project files reference /home/z/freeradius-install anymore
 - Scripts use auto-detection (SCRIPT_DIR, $APP_DIR, process.cwd()) for portability
 - Old /home/z/freeradius-install/ can be deleted (build source at /home/z/freeradius-build/ also not needed)
+
+---
+Task ID: 2-d
+Agent: Main Agent
+Task: Create kiosk payment collection component and API route for self-service check-in/out
+
+Work Log:
+- Read existing schema: Payment, Folio, PaymentGateway models in prisma/schema.prisma
+- Studied existing payment API pattern at src/app/api/payments/route.ts (gateway router, folio balance updates, audit logging)
+- Studied kiosk patterns: express-kiosk.tsx (touch-friendly UI, step-based flow, dark theme), kiosk-checkin/route.ts (validation, transaction usage)
+- Created `src/app/api/frontdesk/kiosk-payment/route.ts`:
+  - POST handler: validates with Zod (bookingId, amount, method, currency), verifies booking, finds/creates Folio, creates Payment record with method-specific references (card/UPI/QR/cash), updates folio balance in transaction, creates audit log entry, returns payment result
+  - GET handler: accepts ?bookingId=XXX, returns folio summary (totalAmount, paidAmount, balance, pendingCharges, payments[])
+  - All payments are demo/simulation mode — no real gateway integration
+- Created `src/components/frontdesk/kiosk-payment.tsx`:
+  - Touch-friendly payment collection screen with dark theme (slate-900/slate-800)
+  - Payment method selection screen with 4 large touch cards: Card, UPI, Cash, QR Code
+  - Card form: simulated card number, expiry, CVV inputs with auto-formatting
+  - UPI form: UPI ID input field
+  - Cash form: amount display + "pay at front desk" notice
+  - QR form: QR code placeholder + amount display
+  - Processing state with animated spinner (2.5s simulated delay)
+  - Success state with receipt summary (amount, method, receipt number, date, property, remaining balance)
+  - Error state with retry/cancel options
+  - Large buttons (h-16, text-xl) for touch screens
+  - Uses shadcn/ui: Card, Button, Input, Separator
+  - Uses lucide-react icons: CreditCard, Smartphone, Banknote, QrCode, CheckCircle, Loader2, etc.
+  - Green accent for success, red for cancel/error
+
+Stage Summary:
+- Kiosk payment API: POST /api/frontdesk/kiosk-payment (process payment), GET /api/frontdesk/kiosk-payment?bookingId=XXX (summary)
+- Kiosk payment component: KioskPayment with full payment flow (method selection → form → processing → success/error)
+- Demo/simulation mode with clear comments — no real payment gateway integration
+- Type-checks pass with no errors in new files

@@ -62,6 +62,7 @@ const sectionPaths: Record<string, string> = {
   'frontdesk-walkin': '@/components/frontdesk/walk-in',
   'frontdesk-room-grid': '@/components/frontdesk/room-grid',
   'frontdesk-assignment': '@/components/frontdesk/room-assignment',
+  'kiosk-settings': '@/components/frontdesk/kiosk-settings',
 
   // WiFi
   'wifi-sessions': '@/components/wifi/sessions',

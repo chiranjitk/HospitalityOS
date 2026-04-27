@@ -166,6 +166,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'frontdesk-assignment', title: 'Room Assignment', href: '#frontdesk-assignment', icon: Key },
       { id: 'registration-card', title: 'Registration Card', href: '#registration-card', icon: UserPlus },
       { id: 'express-kiosk', title: 'Express Kiosk', href: '#express-kiosk', icon: Monitor },
+      { id: 'kiosk-settings', title: 'Kiosk Settings', href: '#kiosk-settings', icon: Settings },
       { id: 'room-move', title: 'Room Move', href: '#room-move', icon: ArrowRightLeft },
     ],
   },
