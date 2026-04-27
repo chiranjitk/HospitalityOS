@@ -1885,11 +1885,12 @@ export async function POST(request: NextRequest) {
               }),
             ]);
           } else if (newStatus === 'active') {
-            // Re-enable RADIUS credentials — preserve existing plan/group/attributes
+            // Re-enable RADIUS credentials — PRESERVE existing plan/group/attributes
+            // Group name uses same format as sync-users: "plan_" prefix
             const plan = user.planId ? await db.wiFiPlan.findUnique({ where: { id: user.planId } }) : null;
             const groupName = plan
-              ? plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard-guests'
-              : 'standard-guests';
+              ? `plan_${plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}` || 'default'
+              : 'default';
 
             await db.$transaction(async (tx) => {
               // Re-enable existing radcheck entries
@@ -1897,11 +1898,17 @@ export async function POST(request: NextRequest) {
               // Re-enable existing radreply entries
               await tx.radReply.updateMany({ where: { username: user.username }, data: { isActive: true } });
 
-              // Ensure radusergroup exists (may have been missing if created before this fix)
+              // Preserve existing group — only create/recreate if missing or plan changed
               const existingGroup = await tx.radUserGroup.findFirst({ where: { username: user.username } });
               if (!existingGroup) {
                 await tx.radUserGroup.create({
                   data: { username: user.username, groupname: groupName, priority: 0 },
+                });
+              } else if (plan && !existingGroup.groupname.startsWith('plan_')) {
+                // Fix legacy group names (before plan_ prefix was standardized)
+                await tx.radUserGroup.updateMany({
+                  where: { username: user.username },
+                  data: { groupname: groupName },
                 });
               }
 
@@ -2037,11 +2044,29 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // 2. Handle plan change — update WiFiUser.planId
+          // 2. Handle plan change — update WiFiUser.planId + sync RADIUS attributes
+          let effectivePlanId = planId || existingUser.planId;
+          let effectivePlan: { name: string; downloadSpeed: number; uploadSpeed: number } | null = null;
           if (planId !== undefined && planId !== '') {
-            await db.wiFiUser.update({
-              where: { id: userId },
-              data: { planId },
+            try {
+              await db.wiFiUser.update({
+                where: { id: userId },
+                data: { planId },
+              });
+              // Fetch plan details for group name + bandwidth sync
+              effectivePlan = await db.wiFiPlan.findUnique({
+                where: { id: planId },
+                select: { name: true, downloadSpeed: true, uploadSpeed: true },
+              });
+            } catch (planErr) {
+              console.warn('[update-user] Plan update failed:', planErr);
+              // Continue with existing plan if new planId is invalid
+              effectivePlanId = existingUser.planId;
+            }
+          } else if (existingUser.planId) {
+            effectivePlan = await db.wiFiPlan.findUnique({
+              where: { id: existingUser.planId },
+              select: { name: true, downloadSpeed: true, uploadSpeed: true },
             });
           }
 
@@ -2058,11 +2083,9 @@ export async function POST(request: NextRequest) {
             );
           }
 
-          // 4. Handle group/plan name change
-          const effectiveGroup = group || (planId
-            ? await db.wiFiPlan.findUnique({ where: { id: planId } }).then(p => p
-              ? p.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard-guests'
-              : 'standard-guests')
+          // 4. Handle group/plan name change — use same format as sync-users: "plan_" prefix
+          const effectiveGroup = group || (effectivePlan
+            ? `plan_${effectivePlan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}` || 'default'
             : undefined);
 
           if (effectiveGroup) {
@@ -2073,10 +2096,15 @@ export async function POST(request: NextRequest) {
             );
           }
 
-          // 5. Handle bandwidth change — update radreply
-          if (downloadSpeed !== undefined || uploadSpeed !== undefined) {
-            const dlBps = (downloadSpeed || 10) * 1000000;
-            const ulBps = (uploadSpeed || 5) * 1000000;
+          // 5. Handle bandwidth change — update radreply (also triggered by plan change)
+          const shouldUpdateBandwidth = downloadSpeed !== undefined || uploadSpeed !== undefined || (planId !== undefined && planId !== '' && effectivePlan !== undefined);
+          if (shouldUpdateBandwidth) {
+            const dlBps = downloadSpeed !== undefined
+              ? downloadSpeed * 1000000
+              : (effectivePlan?.downloadSpeed ?? 10) * 1000000;
+            const ulBps = uploadSpeed !== undefined
+              ? uploadSpeed * 1000000
+              : (effectivePlan?.uploadSpeed ?? 5) * 1000000;
 
             // Clear old bandwidth attrs
             await db.$executeRawUnsafe(`
