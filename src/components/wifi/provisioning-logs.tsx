@@ -52,7 +52,8 @@ interface ProvisioningLogEntry {
   username?: string;
   result: string;
   details?: string;
-  durationMs?: number;
+  error?: string | null;
+  durationMs?: number | null;
   timestamp: string;
 }
 
@@ -414,6 +415,7 @@ export default function ProvisioningLogs() {
               <SelectContent>
                 <SelectItem value="all">All Results</SelectItem>
                 <SelectItem value="success">Success</SelectItem>
+                <SelectItem value="partial">Partial</SelectItem>
                 <SelectItem value="failed">Failed</SelectItem>
                 <SelectItem value="skipped">Skipped</SelectItem>
               </SelectContent>
@@ -511,6 +513,10 @@ export default function ProvisioningLogs() {
                             <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0">
                               Skipped
                             </Badge>
+                          ) : log.result === 'partial' ? (
+                            <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0">
+                              Partial
+                            </Badge>
                           ) : (
                             <Badge className="bg-red-500 hover:bg-red-600 text-white border-0">
                               <XCircle className="h-3 w-3 mr-1" />
@@ -519,20 +525,31 @@ export default function ProvisioningLogs() {
                           )}
                         </TableCell>
 
-                        {/* Details (hidden on mobile) */}
+                        {/* Details — full text with line-wrap, error in red */}
                         <TableCell className="hidden md:table-cell">
-                          <p
-                            className="text-xs text-muted-foreground max-w-[260px] truncate"
-                            title={log.details || undefined}
-                          >
-                            {truncateText(log.details, 50)}
-                          </p>
+                          <div className="text-xs text-muted-foreground max-w-[360px] space-y-0.5">
+                            {log.details ? (
+                              <p
+                                className={log.result === 'failed' ? 'text-red-600 dark:text-red-400 font-medium' : ''}
+                                title={log.details}
+                              >
+                                {log.details}
+                              </p>
+                            ) : null}
+                            {log.error ? (
+                              <p className="text-red-500 dark:text-red-400 text-[11px]" title={log.error}>
+                                ⚠ {log.error}
+                              </p>
+                            ) : null}
+                          </div>
                         </TableCell>
 
                         {/* Duration */}
                         <TableCell className="text-right">
                           <span className="text-xs tabular-nums text-muted-foreground">
-                            {formatDuration(log.durationMs)}
+                            {log.durationMs != null && log.durationMs > 0
+                              ? formatDuration(log.durationMs)
+                              : '—'}
                           </span>
                         </TableCell>
                       </TableRow>

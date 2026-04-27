@@ -244,13 +244,14 @@ export async function POST(request: NextRequest) {    const user = await require
         const expirationDate = voucherValidUntil.toISOString().split('T')[0]; // FreeRADIUS format: YYYY-MM-DD
         const nowISO = new Date().toISOString().replace('T', ' ').split('.')[0]; // PostgreSQL timestamp format
 
-        // Insert radcheck entries (raw SQL for FreeRADIUS compatibility — includes required timestamps)
+        // Insert radcheck entries (raw SQL for FreeRADIUS compatibility — includes required columns)
+        // Extended schema: id, wifiUserId, username, attribute, op, value, priority, isActive, createdAt, updatedAt
         await db.$executeRawUnsafe(
-          `INSERT INTO radcheck (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES ($1, 'Cleartext-Password', ':=', $2, 1, $3, $4)`,
+          `INSERT INTO radcheck (id, username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (gen_random_uuid(), $1, 'Cleartext-Password', ':=', $2, 1, $3, $4)`,
           currentCode, currentCode, nowISO, nowISO
         );
         await db.$executeRawUnsafe(
-          `INSERT INTO radcheck (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES ($1, 'Expiration', ':=', $2, 1, $3, $4)`,
+          `INSERT INTO radcheck (id, username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (gen_random_uuid(), $1, 'Expiration', ':=', $2, 1, $3, $4)`,
           currentCode, expirationDate, nowISO, nowISO
         );
 
@@ -258,20 +259,20 @@ export async function POST(request: NextRequest) {    const user = await require
         if (plan.downloadSpeed) {
           const downBps = plan.downloadSpeed * 1000000; // Mbps to bps
           await db.$executeRawUnsafe(
-            `INSERT INTO radreply (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES ($1, 'WISPr-Bandwidth-Max-Down', '=', $2, 1, $3, $4)`,
+            `INSERT INTO radreply (id, username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (gen_random_uuid(), $1, 'WISPr-Bandwidth-Max-Down', '=', $2, 1, $3, $4)`,
             currentCode, String(downBps), nowISO, nowISO
           );
         }
         if (plan.uploadSpeed) {
           const upBps = plan.uploadSpeed * 1000000;
           await db.$executeRawUnsafe(
-            `INSERT INTO radreply (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES ($1, 'WISPr-Bandwidth-Max-Up', '=', $2, 1, $3, $4)`,
+            `INSERT INTO radreply (id, username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (gen_random_uuid(), $1, 'WISPr-Bandwidth-Max-Up', '=', $2, 1, $3, $4)`,
             currentCode, String(upBps), nowISO, nowISO
           );
         }
         if (plan.sessionLimit) {
           await db.$executeRawUnsafe(
-            `INSERT INTO radreply (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES ($1, 'Session-Timeout', '=', $2, 1, $3, $4)`,
+            `INSERT INTO radreply (id, username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (gen_random_uuid(), $1, 'Session-Timeout', '=', $2, 1, $3, $4)`,
             currentCode, String(plan.sessionLimit), nowISO, nowISO
           );
         }
@@ -279,7 +280,7 @@ export async function POST(request: NextRequest) {    const user = await require
         if (!plan.sessionLimit) {
           const sessionTimeoutSec = voucherValidityDays * 24 * 60 * 60;
           await db.$executeRawUnsafe(
-            `INSERT INTO radreply (username, attribute, op, value, isActive, createdAt, updatedAt) VALUES ($1, 'Session-Timeout', '=', $2, 1, $3, $4)`,
+            `INSERT INTO radreply (id, username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (gen_random_uuid(), $1, 'Session-Timeout', '=', $2, 1, $3, $4)`,
             currentCode, String(sessionTimeoutSec), nowISO, nowISO
           );
         }

@@ -937,7 +937,8 @@ export class WiFiUserService {
 
   /**
    * Persist a provisioning log to the database
-   * Used for audit trail of all WiFi provisioning operations
+   * Used for audit trail of all WiFi provisioning operations.
+   * Writes to RadiusProvisioningLog table (NOT AuditLog).
    */
   async logProvisioning(params: {
     action: string;
@@ -953,34 +954,18 @@ export class WiFiUserService {
     durationMs?: number;
   }): Promise<{ success: boolean; id?: string; error?: string }> {
     try {
-      // Use the AuditLog model for provisioning logs
-      // NOTE: entityId must be a valid UUID for PostgreSQL (@db.Uuid columns).
-      //   - Use bookingId when available (it's always a UUID)
-      //   - Fall back to undefined rather than passing a non-UUID username
-      //   - The username is stored inside newValue JSON for reference
-      const resolvedTenantId = params.tenantId;
-      if (!resolvedTenantId) {
-        console.warn('[WiFi Provisioning Log] Skipped: no tenantId provided (required for PostgreSQL UUID column)');
-        return { success: false, error: 'No tenantId provided' };
-      }
-      const logEntry = await db.auditLog.create({
+      const logEntry = await db.radiusProvisioningLog.create({
         data: {
-          tenantId: resolvedTenantId,
-          // Only set userId if explicitly provided (must exist in User table for FK constraint)
-          ...(params.userId ? { userId: params.userId } : {}),
-          module: 'wifi-provisioning',
+          propertyId: params.propertyId,
           action: params.action,
-          entityType: 'WiFiUser',
-          entityId: params.bookingId || undefined, // bookingId is a UUID; username is not
-          newValue: JSON.stringify({
-            username: params.username,
-            propertyId: params.propertyId,
-            guestId: params.guestId,
-            result: params.result,
-            details: params.details,
-            durationMs: params.durationMs,
-          }),
-          oldValue: params.error || undefined,
+          username: params.username,
+          guestId: params.guestId || null,
+          bookingId: params.bookingId || null,
+          userId: params.userId || null,
+          result: params.result,
+          details: params.details || null,
+          error: params.error || null,
+          durationMs: params.durationMs || null,
         },
       });
 

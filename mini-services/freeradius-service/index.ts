@@ -142,17 +142,17 @@ const db = {
 };
 
 // Prepared statement helpers (replaces bun:sqlite prepared statements)
-async function insertRadCheck(username: string, attribute: string, op: string, value: string) {
+async function insertRadCheck(username: string, attribute: string, op: string, value: string, wifiUserId?: string) {
   await pool.query(
-    'INSERT INTO radcheck (username, attribute, op, value, "isActive", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, true, NOW(), NOW())',
-    [username, attribute, op, value]
+    'INSERT INTO radcheck (id, "wifiUserId", username, attribute, op, value, "isActive", "createdAt", "updatedAt") VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, true, NOW(), NOW())',
+    [wifiUserId || null, username, attribute, op, value]
   );
 }
 
-async function insertRadReply(username: string, attribute: string, op: string, value: string) {
+async function insertRadReply(username: string, attribute: string, op: string, value: string, wifiUserId?: string) {
   await pool.query(
-    'INSERT INTO radreply (username, attribute, op, value, "isActive", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, true, NOW(), NOW())',
-    [username, attribute, op, value]
+    'INSERT INTO radreply (id, "wifiUserId", username, attribute, op, value, "isActive", "createdAt", "updatedAt") VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, true, NOW(), NOW())',
+    [wifiUserId || null, username, attribute, op, value]
   );
 }
 
@@ -172,7 +172,7 @@ async function insertRadGroupReply(groupname: string, attribute: string, op: str
 
 async function insertRadUserGroup(username: string, groupname: string, priority: number) {
   await pool.query(
-    'INSERT INTO radusergroup (username, groupname, priority) VALUES ($1, $2, $3)',
+    'INSERT INTO radusergroup (id, username, groupname, priority, "createdAt") VALUES (gen_random_uuid(), $1, $2, $3, NOW())',
     [username, groupname, priority]
   );
 }
@@ -4080,8 +4080,8 @@ app.post('/api/mac-auth/import', async (c) => {
 
       // Create radcheck entries matching the main MAC auth flow (username = macForRadius)
       const insertRadCheck = db.query(
-        `INSERT INTO radcheck (username, attribute, op, value, isActive, createdAt, updatedAt)
-         VALUES (?, ?, ':=', ?, 1, NOW(), NOW())`
+        `INSERT INTO radcheck (id, username, attribute, op, value, isActive, createdAt, updatedAt)
+         VALUES (gen_random_uuid(), ?, ':=', ?, 1, NOW(), NOW())`
       );
       await insertRadCheck(macForRadius, 'Calling-Station-Id', macForRadius);
       await insertRadCheck(macForRadius, 'Cleartext-Password', macForRadius);

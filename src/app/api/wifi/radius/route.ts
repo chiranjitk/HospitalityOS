@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, requirePermission, hasPermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
+import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
 
 const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://localhost:3010';
 
@@ -1469,6 +1470,7 @@ export async function POST(request: NextRequest) {
       case 'sync-users': {
         // ─── Direct DB sync — does NOT depend on freeradius-service ────
         // Reads WiFiUser + WiFiPlan and upserts radcheck, radreply, radusergroup.
+        const syncStartTime = Date.now();
         try {
           interface WifUserRow {
             id: string;
@@ -1516,12 +1518,14 @@ export async function POST(request: NextRequest) {
           for (const user of users) {
             try {
               // Delete+Insert radcheck (no unique constraint on username+attribute)
+              // Extended schema: id, wifiUserId, username, attribute, op, value, priority, isActive, createdAt, updatedAt
               await db.$executeRawUnsafe(`
                 DELETE FROM radcheck WHERE username = $1 AND attribute = 'Cleartext-Password'
               `, user.username);
               await db.$executeRawUnsafe(`
-                INSERT INTO radcheck (username, attribute, op, value) VALUES ($1, 'Cleartext-Password', ':=', $2)
-              `, user.username, user.password);
+                INSERT INTO radcheck (id, "wifiUserId", username, attribute, op, value, "isActive", "createdAt", "updatedAt")
+                VALUES (gen_random_uuid(), $1::uuid, $2, 'Cleartext-Password', ':=', $3, true, NOW(), NOW())
+              `, user.id, user.username, user.password);
 
               // Get plan
               const plan = user.planId ? plansMap.get(user.planId) : null;
@@ -1529,9 +1533,11 @@ export async function POST(request: NextRequest) {
               const op = ':=';
 
               // Delete+Insert radusergroup
+              // Extended schema: id, username, groupname, priority, createdAt
               await db.$executeRawUnsafe(`DELETE FROM radusergroup WHERE username = $1`, user.username);
               await db.$executeRawUnsafe(`
-                INSERT INTO radusergroup (username, groupname, priority) VALUES ($1, $2, 0)
+                INSERT INTO radusergroup (id, username, groupname, priority, "createdAt")
+                VALUES (gen_random_uuid(), $1, $2, 0, NOW())
               `, user.username, groupName);
 
               // Sync plan attributes into radreply
@@ -1548,13 +1554,13 @@ export async function POST(request: NextRequest) {
                   )
                 `, user.username);
 
-                // Insert bandwidth attributes
+                // Insert bandwidth attributes — extended schema with id, wifiUserId, isActive, timestamps
                 await db.$executeRawUnsafe(`
-                  INSERT INTO radreply (username, attribute, op, value) VALUES
-                    ($1, 'WISPr-Bandwidth-Max-Down', $2, $3),
-                    ($1, 'WISPr-Bandwidth-Max-Up', $2, $4),
-                    ($1, 'Session-Timeout', $2, $5)
-                `, user.username, op, String(plan.downloadSpeed * 1024), String(plan.uploadSpeed * 1024), String(sessionTimeout));
+                  INSERT INTO radreply (id, "wifiUserId", username, attribute, op, value, "isActive", "createdAt", "updatedAt") VALUES
+                    (gen_random_uuid(), $1::uuid, $2, 'WISPr-Bandwidth-Max-Down', $3, $4, true, NOW(), NOW()),
+                    (gen_random_uuid(), $1::uuid, $2, 'WISPr-Bandwidth-Max-Up', $3, $5, true, NOW(), NOW()),
+                    (gen_random_uuid(), $1::uuid, $2, 'Session-Timeout', $3, $6, true, NOW(), NOW())
+                `, user.id, user.username, op, String(plan.downloadSpeed * 1024), String(plan.uploadSpeed * 1024), String(sessionTimeout));
               }
 
               // Mark as synced
@@ -1583,6 +1589,20 @@ export async function POST(request: NextRequest) {
               console.log(`[sync-users] Found ${staleCount} stale radcheck entries (keeping for safety)`);
             }
           }
+
+          // Log sync to RadiusProvisioningLog (non-blocking)
+          const firstPropertyId = users.length > 0 ? users[0].propertyId : '00000000-0000-0000-0000-000000000000';
+          const syncResult = errorCount === 0 ? 'success' : syncedCount > 0 ? 'partial' : 'failed';
+          const syncDurationMs = Date.now() - syncStartTime;
+          wifiUserService.logProvisioning({
+            action: 'sync-users',
+            username: 'system.sync',
+            propertyId: firstPropertyId,
+            result: syncResult,
+            details: `Synced ${syncedCount}/${users.length} users to RADIUS (${skippedCount} skipped, ${errorCount} errors)`,
+            error: errorCount > 0 ? `${errorCount} users failed to sync` : undefined,
+            durationMs: syncDurationMs,
+          }).catch(() => {});
 
           return NextResponse.json({
             success: true,
@@ -1940,6 +1960,18 @@ export async function POST(request: NextRequest) {
             }
           }
 
+          // Log to RadiusProvisioningLog
+          const logAction = newStatus === 'suspended' ? 'suspend' : newStatus === 'active' ? 'resume' : 'deprovision';
+          wifiUserService.logProvisioning({
+            action: logAction,
+            username: user.username,
+            propertyId: user.propertyId,
+            guestId: user.guestId || undefined,
+            userId: context.userId || undefined,
+            result: 'success',
+            details: `${logAction}: ${oldStatus} → ${newStatus} by ${operatorName}${reason ? `. Reason: ${reason}` : ''}`,
+          }).catch(() => {});
+
           return NextResponse.json({
             success: true,
             message: `User "${user.username}" status changed: ${oldStatus} → ${newStatus}`,
@@ -1987,6 +2019,17 @@ export async function POST(request: NextRequest) {
           method: 'PUT',
           body: JSON.stringify(updateData),
         });
+        // Log to RadiusProvisioningLog
+        const updateUser = await db.wiFiUser.findUnique({ where: { id: userId }, select: { username: true, propertyId: true } }).catch(() => null);
+        if (updateUser) {
+          wifiUserService.logProvisioning({
+            action: 'update',
+            username: updateUser.username,
+            propertyId: updateUser.propertyId,
+            result: result?.success ? 'success' : 'failed',
+            details: result?.success ? `Updated WiFi user settings` : (result?.error || 'Failed to update user'),
+          }).catch(() => {});
+        }
         return NextResponse.json(result);
       }
 
@@ -1995,7 +2038,18 @@ export async function POST(request: NextRequest) {
         if (!userId) {
           return NextResponse.json({ success: false, error: 'User id is required' }, { status: 400 });
         }
+        // Resolve username before deleting for the log
+        const delUser = await db.wiFiUser.findUnique({ where: { id: userId }, select: { username: true, propertyId: true } }).catch(() => null);
         const result = await freeradiusRequest(`/api/users/${userId}`, { method: 'DELETE' });
+        if (delUser) {
+          wifiUserService.logProvisioning({
+            action: 'deprovision',
+            username: delUser.username,
+            propertyId: delUser.propertyId,
+            result: result?.success ? 'success' : 'failed',
+            details: result?.success ? `Deleted WiFi user ${delUser.username}` : (result?.error || 'Failed to delete user'),
+          }).catch(() => {});
+        }
         return NextResponse.json(result);
       }
 
@@ -2004,6 +2058,17 @@ export async function POST(request: NextRequest) {
           method: 'POST',
           body: JSON.stringify(data),
         });
+        // Log to RadiusProvisioningLog
+        const provUsername = data.username || 'unknown';
+        const provPropertyId = data.propertyId || '00000000-0000-0000-0000-000000000000';
+        wifiUserService.logProvisioning({
+          action: 'provision',
+          username: provUsername,
+          propertyId: provPropertyId,
+          guestId: data.guestId || undefined,
+          result: result?.success ? 'success' : 'failed',
+          details: result?.success ? `Provisioned WiFi user ${provUsername}` : (result?.error || 'Failed to provision'),
+        }).catch(() => {});
         return NextResponse.json(result);
       }
 
@@ -2012,7 +2077,16 @@ export async function POST(request: NextRequest) {
         if (!username) {
           return NextResponse.json({ success: false, error: 'Username is required' }, { status: 400 });
         }
+        // Resolve propertyId for the log
+        const depUser = await db.wiFiUser.findFirst({ where: { username }, select: { propertyId: true } }).catch(() => null);
         const result = await freeradiusRequest(`/api/provision/${encodeURIComponent(username)}`, { method: 'DELETE' });
+        wifiUserService.logProvisioning({
+          action: 'deprovision',
+          username,
+          propertyId: depUser?.propertyId || '00000000-0000-0000-0000-000000000000',
+          result: result?.success ? 'success' : 'failed',
+          details: result?.success ? `Deprovisioned WiFi user ${username}` : (result?.error || 'Failed to deprovision'),
+        }).catch(() => {});
         return NextResponse.json(result);
       }
 
@@ -2101,6 +2175,18 @@ export async function POST(request: NextRequest) {
           method: 'POST',
           body: JSON.stringify(data),
         });
+        // Log to RadiusProvisioningLog
+        const linkUsername = data.username || data.guestId || 'unknown';
+        const linkPropertyId = data.propertyId || '00000000-0000-0000-0000-000000000000';
+        wifiUserService.logProvisioning({
+          action: 'guest-wifi-link',
+          username: linkUsername,
+          propertyId: linkPropertyId,
+          guestId: data.guestId || undefined,
+          bookingId: data.bookingId || undefined,
+          result: result?.success ? 'success' : 'failed',
+          details: result?.success ? `Provisioned WiFi access for guest` : (result?.error || 'Failed to link guest WiFi'),
+        }).catch(() => {});
         return NextResponse.json(result);
       }
 
@@ -2109,7 +2195,23 @@ export async function POST(request: NextRequest) {
         if (!guestId) {
           return NextResponse.json({ success: false, error: 'guestId is required' }, { status: 400 });
         }
+        // Resolve username before unlinking for the log
+        let unlinkUsername = `guest_${guestId.slice(-6)}`;
+        let unlinkPropertyId = '00000000-0000-0000-0000-000000000000';
+        try {
+          const guestUser = await db.wiFiUser.findFirst({ where: { guestId }, select: { username: true, propertyId: true } });
+          if (guestUser) { unlinkUsername = guestUser.username; unlinkPropertyId = guestUser.propertyId; }
+        } catch (_) {}
         const result = await freeradiusRequest(`/api/guest-wifi-link/${encodeURIComponent(guestId)}`, { method: 'DELETE' });
+        // Log to RadiusProvisioningLog
+        wifiUserService.logProvisioning({
+          action: 'guest-wifi-unlink',
+          username: unlinkUsername,
+          propertyId: unlinkPropertyId,
+          guestId,
+          result: result?.success ? 'success' : 'failed',
+          details: result?.success ? 'Deprovisioned WiFi access for guest' : (result?.error || 'Failed to unlink guest WiFi'),
+        }).catch(() => {});
         return NextResponse.json(result);
       }
 

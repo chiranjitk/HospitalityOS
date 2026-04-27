@@ -2704,5 +2704,10 @@ export async function seedWiFiData() {
   });
   console.log('✓ 1 System Network Health seeded');
 
+  // NOTE: RadiusProvisioningLog is NOT seeded — it gets populated
+  // automatically from real provisioning actions (sync, provision,
+  // deprovision, suspend, resume, guest-wifi-link/unlink, update).
+  // See: wifiUserService.logProvisioning() in wifi-user-service.ts
+
   console.log('\n📡 WiFi module seed data completed! All 40 categories seeded.');
 }
