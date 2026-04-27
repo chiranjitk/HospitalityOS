@@ -540,6 +540,8 @@ export async function PUT(
             checkIn: booking.checkIn,
             checkOut: booking.checkOut,
             roomNumber: booking.room?.number,
+            guestPhone: booking.primaryGuest.phone,
+            guestEmail: booking.primaryGuest.email,
           });
 
           if (provisionResult.success) {

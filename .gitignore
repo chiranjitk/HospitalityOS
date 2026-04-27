@@ -76,3 +76,13 @@ data/rrd/aggregate/*.rrd
 !data/rrd/.gitkeep
 # RRD cron state file
 data/rrd/state/counter-state.json
+
+# PostgreSQL runtime data (tracked structure, not runtime data)
+pgsql-runtime/data/
+
+# FreeRADIUS dependencies and runtime
+freeradius-deps/
+freeradius/
+
+# E2E test files
+src/lib/wifi/services/test-e2e-credentials.ts

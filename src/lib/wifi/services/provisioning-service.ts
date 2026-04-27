@@ -159,6 +159,8 @@ class WiFiProvisioningService {
       checkIn: event.checkIn,
       checkOut: event.checkOut,
       roomNumber: event.assignedRoomNumber,
+      guestPhone: event.guestPhone,
+      guestEmail: event.guestEmail,
     });
 
     if (result.success) {
@@ -212,6 +214,9 @@ class WiFiProvisioningService {
     checkIn: Date;
     checkOut: Date;
     roomNumber?: string;
+    guestPhone?: string | null;
+    guestEmail?: string | null;
+    guestPassport?: string | null;
   }): Promise<WiFiProvisioningResult> {
     try {
       // Check if WiFi user already exists for this booking with valid RADIUS records
@@ -370,15 +375,23 @@ class WiFiProvisioningService {
       // Load credential policy from WiFiAAAConfig (also with tenant fallback)
       const credentialPolicy = await this.loadCredentialPolicy(input.propertyId, input.tenantId);
 
+      console.log(`[WiFi Provisioning] Credential policy for booking ${input.bookingId}: usernameFormat=${credentialPolicy.usernameFormat}, passwordFormat=${credentialPolicy.passwordFormat}`);
+
       // Generate username & password based on configured format
+      // GuestContext must include ALL guest data fields that credential-engine supports
       const { username, password } = generateCredentials(credentialPolicy, {
         firstName: input.guestName?.split(' ')[0],
         lastName: input.guestName?.split(' ').slice(1).join(' '),
+        mobile: input.guestPhone,
+        email: input.guestEmail,
+        passport: input.guestPassport,
         roomNumber: input.roomNumber,
         bookingId: input.bookingId,
         checkIn: input.checkIn,
         checkOut: input.checkOut,
       }, input.bookingId);
+
+      console.log(`[WiFi Provisioning] Generated credentials for booking ${input.bookingId}: username=${username}`);
 
       // Calculate validity: use the LATER of (checkout + 12h) or (now + plan validityDays)
       // This ensures the guest always gets WiFi for their full stay AND at least the plan's validity period
@@ -545,8 +558,12 @@ class WiFiProvisioningService {
         config = await db.wiFiAAAConfig.findFirst({
           where: { tenantId },
         });
+        if (config) {
+          console.log(`[WiFi Provisioning] No property-specific AAA config for ${propertyId}, using tenant fallback (property: ${config.propertyId})`);
+        }
       }
       if (config) {
+        console.log(`[WiFi Provisioning] Loaded credential policy from DB: usernameFormat=${config.usernameFormat}, passwordFormat=${config.passwordFormat}`);
         return {
           usernameFormat: config.usernameFormat || 'room_random',
           usernamePrefix: config.usernamePrefix,
@@ -563,6 +580,7 @@ class WiFiProvisioningService {
           duplicateUsernameAction: (config.duplicateUsernameAction as 'append_random' | 'reject' | 'overwrite') || 'append_random',
         };
       }
+      console.warn(`[WiFi Provisioning] No AAA config found for property ${propertyId} or tenant ${tenantId} — using default credential policy (room_random)`);
     } catch (error) {
       console.error('[WiFi Provisioning] Failed to load credential policy:', error);
     }
@@ -686,6 +704,8 @@ class WiFiProvisioningService {
       checkIn: booking.checkIn,
       checkOut: booking.checkOut,
       roomNumber: booking.room?.number,
+      guestPhone: booking.primaryGuest.phone,
+      guestEmail: booking.primaryGuest.email,
     });
   }
 

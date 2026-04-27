@@ -1,1 +1,0 @@
-/home/z/my-project/StaySuite-HospitalityOS/pgsql-runtime/bin/postgres "-D" "/home/z/my-project/StaySuite-HospitalityOS/pgsql-runtime/data" "-p" "5432" "-k" "/tmp/.s.PGSQL.5432"

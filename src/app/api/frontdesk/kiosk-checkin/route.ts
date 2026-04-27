@@ -126,6 +126,8 @@ export async function POST(request: NextRequest) {
           checkIn: booking.checkIn,
           checkOut: booking.checkOut,
           roomNumber: booking.room.number,
+          guestPhone: booking.primaryGuest.phone,
+          guestEmail: booking.primaryGuest.email ?? undefined,
         });
 
         if (provisionResult.success) {
