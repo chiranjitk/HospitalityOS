@@ -26,7 +26,8 @@ import {
   Eye,
   DollarSign,
   Users,
-  ShoppingBag
+  ShoppingBag,
+  BedDouble,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -146,6 +147,17 @@ export default function Orders() {
   // Cancel confirmation dialog state
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
 
+  // Table selection state
+  const [availableTables, setAvailableTables] = useState<{ id: string; number: string; area?: string; capacity?: number }[]>([]);
+  const [selectedTableId, setSelectedTableId] = useState('');
+
+  // Post to folio dialog state
+  const [folioDialogOpen, setFolioDialogOpen] = useState(false);
+  const [folioTargetOrder, setFolioTargetOrder] = useState<Order | null>(null);
+  const [guestBookings, setGuestBookings] = useState<{ id: string; confirmationCode: string; guestName: string; roomNumber: string }[]>([]);
+  const [selectedBookingId, setSelectedBookingId] = useState('');
+  const [postingToFolio, setPostingToFolio] = useState(false);
+
   const fetchOrders = useCallback(async () => {
     try {
       const params = new URLSearchParams();
@@ -198,6 +210,43 @@ export default function Orders() {
     }
   };
 
+  const fetchAvailableTables = async () => {
+    if (!propertyId) return;
+    try {
+      const res = await fetch(`/api/tables?propertyId=${propertyId}&status=available`);
+      const data = await res.json();
+      if (data.success) {
+        setAvailableTables(data.data.map((t: { id: string; number: string; area?: string; capacity?: number }) => ({
+          id: t.id,
+          number: t.number,
+          area: t.area,
+          capacity: t.capacity,
+        })));
+      }
+    } catch (error) {
+      console.error('Error fetching tables:', error);
+    }
+  };
+
+  const fetchGuestBookings = async () => {
+    try {
+      const res = await fetch(`/api/bookings?status=checked_in&limit=50`);
+      const data = await res.json();
+      if (data.success && data.data) {
+        setGuestBookings(
+          (data.data as { id: string; confirmationCode?: string; primaryGuest?: { firstName: string; lastName: string } | null; room?: { number: string } | null }[]).map(b => ({
+            id: b.id,
+            confirmationCode: b.confirmationCode || '',
+            guestName: b.primaryGuest ? `${b.primaryGuest.firstName} ${b.primaryGuest.lastName}` : 'Unknown',
+            roomNumber: b.room?.number || 'N/A',
+          }))
+        );
+      }
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
+    }
+  };
+
   // Fetch property tax rate
   const fetchPropertyTaxRate = async () => {
     if (!propertyId) return;
@@ -221,6 +270,18 @@ export default function Orders() {
       fetchPropertyTaxRate();
     }
   }, [fetchOrders, propertyId]);
+
+  // Fetch tables when new order dialog opens for dine-in
+  useEffect(() => {
+    if (newOrderOpen && orderType === 'dine_in') {
+      fetchAvailableTables();
+    }
+  }, [newOrderOpen, orderType]);
+
+  // Reset table selection when order type changes
+  useEffect(() => {
+    setSelectedTableId('');
+  }, [orderType]);
 
   const updateOrderStatus = async (orderId: string, status: string, kitchenStatus?: string) => {
     try {
@@ -257,6 +318,11 @@ export default function Orders() {
       return;
     }
 
+    if (orderType === 'dine_in' && !selectedTableId) {
+      toast.error('Please select a table for dine-in orders');
+      return;
+    }
+
     setCreating(true);
     try {
       const res = await fetch('/api/orders', {
@@ -268,6 +334,7 @@ export default function Orders() {
           guestName: guestName || undefined,
           notes: notes || undefined,
           items: selectedItems,
+          ...(orderType === 'dine_in' && selectedTableId ? { tableId: selectedTableId } : {}),
         }),
       });
 
@@ -278,6 +345,7 @@ export default function Orders() {
         setSelectedItems([]);
         setGuestName('');
         setNotes('');
+        setSelectedTableId('');
         fetchOrders();
       } else {
         toast.error(data.error?.message || 'Failed to create order');
@@ -339,6 +407,43 @@ export default function Orders() {
       default:
         return <Clock className="h-3 w-3" />;
     }
+  };
+
+  const handlePostToFolio = async () => {
+    if (!folioTargetOrder || !selectedBookingId) {
+      toast.error('Please select a booking');
+      return;
+    }
+    setPostingToFolio(true);
+    try {
+      const res = await fetch(`/api/orders/${folioTargetOrder.id}/post-to-folio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: selectedBookingId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Order charged to room folio successfully');
+        setFolioDialogOpen(false);
+        setFolioTargetOrder(null);
+        setSelectedBookingId('');
+        fetchOrders();
+      } else {
+        toast.error(data.error?.message || 'Failed to post to folio');
+      }
+    } catch (error) {
+      console.error('Error posting to folio:', error);
+      toast.error('Failed to post to folio');
+    } finally {
+      setPostingToFolio(false);
+    }
+  };
+
+  const openFolioDialog = (order: Order) => {
+    setFolioTargetOrder(order);
+    setSelectedBookingId('');
+    fetchGuestBookings();
+    setFolioDialogOpen(true);
   };
 
   if (!propertyId) {
@@ -538,6 +643,24 @@ export default function Orders() {
                         <SelectItem value="room_service">Room Service</SelectItem>
                       </SelectContent>
                     </Select>
+                    {orderType === 'dine_in' && (
+                      <Select value={selectedTableId} onValueChange={setSelectedTableId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a table" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableTables.length === 0 ? (
+                            <SelectItem value="none" disabled>No tables available</SelectItem>
+                          ) : (
+                            availableTables.map(table => (
+                              <SelectItem key={table.id} value={table.id}>
+                                Table {table.number}{table.area ? ` (${table.area})` : ''}{table.capacity ? ` \u2022 ${table.capacity} seats` : ''}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <Input
                       placeholder="Guest Name (optional)"
                       value={guestName}
@@ -718,6 +841,17 @@ export default function Orders() {
                             Served
                           </Button>
                         )}
+                        {!['cancelled', 'paid'].includes(order.status) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-violet-600 dark:text-violet-400 border-violet-200 hover:bg-violet-50"
+                            onClick={() => openFolioDialog(order)}
+                          >
+                            <BedDouble className="h-4 w-4 mr-1" />
+                            Charge to Room
+                          </Button>
+                        )}
 
                         <Dialog>
                           <DialogTrigger asChild>
@@ -841,6 +975,69 @@ export default function Orders() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Post to Folio Dialog */}
+      <Dialog open={folioDialogOpen} onOpenChange={(open) => { setFolioDialogOpen(open); if (!open) { setFolioTargetOrder(null); setSelectedBookingId(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Charge to Room</DialogTitle>
+            <DialogDescription>
+              Post order {folioTargetOrder?.orderNumber} charges to a guest room folio
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {folioTargetOrder && (
+              <div className="bg-muted/50 rounded-lg p-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Order</span>
+                  <span className="font-medium">{folioTargetOrder.orderNumber}</span>
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className="text-muted-foreground">Amount</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(folioTargetOrder.totalAmount)}</span>
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className="text-muted-foreground">Items</span>
+                  <span>{folioTargetOrder.items.length}</span>
+                </div>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Select Guest Booking</Label>
+              <Select value={selectedBookingId} onValueChange={setSelectedBookingId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a guest booking" />
+                </SelectTrigger>
+                <SelectContent>
+                  {guestBookings.length === 0 ? (
+                    <SelectItem value="none" disabled>No checked-in guests</SelectItem>
+                  ) : (
+                    guestBookings.map(b => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.guestName} — Room {b.roomNumber}{b.confirmationCode ? ` (${b.confirmationCode})` : ''}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setFolioDialogOpen(false); setFolioTargetOrder(null); }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handlePostToFolio}
+              disabled={postingToFolio || !selectedBookingId}
+              className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700"
+            >
+              {postingToFolio && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              <BedDouble className="h-4 w-4 mr-2" />
+              Charge to Room
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

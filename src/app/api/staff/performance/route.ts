@@ -135,8 +135,16 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Department stats
-    const departments = ['Housekeeping', 'Front Desk', 'Maintenance', 'F&B', 'Security'];
+    // Department stats — query distinct departments from users
+    const departmentRows = await db.user.findMany({
+      where: { tenantId, deletedAt: null, department: { not: null } },
+      select: { department: true },
+      distinct: ['department'],
+    });
+    const departments = departmentRows
+      .map(r => r.department)
+      .filter((d): d is string => Boolean(d));
+
     const departmentStats = departments.map(dept => {
       const deptStaff = staffList.filter(s => s.department === dept);
       const deptTasks = tasks.filter(t =>

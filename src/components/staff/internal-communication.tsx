@@ -45,6 +45,12 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface StaffMember {
   id: string;
@@ -617,18 +623,18 @@ export default function InternalCommunication() {
               {/* Message Input */}
               <div className="border-t p-4">
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" title="Attach file" onClick={() => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.accept = 'image/*,.pdf,.doc,.docx';
-                    input.onchange = (e) => {
-                      const file = (e.target as HTMLInputElement).files?.[0];
-                      if (file) toast.info(`File attached: ${file.name}`);
-                    };
-                    input.click();
-                  }}>
-                    <Paperclip className="h-4 w-4" />
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" disabled>
+                          <Paperclip className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>File attachments coming soon</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   <Input
                     placeholder="Type a message..."
                     value={messageInput}

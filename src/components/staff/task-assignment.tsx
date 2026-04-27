@@ -71,6 +71,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface StaffMember {
   id: string;
@@ -134,6 +135,8 @@ const CATEGORIES = [
 ];
 
 export default function TaskAssignment() {
+  const { user } = useAuth();
+  const currentUserId = user?.id || null;
   const [tasks, setTasks] = useState<Task[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [stats, setStats] = useState<TaskStats | null>(null);
@@ -176,7 +179,7 @@ export default function TaskAssignment() {
 
       const [tasksRes, staffRes] = await Promise.all([
         fetch(`/api/staff/tasks?${params}`),
-        fetch('/api/users?role=housekeeping'),
+        fetch('/api/users?limit=100'),
       ]);
 
       if (tasksRes.ok) {
@@ -310,8 +313,13 @@ export default function TaskAssignment() {
     // Apply tab filter
     switch (activeTab) {
       case 'my-tasks':
-        // In a real app, this would filter by current user's ID
-        filtered = filtered.filter(t => t.assignedTo);
+        // Filter by current user's ID
+        if (currentUserId) {
+          filtered = filtered.filter(t => t.assignedTo === currentUserId);
+        } else {
+          // Fallback: show all assigned tasks if user ID not available
+          filtered = filtered.filter(t => t.assignedTo);
+        }
         break;
       case 'unassigned':
         filtered = filtered.filter(t => !t.assignedTo);
@@ -325,7 +333,7 @@ export default function TaskAssignment() {
     }
     
     return filtered;
-  }, [tasks, activeTab]);
+  }, [tasks, activeTab, currentUserId]);
 
   const getPriorityBadge = (priority: string) => {
     const config = PRIORITY_CONFIG[priority as keyof typeof PRIORITY_CONFIG] || PRIORITY_CONFIG.medium;

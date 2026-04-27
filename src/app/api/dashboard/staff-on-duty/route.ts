@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
     const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
     const currentTimeStr = now.toTimeString().slice(0, 5); // HH:MM
 
-    const activeShifts = await db.staffShift.findMany({
+    const activeSchedules = await db.staffSchedule.findMany({
       where: {
         tenantId,
-        status: 'active',
+        status: 'scheduled',
         date: {
           gte: new Date(todayStr + 'T00:00:00.000Z'),
           lt: new Date(todayStr + 'T23:59:59.999Z'),
@@ -39,7 +39,14 @@ export async function GET(request: NextRequest) {
             firstName: true,
             lastName: true,
             avatar: true,
-            role: true,
+            jobTitle: true,
+            department: true,
+          },
+        },
+        shiftTemplate: {
+          select: {
+            name: true,
+            shiftType: true,
           },
         },
       },
@@ -47,16 +54,22 @@ export async function GET(request: NextRequest) {
       take: 20,
     });
 
-    const staffOnDuty = activeShifts.map((shift) => ({
-      id: shift.userId,
-      name: `${shift.user.firstName} ${shift.user.lastName}`,
-      avatar: shift.user.avatar,
-      initials: `${shift.user.firstName[0]}${shift.user.lastName[0]}`,
-      role: shift.role || shift.user.role || 'Staff',
-      shiftStart: shift.startTime,
-      shiftEnd: shift.endTime,
-      isOnline: shift.status === 'active',
-    }));
+    const staffOnDuty = activeSchedules.map((schedule) => {
+      const firstName = schedule.user.firstName || '';
+      const lastName = schedule.user.lastName || '';
+      return {
+        id: schedule.userId,
+        name: `${firstName} ${lastName}`.trim(),
+        avatar: schedule.user.avatar,
+        initials: `${firstName[0] || ''}${lastName[0] || ''}`,
+        role: schedule.user.jobTitle || schedule.department || schedule.shiftTemplate?.name || 'Staff',
+        shiftStart: schedule.startTime,
+        shiftEnd: schedule.endTime,
+        department: schedule.department || null,
+        shiftType: schedule.shiftTemplate?.shiftType || 'regular',
+        isOnline: schedule.status === 'scheduled',
+      };
+    });
 
     return NextResponse.json({
       success: true,

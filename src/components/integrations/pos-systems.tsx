@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 interface PosSystem {
   id: string;
   name: string;
-  provider: 'micros' | 'toast' | 'square' | 'lightspeed' | 'posist' | 'other';
+  provider: 'micros' | 'toast' | 'square' | 'lightspeed' | 'posist' | 'clover' | 'petpooja' | 'custom';
   status: 'connected' | 'disconnected' | 'error';
   endpoint?: string;
   apiKey?: string;
@@ -36,10 +36,12 @@ interface PosSystem {
 const providerOptions = [
   { value: 'toast', label: 'Toast POS' },
   { value: 'square', label: 'Square' },
-  { value: 'micros', label: 'Oracle MICROS' },
+  { value: 'clover', label: 'Clover' },
   { value: 'lightspeed', label: 'Lightspeed' },
+  { value: 'micros', label: 'Oracle MICROS' },
   { value: 'posist', label: 'Posist' },
-  { value: 'other', label: 'Other' },
+  { value: 'petpooja', label: 'Petpooja' },
+  { value: 'custom', label: 'Custom' },
 ];
 
 export default function PosSystems() {

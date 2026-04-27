@@ -46,6 +46,7 @@ import { Progress } from '@/components/ui/progress';
 import {
   GraduationCap,
   Plus,
+  Edit,
   Trash2,
   Users,
   Award,
@@ -130,6 +131,8 @@ export default function SkillsManagement() {
 
   // Dialogs
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editOriginalName, setEditOriginalName] = useState<string>('');
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
   const [deleteSkillName, setDeleteSkillName] = useState<string>('');
 
@@ -239,6 +242,68 @@ export default function SkillsManagement() {
     }
   };
 
+  const openEditDialog = (skill: StaffSkill) => {
+    setIsEditMode(true);
+    setEditOriginalName(skill.skillName);
+    setDeleteItemId(skill.id); // Store the original skill ID for potential rename
+    setFormData({
+      userId: skill.userId,
+      skillName: skill.skillName,
+      category: skill.category || 'technical',
+      skillLevel: String(skill.skillLevel),
+      certified: skill.certified,
+      certifiedAt: skill.certifiedAt ? skill.certifiedAt.split('T')[0] : '',
+      notes: skill.notes || '',
+    });
+    setIsAddDialogOpen(true);
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (editOriginalName && formData.skillName !== editOriginalName) {
+      // If skillName changed, delete old and create new (unique constraint on userId + skillName)
+      try {
+        const deleteRes = await fetch(`/api/staff/skills?id=${deleteItemId || ''}`, { method: 'DELETE' });
+        if (!deleteRes.ok) throw new Error('Failed to update skill');
+      } catch {
+        toast.error('Failed to update skill');
+        return;
+      }
+    }
+
+    try {
+      const payload = {
+        userId: formData.userId,
+        skillName: formData.skillName,
+        category: formData.category,
+        skillLevel: parseInt(formData.skillLevel, 10),
+        certified: formData.certified,
+        certifiedAt: formData.certified ? formData.certifiedAt || new Date().toISOString() : null,
+        notes: formData.notes || null,
+      };
+
+      const response = await fetch('/api/staff/skills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error?.message || 'Failed to update skill');
+      }
+
+      toast.success('Skill updated successfully');
+      setIsAddDialogOpen(false);
+      setIsEditMode(false);
+      resetForm();
+      fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update skill');
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       userId: '',
@@ -249,6 +314,8 @@ export default function SkillsManagement() {
       certifiedAt: '',
       notes: '',
     });
+    setIsEditMode(false);
+    setEditOriginalName('');
   };
 
   const getProficiencyColor = (level: number) => {
@@ -338,7 +405,7 @@ export default function SkillsManagement() {
           <h2 className="text-2xl font-bold tracking-tight">Staff Skills</h2>
           <p className="text-muted-foreground">Manage staff competencies, certifications, and proficiency levels</p>
         </div>
-        <Button onClick={() => { resetForm(); setIsAddDialogOpen(true); }}>
+        <Button onClick={() => { resetForm(); setIsEditMode(false); setIsAddDialogOpen(true); }}>
           <Plus className="mr-2 h-4 w-4" />
           Add Skill
         </Button>
@@ -459,7 +526,7 @@ export default function SkillsManagement() {
                 ? 'Try adjusting your filters or add a new skill.'
                 : 'Add a skill to get started.'}
             </p>
-            <Button className="mt-4" onClick={() => { resetForm(); setIsAddDialogOpen(true); }}>
+            <Button className="mt-4" onClick={() => { resetForm(); setIsEditMode(false); setIsAddDialogOpen(true); }}>
               <Plus className="mr-2 h-4 w-4" />
               Add Skill
             </Button>
@@ -547,8 +614,13 @@ export default function SkillsManagement() {
                               {skill.certified ? (
                                 <div className="flex flex-col gap-1">
                                   <Badge
-                                    variant={(expired ? 'destructive' : expiring ? 'warning' : 'success') as 'default' | 'secondary' | 'destructive' | 'outline'}
-                                    className="w-fit gap-1"
+                                    variant={expired ? 'destructive' : expiring ? 'outline' : 'outline'}
+                                    className={cn(
+                                      'w-fit gap-1',
+                                      expired && '',
+                                      expiring && 'border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-950/50 dark:text-amber-400',
+                                      !expired && !expiring && 'border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-400'
+                                    )}
                                   >
                                     <ShieldCheck className="h-3 w-3" />
                                     {expired ? 'Expired' : expiring ? 'Expiring Soon' : 'Certified'}
@@ -570,13 +642,22 @@ export default function SkillsManagement() {
                               )}
                             </TableCell>
                             <TableCell className="text-right">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(skill.id, skill.skillName)}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
-                              </Button>
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openEditDialog(skill)}
+                                >
+                                  <Edit className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDelete(skill.id, skill.skillName)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         );
@@ -645,12 +726,14 @@ export default function SkillsManagement() {
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Add New Skill</DialogTitle>
+            <DialogTitle>{isEditMode ? 'Edit Skill' : 'Add New Skill'}</DialogTitle>
             <DialogDescription>
-              Add a skill to a staff member&apos;s profile with proficiency level and optional certification
+              {isEditMode
+                ? 'Update skill details for this staff member'
+                : 'Add a skill to a staff member\'s profile with proficiency level and optional certification'}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={isEditMode ? handleEdit : handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="userId">Staff Member *</Label>
               <Select
@@ -761,7 +844,7 @@ export default function SkillsManagement() {
             <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit}>Add Skill</Button>
+            <Button onClick={isEditMode ? handleEdit : handleSubmit}>{isEditMode ? 'Update Skill' : 'Add Skill'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

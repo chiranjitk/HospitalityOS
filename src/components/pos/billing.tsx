@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import {
   Search,
   Plus,
@@ -26,6 +26,7 @@ import {
   UtensilsCrossed,
   Wallet,
   X,
+  History,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { usePropertyId } from '@/hooks/use-property';
@@ -56,6 +57,13 @@ interface Order {
   guestName?: string;
   notes?: string;
   createdAt: string;
+  completedAt?: string;
+  payments?: {
+    id: string;
+    amount: number;
+    method: string;
+    processedAt: string;
+  }[];
   table?: {
     id: string;
     number: string;
@@ -66,7 +74,6 @@ interface Order {
 
 export default function POSBilling() {
   const { propertyId } = usePropertyId();
-  const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +86,11 @@ export default function POSBilling() {
   const [splitCount, setSplitCount] = useState(2);
   const [isSplitMode, setIsSplitMode] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Active tab
+  const [activeTab, setActiveTab] = useState<'billing' | 'recent'>('billing');
+  const [recentPayments, setRecentPayments] = useState<Order[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
 
   // Tax rate
   const [taxRate, setTaxRate] = useState<number>(0);
@@ -98,11 +110,11 @@ export default function POSBilling() {
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
-      toast({ title: 'Error', description: 'Failed to fetch orders', variant: 'destructive' });
+      toast.error('Failed to fetch orders');
     } finally {
       setLoading(false);
     }
-  }, [propertyId, search, toast]);
+  }, [propertyId, search]);
 
   const fetchPropertyTaxRate = async () => {
     if (!propertyId) return;
@@ -117,12 +129,39 @@ export default function POSBilling() {
     }
   };
 
+  const fetchRecentPayments = useCallback(async () => {
+    if (!propertyId) return;
+    setLoadingRecent(true);
+    try {
+      const params = new URLSearchParams();
+      params.append('propertyId', propertyId);
+      params.append('status', 'paid');
+
+      const response = await fetch(`/api/orders?${params.toString()}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setRecentPayments(data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching recent payments:', error);
+    } finally {
+      setLoadingRecent(false);
+    }
+  }, [propertyId]);
+
   useEffect(() => {
     if (propertyId) {
       fetchOrders();
       fetchPropertyTaxRate();
     }
   }, [fetchOrders, propertyId]);
+
+  useEffect(() => {
+    if (propertyId && activeTab === 'recent') {
+      fetchRecentPayments();
+    }
+  }, [fetchRecentPayments, propertyId, activeTab]);
 
   const tip = parseFloat(tipAmount) || 0;
   const currentTotal = selectedOrder
@@ -157,20 +196,13 @@ export default function POSBilling() {
         throw new Error(data.error?.message || 'Payment processing failed');
       }
 
-      toast({
-        title: 'Payment Successful',
-        description: `${formatCurrency(data.data.payment.amount)} processed via ${paymentMethod}${isSplitMode ? ` (${splitCount} splits)` : ''}`,
-      });
+      toast.success(`${formatCurrency(data.data.payment.amount)} processed via ${paymentMethod}${isSplitMode ? ` (${splitCount} splits)` : ''}`);
       setSelectedOrder(null);
       setTipAmount('');
       setIsSplitMode(false);
       fetchOrders();
     } catch (error) {
-      toast({
-        title: 'Payment Failed',
-        description: error instanceof Error ? error.message : 'Failed to process payment',
-        variant: 'destructive',
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to process payment');
     } finally {
       setIsProcessing(false);
     }
@@ -204,58 +236,82 @@ export default function POSBilling() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-2">
-        <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <Receipt className="h-5 w-5" />
-          POS Billing
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Receipt className="h-5 w-5" />
+            POS Billing
+          </h2>
+        </div>
         <p className="text-muted-foreground">
           Process payments and manage checkout for restaurant orders
         </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ready to Bill</CardTitle>
-            <Clock className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{billableOrders.filter(o => o.status === 'ready').length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Served</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{billableOrders.filter(o => o.status === 'served').length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(billableOrders.reduce((sum, o) => sum + o.totalAmount, 0))}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Order</CardTitle>
-            <UtensilsCrossed className="h-4 w-4 text-violet-500 dark:text-violet-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(billableOrders.length ? billableOrders.reduce((sum, o) => sum + o.totalAmount, 0) / billableOrders.length : 0)}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Tabs */}
+      <div className="flex gap-2">
+        <Button
+          variant={activeTab === 'billing' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('billing')}
+          className={activeTab === 'billing' ? 'bg-gradient-to-r from-emerald-500 to-teal-600' : ''}
+        >
+          <CreditCard className="h-4 w-4 mr-2" />
+          Active Billing
+        </Button>
+        <Button
+          variant={activeTab === 'recent' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('recent')}
+          className={activeTab === 'recent' ? 'bg-gradient-to-r from-emerald-500 to-teal-600' : ''}
+        >
+          <History className="h-4 w-4 mr-2" />
+          Recent Payments
+        </Button>
       </div>
+
+      {activeTab === 'billing' ? (
+        <>
+          {/* Stats */}
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Ready to Bill</CardTitle>
+                <Clock className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{billableOrders.filter(o => o.status === 'ready').length}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Served</CardTitle>
+                <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{billableOrders.filter(o => o.status === 'served').length}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Value</CardTitle>
+                <DollarSign className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(billableOrders.reduce((sum, o) => sum + o.totalAmount, 0))}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Avg Order</CardTitle>
+                <UtensilsCrossed className="h-4 w-4 text-violet-500 dark:text-violet-400" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(billableOrders.length ? billableOrders.reduce((sum, o) => sum + o.totalAmount, 0) / billableOrders.length : 0)}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
         {/* Orders List */}
@@ -543,6 +599,106 @@ export default function POSBilling() {
           </CardContent>
         </Card>
       </div>
+        </>
+      ) : (
+        <>
+          {/* Recent Payments Section */}
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Payments Today</CardTitle>
+                <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {recentPayments.filter(o => {
+                    const today = new Date();
+                    today.setHours(0,0,0,0);
+                    return new Date(o.completedAt || o.createdAt) >= today;
+                  }).length}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Collected</CardTitle>
+                <DollarSign className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(recentPayments.reduce((sum, o) => sum + o.totalAmount, 0))}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Avg Payment</CardTitle>
+                <UtensilsCrossed className="h-4 w-4 text-violet-500 dark:text-violet-400" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(recentPayments.length ? recentPayments.reduce((sum, o) => sum + o.totalAmount, 0) / recentPayments.length : 0)}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Payments</CardTitle>
+                <History className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{recentPayments.length}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Recent Payments</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loadingRecent ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : recentPayments.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <History className="h-12 w-12 mb-4 opacity-50" />
+                  <p>No recent payments</p>
+                  <p className="text-sm">Completed payments will appear here</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-[500px]">
+                  {recentPayments.map((order) => (
+                    <div
+                      key={order.id}
+                      className="w-full px-4 py-3 flex items-center justify-between border-b last:border-0"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm">{order.orderNumber}</p>
+                            <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
+                              Paid
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            {order.table && <span>Table {order.table.number}</span>}
+                            {order.guestName && <span>• {order.guestName}</span>}
+                            <span>• {format(new Date(order.completedAt || order.createdAt), 'MMM d, h:mm a')}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <span className="font-semibold text-sm text-emerald-600 dark:text-emerald-400">{formatCurrency(order.totalAmount)}</span>
+                    </div>
+                  ))}
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }

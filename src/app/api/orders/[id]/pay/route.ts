@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requirePermission } from '@/lib/auth/tenant-context';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import crypto from 'crypto';
 
 // POST /api/orders/[id]/pay - Process payment for a restaurant order
@@ -9,8 +9,20 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requirePermission(request, 'restaurant.write');
-    if (auth instanceof NextResponse) return auth;
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+        { status: 401 }
+      );
+    }
+
+    if (!hasPermission(user, 'restaurant.write') && !hasPermission(user, 'restaurant.*')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
 
     const { id: orderId } = await params;
     const body = await request.json();
@@ -24,7 +36,7 @@ export async function POST(
 
     // Verify the order exists and belongs to the tenant
     const order = await db.order.findFirst({
-      where: { id: orderId, tenantId: auth.tenantId },
+      where: { id: orderId, tenantId: user.tenantId },
       include: {
         property: {
           select: { id: true, currency: true },
@@ -56,7 +68,7 @@ export async function POST(
     if (!folioId) {
       const folio = await db.folio.create({
         data: {
-          tenantId: auth.tenantId,
+          tenantId: user.tenantId,
           propertyId: order.propertyId,
           bookingId: order.bookingId || undefined,
           guestId: order.guestId || undefined,
@@ -130,7 +142,7 @@ export async function POST(
       for (let i = 0; i < splitCount; i++) {
         paymentsToCreate.push({
           folioId,
-          tenantId: auth.tenantId,
+          tenantId: user.tenantId,
           amount: i < splitCount - 1 ? floorShare : lastShare,
           currency,
           method: paymentMethod,
@@ -147,7 +159,7 @@ export async function POST(
     } else {
       paymentsToCreate.push({
         folioId,
-        tenantId: auth.tenantId,
+        tenantId: user.tenantId,
         amount: paymentAmount,
         currency,
         method: paymentMethod,

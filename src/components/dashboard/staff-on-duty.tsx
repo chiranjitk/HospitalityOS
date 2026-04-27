@@ -66,8 +66,14 @@ export function StaffOnDutyWidget() {
     };
   }, []);
 
-  const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr);
+  const formatTime = (timeStr: string) => {
+    // Handle both "HH:MM" string format and ISO date strings
+    if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
+      const [h, m] = timeStr.split(':').map(Number);
+      const hour = h % 12 || 12;
+      return `${hour}:${m.toString().padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+    }
+    const date = new Date(timeStr);
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   };
 

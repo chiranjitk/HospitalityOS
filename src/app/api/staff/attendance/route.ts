@@ -105,6 +105,11 @@ export async function GET(request: NextRequest) {
       where.userId = staffId;
     }
 
+    // Server-side department filter via user relation
+    if (department && department !== 'all') {
+      where.user = { department };
+    }
+
     // Get attendance records
     const records = await db.staffAttendance.findMany({
       where,
@@ -124,10 +129,8 @@ export async function GET(request: NextRequest) {
       ...(limit && { take: Math.min(parseInt(limit, 10), 100) }),
     });
 
-    // Filter by department if specified
-    const filteredRecords = department
-      ? records.filter(r => r.user.department === department)
-      : records;
+    // Records are now filtered server-side via where clause
+    const filteredRecords = records;
 
     // Get all staff for stats
     const staff = await db.user.findMany({

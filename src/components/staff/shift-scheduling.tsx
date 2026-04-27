@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -97,6 +97,12 @@ export default function ShiftScheduling() {
     department: '',
     notes: '',
   });
+
+  // Derive departments dynamically from staff data
+  const departments = useMemo(() => {
+    const depts = [...new Set(staff.map(s => s.department).filter(Boolean))];
+    return depts.sort();
+  }, [staff]);
 
   const fetchData = async () => {
     try {
@@ -500,11 +506,15 @@ export default function ShiftScheduling() {
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="front_desk">Front Desk</SelectItem>
-                    <SelectItem value="housekeeping">Housekeeping</SelectItem>
-                    <SelectItem value="restaurant">Restaurant</SelectItem>
-                    <SelectItem value="maintenance">Maintenance</SelectItem>
-                    <SelectItem value="security">Security</SelectItem>
+                    {departments.length > 0 ? (
+                      departments.map((dept) => (
+                        <SelectItem key={dept} value={dept}>
+                          {dept}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="" disabled>No departments available</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>

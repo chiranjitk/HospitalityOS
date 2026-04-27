@@ -43,7 +43,12 @@ interface Category {
   id: string;
   name: string;
   description?: string;
+  imageUrl?: string;
   sortOrder: number;
+  status?: string;
+  _count?: {
+    menuItems: number;
+  };
 }
 
 interface MenuItem {
@@ -94,6 +99,19 @@ export default function MenuManagement() {
   const [saving, setSaving] = useState(false);
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
 
+  // Category management states
+  const [addCategoryOpen, setAddCategoryOpen] = useState(false);
+  const [editCategory, setEditCategory] = useState<Category | null>(null);
+  const [deleteCategoryId, setDeleteCategoryId] = useState<string | null>(null);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [categoryForm, setCategoryForm] = useState({
+    name: '',
+    description: '',
+    imageUrl: '',
+    sortOrder: 0,
+    status: 'active' as string,
+  });
+
   // Form state
   const [formData, setFormData] = useState({
     name: '',
@@ -142,7 +160,7 @@ export default function MenuManagement() {
   }, [propertyId, categoryFilter, statusFilter, search]);
 
   // Fetch categories from API
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     if (!propertyId) return;
     try {
       const res = await fetch(`/api/menu-categories?propertyId=${propertyId}`);
@@ -154,13 +172,131 @@ export default function MenuManagement() {
       console.error('Error fetching categories:', error);
       toast.error('Failed to fetch categories');
     }
-  };
+  }, [propertyId]);
 
   useEffect(() => {
     if (propertyId) {
       fetchCategories();
     }
-  }, [propertyId]);
+  }, [fetchCategories, propertyId]);
+
+  const resetCategoryForm = () => {
+    setCategoryForm({
+      name: '',
+      description: '',
+      imageUrl: '',
+      sortOrder: 0,
+      status: 'active',
+    });
+  };
+
+  const handleAddCategory = async () => {
+    if (!categoryForm.name.trim()) {
+      toast.error('Category name is required');
+      return;
+    }
+    if (!propertyId) {
+      toast.error('No property selected');
+      return;
+    }
+    setSavingCategory(true);
+    try {
+      const res = await fetch('/api/menu-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          propertyId,
+          name: categoryForm.name,
+          description: categoryForm.description || undefined,
+          imageUrl: categoryForm.imageUrl || undefined,
+          sortOrder: categoryForm.sortOrder,
+          status: categoryForm.status,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Category created successfully');
+        setAddCategoryOpen(false);
+        resetCategoryForm();
+        fetchCategories();
+      } else {
+        toast.error(data.error?.message || 'Failed to create category');
+      }
+    } catch (error) {
+      console.error('Error creating category:', error);
+      toast.error('Failed to create category');
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const handleEditCategory = async () => {
+    if (!editCategory || !categoryForm.name.trim()) {
+      toast.error('Category name is required');
+      return;
+    }
+    setSavingCategory(true);
+    try {
+      const res = await fetch('/api/menu-categories', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editCategory.id,
+          name: categoryForm.name,
+          description: categoryForm.description || undefined,
+          imageUrl: categoryForm.imageUrl || undefined,
+          sortOrder: categoryForm.sortOrder,
+          status: categoryForm.status,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Category updated successfully');
+        setEditCategory(null);
+        resetCategoryForm();
+        fetchCategories();
+      } else {
+        toast.error(data.error?.message || 'Failed to update category');
+      }
+    } catch (error) {
+      console.error('Error updating category:', error);
+      toast.error('Failed to update category');
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const confirmDeleteCategory = async () => {
+    if (!deleteCategoryId) return;
+    try {
+      const res = await fetch(`/api/menu-categories?id=${deleteCategoryId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Category deleted successfully');
+        fetchCategories();
+      } else {
+        toast.error(data.error?.message || 'Failed to delete category');
+      }
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      toast.error('Failed to delete category');
+    } finally {
+      setDeleteCategoryId(null);
+    }
+  };
+
+  const openEditCategoryDialog = (cat: Category) => {
+    setEditCategory(cat);
+    setCategoryForm({
+      name: cat.name,
+      description: cat.description || '',
+      imageUrl: cat.imageUrl || '',
+      sortOrder: cat.sortOrder,
+      status: cat.status || 'active',
+    });
+  };
 
   useEffect(() => {
     if (propertyId) {
@@ -619,6 +755,131 @@ export default function MenuManagement() {
         </CardContent>
       </Card>
 
+      {/* Categories Management Section */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <UtensilsCrossed className="h-4 w-4" />
+              Categories
+            </CardTitle>
+            <CardDescription className="mt-1">Manage menu categories for organization</CardDescription>
+          </div>
+          <Dialog open={addCategoryOpen} onOpenChange={(open) => { setAddCategoryOpen(open); if (!open) resetCategoryForm(); }}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700" onClick={resetCategoryForm}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Category
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Add Category</DialogTitle>
+                <DialogDescription>Create a new menu category</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cat-name">Name *</Label>
+                  <Input
+                    id="cat-name"
+                    value={categoryForm.name}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                    placeholder="e.g., Appetizers, Main Course"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cat-desc">Description</Label>
+                  <Textarea
+                    id="cat-desc"
+                    value={categoryForm.description}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                    placeholder="Category description"
+                    rows={2}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cat-image">Image URL</Label>
+                  <Input
+                    id="cat-image"
+                    value={categoryForm.imageUrl}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, imageUrl: e.target.value })}
+                    placeholder="https://example.com/image.jpg"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="cat-sort">Sort Order</Label>
+                    <Input
+                      id="cat-sort"
+                      type="number"
+                      value={categoryForm.sortOrder.toString()}
+                      onChange={(e) => setCategoryForm({ ...categoryForm, sortOrder: parseInt(e.target.value, 10) || 0 })}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cat-status">Status</Label>
+                    <Select
+                      value={categoryForm.status}
+                      onValueChange={(v) => setCategoryForm({ ...categoryForm, status: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setAddCategoryOpen(false); resetCategoryForm(); }}>Cancel</Button>
+                <Button onClick={handleAddCategory} disabled={savingCategory} className="bg-gradient-to-r from-emerald-500 to-teal-600">
+                  {savingCategory && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  Create
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </CardHeader>
+        <CardContent>
+          {categories.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p className="font-medium">No categories yet</p>
+              <p className="text-sm mt-1">Create your first category to organize menu items</p>
+            </div>
+          ) : (
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {categories.map((cat) => (
+                <div key={cat.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500/10 to-teal-500/10 flex items-center justify-center flex-shrink-0">
+                      <UtensilsCrossed className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{cat.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {cat._count?.menuItems || 0} items • Sort: {cat.sortOrder}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => openEditCategoryDialog(cat)}>
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 w-7 p-0 text-red-600 dark:text-red-400 hover:text-red-700" onClick={() => setDeleteCategoryId(cat.id)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Menu Items List */}
       <div className="grid gap-4">
         {menuItems.length === 0 ? (
@@ -723,7 +984,7 @@ export default function MenuManagement() {
         )}
       </div>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Item Confirmation Dialog */}
       <AlertDialog open={!!deleteItemId} onOpenChange={(open) => !open && setDeleteItemId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -740,6 +1001,94 @@ export default function MenuManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Delete Category Confirmation Dialog */}
+      <AlertDialog open={!!deleteCategoryId} onOpenChange={(open) => !open && setDeleteCategoryId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Category</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this category? Categories with menu items cannot be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteCategory} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Category Dialog */}
+      <Dialog open={!!editCategory} onOpenChange={(open) => { if (!open) { setEditCategory(null); resetCategoryForm(); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Category</DialogTitle>
+            <DialogDescription>Update category details</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-cat-name">Name *</Label>
+              <Input
+                id="edit-cat-name"
+                value={categoryForm.name}
+                onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-cat-desc">Description</Label>
+              <Textarea
+                id="edit-cat-desc"
+                value={categoryForm.description}
+                onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-cat-image">Image URL</Label>
+              <Input
+                id="edit-cat-image"
+                value={categoryForm.imageUrl}
+                onChange={(e) => setCategoryForm({ ...categoryForm, imageUrl: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-cat-sort">Sort Order</Label>
+                <Input
+                  id="edit-cat-sort"
+                  type="number"
+                  value={categoryForm.sortOrder.toString()}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, sortOrder: parseInt(e.target.value, 10) || 0 })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-cat-status">Status</Label>
+                <Select
+                  value={categoryForm.status}
+                  onValueChange={(v) => setCategoryForm({ ...categoryForm, status: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEditCategory(null); resetCategoryForm(); }}>Cancel</Button>
+            <Button onClick={handleEditCategory} disabled={savingCategory} className="bg-gradient-to-r from-emerald-500 to-teal-600">
+              {savingCategory && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={!!editItem} onOpenChange={(open) => !open && setEditItem(null)}>

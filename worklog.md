@@ -1365,3 +1365,160 @@ Stage Summary:
 - Kiosk payment component: KioskPayment with full payment flow (method selection → form → processing → success/error)
 - Demo/simulation mode with clear comments — no real payment gateway integration
 - Type-checks pass with no errors in new files
+
+---
+Task ID: 5-6
+Agent: Fix Agent
+Task: Fix ALL Staff/HR module bugs and feature gaps (10 fixes)
+
+Work Log:
+- **Fix 1 (CRITICAL): Staff On-Duty Widget Always Empty**
+  - Root cause: API queried `db.staffShift.findMany()` but shift creation writes to `db.staffSchedule` (different Prisma models)
+  - Fixed `src/app/api/dashboard/staff-on-duty/route.ts`: Changed to `db.staffSchedule.findMany()` with proper includes (user, shiftTemplate)
+  - Used `schedule.user.jobTitle` instead of `schedule.user.role` (which was a Role object)
+  - Used `schedule.department` and `schedule.shiftTemplate?.name` for role display
+  - Fixed `src/components/dashboard/staff-on-duty.tsx`: Updated `formatTime()` to handle "HH:MM" string format (StaffSchedule stores time as strings, not dates)
+
+- **Fix 2 (CRITICAL): "My Tasks" Tab Doesn't Filter by Current User**
+  - Root cause: `filtered.filter(t => t.assignedTo)` showed ALL assigned tasks to everyone
+  - Fixed `src/components/staff/task-assignment.tsx`: Imported `useAuth` from `@/contexts/AuthContext`
+  - Extracted `currentUserId` from `user?.id`
+  - Changed filter to `filtered.filter(t => t.assignedTo === currentUserId)` with fallback to `t.assignedTo` if no user ID
+
+- **Fix 3 (CRITICAL): Task Assignment Only Fetches Housekeeping Staff**
+  - Root cause: `fetch('/api/users?role=housekeeping')` only got housekeeping users
+  - Fixed: Changed to `fetch('/api/users?limit=100')` to get all active staff
+
+- **Fix 4 (HIGH): ShiftSummary Widget Uses 100% Mock Data**
+  - Root cause: All data (checkIns, checkOuts, revenue, etc.) were hardcoded mock values
+  - Fixed `src/components/dashboard/widgets/shift-summary.tsx`: 
+    - Added real data fetching from 3 APIs: `/api/dashboard/staff-on-duty`, `/api/staff/attendance`, `/api/staff/tasks?status=pending`
+    - Replaced mock check-ins with real attendance check-in count
+    - Replaced mock check-outs with real attendance check-out count
+    - Replaced mock revenue with active staff count (more relevant to shift context)
+    - Dynamic highlights generated from live data
+    - 60-second refresh interval for live updates
+
+- **Fix 5 (HIGH): Skills Management Badge "warning" Variant Invalid**
+  - Root cause: `variant="warning"` doesn't exist on shadcn/ui Badge (only: default, secondary, destructive, outline)
+  - Fixed `src/components/staff/skills-management.tsx`: Changed to `variant="outline"` with custom amber className for expiring items
+  - Added proper green styling for certified badges using className overrides
+
+- **Fix 6 (MEDIUM): Hardcoded Department List in Performance API**
+  - Root cause: Hardcoded `['Housekeeping', 'Front Desk', 'Maintenance', 'F&B', 'Security']`
+  - Fixed `src/app/api/staff/performance/route.ts`: Query distinct departments from `db.user.findMany({ distinct: ['department'] })` instead of hardcoded list
+
+- **Fix 7 (MEDIUM): Shift Scheduling Hardcodes Department Options**
+  - Root cause: 5 hardcoded department SelectItems
+  - Fixed `src/components/staff/shift-scheduling.tsx`: Added `useMemo` to derive departments dynamically from fetched staff data
+  - Department dropdown now shows all unique departments from actual users
+
+- **Fix 8 (MEDIUM): Add Skills Edit Functionality**
+  - Root cause: Could only add (upsert) and delete skills, no edit dialog
+  - Fixed `src/components/staff/skills-management.tsx`:
+    - Added `isEditMode` and `editOriginalName` state variables
+    - Added `openEditDialog()` function that pre-fills form with existing skill values
+    - Added `handleEdit()` function that handles skillName changes (delete old + create new due to unique constraint on userId+skillName)
+    - Added Edit button (blue pencil icon) next to delete button in each skill row
+    - Dialog title/description/button text change based on edit mode
+    - Imported `Edit` icon from lucide-react
+
+- **Fix 9 (MEDIUM): Attendance Department Filter Should Be Server-Side**
+  - Root cause: Department filtering done in JS after fetching ALL records
+  - Fixed `src/app/api/staff/attendance/route.ts`: Added `where.user = { department }` Prisma clause for server-side filtering
+
+- **Fix 10 (LOW): File Attachment Placeholder in Internal Communication**
+  - Root cause: File picker showed toast but didn't actually upload
+  - Fixed `src/components/staff/internal-communication.tsx`: Replaced fake file picker with disabled button + Tooltip showing "File attachments coming soon"
+  - Imported Tooltip, TooltipContent, TooltipProvider, TooltipTrigger from shadcn/ui
+
+Stage Summary:
+- All 10 Staff/HR module bugs fixed (3 critical, 2 high, 4 medium, 1 low)
+- No new lint errors introduced (3 pre-existing `react-hooks/set-state-in-effect` warnings remain, unrelated to these fixes)
+- Staff On-Duty widget now queries correct `staffSchedule` model with proper user/shiftTemplate joins
+- Task Assignment "My Tasks" tab properly filters by current authenticated user
+- Task Assignment shows all staff, not just housekeeping
+- Shift Summary widget fetches real live data from 3 API endpoints
+- Skills Management supports edit mode with pre-filled dialog
+- Performance API and Shift Scheduling use dynamic department lists
+- Attendance API does server-side department filtering
+- File attachment button shows honest "coming soon" tooltip
+---
+Task ID: 3-4
+Agent: Fix Agent
+Task: Fix ALL bugs and feature gaps in Restaurant & POS module (10 fixes)
+
+Work Log:
+- **Fix 1 - Toast import in billing.tsx**: Replaced `import { useToast } from '@/hooks/use-toast'` with `import { toast } from 'sonner'` to match all other POS components. Replaced all `toast({title, description, variant})` calls with `toast.success()`/`toast.error()` pattern. Removed unused `useToast` destructure.
+
+- **Fix 2 - Menu Category Management UI**: Added complete category CRUD UI to menu-management.tsx:
+  - New Category section with grid display of existing categories (name, item count, sort order)
+  - "Add Category" button opening a dialog with name, description, image URL, sort order, status fields
+  - Edit and Delete actions on each category card
+  - Delete confirmation dialog with category-in-use protection message
+  - Edit dialog pre-populated with existing category data
+  - Full API integration with `/api/menu-categories` (POST/PUT/DELETE)
+  - Updated Category interface to include imageUrl, status, _count fields
+
+- **Fix 3 - Table Selection for Dine-in Orders**: In orders.tsx create order dialog:
+  - Added available tables fetch from `/api/tables?status=available`
+  - When `orderType === 'dine_in'`, shows a table selector dropdown
+  - Table selector shows table number, area, and capacity
+  - Sends `tableId` in the POST body for dine-in orders
+  - Resets table selection when order type changes
+  - Validates that dine-in orders must have a table selected
+
+- **Fix 4 - Post to Room Folio Button**: Added charge-to-room functionality in orders.tsx:
+  - "Charge to Room" button appears on every non-cancelled/non-paid order
+  - Opens dialog with order summary and guest booking selector
+  - Fetches checked-in bookings from `/api/bookings?status=checked_in`
+  - Booking selector shows guest name, room number, and confirmation code
+  - Calls `/api/orders/[id]/post-to-folio` with selected bookingId
+  - Shows success/error toast and refreshes order list
+
+- **Fix 5 - POS Provider List Mismatch**: Updated pos-systems.tsx:
+  - Updated providerOptions array: added clover, petpooja, custom; removed 'other'
+  - Updated PosSystem interface type to match new provider values
+  - Full provider list: toast, square, clover, lightspeed, micros, posist, petpooja, custom
+
+- **Fix 6 - Valid Status Transitions**: Updated orders route.ts:
+  - Added `served: ['paid', 'cancelled']` to validStatusTransitions map
+  - 'paid' status now reachable from 'served' status through the main orders PUT endpoint
+
+- **Fix 7 - Auth Helper Consistency**: Fixed pay/route.ts:
+  - Replaced `requirePermission` from `@/lib/auth/tenant-context` with `getUserFromRequest` + `hasPermission` from `@/lib/auth-helpers`
+  - Now consistent with all other order routes
+  - Added proper 401/403 error responses matching the standard pattern
+  - Replaced all `auth.tenantId` references with `user.tenantId`
+
+- **Fix 8 - Kitchen Station Filtering**: Added station filter bar to kitchen-display.tsx:
+  - Station options: All, Grill, Sauté, Fryer, Salad, Dessert, Bar, Unassigned
+  - Filter orders where any item's kitchenStation matches selected station
+  - "Unassigned" shows orders with no kitchen station set
+  - "All" shows all orders (no filtering)
+  - Styled with orange/amber gradient for active station button
+
+- **Fix 9 - KDS Served Orders Unbounded Growth**: Fixed kitchen-display.tsx:
+  - Limited completed column to last 10 served orders via `.slice(-10)`
+  - Added "Clear" button on served column header to dismiss completed orders
+  - Clear button filters out served orders from the local state
+
+- **Fix 10 - Recent Payments Tab**: Added to billing.tsx:
+  - New tab system: "Active Billing" and "Recent Payments" toggle buttons
+  - Recent Payments tab with stats cards (Payments Today, Total Collected, Avg Payment, Total Payments)
+  - Scrollable list of paid orders showing order number, table, guest, timestamp, amount
+  - Fetches paid orders from `/api/orders?status=paid` when tab is active
+  - Shows empty state when no recent payments exist
+
+Stage Summary:
+- All 10 fixes implemented across 7 files (5 frontend, 2 backend)
+- Toast pattern now consistent across all POS components (sonner)
+- Categories can be created before menu items (enabling item creation)
+- Dine-in orders now require table selection
+- Orders can be charged to room folios for hotel guests
+- POS provider list matches API (8 providers including clover, petpooja, custom)
+- Paid status properly reachable from served status
+- Auth pattern consistent across all order API routes
+- KDS now supports station filtering and bounded served orders
+- Recent payments visible after checkout
+- Lint: No new errors introduced (all errors are pre-existing)

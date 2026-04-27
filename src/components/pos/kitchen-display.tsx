@@ -15,7 +15,9 @@ import {
   CheckCircle, 
   AlertTriangle,
   Timer,
-  RefreshCw
+  RefreshCw,
+  X,
+  Flame,
 } from 'lucide-react';
 
 interface OrderItem {
@@ -98,6 +100,9 @@ export default function KitchenDisplay() {
     completed: 0,
     avgWaitTime: 0,
   });
+
+  const [stationFilter, setStationFilter] = useState<string>('all');
+  const kitchenStations = ['all', 'Grill', 'Sauté', 'Fryer', 'Salad', 'Dessert', 'Bar', 'Unassigned'];
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -199,11 +204,24 @@ export default function KitchenDisplay() {
   };
 
   // Group orders by kitchen status for active columns
-  const pendingOrders = orders.filter(o => ['pending', 'confirmed', 'preparing', 'ready'].includes(o.status) && o.kitchenStatus === 'pending');
-  const cookingOrders = orders.filter(o => o.kitchenStatus === 'cooking');
-  const readyOrders = orders.filter(o => o.kitchenStatus === 'ready');
-  // Served orders (status = 'served') for the completed/served column
-  const completedOrders = orders.filter(o => o.status === 'served');
+  const filterOrdersByStation = (orderList: Order[]) => {
+    if (stationFilter === 'all' || stationFilter === 'Unassigned') return orderList;
+    return orderList.filter(order =>
+      order.items.some(item => item.menuItem.kitchenStation === stationFilter)
+    );
+  };
+
+  const pendingOrders = filterOrdersByStation(orders.filter(o => ['pending', 'confirmed', 'preparing', 'ready'].includes(o.status) && o.kitchenStatus === 'pending'));
+  const cookingOrders = filterOrdersByStation(orders.filter(o => o.kitchenStatus === 'cooking'));
+  const readyOrders = filterOrdersByStation(orders.filter(o => o.kitchenStatus === 'ready'));
+  // Served orders (status = 'served') for the completed/served column — limited to last 10
+  const completedOrders = filterOrdersByStation(
+    orders.filter(o => o.status === 'served').slice(-10)
+  );
+
+  const clearCompleted = () => {
+    setOrders(prev => prev.filter(o => o.status !== 'served'));
+  };
 
   if (!propertyId) {
     return (
@@ -243,6 +261,24 @@ export default function KitchenDisplay() {
             Auto-refresh: 30s
           </div>
         </div>
+      </div>
+
+      {/* Station Filter Bar */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2">
+        <Flame className="h-4 w-4 text-orange-500 flex-shrink-0" />
+        {kitchenStations.map(station => (
+          <Button
+            key={station}
+            size="sm"
+            variant={stationFilter === station ? 'default' : 'outline'}
+            className={stationFilter === station
+              ? 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 flex-shrink-0'
+              : 'flex-shrink-0'}
+            onClick={() => setStationFilter(station)}
+          >
+            {station === 'all' ? 'All Stations' : station}
+          </Button>
+        ))}
       </div>
 
       {/* Stats Cards */}
@@ -541,9 +577,17 @@ export default function KitchenDisplay() {
 
         {/* Completed/Served Column */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-slate-400" />
-            <h2 className="text-lg font-semibold">Served ({completedOrders.length})</h2>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full bg-slate-400" />
+              <h2 className="text-lg font-semibold">Served ({completedOrders.length})</h2>
+            </div>
+            {completedOrders.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={clearCompleted} className="text-muted-foreground hover:text-red-500">
+                <X className="h-3 w-3 mr-1" />
+                Clear
+              </Button>
+            )}
           </div>
           <ScrollArea className="h-[calc(100vh-400px)]">
             <div className="space-y-4 pr-4">

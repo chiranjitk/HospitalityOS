@@ -488,7 +488,7 @@ export async function PUT(request: NextRequest) {
       confirmed: ['preparing', 'cancelled'],
       preparing: ['ready', 'cancelled'],
       ready: ['served', 'cancelled'],
-      served: [],
+      served: ['paid', 'cancelled'],
       cancelled: [],
     };
 
