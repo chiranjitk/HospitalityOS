@@ -816,6 +816,7 @@ export default function RadiusUsersTab() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>User</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Plan / Group</TableHead>
                     <TableHead>Password</TableHead>
                     <TableHead>Bandwidth</TableHead>
@@ -838,12 +839,12 @@ export default function RadiusUsersTab() {
                             <UserCircle className="h-4 w-4 text-muted-foreground shrink-0" />
                             <div className="min-w-0">
                               <p className="font-medium text-sm truncate max-w-[140px]" title={user.username}>{user.username}</p>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                {getUserStatusBadge(user)}
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${getUserTypeBadgeColor(user)}`}>{typeLabel}</span>
-                              </div>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${getUserTypeBadgeColor(user)}`}>{typeLabel}</span>
                             </div>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {getUserStatusBadge(user) || <span className="text-xs text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell>{getGroupBadge(user.group || 'standard-guests')}</TableCell>
                         <TableCell>
