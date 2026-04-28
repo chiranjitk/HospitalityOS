@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -29,12 +29,24 @@ import {
   Star,
   Clock,
   Fingerprint,
+  ChevronLeft,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 /* ─── Login keyframes are defined in globals.css ─── */
+
+// AI-generated hotel & resort slideshow images
+const slideshowImages = [
+  { src: '/images/login-slide-1.png', alt: 'Luxury hotel exterior at golden hour' },
+  { src: '/images/login-slide-2.png', alt: 'Resort swimming pool at twilight' },
+  { src: '/images/login-slide-3.png', alt: 'Grand hotel lobby interior' },
+  { src: '/images/login-slide-4.png', alt: 'Luxury suite with ocean view' },
+  { src: '/images/login-slide-5.png', alt: 'Tropical beach resort aerial' },
+];
+
+const SLIDE_INTERVAL = 6000; // 6 seconds per slide
 
 // Floating icon configuration
 const floatingIcons = [
@@ -116,10 +128,32 @@ export default function LoginPage() {
   const [requireTwoFactor, setRequireTwoFactor] = useState(false);
   const [tempToken, setTempToken] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const slideTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { login, completeTwoFactorLogin, isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Auto-sliding carousel
+  const startSlideshow = useCallback(() => {
+    if (slideTimerRef.current) clearInterval(slideTimerRef.current);
+    slideTimerRef.current = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slideshowImages.length);
+    }, SLIDE_INTERVAL);
+  }, []);
+
+  useEffect(() => {
+    startSlideshow();
+    return () => {
+      if (slideTimerRef.current) clearInterval(slideTimerRef.current);
+    };
+  }, [startSlideshow]);
+
+  const goToSlide = useCallback((index: number) => {
+    setCurrentSlide(index);
+    startSlideshow(); // Reset timer on manual navigation
+  }, [startSlideshow]);
 
   // Check for OAuth messages
   useEffect(() => {
@@ -224,76 +258,159 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex relative overflow-hidden">
       {/* ═══════════════════════════════════════════
-          LEFT SIDE - Brand with AI Image
+          LEFT SIDE - Brand with AI Image Slideshow
           ═══════════════════════════════════════════ */}
-      <div className="hidden lg:flex lg:w-[480px] xl:w-[540px] relative overflow-hidden">
-        {/* AI Generated Background Image */}
-        <div
-          className="absolute inset-0 bg-cover bg-center transition-transform duration-[20s] ease-linear hover:scale-105"
-          style={{ backgroundImage: 'url(/images/login-hero.png)' }}
-        />
+      <div className="hidden lg:flex lg:w-[55%] xl:w-[60%] relative overflow-hidden">
+        {/* Slideshow images - crossfade between them */}
+        {slideshowImages.map((img, index) => (
+          <div
+            key={img.src}
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundImage: `url(${img.src})`,
+              opacity: currentSlide === index ? 1 : 0,
+              transform: currentSlide === index ? 'scale(1.03)' : 'scale(1)',
+              transition: 'opacity 1.5s ease-in-out, transform 8s ease-out',
+            }}
+          />
+        ))}
 
-        {/* Dark overlay for text readability */}
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/80 to-slate-950/60" />
+        {/* Multi-layer overlay for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-slate-950/30" />
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-transparent to-slate-950/50" />
+        <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-slate-950/95 to-transparent" />
 
         {/* Animated glow orbs */}
         <div
-          className="absolute top-1/4 left-1/3 w-64 h-64 rounded-full bg-violet-400/10 blur-[100px]"
+          className="absolute top-1/4 left-1/3 w-72 h-72 rounded-full bg-violet-400/10 blur-[100px]"
           style={{ animation: 'loginGlowPulse 6s ease-in-out infinite' }}
         />
         <div
-          className="absolute bottom-1/4 right-1/4 w-48 h-48 rounded-full bg-indigo-400/10 blur-[80px]"
+          className="absolute bottom-1/3 right-1/4 w-56 h-56 rounded-full bg-indigo-400/10 blur-[80px]"
           style={{ animation: 'loginGlowPulse 8s ease-in-out infinite 2s' }}
         />
 
-        {/* Content */}
+        {/* Content overlay */}
         <motion.div
-          className="relative z-10 flex flex-col justify-between p-10 xl:p-14 w-full"
+          className="relative z-10 flex flex-col justify-between p-10 xl:p-14 2xl:p-16 w-full"
           initial="hidden"
           animate="visible"
           variants={containerVariants}
         >
           {/* Logo */}
           <motion.div className="flex items-center gap-3" variants={headerVariants}>
-            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/25 transition-transform hover:scale-110 duration-300">
+            <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/25 transition-transform hover:scale-110 duration-300">
               <Hotel className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold bg-gradient-to-r from-white via-violet-200 to-violet-300 bg-clip-text text-transparent">
+              <h1 className="text-xl font-bold bg-gradient-to-r from-white via-violet-200 to-violet-300 bg-clip-text text-transparent">
                 StaySuite
               </h1>
-              <p className="text-muted-foreground text-xs">by Cryptsk Pvt Ltd</p>
+              <p className="text-slate-300/80 text-xs">by Cryptsk Pvt Ltd</p>
             </div>
           </motion.div>
 
-          {/* Tagline */}
-          <motion.div className="space-y-6" variants={headerVariants}>
-            <h2 className="text-2xl font-medium text-white leading-tight">
-              Manage your property<br />
-              <span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-violet-300 bg-clip-text text-transparent">with intelligence.</span>
-            </h2>
+          {/* Spacer */}
+          <div />
 
-            <div className="flex flex-wrap items-center gap-3 text-xs">
-              {['WiFi AAA Ready', 'WiFi Controller'].map((label) => (
+          {/* Bottom section with tagline, badges, and slide navigation */}
+          <motion.div className="space-y-8" variants={headerVariants}>
+            {/* Slide caption */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentSlide}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.6 }}
+                className="space-y-3"
+              >
+                <p className="text-sm text-slate-300/80 font-medium">
+                  {slideshowImages[currentSlide].alt}
+                </p>
+                <h2 className="text-3xl xl:text-4xl font-bold text-white leading-tight">
+                  Manage your property
+                  <br />
+                  <span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-violet-300 bg-clip-text text-transparent">
+                    with intelligence.
+                  </span>
+                </h2>
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Feature badges + stats */}
+            <div className="flex flex-wrap items-center gap-3">
+              {['WiFi AAA Ready', 'WiFi Controller', 'Guest Management'].map((label) => (
                 <span
                   key={label}
-                  className="px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/25 text-white font-medium hover:bg-white/20 hover:border-white/35 transition-all duration-300 cursor-default"
+                  className="px-3.5 py-1.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/20 text-white text-xs font-medium hover:bg-white/20 hover:border-white/30 transition-all duration-300 cursor-default"
                 >
                   {label}
                 </span>
               ))}
+              <span className="text-slate-300/70 text-xs">|</span>
+              <span className="text-sm text-slate-200 font-medium">2,500+ properties</span>
+              <span className="w-1 h-1 rounded-full bg-slate-500" />
+              <span className="text-sm text-slate-200 font-medium">150 countries</span>
             </div>
 
-            <div className="flex items-center gap-6 text-sm text-slate-200 font-medium">
-              <span>2,500+ properties</span>
-              <span className="w-1 h-1 rounded-full bg-slate-500" />
-              <span>150 countries</span>
+            {/* Slide navigation dots + arrows */}
+            <div className="flex items-center gap-4">
+              {/* Prev arrow */}
+              <button
+                type="button"
+                onClick={() => goToSlide((currentSlide - 1 + slideshowImages.length) % slideshowImages.length)}
+                className="h-8 w-8 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all duration-300"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+
+              {/* Dots */}
+              <div className="flex items-center gap-2">
+                {slideshowImages.map((_, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => goToSlide(index)}
+                    className="group relative"
+                  >
+                    <div
+                      className={cn(
+                        'rounded-full transition-all duration-500',
+                        currentSlide === index
+                          ? 'w-8 h-2 bg-white'
+                          : 'w-2 h-2 bg-white/40 group-hover:bg-white/60'
+                      )}
+                    />
+                  </button>
+                ))}
+              </div>
+
+              {/* Next arrow */}
+              <button
+                type="button"
+                onClick={() => goToSlide((currentSlide + 1) % slideshowImages.length)}
+                className="h-8 w-8 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all duration-300"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+
+              {/* Progress bar */}
+              <div className="ml-2 w-16 h-1 rounded-full bg-white/15 overflow-hidden">
+                <motion.div
+                  className="h-full bg-white/70 rounded-full"
+                  initial={{ width: '0%' }}
+                  animate={{ width: '100%' }}
+                  transition={{ duration: SLIDE_INTERVAL / 1000, ease: 'linear' }}
+                  key={currentSlide}
+                />
+              </div>
             </div>
           </motion.div>
 
           {/* Footer */}
           <motion.div
-            className="flex items-center gap-4 text-xs text-muted-foreground"
+            className="flex items-center gap-4 text-xs text-slate-400"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6, duration: 0.5 }}
@@ -312,7 +429,7 @@ export default function LoginPage() {
           ═══════════════════════════════════════════ */}
 
       {/* Animated mesh gradient background */}
-      <div className="flex-1 relative">
+      <div className="hidden lg:block lg:w-[45%] xl:w-[40%] relative">
         {/* Mesh gradient base layer */}
         <div
           className="absolute inset-0"
@@ -441,7 +558,7 @@ export default function LoginPage() {
         />
 
         <div className="relative z-10 flex items-center justify-center min-h-screen p-6 sm:p-8">
-          <div className="w-full max-w-sm">
+          <div className="w-full max-w-[360px]">
 
             {/* Mobile Logo */}
             <motion.div
