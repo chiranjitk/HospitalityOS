@@ -61,6 +61,8 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/wifi/nas-health');
     case 'wifi-bw-policy-details':
       return import('@/components/wifi/bw-policy-details');
+    case 'wifi-diagnostics':
+      return import('@/components/wifi/gateway-diagnostics');
     default:
       throw new Error(`Unknown wifi section: ${section}`);
   }

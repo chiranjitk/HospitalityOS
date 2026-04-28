@@ -32,6 +32,7 @@ const WebCategories = lazy(() => import('@/components/wifi/web-categories'));
 const UserStatusHistory = lazy(() => import('@/components/wifi/user-status-history'));
 const NasHealth = lazy(() => import('@/components/wifi/nas-health'));
 const BwPolicyDetails = lazy(() => import('@/components/wifi/bw-policy-details'));
+const GatewayDiagnostics = lazy(() => import('@/components/wifi/gateway-diagnostics'));
 
 export const wifiSections: Record<string, React.LazyExoticComponent<any>> = {
   WifiSessions,
@@ -64,4 +65,5 @@ export const wifiSections: Record<string, React.LazyExoticComponent<any>> = {
   UserStatusHistory,
   NasHealth,
   BwPolicyDetails,
+  GatewayDiagnostics,
 };

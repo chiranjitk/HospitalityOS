@@ -29,6 +29,7 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'wifi-user-status-history': () => import('@/components/wifi/user-status-history'),
   'wifi-nas-health': () => import('@/components/wifi/nas-health'),
   'wifi-bw-policy-details': () => import('@/components/wifi/bw-policy-details'),
+  'wifi-diagnostics': () => import('@/components/wifi/gateway-diagnostics'),
 };
 
 export const wifiMap = sectionMap;
