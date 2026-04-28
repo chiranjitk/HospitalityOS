@@ -1,505 +1,725 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { execSync } from 'child_process';
+import { execFile } from 'child_process';
 import dns from 'dns';
 import fs from 'fs';
 import net from 'net';
-import os from 'os';
 import { requirePermission } from '@/lib/auth/tenant-context';
-import { db } from '@/lib/db';
 
-const RADIUS_SERVICE_URL =
-  process.env.RADIUS_SERVICE_URL || 'http://localhost:3010';
+// ═══════════════════════════════════════════════════════════════════
+// Input Validation — strict regex allowlists, no shell injection
+// ═══════════════════════════════════════════════════════════════════
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const IP_V4_REGEX = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+const HOSTNAME_REGEX =
+  /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+const SUBNET_REGEX = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
+const IFACE_REGEX = /^[a-zA-Z0-9._-]{1,15}$/;
+const BPF_FILTER_REGEX = /^[a-zA-Z0-9\s.:\-/()<>!=&|*_+,;\[\]]+$/;
+const VALID_DNS_TYPES = new Set([
+  'A',
+  'AAAA',
+  'CNAME',
+  'MX',
+  'NS',
+  'TXT',
+  'SOA',
+]);
 
-interface RadiusResponse {
-  success: boolean;
-  status?: number;
-  [key: string]: unknown;
-}
-
-async function freeradiusRequest(
-  endpoint: string,
-  options: RequestInit = {},
-): Promise<RadiusResponse> {
-  const url = `${RADIUS_SERVICE_URL}${endpoint}`;
-  const response = await fetch(url, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+function isValidIp(ip: string): boolean {
+  const m = IP_V4_REGEX.exec(ip);
+  if (!m) return false;
+  return [m[1], m[2], m[3], m[4]].every((o) => {
+    const n = parseInt(o, 10);
+    return n >= 0 && n <= 255;
   });
-  if (!response.ok) {
-    const errorBody = await response.text();
-    let parsedError: Record<string, unknown>;
-    try {
-      parsedError = JSON.parse(errorBody);
-    } catch {
-      parsedError = { error: errorBody };
+}
+
+function isValidHost(host: string): boolean {
+  if (isValidIp(host)) return true;
+  if (host.length > 253 || host.length === 0) return false;
+  return HOSTNAME_REGEX.test(host);
+}
+
+function isValidPort(port: number): boolean {
+  return Number.isInteger(port) && port >= 1 && port <= 65535;
+}
+
+function isValidSubnet(subnet: string): boolean {
+  if (!SUBNET_REGEX.test(subnet)) return false;
+  const [ipPart, cidr] = subnet.split('/');
+  if (!isValidIp(ipPart)) return false;
+  const cidrNum = parseInt(cidr, 10);
+  return cidrNum >= 8 && cidrNum <= 32;
+}
+
+function clampInt(val: string | null, min: number, max: number, fallback: number): number {
+  const n = parseInt(val || String(fallback), 10);
+  if (isNaN(n)) return fallback;
+  return Math.min(Math.max(n, min), max);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Rate Limiter — in-memory, per user, 30 req/min
+// ═══════════════════════════════════════════════════════════════════
+
+const rateLimiter = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT = 30;
+const RATE_WINDOW = 60_000;
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const entry = rateLimiter.get(userId);
+  if (!entry || now > entry.resetAt) {
+    rateLimiter.set(userId, { count: 1, resetAt: now + RATE_WINDOW });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT) return false;
+  entry.count++;
+  return true;
+}
+
+// Cleanup stale entries every 5 minutes
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [key, entry] of rateLimiter) {
+      if (now > entry.resetAt) rateLimiter.delete(key);
     }
-    return { success: false, status: response.status, ...parsedError };
-  }
-  return response.json() as Promise<RadiusResponse>;
-}
+  },
+  300_000,
+).unref();
 
-function safeExec(command: string, fallback: string): string {
-  try {
-    const result = execSync(command, {
-      encoding: 'utf-8',
-      timeout: 5_000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    return result.trim() || fallback;
-  } catch {
-    return fallback;
-  }
-}
+// ═══════════════════════════════════════════════════════════════════
+// Helper: execFile wrapped in a Promise (no shell, safe from injection)
+// ═══════════════════════════════════════════════════════════════════
 
-function checkPort(
-  host: string,
-  port: number,
-  timeoutMs: number = 2000,
-): Promise<{ port: number; status: 'open' | 'closed' | 'timeout'; latency_ms: number }> {
+function execSafe(
+  cmd: string,
+  args: string[],
+  timeoutMs: number,
+): Promise<{ stdout: string; stderr: string; code: number | null }> {
   return new Promise((resolve) => {
-    const start = process.hrtime.bigint();
-    const timer = setTimeout(() => {
-      socket.destroy();
-      const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
-      resolve({ port, status: 'timeout', latency_ms: Math.round(elapsed) });
-    }, timeoutMs);
-
-    const socket = net.createConnection({ host, port }, () => {
-      const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
-      clearTimeout(timer);
-      socket.destroy();
-      resolve({ port, status: 'open', latency_ms: Math.round(elapsed) });
-    });
-
-    socket.on('error', () => {
-      const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
-      clearTimeout(timer);
-      socket.destroy();
-      resolve({ port, status: 'closed', latency_ms: Math.round(elapsed) });
-    });
+    execFile(
+      cmd,
+      args,
+      { timeout: timeoutMs, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024 },
+      (error, stdout, stderr) => {
+        resolve({ stdout: stdout || '', stderr: stderr || '', code: error?.code ?? null });
+      },
+    );
   });
 }
 
-// ---------------------------------------------------------------------------
-// Action handlers
-// ---------------------------------------------------------------------------
+// ═══════════════════════════════════════════════════════════════════
+// Tool: PING
+// ═══════════════════════════════════════════════════════════════════
 
-async function handleServiceHealth() {
-  // FreeRADIUS process check
-  const pidOutput = safeExec('pgrep -f "freeradius" | head -1', '');
-  const isRunning = pidOutput !== '';
-  const pid = pidOutput ? parseInt(pidOutput, 10) : null;
+async function handlePing(
+  host: string,
+  count: number,
+  timeoutSec: number,
+) {
+  const maxMs = (count * timeoutSec + 10) * 1000;
+  const { stdout, stderr, code } = await execSafe(
+    'ping',
+    ['-c', String(count), '-W', String(timeoutSec), '-i', '0.5', host],
+    maxMs,
+  );
 
-  // Version
-  const version = safeExec('freeradius -v 2>&1 | head -1', 'unknown');
-
-  // Uptime — try systemd first, fall back to ps etime
-  let uptime: string;
-  if (pid) {
-    uptime = safeExec(
-      `systemctl show freeradius --property=ActiveEnterTimestamp 2>/dev/null | cut -d= -f2`,
-      '',
+  // Parse per-packet lines: "64 bytes from 8.8.8.8: icmp_seq=1 ttl=117 time=1.234 ms"
+  const packets: Array<{
+    seq: number;
+    rtt: number;
+    ttl?: number;
+    bytes?: number;
+    from?: string;
+  }> = [];
+  const lines = stdout.split('\n');
+  for (const line of lines) {
+    const m = line.match(
+      /(\d+)\s+bytes\s+from\s+([^\s:]+).*icmp_seq=(\d+).*ttl=(\d+).*time=([\d.]+)\s*ms/,
     );
-    if (!uptime) {
-      uptime = safeExec(`ps -p ${pid} -o etime=`, 'unknown');
+    if (m) {
+      packets.push({
+        bytes: parseInt(m[1]),
+        from: m[2],
+        seq: parseInt(m[3]),
+        ttl: parseInt(m[4]),
+        rtt: parseFloat(m[5]),
+      });
+      continue;
     }
-  } else {
-    uptime = 'not running';
+    // Fallback: "time=..." without ttl
+    const m2 = line.match(
+      /icmp_seq=(\d+).*time=([\d.]+)\s*ms/,
+    );
+    if (m2) {
+      packets.push({ seq: parseInt(m2[1]), rtt: parseFloat(m2[2]) });
+    }
   }
 
-  // Database counts
-  const [userCount, nasCount, activeSessions] = await Promise.all([
-    db.$queryRawUnsafe<{ count: string }[]>(
-      'SELECT COUNT(*)::text AS count FROM radcheck',
-    ).then((r) => parseInt(r[0]?.count ?? '0', 10)),
+  // Parse summary: "4 packets transmitted, 4 received, 0% packet loss"
+  const summaryMatch = stdout.match(
+    /(\d+)\s+packets transmitted,\s+(\d+)\s+received,\s+([\d.]+)%\s+packet loss/,
+  );
+  // Parse rtt stats: "rtt min/avg/max/mdev = 1.1/1.2/1.3/0.1 ms"
+  const rttMatch = stdout.match(
+    /rtt\s+min\/avg\/max\/mdev\s*=\s*([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+)/,
+  );
 
-    db.$queryRawUnsafe<{ count: string }[]>(
-      'SELECT COUNT(*)::text AS count FROM nas',
-    ).then((r) => parseInt(r[0]?.count ?? '0', 10)),
-
-    db.$queryRawUnsafe<{ count: string }[]>(
-      "SELECT COUNT(*)::text AS count FROM radacct WHERE acctstoptime IS NULL",
-    ).then((r) => parseInt(r[0]?.count ?? '0', 10)),
-  ]);
+  const failed = code !== null && code !== 0;
 
   return {
-    service: {
-      name: 'FreeRADIUS',
-      running: isRunning,
-      pid,
-      version,
-      uptime,
+    host,
+    packets,
+    summary: {
+      transmitted: summaryMatch ? parseInt(summaryMatch[1]) : count,
+      received: summaryMatch ? parseInt(summaryMatch[2]) : 0,
+      lossPercent: summaryMatch ? parseFloat(summaryMatch[3]) : 100,
     },
-    statistics: {
-      totalUsers: userCount,
-      totalNas: nasCount,
-      activeSessions,
-    },
+    rtt: rttMatch
+      ? {
+          min: parseFloat(rttMatch[1]),
+          avg: parseFloat(rttMatch[2]),
+          max: parseFloat(rttMatch[3]),
+          mdev: parseFloat(rttMatch[4]),
+        }
+      : null,
+    rawOutput: stdout || stderr,
+    error: failed ? (stderr || `ping exited with code ${code}`) : undefined,
   };
 }
 
-async function handlePortCheck() {
-  const defaultPorts = [1812, 1813, 1814];
+// ═══════════════════════════════════════════════════════════════════
+// Tool: TRACEROUTE
+// ═══════════════════════════════════════════════════════════════════
 
-  // Optionally gather NAS IPs
-  let nasIps: string[] = [];
-  try {
-    const rows = await db.$queryRawUnsafe<{ nasipaddress: string }[]>(
-      'SELECT DISTINCT nasipaddress FROM nas WHERE nasipaddress IS NOT NULL',
-    );
-    nasIps = rows.map((r) => r.nasipaddress);
-  } catch {
-    // Continue without NAS IPs
+async function handleTraceroute(
+  host: string,
+  maxHops: number,
+  timeoutSec: number,
+) {
+  const maxMs = (maxHops * timeoutSec + 15) * 1000;
+  const { stdout, stderr, code } = await execSafe(
+    'traceroute',
+    ['-m', String(maxHops), '-w', String(timeoutSec), '-n', host],
+    maxMs,
+  );
+
+  // Parse hop lines: " 1  192.168.1.1  0.543 ms  0.623 ms  0.489 ms"
+  const hops: Array<{
+    hop: number;
+    probes: Array<{ ip: string; rtt: string }>;
+  }> = [];
+  const lines = stdout.split('\n');
+
+  for (const line of lines) {
+    const hopMatch = line.match(/^\s*(\d+)\s+(.+)/);
+    if (!hopMatch) continue;
+    const hopNum = parseInt(hopMatch[1]);
+    const rest = hopMatch[2];
+    const probes: Array<{ ip: string; rtt: string }> = [];
+
+    // Match probes: "192.168.1.1  0.543 ms" or "* * *"
+    const probeRegex = /([\d.]+)\s+([\d.]+)\s*ms/g;
+    let m: RegExpExecArray | null;
+    let found = false;
+    while ((m = probeRegex.exec(rest)) !== null) {
+      probes.push({ ip: m[1], rtt: m[2] });
+      found = true;
+    }
+    if (!found && /\*/.test(rest)) {
+      probes.push({ ip: '*', rtt: '*' });
+    }
+
+    hops.push({ hop: hopNum, probes });
   }
 
-  const results: Array<{
+  const failed = code !== null && code !== 0 && hops.length === 0;
+
+  return {
+    host,
+    maxHops,
+    hops,
+    hopCount: hops.length,
+    rawOutput: stdout || stderr,
+    error: failed ? (stderr || `traceroute exited with code ${code}`) : undefined,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool: DNS LOOKUP
+// ═══════════════════════════════════════════════════════════════════
+
+async function handleDnsLookup(
+  hostname: string,
+  type: string,
+  server?: string,
+) {
+  const recordType = type.toUpperCase();
+  if (!VALID_DNS_TYPES.has(recordType)) {
+    return {
+      hostname,
+      type: recordType,
+      records: [],
+      error: `Invalid DNS record type. Valid: ${Array.from(VALID_DNS_TYPES).join(', ')}`,
+    };
+  }
+
+  const resolver = server ? new dns.Resolver() : dns.promises;
+  if (server) {
+    try {
+      resolver.setServers([server]);
+    } catch {
+      return { hostname, type: recordType, records: [], error: `Invalid DNS server: ${server}` };
+    }
+  }
+
+  try {
+    let records: unknown;
+    switch (recordType) {
+      case 'A':
+        records = await (resolver as dns.Resolver).resolve4(hostname);
+        break;
+      case 'AAAA':
+        records = await (resolver as dns.Resolver).resolve6(hostname);
+        break;
+      case 'CNAME':
+        records = await (resolver as dns.Resolver).resolveCname(hostname);
+        break;
+      case 'MX':
+        records = await (resolver as dns.Resolver).resolveMx(hostname);
+        break;
+      case 'NS':
+        records = await (resolver as dns.Resolver).resolveNs(hostname);
+        break;
+      case 'TXT':
+        records = await (resolver as dns.Resolver).resolveTxt(hostname);
+        break;
+      case 'SOA':
+        records = await (resolver as dns.Resolver).resolveSoa(hostname);
+        break;
+    }
+
+    return {
+      hostname,
+      type: recordType,
+      records,
+      server: server || 'system default',
+      count: Array.isArray(records) ? records.length : 1,
+    };
+  } catch (err: unknown) {
+    return {
+      hostname,
+      type: recordType,
+      records: [],
+      error: err instanceof Error ? err.message : 'DNS lookup failed',
+      server: server || 'system default',
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool: ARP TABLE — reads /proc/net/arp directly (no shell)
+// ═══════════════════════════════════════════════════════════════════
+
+async function handleArpTable(search?: string) {
+  try {
+    const content = await fs.promises.readFile('/proc/net/arp', 'utf-8');
+    const lines = content.trim().split('\n');
+    const entries: Array<{
+      ip: string;
+      hwType: string;
+      flags: string;
+      mac: string;
+      mask: string;
+      device: string;
+    }> = [];
+
+    // Skip header line (line 0)
+    for (let i = 1; i < lines.length; i++) {
+      const parts = lines[i].trim().split(/\s+/);
+      if (parts.length >= 6) {
+        const entry = {
+          ip: parts[0],
+          hwType: parts[1],
+          flags: parts[2],
+          mac: parts[3],
+          mask: parts[4],
+          device: parts[5],
+        };
+        if (
+          !search ||
+          entry.ip.includes(search) ||
+          entry.mac.toLowerCase().includes(search.toLowerCase()) ||
+          entry.device.toLowerCase().includes(search.toLowerCase())
+        ) {
+          entries.push(entry);
+        }
+      }
+    }
+
+    return { entries, total: entries.length };
+  } catch (err: unknown) {
+    return {
+      entries: [],
+      total: 0,
+      error: err instanceof Error ? err.message : 'Failed to read ARP table',
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool: NETWORK SCAN — uses fping (fast) with fallback
+// ═══════════════════════════════════════════════════════════════════
+
+async function handleNetworkScan(subnet: string, timeoutSec: number) {
+  const { stdout, code } = await execSafe(
+    'fping',
+    ['-a', '-g', subnet, '-t', String(timeoutSec * 1000)],
+    120_000,
+  );
+
+  if (code !== null && code !== 0) {
+    return {
+      subnet,
+      aliveHosts: [],
+      totalFound: 0,
+      method: 'none',
+      error:
+        'fping not available or scan failed. Install fping for network scanning: apt install fping',
+    };
+  }
+
+  const hosts = stdout.trim().split('\n').filter(Boolean).map((h) => h.trim());
+  return { subnet, aliveHosts: hosts, totalFound: hosts.length, method: 'fping' };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool: PACKET CAPTURE — uses tcpdump (execFile, no shell)
+// ═══════════════════════════════════════════════════════════════════
+
+async function handlePacketCapture(
+  iface: string,
+  filter: string,
+  durationSec: number,
+  count: number,
+) {
+  if (!IFACE_REGEX.test(iface)) {
+    return { interface: iface, packets: [], totalCaptured: 0, error: 'Invalid interface name' };
+  }
+  if (filter && !BPF_FILTER_REGEX.test(filter)) {
+    return { interface: iface, packets: [], totalCaptured: 0, error: 'Invalid capture filter' };
+  }
+
+  const args = ['-i', iface, '-c', String(count), '-nn', '-tt'];
+  if (filter) args.push(filter);
+
+  const { stdout, stderr, code } = await execSafe('tcpdump', args, (durationSec + 5) * 1000);
+
+  const packets = stdout.trim().split('\n').filter(Boolean);
+  const failed = code !== null && code !== 0 && packets.length === 0;
+
+  return {
+    interface: iface,
+    filter: filter || 'none',
+    packets,
+    totalCaptured: packets.length,
+    rawOutput: stdout,
+    error: failed ? (stderr || 'tcpdump failed to capture packets') : undefined,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool: SPEED TEST — downloads a known-size file, measures throughput
+// ═══════════════════════════════════════════════════════════════════
+
+async function handleSpeedTest() {
+  const testUrls = [
+    'http://speedtest.tele2.net/1MB.zip',
+    'https://proof.ovh.net/files/1Mb.dat',
+  ];
+
+  for (const url of testUrls) {
+    try {
+      const start = Date.now();
+      const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+      if (!response.ok) continue;
+
+      const reader = response.body?.getReader();
+      if (!reader) continue;
+
+      let totalBytes = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        totalBytes += value.length;
+      }
+
+      const durationSec = (Date.now() - start) / 1000;
+      const bps = (totalBytes * 8) / durationSec;
+
+      return {
+        download: {
+          bitsPerSecond: Math.round(bps),
+          megabitsPerSecond: parseFloat((bps / 1_000_000).toFixed(2)),
+          totalBytes,
+          totalMB: parseFloat((totalBytes / 1_048_576).toFixed(2)),
+          durationSeconds: parseFloat(durationSec.toFixed(2)),
+        },
+        server: url,
+      };
+    } catch {
+      continue;
+    }
+  }
+
+  return { download: null, error: 'All speed test servers are currently unavailable' };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool: PORT CHECK — TCP connect via Node.js net module (no shell)
+// ═══════════════════════════════════════════════════════════════════
+
+async function handlePortCheck(host: string, port: number, timeoutSec: number) {
+  return new Promise<{
     host: string;
     port: number;
     status: 'open' | 'closed' | 'timeout';
     latency_ms: number;
-  }> = [];
+  }>((resolve) => {
+    const start = process.hrtime.bigint();
+    const timer = setTimeout(() => {
+      socket.destroy();
+      const ms = Number(process.hrtime.bigint() - start) / 1e6;
+      resolve({ host, port, status: 'timeout', latency_ms: Math.round(ms) });
+    }, timeoutSec * 1000);
 
-  // Check localhost first
-  for (const port of defaultPorts) {
-    results.push({ host: 'localhost', ...(await checkPort('127.0.0.1', port)) });
-  }
+    const socket = net.createConnection({ host, port }, () => {
+      const ms = Number(process.hrtime.bigint() - start) / 1e6;
+      clearTimeout(timer);
+      socket.destroy();
+      resolve({ host, port, status: 'open', latency_ms: Math.round(ms) });
+    });
 
-  // Check NAS IPs on primary ports
-  for (const ip of nasIps) {
-    for (const port of [1812, 1813]) {
-      results.push({ host: ip, ...(await checkPort(ip, port)) });
-    }
-  }
-
-  return { ports: results };
-}
-
-async function handleDatabaseCheck() {
-  const [radcheck, nas, radacct, radpostauth, dbSize] = await Promise.all([
-    db.$queryRawUnsafe<{ count: string }[]>(
-      'SELECT COUNT(*)::text AS count FROM radcheck',
-    ).then((r) => ({ table: 'radcheck', count: parseInt(r[0]?.count ?? '0', 10) })),
-
-    db.$queryRawUnsafe<{ count: string }[]>(
-      'SELECT COUNT(*)::text AS count FROM nas',
-    ).then((r) => ({ table: 'nas', count: parseInt(r[0]?.count ?? '0', 10) })),
-
-    db.$queryRawUnsafe<{ count: string }[]>(
-      'SELECT COUNT(*)::text AS count FROM radacct',
-    ).then((r) => ({ table: 'radacct', count: parseInt(r[0]?.count ?? '0', 10) })),
-
-    db.$queryRawUnsafe<{ count: string }[]>(
-      'SELECT COUNT(*)::text AS count FROM radpostauth',
-    ).then((r) => ({ table: 'radpostauth', count: parseInt(r[0]?.count ?? '0', 10) })),
-
-    db.$queryRawUnsafe<{ pg_size_pretty: string }[]>(
-      'SELECT pg_size_pretty(pg_database_size(current_database())) AS pg_size_pretty',
-    ).then((r) => r[0]?.pg_size_pretty ?? 'unknown'),
-  ]);
-
-  return {
-    connected: true,
-    databaseSize: dbSize,
-    tables: [radcheck, nas, radacct, radpostauth],
-  };
-}
-
-async function handleDnsResolve(hostname?: string) {
-  if (hostname) {
-    try {
-      const addresses = await dns.promises.resolve4(hostname);
-      return { hostname, addresses };
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : 'DNS resolution failed';
-      return { hostname, addresses: [], error: message };
-    }
-  }
-
-  // No hostname — resolve all NAS IPs from the database
-  try {
-    const rows = await db.$queryRawUnsafe<{
-      nasname: string;
-      nasipaddress: string;
-    }[]>(
-      'SELECT nasname, nasipaddress FROM nas WHERE nasname IS NOT NULL LIMIT 50',
-    );
-
-    const results: Array<{
-      nasname: string;
-      nasipaddress: string;
-      addresses: string[];
-      error?: string;
-    }> = [];
-
-    await Promise.all(
-      rows.map(async (row) => {
-        try {
-          const addresses = await dns.promises.resolve4(row.nasname);
-          results.push({
-            nasname: row.nasname,
-            nasipaddress: row.nasipaddress,
-            addresses,
-          });
-        } catch (err: unknown) {
-          const message =
-            err instanceof Error ? err.message : 'DNS resolution failed';
-          results.push({
-            nasname: row.nasname,
-            nasipaddress: row.nasipaddress,
-            addresses: [],
-            error: message,
-          });
-        }
-      }),
-    );
-
-    return { resolved: results };
-  } catch {
-    return { resolved: [], error: 'Failed to query NAS records' };
-  }
-}
-
-async function handleSystemInfo() {
-  const configDir = '/etc/freeradius/3.0/';
-  let configDirExists = false;
-  let configFiles: string[] = [];
-
-  try {
-    configDirExists = fs.existsSync(configDir);
-    if (configDirExists) {
-      configFiles = fs.readdirSync(configDir);
-    }
-  } catch {
-    // Continue with defaults
-  }
-
-  return {
-    hostname: os.hostname(),
-    platform: `${os.type()} ${os.release()}`,
-    arch: os.arch(),
-    memory: {
-      totalBytes: os.totalmem(),
-      freeBytes: os.freemem(),
-      total: formatBytes(os.totalmem()),
-      free: formatBytes(os.freemem()),
-      used: formatBytes(os.totalmem() - os.freemem()),
-      utilizationPercent: Math.round(
-        ((os.totalmem() - os.freemem()) / os.totalmem()) * 100,
-      ),
-    },
-    uptime: {
-      systemUptimeSeconds: os.uptime(),
-      formatted: formatUptime(os.uptime()),
-    },
-    nodejs: {
-      version: process.version,
-      pid: process.pid,
-    },
-    freeradius: {
-      configDirectory: configDir,
-      configDirectoryExists: configDirExists,
-      configFileCount: configFiles.length,
-    },
-  };
-}
-
-async function handleNasPing() {
-  try {
-    const rows = await db.$queryRawUnsafe<{
-      nasname: string | null;
-      nasipaddress: string;
-    }[]>(
-      'SELECT nasname, nasipaddress FROM nas WHERE nasipaddress IS NOT NULL LIMIT 100',
-    );
-
-    const results: Array<{
-      nasIp: string;
-      nasName: string;
-      status: 'open' | 'closed' | 'timeout';
-      latency_ms: number;
-    }> = await Promise.all(
-      rows.map(async (row) => {
-        const check = await checkPort(row.nasipaddress, 1812, 2000);
-        return {
-          nasIp: row.nasipaddress,
-          nasName: row.nasname || row.nasipaddress,
-          status: check.status,
-          latency_ms: check.latency_ms,
-        };
-      }),
-    );
-
-    return { nas: results };
-  } catch {
-    return { nas: [], error: 'Failed to query NAS records' };
-  }
-}
-
-async function handleConfigCheck() {
-  const configFiles = [
-    '/etc/freeradius/3.0/radiusd.conf',
-    '/etc/freeradius/3.0/clients.conf',
-    '/etc/freeradius/3.0/mods-available/sql',
-    '/etc/freeradius/3.0/sites-available/default',
-  ];
-
-  const results: Array<{
-    path: string;
-    exists: boolean;
-    readable: boolean;
-    size?: number;
-  }> = configFiles.map((filePath) => {
-    try {
-      const exists = fs.existsSync(filePath);
-      let size: number | undefined;
-
-      if (exists) {
-        try {
-          const stat = fs.statSync(filePath);
-          size = stat.size;
-        } catch {
-          // size stays undefined
-        }
-      }
-
-      let readable = false;
-      if (exists) {
-        try {
-          fs.accessSync(filePath, fs.constants.R_OK);
-          readable = true;
-        } catch {
-          readable = false;
-        }
-      }
-
-      return { path: filePath, exists, readable, size };
-    } catch {
-      return { path: filePath, exists: false, readable: false };
-    }
+    socket.on('error', () => {
+      const ms = Number(process.hrtime.bigint() - start) / 1e6;
+      clearTimeout(timer);
+      socket.destroy();
+      resolve({ host, port, status: 'closed', latency_ms: Math.round(ms) });
+    });
   });
-
-  return { configs: results };
 }
 
-// ---------------------------------------------------------------------------
-// Utility formatters
-// ---------------------------------------------------------------------------
+// ═══════════════════════════════════════════════════════════════════
+// Tool: CONNECTION TABLE — reads /proc/net/nf_conntrack (no shell)
+// ═══════════════════════════════════════════════════════════════════
 
-function formatBytes(bytes: number): string {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let unitIndex = 0;
-  let value = bytes;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex++;
+async function handleConntrack(search?: string) {
+  // Try /proc/net/nf_conntrack first
+  try {
+    const content = await fs.promises.readFile('/proc/net/nf_conntrack', 'utf-8');
+    const lines = content.trim().split('\n');
+    const entries = search
+      ? lines.filter((l) => l.toLowerCase().includes(search.toLowerCase()))
+      : lines;
+    return { entries, total: entries.length, source: 'nf_conntrack' };
+  } catch {
+    // Fall back to conntrack CLI
+    const { stdout, code } = await execSafe('conntrack', ['-L'], 10_000);
+    if (code !== null && code !== 0) {
+      return {
+        entries: [],
+        total: 0,
+        error: 'Connection tracking table not available. nf_conntrack module may not be loaded.',
+      };
+    }
+    const lines = stdout.trim().split('\n');
+    const entries = search
+      ? lines.filter((l) => l.toLowerCase().includes(search.toLowerCase()))
+      : lines;
+    return { entries, total: entries.length, source: 'conntrack' };
   }
-
-  return `${value.toFixed(1)} ${units[unitIndex]}`;
 }
 
-function formatUptime(seconds: number): string {
-  const days = Math.floor(seconds / 86400);
-  const hours = Math.floor((seconds % 86400) / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
+// ═══════════════════════════════════════════════════════════════════
+// Main GET Handler
+// ═══════════════════════════════════════════════════════════════════
 
-  const parts: string[] = [];
-  if (days > 0) parts.push(`${days}d`);
-  if (hours > 0) parts.push(`${hours}h`);
-  parts.push(`${minutes}m`);
-
-  return parts.join(' ');
-}
-
-// ---------------------------------------------------------------------------
-// Main GET handler
-// ---------------------------------------------------------------------------
-
-type DiagnosticsAction =
-  | 'service-health'
-  | 'port-check'
-  | 'database-check'
-  | 'dns-resolve'
-  | 'system-info'
-  | 'nas-ping'
-  | 'config-check';
-
-const VALID_ACTIONS = new Set<string>([
-  'service-health',
+const VALID_ACTIONS = new Set([
+  'ping',
+  'traceroute',
+  'dns-lookup',
+  'arp-table',
+  'network-scan',
+  'packet-capture',
+  'speed-test',
   'port-check',
-  'database-check',
-  'dns-resolve',
-  'system-info',
-  'nas-ping',
-  'config-check',
+  'conntrack',
 ]);
 
 export async function GET(request: NextRequest) {
-  // --- Auth & authorisation ---------------------------------------------------
+  // ── Auth ────────────────────────────────────────────────────────────
   const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
-  // --- Parse action -----------------------------------------------------------
+  // ── Rate limit ──────────────────────────────────────────────────────
+  if (!checkRateLimit(user.id)) {
+    return NextResponse.json(
+      { success: false, error: 'Rate limit exceeded. Max 30 requests per minute.' },
+      { status: 429 },
+    );
+  }
+
+  // ── Parse action ────────────────────────────────────────────────────
   const { searchParams } = new URL(request.url);
-  const action = searchParams.get('action') as DiagnosticsAction | null;
+  const action = searchParams.get('action');
 
   if (!action || !VALID_ACTIONS.has(action)) {
     return NextResponse.json(
       {
         success: false,
-        error: `Invalid or missing action parameter. Valid actions: ${Array.from(VALID_ACTIONS).join(', ')}`,
+        error: `Invalid action. Valid: ${Array.from(VALID_ACTIONS).join(', ')}`,
       },
       { status: 400 },
     );
   }
 
-  // --- Dispatch ---------------------------------------------------------------
+  // ── Dispatch ────────────────────────────────────────────────────────
   try {
-    let data: unknown;
     const startTime = Date.now();
+    let data: unknown;
 
     switch (action) {
-      case 'service-health':
-        data = await handleServiceHealth();
-        break;
-
-      case 'port-check':
-        data = await handlePortCheck();
-        break;
-
-      case 'database-check':
-        data = await handleDatabaseCheck();
-        break;
-
-      case 'dns-resolve': {
-        const hostname = searchParams.get('hostname') || undefined;
-        data = await handleDnsResolve(hostname);
+      // ── PING ────────────────────────────────────────────────────
+      case 'ping': {
+        const host = searchParams.get('host');
+        if (!host || !isValidHost(host)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid or missing host (IP or hostname)' },
+            { status: 400 },
+          );
+        }
+        const count = clampInt(searchParams.get('count'), 1, 50, 4);
+        const timeout = clampInt(searchParams.get('timeout'), 1, 30, 5);
+        data = await handlePing(host, count, timeout);
         break;
       }
 
-      case 'system-info':
-        data = await handleSystemInfo();
+      // ── TRACEROUTE ──────────────────────────────────────────────
+      case 'traceroute': {
+        const host = searchParams.get('host');
+        if (!host || !isValidHost(host)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid or missing host (IP or hostname)' },
+            { status: 400 },
+          );
+        }
+        const maxHops = clampInt(searchParams.get('maxHops'), 1, 64, 30);
+        const timeout = clampInt(searchParams.get('timeout'), 1, 30, 5);
+        data = await handleTraceroute(host, maxHops, timeout);
         break;
+      }
 
-      case 'nas-ping':
-        data = await handleNasPing();
+      // ── DNS LOOKUP ──────────────────────────────────────────────
+      case 'dns-lookup': {
+        const hostname = searchParams.get('hostname');
+        if (!hostname || !isValidHost(hostname)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid or missing hostname' },
+            { status: 400 },
+          );
+        }
+        const type = searchParams.get('type') || 'A';
+        const server = searchParams.get('server') || undefined;
+        if (server && !isValidIp(server)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid DNS server (must be an IPv4 address)' },
+            { status: 400 },
+          );
+        }
+        data = await handleDnsLookup(hostname, type, server);
         break;
+      }
 
-      case 'config-check':
-        data = await handleConfigCheck();
+      // ── ARP TABLE ───────────────────────────────────────────────
+      case 'arp-table': {
+        const search = searchParams.get('search') || undefined;
+        data = await handleArpTable(search);
         break;
+      }
 
-      default: {
-        const _exhaustive: never = action;
-        return NextResponse.json(
-          { success: false, error: 'Unhandled action' },
-          { status: 500 },
-        );
+      // ── NETWORK SCAN ────────────────────────────────────────────
+      case 'network-scan': {
+        const subnet = searchParams.get('subnet');
+        if (!subnet || !isValidSubnet(subnet)) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Invalid or missing subnet (use CIDR, e.g. 192.168.1.0/24)',
+            },
+            { status: 400 },
+          );
+        }
+        const timeout = clampInt(searchParams.get('timeout'), 1, 10, 2);
+        data = await handleNetworkScan(subnet, timeout);
+        break;
+      }
+
+      // ── PACKET CAPTURE ──────────────────────────────────────────
+      case 'packet-capture': {
+        const iface = searchParams.get('interface') || 'any';
+        const filter = searchParams.get('filter') || '';
+        const duration = clampInt(searchParams.get('duration'), 1, 60, 10);
+        const pktCount = clampInt(searchParams.get('count'), 1, 1000, 100);
+        if (!IFACE_REGEX.test(iface)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid interface name' },
+            { status: 400 },
+          );
+        }
+        if (filter && !BPF_FILTER_REGEX.test(filter)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid capture filter expression' },
+            { status: 400 },
+          );
+        }
+        data = await handlePacketCapture(iface, filter, duration, pktCount);
+        break;
+      }
+
+      // ── SPEED TEST ──────────────────────────────────────────────
+      case 'speed-test': {
+        data = await handleSpeedTest();
+        break;
+      }
+
+      // ── PORT CHECK ──────────────────────────────────────────────
+      case 'port-check': {
+        const host = searchParams.get('host');
+        const port = parseInt(searchParams.get('port') || '0', 10);
+        if (!host || !isValidHost(host)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid or missing host (IP or hostname)' },
+            { status: 400 },
+          );
+        }
+        if (!isValidPort(port)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid or missing port (1-65535)' },
+            { status: 400 },
+          );
+        }
+        const timeout = clampInt(searchParams.get('timeout'), 1, 10, 3);
+        data = await handlePortCheck(host, port, timeout);
+        break;
+      }
+
+      // ── CONNTRACK ───────────────────────────────────────────────
+      case 'conntrack': {
+        const search = searchParams.get('search') || undefined;
+        data = await handleConntrack(search);
+        break;
       }
     }
 
@@ -511,11 +731,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (err: unknown) {
     console.error(`[diagnostics] Error on action=${action}:`, err);
-    const message =
-      err instanceof Error ? err.message : 'An unexpected error occurred';
-    return NextResponse.json(
-      { success: false, error: message, action },
-      { status: 500 },
-    );
+    const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+    return NextResponse.json({ success: false, error: message, action }, { status: 500 });
   }
 }
