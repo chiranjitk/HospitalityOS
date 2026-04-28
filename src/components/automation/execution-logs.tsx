@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +13,7 @@ import {
   Calendar, Zap, ChevronRight, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { SectionGuard } from '@/components/common/section-guard';
 
 interface ExecutionLog {
   id: string;
@@ -51,42 +52,48 @@ export default function ExecutionLogs() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [selectedLog, setSelectedLog] = useState<ExecutionLog | null>(null);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const pageSize = 50;
 
-  useEffect(() => {
-    fetchLogs();
-  }, [statusFilter, dateFilter]);
-
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async (reset = false) => {
     try {
-      setLoading(true);
+      setLoading(reset);
+      if (reset) setPage(0);
       
       const params = new URLSearchParams();
       if (statusFilter !== 'all') {
         params.append('status', statusFilter);
       }
       
-      // Apply date filter
+      // Apply date filter — use fresh Date objects to avoid mutation
       const now = new Date();
       if (dateFilter === 'today') {
-        params.append('startDate', new Date(now.setHours(0, 0, 0, 0)).toISOString());
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        params.append('startDate', todayStart.toISOString());
       } else if (dateFilter === 'week') {
-        const weekAgo = new Date();
+        const weekAgo = new Date(now);
         weekAgo.setDate(weekAgo.getDate() - 7);
         params.append('startDate', weekAgo.toISOString());
       } else if (dateFilter === 'month') {
-        const monthAgo = new Date();
+        const monthAgo = new Date(now);
         monthAgo.setMonth(monthAgo.getMonth() - 1);
         params.append('startDate', monthAgo.toISOString());
       }
 
+      params.append('limit', String(pageSize));
+      params.append('offset', String(reset ? 0 : page * pageSize));
+
       const response = await fetch(`/api/automation/execution-logs?${params}`);
+      if (!response.ok) throw new Error('Request failed');
       const data = await response.json();
 
       if (data.success) {
-        setLogs(data.data.logs);
+        const newLogs = data.data.logs || [];
+        setLogs(reset ? newLogs : (prev) => [...prev, ...newLogs]);
         setStats(data.data.stats);
+        setHasMore(newLogs.length === pageSize);
       } else {
-        // If no data from API, show empty state
         setLogs([]);
         setStats({
           totalExecutions: 0,
@@ -99,11 +106,17 @@ export default function ExecutionLogs() {
     } catch (error) {
       console.error('Error fetching logs:', error);
       toast.error('Failed to fetch execution logs');
-      setLogs([]);
+      if (reset) setLogs([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, dateFilter, page]);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    fetchLogs(true);
+  }, [statusFilter, dateFilter]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -143,6 +156,7 @@ export default function ExecutionLogs() {
   };
 
   return (
+    <SectionGuard permission="automation.view">
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-2">
@@ -238,13 +252,13 @@ export default function ExecutionLogs() {
             <SelectItem value="month">This Month</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" size="icon" onClick={fetchLogs}>
+        <Button variant="outline" size="icon" onClick={() => fetchLogs(true)}>
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </Button>
       </div>
 
       {/* Loading State */}
-      {loading ? (
+      {loading && logs.length === 0 ? (
         <div className="flex justify-center py-8">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -301,6 +315,26 @@ export default function ExecutionLogs() {
                     </div>
                   </div>
                 ))}
+
+                {/* Load More */}
+                {hasMore && (
+                  <div className="flex justify-center py-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => { setPage(prev => prev + 1); fetchLogs(false); }}
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        'Load More'
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             </ScrollArea>
           </CardContent>
@@ -356,7 +390,7 @@ export default function ExecutionLogs() {
                   <div className="p-3 bg-emerald-50 dark:bg-emerald-950 rounded-lg text-sm font-mono overflow-x-auto">
                     {(() => {
                       try {
-                        return <pre>{JSON.stringify(JSON.parse(selectedLog.actionsResult), null, 2)}</pre>;
+                        return <pre>{JSON.stringify(JSON.parse(selectedLog.actionsResult!), null, 2)}</pre>;
                       } catch {
                         return <pre>{selectedLog.actionsResult}</pre>;
                       }
@@ -387,5 +421,6 @@ export default function ExecutionLogs() {
         </DialogContent>
       </Dialog>
     </div>
+    </SectionGuard>
   );
 }

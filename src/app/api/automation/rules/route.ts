@@ -62,40 +62,34 @@ export async function GET(request: NextRequest) {
       db.automationRule.count({ where }),
     ]);
 
-    // Get execution stats
-    const allRules = await db.automationRule.findMany({
-      where: { tenantId },
-      select: {
-        isActive: true,
-        executionCount: true,
-        lastExecutedAt: true,
-      },
-    });
+    // Get execution stats via aggregation
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    const recentLogs = await db.automationExecutionLog.findMany({
-      where: {
-        rule: { tenantId },
-      },
-      orderBy: { executedAt: 'desc' },
-      take: 100,
-      select: { status: true },
-    });
-
-    const stats = {
-      totalRules: allRules.length,
-      activeRules: allRules.filter((r) => r.isActive).length,
-      totalExecutions: allRules.reduce((acc, r) => acc + r.executionCount, 0),
-      successRate: recentLogs.length > 0 
-        ? Math.round((recentLogs.filter((l) => l.status === 'success').length / recentLogs.length) * 100)
-        : 0,
-      executionsToday: await db.automationExecutionLog.count({
-        where: {
-          rule: { tenantId },
-          executedAt: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-          },
-        },
+    const [totalRulesCount, activeRulesCount, totalExecutions, recentSuccessCount, executionsToday] = await Promise.all([
+      db.automationRule.count({ where: { tenantId } }),
+      db.automationRule.count({ where: { tenantId, isActive: true } }),
+      db.automationRule.aggregate({
+        where: { tenantId },
+        _sum: { executionCount: true },
+      }).then(r => r._sum.executionCount || 0),
+      db.automationExecutionLog.count({
+        where: { rule: { tenantId }, status: 'success' },
       }),
+      db.automationExecutionLog.count({
+        where: { rule: { tenantId }, executedAt: { gte: today } },
+      }),
+    ]);
+
+    const recentTotal = Math.min(totalExecutions, 100);
+    const stats = {
+      totalRules: totalRulesCount,
+      activeRules: activeRulesCount,
+      totalExecutions,
+      successRate: recentTotal > 0
+        ? Math.round((recentSuccessCount / recentTotal) * 100)
+        : 0,
+      executionsToday,
     };
 
     // Get available trigger events
@@ -177,6 +171,21 @@ export async function POST(request: NextRequest) {
     if (!name || !triggerEvent || !actions) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Name, trigger event, and actions are required' } },
+        { status: 400 }
+      );
+    }
+
+    // Validate field lengths
+    if (name.length > 200) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Name must be 200 characters or less' } },
+        { status: 400 }
+      );
+    }
+
+    if (description && description.length > 2000) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Description must be 2000 characters or less' } },
         { status: 400 }
       );
     }

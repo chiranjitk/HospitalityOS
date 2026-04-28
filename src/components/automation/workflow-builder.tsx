@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,13 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { 
-  Zap, Plus, ArrowRight, Play, Pause, Trash2, Settings, 
-  Mail, MessageSquare, Bell, Tag, Calendar, User, Building,
-  ChevronDown, ChevronUp, Copy, Save, X, Check
+  Zap, Plus, ArrowRight, Play, Trash2, Settings, 
+  Mail, MessageSquare, Bell, Tag, Calendar, User, 
+  ChevronDown, ChevronUp, Copy, Save, X, Check, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { SectionGuard } from '@/components/common/section-guard';
 
 interface WorkflowNode {
   id: string;
@@ -62,6 +62,14 @@ const conditionOptions = [
   { value: 'room_type', label: 'Room Type' },
 ];
 
+function safeJsonParse(text: string, fallback: unknown = []): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return fallback;
+  }
+}
+
 export default function WorkflowBuilder() {
   const [workflow, setWorkflow] = useState<Workflow>({
     name: '',
@@ -72,6 +80,7 @@ export default function WorkflowBuilder() {
   });
   const [savedWorkflows, setSavedWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [selectedNode, setSelectedNode] = useState<WorkflowNode | null>(null);
   const [nodeDialogOpen, setNodeDialogOpen] = useState(false);
   const [nodeType, setNodeType] = useState<'trigger' | 'condition' | 'action'>('trigger');
@@ -82,14 +91,11 @@ export default function WorkflowBuilder() {
     config: {} as Record<string, unknown>,
   });
 
-  useEffect(() => {
-    fetchWorkflows();
-  }, []);
-
-  const fetchWorkflows = async () => {
+  const fetchWorkflows = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch('/api/automation/rules');
+      if (!response.ok) throw new Error('Request failed');
       const data = await response.json();
 
       if (data.success) {
@@ -101,39 +107,52 @@ export default function WorkflowBuilder() {
           triggerEvent: string;
           actions: string;
           isActive: boolean;
-        }) => ({
-          id: rule.id,
-          name: rule.name,
-          description: rule.description || '',
-          isActive: rule.isActive,
-          nodes: [
-            {
-              id: 'trigger-1',
-              type: 'trigger',
-              name: rule.triggerEvent,
-              config: { event: rule.triggerEvent },
-              position: { x: 0, y: 0 },
-            },
-            ...JSON.parse(rule.actions).map((action: { type: string; config: Record<string, unknown> }, i: number) => ({
-              id: `action-${i + 1}`,
-              type: 'action' as const,
-              name: action.type,
-              config: action.config || {},
-              position: { x: 0, y: (i + 1) * 100 },
-            })),
-          ],
-          edges: (() => {
-            const edges: { from: string; to: string }[] = [];
-            const allNodes = [
-              { id: 'trigger-1' },
-              ...JSON.parse(rule.actions).map((_: unknown, i: number) => ({ id: `action-${i + 1}` })),
-            ];
-            for (let i = 0; i < allNodes.length - 1; i++) {
-              edges.push({ from: allNodes[i].id, to: allNodes[i + 1].id });
-            }
-            return edges;
-          })(),
-        }));
+        }) => {
+          const parsedActions = safeJsonParse(rule.actions, []);
+          if (!Array.isArray(parsedActions)) {
+            return {
+              id: rule.id,
+              name: rule.name,
+              description: rule.description || '',
+              isActive: rule.isActive,
+              nodes: [],
+              edges: [],
+            };
+          }
+          return {
+            id: rule.id,
+            name: rule.name,
+            description: rule.description || '',
+            isActive: rule.isActive,
+            nodes: [
+              {
+                id: 'trigger-1',
+                type: 'trigger' as const,
+                name: rule.triggerEvent,
+                config: { event: rule.triggerEvent },
+                position: { x: 0, y: 0 },
+              },
+              ...parsedActions.map((action: { type: string; config: Record<string, unknown> }, i: number) => ({
+                id: `action-${i + 1}`,
+                type: 'action' as const,
+                name: action.type,
+                config: action.config || {},
+                position: { x: 0, y: (i + 1) * 100 },
+              })),
+            ],
+            edges: (() => {
+              const edges: { from: string; to: string }[] = [];
+              const allNodes = [
+                { id: 'trigger-1' },
+                ...parsedActions.map((_: unknown, i: number) => ({ id: `action-${i + 1}` })),
+              ];
+              for (let i = 0; i < allNodes.length - 1; i++) {
+                edges.push({ from: allNodes[i].id, to: allNodes[i + 1].id });
+              }
+              return edges;
+            })(),
+          };
+        });
 
         setSavedWorkflows(workflows);
       }
@@ -143,7 +162,17 @@ export default function WorkflowBuilder() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  const [initialFetchDone, setInitialFetchDone] = useState(false);
+  useEffect(() => {
+    if (!initialFetchDone) {
+      setInitialFetchDone(true);
+      fetchWorkflows();
+    }
+  }, [initialFetchDone, fetchWorkflows]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const createNewWorkflow = () => {
     setWorkflow({
@@ -211,21 +240,21 @@ export default function WorkflowBuilder() {
       return;
     }
 
+    const triggerNode = workflow.nodes.find(n => n.type === 'trigger');
+    const actionNodes = workflow.nodes.filter(n => n.type === 'action');
+
+    if (!triggerNode) {
+      toast.error('Workflow must have a trigger');
+      return;
+    }
+
+    if (actionNodes.length === 0) {
+      toast.error('Workflow must have at least one action');
+      return;
+    }
+
+    setSaving(true);
     try {
-      // Extract trigger and actions
-      const triggerNode = workflow.nodes.find(n => n.type === 'trigger');
-      const actionNodes = workflow.nodes.filter(n => n.type === 'action');
-
-      if (!triggerNode) {
-        toast.error('Workflow must have a trigger');
-        return;
-      }
-
-      if (actionNodes.length === 0) {
-        toast.error('Workflow must have at least one action');
-        return;
-      }
-
       // Extract condition nodes and serialize them
       const conditionNodes = workflow.nodes.filter(n => n.type === 'condition');
 
@@ -246,16 +275,16 @@ export default function WorkflowBuilder() {
         isActive: workflow.isActive,
       };
 
-      const url = workflow.id ? '/api/automation/rules' : '/api/automation/rules';
       const method = workflow.id ? 'PUT' : 'POST';
       const body = workflow.id ? { ...payload, id: workflow.id } : payload;
 
-      const response = await fetch(url, {
+      const response = await fetch('/api/automation/rules', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
+      if (!response.ok) throw new Error('Request failed');
       const data = await response.json();
 
       if (data.success) {
@@ -263,11 +292,13 @@ export default function WorkflowBuilder() {
         fetchWorkflows();
         createNewWorkflow();
       } else {
-        toast.error(data.error.message);
+        toast.error(data.error?.message || data.message || 'Failed to save workflow');
       }
     } catch (error) {
       console.error('Error saving workflow:', error);
       toast.error('Failed to save workflow');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -291,6 +322,7 @@ export default function WorkflowBuilder() {
   };
 
   return (
+    <SectionGuard permission="automation.view">
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-2">
@@ -316,7 +348,7 @@ export default function WorkflowBuilder() {
             <ScrollArea className="h-[400px]">
               {loading ? (
                 <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600" />
+                  <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
                 </div>
               ) : savedWorkflows.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
@@ -371,11 +403,15 @@ export default function WorkflowBuilder() {
                 />
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={createNewWorkflow}>
-                  <Trash2 className="h-4 w-4" />
+                <Button variant="outline" size="sm" onClick={createNewWorkflow} title="Clear canvas">
+                  <Plus className="h-4 w-4" />
                 </Button>
-                <Button size="sm" onClick={saveWorkflow} className="bg-emerald-600 hover:bg-emerald-700">
-                  <Save className="h-4 w-4 mr-1" />
+                <Button size="sm" onClick={saveWorkflow} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-1" />
+                  )}
                   Save
                 </Button>
               </div>
@@ -418,6 +454,7 @@ export default function WorkflowBuilder() {
                                 <p className="font-medium">
                                   {triggerOptions.find(t => t.value === node.name)?.label ||
                                    actionOptions.find(a => a.value === node.name)?.label ||
+                                   conditionOptions.find(c => c.value === node.name)?.label ||
                                    node.name}
                                 </p>
                               </div>
@@ -516,7 +553,7 @@ export default function WorkflowBuilder() {
                   <SelectValue placeholder={`Choose a ${nodeType}`} />
                 </SelectTrigger>
                 <SelectContent>
-                  {(nodeType === 'trigger' ? triggerOptions : actionOptions).map((option) => (
+                  {(nodeType === 'trigger' ? triggerOptions : nodeType === 'condition' ? conditionOptions.map(c => ({ value: c.value, label: c.label, icon: Settings })) : actionOptions).map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       <div className="flex items-center gap-2">
                         <option.icon className="h-4 w-4" />
@@ -566,5 +603,6 @@ export default function WorkflowBuilder() {
         </DialogContent>
       </Dialog>
     </div>
+    </SectionGuard>
   );
 }

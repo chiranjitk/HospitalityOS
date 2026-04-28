@@ -11,9 +11,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { 
   Zap, Mail, MessageSquare, Bell, Star, Calendar, 
-  User, Gift, Clock, AlertTriangle, CheckCircle, Copy
+  User, Gift, Clock, AlertTriangle, CheckCircle, Copy, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { SectionGuard } from '@/components/common/section-guard';
 
 interface Template {
   id: string;
@@ -187,6 +188,7 @@ export default function Templates() {
   const [customizeDialogOpen, setCustomizeDialogOpen] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customDescription, setCustomDescription] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
   const filteredTemplates = selectedCategory === 'All'
     ? templates
@@ -200,8 +202,12 @@ export default function Templates() {
   };
 
   const handleCreateFromTemplate = async () => {
-    if (!selectedTemplate) return;
+    if (!selectedTemplate || !customName.trim()) {
+      toast.error('Please enter a name for the automation');
+      return;
+    }
 
+    setIsCreating(true);
     try {
       const response = await fetch('/api/automation/rules', {
         method: 'POST',
@@ -218,17 +224,21 @@ export default function Templates() {
         }),
       });
 
+      if (!response.ok) throw new Error('Request failed');
       const data = await response.json();
 
       if (data.success) {
         toast.success('Automation created from template');
         setCustomizeDialogOpen(false);
       } else {
-        toast.error(data.error.message);
+        const msg = data.error?.message || data.message || 'Failed to create automation';
+        toast.error(msg);
       }
     } catch (error) {
       console.error('Error creating from template:', error);
       toast.error('Failed to create automation');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -245,6 +255,7 @@ export default function Templates() {
   };
 
   return (
+    <SectionGuard permission="automation.view">
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-2">
@@ -269,71 +280,84 @@ export default function Templates() {
         ))}
       </div>
 
-      {/* Templates Grid */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        {filteredTemplates.map((template) => (
-          <Card key={template.id} className="hover:shadow-md transition-shadow relative">
-            {template.popular && (
-              <div className="absolute top-2 right-2">
-                <Badge className="bg-amber-500 text-white">Popular</Badge>
-              </div>
-            )}
-            {template.premium && (
-              <div className="absolute top-2 right-2">
-                <Badge className="bg-purple-500 text-white">Premium</Badge>
-              </div>
-            )}
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-emerald-100 dark:bg-emerald-900 p-2">
-                  {template.icon}
+      {/* Templates Grid or Empty State */}
+      {filteredTemplates.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Zap className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No templates found</h3>
+            <p className="text-muted-foreground">
+              Try selecting a different category
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          {filteredTemplates.map((template) => (
+            <Card key={template.id} className="hover:shadow-md transition-shadow relative">
+              {/* Badges - show both popular and premium if applicable */}
+              {(template.popular || template.premium) && (
+                <div className="absolute top-2 right-2 flex gap-1">
+                  {template.popular && (
+                    <Badge className="bg-amber-500 text-white text-xs">Popular</Badge>
+                  )}
+                  {template.premium && (
+                    <Badge className="bg-purple-500 text-white text-xs">Premium</Badge>
+                  )}
                 </div>
-                <div>
-                  <CardTitle className="text-lg">{template.name}</CardTitle>
-                  <Badge className={getCategoryColor(template.category)} variant="secondary">
-                    {template.category}
-                  </Badge>
+              )}
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-emerald-100 dark:bg-emerald-900 p-2">
+                    {template.icon}
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">{template.name}</CardTitle>
+                    <Badge className={getCategoryColor(template.category)} variant="secondary">
+                      {template.category}
+                    </Badge>
+                  </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <CardDescription className="text-sm">
-                {template.description}
-              </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <CardDescription className="text-sm">
+                  {template.description}
+                </CardDescription>
 
-              <Separator />
+                <Separator />
 
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Trigger:</p>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Zap className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-                  {template.trigger.replace(/_/g, ' ').replace(/\./g, ' - ')}
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Trigger:</p>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Zap className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                    {template.trigger.replace(/_/g, ' ').replace(/\./g, ' - ')}
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Actions:</p>
-                <div className="space-y-1">
-                  {template.actions.map((action, index) => (
-                    <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <CheckCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-                      {action.description}
-                    </div>
-                  ))}
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Actions:</p>
+                  <div className="space-y-1">
+                    {template.actions.map((action, index) => (
+                      <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <CheckCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                        {action.description}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              <Button
-                className="w-full bg-emerald-600 hover:bg-emerald-700"
-                onClick={() => handleUseTemplate(template)}
-              >
-                <Copy className="h-4 w-4 mr-2" />
-                Use Template
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                <Button
+                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                  onClick={() => handleUseTemplate(template)}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Use Template
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Customize Template Dialog */}
       <Dialog open={customizeDialogOpen} onOpenChange={setCustomizeDialogOpen}>
@@ -379,25 +403,20 @@ export default function Templates() {
             <Button variant="outline" onClick={() => setCustomizeDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateFromTemplate} className="bg-emerald-600 hover:bg-emerald-700">
-              Create Automation
+            <Button onClick={handleCreateFromTemplate} disabled={isCreating} className="bg-emerald-600 hover:bg-emerald-700">
+              {isCreating ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Automation'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Empty State */}
-      {filteredTemplates.length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Zap className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No templates found</h3>
-            <p className="text-muted-foreground">
-              Try selecting a different category
-            </p>
-          </CardContent>
-        </Card>
-      )}
     </div>
+    </SectionGuard>
   );
 }
