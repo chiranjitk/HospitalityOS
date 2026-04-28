@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { PaymentRequest } from '@/lib/payments/types';
 import { logPayment } from '@/lib/audit';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { notifyPaymentReceived, notifyPaymentFailed } from '@/lib/notify';
 
 // Helper function to generate transaction ID
 function generateTransactionId(): string {
@@ -325,6 +326,15 @@ export async function POST(request: NextRequest) {
           },
         });
 
+        notifyPaymentFailed({
+          tenantId,
+          userId: user.id,
+          amount,
+          currency,
+          method: method || gateway || 'unknown',
+          reason: paymentResult.errorMessage || paymentResult.errorCode || undefined,
+        });
+
         return NextResponse.json(
           {
             success: false,
@@ -447,6 +457,16 @@ export async function POST(request: NextRequest) {
     } catch (auditError) {
       console.error('Audit log failed (non-blocking):', auditError);
     }
+
+    notifyPaymentReceived({
+      tenantId: payment.tenantId,
+      userId: user.id,
+      amount: payment.amount,
+      currency: payment.currency,
+      method: payment.method || payment.gateway || 'unknown',
+      confirmationCode: folio?.booking?.confirmationCode,
+      folioNumber: folio?.folioNumber,
+    });
 
     return NextResponse.json({ 
       success: true, 

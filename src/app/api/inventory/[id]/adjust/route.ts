@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { notifyInventoryAlert } from '@/lib/notify';
 
 // POST /api/inventory/[id]/adjust - Adjust stock quantity
 // Body: { quantity: number (positive=add, negative=remove), reason: string, note?: string }
@@ -108,6 +109,17 @@ export async function POST(
         },
       }),
     ]);
+
+    if (newStatus === 'low_stock' || newStatus === 'out_of_stock') {
+      notifyInventoryAlert({
+        tenantId: user.tenantId,
+        userId: user.id,
+        itemName: existing.name,
+        currentStock: newStock,
+        threshold: newThreshold,
+        status: newStatus as 'low_stock' | 'out_of_stock',
+      });
+    }
 
     return NextResponse.json({
       success: true,

@@ -35,6 +35,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useRealtime, NotificationEvent } from '@/hooks/use-realtime';
 
 // ============================================
 // Types
@@ -444,6 +445,20 @@ export function NotificationCenter() {
     markAllAsReadLocally,
     removeNotificationLocally,
   } = useNotificationCenterStore();
+
+  // Real-time: listen for instant notification pushes
+  useRealtime({
+    autoConnect: true,
+    showToasts: false, // Don't duplicate — the bell panel handles display
+    onNotification: (event: NotificationEvent) => {
+      // Instantly increment badge count
+      useNotificationCenterStore.getState().setUnreadCount(
+        useNotificationCenterStore.getState().unreadCount + 1
+      );
+      // Re-fetch to get the full notification data
+      fetchNotifications(false);
+    },
+  });
 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 

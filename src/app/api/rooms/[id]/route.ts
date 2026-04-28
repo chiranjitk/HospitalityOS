@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { emitRoomStatusChange } from '@/lib/availability-client';
 import { logRoom } from '@/lib/audit';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { notifyRoomMaintenance, notifyRoomStatusChange } from '@/lib/notify';
 
 // Room status transition validation
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -326,6 +327,26 @@ export async function PUT(
         }
       }
 
+      if (status && status !== existingRoom.status) {
+        if (room.status === 'maintenance') {
+          notifyRoomMaintenance({
+            tenantId: room.property?.tenantId || user.tenantId,
+            userId: user.id,
+            roomNumber: room.number,
+            previousStatus: existingRoom.status,
+            propertyId: room.propertyId,
+          });
+        } else {
+          notifyRoomStatusChange({
+            tenantId: room.property?.tenantId || user.tenantId,
+            userId: user.id,
+            roomNumber: room.number,
+            newStatus: room.status,
+            previousStatus: existingRoom.status,
+          });
+        }
+      }
+
       return NextResponse.json({ success: true, data: room });
     }
 
@@ -394,6 +415,26 @@ export async function PUT(
         });
       } catch (wsError) {
         console.error('Failed to emit room status change:', wsError);
+      }
+    }
+
+    if (status && status !== existingRoom.status) {
+      if (room.status === 'maintenance') {
+        notifyRoomMaintenance({
+          tenantId: room.property?.tenantId || user.tenantId,
+          userId: user.id,
+          roomNumber: room.number,
+          previousStatus: existingRoom.status,
+          propertyId: room.propertyId,
+        });
+      } else {
+        notifyRoomStatusChange({
+          tenantId: room.property?.tenantId || user.tenantId,
+          userId: user.id,
+          roomNumber: room.number,
+          newStatus: room.status,
+          previousStatus: existingRoom.status,
+        });
       }
     }
 

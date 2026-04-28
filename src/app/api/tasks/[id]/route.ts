@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { completeCleaningAndInspect, inspectAndReleaseRoom } from '@/lib/housekeeping-automation';
+import { notifyTaskCompleted } from '@/lib/notify';
 
 // GET /api/tasks/[id] - Get a single task
 export async function GET(
@@ -267,6 +268,15 @@ export async function PUT(
           // Don't fail the task completion if housekeeping lifecycle fails
         }
       }
+    }
+
+    if (status === 'completed' && existingTask.status !== 'completed') {
+      notifyTaskCompleted({
+        tenantId: task.tenantId,
+        userId: user.id,
+        taskTitle: task.title,
+        roomNumber: task.room?.number,
+      });
     }
 
     return NextResponse.json({ success: true, data: task });

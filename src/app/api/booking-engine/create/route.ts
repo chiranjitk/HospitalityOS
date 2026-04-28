@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import crypto, { randomBytes } from 'crypto';
 import { calculatePrice } from '@/lib/pricing';
 import { emailService } from '@/lib/services/email-service';
+import { notifyBookingCreated } from '@/lib/notify';
 
 // In-memory rate limiting (5 bookings per IP per 15 minutes)
 const bookingRateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -495,6 +496,18 @@ export async function POST(request: NextRequest) {
       console.error('[Booking] Failed to send confirmation email:', emailError);
       // Don't fail the booking if email fails
     }
+
+    notifyBookingCreated({
+      tenantId: booking.tenantId,
+      userId: guest.id,
+      bookingId: booking.id,
+      confirmationCode: booking.confirmationCode,
+      guestName: `${guest.firstName || ''} ${guest.lastName || ''}`.trim() || 'Guest',
+      checkIn: booking.checkIn,
+      checkOut: booking.checkOut,
+      totalAmount: booking.totalAmount,
+      currency: booking.currency,
+    });
 
     return NextResponse.json({
       success: true,

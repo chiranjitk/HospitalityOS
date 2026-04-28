@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import crypto from 'crypto';
+import { notifyPaymentReceived } from '@/lib/notify';
 
 // POST /api/orders/[id]/pay - Process payment for a restaurant order
 export async function POST(
@@ -292,6 +293,15 @@ export async function POST(
         data: { status: 'available' },
       });
     }
+
+    notifyPaymentReceived({
+      tenantId: user.tenantId,
+      userId: user.id,
+      amount: paymentAmount,
+      currency,
+      method: paymentMethod || 'unknown',
+      orderNumber: order.orderNumber,
+    });
 
     return NextResponse.json({
       success: true,

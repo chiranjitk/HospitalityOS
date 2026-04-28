@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { notifyTaskAssigned } from '@/lib/notify';
 
 // GET /api/tasks - List all tasks with filtering and pagination
 export async function GET(request: NextRequest) {
@@ -323,6 +324,16 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    if (task.assignedTo) {
+      notifyTaskAssigned({
+        tenantId: task.tenantId,
+        assigneeUserId: task.assignedTo,
+        taskTitle: task.title,
+        taskPriority: task.priority || 'medium',
+        roomNumber: task.room?.number,
+      });
+    }
 
     return NextResponse.json({ success: true, data: task }, { status: 201 });
   } catch (error) {

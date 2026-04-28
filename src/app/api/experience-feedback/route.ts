@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { notifyGuestReview } from '@/lib/notify';
 
 // GET /api/experience-feedback - List feedback
 export async function GET(request: NextRequest) {
@@ -172,6 +173,14 @@ export async function POST(request: NextRequest) {
         rating: Math.round(avgRating * 10) / 10,
         totalReviews: allFeedback.length,
       },
+    });
+
+    notifyGuestReview({
+      tenantId: user.tenantId,
+      userId: user.id,
+      guestName: feedback.guestName || 'Guest',
+      rating: feedback.rating || 0,
+      reviewText: feedback.reviewText || undefined,
     });
 
     return NextResponse.json({ success: true, data: feedback }, { status: 201 });

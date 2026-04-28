@@ -7,6 +7,7 @@ import { logBooking } from '@/lib/audit';
 import { calculatePrice, type PriceBreakdown } from '@/lib/pricing';
 import { getTodayInTimezone } from '@/lib/timezone';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { notifyBookingCreated } from '@/lib/notify';
 
 // Helper function to generate confirmation code
 function generateConfirmationCode(): string {
@@ -732,6 +733,18 @@ export async function POST(request: NextRequest) {
       console.error('Failed to log booking creation to audit log:', auditError);
     }
     
+    notifyBookingCreated({
+      tenantId: booking.tenantId,
+      userId: user.id,
+      bookingId: booking.id,
+      confirmationCode: booking.confirmationCode,
+      guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
+      checkIn: booking.checkIn,
+      checkOut: booking.checkOut,
+      totalAmount: booking.totalAmount,
+      currency: booking.currency,
+    });
+
     return NextResponse.json({ success: true, data: transformedBooking }, { status: 201 });
   } catch (error) {
     console.error('Error creating booking:', error);

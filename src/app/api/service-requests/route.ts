@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { notifyServiceRequestCreated } from '@/lib/notify';
 
 // GET /api/service-requests - List all service requests with filtering and pagination
 export async function GET(request: NextRequest) {
@@ -280,6 +281,12 @@ export async function POST(request: NextRequest) {
           },
         },
       },
+    });
+
+    notifyServiceRequestCreated({
+      tenantId: user.tenantId,
+      userId: user.id,
+      requestType: type || 'General',
     });
 
     return NextResponse.json({ success: true, data: serviceRequest }, { status: 201 });

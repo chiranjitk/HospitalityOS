@@ -9,6 +9,7 @@ import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { evaluateCancellationPolicy } from '@/lib/cancellation-policy-engine';
 import type { CancellationResult } from '@/lib/cancellation-policy-engine';
 import { emailService } from '@/lib/services/email-service';
+import { notifyBookingConfirmed, notifyBookingCancelled, notifyGuestCheckedIn, notifyGuestCheckedOut } from '@/lib/notify';
 
 // Helper: auto-close folio and generate invoice on checkout (must be called within a transaction)
 async function autoCloseFolioAndGenerateInvoice(bookingId: string, tx: Parameters<Parameters<typeof db.$transaction>[0]>[0]) {
@@ -476,6 +477,15 @@ export async function PUT(
     // Update room status based on booking status
     const effectiveRoomId = roomId || existingBooking.roomId;
     
+    if (status === 'confirmed') {
+      notifyBookingConfirmed({
+        tenantId: booking.tenantId,
+        userId: user.id,
+        confirmationCode: booking.confirmationCode,
+        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
+      });
+    }
+    
     if (status === 'checked_in' && effectiveRoomId) {
       await db.room.update({
         where: { id: effectiveRoomId },
@@ -584,6 +594,15 @@ export async function PUT(
         console.error('Failed to provision WiFi on check-in:', wifiError);
         // Don't fail the check-in if WiFi provisioning fails
       }
+
+      notifyGuestCheckedIn({
+        tenantId: booking.tenantId,
+        userId: user.id,
+        bookingId: booking.id,
+        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
+        roomNumber: booking.room?.number || effectiveRoomId ? 'N/A' : undefined,
+        confirmationCode: booking.confirmationCode,
+      });
     } else if (status === 'checked_out' && effectiveRoomId) {
       // Wrap ALL checkout database side-effects in a single transaction for data integrity.
       // This ensures room status, folio close, invoice generation, WiFi fees, and loyalty
@@ -774,6 +793,15 @@ export async function PUT(
         console.error('Failed to deprovision WiFi on check-out:', wifiError);
         // Don't fail the check-out if WiFi deprovisioning fails
       }
+
+      notifyGuestCheckedOut({
+        tenantId: booking.tenantId,
+        userId: user.id,
+        bookingId: booking.id,
+        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
+        roomNumber: booking.room?.number,
+        confirmationCode: booking.confirmationCode,
+      });
     }
     
     // Emit WebSocket event for booking cancelled
@@ -821,6 +849,14 @@ export async function PUT(
       } catch (wlError) {
         console.error('Failed to process waitlist on cancellation:', wlError);
       }
+
+      notifyBookingCancelled({
+        tenantId: booking.tenantId,
+        userId: user.id,
+        confirmationCode: booking.confirmationCode,
+        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
+        reason: cancellationReason,
+      });
     }
     
     // Cancellation policy integration — evaluate and apply penalty
@@ -1256,6 +1292,15 @@ export async function PATCH(
     // Update room status based on booking status
     const effectivePatchRoomId = roomId !== undefined ? roomId : existingBooking.roomId;
 
+    if (status === 'confirmed') {
+      notifyBookingConfirmed({
+        tenantId: booking.tenantId,
+        userId: user.id,
+        confirmationCode: booking.confirmationCode,
+        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
+      });
+    }
+
     if (status === 'checked_in' && effectivePatchRoomId) {
       await db.room.update({
         where: { id: effectivePatchRoomId },
@@ -1352,6 +1397,15 @@ export async function PATCH(
         console.error('Failed to provision WiFi on check-in (PATCH):', wifiError);
         // Don't fail the check-in if WiFi provisioning fails
       }
+
+      notifyGuestCheckedIn({
+        tenantId: booking.tenantId,
+        userId: user.id,
+        bookingId: booking.id,
+        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
+        roomNumber: booking.room?.number || effectivePatchRoomId ? 'N/A' : undefined,
+        confirmationCode: booking.confirmationCode,
+      });
     } else if (status === 'checked_out' && effectivePatchRoomId) {
       // Wrap ALL checkout database side-effects in a single transaction for data integrity.
       try {
@@ -1527,6 +1581,15 @@ export async function PATCH(
         console.error('Failed to deprovision WiFi on check-out (PATCH):', wifiError);
         // Don't fail the check-out if WiFi deprovisioning fails
       }
+
+      notifyGuestCheckedOut({
+        tenantId: booking.tenantId,
+        userId: user.id,
+        bookingId: booking.id,
+        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
+        roomNumber: booking.room?.number,
+        confirmationCode: booking.confirmationCode,
+      });
     }
 
     // Emit WebSocket event for booking cancelled
@@ -1574,6 +1637,14 @@ export async function PATCH(
       } catch (wlError) {
         console.error('Failed to process waitlist on cancellation:', wlError);
       }
+
+      notifyBookingCancelled({
+        tenantId: booking.tenantId,
+        userId: user.id,
+        confirmationCode: booking.confirmationCode,
+        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
+        reason: cancellationReason,
+      });
     }
 
     // Cancellation policy integration (PATCH) — evaluate and apply penalty
