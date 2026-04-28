@@ -51,6 +51,7 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   Copy,
   Download,
   Upload,
@@ -214,28 +215,57 @@ interface RouteEntry {
   description: string;
 }
 
-interface MultiWanMemberEntry {
+interface GatewayHealthRuleEntry {
+  id?: string;
+  protocol: 'PING' | 'TCP' | 'UDP';
+  host: string;
+  port: number;
+  operator: '&' | '|';
+  sortOrder: number;
+}
+
+interface GatewayExplicitRouteEntry {
+  id?: string;
+  network: string;
+  description?: string;
+}
+
+interface GatewayFwmarkEntry {
+  id?: string;
+  fwmarkValue: string;
+  description?: string;
+}
+
+interface GatewayEntry {
   id: string;
+  name: string;
+  ipAddress: string;
   interfaceName: string;
   weight: number;
-  gateway: string;
+  isBackup: boolean;
+  backupGatewayId: string | null;
+  backupGatewayName: string | null;
+  routingTableId: number;
   healthStatus: 'online' | 'offline' | 'checking' | 'unknown';
+  lastHealthCheck: string | null;
   enabled: boolean;
-  isPrimary: boolean;
+  healthRules: GatewayHealthRuleEntry[];
+  explicitRoutes: GatewayExplicitRouteEntry[];
+  fwmarks: GatewayFwmarkEntry[];
 }
 
 interface MultiWanConfigEntry {
   id: string;
   enabled: boolean;
   mode: 'weighted' | 'failover' | 'round-robin' | 'ECMP';
-  healthCheckUrl: string;
-  healthCheckInterval: number;
-  healthCheckTimeout: number;
-  failoverThreshold: number;
+  checkInterval: number;
+  pingCount: number;
+  pingTimeout: number;
+  tcpTimeout: number;
   autoSwitchback: boolean;
   switchbackDelay: number;
-  flushConnectionsOnFailover: boolean;
-  wanMembers: MultiWanMemberEntry[];
+  flushConntrackOnFailover: boolean;
+  gateways: GatewayEntry[];
 }
 
 
@@ -467,6 +497,8 @@ export default function NetworkPage() {
 
   const [multiWanConfig, setMultiWanConfig] = useState<MultiWanConfigEntry | null>(null);
   const [loadingMultiWan, setLoadingMultiWan] = useState(false);
+  const [expandedGateway, setExpandedGateway] = useState<string | null>(null);
+  const [addGatewayOpen, setAddGatewayOpen] = useState(false);
 
   const [newPortForward, setNewPortForward] = useState({ name: '', protocol: 'TCP', extPort: '', internalIp: '', internalPort: '', iface: 'eth0' });
   const [editPortForwardData, setEditPortForwardData] = useState({ name: '', protocol: 'TCP', extPort: '', internalIp: '', internalPort: '', iface: '' });
@@ -857,20 +889,34 @@ export default function NetworkPage() {
       const res = await fetch(`/api/wifi/network/multiwan?${propertyId ? 'propertyId=' + propertyId : ''}`);
       const result = await res.json();
       if (result.success && result.data) {
+        const d = result.data;
         setMultiWanConfig({
-          id: result.data.id, enabled: result.data.enabled,
-          mode: result.data.mode || 'weighted',
-          healthCheckUrl: result.data.healthCheckUrl || 'https://1.1.1.1',
-          healthCheckInterval: result.data.healthCheckInterval || 10,
-          healthCheckTimeout: result.data.healthCheckTimeout || 3,
-          failoverThreshold: result.data.failoverThreshold || 3,
-          autoSwitchback: result.data.autoSwitchback ?? true,
-          switchbackDelay: result.data.switchbackDelay || 300,
-          flushConnectionsOnFailover: result.data.flushConnectionsOnFailover ?? true,
-          wanMembers: (result.data.wanMembers || []).map((m: any) => ({
-            id: m.id, interfaceName: m.interfaceName, weight: m.weight || 1,
-            gateway: m.gateway || '', healthStatus: m.healthStatus || 'unknown',
-            enabled: m.enabled ?? true, isPrimary: m.isPrimary ?? false,
+          id: d.id, enabled: d.enabled,
+          mode: d.mode || 'weighted',
+          checkInterval: d.checkInterval || 20,
+          pingCount: d.pingCount || 3,
+          pingTimeout: d.pingTimeout || 2,
+          tcpTimeout: d.tcpTimeout || 5,
+          autoSwitchback: d.autoSwitchback ?? true,
+          switchbackDelay: d.switchbackDelay || 300,
+          flushConntrackOnFailover: d.flushConntrackOnFailover ?? true,
+          gateways: (d.gateways || []).map((g: any) => ({
+            id: g.id, name: g.name || g.interfaceName, ipAddress: g.ipAddress || '',
+            interfaceName: g.interfaceName, weight: g.weight ?? 1,
+            isBackup: g.isBackup ?? false, backupGatewayId: g.backupGatewayId || null,
+            backupGatewayName: g.backupOf?.name || null, routingTableId: g.routingTableId || 0,
+            healthStatus: g.healthStatus || 'unknown', lastHealthCheck: g.lastHealthCheck || null,
+            enabled: g.enabled ?? true,
+            healthRules: (g.healthRules || []).map((r: any) => ({
+              id: r.id, protocol: r.protocol || 'PING', host: r.host || '',
+              port: r.port || 0, operator: r.operator || '&', sortOrder: r.sortOrder || 0,
+            })),
+            explicitRoutes: (g.explicitRoutes || []).map((r: any) => ({
+              id: r.id, network: r.network || '', description: r.description || '',
+            })),
+            fwmarks: (g.fwmarks || []).map((f: any) => ({
+              id: f.id, fwmarkValue: f.fwmarkValue || '', description: f.description || '',
+            })),
           })),
         });
       }
@@ -1388,7 +1434,7 @@ export default function NetworkPage() {
     }
   };
 
-  // ── Multi-WAN handlers ──
+  // ── Multi-WAN / DGD handlers ──
   const handleApplyMultiWan = async () => {
     if (!multiWanConfig) return;
     try {
@@ -1398,7 +1444,7 @@ export default function NetworkPage() {
       });
       const result = await res.json();
       if (result.success) {
-        toast({ title: 'Multi-WAN Applied', description: result.message || 'Load balancing configuration applied.' });
+        toast({ title: 'Multi-WAN Applied', description: result.message || 'DGD configuration applied.' });
         fetchMultiWan();
       } else {
         toast({ title: 'Error', description: result.error?.message || 'Failed to apply multi-WAN', variant: 'destructive' });
@@ -1411,7 +1457,7 @@ export default function NetworkPage() {
   const handleResetMultiWan = async () => {
     try {
       await fetch('/api/network/os/multiwan', { method: 'DELETE' });
-      toast({ title: 'Multi-WAN Reset', description: 'All multi-WAN rules and tables have been removed.' });
+      toast({ title: 'DGD Reset', description: 'All multi-WAN rules and tables have been removed.' });
       fetchMultiWan();
       fetchRoutes();
     } catch {
@@ -1419,33 +1465,121 @@ export default function NetworkPage() {
     }
   };
 
-  const handleAddWanMember = () => {
+  const handleAddGateway = () => {
     if (!multiWanConfig) return;
     const wanIfaces = interfaces.filter(i => {
       const r = roles.find(rl => rl.interfaceName === i.name);
-      return r?.role === 'wan' && !multiWanConfig.wanMembers.some(m => m.interfaceName === i.name);
+      return r?.role === 'wan' && !multiWanConfig.gateways.some(g => g.interfaceName === i.name);
     });
     if (wanIfaces.length === 0) {
-      toast({ title: 'Info', description: 'No additional WAN interfaces available. Assign WAN role to interfaces first.' });
+      toast({ title: 'Info', description: 'No additional WAN interfaces available. Assign WAN role first.' });
       return;
     }
     const iface = wanIfaces[0];
+    const nextTableId = 101 + multiWanConfig.gateways.filter(g => !g.isBackup).length;
     setMultiWanConfig(prev => prev ? {
       ...prev,
-      wanMembers: [...prev.wanMembers, {
-        id: `new-${Date.now()}`, interfaceName: iface.name, weight: 1,
-        gateway: iface.ipAddress !== '—' ? iface.ipAddress : '', healthStatus: 'unknown',
-        enabled: true, isPrimary: prev.wanMembers.length === 0,
+      gateways: [...prev.gateways, {
+        id: `new-${Date.now()}`, name: `WAN-${prev.gateways.length + 1}`,
+        ipAddress: '', interfaceName: iface.name, weight: 1,
+        isBackup: false, backupGatewayId: null, backupGatewayName: null,
+        routingTableId: nextTableId, healthStatus: 'unknown', lastHealthCheck: null,
+        enabled: true, healthRules: [{ protocol: 'PING', host: '8.8.8.8', port: 0, operator: '&', sortOrder: 0 }],
+        explicitRoutes: [], fwmarks: [],
       }],
+    } : prev);
+    setAddGatewayOpen(false);
+  };
+
+  const handleRemoveGateway = (id: string) => {
+    if (!multiWanConfig) return;
+    setMultiWanConfig(prev => prev ? {
+      ...prev, gateways: prev.gateways.filter(g => g.id !== id),
+    } : prev);
+    if (expandedGateway === id) setExpandedGateway(null);
+  };
+
+  const updateGateway = (id: string, updates: Partial<GatewayEntry>) => {
+    if (!multiWanConfig) return;
+    setMultiWanConfig(prev => prev ? {
+      ...prev, gateways: prev.gateways.map(g => g.id === id ? { ...g, ...updates } : g),
     } : prev);
   };
 
-  const handleRemoveWanMember = (interfaceName: string) => {
+  const addHealthRule = (gatewayId: string) => {
     if (!multiWanConfig) return;
-    setMultiWanConfig(prev => prev ? {
-      ...prev,
-      wanMembers: prev.wanMembers.filter(m => m.interfaceName !== interfaceName),
-    } : prev);
+    const gw = multiWanConfig.gateways.find(g => g.id === gatewayId);
+    if (!gw) return;
+    const nextSort = gw.healthRules.length;
+    const lastRule = gw.healthRules[gw.healthRules.length - 1];
+    updateGateway(gatewayId, {
+      healthRules: [...gw.healthRules, { protocol: 'PING', host: '', port: 0, operator: '&', sortOrder: nextSort }],
+    });
+    if (lastRule && gw.healthRules.length > 0) {
+      updateGateway(gatewayId, {
+        healthRules: gw.healthRules.map((r, i) => i === gw.healthRules.length - 1 ? { ...r, operator: '&' } : r),
+      });
+    }
+  };
+
+  const removeHealthRule = (gatewayId: string, sortIdx: number) => {
+    if (!multiWanConfig) return;
+    const gw = multiWanConfig.gateways.find(g => g.id === gatewayId);
+    if (!gw) return;
+    updateGateway(gatewayId, {
+      healthRules: gw.healthRules.filter((_, i) => i !== sortIdx).map((r, i) => ({ ...r, sortOrder: i })),
+    });
+  };
+
+  const updateHealthRule = (gatewayId: string, sortIdx: number, updates: Partial<GatewayHealthRuleEntry>) => {
+    if (!multiWanConfig) return;
+    const gw = multiWanConfig.gateways.find(g => g.id === gatewayId);
+    if (!gw) return;
+    updateGateway(gatewayId, {
+      healthRules: gw.healthRules.map((r, i) => i === sortIdx ? { ...r, ...updates } : r),
+    });
+  };
+
+  const addExplicitRoute = (gatewayId: string) => {
+    if (!multiWanConfig) return;
+    const gw = multiWanConfig.gateways.find(g => g.id === gatewayId);
+    if (!gw) return;
+    updateGateway(gatewayId, { explicitRoutes: [...gw.explicitRoutes, { network: '', description: '' }] });
+  };
+
+  const removeExplicitRoute = (gatewayId: string, idx: number) => {
+    if (!multiWanConfig) return;
+    const gw = multiWanConfig.gateways.find(g => g.id === gatewayId);
+    if (!gw) return;
+    updateGateway(gatewayId, { explicitRoutes: gw.explicitRoutes.filter((_, i) => i !== idx) });
+  };
+
+  const updateExplicitRoute = (gatewayId: string, idx: number, updates: Partial<GatewayExplicitRouteEntry>) => {
+    if (!multiWanConfig) return;
+    const gw = multiWanConfig.gateways.find(g => g.id === gatewayId);
+    if (!gw) return;
+    updateGateway(gatewayId, { explicitRoutes: gw.explicitRoutes.map((r, i) => i === idx ? { ...r, ...updates } : r) });
+  };
+
+  const addFwmark = (gatewayId: string) => {
+    if (!multiWanConfig) return;
+    const gw = multiWanConfig.gateways.find(g => g.id === gatewayId);
+    if (!gw) return;
+    updateGateway(gatewayId, { fwmarks: [...gw.fwmarks, { fwmarkValue: '', description: '' }] });
+  };
+
+  const removeFwmark = (gatewayId: string, idx: number) => {
+    if (!multiWanConfig) return;
+    const gw = multiWanConfig.gateways.find(g => g.id === gatewayId);
+    if (!gw) return;
+    updateGateway(gatewayId, { fwmarks: gw.fwmarks.filter((_, i) => i !== idx) });
+  };
+
+  const updateFwmark = (gatewayId: string, idx: number, updates: Partial<GatewayFwmarkEntry>) => {
+    if (!multiWanConfig) return;
+    const gw = multiWanConfig.gateways.find(g => g.id === gatewayId);
+    if (!gw) return;
+    updateGateway(gatewayId, { fwmarks: gw.fwmarks.map((f, i) => i === idx ? { ...f, ...updates } : f) });
   };
 
   // ── Backup handlers ──
@@ -2698,7 +2832,7 @@ export default function NetworkPage() {
           </div>
         )}
 
-        {/* ═══════ TAB 6: MULTI-WAN ═══════ */}
+        {/* ═══════ TAB 6: MULTI-WAN / DGD ═══════ */}
         {activeTab === 'multiwan' && (
           <div className="space-y-6">
             {loadingMultiWan ? (
@@ -2714,11 +2848,11 @@ export default function NetworkPage() {
                       <Workflow className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold">{multiWanConfig?.enabled ? 'Multi-WAN Load Balancing Active' : 'Multi-WAN Not Configured'}</p>
+                      <p className="text-sm font-semibold">{multiWanConfig?.enabled ? 'DGD — Dead Gateway Detection Active' : 'Multi-WAN / DGD Not Configured'}</p>
                       <p className="text-xs text-muted-foreground">
                         {multiWanConfig?.enabled
-                          ? `Mode: ${(multiWanConfig?.mode || 'weighted').toUpperCase()} · ${multiWanConfig?.wanMembers.filter(m => m.enabled).length} WAN link(s)`
-                          : 'Configure multiple WAN interfaces for load balancing or failover'}
+                          ? `Mode: ${(multiWanConfig?.mode || 'weighted').toUpperCase()} · ${multiWanConfig?.gateways.filter(g => g.enabled && !g.isBackup).length} active · ${multiWanConfig?.gateways.filter(g => g.enabled && g.isBackup).length} backup gateway(s)`
+                          : 'Configure multiple WAN interfaces with health checks, failover, and source-based routing'}
                       </p>
                     </div>
                   </div>
@@ -2726,28 +2860,10 @@ export default function NetworkPage() {
                     <Switch checked={multiWanConfig?.enabled ?? false} onCheckedChange={v => {
                       if (!multiWanConfig) {
                         setMultiWanConfig({
-                          id: 'new',
-                          enabled: v,
-                          mode: 'weighted',
-                          healthCheckUrl: 'https://1.1.1.1',
-                          healthCheckInterval: 10,
-                          healthCheckTimeout: 3,
-                          failoverThreshold: 3,
-                          autoSwitchback: true,
-                          switchbackDelay: 300,
-                          flushConnectionsOnFailover: true,
-                          wanMembers: interfaces.filter(i => {
-                            const role = roles.find(r => r.interfaceId === i.name);
-                            return role?.role === 'wan';
-                          }).map(i => ({
-                            id: `m-${i.name}`,
-                            interfaceName: i.name,
-                            weight: 1,
-                            gateway: '',
-                            healthStatus: 'unknown' as const,
-                            enabled: true,
-                            isPrimary: false,
-                          })),
+                          id: 'new', enabled: v, mode: 'weighted',
+                          checkInterval: 20, pingCount: 3, pingTimeout: 2, tcpTimeout: 5,
+                          autoSwitchback: true, switchbackDelay: 300, flushConntrackOnFailover: true,
+                          gateways: [],
                         });
                       } else {
                         setMultiWanConfig(prev => prev ? { ...prev, enabled: v } : prev);
@@ -2758,12 +2874,12 @@ export default function NetworkPage() {
               </CardContent>
             </Card>
 
-            {/* Configuration Card */}
             {multiWanConfig && (
               <>
+              {/* DGD Configuration */}
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2"><Zap className="h-4 w-4 text-amber-500 dark:text-amber-400" /> Load Balancing Configuration</CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2"><Zap className="h-4 w-4 text-amber-500 dark:text-amber-400" /> DGD Configuration</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2772,7 +2888,7 @@ export default function NetworkPage() {
                       <Select value={multiWanConfig.mode} onValueChange={v => setMultiWanConfig(p => p ? { ...p, mode: v as any } : p)}>
                         <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="weighted">Weighted (ECMP)</SelectItem>
+                          <SelectItem value="weighted">Weighted ECMP</SelectItem>
                           <SelectItem value="failover">Failover</SelectItem>
                           <SelectItem value="round-robin">Round Robin</SelectItem>
                           <SelectItem value="ECMP">ECMP</SelectItem>
@@ -2780,20 +2896,20 @@ export default function NetworkPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs">Health Check URL</Label>
-                      <Input className="h-9 text-sm" value={multiWanConfig.healthCheckUrl} onChange={e => setMultiWanConfig(p => p ? { ...p, healthCheckUrl: e.target.value } : p)} />
-                    </div>
-                    <div className="space-y-2">
                       <Label className="text-xs">Check Interval (s)</Label>
-                      <Input type="number" className="h-9" value={multiWanConfig.healthCheckInterval} onChange={e => setMultiWanConfig(p => p ? { ...p, healthCheckInterval: parseInt(e.target.value) || 10 } : p)} />
+                      <Input type="number" className="h-9" value={multiWanConfig.checkInterval} onChange={e => setMultiWanConfig(p => p ? { ...p, checkInterval: parseInt(e.target.value) || 20 } : p)} />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs">Failover Threshold</Label>
-                      <Input type="number" className="h-9" value={multiWanConfig.failoverThreshold} onChange={e => setMultiWanConfig(p => p ? { ...p, failoverThreshold: parseInt(e.target.value) || 3 } : p)} />
+                      <Label className="text-xs">Ping Count</Label>
+                      <Input type="number" className="h-9" value={multiWanConfig.pingCount} onChange={e => setMultiWanConfig(p => p ? { ...p, pingCount: parseInt(e.target.value) || 3 } : p)} />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs">Timeout (s)</Label>
-                      <Input type="number" className="h-9" value={multiWanConfig.healthCheckTimeout} onChange={e => setMultiWanConfig(p => p ? { ...p, healthCheckTimeout: parseInt(e.target.value) || 3 } : p)} />
+                      <Label className="text-xs">Ping Timeout (s)</Label>
+                      <Input type="number" className="h-9" value={multiWanConfig.pingTimeout} onChange={e => setMultiWanConfig(p => p ? { ...p, pingTimeout: parseInt(e.target.value) || 2 } : p)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs">TCP Timeout (s)</Label>
+                      <Input type="number" className="h-9" value={multiWanConfig.tcpTimeout} onChange={e => setMultiWanConfig(p => p ? { ...p, tcpTimeout: parseInt(e.target.value) || 5 } : p)} />
                     </div>
                     <div className="space-y-2 flex items-end gap-3">
                       <div className="flex items-center gap-2">
@@ -2807,104 +2923,229 @@ export default function NetworkPage() {
                     </div>
                     <div className="space-y-2 flex items-end gap-3">
                       <div className="flex items-center gap-2">
-                        <Switch checked={multiWanConfig.flushConnectionsOnFailover} onCheckedChange={v => setMultiWanConfig(p => p ? { ...p, flushConnectionsOnFailover: v } : p)} />
-                        <Label className="text-xs">Flush Conn.</Label>
+                        <Switch checked={multiWanConfig.flushConntrackOnFailover} onCheckedChange={v => setMultiWanConfig(p => p ? { ...p, flushConntrackOnFailover: v } : p)} />
+                        <Label className="text-xs">Flush Conntrack</Label>
                       </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* WAN Members */}
+              {/* Gateways */}
               <Card>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-base flex items-center gap-2"><Globe className="h-4 w-4 text-orange-500 dark:text-orange-400" /> WAN Interfaces</CardTitle>
-                      <CardDescription>Manage WAN links for load balancing</CardDescription>
+                      <CardTitle className="text-base flex items-center gap-2"><Globe className="h-4 w-4 text-orange-500 dark:text-orange-400" /> Gateways</CardTitle>
+                      <CardDescription>WAN interfaces with health check rules, explicit routes, and fwmarks</CardDescription>
                     </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={handleAddWanMember}><Plus className="h-3.5 w-3.5 mr-1.5" /> Add WAN Link</Button>
-                    </div>
+                    <Button size="sm" variant="outline" onClick={handleAddGateway}><Plus className="h-3.5 w-3.5 mr-1.5" /> Add Gateway</Button>
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                  {multiWanConfig.wanMembers.length === 0 ? (
+                  {multiWanConfig.gateways.length === 0 ? (
                     <div className="p-8 text-center text-sm text-muted-foreground">
                       <Globe className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-                      No WAN members added. Click "Add WAN Link" to configure WAN interfaces.
+                      No gateways configured. Click "Add Gateway" to add WAN interfaces with DGD health checks.
                     </div>
                   ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/30">
-                        <TableHead className="font-semibold">Interface</TableHead>
-                        <TableHead className="font-semibold">Gateway</TableHead>
-                        <TableHead className="font-semibold">Weight</TableHead>
-                        <TableHead className="font-semibold">Primary</TableHead>
-                        <TableHead className="font-semibold">Health</TableHead>
-                        <TableHead className="font-semibold">Enabled</TableHead>
-                        <TableHead className="text-right font-semibold">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {multiWanConfig.wanMembers.map((member) => (
-                        <TableRow key={member.id}>
-                          <TableCell className="font-mono font-semibold">{member.interfaceName}</TableCell>
-                          <TableCell className="font-mono text-sm">{member.gateway || '—'}</TableCell>
-                          <TableCell>
-                            <Input type="number" className="w-20 h-8 text-sm font-mono" value={member.weight}
-                              onChange={e => setMultiWanConfig(p => p ? { ...p, wanMembers: p.wanMembers.map(m => m.interfaceName === member.interfaceName ? { ...m, weight: parseInt(e.target.value) || 1 } : m) } : p)} />
-                          </TableCell>
-                          <TableCell>
-                            <input type="radio" name="primary" checked={member.isPrimary}
-                              onChange={() => setMultiWanConfig(p => p ? { ...p, wanMembers: p.wanMembers.map(m => ({ ...m, isPrimary: m.interfaceName === member.interfaceName })) } : p)}
-                              className="h-4 w-4 accent-teal-600" />
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1.5">
-                              <div className={cn('h-2.5 w-2.5 rounded-full', member.healthStatus === 'online' ? 'bg-emerald-500' : member.healthStatus === 'offline' ? 'bg-red-500' : 'bg-amber-500 animate-pulse')} />
-                              <span className="text-xs capitalize">{member.healthStatus}</span>
+                    <div className="divide-y">
+                      {multiWanConfig.gateways.map((gw) => {
+                        const isExpanded = expandedGateway === gw.id;
+                        return (
+                          <div key={gw.id}>
+                            {/* Gateway Row */}
+                            <div className="flex items-center gap-4 px-4 py-3 hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setExpandedGateway(isExpanded ? null : gw.id)}>
+                              <ChevronRight className={cn('h-4 w-4 text-muted-foreground transition-transform', isExpanded && 'rotate-90')} />
+                              <div className={cn('h-2.5 w-2.5 rounded-full shrink-0', gw.healthStatus === 'online' ? 'bg-emerald-500' : gw.healthStatus === 'offline' ? 'bg-red-500' : 'bg-amber-500 animate-pulse')} />
+                              <span className="font-mono font-semibold text-sm min-w-[70px]">{gw.interfaceName}</span>
+                              <span className="font-mono text-sm text-muted-foreground">{gw.ipAddress || '—'}</span>
+                              {gw.isBackup && <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 dark:text-amber-300 border-amber-200">BACKUP</Badge>}
+                              <Badge variant="outline" className="text-[10px]">wt:{gw.weight}</Badge>
+                              <Badge variant="outline" className="text-[10px]">tbl:{gw.routingTableId}</Badge>
+                              <div className="flex-1" />
+                              <span className="text-[10px] text-muted-foreground">{gw.healthRules.length} rule(s) · {gw.explicitRoutes.length} route(s) · {gw.fwmarks.length} fwmark(s)</span>
+                              <Switch checked={gw.enabled} onClick={e => e.stopPropagation()} onCheckedChange={v => updateGateway(gw.id, { enabled: v })} />
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500 dark:text-red-400" onClick={e => { e.stopPropagation(); handleRemoveGateway(gw.id); }}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
                             </div>
-                          </TableCell>
-                          <TableCell><Switch checked={member.enabled} onCheckedChange={v => setMultiWanConfig(p => p ? { ...p, wanMembers: p.wanMembers.map(m => m.interfaceName === member.interfaceName ? { ...m, enabled: v } : m) } : p)} /></TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-500 dark:text-red-400" onClick={() => handleRemoveWanMember(member.interfaceName)}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+
+                            {/* Expanded Detail */}
+                            {isExpanded && (
+                              <div className="px-4 pb-4 pt-2 space-y-4 bg-muted/20 border-t">
+                                {/* Basic Settings */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Name</Label>
+                                    <Input className="h-8 text-sm" value={gw.name} onChange={e => updateGateway(gw.id, { name: e.target.value })} />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Gateway IP</Label>
+                                    <Input className="h-8 text-sm font-mono" value={gw.ipAddress} placeholder="10.0.0.1" onChange={e => updateGateway(gw.id, { ipAddress: e.target.value })} />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Weight (0=disabled)</Label>
+                                    <Input type="number" className="h-8 text-sm font-mono" value={gw.weight} onChange={e => updateGateway(gw.id, { weight: parseInt(e.target.value) || 0 })} />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Routing Table ID</Label>
+                                    <Input type="number" className="h-8 text-sm font-mono" value={gw.routingTableId} onChange={e => updateGateway(gw.id, { routingTableId: parseInt(e.target.value) || 0 })} />
+                                  </div>
+                                  <div className="space-y-1.5 flex items-end gap-3">
+                                    <div className="flex items-center gap-2">
+                                      <Switch checked={gw.isBackup} onCheckedChange={v => updateGateway(gw.id, { isBackup: v })} />
+                                      <Label className="text-xs">Backup</Label>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Backup Gateway Selector */}
+                                {gw.isBackup && (
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Backup Of (Primary Gateway)</Label>
+                                    <Select value={gw.backupGatewayId || ''} onValueChange={v => updateGateway(gw.id, { backupGatewayId: v || null })}>
+                                      <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select primary gateway" /></SelectTrigger>
+                                      <SelectContent>
+                                        {multiWanConfig.gateways.filter(g => !g.isBackup && g.id !== gw.id).map(g => (
+                                          <SelectItem key={g.id} value={g.id}>{g.name} ({g.interfaceName} — {g.ipAddress})</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
+
+                                <Separator />
+
+                                {/* Health Check Rules */}
+                                <div>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <Label className="text-xs font-semibold flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Health Check Rules</Label>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => addHealthRule(gw.id)}><Plus className="h-3 w-3 mr-1" /> Add Rule</Button>
+                                  </div>
+                                  {gw.healthRules.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground py-2">No health rules. Add PING or TCP checks.</p>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      {gw.healthRules.map((rule, idx) => (
+                                        <div key={idx} className="flex items-center gap-2">
+                                          <span className="text-[10px] text-muted-foreground font-mono w-5">#{idx + 1}</span>
+                                          <Select value={rule.protocol} onValueChange={v => updateHealthRule(gw.id, idx, { protocol: v as any })}>
+                                            <SelectTrigger className="h-7 w-20 text-xs"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="PING">PING</SelectItem>
+                                              <SelectItem value="TCP">TCP</SelectItem>
+                                              <SelectItem value="UDP">UDP</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                          <Input className="h-7 text-xs font-mono flex-1" value={rule.host} placeholder="8.8.8.8" onChange={e => updateHealthRule(gw.id, idx, { host: e.target.value })} />
+                                          {rule.protocol !== 'PING' && (
+                                            <Input type="number" className="h-7 w-16 text-xs font-mono" value={rule.port} placeholder="Port" onChange={e => updateHealthRule(gw.id, idx, { port: parseInt(e.target.value) || 0 })} />
+                                          )}
+                                          {idx < gw.healthRules.length - 1 && (
+                                            <Select value={rule.operator} onValueChange={v => updateHealthRule(gw.id, idx, { operator: v as any })}>
+                                              <SelectTrigger className="h-7 w-16 text-xs"><SelectValue /></SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="&">AND</SelectItem>
+                                                <SelectItem value="|">OR</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          )}
+                                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400" onClick={() => removeHealthRule(gw.id, idx)}>
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      ))}
+                                      <p className="text-[10px] text-muted-foreground">Gateway is LIVE if all AND conditions pass, or any OR condition passes.</p>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <Separator />
+
+                                {/* Explicit Routes (Source-based) */}
+                                <div>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <Label className="text-xs font-semibold flex items-center gap-1.5"><Route className="h-3.5 w-3.5 text-blue-500" /> Explicit Routes (Source-Based)</Label>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => addExplicitRoute(gw.id)}><Plus className="h-3 w-3 mr-1" /> Add Route</Button>
+                                  </div>
+                                  {gw.explicitRoutes.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground py-2">No explicit routes. Traffic FROM these networks will use this gateway.</p>
+                                  ) : (
+                                    <div className="space-y-1.5">
+                                      {gw.explicitRoutes.map((route, idx) => (
+                                        <div key={idx} className="flex items-center gap-2">
+                                          <Input className="h-7 text-xs font-mono flex-1" value={route.network} placeholder="192.168.1.0/24" onChange={e => updateExplicitRoute(gw.id, idx, { network: e.target.value })} />
+                                          <Input className="h-7 text-xs w-36" value={route.description || ''} placeholder="Description" onChange={e => updateExplicitRoute(gw.id, idx, { description: e.target.value })} />
+                                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400" onClick={() => removeExplicitRoute(gw.id, idx)}>
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <Separator />
+
+                                {/* Fwmark Rules */}
+                                <div>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <Label className="text-xs font-semibold flex items-center gap-1.5"><Shield className="h-3.5 w-3.5 text-purple-500" /> Fwmark Rules</Label>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => addFwmark(gw.id)}><Plus className="h-3 w-3 mr-1" /> Add Fwmark</Button>
+                                  </div>
+                                  {gw.fwmarks.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground py-2">No fwmark rules. Marked packets will route via this gateway.</p>
+                                  ) : (
+                                    <div className="space-y-1.5">
+                                      {gw.fwmarks.map((fw, idx) => (
+                                        <div key={idx} className="flex items-center gap-2">
+                                          <Input className="h-7 text-xs font-mono w-24" value={fw.fwmarkValue} placeholder="0x1" onChange={e => updateFwmark(gw.id, idx, { fwmarkValue: e.target.value })} />
+                                          <Input className="h-7 text-xs w-36" value={fw.description || ''} placeholder="Description" onChange={e => updateFwmark(gw.id, idx, { description: e.target.value })} />
+                                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400" onClick={() => removeFwmark(gw.id, idx)}>
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </CardContent>
               </Card>
 
               {/* Flow Diagram */}
-              <div className="flex items-center justify-center gap-4 py-2">
-                <div className="flex items-center gap-2"><Globe className="h-5 w-5 text-orange-500 dark:text-orange-400" /><span className="text-xs font-semibold text-orange-700 dark:text-orange-300">INTERNET</span></div>
-                <div className="h-0.5 w-8 bg-gradient-to-r from-orange-500 to-teal-500 rounded-full" />
-                <div className="flex items-center gap-1">
-                  {multiWanConfig.wanMembers.filter(m => m.enabled).map((m, i) => (
-                    <React.Fragment key={m.interfaceName}>
-                      <div className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold border', m.healthStatus === 'online' ? 'bg-emerald-50 text-emerald-700 dark:text-emerald-300 border-emerald-200' : 'bg-red-50 text-red-700 dark:text-red-300 border-red-200')}>
-                        {m.interfaceName}
-                      </div>
-                      {i < multiWanConfig.wanMembers.filter(m => m.enabled).length - 1 && <ArrowRightLeft className="h-3 w-3 text-muted-foreground mx-1" />}
-                    </React.Fragment>
-                  ))}
+              {multiWanConfig.gateways.filter(g => g.enabled && !g.isBackup).length > 0 && (
+                <div className="flex items-center justify-center gap-3 py-2 flex-wrap">
+                  <div className="flex items-center gap-1.5"><Globe className="h-4 w-4 text-orange-500" /><span className="text-[10px] font-semibold text-orange-700 dark:text-orange-300">INTERNET</span></div>
+                  <div className="h-0.5 w-6 bg-gradient-to-r from-orange-500 to-teal-500 rounded-full" />
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {multiWanConfig.gateways.filter(g => g.enabled).map((g, i, arr) => (
+                      <React.Fragment key={g.id}>
+                        <div className={cn('px-2 py-1 rounded text-[10px] font-semibold border', g.healthStatus === 'online' ? 'bg-emerald-50 text-emerald-700 dark:text-emerald-300 border-emerald-200' : g.healthStatus === 'offline' ? 'bg-red-50 text-red-700 dark:text-red-300 border-red-200' : 'bg-amber-50 text-amber-700 dark:text-amber-300 border-amber-200', g.isBackup && 'italic')}>
+                          {g.interfaceName}{g.isBackup ? ' (BK)' : ''}
+                        </div>
+                        {i < arr.length - 1 && <span className="text-[10px] text-muted-foreground mx-0.5">{g.operator === '|' ? 'OR' : 'AND'}</span>}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                  <div className="h-0.5 w-6 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-full" />
+                  <div className="flex items-center gap-1.5"><Server className="h-4 w-4 text-teal-600" /><span className="text-[10px] font-semibold text-teal-700 dark:text-teal-300">TABLE 221</span></div>
+                  <div className="h-0.5 w-6 bg-emerald-500 rounded-full" />
+                  <div className="flex items-center gap-1.5"><Monitor className="h-4 w-4 text-emerald-500" /><span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">LAN</span></div>
                 </div>
-                <div className="h-0.5 w-8 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-full" />
-                <div className="flex items-center gap-2"><Server className="h-5 w-5 text-teal-600 dark:text-teal-400" /><span className="text-xs font-semibold text-teal-700 dark:text-teal-300">GATEWAY</span></div>
-                <div className="h-0.5 w-8 bg-emerald-500 rounded-full" />
-                <div className="flex items-center gap-2"><Monitor className="h-5 w-5 text-emerald-500 dark:text-emerald-400" /><span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">LAN</span></div>
-              </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex gap-3">
-                <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleApplyMultiWan} disabled={!multiWanConfig.enabled || multiWanConfig.wanMembers.filter(m => m.enabled).length === 0}>
-                  <Zap className="h-4 w-4 mr-2" /> Apply Configuration
+                <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleApplyMultiWan} disabled={!multiWanConfig.enabled || multiWanConfig.gateways.filter(g => g.enabled).length < 2}>
+                  <Zap className="h-4 w-4 mr-2" /> Apply DGD Configuration
                 </Button>
                 <Button variant="outline" onClick={handleResetMultiWan}>
                   <RefreshCw className="h-4 w-4 mr-2" /> Reset Multi-WAN

@@ -7,6 +7,7 @@ import { NET_TYPES, NET_TYPE_LABELS, netTypeToLabel } from '@/lib/network/nettyp
 import { parseNmConnectionFile, getRoutes, getInterfaceName } from '@/lib/network/nmconnection';
 import { NM_CONNECTIONS_DIR } from '@/lib/network/nettypes';
 import type { NmConnectionInfo } from '@/lib/network/nmcli';
+import { db } from '@/lib/db';
 
 /**
  * GET /api/network/os — Scan .nmconnection files and return all network interfaces
@@ -15,11 +16,65 @@ import type { NmConnectionInfo } from '@/lib/network/nmcli';
  * files, parses the [staysuite] section for nettype (role mapping), and merges with
  * nmcli device status for runtime state.
  *
+ * When no .nmconnection files exist (dev/sandbox), falls back to DB query —
+ * physical interfaces are hardware-level and NOT filtered by tenant/property.
+ *
  * Query params:
  *   ?section=interfaces    → Only interfaces
  *   ?section=device-status → Only device runtime status
  *   ?section=all           → Everything (default)
  */
+
+/**
+ * Fallback: read physical interfaces from DB.
+ * Physical interfaces are hardware — no tenant/property filter.
+ * Returns NmConnectionInfo[] format so the GUI can use same rendering.
+ */
+async function getInterfacesFromDb(): Promise<NmConnectionInfo[]> {
+  try {
+    const rows = await db.networkInterface.findMany({
+      orderBy: { name: 'asc' },
+      include: { roles: true },
+    });
+
+    const roleToNettype: Record<string, number> = {
+      wan: 1, lan: 0, vlan: 2, bridge: 3, bond: 4,
+      management: 5, guest: 6, iot: 7, unused: 8, dmz: 9, wifi: 10,
+    };
+
+    return rows.map(row => {
+      const nettype = row.roles?.[0]?.role
+        ? (roleToNettype[row.roles[0].role] ?? 8)
+        : 8;
+      const isPhysical = row.type === 'ethernet' || row.type === 'wireless';
+
+      return {
+        name: row.name,
+        deviceName: row.name,
+        type: row.type === 'wireless' ? 'wifi' : row.type,
+        state: row.status === 'up' ? 'up' : 'down',
+        ipv4Address: '',
+        ipv4Cidr: 0,
+        ipv4Gateway: '',
+        ipv6Address: '',
+        mac: row.hwAddress || '',
+        mtu: row.mtu,
+        speed: row.speed ? parseInt(row.speed, 10) || 0 : 0,
+        rxBytes: 0,
+        txBytes: 0,
+        description: row.description || '',
+        secondaryIps: [],
+        isPhysical,
+        nettype,
+        nettypeLabel: netTypeToLabel(nettype),
+        priority: 0,
+        autoconnect: row.status === 'up',
+      } as NmConnectionInfo;
+    });
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Augment an interface with live system data from /sys/class/net/{name}/.
@@ -94,8 +149,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: getRoutesFromSystem() });
     }
 
-    // Scan .nmconnection files
-    const interfaces = scanConnections();
+    // Scan .nmconnection files (Rocky 10 production)
+    let interfaces = scanConnections();
+
+    // Fallback: if no .nmconnection files found, read from DB
+    // Physical interfaces are hardware — no tenant/property filter
+    if (interfaces.length === 0) {
+      interfaces = await getInterfacesFromDb();
+    }
 
     // Augment each interface with live system data (MAC, speed, traffic)
     for (let i = 0; i < interfaces.length; i++) {

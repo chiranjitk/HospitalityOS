@@ -1,38 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import {
-  applyWeighted,
-  applyFailover,
-  applyRoundRobin,
   resetMultiWan,
-  deployMonitor,
+  applyDgdConfig,
+  generateDgdConf,
   MultiWanConfig,
-  WanMember,
+  GatewayDef,
 } from '@/lib/network/multiwan';
 
 /**
- * POST   /api/network/os/multiwan — Apply multi-WAN configuration to OS
+ * POST   /api/network/os/multiwan — Apply multi-WAN / DGD configuration to OS
  * GET    /api/network/os/multiwan — Get current multi-WAN status from DB
  * DELETE /api/network/os/multiwan — Reset all multi-WAN config
  *
  * Uses shell script wrappers from @/lib/network/multiwan for all OS-level
- * operations (routing tables, ip rules, nftables, ECMP, monitor deployment).
+ * operations (routing tables, ip rules, nftables, ECMP, DGD service).
  *
- * Persists to MultiWanConfig + MultiWanMember in DB.
+ * Persists to MultiWanConfig + Gateway + GatewayHealthRule + GatewayExplicitRoute + GatewayFwmark.
+ *
+ * NOTE: The actual DGD daemon (dgd binary) and health check scripts are
+ * managed externally by the user. This endpoint generates configuration
+ * files and triggers the service.
  */
 
-const TENANT_ID = 'tenant-1';
-const PROPERTY_ID = 'property-1';
-
-const VALID_NAME = /^[a-zA-Z0-9._-]+$/;
+const VALID_MODES = ['weighted', 'failover', 'round-robin', 'ECMP'];
 
 function isValidIPv4(ip: string): boolean {
   const parts = ip.split('.');
   if (parts.length !== 4) return false;
   return parts.every(p => { const n = parseInt(p, 10); return !isNaN(n) && n >= 0 && n <= 255 && String(n) === p; });
 }
-
-const VALID_MODES = ['weighted', 'failover', 'round-robin'];
 
 // ──────────────────────────────────────────────────────────
 // GET /api/network/os/multiwan — Get current multi-WAN status
@@ -41,18 +38,27 @@ export async function GET() {
   try {
     const results: Record<string, any> = {};
 
-    // Return OS state fields as empty/unknown — read operations are handled
-    // by the shell scripts and are not exposed via a dedicated list endpoint.
+    // OS-level state (shell scripts handle actual routing state)
     results.customRoutingTables = [];
     results.customRules = [];
     results.nftablesChain = { exists: false, chain: 'staysuite_multiwan' };
     results.ecmpDefaultRoute = null;
 
-    // Get DB config
+    // Get first available MultiWanConfig from DB
     try {
-      const config = await db.multiWanConfig.findUnique({
-        where: { propertyId: PROPERTY_ID },
-        include: { members: true },
+      const config = await db.multiWanConfig.findFirst({
+        where: { enabled: true },
+        include: {
+          gateways: {
+            where: { enabled: true },
+            include: {
+              healthRules: { orderBy: { sortOrder: 'asc' } },
+              explicitRoutes: true,
+              fwmarks: true,
+            },
+            orderBy: [{ isBackup: 'asc' }, { weight: 'desc' }],
+          },
+        },
       });
       results.dbConfig = config;
     } catch (dbErr: any) {
@@ -74,7 +80,7 @@ export async function GET() {
 }
 
 // ──────────────────────────────────────────────────────────
-// POST /api/network/os/multiwan — Apply multi-WAN config
+// POST /api/network/os/multiwan — Apply multi-WAN / DGD config
 // ──────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
@@ -82,15 +88,15 @@ export async function POST(request: NextRequest) {
     const {
       enabled,
       mode,
-      wanMembers,
-      healthCheckUrl,
-      healthCheckInterval,
-      failoverThreshold,
+      gateways = [],
+      checkInterval,
+      pingCount,
+      pingTimeout,
+      tcpTimeout,
     } = body;
 
-    // ── Validation ──
+    // ── If explicitly disabling, reset everything ──
     if (enabled === false) {
-      // If explicitly disabling, reset everything
       return handleReset();
     }
 
@@ -102,155 +108,122 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!Array.isArray(wanMembers) || wanMembers.length < 2) {
+    if (!Array.isArray(gateways) || gateways.length < 1) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION', message: 'At least 2 WAN members are required' } },
+        { success: false, error: { code: 'VALIDATION', message: 'At least 1 gateway is required' } },
         { status: 400 }
       );
     }
 
-    const validMembers: WanMember[] = [];
+    // ── Validate gateways ──
+    const validGateways: GatewayDef[] = [];
 
-    for (const member of wanMembers) {
-      if (!member.interfaceName || !VALID_NAME.test(member.interfaceName)) {
+    for (const gw of gateways) {
+      if (!gw.interfaceName) {
         return NextResponse.json(
-          { success: false, error: { code: 'INVALID_INTERFACE', message: `Invalid interface name: ${member.interfaceName}` } },
+          { success: false, error: { code: 'INVALID_INTERFACE', message: 'Gateway missing interfaceName' } },
           { status: 400 }
         );
       }
-      if (!member.gateway || !isValidIPv4(member.gateway)) {
+      if (!gw.ipAddress || !isValidIPv4(gw.ipAddress)) {
         return NextResponse.json(
-          { success: false, error: { code: 'INVALID_GATEWAY', message: `Invalid gateway for ${member.interfaceName}` } },
+          { success: false, error: { code: 'INVALID_GATEWAY', message: `Invalid gateway IP for ${gw.interfaceName}` } },
           { status: 400 }
         );
       }
 
-      validMembers.push({
-        interfaceName: member.interfaceName,
-        gateway: member.gateway,
-        weight: member.weight ? parseInt(String(member.weight), 10) : 1,
-        enabled: member.enabled !== false,
-        isPrimary: !!member.isPrimary,
+      validGateways.push({
+        name: gw.name || gw.interfaceName,
+        ipAddress: gw.ipAddress,
+        interfaceName: gw.interfaceName,
+        interfaceId: gw.interfaceId || undefined,
+        weight: gw.weight ? parseInt(String(gw.weight), 10) : 1,
+        isBackup: !!gw.isBackup,
+        backupGatewayId: gw.backupGatewayId || undefined,
+        routingTableId: gw.routingTableId ? parseInt(String(gw.routingTableId), 10) : 0,
+        enabled: gw.enabled !== false,
+        healthRules: (gw.healthRules || []).map((r: any, i: number) => ({
+          protocol: r.protocol || 'PING',
+          host: r.host || '',
+          port: r.port || 0,
+          operator: r.operator || '&',
+          sortOrder: r.sortOrder ?? i,
+        })),
+        explicitRoutes: (gw.explicitRoutes || []).map((r: any) => ({
+          network: r.network || '',
+          description: r.description || '',
+        })),
+        fwmarks: (gw.fwmarks || []).map((f: any) => ({
+          fwmarkValue: f.fwmarkValue || '0x1',
+          description: f.description || '',
+        })),
       });
     }
-
-    const hcUrl = healthCheckUrl || 'https://1.1.1.1';
-    const hcInterval = healthCheckInterval ? parseInt(String(healthCheckInterval), 10) : 10;
-    const foThreshold = failoverThreshold ? parseInt(String(failoverThreshold), 10) : 3;
 
     const results: { step: string; success: boolean; message: string }[] = [];
 
-    // ── Step 1: Apply multi-WAN via shell script wrapper ──
+    // ── Step 1: Generate DGD configuration files ──
     const mwConfig: MultiWanConfig = {
-      mode: wanMode,
-      healthCheckUrl: hcUrl,
-      healthCheckInterval: hcInterval,
-      failoverThreshold: foThreshold,
-      wanMembers: validMembers,
+      daemon: {
+        mode: wanMode as MultiWanConfig['daemon']['mode'],
+        checkInterval: checkInterval ? parseInt(String(checkInterval), 10) : 20,
+        pingCount: pingCount ? parseInt(String(pingCount), 10) : 3,
+        pingTimeout: pingTimeout ? parseInt(String(pingTimeout), 10) : 2,
+        tcpTimeout: tcpTimeout ? parseInt(String(tcpTimeout), 10) : 5,
+        autoSwitchback: body.autoSwitchback ?? true,
+        switchbackDelay: body.switchbackDelay ? parseInt(String(body.switchbackDelay), 10) : 300,
+        flushConntrackOnFailover: body.flushConntrackOnFailover ?? true,
+      },
+      gateways: validGateways,
     };
 
-    let applyResult;
-    switch (wanMode) {
-      case 'failover':
-        applyResult = applyFailover(mwConfig);
-        break;
-      case 'round-robin':
-        applyResult = applyRoundRobin(mwConfig);
-        break;
-      case 'weighted':
-      default:
-        applyResult = applyWeighted(mwConfig);
-        break;
-    }
-
-    results.push({
-      step: 'apply-config',
-      success: applyResult.success,
-      message: applyResult.success
-        ? `Multi-WAN ${wanMode} configuration applied`
-        : applyResult.error || `Failed to apply ${wanMode} configuration`,
-    });
-
-    // ── Step 2: Deploy monitoring script for failover mode ──
-    if (wanMode === 'failover' && applyResult.success) {
-      const monitorResult = deployMonitor(mwConfig);
+    // Generate per-gateway dgd.conf files
+    try {
+      const confResult = generateDgdConf(mwConfig);
       results.push({
-        step: 'monitor-deploy',
-        success: monitorResult.success,
-        message: monitorResult.success
-          ? 'Failover monitoring script deployed'
-          : monitorResult.error || 'Failed to deploy monitor script',
+        step: 'generate-conf',
+        success: confResult.success,
+        message: confResult.success
+          ? `DGD config files generated for ${validGateways.length} gateway(s)`
+          : confResult.error || 'Failed to generate DGD config files',
       });
+    } catch (e: any) {
+      results.push({ step: 'generate-conf', success: false, message: String(e) });
     }
 
-    // ── Step 3: Persist to DB (only if shell script succeeded) ──
-    if (applyResult.success) {
-      try {
-        const upsertData: Record<string, any> = {
-          enabled: true,
-          mode: wanMode,
-          healthCheckUrl: hcUrl,
-          healthCheckInterval: hcInterval,
-          failoverThreshold: foThreshold,
-        };
-
-        const config = await db.multiWanConfig.upsert({
-          where: { propertyId: PROPERTY_ID },
-          create: {
-            tenantId: TENANT_ID,
-            propertyId: PROPERTY_ID,
-            ...upsertData,
-          },
-          update: upsertData,
-        });
-
-        // Delete existing members and recreate
-        await db.multiWanMember.deleteMany({
-          where: { multiWanConfigId: config.id },
-        });
-
-        for (const member of validMembers) {
-          // Try to find the NetworkInterface
-          let ifaceId: string | null = null;
-          try {
-            const netIface = await db.networkInterface.findUnique({
-              where: { propertyId_name: { propertyId: PROPERTY_ID, name: member.interfaceName } },
-            });
-            if (netIface) ifaceId = netIface.id;
-          } catch {
-            // Non-fatal
-          }
-
-          await db.multiWanMember.create({
-            data: {
-              multiWanConfigId: config.id,
-              interfaceName: member.interfaceName,
-              interfaceId: ifaceId,
-              gateway: member.gateway,
-              weight: member.weight || 1,
-              enabled: member.enabled !== false,
-              isPrimary: !!member.isPrimary,
-            },
-          });
-        }
-
-        results.push({ step: 'database', success: true, message: 'Multi-WAN config saved to database' });
-      } catch (dbErr: any) {
-        console.warn('[Network OS API] DB upsert failed for multi-WAN:', dbErr);
-        results.push({ step: 'database', success: false, message: dbErr.message });
-      }
-    } else {
-      results.push({ step: 'database', success: false, message: 'Skipped: shell script apply did not succeed' });
+    // ── Step 2: Apply DGD configuration to OS ──
+    try {
+      const applyResult = applyDgdConfig(mwConfig);
+      results.push({
+        step: 'apply-dgd',
+        success: applyResult.success,
+        message: applyResult.success
+          ? `DGD ${wanMode} configuration applied: ${applyResult.data?.gatewaysConfigured?.length || 0} gateway(s), table 221 ${applyResult.data?.table221Updated ? 'updated' : 'unchanged'}`
+          : applyResult.error || `Failed to apply DGD configuration`,
+      });
+    } catch (e: any) {
+      results.push({ step: 'apply-dgd', success: false, message: String(e) });
     }
 
     return NextResponse.json({
       success: true,
-      message: `Multi-WAN configuration applied (mode: ${wanMode})`,
+      message: `Multi-WAN / DGD configuration applied (mode: ${wanMode})`,
       results,
       data: {
         enabled: true,
         mode: wanMode,
-        wanMembers: validMembers,
+        gateways: validGateways.map(g => ({
+          name: g.name,
+          interfaceName: g.interfaceName,
+          ipAddress: g.ipAddress,
+          weight: g.weight,
+          isBackup: g.isBackup,
+          routingTableId: g.routingTableId,
+          enabled: g.enabled,
+          healthRules: g.healthRules.length,
+          explicitRoutes: g.explicitRoutes.length,
+          fwmarks: g.fwmarks.length,
+        })),
       },
     });
   } catch (error) {
@@ -270,48 +243,29 @@ export async function DELETE() {
 }
 
 /**
- * Internal: Reset all multi-WAN state (OS via shell script + DB).
+ * Internal: Reset all multi-WAN state (OS via shell script).
+ * DB state is managed by the /api/wifi/network/multiwan endpoint.
  */
 async function handleReset(): Promise<NextResponse> {
   const results: { step: string; success: boolean; message: string }[] = [];
 
-  // 1. Reset OS-level multi-WAN via shell script wrapper
+  // Reset OS-level multi-WAN via shell script wrapper
   try {
     const resetResult = resetMultiWan();
     results.push({
       step: 'os-reset',
       success: resetResult.success,
       message: resetResult.success
-        ? `Multi-WAN reset: ${resetResult.data?.rulesRemoved || 0} rules removed, ${resetResult.data?.tablesFlushed || 0} tables flushed, ${resetResult.data?.nftablesChainsRemoved || 0} chains removed`
+        ? `Multi-WAN reset: ${resetResult.data?.rulesRemoved || 0} rules removed, ${resetResult.data?.tablesFlushed || 0} tables flushed`
         : resetResult.error || 'Failed to reset multi-WAN',
     });
   } catch (e: any) {
     results.push({ step: 'os-reset', success: false, message: String(e) });
   }
 
-  // 2. Update DB
-  try {
-    const config = await db.multiWanConfig.findUnique({
-      where: { propertyId: PROPERTY_ID },
-    });
-    if (config) {
-      await db.multiWanMember.deleteMany({
-        where: { multiWanConfigId: config.id },
-      });
-      await db.multiWanConfig.update({
-        where: { id: config.id },
-        data: { enabled: false },
-      });
-    }
-    results.push({ step: 'database', success: true, message: 'Multi-WAN config disabled in database' });
-  } catch (dbErr: any) {
-    console.warn('[Network OS API] DB update failed for multi-WAN reset:', dbErr);
-    results.push({ step: 'database', success: false, message: dbErr.message });
-  }
-
   return NextResponse.json({
     success: true,
-    message: 'Multi-WAN configuration reset',
+    message: 'Multi-WAN / DGD configuration reset',
     results,
   });
 }

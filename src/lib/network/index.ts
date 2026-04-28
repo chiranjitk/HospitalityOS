@@ -136,18 +136,23 @@ export {
   type PersistResult,
 } from './persist';
 
-// Multi-WAN operations
+// Multi-WAN / DGD operations
 export {
-  applyWeighted,
-  applyFailover,
-  applyRoundRobin,
+  applyDgdConfig,
+  startDgd,
+  stopDgd,
+  getDgdStatus,
   resetMultiWan,
-  deployMonitor,
-  type WanMember,
+  generateDgdConf,
+  checkGateway,
+  type HealthRuleDef,
+  type ExplicitRouteDef,
+  type FwmarkDef,
+  type GatewayDef,
+  type MultiWanDaemonConfig,
   type MultiWanConfig,
   type MultiWanApplyResult,
   type MultiWanResetResult,
-  type MultiWanMonitorResult,
 } from './multiwan';
 
 // Interface Role operations

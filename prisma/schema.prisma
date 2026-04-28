@@ -3020,54 +3020,125 @@ model MetasearchConnection {
 }
 
 // ============================================================
-// MULTI-WAN LOAD BALANCING
+// MULTI-WAN / DEAD GATEWAY DETECTION (DGD)
 // ============================================================
 
-// ============================================================
-// MULTI-WAN LOAD BALANCING
-// ============================================================
-
-/// MultiWanConfig - Multi-WAN load balancing configuration
+/// MultiWanConfig - DGD daemon settings and load balancing mode
 model MultiWanConfig {
-  id                         String           @id @default(uuid()) @db.Uuid
-  tenantId                   String           @db.Uuid
-  propertyId                 String           @unique @db.Uuid
-  enabled                    Boolean          @default(false)
-  mode                       String           @default("weighted") // weighted, failover, round-robin, ECMP
-  healthCheckUrl             String           @default("https://1.1.1.1")
-  healthCheckInterval        Int              @default(10) // seconds
-  healthCheckTimeout         Int              @default(3) // seconds
-  failoverThreshold          Int              @default(3) // consecutive failures
-  autoSwitchback             Boolean          @default(true)
-  switchbackDelay            Int              @default(300) // seconds
-  flushConnectionsOnFailover Boolean          @default(true)
-  createdAt                  DateTime         @default(now()) @db.Timestamptz
-  updatedAt                  DateTime         @updatedAt @db.Timestamptz
-  property                   Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  tenant                     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  wanMembers                 MultiWanMember[]
+  id                       String    @id @default(uuid()) @db.Uuid
+  tenantId                 String    @db.Uuid
+  propertyId               String    @unique @db.Uuid
+  enabled                  Boolean   @default(false)
+  mode                     String    @default("weighted") // weighted, failover, round-robin, ECMP
+  checkInterval            Int       @default(20) // DGD loop interval in seconds
+  pingCount                Int       @default(3) // number of pings per health check
+  pingTimeout              Int       @default(2) // seconds per ping
+  tcpTimeout               Int       @default(5) // seconds for TCP check (nc -z -w)
+  autoSwitchback           Boolean   @default(true)
+  switchbackDelay          Int       @default(300) // seconds before switching back to primary
+  flushConntrackOnFailover Boolean   @default(true)
+  createdAt                DateTime  @default(now()) @db.Timestamptz
+  updatedAt                DateTime  @updatedAt @db.Timestamptz
+  property                 Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant                   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  gateways                 Gateway[]
 
   @@index([tenantId])
 }
 
-/// MultiWanMember - Individual WAN interface in multi-WAN config
-model MultiWanMember {
-  id               String         @id @default(uuid()) @db.Uuid
-  multiWanConfigId String         @db.Uuid
-  interfaceName    String // eth0, eth1, bond0
-  interfaceId      String?        @db.Uuid // FK to NetworkInterface
-  weight           Int            @default(1) // For weighted load balancing (1-100)
-  gateway          String? // Gateway IP
-  healthStatus     String         @default("unknown") // online, offline, checking, unknown
-  lastHealthCheck  DateTime?      @db.Timestamptz
-  enabled          Boolean        @default(true)
-  isPrimary        Boolean        @default(false)
-  createdAt        DateTime       @default(now()) @db.Timestamptz
-  updatedAt        DateTime       @updatedAt @db.Timestamptz
-  multiWanConfig   MultiWanConfig @relation(fields: [multiWanConfigId], references: [id], onDelete: Cascade)
+/// Gateway - Individual WAN gateway (equivalent to 24online tblgateway)
+model Gateway {
+  id              String     @id @default(uuid()) @db.Uuid
+  tenantId        String     @db.Uuid
+  propertyId      String     @db.Uuid
+  multiWanConfigId String    @db.Uuid
+  name            String     @default("WAN") // display name: WAN-1, WAN-2
+  ipAddress       String     // gateway IP: 10.0.0.1
+  interfaceName   String     // eth0, eth1, bond0
+  interfaceId     String?    @db.Uuid // FK to NetworkInterface
+  weight          Int        @default(1) // ECMP weight (0 = disabled/offline)
+  isBackup        Boolean    @default(false) // is this a backup-only gateway?
+  backupGatewayId String?    @db.Uuid // self-ref: which primary gateway does this backup?
+  routingTableId  Int        @default(0) // gw<n>nof table number (101-250), 0 = auto-assign
+  healthStatus    String     @default("unknown") // online, offline, checking, unknown
+  lastHealthCheck DateTime?  @db.Timestamptz
+  enabled         Boolean    @default(true)
+  createdAt       DateTime   @default(now()) @db.Timestamptz
+  updatedAt       DateTime   @updatedAt @db.Timestamptz
+  multiWanConfig  MultiWanConfig     @relation(fields: [multiWanConfigId], references: [id], onDelete: Cascade)
+  property        Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  backupOf        Gateway?           @relation("GatewayBackup", fields: [backupGatewayId], references: [id])
+  backups         Gateway[]          @relation("GatewayBackup")
+  healthRules     GatewayHealthRule[]
+  explicitRoutes  GatewayExplicitRoute[]
+  fwmarks         GatewayFwmark[]
 
   @@unique([multiWanConfigId, interfaceName])
+  @@index([tenantId])
+  @@index([propertyId])
   @@index([multiWanConfigId])
+  @@index([backupGatewayId])
+}
+
+/// GatewayHealthRule - Per-gateway health check rules (equivalent to 24online tbldgdgatewayrule)
+/// Supports PING, TCP, UDP with AND/OR operators between rules
+model GatewayHealthRule {
+  id          String   @id @default(uuid()) @db.Uuid
+  gatewayId   String   @db.Uuid
+  tenantId    String   @db.Uuid
+  protocol    String   @default("PING") // PING, TCP, UDP
+  host        String   // target IP/hostname: 8.8.8.8, 1.1.1.1
+  port        Int      @default(0) // 0 for PING, port number for TCP/UDP
+  operator    String   @default("&") // & (AND), | (OR) — joins this rule to the next
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  gateway     Gateway  @relation(fields: [gatewayId], references: [id], onDelete: Cascade)
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([gatewayId])
+  @@index([tenantId])
+  @@unique([gatewayId, sortOrder])
+}
+
+/// GatewayExplicitRoute - Source-based routing rules (equivalent to 24online tblgatewaynetworkrel)
+/// Traffic FROM these networks routes via this gateway's routing table
+model GatewayExplicitRoute {
+  id          String    @id @default(uuid()) @db.Uuid
+  gatewayId   String    @db.Uuid
+  tenantId    String    @db.Uuid
+  propertyId  String    @db.Uuid
+  network     String    // CIDR: 192.168.1.0/24
+  description String?
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+  gateway     Gateway   @relation(fields: [gatewayId], references: [id], onDelete: Cascade)
+  property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([gatewayId])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@unique([gatewayId, network])
+}
+
+/// GatewayFwmark - Fwmark-based routing rules (equivalent to 24online tblfwmark)
+/// Packets marked with this fwmark route via this gateway's routing table
+model GatewayFwmark {
+  id          String    @id @default(uuid()) @db.Uuid
+  gatewayId   String    @db.Uuid
+  tenantId    String    @db.Uuid
+  fwmarkValue String    @default("0x1") // hex fwmark: 0x1, 0x2, etc.
+  description String?
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+  gateway     Gateway   @relation(fields: [gatewayId], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([gatewayId])
+  @@index([tenantId])
+  @@unique([gatewayId, fwmarkValue])
 }
 
 /// NasHealthLog - NAS health monitoring history (Accsium tblnasconnectivity)
@@ -3785,6 +3856,7 @@ model Property {
   menuVariants           MenuVariant[]
   posInventoryItems      InventoryItem[]
   posInventoryMovements  InventoryMovement[]
+  tableMerges            TableMerge[]
   reservations           Reservation[]
   rooms                  Room[]
   roomTypes              RoomType[]
@@ -3849,7 +3921,9 @@ model Property {
   wifiUserStatusHistory  WiFiUserStatusHistory[]
   nasHealthLogs          NasHealthLog[]
   staticRoutes           StaticRoute[]
-  multiWanConfig         MultiWanConfig?
+  multiWanConfigs        MultiWanConfig[]
+  gateways               Gateway[]
+  gatewayExplicitRoutes  GatewayExplicitRoute[]
   kioskSettings          KioskSettings?
 
   @@unique([tenantId, slug])
@@ -5618,6 +5692,10 @@ model Tenant {
   interfaceAliases          InterfaceAlias[]
   staticRoutes              StaticRoute[]
   multiWanConfigs           MultiWanConfig[]
+  gateways                  Gateway[]
+  gatewayHealthRules        GatewayHealthRule[]
+  gatewayExplicitRoutes     GatewayExplicitRoute[]
+  gatewayFwmarks            GatewayFwmark[]
   liveSessions              LiveSession[]
   coaSessionDetails         CoaSessionDetail[]
   fairAccessPolicies        FairAccessPolicy[]
@@ -5644,11 +5722,7 @@ model Tenant {
   experienceFeedback        ExperienceFeedback[]
   chatAttachments          ChatAttachment[]
   chatTransfers            ChatTransfer[]
-  menuModifiers             MenuModifier[]
-  menuModifierOptions       MenuModifierOption[]
-  menuVariants              MenuVariant[]
-  posInventoryItems         InventoryItem[]
-  posInventoryMovements     InventoryMovement[]
+  recipeIngredients         RecipeIngredient[]
 }
 
 model Experience {

@@ -1,23 +1,76 @@
 /**
- * Multi-WAN Configuration API Route
+ * Multi-WAN / DGD Configuration API Route
  *
- * Get, create, update, and delete multi-WAN load balancing/failover configurations
- * including WAN member interfaces.
+ * CRUD for MultiWanConfig with nested Gateways, GatewayHealthRules,
+ * GatewayExplicitRoutes, and GatewayFwmarks.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 
-// GET /api/wifi/network/multiwan - Get multi-WAN config with members for a property
+// ─── Helper Types ────────────────────────────────────────────────────────────
+
+interface HealthRuleInput {
+  id?: string;
+  protocol: 'PING' | 'TCP' | 'UDP';
+  host: string;
+  port: number;
+  operator: '&' | '|';
+  sortOrder: number;
+}
+
+interface ExplicitRouteInput {
+  id?: string;
+  network: string;
+  description?: string;
+}
+
+interface FwmarkInput {
+  id?: string;
+  fwmarkValue: string;
+  description?: string;
+}
+
+interface GatewayInput {
+  id?: string;
+  name: string;
+  ipAddress: string;
+  interfaceName: string;
+  interfaceId?: string | null;
+  weight: number;
+  isBackup: boolean;
+  backupGatewayId?: string | null;
+  routingTableId: number;
+  enabled: boolean;
+  healthRules?: HealthRuleInput[];
+  explicitRoutes?: ExplicitRouteInput[];
+  fwmarks?: FwmarkInput[];
+}
+
+interface MultiWanBody {
+  propertyId: string;
+  enabled?: boolean;
+  mode?: string;
+  checkInterval?: number;
+  pingCount?: number;
+  pingTimeout?: number;
+  tcpTimeout?: number;
+  autoSwitchback?: boolean;
+  switchbackDelay?: number;
+  flushConntrackOnFailover?: boolean;
+  gateways?: GatewayInput[];
+}
+
+// ─── GET ─────────────────────────────────────────────────────────────────────
+
+// GET /api/wifi/network/multiwan?propertyId=...
 export async function GET(request: NextRequest) {
   const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const propertyId = searchParams.get('propertyId');
-
+    const propertyId = request.nextUrl.searchParams.get('propertyId');
     if (!propertyId) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required query parameter: propertyId' } },
@@ -28,8 +81,14 @@ export async function GET(request: NextRequest) {
     const config = await db.multiWanConfig.findUnique({
       where: { propertyId, tenantId: user.tenantId },
       include: {
-        wanMembers: {
-          orderBy: [{ isPrimary: 'desc' }, { weight: 'desc' }],
+        gateways: {
+          orderBy: [{ isBackup: 'asc' }, { weight: 'desc' }],
+          include: {
+            backupOf: { select: { id: true, name: true } },
+            healthRules: { orderBy: { sortOrder: 'asc' } },
+            explicitRoutes: { orderBy: { createdAt: 'asc' } },
+            fwmarks: { orderBy: { createdAt: 'asc' } },
+          },
         },
       },
     });
@@ -44,94 +103,139 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/wifi/network/multiwan - Create or update (upsert) multi-WAN config
+// ─── POST (Upsert) ──────────────────────────────────────────────────────────
+
+// POST /api/wifi/network/multiwan
 export async function POST(request: NextRequest) {
   const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {
-    const body = await request.json();
+    const body: MultiWanBody = await request.json();
     const tenantId = user.tenantId;
 
-    const {
-      propertyId,
-      enabled = false,
-      mode = 'weighted',
-      healthCheckUrl = 'https://1.1.1.1',
-      healthCheckInterval = 10,
-      healthCheckTimeout = 3,
-      failoverThreshold = 3,
-      autoSwitchback = true,
-      switchbackDelay = 300,
-      flushConnectionsOnFailover = true,
-      wanMembers = [],
-    } = body;
-
-    if (!propertyId) {
+    if (!body.propertyId) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required field: propertyId' } },
         { status: 400 },
       );
     }
 
-    // Upsert the config by propertyId
+    const {
+      enabled = false,
+      mode = 'weighted',
+      checkInterval = 20,
+      pingCount = 3,
+      pingTimeout = 2,
+      tcpTimeout = 5,
+      autoSwitchback = true,
+      switchbackDelay = 300,
+      flushConntrackOnFailover = true,
+      gateways = [],
+    } = body;
+
+    // Upsert MultiWanConfig
     const config = await db.multiWanConfig.upsert({
-      where: { propertyId },
+      where: { propertyId: body.propertyId },
       update: {
         enabled,
         mode,
-        healthCheckUrl,
-        healthCheckInterval: parseInt(healthCheckInterval, 10),
-        healthCheckTimeout: parseInt(healthCheckTimeout, 10),
-        failoverThreshold: parseInt(failoverThreshold, 10),
+        checkInterval,
+        pingCount,
+        pingTimeout,
+        tcpTimeout,
         autoSwitchback,
-        switchbackDelay: parseInt(switchbackDelay, 10),
-        flushConnectionsOnFailover,
+        switchbackDelay,
+        flushConntrackOnFailover,
       },
       create: {
         tenant: { connect: { id: tenantId } },
-        property: { connect: { id: propertyId } },
+        property: { connect: { id: body.propertyId } },
         enabled,
         mode,
-        healthCheckUrl,
-        healthCheckInterval: parseInt(healthCheckInterval, 10),
-        healthCheckTimeout: parseInt(healthCheckTimeout, 10),
-        failoverThreshold: parseInt(failoverThreshold, 10),
+        checkInterval,
+        pingCount,
+        pingTimeout,
+        tcpTimeout,
         autoSwitchback,
-        switchbackDelay: parseInt(switchbackDelay, 10),
-        flushConnectionsOnFailover,
+        switchbackDelay,
+        flushConntrackOnFailover,
       },
       include: {
-        wanMembers: true,
+        gateways: {
+          include: {
+            healthRules: true,
+            explicitRoutes: true,
+            fwmarks: true,
+          },
+        },
       },
     });
 
-    // Delete existing members before recreating
-    await db.multiWanMember.deleteMany({
+    // Delete existing gateways and their children (cascade handles health rules, explicit routes, fwmarks)
+    await db.gateway.deleteMany({
       where: { multiWanConfigId: config.id },
     });
 
-    // Recreate wan members
-    if (Array.isArray(wanMembers) && wanMembers.length > 0) {
-      await db.multiWanMember.createMany({
-        data: wanMembers.map((member: Record<string, unknown>) => ({
-          multiWanConfigId: config.id,
-          interfaceName: member.interfaceName,
-          interfaceId: member.interfaceId || null,
-          weight: typeof member.weight === 'number' ? member.weight : parseInt(String(member.weight), 10) || 1,
-          gateway: member.gateway || null,
-          enabled: member.enabled !== undefined ? member.enabled : true,
-          isPrimary: member.isPrimary || false,
-        })),
-      });
+    // Recreate gateways with nested data
+    if (Array.isArray(gateways) && gateways.length > 0) {
+      for (const gw of gateways) {
+        const createdGateway = await db.gateway.create({
+          data: {
+            multiWanConfigId: config.id,
+            tenantId,
+            propertyId: body.propertyId,
+            name: gw.name || gw.interfaceName || 'WAN',
+            ipAddress: gw.ipAddress || '',
+            interfaceName: gw.interfaceName,
+            interfaceId: gw.interfaceId || null,
+            weight: typeof gw.weight === 'number' ? gw.weight : 1,
+            isBackup: gw.isBackup || false,
+            backupGatewayId: gw.backupGatewayId || null,
+            routingTableId: typeof gw.routingTableId === 'number' ? gw.routingTableId : 0,
+            enabled: gw.enabled !== false,
+            healthRules: {
+              create: (gw.healthRules || []).map((r, i) => ({
+                tenantId,
+                protocol: r.protocol || 'PING',
+                host: r.host || '',
+                port: r.port || 0,
+                operator: r.operator || '&',
+                sortOrder: r.sortOrder ?? i,
+              })),
+            },
+            explicitRoutes: {
+              create: (gw.explicitRoutes || []).map(r => ({
+                tenantId,
+                propertyId: body.propertyId,
+                network: r.network || '',
+                description: r.description || null,
+              })),
+            },
+            fwmarks: {
+              create: (gw.fwmarks || []).map(f => ({
+                tenantId,
+                fwmarkValue: f.fwmarkValue || '0x1',
+                description: f.description || null,
+              })),
+            },
+          },
+        });
+      }
     }
 
-    // Return the full config with new members
+    // Return the full config with all nested data
     const result = await db.multiWanConfig.findUnique({
       where: { id: config.id },
       include: {
-        wanMembers: {
-          orderBy: [{ isPrimary: 'desc' }, { weight: 'desc' }],
+        gateways: {
+          orderBy: [{ isBackup: 'asc' }, { weight: 'desc' }],
+          include: {
+            backupOf: { select: { id: true, name: true } },
+            healthRules: { orderBy: { sortOrder: 'asc' } },
+            explicitRoutes: { orderBy: { createdAt: 'asc' } },
+            fwmarks: { orderBy: { createdAt: 'asc' } },
+          },
         },
       },
     });
@@ -146,30 +250,18 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT /api/wifi/network/multiwan - Update existing multi-WAN config
+// ─── PUT ─────────────────────────────────────────────────────────────────────
+
+// PUT /api/wifi/network/multiwan
 export async function PUT(request: NextRequest) {
   const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {
-    const body = await request.json();
+    const body: MultiWanBody = await request.json();
     const tenantId = user.tenantId;
 
-    const {
-      propertyId,
-      enabled,
-      mode,
-      healthCheckUrl,
-      healthCheckInterval,
-      healthCheckTimeout,
-      failoverThreshold,
-      autoSwitchback,
-      switchbackDelay,
-      flushConnectionsOnFailover,
-      wanMembers,
-    } = body;
-
-    if (!propertyId) {
+    if (!body.propertyId) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required field: propertyId' } },
         { status: 400 },
@@ -177,7 +269,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const existing = await db.multiWanConfig.findUnique({
-      where: { propertyId },
+      where: { propertyId: body.propertyId },
     });
 
     if (!existing || existing.tenantId !== tenantId) {
@@ -187,49 +279,88 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Update config-level fields
     const updateData: Record<string, unknown> = {};
-    if (enabled !== undefined) updateData.enabled = enabled;
-    if (mode !== undefined) updateData.mode = mode;
-    if (healthCheckUrl !== undefined) updateData.healthCheckUrl = healthCheckUrl;
-    if (healthCheckInterval !== undefined) updateData.healthCheckInterval = parseInt(healthCheckInterval, 10);
-    if (healthCheckTimeout !== undefined) updateData.healthCheckTimeout = parseInt(healthCheckTimeout, 10);
-    if (failoverThreshold !== undefined) updateData.failoverThreshold = parseInt(failoverThreshold, 10);
-    if (autoSwitchback !== undefined) updateData.autoSwitchback = autoSwitchback;
-    if (switchbackDelay !== undefined) updateData.switchbackDelay = parseInt(switchbackDelay, 10);
-    if (flushConnectionsOnFailover !== undefined) updateData.flushConnectionsOnFailover = flushConnectionsOnFailover;
+    if (body.enabled !== undefined) updateData.enabled = body.enabled;
+    if (body.mode !== undefined) updateData.mode = body.mode;
+    if (body.checkInterval !== undefined) updateData.checkInterval = body.checkInterval;
+    if (body.pingCount !== undefined) updateData.pingCount = body.pingCount;
+    if (body.pingTimeout !== undefined) updateData.pingTimeout = body.pingTimeout;
+    if (body.tcpTimeout !== undefined) updateData.tcpTimeout = body.tcpTimeout;
+    if (body.autoSwitchback !== undefined) updateData.autoSwitchback = body.autoSwitchback;
+    if (body.switchbackDelay !== undefined) updateData.switchbackDelay = body.switchbackDelay;
+    if (body.flushConntrackOnFailover !== undefined) updateData.flushConntrackOnFailover = body.flushConntrackOnFailover;
 
     await db.multiWanConfig.update({
-      where: { propertyId },
+      where: { propertyId: body.propertyId },
       data: updateData,
     });
 
-    // If wanMembers provided, replace all members
-    if (Array.isArray(wanMembers)) {
-      await db.multiWanMember.deleteMany({
+    // If gateways provided, replace all (cascade handles children)
+    if (Array.isArray(body.gateways)) {
+      await db.gateway.deleteMany({
         where: { multiWanConfigId: existing.id },
       });
 
-      if (wanMembers.length > 0) {
-        await db.multiWanMember.createMany({
-          data: wanMembers.map((member: Record<string, unknown>) => ({
-            multiWanConfigId: existing.id,
-            interfaceName: member.interfaceName,
-            interfaceId: member.interfaceId || null,
-            weight: typeof member.weight === 'number' ? member.weight : parseInt(String(member.weight), 10) || 1,
-            gateway: member.gateway || null,
-            enabled: member.enabled !== undefined ? member.enabled : true,
-            isPrimary: member.isPrimary || false,
-          })),
-        });
+      if (body.gateways.length > 0) {
+        for (const gw of body.gateways) {
+          await db.gateway.create({
+            data: {
+              multiWanConfigId: existing.id,
+              tenantId,
+              propertyId: body.propertyId,
+              name: gw.name || gw.interfaceName || 'WAN',
+              ipAddress: gw.ipAddress || '',
+              interfaceName: gw.interfaceName,
+              interfaceId: gw.interfaceId || null,
+              weight: typeof gw.weight === 'number' ? gw.weight : 1,
+              isBackup: gw.isBackup || false,
+              backupGatewayId: gw.backupGatewayId || null,
+              routingTableId: typeof gw.routingTableId === 'number' ? gw.routingTableId : 0,
+              enabled: gw.enabled !== false,
+              healthRules: {
+                create: (gw.healthRules || []).map((r, i) => ({
+                  tenantId,
+                  protocol: r.protocol || 'PING',
+                  host: r.host || '',
+                  port: r.port || 0,
+                  operator: r.operator || '&',
+                  sortOrder: r.sortOrder ?? i,
+                })),
+              },
+              explicitRoutes: {
+                create: (gw.explicitRoutes || []).map(r => ({
+                  tenantId,
+                  propertyId: body.propertyId,
+                  network: r.network || '',
+                  description: r.description || null,
+                })),
+              },
+              fwmarks: {
+                create: (gw.fwmarks || []).map(f => ({
+                  tenantId,
+                  fwmarkValue: f.fwmarkValue || '0x1',
+                  description: f.description || null,
+                })),
+              },
+            },
+          });
+        }
       }
     }
 
-    // Return the full updated config
+    // Return full updated config
     const result = await db.multiWanConfig.findUnique({
-      where: { propertyId },
+      where: { propertyId: body.propertyId },
       include: {
-        wanMembers: {
-          orderBy: [{ isPrimary: 'desc' }, { weight: 'desc' }],
+        gateways: {
+          orderBy: [{ isBackup: 'asc' }, { weight: 'desc' }],
+          include: {
+            backupOf: { select: { id: true, name: true } },
+            healthRules: { orderBy: { sortOrder: 'asc' } },
+            explicitRoutes: { orderBy: { createdAt: 'asc' } },
+            fwmarks: { orderBy: { createdAt: 'asc' } },
+          },
         },
       },
     });
@@ -244,15 +375,15 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE /api/wifi/network/multiwan - Delete multi-WAN config for a property
+// ─── DELETE ──────────────────────────────────────────────────────────────────
+
+// DELETE /api/wifi/network/multiwan?propertyId=...
 export async function DELETE(request: NextRequest) {
   const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const propertyId = searchParams.get('propertyId');
-
+    const propertyId = request.nextUrl.searchParams.get('propertyId');
     if (!propertyId) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required query parameter: propertyId' } },
@@ -271,7 +402,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Members will be cascade-deleted via onDelete: Cascade
+    // Gateways and their children cascade-deleted via onDelete: Cascade
     await db.multiWanConfig.delete({
       where: { propertyId },
     });
