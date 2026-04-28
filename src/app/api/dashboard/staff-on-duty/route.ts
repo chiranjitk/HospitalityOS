@@ -43,12 +43,6 @@ export async function GET(request: NextRequest) {
             department: true,
           },
         },
-        shiftTemplate: {
-          select: {
-            name: true,
-            shiftType: true,
-          },
-        },
       },
       orderBy: { startTime: 'asc' },
       take: 20,
@@ -62,11 +56,11 @@ export async function GET(request: NextRequest) {
         name: `${firstName} ${lastName}`.trim(),
         avatar: schedule.user.avatar,
         initials: `${firstName[0] || ''}${lastName[0] || ''}`,
-        role: schedule.user.jobTitle || schedule.department || schedule.shiftTemplate?.name || 'Staff',
+        role: schedule.user.jobTitle || schedule.department || 'Staff',
         shiftStart: schedule.startTime,
         shiftEnd: schedule.endTime,
         department: schedule.department || null,
-        shiftType: schedule.shiftTemplate?.shiftType || 'regular',
+        shiftType: 'regular',
         isOnline: schedule.status === 'scheduled',
       };
     });
