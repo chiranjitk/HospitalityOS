@@ -35,8 +35,9 @@ export async function POST(
     }
 
     // Check email configuration
-    if (!isEmailConfigured()) {
-      return NextResponse.json({ success: false, error: { code: 'CONFIG_ERROR', message: 'Email service is not configured. Please set SMTP_HOST, SMTP_USER, and SMTP_PASS environment variables.' } }, { status: 500 });
+    const emailReady = await isEmailConfigured(user.tenantId);
+    if (!emailReady) {
+      return NextResponse.json({ success: false, error: { code: 'CONFIG_ERROR', message: 'Email service is not configured. Please configure SMTP in System Integrations.' } }, { status: 500 });
     }
 
     // Get tenant info for email header
@@ -76,7 +77,7 @@ export async function POST(
     });
 
     // Send email
-    const result = await sendEmail({
+    const result = await sendEmail(user.tenantId, {
       to: invoice.customerEmail,
       subject: `Invoice ${invoice.invoiceNumber} - ${property?.name || tenant?.name || 'StaySuite'}`,
       html,

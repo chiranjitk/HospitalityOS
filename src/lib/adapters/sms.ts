@@ -6,6 +6,7 @@
  */
 
 import { getConfig } from '../config/env';
+import { getTwilioConfig } from '../service-config';
 
 // SMS options interface
 export interface SMSOptions {
@@ -209,6 +210,44 @@ export async function sendSMS(options: SMSOptions): Promise<SMSResult> {
 export async function sendSMSBatch(messages: SMSOptions[]): Promise<SMSResult[]> {
   const sms = await getSMS();
   return sms.sendBatch(messages);
+}
+
+/**
+ * Get SMS adapter for a specific tenant.
+ * Loads Twilio config from the database first (DB-first), falls back to
+ * env-vars / mock.  Returns a fresh adapter instance each time (NOT a
+ * singleton) so multi-tenant configs never bleed into each other.
+ */
+export async function getSMSForTenant(tenantId: string): Promise<SMSAdapter> {
+  const cfg = await getTwilioConfig(tenantId);
+
+  if (cfg.accountSid) {
+    try {
+      const adapter = new TwilioSMSAdapter({
+        accountSid: cfg.accountSid,
+        authToken: cfg.authToken,
+        phoneNumber: cfg.phoneNumber,
+      });
+      console.log(`[SMS] Using Twilio for tenant ${tenantId} (${cfg.source})`);
+      return adapter;
+    } catch (error) {
+      console.warn(`[SMS] Tenant Twilio init failed (${cfg.source}), falling back:`, error);
+    }
+  }
+
+  // Fall back to the global adapter (env-based or mock)
+  return getSMS();
+}
+
+/**
+ * Send an SMS for a specific tenant (convenience wrapper).
+ */
+export async function sendSMSForTenant(
+  tenantId: string,
+  options: SMSOptions,
+): Promise<SMSResult> {
+  const sms = await getSMSForTenant(tenantId);
+  return sms.send(options);
 }
 
 /**

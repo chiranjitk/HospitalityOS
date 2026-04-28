@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth-helpers';
-import { writeFile, mkdir, unlink } from 'fs/promises';
+import { uploadFile } from '@/lib/storage';
+import { unlink } from 'fs/promises';
 import { join } from 'path';
 
-const UPLOAD_DIR = join(process.cwd(), 'public', 'uploads', 'chat');
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
@@ -15,13 +15,6 @@ const ALLOWED_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'text/plain', 'text/csv',
 ]);
-
-function generateFileName(originalName: string): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 8);
-  const ext = originalName.split('.').pop() || '';
-  return `${timestamp}-${random}.${ext}`;
-}
 
 // GET /api/chat-conversations/[id]/attachments - List attachments
 export async function GET(
@@ -106,14 +99,24 @@ export async function POST(
       );
     }
 
-    // Save file
-    await mkdir(UPLOAD_DIR, { recursive: true });
-    const fileName = generateFileName(file.name);
-    const filePath = join(UPLOAD_DIR, fileName);
     const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(filePath, buffer);
 
-    const fileUrl = `/uploads/chat/${fileName}`;
+    // Upload via storage utility (S3 with local fallback)
+    const result = await uploadFile(user.tenantId, {
+      file: buffer,
+      filename: file.name,
+      folder: 'chat',
+      contentType: file.type,
+    });
+
+    if (!result.success) {
+      return NextResponse.json(
+        { success: false, error: { code: 'UPLOAD_FAILED', message: result.error || 'Failed to upload attachment' } },
+        { status: 500 }
+      );
+    }
+
+    const fileUrl = result.url;
 
     // Create database record
     const attachment = await db.chatAttachment.create({
@@ -172,12 +175,14 @@ export async function DELETE(
       );
     }
 
-    // Delete file from disk
-    try {
-      const filePath = join(process.cwd(), 'public', attachment.fileUrl);
-      await unlink(filePath);
-    } catch {
-      // File might not exist, continue with DB deletion
+    // Delete file from disk (only for locally stored files)
+    if (attachment.storageProvider === 'local' || attachment.fileUrl.startsWith('/uploads/')) {
+      try {
+        const filePath = join(process.cwd(), 'public', attachment.fileUrl);
+        await unlink(filePath);
+      } catch {
+        // File might not exist, continue with DB deletion
+      }
     }
 
     // Delete database record

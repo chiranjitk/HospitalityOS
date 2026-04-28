@@ -10,7 +10,7 @@
  */
 
 import { db } from '@/lib/db';
-import { sendEmail as sendEmailAdapter, EmailOptions, EmailResult } from '@/lib/adapters/email';
+import { sendEmail as sendEmailAdapter, sendEmailForTenant, EmailOptions, EmailResult } from '@/lib/adapters/email';
 import { getConfig } from '@/lib/config/env';
 import crypto from 'crypto';
 
@@ -44,6 +44,7 @@ export interface TemplatedEmailOptions {
   headers?: Record<string, string>;
   tags?: Record<string, string>;
   campaignId?: string;
+  tenantId?: string;
 }
 
 export interface QueuedEmail {
@@ -121,8 +122,10 @@ export class EmailService {
         };
       }
 
-      // Send via adapter
-      const result = await sendEmailAdapter(emailOptions);
+      // Send via adapter (tenant-aware)
+      const result = options.tenantId
+        ? await sendEmailForTenant(options.tenantId, emailOptions)
+        : await sendEmailAdapter(emailOptions);
 
       // Log delivery
       await this.logDelivery(options, result);
@@ -465,7 +468,7 @@ export class EmailService {
       // Could create a dedicated email log table, for now we'll use the notification log
       await db.notificationLog.create({
         data: {
-          tenantId: 'system',
+          tenantId: options.tenantId || 'system',
           recipientType: 'guest',
           recipientId: '',
           recipientEmail: to,

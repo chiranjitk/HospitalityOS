@@ -10,7 +10,7 @@
  */
 
 import { db } from '@/lib/db';
-import { sendSMS as sendSMSAdapter, SMSOptions, SMSResult } from '@/lib/adapters/sms';
+import { sendSMS as sendSMSAdapter, sendSMSForTenant, SMSOptions, SMSResult } from '@/lib/adapters/sms';
 import { getConfig } from '@/lib/config/env';
 import crypto from 'crypto';
 
@@ -33,6 +33,7 @@ export interface TemplatedSMSOptions {
   mediaUrls?: string[];
   statusCallback?: string;
   campaignId?: string;
+  tenantId?: string;
 }
 
 export interface QueuedSMS {
@@ -125,8 +126,10 @@ export class SMSService {
         };
       }
 
-      // Send via adapter
-      const result = await sendSMSAdapter(smsOptions);
+      // Send via adapter (tenant-aware when tenantId is provided)
+      const result = options.tenantId
+        ? await sendSMSForTenant(options.tenantId, smsOptions)
+        : await sendSMSAdapter(smsOptions);
 
       // Track delivery
       if (result.messageId) {
@@ -530,7 +533,7 @@ export class SMSService {
     try {
       await db.notificationLog.create({
         data: {
-          tenantId: 'system',
+          tenantId: options.tenantId || 'system',
           recipientType: 'guest',
           recipientId: '',
           recipientPhone: options.to,

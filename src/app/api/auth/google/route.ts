@@ -1,33 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getGoogleOAuthConfig } from '@/lib/service-config';
 import crypto from 'crypto';
-import { encrypt, decrypt } from '@/lib/encryption';
-
-// Google OAuth configuration
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI ||
-  (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000') + '/api/auth/google/callback';
+import { encrypt } from '@/lib/encryption';
 
 // GET /api/auth/google - Initiate Google OAuth flow
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action') || 'login'; // login or connect
+    const tenantId = searchParams.get('tenantId') || ''; // optional tenant context from login page
 
-    // Generate state for CSRF protection
-    const state = crypto.randomBytes(16).toString('hex');
+    // Try to get tenant-specific Google OAuth config
+    let clientId = process.env.GOOGLE_CLIENT_ID || '';
+    let clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+    let redirectUri = process.env.GOOGLE_REDIRECT_URI ||
+      (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000') + '/api/auth/google/callback';
+
+    if (tenantId) {
+      try {
+        const cfg = await getGoogleOAuthConfig(tenantId);
+        if (cfg.clientId) clientId = cfg.clientId;
+        if (cfg.clientSecret) clientSecret = cfg.clientSecret;
+        if (cfg.redirectUri) redirectUri = cfg.redirectUri;
+      } catch {
+        // Fall back to env defaults
+      }
+    }
+
+    if (!clientId) {
+      return NextResponse.redirect(
+        new URL('/login?error=google_not_configured', request.url)
+      );
+    }
+
+    // Generate state for CSRF protection, encoding tenantId and action
+    const stateValue = crypto.randomBytes(16).toString('hex');
+    // State format: tenantId:randomState:action
+    const state = `${tenantId}:${stateValue}:${action}`;
 
     // Store state in a cookie for verification
     const stateCookie = `oauth_state=${state}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600`;
 
     // Build Google OAuth URL
     const params = new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      redirect_uri: GOOGLE_REDIRECT_URI,
+      client_id: clientId,
+      redirect_uri: redirectUri,
       response_type: 'code',
       scope: 'openid email profile',
-      state: `${state}:${action}`,
+      state,
       access_type: 'offline',
       prompt: 'select_account',
     });
@@ -49,32 +71,11 @@ export async function GET(request: NextRequest) {
 // POST /api/auth/google - Configure Google SSO settings
 export async function POST(request: NextRequest) {
   try {
-    // Get session token from cookie
-    const sessionToken = request.cookies.get('session_token')?.value;
+    const user = await getUserFromRequest(request);
 
-    if (!sessionToken) {
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Not authenticated' },
-        { status: 401 }
-      );
-    }
-
-    // Find session
-    const session = await db.session.findUnique({
-      where: { token: sessionToken },
-      include: {
-        user: {
-          select: {
-            id: true,
-            tenantId: true,
-          },
-        },
-      },
-    });
-
-    if (!session || session.expiresAt < new Date()) {
-      return NextResponse.json(
-        { success: false, error: 'Session expired' },
         { status: 401 }
       );
     }
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     // Update tenant settings with SSO configuration
     const tenant = await db.tenant.findUnique({
-      where: { id: session.user.tenantId },
+      where: { id: user.tenantId },
     });
 
     if (!tenant) {
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
 
     // Save settings
     await db.tenant.update({
-      where: { id: session.user.tenantId },
+      where: { id: user.tenantId },
       data: {
         settings: JSON.stringify(settings),
       },
@@ -142,39 +143,18 @@ export async function POST(request: NextRequest) {
 // PUT /api/auth/google - Get current SSO settings
 export async function PUT(request: NextRequest) {
   try {
-    // Get session token from cookie
-    const sessionToken = request.cookies.get('session_token')?.value;
+    const user = await getUserFromRequest(request);
 
-    if (!sessionToken) {
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Not authenticated' },
         { status: 401 }
       );
     }
 
-    // Find session
-    const session = await db.session.findUnique({
-      where: { token: sessionToken },
-      include: {
-        user: {
-          select: {
-            id: true,
-            tenantId: true,
-          },
-        },
-      },
-    });
-
-    if (!session || session.expiresAt < new Date()) {
-      return NextResponse.json(
-        { success: false, error: 'Session expired' },
-        { status: 401 }
-      );
-    }
-
     // Get tenant settings
     const tenant = await db.tenant.findUnique({
-      where: { id: session.user.tenantId },
+      where: { id: user.tenantId },
     });
 
     if (!tenant) {

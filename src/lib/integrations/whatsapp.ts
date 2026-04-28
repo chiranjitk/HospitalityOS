@@ -12,6 +12,7 @@
  */
 
 import { createHmac } from 'crypto';
+import { getWhatsAppConfig } from '@/lib/service-config';
 
 // Types
 export interface WhatsAppConfig {
@@ -566,6 +567,30 @@ export function createWhatsAppClient(): WhatsAppClient | null {
     businessAccountId,
     appSecret,
   });
+}
+
+/**
+ * Create a WhatsApp client instance for a specific tenant.
+ * Uses DB-stored config when available, falls back to env vars.
+ */
+export async function createWhatsAppClientForTenant(tenantId: string): Promise<WhatsAppClient | null> {
+  try {
+    const cfg = await getWhatsAppConfig(tenantId);
+
+    if (cfg.accessToken && cfg.phoneNumberId && cfg.businessAccountId) {
+      return new WhatsAppClient({
+        accessToken: cfg.accessToken,
+        phoneNumberId: cfg.phoneNumberId,
+        businessAccountId: cfg.businessAccountId,
+        appSecret: cfg.appSecret || undefined,
+      });
+    }
+  } catch {
+    // Fall through to env-based fallback
+  }
+
+  // Fall back to environment variable based client
+  return createWhatsAppClient();
 }
 
 /**

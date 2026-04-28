@@ -204,25 +204,17 @@ export async function getEmail(): Promise<EmailAdapter> {
   const config = getConfig();
   
   if (config.email.enabled && config.email.host) {
-    try {
-      const smtpAdapter = new SMTPEmailAdapter({
-        host: config.email.host,
-        port: config.email.port,
-        user: config.email.user,
-        pass: process.env.SMTP_PASS || process.env.SMTP_PASSWORD || null,
-        from: config.email.from,
-      });
-      
-      // Test connection
-      const connected = await smtpAdapter.testConnection();
-      if (connected) {
-        emailInstance = smtpAdapter;
-        console.log('[Email] Using SMTP:', config.email.host);
-        return emailInstance;
-      }
-    } catch (error) {
-      console.warn('[Email] SMTP connection failed, falling back to mock:', error);
-    }
+    const smtpAdapter = new SMTPEmailAdapter({
+      host: config.email.host,
+      port: config.email.port,
+      user: config.email.user,
+      pass: process.env.SMTP_PASS || process.env.SMTP_PASSWORD || null,
+      from: config.email.from,
+    });
+
+    emailInstance = smtpAdapter;
+    console.log('[Email] Using SMTP:', config.email.host);
+    return emailInstance;
   }
   
   // Fallback to mock
@@ -265,10 +257,19 @@ export async function getEmailForTenant(tenantId: string): Promise<EmailAdapter>
 }
 
 /**
- * Send a single email
+ * Send a single email using the global (env-based) adapter.
  */
 export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
   const email = await getEmail();
+  return email.send(options);
+}
+
+/**
+ * Send a single email using a tenant-specific adapter.
+ * Loads SMTP config from the database first, falls back to env vars.
+ */
+export async function sendEmailForTenant(tenantId: string, options: EmailOptions): Promise<EmailResult> {
+  const email = await getEmailForTenant(tenantId);
   return email.send(options);
 }
 

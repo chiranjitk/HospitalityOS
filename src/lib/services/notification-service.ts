@@ -12,8 +12,9 @@
  */
 
 import { db } from '@/lib/db';
-import { sendEmail, EmailOptions, EmailResult } from '@/lib/adapters/email';
-import { sendSMS, SMSMessage, SMSMessageResult } from '@/lib/integrations/sms';
+import { sendEmailForTenant, EmailOptions, EmailResult } from '@/lib/adapters/email';
+import { sendSMSForTenant, SMSMessageResult } from '@/lib/integrations/sms';
+import { getFCMConfig } from '@/lib/service-config';
 
 // Types
 export type NotificationChannel = 'email' | 'sms' | 'push' | 'in_app';
@@ -93,12 +94,9 @@ const DEFAULT_PREFERENCES: Record<string, Partial<UserPreference>> = {
  * Notification Service Class
  */
 export class NotificationService {
-  private fcmServerKey?: string;
-  private fcmSenderId?: string;
-
   constructor() {
-    this.fcmServerKey = process.env.FCM_SERVER_KEY;
-    this.fcmSenderId = process.env.FCM_SENDER_ID;
+    // No instance fields needed – FCM / email / SMS configs are now
+    // resolved per-tenant from the database via service-config helpers.
   }
 
   /**
@@ -342,7 +340,7 @@ export class NotificationService {
       text: data.message,
     };
 
-    return sendEmail(options);
+    return sendEmailForTenant(data.tenantId, options);
   }
 
   /**
@@ -356,7 +354,7 @@ export class NotificationService {
 
     const plainTextBody = `${data.title}\n\n${data.message}`;
 
-    return sendSMS(phone, plainTextBody);
+    return sendSMSForTenant(data.tenantId, phone, plainTextBody);
   }
 
   /**
@@ -379,13 +377,14 @@ export class NotificationService {
     }
 
     // If FCM is configured, send via FCM API
-    if (this.fcmServerKey) {
+    const fcmConfig = await getFCMConfig(data.tenantId);
+    if (fcmConfig.serverKey) {
       try {
         const response = await fetch('https://fcm.googleapis.com/fcm/send', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `key=${this.fcmServerKey}`,
+            'Authorization': `key=${fcmConfig.serverKey}`,
           },
           body: JSON.stringify({
             registration_ids: tokens.map(t => t.token),

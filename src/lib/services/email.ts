@@ -1,14 +1,5 @@
 import nodemailer from 'nodemailer';
-
-interface EmailConfig {
-  host: string;
-  port: number;
-  secure: boolean;
-  user: string;
-  pass: string;
-  fromName: string;
-  fromEmail: string;
-}
+import { getSMTPConfig } from '@/lib/service-config';
 
 interface SendEmailOptions {
   to: string;
@@ -24,43 +15,29 @@ interface SendEmailOptions {
   bcc?: string;
 }
 
-function getEmailConfig(): EmailConfig {
-  return {
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: (process.env.SMTP_SECURE || 'false') === 'true',
-    user: process.env.SMTP_USER || '',
-    pass: process.env.SMTP_PASS || '',
-    fromName: process.env.SMTP_FROM_NAME || 'StaySuite',
-    fromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'billing@staysuite.com',
-  };
-}
-
-function createTransporter() {
-  const config = getEmailConfig();
-
-  if (!config.user || !config.pass) {
-    throw new Error('SMTP credentials not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS environment variables.');
-  }
-
-  return nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: {
-      user: config.user,
-      pass: config.pass,
-    },
-  });
-}
-
-export async function sendEmail(options: SendEmailOptions): Promise<{ success: boolean; messageId?: string; error?: string }> {
+export async function sendEmail(tenantId: string, options: SendEmailOptions): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    const config = getEmailConfig();
-    const transporter = createTransporter();
+    const config = await getSMTPConfig(tenantId);
+
+    if (!config.host || !config.user || !config.password) {
+      return {
+        success: false,
+        error: 'SMTP is not configured. Please configure SMTP in System Integrations or set SMTP_HOST, SMTP_USER, and SMTP_PASS environment variables.',
+      };
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      auth: {
+        user: config.user,
+        pass: config.password,
+      },
+    });
 
     const info = await transporter.sendMail({
-      from: `"${config.fromName}" <${config.fromEmail}>`,
+      from: config.from,
       to: options.to,
       cc: options.cc,
       bcc: options.bcc,
@@ -84,9 +61,13 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
   }
 }
 
-export function isEmailConfigured(): boolean {
-  const config = getEmailConfig();
-  return !!(config.user && config.pass);
+export async function isEmailConfigured(tenantId?: string): Promise<boolean> {
+  try {
+    const config = await getSMTPConfig(tenantId || 'default');
+    return !!(config.host && config.user && config.password);
+  } catch {
+    return false;
+  }
 }
 
 export function generateInvoiceEmailHtml(params: {

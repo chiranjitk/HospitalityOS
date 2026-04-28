@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getGoogleOAuthConfig } from '@/lib/service-config';
 import crypto from 'crypto';
-
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI ||
-  (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000') + '/api/auth/google/callback';
 
 // GET /api/auth/google/callback - Handle Google OAuth callback
 export async function GET(request: NextRequest) {
@@ -23,11 +20,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify state
+    // Verify state - format: tenantId:randomState:action
     const stateCookie = request.cookies.get('oauth_state')?.value;
-    const [stateValue, action] = (state || '').split(':');
+    const stateParts = (state || '').split(':');
+    // Handle state format: tenantId:stateValue:action
+    const tenantId = stateParts.length === 3 ? stateParts[0] : '';
+    const stateValue = stateParts.length === 3 ? stateParts[1] : stateParts[0];
+    const action = stateParts.length === 3 ? stateParts[2] : (stateParts[1] || 'login');
 
-    if (!stateCookie || stateCookie !== stateValue) {
+    // Verify state against cookie (full state must match)
+    if (!stateCookie || stateCookie !== state) {
       return NextResponse.redirect(
         new URL('/login?error=invalid_state', request.url)
       );
@@ -39,6 +41,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Resolve Google OAuth credentials - tenant-specific or env fallback
+    let clientId = process.env.GOOGLE_CLIENT_ID || '';
+    let clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+    let redirectUri = process.env.GOOGLE_REDIRECT_URI ||
+      (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000') + '/api/auth/google/callback';
+
+    if (tenantId) {
+      try {
+        const cfg = await getGoogleOAuthConfig(tenantId);
+        if (cfg.clientId) clientId = cfg.clientId;
+        if (cfg.clientSecret) clientSecret = cfg.clientSecret;
+        if (cfg.redirectUri) redirectUri = cfg.redirectUri;
+      } catch {
+        // Fall back to env defaults
+      }
+    }
+
+    if (!clientId || !clientSecret) {
+      console.error('Google OAuth credentials not configured');
+      return NextResponse.redirect(
+        new URL('/login?error=not_configured', request.url)
+      );
+    }
+
     // Exchange code for tokens
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -47,9 +73,9 @@ export async function GET(request: NextRequest) {
       },
       body: new URLSearchParams({
         code,
-        client_id: GOOGLE_CLIENT_ID,
-        client_secret: GOOGLE_CLIENT_SECRET,
-        redirect_uri: GOOGLE_REDIRECT_URI,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
         grant_type: 'authorization_code',
       }),
     });
@@ -63,7 +89,7 @@ export async function GET(request: NextRequest) {
     }
 
     const tokenData = await tokenResponse.json();
-    const { access_token, id_token } = tokenData;
+    const { access_token } = tokenData;
 
     // Get user info from Google
     const userInfoResponse = await fetch(

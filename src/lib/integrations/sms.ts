@@ -13,6 +13,7 @@
  */
 
 import { createHmac } from 'crypto';
+import { getTwilioConfig } from '@/lib/service-config';
 
 // Types
 export interface SMSConfig {
@@ -569,4 +570,56 @@ export function getSMSClient(): SMSClient | null {
     smsClientInstance = createSMSClient();
   }
   return smsClientInstance;
+}
+
+/**
+ * Create an SMS client for a specific tenant.
+ * Loads Twilio config from the database first (DB-first), falls back to
+ * env-vars.  Returns a fresh instance each time (NOT a singleton).
+ */
+export async function createSMSClientForTenant(tenantId: string): Promise<SMSClient | null> {
+  const cfg = await getTwilioConfig(tenantId);
+
+  if (cfg.accountSid) {
+    try {
+      const client = new SMSClient({
+        provider: 'twilio',
+        accountSid: cfg.accountSid,
+        authToken: cfg.authToken,
+        fromNumber: cfg.phoneNumber,
+      });
+      console.log(`[SMS Integration] Using Twilio for tenant ${tenantId} (${cfg.source})`);
+      return client;
+    } catch (error) {
+      console.warn(`[SMS Integration] Tenant Twilio init failed (${cfg.source}), falling back:`, error);
+    }
+  }
+
+  // Fall back to the env-based client
+  return createSMSClient();
+}
+
+/**
+ * Send an SMS for a specific tenant (convenience wrapper).
+ */
+export async function sendSMSForTenant(
+  tenantId: string,
+  to: string,
+  body: string,
+  options?: Partial<SMSMessage>,
+): Promise<SMSMessageResult> {
+  const client = await createSMSClientForTenant(tenantId);
+
+  if (!client) {
+    return {
+      success: false,
+      error: 'SMS client not configured for tenant',
+    };
+  }
+
+  return client.sendMessage({
+    to,
+    body,
+    ...options,
+  });
 }

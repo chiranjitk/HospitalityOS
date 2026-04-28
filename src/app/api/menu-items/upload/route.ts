@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth-helpers';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
-import crypto from 'crypto';
+import { uploadFile } from '@/lib/storage';
 
 // POST /api/menu-items/upload - Upload a menu item image
 export async function POST(request: NextRequest) {
@@ -52,28 +50,31 @@ export async function POST(request: NextRequest) {
     if (file.type === 'image/png') ext = 'png';
     else if (file.type === 'image/webp') ext = 'webp';
 
-    // Generate unique filename: timestamp-randomString.ext
-    const randomStr = crypto.randomBytes(8).toString('hex');
-    const filename = `${Date.now()}-${randomStr}.${ext}`;
+    const filename = `${file.name || `menu-image.${ext}`}`;
 
-    // Create upload directory
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'menu-items');
-    await mkdir(uploadDir, { recursive: true });
+    // Upload via storage utility (S3 with local fallback)
+    const result = await uploadFile(user.tenantId, {
+      file: buffer,
+      filename,
+      folder: 'menu-items',
+      contentType: file.type,
+    });
 
-    // Write file
-    const filePath = path.join(uploadDir, filename);
-    await writeFile(filePath, buffer);
-
-    // Return public URL
-    const publicUrl = `/uploads/menu-items/${filename}`;
+    if (!result.success) {
+      return NextResponse.json(
+        { success: false, error: { code: 'UPLOAD_FAILED', message: result.error || 'Failed to upload image' } },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
       data: {
-        url: publicUrl,
-        filename,
+        url: result.url,
+        filename: result.key || filename,
         size: buffer.length,
         type: file.type,
+        provider: result.provider,
       },
     });
   } catch (error) {
