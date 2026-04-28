@@ -7,6 +7,7 @@ export default async function loadSection(section: string): Promise<{ default: R
     case 'marketing-sources':
       return import('@/components/marketing/review-sources');
     case 'marketing-promotions':
+      return import('@/components/marketing/promotions');
     case 'marketing-campaigns':
       return import('@/components/crm/campaigns');
     case 'marketing-booking-engine':
