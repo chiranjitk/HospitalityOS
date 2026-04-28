@@ -56,14 +56,17 @@ const PUBLIC_PATHS = [
   '/api/dns/',             // DNS service proxy
   '/api/nftables/',        // nftables service proxy
   '/api/network/os',       // Network interface data (used by DHCP/VLAN pages)
+  '/api/kiosk/public-settings', // Kiosk public configuration
   // Page routes
   '/login',
   '/signup',
   '/reset-password',
   '/verify-email',
   '/book',
+  '/kiosk',
   '/portal',
   '/guest',
+  '/connect',
 ];
 
 /**
@@ -126,8 +129,9 @@ export default function proxy(request: NextRequest) {
   const isApi = pathname.startsWith('/api/');
   const isStatic = pathname.startsWith('/_next/') || pathname.startsWith('/_vercel/') || pathname.includes('.');
   const isSpecial = pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/signup') ||
-    pathname.startsWith('/book') || pathname.startsWith('/portal') || pathname.startsWith('/guest') ||
-    pathname.startsWith('/public') || pathname.startsWith('/help') || pathname.startsWith('/settings-security');
+    pathname.startsWith('/book') || pathname.startsWith('/kiosk') || pathname.startsWith('/portal') ||
+    pathname.startsWith('/guest') || pathname.startsWith('/connect') || pathname.startsWith('/public') ||
+    pathname.startsWith('/help') || pathname.startsWith('/settings-security');
 
   // --- 2. Determine locale ---
   let locale = defaultLocale;

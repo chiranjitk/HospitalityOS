@@ -378,6 +378,15 @@ export class PaymentRouter {
     if (gatewayRef.startsWith('PAYID') || gatewayRef.includes('paypal')) {
       return gatewayRegistry.getGateway('paypal') ?? null;
     }
+
+    if (gatewayRef.startsWith('order_') || gatewayRef.startsWith('pay_')) {
+      // Razorpay order IDs start with 'order_', payment IDs start with 'pay_'
+      return gatewayRegistry.getGateway('razorpay') ?? null;
+    }
+
+    if (gatewayRef.startsWith('UPI-')) {
+      return gatewayRegistry.getGateway('upi') ?? null;
+    }
     
     if (gatewayRef.startsWith('MANUAL')) {
       return gatewayRegistry.getGateway('manual') ?? null;

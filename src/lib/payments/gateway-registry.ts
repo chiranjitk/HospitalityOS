@@ -24,6 +24,8 @@ import {
   createPayPalGateway,
   createManualGateway,
 } from './gateways';
+import { RazorpayGateway, createRazorpayGateway } from './gateways/razorpay';
+import { UpGateway, createUpGateway } from './gateways/upi';
 
 // ============================================
 // Default Failover Configuration
@@ -114,6 +116,12 @@ export class GatewayRegistry {
         break;
       case 'manual':
         gateway = createManualGateway(config);
+        break;
+      case 'razorpay':
+        gateway = createRazorpayGateway(config);
+        break;
+      case 'upi':
+        gateway = createUpGateway(config);
         break;
       case 'square':
         // Square would be implemented similarly

@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate provider
-    const validProviders = ['stripe', 'paypal', 'manual'];
+    const validProviders = ['stripe', 'paypal', 'razorpay', 'upi', 'manual'];
     if (!validProviders.includes(provider)) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid provider. Valid providers: ${validProviders.join(', ')}` } },

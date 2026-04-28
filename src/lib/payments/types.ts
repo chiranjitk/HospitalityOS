@@ -7,7 +7,7 @@
 // Gateway Types
 // ============================================
 
-export type GatewayType = 'stripe' | 'paypal' | 'square' | 'manual';
+export type GatewayType = 'stripe' | 'paypal' | 'square' | 'razorpay' | 'upi' | 'manual';
 
 export type PaymentStatus = 
   | 'pending' 
