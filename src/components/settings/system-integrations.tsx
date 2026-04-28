@@ -38,10 +38,10 @@ import {
   Eye,
   EyeOff,
   Settings,
-  ExternalLink,
   Save,
   Trash2,
   Loader2,
+  Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SectionGuard } from '@/components/common/section-guard';
@@ -85,6 +85,7 @@ interface IntegrationSchema {
 }
 
 interface StoredIntegration {
+  id: string;
   type: IntegrationType;
   config: Record<string, string | number | boolean>;
   source: 'database' | 'env';
@@ -103,9 +104,9 @@ const INTEGRATION_META: IntegrationMeta[] = [
     label: 'Email / SMTP',
     sublabel: 'Email delivery',
     icon: Mail,
-    color: 'text-blue-600 dark:text-blue-400',
-    bgColor: 'bg-blue-50 dark:bg-blue-950/40',
-    hoverBorder: 'hover:border-blue-300',
+    color: 'text-teal-600 dark:text-teal-400',
+    bgColor: 'bg-teal-50 dark:bg-teal-950/40',
+    hoverBorder: 'hover:border-teal-300',
   },
   {
     type: 'sms_twilio',
@@ -139,27 +140,27 @@ const INTEGRATION_META: IntegrationMeta[] = [
     label: 'Google OAuth',
     sublabel: 'SSO login',
     icon: Chrome,
-    color: 'text-teal-600 dark:text-teal-400',
-    bgColor: 'bg-teal-50 dark:bg-teal-950/40',
-    hoverBorder: 'hover:border-teal-300',
+    color: 'text-emerald-600 dark:text-emerald-400',
+    bgColor: 'bg-emerald-50 dark:bg-emerald-950/40',
+    hoverBorder: 'hover:border-emerald-300',
   },
   {
     type: 'radius',
     label: 'RADIUS / WiFi',
     sublabel: 'WiFi auth',
     icon: Wifi,
-    color: 'text-violet-600 dark:text-violet-400',
-    bgColor: 'bg-violet-50 dark:bg-violet-950/40',
-    hoverBorder: 'hover:border-violet-300',
+    color: 'text-cyan-600 dark:text-cyan-400',
+    bgColor: 'bg-cyan-50 dark:bg-cyan-950/40',
+    hoverBorder: 'hover:border-cyan-300',
   },
   {
     type: 'ai',
     label: 'AI Provider',
     sublabel: 'AI services',
     icon: Sparkles,
-    color: 'text-purple-600 dark:text-purple-400',
-    bgColor: 'bg-purple-50 dark:bg-purple-950/40',
-    hoverBorder: 'hover:border-purple-300',
+    color: 'text-rose-600 dark:text-rose-400',
+    bgColor: 'bg-rose-50 dark:bg-rose-950/40',
+    hoverBorder: 'hover:border-rose-300',
   },
   {
     type: 'whatsapp',
@@ -172,6 +173,12 @@ const INTEGRATION_META: IntegrationMeta[] = [
   },
 ];
 
+/**
+ * Field schemas aligned with `service-config.ts` (source of truth).
+ *
+ * These keys MUST match what `getServiceConfig()` returns and what the
+ * backend `/api/settings/integrations` route uses.
+ */
 const INTEGRATION_SCHEMAS: Record<IntegrationType, IntegrationSchema> = {
   smtp: {
     description:
@@ -179,18 +186,16 @@ const INTEGRATION_SCHEMAS: Record<IntegrationType, IntegrationSchema> = {
     fields: [
       { key: 'host', label: 'SMTP Host', type: 'text', placeholder: 'smtp.gmail.com', required: true },
       { key: 'port', label: 'SMTP Port', type: 'number', placeholder: '587', required: true },
-      { key: 'username', label: 'Username', type: 'text', placeholder: 'user@example.com', required: true },
+      { key: 'user', label: 'Username', type: 'text', placeholder: 'user@example.com', required: true },
       { key: 'password', label: 'Password', type: 'password', placeholder: 'Enter SMTP password', required: true },
-      { key: 'fromEmail', label: 'From Email', type: 'text', placeholder: 'noreply@yourhotel.com', required: true },
-      { key: 'fromName', label: 'From Name', type: 'text', placeholder: 'StaySuite Hotel' },
-      { key: 'useTls', label: 'Use TLS', type: 'boolean', description: 'Enable TLS encryption for SMTP connections' },
+      { key: 'from', label: 'From Email', type: 'text', placeholder: 'noreply@yourhotel.com', required: true },
+      { key: 'secure', label: 'Use TLS', type: 'boolean', description: 'Enable TLS encryption for SMTP connections' },
     ],
   },
   sms_twilio: {
     description:
-      'Configure your SMS gateway (Twilio, Vonage, etc.) for sending SMS notifications and OTP codes.',
+      'Configure your SMS gateway (Twilio) for sending SMS notifications and OTP codes.',
     fields: [
-      { key: 'provider', label: 'SMS Provider', type: 'text', placeholder: 'twilio', required: true },
       { key: 'accountSid', label: 'Account SID', type: 'text', placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', required: true },
       { key: 'authToken', label: 'Auth Token', type: 'password', placeholder: 'Enter your auth token', required: true },
       { key: 'phoneNumber', label: 'From Phone Number', type: 'text', placeholder: '+1234567890', required: true },
@@ -202,19 +207,17 @@ const INTEGRATION_SCHEMAS: Record<IntegrationType, IntegrationSchema> = {
     fields: [
       { key: 'endpoint', label: 'S3 Endpoint', type: 'url', placeholder: 'https://s3.amazonaws.com', required: true },
       { key: 'bucket', label: 'Bucket Name', type: 'text', placeholder: 'staysuite-uploads', required: true },
-      { key: 'accessKeyId', label: 'Access Key ID', type: 'text', placeholder: 'AKIAIOSFODNN7EXAMPLE', required: true },
-      { key: 'secretAccessKey', label: 'Secret Access Key', type: 'password', placeholder: 'Enter your secret key', required: true },
-      { key: 'region', label: 'Region', type: 'text', placeholder: 'us-east-1' },
-      { key: 'forcePathStyle', label: 'Force Path Style', type: 'boolean', description: 'Use path-style URLs (needed for MinIO)' },
+      { key: 'region', label: 'Region', type: 'text', placeholder: 'us-east-1', required: true },
+      { key: 'accessKey', label: 'Access Key', type: 'password', placeholder: 'AKIAIOSFODNN7EXAMPLE', required: true },
+      { key: 'secretKey', label: 'Secret Key', type: 'password', placeholder: 'Enter your secret key', required: true },
     ],
   },
   fcm: {
     description:
       'Configure Firebase Cloud Messaging for sending push notifications to guest and staff mobile apps.',
     fields: [
-      { key: 'projectId', label: 'Firebase Project ID', type: 'text', placeholder: 'my-hotel-app', required: true },
-      { key: 'clientEmail', label: 'Client Email', type: 'text', placeholder: 'firebase-adminsdk@my-hotel-app.iam.gserviceaccount.com', required: true },
-      { key: 'privateKey', label: 'Private Key', type: 'password', placeholder: 'Enter Firebase private key', required: true },
+      { key: 'senderId', label: 'FCM Sender ID', type: 'text', placeholder: '123456789', required: true },
+      { key: 'serverKey', label: 'FCM Server Key', type: 'password', placeholder: 'Enter Firebase server key', required: true },
     ],
   },
   google_oauth: {
@@ -223,20 +226,17 @@ const INTEGRATION_SCHEMAS: Record<IntegrationType, IntegrationSchema> = {
     fields: [
       { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'xxxxxxxxxxxx.apps.googleusercontent.com', required: true },
       { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'GOCSPX-xxxxxxxx', required: true },
-      { key: 'redirectUri', label: 'Redirect URI', type: 'url', placeholder: 'https://yourhotel.com/api/auth/google/callback' },
-      { key: 'allowedDomains', label: 'Allowed Domains', type: 'text', placeholder: 'hotelgroup.com (comma-separated)' },
+      { key: 'redirectUri', label: 'Redirect URI', type: 'url', placeholder: 'https://yourhotel.com/api/auth/google/callback', required: true },
     ],
   },
   radius: {
     description:
       'Configure RADIUS server for WiFi authentication. Guests receive auto-generated credentials upon check-in.',
     fields: [
-      { key: 'serverIp', label: 'RADIUS Server IP', type: 'text', placeholder: '192.168.1.100', required: true },
-      { key: 'sharedSecret', label: 'Shared Secret', type: 'password', placeholder: 'Enter RADIUS shared secret', required: true },
+      { key: 'host', label: 'RADIUS Host', type: 'text', placeholder: '192.168.1.100', required: true },
       { key: 'authPort', label: 'Auth Port', type: 'number', placeholder: '1812' },
       { key: 'acctPort', label: 'Accounting Port', type: 'number', placeholder: '1813' },
-      { key: 'nasIdentifier', label: 'NAS Identifier', type: 'text', placeholder: 'staysuite-gateway' },
-      { key: 'coaEnabled', label: 'Change of Authorization', type: 'boolean', description: 'Enable CoA for disconnecting sessions' },
+      { key: 'secret', label: 'Shared Secret', type: 'password', placeholder: 'Enter RADIUS shared secret', required: true },
     ],
   },
   ai: {
@@ -245,7 +245,6 @@ const INTEGRATION_SCHEMAS: Record<IntegrationType, IntegrationSchema> = {
     fields: [
       { key: 'provider', label: 'AI Provider', type: 'text', placeholder: 'openai, anthropic, google', required: true },
       { key: 'apiKey', label: 'API Key', type: 'password', placeholder: 'Enter your API key', required: true },
-      { key: 'baseUrl', label: 'Base URL', type: 'url', placeholder: 'https://api.openai.com/v1' },
       { key: 'model', label: 'Default Model', type: 'text', placeholder: 'gpt-4o-mini' },
     ],
   },
@@ -253,10 +252,11 @@ const INTEGRATION_SCHEMAS: Record<IntegrationType, IntegrationSchema> = {
     description:
       'Configure WhatsApp Business API for sending booking confirmations, check-in instructions, and guest communications.',
     fields: [
+      { key: 'businessAccountId', label: 'Business Account ID', type: 'text', placeholder: '1234567890', required: true },
+      { key: 'appSecret', label: 'App Secret', type: 'password', placeholder: 'Enter your app secret', required: true },
       { key: 'phoneNumberId', label: 'Phone Number ID', type: 'text', placeholder: '100234567890', required: true },
       { key: 'accessToken', label: 'Access Token', type: 'password', placeholder: 'EAAxxxxxxxx', required: true },
-      { key: 'verifyToken', label: 'Webhook Verify Token', type: 'text', placeholder: 'my_custom_verify_token', required: true },
-      { key: 'businessAccountId', label: 'Business Account ID', type: 'text', placeholder: '1234567890' },
+      { key: 'phoneNumber', label: 'From Phone Number', type: 'text', placeholder: '+1234567890' },
     ],
   },
 };
@@ -298,13 +298,20 @@ export default function SystemIntegrations() {
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
 
-      // data.integrations is an array or record of stored integrations
-      const map: Record<string, StoredIntegration> = {};
-      const raw = data.integrations ?? [];
+      // FIX: Backend returns { success, data: { integrations: [...] } }
+      const raw = data?.data?.integrations ?? [];
       const arr = Array.isArray(raw) ? raw : Object.values(raw);
+
+      const map: Record<string, StoredIntegration> = {};
       for (const item of arr) {
         if (item && item.type) {
-          map[item.type] = item;
+          map[item.type] = {
+            id: item.id,
+            type: item.type,
+            config: item.config ?? {},
+            source: item.source ?? 'database',
+            updatedAt: item.updatedAt,
+          };
         }
       }
       setIntegrations(map);
@@ -316,18 +323,20 @@ export default function SystemIntegrations() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on mount
     fetchIntegrations();
   }, [fetchIntegrations]);
 
-  // ── When an integration card is selected, populate form ──
-  useEffect(() => {
-    if (!selectedType || !selectedSchema) return;
+  // ── Populate form when selecting an integration ──
+  const populateForm = useCallback((type: IntegrationType) => {
+    const schema = INTEGRATION_SCHEMAS[type];
+    if (!schema) return;
 
-    const stored = integrations[selectedType];
+    const stored = integrations[type];
     const initial: Record<string, string | number | boolean> = {};
     const sensitiveOriginals: Record<string, string> = {};
 
-    for (const field of selectedSchema.fields) {
+    for (const field of schema.fields) {
       if (stored && stored.config[field.key] !== undefined) {
         if (isSensitiveField(field)) {
           initial[field.key] = SENSITIVE_MASK;
@@ -345,11 +354,12 @@ export default function SystemIntegrations() {
     setFormData(initial);
     setOriginalSensitiveValues(sensitiveOriginals);
     setVisibleFields({});
-  }, [selectedType, integrations, selectedSchema]);
+  }, [integrations]);
 
   // ── Handlers ──
   const handleSelectType = (type: IntegrationType) => {
     setSelectedType(type);
+    populateForm(type);
   };
 
   const handleFieldChange = (key: string, value: string | number | boolean) => {
@@ -448,6 +458,7 @@ export default function SystemIntegrations() {
     if (!selectedType) return;
 
     try {
+      // FIX: Use DELETE method on base route with type in body
       const res = await fetch('/api/settings/integrations', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -455,7 +466,8 @@ export default function SystemIntegrations() {
       });
 
       if (res.ok) {
-        toast.success(`${selectedMeta?.label} settings cleared — using .env values`);
+        const result = await res.json().catch(() => null);
+        toast.success(result?.message || `${selectedMeta?.label} settings cleared — using .env values`);
         await fetchIntegrations();
         // Reset form
         if (selectedSchema) {
@@ -492,7 +504,7 @@ export default function SystemIntegrations() {
     }
     if (integration.source === 'database') {
       return (
-        <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+        <Badge variant="secondary" className="bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300">
           Database
         </Badge>
       );
@@ -503,23 +515,6 @@ export default function SystemIntegrations() {
       </Badge>
     );
   };
-
-  // ── Loading skeleton ──
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <Skeleton className="h-8 w-56 mb-2" />
-          <Skeleton className="h-4 w-96 max-w-full" />
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-36 rounded-xl" />
-          ))}
-        </div>
-      </div>
-    );
-  }
 
   // ── Render ──
   return (
@@ -551,225 +546,238 @@ export default function SystemIntegrations() {
         </div>
       </div>
 
-      {/* ── Integration Cards Grid ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {INTEGRATION_META.map((meta) => {
-          const configured = isConfigured(meta.type);
-          const isSelected = selectedType === meta.type;
-          const Icon = meta.icon;
+      {/* ── Loading skeleton ── */}
+      {loading ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-36 rounded-xl" />
+          ))}
+        </div>
+      ) : (
+        <>
+          {/* ── Integration Cards Grid ── */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {INTEGRATION_META.map((meta) => {
+              const configured = isConfigured(meta.type);
+              const isSelected = selectedType === meta.type;
+              const Icon = meta.icon;
 
-          return (
-            <Card
-              key={meta.type}
-              role="button"
-              tabIndex={0}
-              onClick={() => handleSelectType(meta.type)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') handleSelectType(meta.type);
-              }}
-              className={`
-                cursor-pointer transition-all duration-200 py-4
-                ${meta.hoverBorder}
-                ${
-                  isSelected
-                    ? 'border-teal-500 ring-2 ring-teal-200 dark:ring-teal-800 shadow-md'
-                    : 'hover:shadow-md'
-                }
-              `}
-            >
-              <CardContent className="px-4 space-y-3">
-                {/* Icon + Status */}
-                <div className="flex items-start justify-between">
-                  <div className={`p-2.5 rounded-lg ${meta.bgColor}`}>
-                    <Icon className={`h-5 w-5 ${meta.color}`} />
+              return (
+                <Card
+                  key={meta.type}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleSelectType(meta.type)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleSelectType(meta.type);
+                    }
+                  }}
+                  className={`
+                    cursor-pointer transition-all duration-200 py-4
+                    ${meta.hoverBorder}
+                    ${
+                      isSelected
+                        ? 'border-teal-500 ring-2 ring-teal-200 dark:ring-teal-800 shadow-md'
+                        : 'hover:shadow-md'
+                    }
+                  `}
+                >
+                  <CardContent className="px-4 space-y-3">
+                    {/* Icon + Status */}
+                    <div className="flex items-start justify-between">
+                      <div className={`p-2.5 rounded-lg ${meta.bgColor}`}>
+                        <Icon className={`h-5 w-5 ${meta.color}`} />
+                      </div>
+                      {configured ? (
+                        <div className="flex items-center justify-center h-6 w-6 rounded-full bg-emerald-100 dark:bg-emerald-900/50">
+                          <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center h-6 w-6 rounded-full bg-gray-100 dark:bg-gray-800">
+                          <X className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Label */}
+                    <div>
+                      <p className="font-semibold text-sm leading-tight">{meta.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{meta.sublabel}</p>
+                    </div>
+
+                    {/* Badges */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {configured ? (
+                        <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-[10px] px-1.5">
+                          Configured
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 text-[10px] px-1.5">
+                          Not set
+                        </Badge>
+                      )}
+                      {getSourceBadge(meta.type)}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* ── Selected Integration Config Form ── */}
+          {selectedType && selectedSchema && selectedMeta && (
+            <Card className="border-t-4 border-t-teal-500">
+              <CardHeader>
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${selectedMeta.bgColor}`}>
+                      <selectedMeta.icon className={`h-5 w-5 ${selectedMeta.color}`} />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        {selectedMeta.label}
+                      </CardTitle>
+                      <CardDescription className="mt-1">{selectedSchema.description}</CardDescription>
+                    </div>
                   </div>
-                  {configured ? (
-                    <div className="flex items-center justify-center h-6 w-6 rounded-full bg-emerald-100 dark:bg-emerald-900/50">
-                      <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center h-6 w-6 rounded-full bg-gray-100 dark:bg-gray-800">
-                      <X className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500" />
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {selectedIntegration && (
+                      <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+                        {selectedIntegration.source === 'database' ? 'Database' : '.env'}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+
+              <Separator />
+
+              <CardContent className="pt-6 space-y-6">
+                {/* Form fields */}
+                <div className="space-y-4">
+                  {selectedSchema.fields.map((field) => {
+                    const value = formData[field.key];
+                    const visible = visibleFields[field.key] ?? false;
+
+                    if (field.type === 'boolean') {
+                      return (
+                        <div
+                          key={field.key}
+                          className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                        >
+                          <div className="space-y-0.5">
+                            <Label>{field.label}</Label>
+                            {field.description && (
+                              <p className="text-sm text-muted-foreground">{field.description}</p>
+                            )}
+                          </div>
+                          <Switch
+                            checked={!!value}
+                            onCheckedChange={(checked) => handleFieldChange(field.key, checked)}
+                          />
+                        </div>
+                      );
+                    }
+
+                    // Text / password / number / URL field
+                    return (
+                      <div key={field.key} className="space-y-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <Label>
+                            {field.label}
+                            {field.required && <span className="text-destructive ml-0.5">*</span>}
+                          </Label>
+                          {field.description && (
+                            <span className="text-xs text-muted-foreground">— {field.description}</span>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <Input
+                            type={
+                              isSensitiveField(field) ? (visible ? 'text' : 'password') : field.type === 'number' ? 'number' : 'text'
+                            }
+                            placeholder={field.placeholder}
+                            value={value as string}
+                            onChange={(e) =>
+                              handleFieldChange(
+                                field.key,
+                                field.type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value,
+                              )
+                            }
+                            className={isSensitiveField(field) ? 'pr-10' : ''}
+                          />
+                          {isSensitiveField(field) && (
+                            <button
+                              type="button"
+                              onClick={() => toggleFieldVisibility(field.key)}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                              tabIndex={-1}
+                            >
+                              {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
-                {/* Label */}
-                <div>
-                  <p className="font-semibold text-sm leading-tight">{meta.label}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{meta.sublabel}</p>
-                </div>
+                <Separator />
 
-                {/* Badges */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {configured ? (
-                    <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-[10px] px-1.5">
-                      Configured
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" className="bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 text-[10px] px-1.5">
-                      Not set
-                    </Badge>
+                {/* Action Buttons */}
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-2">
+                    <Button onClick={handleSave} disabled={saving || testing}>
+                      {saving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      {saving ? 'Saving...' : 'Save'}
+                    </Button>
+                    <Button variant="outline" onClick={handleTest} disabled={testing || saving}>
+                      {testing ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Zap className="h-4 w-4" />
+                      )}
+                      {testing ? 'Testing...' : 'Test Connection'}
+                    </Button>
+                  </div>
+                  {selectedIntegration && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setResetDialogOpen(true)}
+                      className="text-xs"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Clear / Reset
+                    </Button>
                   )}
-                  {getSourceBadge(meta.type)}
                 </div>
               </CardContent>
             </Card>
-          );
-        })}
-      </div>
+          )}
 
-      {/* ── Selected Integration Config Form ── */}
-      {selectedType && selectedSchema && selectedMeta && (
-        <Card className="border-t-4 border-t-teal-500">
-          <CardHeader>
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${selectedMeta.bgColor}`}>
-                  <selectedMeta.icon className={`h-5 w-5 ${selectedMeta.color}`} />
+          {/* ── Empty state: no selection ── */}
+          {!selectedType && (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="p-4 rounded-full bg-muted mb-4">
+                  <Settings className="h-8 w-8 text-muted-foreground" />
                 </div>
-                <div>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    {selectedMeta.label}
-                    <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                  </CardTitle>
-                  <CardDescription className="mt-1">{selectedSchema.description}</CardDescription>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {selectedIntegration && (
-                  <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
-                    {selectedIntegration.source === 'database' ? 'Database' : '.env'}
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-
-          <Separator />
-
-          <CardContent className="pt-6 space-y-6">
-            {/* Form fields */}
-            <div className="space-y-4">
-              {selectedSchema.fields.map((field) => {
-                const value = formData[field.key];
-                const visible = visibleFields[field.key] ?? false;
-
-                if (field.type === 'boolean') {
-                  return (
-                    <div
-                      key={field.key}
-                      className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                    >
-                      <div className="space-y-0.5">
-                        <Label>{field.label}</Label>
-                        {field.description && (
-                          <p className="text-sm text-muted-foreground">{field.description}</p>
-                        )}
-                      </div>
-                      <Switch
-                        checked={!!value}
-                        onCheckedChange={(checked) => handleFieldChange(field.key, checked)}
-                      />
-                    </div>
-                  );
-                }
-
-                // Text / password / number / URL field
-                return (
-                  <div key={field.key} className="space-y-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <Label>
-                        {field.label}
-                        {field.required && <span className="text-destructive ml-0.5">*</span>}
-                      </Label>
-                      {field.description && (
-                        <span className="text-xs text-muted-foreground">— {field.description}</span>
-                      )}
-                    </div>
-                    <div className="relative">
-                      <Input
-                        type={
-                          isSensitiveField(field) ? (visible ? 'text' : 'password') : field.type === 'number' ? 'number' : 'text'
-                        }
-                        placeholder={field.placeholder}
-                        value={value as string}
-                        onChange={(e) =>
-                          handleFieldChange(
-                            field.key,
-                            field.type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value,
-                          )
-                        }
-                        className={isSensitiveField(field) ? 'pr-10' : ''}
-                      />
-                      {isSensitiveField(field) && (
-                        <button
-                          type="button"
-                          onClick={() => toggleFieldVisibility(field.key)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                          tabIndex={-1}
-                        >
-                          {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <Separator />
-
-            {/* Action Buttons */}
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-2">
-                <Button onClick={handleSave} disabled={saving || testing}>
-                  {saving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  {saving ? 'Saving...' : 'Save'}
-                </Button>
-                <Button variant="outline" onClick={handleTest} disabled={testing || saving}>
-                  {testing ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ExternalLink className="h-4 w-4" />
-                  )}
-                  {testing ? 'Testing...' : 'Test Connection'}
-                </Button>
-              </div>
-              {selectedIntegration && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setResetDialogOpen(true)}
-                  className="text-xs"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Clear / Reset
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ── Empty state: no selection ── */}
-      {!selectedType && (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="p-4 rounded-full bg-muted mb-4">
-              <Settings className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-lg font-semibold text-muted-foreground">Select an Integration</h3>
-            <p className="text-sm text-muted-foreground mt-1 max-w-md">
-              Click on one of the integration cards above to view and configure its settings. Configured
-              integrations will show a green checkmark.
-            </p>
-          </CardContent>
-        </Card>
+                <h3 className="text-lg font-semibold text-muted-foreground">Select an Integration</h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                  Click on one of the integration cards above to view and configure its settings. Configured
+                  integrations will show a green checkmark.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
       {/* ── Reset Confirmation Dialog ── */}
