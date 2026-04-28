@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 import {
   Table,
   TableBody,
@@ -254,15 +255,27 @@ export function AuditLogsViewer() {
       if (data.success) setStats(data.data);
     } catch {
       console.error('Failed to fetch stats');
+      toast.error('Failed to load statistics');
     } finally {
       setStatsLoading(false);
     }
   }, []);
 
+  const debounceRef = useRef<NodeJS.Timeout>();
+
   useEffect(() => {
-    fetchLogs();
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchLogs();
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [fetchLogs]);
+
+  useEffect(() => {
     fetchStats();
-  }, [fetchLogs, fetchStats]);
+  }, [fetchStats]);
 
   const handlePageChange = (newPage: number) => {
     setPagination(prev => ({ ...prev, page: newPage }));
@@ -287,6 +300,7 @@ export function AuditLogsViewer() {
       window.URL.revokeObjectURL(url);
     } catch {
       console.error('Export failed');
+      toast.error('Export failed. Please try again.');
     }
   };
 
@@ -431,6 +445,7 @@ export function AuditLogsViewer() {
         </CardHeader>
         <CardContent className="p-0">
           {error && <div className="p-4 bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border-b">{error}</div>}
+          <TooltipProvider>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -503,8 +518,7 @@ export function AuditLogsViewer() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <TooltipProvider>
-                          <Tooltip>
+                            <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="font-mono text-sm">{log.ipAddress || '—'}</span>
                             </TooltipTrigger>
@@ -512,7 +526,6 @@ export function AuditLogsViewer() {
                               <p className="text-xs max-w-[300px]">UA: {log.userAgent || 'Unknown'}</p>
                             </TooltipContent>
                           </Tooltip>
-                        </TooltipProvider>
                       </TableCell>
                       <TableCell>
                         <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedLog(log); setShowDetail(true); }}>
@@ -525,6 +538,7 @@ export function AuditLogsViewer() {
               </TableBody>
             </Table>
           </div>
+          </TooltipProvider>
           {pagination.totalPages > 1 && (
             <div className="flex items-center justify-between p-4 border-t">
               <span className="text-sm text-muted-foreground">

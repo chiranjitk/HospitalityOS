@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
-import { randomUUID } from 'crypto';
 
 // Valid values for validation
 const VALID_INCIDENT_TYPES = ['theft', 'unauthorized', 'accident', 'disturbance', 'fire', 'other'];
@@ -81,33 +80,53 @@ export async function GET(request: NextRequest) {
       db.securityIncident.count({ where }),
     ]);
 
-    // Calculate stats
-    const allIncidents = await db.securityIncident.findMany({
+    // Calculate stats using groupBy for performance
+    const statsByStatus = await db.securityIncident.groupBy({
+      by: ['status'],
       where: { tenantId: user.tenantId },
-      select: { status: true, severity: true, createdAt: true, resolvedAt: true },
+      _count: true,
+    });
+
+    const statsBySeverity = await db.securityIncident.groupBy({
+      by: ['severity'],
+      where: { tenantId: user.tenantId },
+      _count: true,
     });
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    const statusCounts = statsByStatus.reduce((acc, item) => {
+      acc[item.status] = item._count;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const severityCounts = statsBySeverity.reduce((acc, item) => {
+      acc[item.severity] = item._count;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // For resolvedToday we need a separate query since groupBy doesn't support date filters well
+    const resolvedTodayCount = await db.securityIncident.count({
+      where: { tenantId: user.tenantId, status: { in: ['resolved', 'closed'] }, resolvedAt: { gte: today } },
+    });
+
     const stats = {
-      total: allIncidents.length,
-      open: allIncidents.filter(i => i.status === 'open' || i.status === 'investigating').length,
-      critical: allIncidents.filter(i => i.severity === 'critical' && i.status !== 'closed').length,
-      resolvedToday: allIncidents.filter(i => 
-        i.resolvedAt && new Date(i.resolvedAt) >= today
-      ).length,
+      total: statsByStatus.reduce((sum, item) => sum + item._count, 0),
+      open: (statusCounts['open'] || 0) + (statusCounts['investigating'] || 0),
+      critical: severityCounts['critical'] || 0,
+      resolvedToday: resolvedTodayCount,
       byStatus: {
-        open: allIncidents.filter(i => i.status === 'open').length,
-        investigating: allIncidents.filter(i => i.status === 'investigating').length,
-        resolved: allIncidents.filter(i => i.status === 'resolved').length,
-        closed: allIncidents.filter(i => i.status === 'closed').length,
+        open: statusCounts['open'] || 0,
+        investigating: statusCounts['investigating'] || 0,
+        resolved: statusCounts['resolved'] || 0,
+        closed: statusCounts['closed'] || 0,
       },
       bySeverity: {
-        low: allIncidents.filter(i => i.severity === 'low').length,
-        medium: allIncidents.filter(i => i.severity === 'medium').length,
-        high: allIncidents.filter(i => i.severity === 'high').length,
-        critical: allIncidents.filter(i => i.severity === 'critical').length,
+        low: severityCounts['low'] || 0,
+        medium: severityCounts['medium'] || 0,
+        high: severityCounts['high'] || 0,
+        critical: severityCounts['critical'] || 0,
       },
     };
 

@@ -49,8 +49,12 @@ export async function GET(request: NextRequest) {
       ...(action && { action }),
       ...(userId && { userId }),
       ...(entityType && { entityType }),
-      ...(dateFrom && { createdAt: { gte: new Date(dateFrom) } }),
-      ...(dateTo && { createdAt: { lte: new Date(dateTo) } }),
+      ...(dateFrom || dateTo ? {
+        createdAt: {
+          ...(dateFrom && { gte: new Date(dateFrom) }),
+          ...(dateTo && { lte: new Date(dateTo) }),
+        },
+      } : {}),
     };
 
     // Get logs

@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -38,21 +37,16 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Loader2,
   Shield,
-  Chrome,
   Building2,
   Server,
   Key,
   Save,
-  ExternalLink,
-  CheckCircle2,
-  XCircle,
   Info,
   Copy,
   Check,
   Plus,
   Trash2,
   TestTube,
-  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SectionGuard } from '@/components/common/section-guard';
@@ -138,6 +132,8 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
     autoProvisionRole: '',
     syncRoles: false,
     syncOnLogin: true,
+    // Status
+    status: 'active' as string,
     // Domains
     allowedDomains: '',
   });
@@ -267,6 +263,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
         autoProvisionRole: formData.autoProvisionRole || null,
         syncRoles: formData.syncRoles,
         syncOnLogin: formData.syncOnLogin,
+        status: formData.status,
         allowedDomains: formData.allowedDomains
           ? formData.allowedDomains.split(',').map(d => d.trim())
           : null,
@@ -425,6 +422,8 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
       autoProvisionRole: '',
       syncRoles: false,
       syncOnLogin: true,
+      // Status
+      status: 'active' as string,
       allowedDomains: '',
     });
   };
@@ -434,6 +433,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
     setFormData({
       name: connection.name,
       type: connection.type,
+      status: connection.status || 'active',
       samlEntityId: connection.samlEntityId || '',
       samlSsoUrl: connection.samlSsoUrl || '',
       samlSloUrl: '', // Not returned by API - left empty for user to fill if needed
@@ -1060,7 +1060,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
               </Alert>
             )}
 
-            {/* Same form fields as create dialog */}
+            {/* Basic Info + Status */}
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="edit-name">Connection Name</Label>
@@ -1073,8 +1073,8 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select
-                  value={formData.autoProvision ? 'active' : 'inactive'}
-                  onValueChange={(value) => setFormData({ ...formData, autoProvision: value === 'active' })}
+                  value={formData.status || 'active'}
+                  onValueChange={(value) => setFormData({ ...formData, status: value })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -1086,6 +1086,341 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
                 </Select>
               </div>
             </div>
+
+            {/* SAML Configuration */}
+            {formData.type === 'saml' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">SAML Configuration</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-samlSsoUrl">SSO URL *</Label>
+                      <Input
+                        id="edit-samlSsoUrl"
+                        placeholder="https://idp.example.com/sso"
+                        value={formData.samlSsoUrl}
+                        onChange={(e) => setFormData({ ...formData, samlSsoUrl: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-samlSloUrl">SLO URL (Optional)</Label>
+                      <Input
+                        id="edit-samlSloUrl"
+                        placeholder="https://idp.example.com/slo"
+                        value={formData.samlSloUrl}
+                        onChange={(e) => setFormData({ ...formData, samlSloUrl: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-samlEntityId">Entity ID (Optional)</Label>
+                    <Input
+                      id="edit-samlEntityId"
+                      placeholder="Leave blank to auto-generate"
+                      value={formData.samlEntityId}
+                      onChange={(e) => setFormData({ ...formData, samlEntityId: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-samlCertificate">X.509 Certificate</Label>
+                    <Textarea
+                      id="edit-samlCertificate"
+                      placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                      value={formData.samlCertificate}
+                      onChange={(e) => setFormData({ ...formData, samlCertificate: e.target.value })}
+                      rows={4}
+                    />
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="edit-samlSignRequest"
+                        checked={formData.samlSignRequest}
+                        onCheckedChange={(checked) => setFormData({ ...formData, samlSignRequest: checked })}
+                      />
+                      <Label htmlFor="edit-samlSignRequest">Sign Requests</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="edit-samlWantAssertionSigned"
+                        checked={formData.samlWantAssertionSigned}
+                        onCheckedChange={(checked) => setFormData({ ...formData, samlWantAssertionSigned: checked })}
+                      />
+                      <Label htmlFor="edit-samlWantAssertionSigned">Require Signed Assertions</Label>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* LDAP Configuration */}
+            {formData.type === 'ldap' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">LDAP Configuration</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-ldapUrl">LDAP URL *</Label>
+                      <Input
+                        id="edit-ldapUrl"
+                        placeholder="ldap://dc.example.com:389"
+                        value={formData.ldapUrl}
+                        onChange={(e) => setFormData({ ...formData, ldapUrl: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-ldapBaseDn">Base DN *</Label>
+                      <Input
+                        id="edit-ldapBaseDn"
+                        placeholder="dc=example,dc=com"
+                        value={formData.ldapBaseDn}
+                        onChange={(e) => setFormData({ ...formData, ldapBaseDn: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-ldapBindDn">Bind DN (Service Account)</Label>
+                      <Input
+                        id="edit-ldapBindDn"
+                        placeholder="cn=admin,dc=example,dc=com"
+                        value={formData.ldapBindDn}
+                        onChange={(e) => setFormData({ ...formData, ldapBindDn: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-ldapBindPassword">Bind Password</Label>
+                      <Input
+                        id="edit-ldapBindPassword"
+                        type="password"
+                        placeholder="••••••••"
+                        value={formData.ldapBindPassword}
+                        onChange={(e) => setFormData({ ...formData, ldapBindPassword: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-ldapSearchFilter">Search Filter</Label>
+                    <Input
+                      id="edit-ldapSearchFilter"
+                      placeholder="(mail={email})"
+                      value={formData.ldapSearchFilter}
+                      onChange={(e) => setFormData({ ...formData, ldapSearchFilter: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Use {'{email}'} as placeholder for the user&apos;s email
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="edit-ldapUseSsl"
+                        checked={formData.ldapUseSsl}
+                        onCheckedChange={(checked) => setFormData({ ...formData, ldapUseSsl: checked })}
+                      />
+                      <Label htmlFor="edit-ldapUseSsl">Use SSL (LDAPS)</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="edit-ldapUseStartTls"
+                        checked={formData.ldapUseStartTls}
+                        onCheckedChange={(checked) => setFormData({ ...formData, ldapUseStartTls: checked })}
+                      />
+                      <Label htmlFor="edit-ldapUseStartTls">Use StartTLS</Label>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* OIDC Configuration */}
+            {formData.type === 'oidc' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">OIDC Configuration</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-oidcDiscoveryUrl">Discovery URL</Label>
+                    <Input
+                      id="edit-oidcDiscoveryUrl"
+                      placeholder="https://accounts.google.com/.well-known/openid-configuration"
+                      value={formData.oidcDiscoveryUrl}
+                      onChange={(e) => setFormData({ ...formData, oidcDiscoveryUrl: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Auto-configures endpoints from the discovery document
+                    </p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-oidcClientId">Client ID *</Label>
+                      <Input
+                        id="edit-oidcClientId"
+                        placeholder="your-client-id"
+                        value={formData.oidcClientId}
+                        onChange={(e) => setFormData({ ...formData, oidcClientId: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-oidcClientSecret">Client Secret</Label>
+                      <Input
+                        id="edit-oidcClientSecret"
+                        type="password"
+                        placeholder="••••••••"
+                        value={formData.oidcClientSecret}
+                        onChange={(e) => setFormData({ ...formData, oidcClientSecret: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-oidcScopes">Scopes</Label>
+                      <Input
+                        id="edit-oidcScopes"
+                        placeholder="openid profile email"
+                        value={formData.oidcScopes}
+                        onChange={(e) => setFormData({ ...formData, oidcScopes: e.target.value })}
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2 pt-6">
+                      <Switch
+                        id="edit-oidcUsePkce"
+                        checked={formData.oidcUsePkce}
+                        onCheckedChange={(checked) => setFormData({ ...formData, oidcUsePkce: checked })}
+                      />
+                      <Label htmlFor="edit-oidcUsePkce">Use PKCE</Label>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Attribute Mapping */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Attribute Mapping</CardTitle>
+                <CardDescription>
+                  Map SSO attributes to application user fields
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-emailAttribute">Email Attribute</Label>
+                    <Input
+                      id="edit-emailAttribute"
+                      value={formData.emailAttribute}
+                      onChange={(e) => setFormData({ ...formData, emailAttribute: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-firstNameAttribute">First Name Attribute</Label>
+                    <Input
+                      id="edit-firstNameAttribute"
+                      value={formData.firstNameAttribute}
+                      onChange={(e) => setFormData({ ...formData, firstNameAttribute: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-lastNameAttribute">Last Name Attribute</Label>
+                    <Input
+                      id="edit-lastNameAttribute"
+                      value={formData.lastNameAttribute}
+                      onChange={(e) => setFormData({ ...formData, lastNameAttribute: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-nameAttribute">Full Name Attribute</Label>
+                    <Input
+                      id="edit-nameAttribute"
+                      value={formData.nameAttribute}
+                      onChange={(e) => setFormData({ ...formData, nameAttribute: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-roleAttribute">Role Attribute (Optional)</Label>
+                    <Input
+                      id="edit-roleAttribute"
+                      placeholder="e.g., groups"
+                      value={formData.roleAttribute}
+                      onChange={(e) => setFormData({ ...formData, roleAttribute: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-phoneAttribute">Phone Attribute</Label>
+                    <Input
+                      id="edit-phoneAttribute"
+                      value={formData.phoneAttribute}
+                      onChange={(e) => setFormData({ ...formData, phoneAttribute: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Provisioning Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">User Provisioning</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">Auto-provision Users</div>
+                    <div className="text-sm text-muted-foreground">
+                      Automatically create user accounts on first login
+                    </div>
+                  </div>
+                  <Switch
+                    checked={formData.autoProvision}
+                    onCheckedChange={(checked) => setFormData({ ...formData, autoProvision: checked })}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">Sync on Login</div>
+                    <div className="text-sm text-muted-foreground">
+                      Update user attributes on each login
+                    </div>
+                  </div>
+                  <Switch
+                    checked={formData.syncOnLogin}
+                    onCheckedChange={(checked) => setFormData({ ...formData, syncOnLogin: checked })}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">Sync Roles from Groups</div>
+                    <div className="text-sm text-muted-foreground">
+                      Update user roles based on group membership
+                    </div>
+                  </div>
+                  <Switch
+                    checked={formData.syncRoles}
+                    onCheckedChange={(checked) => setFormData({ ...formData, syncRoles: checked })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-allowedDomains">Allowed Domains (Optional)</Label>
+                  <Input
+                    id="edit-allowedDomains"
+                    placeholder="company.com, subsidiary.com"
+                    value={formData.allowedDomains}
+                    onChange={(e) => setFormData({ ...formData, allowedDomains: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Comma-separated list of allowed email domains
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <DialogFooter>

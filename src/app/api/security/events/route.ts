@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {    const user = await requireP
     const acknowledged = searchParams.get('acknowledged');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const limit = searchParams.get('limit');
-    const offset = searchParams.get('offset');
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '50') || 50, 1), 100);
+    const offset = Math.max(parseInt(searchParams.get('offset') || '0') || 0, 0);
     const stats = searchParams.get('stats');
 
     const where: Record<string, unknown> = { tenantId };
@@ -106,8 +106,8 @@ export async function GET(request: NextRequest) {    const user = await requireP
         },
       },
       orderBy: { timestamp: 'desc' },
-      ...(limit && { take: parseInt(limit, 10) }),
-      ...(offset && { skip: parseInt(offset, 10) }),
+      ...(limit && { take: limit }),
+      ...(offset && { skip: offset }),
     });
 
     const total = await db.securityEvent.count({ where });
@@ -117,8 +117,8 @@ export async function GET(request: NextRequest) {    const user = await requireP
       data: events,
       pagination: {
         total,
-        limit: limit ? parseInt(limit, 10) : null,
-        offset: offset ? parseInt(offset, 10) : null,
+        limit: limit || null,
+        offset: offset || null,
       },
     });
   } catch (error) {
@@ -160,11 +160,28 @@ export async function POST(request: NextRequest) {    const user = await require
       );
     }
 
+    // Validate camera belongs to user's tenant
+    if (cameraId) {
+      const camera = await db.camera.findUnique({ where: { id: cameraId } });
+      if (!camera || camera.tenantId !== user.tenantId) {
+        return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Camera not found' } }, { status: 403 });
+      }
+    }
+
     // Validate event type
     const validTypes = ['motion', 'intrusion', 'tampering', 'face_detected', 'loitering', 'crowd_detected', 'fire_smoke', 'vehicle_detected'];
     if (!validTypes.includes(type)) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid event type. Valid types: ${validTypes.join(', ')}` } },
+        { status: 400 }
+      );
+    }
+
+    // Validate severity
+    const VALID_SEVERITIES = ['low', 'medium', 'high', 'critical'];
+    if (severity && !VALID_SEVERITIES.includes(severity)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid severity' } },
         { status: 400 }
       );
     }
