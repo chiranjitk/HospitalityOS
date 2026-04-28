@@ -15,15 +15,15 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
-import { getRRDBasePath, type RRDDataSource, type RRDArchive } from './index';
+import { getRRDBasePath, getRRDBinPath, getRRDLibPath, type RRDDataSource, type RRDArchive } from './index';
 
 const execFileAsync = promisify(execFile);
 
-// rrdtool binary and environment (same as base library)
-const RRD_BIN = '/home/z/my-project/StaySuite-HospitalityOS/rrdtool/bin/rrdtool';
+// rrdtool binary and environment — inherited from base library (env-configurable)
+const RRD_BIN = getRRDBinPath();
 const RRD_ENV = {
   ...process.env,
-  LD_LIBRARY_PATH: '/home/z/my-project/StaySuite-HospitalityOS/rrdtool/lib',
+  LD_LIBRARY_PATH: getRRDLibPath(),
 };
 const DEFAULT_STEP = 60;
 

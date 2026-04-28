@@ -4,8 +4,10 @@
  * Provides TypeScript functions for creating, updating, and querying RRD files
  * using the compiled rrdtool binary.
  *
- * RRD binary: /home/z/my-project/StaySuite-HospitalityOS/rrdtool/bin/rrdtool
- * RRD storage: /home/z/my-project/StaySuite-HospitalityOS/data/rrd/
+ * Configuration (env vars or defaults):
+ *   RRD_BIN_PATH  - Path to rrdtool binary
+ *   RRD_LIB_PATH  - Path to rrdtool shared libraries
+ *   RRD_DATA_PATH - Base directory for RRD files
  */
 
 import { execFile } from 'child_process';
@@ -15,16 +17,28 @@ import path from 'path';
 
 const execFileAsync = promisify(execFile);
 
-// RRDtool binary path
-const RRD_BIN = '/home/z/my-project/StaySuite-HospitalityOS/rrdtool/bin/rrdtool';
+// Detect project root (nearest parent containing package.json)
+function findProjectRoot(startDir: string = __dirname): string {
+  let dir = startDir;
+  while (dir !== path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, 'package.json'))) return dir;
+    dir = path.dirname(dir);
+  }
+  return startDir;
+}
 
-// Base directory for RRD files
-const RRD_BASE = '/home/z/my-project/StaySuite-HospitalityOS/data/rrd';
+const PROJECT_ROOT = findProjectRoot();
+
+// RRDtool binary path — configurable via RRD_BIN_PATH env var
+const RRD_BIN = process.env.RRD_BIN_PATH || path.join(PROJECT_ROOT, 'rrdtool', 'bin', 'rrdtool');
+
+// Base directory for RRD files — configurable via RRD_DATA_PATH env var
+const RRD_BASE = process.env.RRD_DATA_PATH || path.join(PROJECT_ROOT, 'data', 'rrd');
 
 // Environment for rrdtool (needs LD_LIBRARY_PATH for shared libs)
 const RRD_ENV = {
   ...process.env,
-  LD_LIBRARY_PATH: '/home/z/my-project/StaySuite-HospitalityOS/rrdtool/lib',
+  LD_LIBRARY_PATH: process.env.RRD_LIB_PATH || path.join(PROJECT_ROOT, 'rrdtool', 'lib'),
 };
 
 // Default step (60 seconds)
@@ -311,6 +325,14 @@ export async function ensureRRD(
  */
 export function getRRDBasePath(): string {
   return RRD_BASE;
+}
+
+export function getRRDBinPath(): string {
+  return RRD_BIN;
+}
+
+export function getRRDLibPath(): string {
+  return RRD_ENV.LD_LIBRARY_PATH || '';
 }
 
 /**
