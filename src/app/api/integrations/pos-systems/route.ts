@@ -290,7 +290,8 @@ export async function PUT(request: NextRequest) {
     }
 
     if (status) {
-      updateData.status = status;
+      const validStatuses = ['active', 'pending', 'error', 'disconnected', 'syncing'];
+      updateData.status = validStatuses.includes(status) ? status : updateData.status || status;
     }
 
     const integration = await db.integration.update({

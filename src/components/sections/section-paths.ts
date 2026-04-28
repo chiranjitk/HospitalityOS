@@ -118,6 +118,16 @@ const sectionPaths: Record<string, string> = {
   'pos-kitchen': '@/components/pos/kitchen-display',
   'pos-menu': '@/components/pos/menu-management',
   'pos-billing': '@/components/pos/billing',
+  'pos-room-service': '@/components/pos/room-service',
+  'pos-restaurant-reports': '@/components/pos/restaurant-reports',
+  'pos-recipes': '@/components/pos/recipes',
+  'pos-staff-assignment': '@/components/pos/staff-assignment',
+  'pos-receipt-templates': '@/components/pos/receipt-templates',
+  'pos-modifiers': '@/components/pos/menu-modifiers',
+  'pos-variants': '@/components/pos/menu-variants',
+  'pos-table-layout': '@/components/pos/table-layout',
+  'pos-reservations': '@/components/pos/reservations',
+  'pos-inventory': '@/components/pos/inventory',
 
   // Experience
   'experience-requests': '@/components/experience/service-requests',
@@ -127,6 +137,13 @@ const sectionPaths: Record<string, string> = {
   'experience-portal': '@/components/experience/in-room-portal',
   'experience-app': '@/components/experience/guest-app-controls',
   'experience-app-controls': '@/components/experience/guest-app-controls',
+  'experiences': '@/components/experience/experience-catalog',
+  'experience-bookings': '@/components/experience/experience-bookings',
+  'experience-pricing': '@/components/experience/experience-pricing',
+  'experience-vendors': '@/components/experience/experience-vendors',
+  'experience-revenue': '@/components/experience/experience-revenue',
+  'experience-calendar': '@/components/experience/experience-calendar',
+  'experience-feedback': '@/components/experience/experience-feedback',
 
   // Parking
   'parking-slots': '@/components/parking/slots',

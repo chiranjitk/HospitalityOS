@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getUserFromRequest } from '@/lib/auth-helpers';
 
 // GET /api/portal/in-room - Get in-room portal data for a room (token or session required)
 export async function GET(request: NextRequest) {
@@ -17,13 +18,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get authenticated user for tenant isolation (session auth path)
+    let userTenantId: string | null = null;
+    if (sessionToken) {
+      const user = await getUserFromRequest(request);
+      if (user) {
+        userTenantId = user.tenantId;
+      }
+    }
+
     // Find room by number or by booking token
     let room: any = null;
     let booking: any = null;
 
     if (roomNumber) {
+      const roomWhere: Record<string, unknown> = { number: roomNumber };
+      // Add tenant isolation when authenticated via session
+      if (userTenantId) {
+        roomWhere.roomType = { property: { tenantId: userTenantId } };
+      }
       room = await db.room.findFirst({
-        where: { number: roomNumber },
+        where: roomWhere,
         include: {
           roomType: {
             include: { property: true },
@@ -185,34 +200,38 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PUT /api/portal/in-room - Update room control (PUBLIC - token required)
+// PUT /api/portal/in-room - Update room control (session or token required)
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
     const { deviceId, roomId, enabled, value, controlType, token } = body;
 
-    // Require token for security
-    if (!token) {
+    // Require authentication: either a token in body OR a session cookie
+    const sessionToken = request.cookies.get('session_token')?.value;
+
+    if (!token && !sessionToken) {
       return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Token required' } },
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required: provide a valid token or session' } },
         { status: 401 }
       );
     }
 
-    // Verify token belongs to a booking for this room
-    const booking = await db.booking.findFirst({
-      where: {
-        portalToken: token,
-        status: 'checked_in',
-        roomId,
-      },
-    });
+    // If token provided, verify it belongs to a booking for this room
+    if (token) {
+      const booking = await db.booking.findFirst({
+        where: {
+          portalToken: token,
+          status: 'checked_in',
+          roomId,
+        },
+      });
 
-    if (!booking) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid token for room' } },
-        { status: 401 }
-      );
+      if (!booking) {
+        return NextResponse.json(
+          { success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid token for room' } },
+          { status: 401 }
+        );
+      }
     }
 
     if (deviceId) {

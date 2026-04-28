@@ -3,16 +3,22 @@ import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 // GET /api/chat-conversations - List all chat conversations
-export async function GET(request: NextRequest) {    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-    }
+export async function GET(request: NextRequest) {
+  const user = await getUserFromRequest(request);
+  if (!user) {
+    return NextResponse.json(
+      { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+      { status: 401 }
+    );
+  }
 
   // Permission check for chat operations
   if (!hasPermission(user, 'chat.view')) {
-    return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } }, { status: 403 });
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } },
+      { status: 403 }
+    );
   }
-
 
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -60,6 +66,24 @@ export async function GET(request: NextRequest) {    const user = await getUserF
             },
           },
         },
+        guest: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            avatar: true,
+          },
+        },
+        booking: {
+          select: {
+            confirmationCode: true,
+            room: {
+              select: { number: true },
+            },
+          },
+        },
       },
       orderBy: [
         { lastMessageAt: 'desc' },
@@ -69,47 +93,16 @@ export async function GET(request: NextRequest) {    const user = await getUserF
       ...(offset && { skip: parseInt(offset, 10) }),
     });
 
-    // Fetch guest and booking info separately since those are in different tables
-    const enrichedConversations = await Promise.all(
-      conversations.map(async (conv) => {
-        let guest: any = null;
-        let booking: any = null;
-
-        if (conv.guestId) {
-          guest = await db.guest.findUnique({
-            where: { id: conv.guestId },
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              phone: true,
-              avatar: true,
-            },
-          });
-        }
-
-        if (conv.bookingId) {
-          booking = await db.booking.findUnique({
-            where: { id: conv.bookingId },
-            select: {
-              confirmationCode: true,
-              room: {
-                select: { number: true },
-              },
-            },
-          }) as any;
-        }
-
-        return {
-          ...conv,
-          guest,
-          booking,
-          lastMessage: conv.lastMessage || conv.messages[0]?.content,
-          lastMessageAt: conv.lastMessageAt || conv.messages[0]?.sentAt,
-        };
-      })
-    );
+    // Enrich conversations with computed fields
+    const enrichedConversations = conversations.map((conv) => ({
+      ...conv,
+      booking: conv.booking ? {
+        confirmationCode: (conv.booking as any).confirmationCode,
+        room: (conv.booking as any).room,
+      } : null,
+      lastMessage: conv.lastMessage || conv.messages[0]?.content,
+      lastMessageAt: conv.lastMessageAt || conv.messages[0]?.sentAt,
+    }));
 
     // Filter by search if provided
     let filteredConversations = enrichedConversations;
@@ -162,14 +155,21 @@ export async function GET(request: NextRequest) {    const user = await getUserF
 }
 
 // POST /api/chat-conversations - Create a new conversation
-export async function POST(request: NextRequest) {    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-    }
+export async function POST(request: NextRequest) {
+  const user = await getUserFromRequest(request);
+  if (!user) {
+    return NextResponse.json(
+      { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+      { status: 401 }
+    );
+  }
 
   // Permission check for chat operations
   if (!hasPermission(user, 'chat.write')) {
-    return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } }, { status: 403 });
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } },
+      { status: 403 }
+    );
   }
 
   try {
@@ -177,7 +177,6 @@ export async function POST(request: NextRequest) {    const user = await getUser
     const tenantId = user.tenantId;
 
     const {
-      
       propertyId,
       guestId,
       bookingId,
@@ -216,14 +215,21 @@ export async function POST(request: NextRequest) {    const user = await getUser
 }
 
 // PUT /api/chat-conversations - Update conversation
-export async function PUT(request: NextRequest) {    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-    }
+export async function PUT(request: NextRequest) {
+  const user = await getUserFromRequest(request);
+  if (!user) {
+    return NextResponse.json(
+      { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+      { status: 401 }
+    );
+  }
 
   // Permission check for chat operations
   if (!hasPermission(user, 'chat.write')) {
-    return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } }, { status: 403 });
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } },
+      { status: 403 }
+    );
   }
 
   try {

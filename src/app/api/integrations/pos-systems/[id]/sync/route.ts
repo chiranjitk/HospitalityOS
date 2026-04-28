@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requirePermission } from '@/lib/auth/tenant-context';// POST /api/integrations/pos-systems/[id]/sync - Sync menu items or orders
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+
+// POST /api/integrations/pos-systems/[id]/sync - Sync menu items or orders
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await requirePermission(request, 'integrations.manage');
-    if (user instanceof NextResponse) return user;
+  const user = await getUserFromRequest(request);
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+  }
 
-      try {
+  if (!hasPermission(user, 'integrations.manage')) {
+    return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } }, { status: 403 });
+  }
+
+  try {
     const { id: integrationId } = await params;
     const body = await request.json();
     const { syncType = 'full', direction = 'import' } = body;
 
-    // Get integration
-    const integration = await db.integration.findUnique({
-      where: { id: integrationId },
+    // Get integration (tenant-scoped)
+    const integration = await db.integration.findFirst({
+      where: { id: integrationId, tenantId: user.tenantId },
     });
 
     if (!integration) {
@@ -324,15 +332,21 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await requirePermission(request, 'integrations.manage');
-    if (user instanceof NextResponse) return user;
+  const user = await getUserFromRequest(request);
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+  }
 
-      try {
+  if (!hasPermission(user, 'integrations.manage')) {
+    return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } }, { status: 403 });
+  }
+
+  try {
     const { id: integrationId } = await params;
 
-    // Return integration's lastSyncAt as sync history
-    const integration = await db.integration.findUnique({
-      where: { id: integrationId },
+    // Return integration's lastSyncAt as sync history (tenant-scoped)
+    const integration = await db.integration.findFirst({
+      where: { id: integrationId, tenantId: user.tenantId },
     });
 
     if (!integration) {

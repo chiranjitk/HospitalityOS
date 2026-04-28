@@ -201,16 +201,33 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
-    if (!propertyId || !type || !subject) {
+    if (!type || !subject) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required fields: propertyId, type, subject' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required fields: type, subject' } },
+        { status: 400 }
+      );
+    }
+
+    // Resolve propertyId: use provided value or derive from user's default property
+    let resolvedPropertyId = propertyId;
+    if (!resolvedPropertyId) {
+      const userProperty = await db.property.findFirst({
+        where: { tenantId: user.tenantId, deletedAt: null },
+        select: { id: true },
+      });
+      resolvedPropertyId = userProperty?.id;
+    }
+
+    if (!resolvedPropertyId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_PROPERTY', message: 'No property found. Please select a property.' } },
         { status: 400 }
       );
     }
 
     // Verify property exists and belongs to tenant
     const property = await db.property.findFirst({
-      where: { id: propertyId, tenantId: user.tenantId, deletedAt: null },
+      where: { id: resolvedPropertyId, tenantId: user.tenantId, deletedAt: null },
     });
 
     if (!property) {
@@ -237,7 +254,7 @@ export async function POST(request: NextRequest) {
     const serviceRequest = await db.serviceRequest.create({
       data: {
         tenantId: user.tenantId,
-        propertyId,
+        propertyId: resolvedPropertyId,
         guestId,
         bookingId,
         roomId,
@@ -320,7 +337,7 @@ export async function PUT(request: NextRequest) {
     if (status) {
       // Validate status transitions
       const validTransitions: Record<string, string[]> = {
-        'pending': ['assigned', 'cancelled'],
+        'pending': ['assigned', 'in_progress', 'cancelled'],
         'assigned': ['in_progress', 'cancelled'],
         'in_progress': ['completed', 'on_hold', 'cancelled'],
         'on_hold': ['in_progress', 'cancelled'],
@@ -412,6 +429,68 @@ export async function PUT(request: NextRequest) {
     console.error('Error updating service request:', error);
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update service request' } },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/service-requests - Soft-delete a service request
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+        { status: 401 }
+      );
+    }
+
+    if (!hasPermission(user, 'service_requests.delete')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
+    const searchParams = request.nextUrl.searchParams;
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Service request ID is required' } },
+        { status: 400 }
+      );
+    }
+
+    const existingRequest = await db.serviceRequest.findFirst({
+      where: { id, tenantId: user.tenantId },
+    });
+
+    if (!existingRequest) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Service request not found' } },
+        { status: 404 }
+      );
+    }
+
+    // Only allow deletion of pending, cancelled, or completed requests
+    if (!['pending', 'cancelled', 'completed'].includes(existingRequest.status)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_STATUS', message: `Cannot delete a service request with status: ${existingRequest.status}` } },
+        { status: 400 }
+      );
+    }
+
+    const deletedRequest = await db.serviceRequest.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+
+    return NextResponse.json({ success: true, data: deletedRequest });
+  } catch (error) {
+    console.error('Error deleting service request:', error);
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete service request' } },
       { status: 500 }
     );
   }

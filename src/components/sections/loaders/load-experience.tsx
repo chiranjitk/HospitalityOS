@@ -14,6 +14,14 @@ export default async function loadSection(section: string): Promise<{ default: R
     case 'experience-app':
     case 'experience-app-controls':
       return import('@/components/experience/guest-app-controls');
+    case 'experiences':
+      return import('@/components/experience/experience-catalog');
+    case 'experience-bookings':
+      return import('@/components/experience/experience-bookings');
+    case 'experience-pricing':
+      return import('@/components/experience/experience-pricing');
+    case 'experience-vendors':
+      return import('@/components/experience/experience-vendors');
     default:
       throw new Error(`Unknown experience section: ${section}`);
   }

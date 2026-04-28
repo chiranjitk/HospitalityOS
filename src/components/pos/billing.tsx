@@ -179,6 +179,7 @@ export default function POSBilling() {
   const handleProcessPayment = async () => {
     if (!selectedOrder) return;
     setIsProcessing(true);
+    const paymentAmt = isSplitMode ? splitAmount : currentTotal;
     try {
       const response = await fetch(`/api/orders/${selectedOrder.id}/pay`, {
         method: 'POST',
@@ -187,6 +188,7 @@ export default function POSBilling() {
           paymentMethod,
           tipAmount: tip,
           splitCount: isSplitMode ? splitCount : undefined,
+          paymentAmount: paymentAmt,
         }),
       });
 
@@ -209,7 +211,65 @@ export default function POSBilling() {
   };
 
   const handlePrintReceipt = () => {
-    window.print();
+    if (!selectedOrder) return;
+    const receiptHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Receipt - ${selectedOrder.orderNumber}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Courier New', monospace; max-width: 320px; margin: 0 auto; padding: 20px; }
+          .header { text-align: center; margin-bottom: 16px; border-bottom: 1px dashed #000; padding-bottom: 12px; }
+          .header h1 { font-size: 18px; }
+          .header p { font-size: 12px; color: #666; }
+          .info { margin-bottom: 12px; font-size: 12px; }
+          .info p { margin: 4px 0; }
+          .items { margin-bottom: 12px; }
+          .item { display: flex; justify-content: space-between; font-size: 12px; margin: 4px 0; }
+          .divider { border-top: 1px dashed #000; margin: 8px 0; }
+          .totals { font-size: 12px; }
+          .totals p { display: flex; justify-content: space-between; margin: 4px 0; }
+          .totals .total { font-weight: bold; font-size: 14px; }
+          .footer { text-align: center; margin-top: 16px; font-size: 11px; color: #666; border-top: 1px dashed #000; padding-top: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>RECEIPT</h1>
+          <p>Order #${selectedOrder.orderNumber}</p>
+          <p>${new Date(selectedOrder.createdAt).toLocaleString()}</p>
+        </div>
+        <div class="info">
+          <p>Type: ${selectedOrder.orderType === 'dine_in' ? 'Dine In' : selectedOrder.orderType === 'room_service' ? 'Room Service' : selectedOrder.orderType}</p>
+          ${selectedOrder.table ? `<p>Table: ${selectedOrder.table.number}${selectedOrder.table.area ? ' (' + selectedOrder.table.area + ')' : ''}</p>` : ''}
+          ${selectedOrder.guestName ? `<p>Guest: ${selectedOrder.guestName}</p>` : ''}
+        </div>
+        <div class="divider"></div>
+        <div class="items">
+          ${selectedOrder.items.map(item => `<div class="item"><span>${item.menuItem.name} x${item.quantity}</span><span>$${(item.totalAmount).toFixed(2)}</span></div>`).join('')}
+        </div>
+        <div class="divider"></div>
+        <div class="totals">
+          <p><span>Subtotal</span><span>$${selectedOrder.subtotal.toFixed(2)}</span></p>
+          <p><span>Tax</span><span>$${selectedOrder.taxes.toFixed(2)}</span></p>
+          ${tip > 0 ? `<p><span>Tip</span><span>$${tip.toFixed(2)}</span></p>` : ''}
+          <p class="total"><span>TOTAL</span><span>$${currentTotal.toFixed(2)}</span></p>
+        </div>
+        <div class="footer">
+          <p>Thank you for dining with us!</p>
+        </div>
+      </body>
+      </html>
+    `;
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    if (printWindow) {
+      printWindow.document.write(receiptHtml);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
+    }
   };
 
   const billableOrders = orders.filter(o => ['served', 'ready'].includes(o.status));

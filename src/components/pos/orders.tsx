@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -146,6 +147,10 @@ export default function Orders() {
 
   // Cancel confirmation dialog state
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+
+  // Detail dialog open state
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 
   // Table selection state
   const [availableTables, setAvailableTables] = useState<{ id: string; number: string; area?: string; capacity?: number }[]>([]);
@@ -283,12 +288,12 @@ export default function Orders() {
     setSelectedTableId('');
   }, [orderType]);
 
-  const updateOrderStatus = async (orderId: string, status: string, kitchenStatus?: string) => {
+  const updateOrderStatus = async (orderId: string, status: string, kitchenStatus?: string, cancelReason?: string) => {
     try {
       const res = await fetch('/api/orders', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: orderId, status, kitchenStatus }),
+        body: JSON.stringify({ id: orderId, status, kitchenStatus, ...(cancelReason ? { cancelReason } : {}) }),
       });
 
       const data = await res.json();
@@ -540,6 +545,7 @@ export default function Orders() {
                 <SelectItem value="preparing">Preparing</SelectItem>
                 <SelectItem value="ready">Ready</SelectItem>
                 <SelectItem value="served">Served</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
@@ -801,6 +807,16 @@ export default function Orders() {
 
                       <div className="flex items-center gap-2">
                         {/* Quick actions based on status */}
+                        {order.status === 'confirmed' && (
+                          <Button
+                            size="sm"
+                            className="bg-orange-500 hover:bg-orange-600"
+                            onClick={() => updateOrderStatus(order.id, 'preparing', 'cooking')}
+                          >
+                            <ChefHat className="h-4 w-4 mr-1" />
+                            Start Preparing
+                          </Button>
+                        )}
                         {order.status === 'pending' && (
                           <>
                             <Button
@@ -853,93 +869,13 @@ export default function Orders() {
                           </Button>
                         )}
 
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setDetailOrder(order)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Order {order.orderNumber}</DialogTitle>
-                              <DialogDescription>
-                                Order details and items
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <div className="flex items-center gap-2">
-                                <Badge className={statusColors[order.status]}>
-                                  {order.status}
-                                </Badge>
-                                <Badge className={kitchenStatusColors[order.kitchenStatus]}>
-                                  Kitchen: {order.kitchenStatus}
-                                </Badge>
-                              </div>
-
-                              <div className="text-sm space-y-1">
-                                <p><strong>Type:</strong> {orderTypeLabels[order.orderType]}</p>
-                                {order.table && (
-                                  <p><strong>Table:</strong> {order.table.number} ({order.table.area})</p>
-                                )}
-                                {order.guestName && (
-                                  <p><strong>Guest:</strong> {order.guestName}</p>
-                                )}
-                                <p><strong>Created:</strong> {new Date(order.createdAt).toLocaleString()}</p>
-                              </div>
-
-                              <Separator />
-
-                              <div className="space-y-2">
-                                <h4 className="font-semibold">Items</h4>
-                                {order.items.map((item) => (
-                                  <div key={item.id} className="flex justify-between items-center py-2 border-b">
-                                    <div>
-                                      <p className="font-medium">{item.menuItem.name}</p>
-                                      <p className="text-sm text-muted-foreground">
-                                        {formatCurrency(item.unitPrice)} x {item.quantity}
-                                      </p>
-                                      {item.notes && (
-                                        <p className="text-xs text-muted-foreground italic">
-                                          {item.notes}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <p className="font-medium">{formatCurrency(item.totalAmount)}</p>
-                                  </div>
-                                ))}
-                              </div>
-
-                              <div className="space-y-1 text-sm">
-                                <div className="flex justify-between">
-                                  <span>Subtotal</span>
-                                  <span>{formatCurrency(order.subtotal)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span>Tax</span>
-                                  <span>{formatCurrency(order.taxes)}</span>
-                                </div>
-                                <div className="flex justify-between font-bold text-lg">
-                                  <span>Total</span>
-                                  <span>{formatCurrency(order.totalAmount)}</span>
-                                </div>
-                              </div>
-
-                              {order.notes && (
-                                <>
-                                  <Separator />
-                                  <div>
-                                    <h4 className="font-semibold mb-1">Notes</h4>
-                                    <p className="text-sm text-muted-foreground">{order.notes}</p>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          </DialogContent>
-                        </Dialog>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setDetailOrder(order); setDetailDialogOpen(true); }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -951,7 +887,7 @@ export default function Orders() {
       </div>
 
       {/* Cancel Order Confirmation Dialog */}
-      <AlertDialog open={!!cancelOrderId} onOpenChange={(open) => !open && setCancelOrderId(null)}>
+      <AlertDialog open={!!cancelOrderId} onOpenChange={(open) => { if (!open) { setCancelOrderId(null); setCancelReason(''); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Order</AlertDialogTitle>
@@ -959,13 +895,20 @@ export default function Orders() {
               Are you sure you want to cancel this order? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <Textarea
+            placeholder="Reason for cancellation (optional)"
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            className="mb-4"
+          />
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Order</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (cancelOrderId) {
-                  updateOrderStatus(cancelOrderId, 'cancelled');
+                  updateOrderStatus(cancelOrderId, 'cancelled', undefined, cancelReason || undefined);
                   setCancelOrderId(null);
+                  setCancelReason('');
                 }
               }}
               className="bg-red-600 hover:bg-red-700"
@@ -975,6 +918,90 @@ export default function Orders() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Order Detail Dialog (controlled, outside .map loop) */}
+      <Dialog open={detailDialogOpen} onOpenChange={(open) => { setDetailDialogOpen(open); if (!open) setDetailOrder(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Order {detailOrder?.orderNumber}</DialogTitle>
+            <DialogDescription>
+              Order details and items
+            </DialogDescription>
+          </DialogHeader>
+          {detailOrder && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Badge className={statusColors[detailOrder.status] || ''}>
+                  {detailOrder.status}
+                </Badge>
+                {detailOrder.kitchenStatus && (
+                  <Badge className={kitchenStatusColors[detailOrder.kitchenStatus] || ''}>
+                    Kitchen: {detailOrder.kitchenStatus}
+                  </Badge>
+                )}
+              </div>
+
+              <div className="text-sm space-y-1">
+                <p><strong>Type:</strong> {orderTypeLabels[detailOrder.orderType] || detailOrder.orderType}</p>
+                {detailOrder.table && (
+                  <p><strong>Table:</strong> {detailOrder.table.number}{detailOrder.table.area ? ` (${detailOrder.table.area})` : ''}</p>
+                )}
+                {detailOrder.guestName && (
+                  <p><strong>Guest:</strong> {detailOrder.guestName}</p>
+                )}
+                <p><strong>Created:</strong> {new Date(detailOrder.createdAt).toLocaleString()}</p>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <h4 className="font-semibold">Items</h4>
+                {detailOrder.items.map((item) => (
+                  <div key={item.id} className="flex justify-between items-center py-2 border-b">
+                    <div>
+                      <p className="font-medium">{item.menuItem.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatCurrency(item.unitPrice)} x {item.quantity}
+                      </p>
+                      {item.notes && (
+                        <p className="text-xs text-muted-foreground italic">
+                          {item.notes}
+                        </p>
+                      )}
+                    </div>
+                    <p className="font-medium">{formatCurrency(item.totalAmount)}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(detailOrder.subtotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tax</span>
+                  <span>{formatCurrency(detailOrder.taxes)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-lg">
+                  <span>Total</span>
+                  <span>{formatCurrency(detailOrder.totalAmount)}</span>
+                </div>
+              </div>
+
+              {detailOrder.notes && (
+                <>
+                  <Separator />
+                  <div>
+                    <h4 className="font-semibold mb-1">Notes</h4>
+                    <p className="text-sm text-muted-foreground">{detailOrder.notes}</p>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Post to Folio Dialog */}
       <Dialog open={folioDialogOpen} onOpenChange={(open) => { setFolioDialogOpen(open); if (!open) { setFolioTargetOrder(null); setSelectedBookingId(''); } }}>

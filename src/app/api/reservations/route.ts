@@ -4,10 +4,11 @@ import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 // Valid status transitions map
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  confirmed: ['seated', 'cancelled', 'no_show'],
-  seated: ['completed', 'cancelled'],
-  no_show: ['seated', 'cancelled'],
+  pending: ['confirmed', 'cancelled'],
+  confirmed: ['seated', 'no_show', 'cancelled'],
+  seated: ['completed', 'no_show', 'cancelled'],
   completed: [],
+  no_show: [],
   cancelled: [],
 };
 
@@ -35,22 +36,95 @@ export async function GET(request: NextRequest) {
     const propertyId = searchParams.get('propertyId');
     const status = searchParams.get('status');
     const date = searchParams.get('date');
-    const search = searchParams.get('search');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    const guestName = searchParams.get('guestName');
     const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 100);
     const offset = searchParams.get('offset');
     const stats = searchParams.get('stats');
+    const page = parseInt(searchParams.get('page') || '1', 10);
 
-    // propertyId is required
-    if (!propertyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'propertyId is required' } },
-        { status: 400 }
-      );
+    // propertyId is required for list, but not for stats
+    let resolvedPropertyId = propertyId;
+    if (!resolvedPropertyId) {
+      const properties = await db.property.findMany({
+        where: { tenantId: user.tenantId, deletedAt: null },
+        select: { id: true },
+      });
+      if (properties.length === 0) {
+        return NextResponse.json({
+          success: true,
+          data: [],
+          pagination: { total: 0, limit, page },
+        });
+      }
+      // If no specific property, search all tenant properties
+      const propertyIds = properties.map(p => p.id);
+      const where: Record<string, unknown> = { propertyId: { in: propertyIds } };
+
+      if (status) where.status = status;
+      if (guestName) where.guestName = { contains: guestName };
+
+      if (date) {
+        const parsedDate = new Date(date);
+        if (isNaN(parsedDate.getTime())) {
+          return NextResponse.json(
+            { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid date format' } },
+            { status: 400 }
+          );
+        }
+        const startOfDay = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate());
+        const endOfDay = new Date(startOfDay);
+        endOfDay.setDate(endOfDay.getDate() + 1);
+        where.date = { gte: startOfDay, lt: endOfDay };
+      } else if (startDate || endDate) {
+        const dateRange: Record<string, unknown> = {};
+        if (startDate) {
+          const sd = new Date(startDate);
+          const startOfDay = new Date(sd.getFullYear(), sd.getMonth(), sd.getDate());
+          dateRange.gte = startOfDay;
+        }
+        if (endDate) {
+          const ed = new Date(endDate);
+          const endOfDay = new Date(ed.getFullYear(), ed.getMonth(), ed.getDate());
+          endOfDay.setDate(endOfDay.getDate() + 1);
+          dateRange.lt = endOfDay;
+        }
+        if (Object.keys(dateRange).length > 0) {
+          where.date = dateRange;
+        }
+      }
+
+      const reservations = await db.reservation.findMany({
+        where,
+        include: {
+          table: {
+            select: {
+              id: true,
+              number: true,
+              name: true,
+              capacity: true,
+              area: true,
+              status: true,
+            },
+          },
+        },
+        orderBy: [{ date: 'asc' }, { time: 'asc' }],
+        take: limit,
+        skip: (page - 1) * limit,
+      });
+
+      const total = await db.reservation.count({ where });
+      return NextResponse.json({
+        success: true,
+        data: reservations,
+        pagination: { total, limit, page },
+      });
     }
 
     // Verify property belongs to user's tenant
     const property = await db.property.findFirst({
-      where: { id: propertyId, tenantId: user.tenantId, deletedAt: null },
+      where: { id: resolvedPropertyId, tenantId: user.tenantId, deletedAt: null },
       select: { id: true },
     });
     if (!property) {
@@ -60,14 +134,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const where: Record<string, unknown> = { propertyId };
+    const where: Record<string, unknown> = { propertyId: resolvedPropertyId };
 
     if (status) {
       where.status = status;
     }
 
     if (date) {
-      // Parse ISO date string and match the date portion
       const parsedDate = new Date(date);
       if (isNaN(parsedDate.getTime())) {
         return NextResponse.json(
@@ -79,17 +152,36 @@ export async function GET(request: NextRequest) {
       const endOfDay = new Date(startOfDay);
       endOfDay.setDate(endOfDay.getDate() + 1);
       where.date = { gte: startOfDay, lt: endOfDay };
+    } else if (startDate || endDate) {
+      const dateRange: Record<string, unknown> = {};
+      if (startDate) {
+        const sd = new Date(startDate);
+        const startOfDay = new Date(sd.getFullYear(), sd.getMonth(), sd.getDate());
+        dateRange.gte = startOfDay;
+      }
+      if (endDate) {
+        const ed = new Date(endDate);
+        const endOfDay = new Date(ed.getFullYear(), ed.getMonth(), ed.getDate());
+        endOfDay.setDate(endOfDay.getDate() + 1);
+        dateRange.lt = endOfDay;
+      }
+      if (Object.keys(dateRange).length > 0) {
+        where.date = dateRange;
+      }
     }
 
-    if (search) {
-      where.guestName = { contains: search };
+    if (guestName) {
+      where.guestName = { contains: guestName };
     }
+
+    // Exclude soft-deleted
+    where.deletedAt = null;
 
     // If stats flag is set, return summary statistics
     if (stats === 'true') {
       const statusCounts = await db.reservation.groupBy({
         by: ['status'],
-        where,
+        where: { ...where, deletedAt: null },
         _count: { id: true },
       });
 
@@ -98,11 +190,12 @@ export async function GET(request: NextRequest) {
       const todayEnd = new Date(todayStart);
       todayEnd.setDate(todayEnd.getDate() + 1);
 
-      const todayCount = await db.reservation.count({
+      const todayReservations = await db.reservation.findMany({
         where: {
-          propertyId,
+          propertyId: resolvedPropertyId,
           date: { gte: todayStart, lt: todayEnd },
           status: { not: 'cancelled' },
+          deletedAt: null,
         },
       });
 
@@ -113,7 +206,10 @@ export async function GET(request: NextRequest) {
             acc[item.status || 'unknown'] = item._count.id;
             return acc;
           }, {} as Record<string, number>),
-          todayCount,
+          todayTotal: todayReservations.length,
+          todayConfirmed: todayReservations.filter(r => r.status === 'confirmed').length,
+          todaySeated: todayReservations.filter(r => r.status === 'seated').length,
+          todayNoShows: todayReservations.filter(r => r.status === 'no_show').length,
         },
       });
     }
@@ -137,7 +233,7 @@ export async function GET(request: NextRequest) {
         { time: 'asc' },
       ],
       take: limit,
-      ...(offset && { skip: parseInt(offset, 10) }),
+      skip: (page - 1) * limit,
     });
 
     const total = await db.reservation.count({ where });
@@ -148,7 +244,8 @@ export async function GET(request: NextRequest) {
       pagination: {
         total,
         limit,
-        offset: offset ? parseInt(offset, 10) : null,
+        page,
+        totalPages: Math.ceil(total / limit),
       },
     });
   } catch (error) {
@@ -195,8 +292,9 @@ export async function POST(request: NextRequest) {
       duration = 90,
       specialRequests,
       occasion,
-      status = 'confirmed',
+      status = 'pending',
       source = 'phone',
+      notes,
     } = body;
 
     // Validate required fields
@@ -311,7 +409,8 @@ export async function POST(request: NextRequest) {
         where: {
           tableId,
           date: reservationDate,
-          status: { in: ['confirmed', 'seated'] },
+          status: { in: ['confirmed', 'seated', 'pending'] },
+          deletedAt: null,
         },
       });
 
@@ -321,7 +420,7 @@ export async function POST(request: NextRequest) {
         existStart.setHours(existH, existM, 0, 0);
         const existEnd = new Date(existStart.getTime() + existing.duration * 60 * 1000);
 
-        // Check for time overlap: two ranges overlap if start1 < end2 AND start2 < end1
+        // Check for time overlap
         if (reservationStart < existEnd && existStart < reservationEnd) {
           return NextResponse.json(
             {
@@ -354,6 +453,7 @@ export async function POST(request: NextRequest) {
         occasion: occasion || null,
         status,
         source,
+        notes: notes || null,
       },
       include: {
         table: {
@@ -411,7 +511,7 @@ export async function PUT(request: NextRequest) {
 
     // Verify reservation exists and belongs to tenant (via property)
     const existingReservation = await db.reservation.findFirst({
-      where: { id },
+      where: { id, deletedAt: null },
       include: {
         property: { select: { tenantId: true } },
         table: { select: { id: true } },
@@ -494,8 +594,9 @@ export async function PUT(request: NextRequest) {
         where: {
           tableId: newTableId,
           date: newDate,
-          status: { in: ['confirmed', 'seated'] },
-          id: { not: id }, // exclude the current reservation
+          status: { in: ['confirmed', 'seated', 'pending'] },
+          id: { not: id },
+          deletedAt: null,
         },
       });
 
@@ -526,7 +627,7 @@ export async function PUT(request: NextRequest) {
     const allowedFields = [
       'guestName', 'guestPhone', 'guestEmail', 'partySize',
       'date', 'time', 'duration', 'specialRequests', 'occasion',
-      'status', 'source', 'tableId', 'guestId',
+      'status', 'source', 'tableId', 'guestId', 'notes',
     ];
 
     for (const field of allowedFields) {
@@ -537,6 +638,20 @@ export async function PUT(request: NextRequest) {
           data[field] = updateData[field];
         }
       }
+    }
+
+    // Set timestamps based on status transitions
+    if (updateData.status === 'seated') {
+      data.seatedAt = new Date();
+    }
+    if (updateData.status === 'completed') {
+      data.completedAt = new Date();
+    }
+    if (updateData.status === 'cancelled') {
+      data.cancelledAt = new Date();
+    }
+    if (updateData.status === 'no_show') {
+      data.cancelledAt = new Date();
     }
 
     const reservation = await db.reservation.update({
@@ -555,6 +670,21 @@ export async function PUT(request: NextRequest) {
         },
       },
     });
+
+    // Update table status based on reservation status
+    if (updateData.status && existingReservation.tableId) {
+      if (updateData.status === 'seated') {
+        await db.restaurantTable.update({
+          where: { id: existingReservation.tableId },
+          data: { status: 'occupied' },
+        });
+      } else if (updateData.status === 'completed' || updateData.status === 'cancelled' || updateData.status === 'no_show') {
+        await db.restaurantTable.update({
+          where: { id: existingReservation.tableId },
+          data: { status: 'cleaning' },
+        });
+      }
+    }
 
     return NextResponse.json({ success: true, data: reservation });
   } catch (error) {
@@ -598,7 +728,7 @@ export async function DELETE(request: NextRequest) {
 
     // Verify reservation exists and belongs to tenant (via property)
     const reservation = await db.reservation.findFirst({
-      where: { id },
+      where: { id, deletedAt: null },
       include: {
         property: { select: { tenantId: true } },
         table: { select: { id: true } },
@@ -619,10 +749,22 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Soft cancel: set status to 'cancelled'
+    // Only pending or confirmed reservations can be soft-deleted
+    if (reservation.status !== 'pending' && reservation.status !== 'confirmed') {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_STATUS', message: 'Only pending or confirmed reservations can be cancelled' } },
+        { status: 400 }
+      );
+    }
+
+    // Soft delete: set cancelledAt and status
     await db.reservation.update({
       where: { id },
-      data: { status: 'cancelled' },
+      data: {
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        deletedAt: new Date(),
+      },
     });
 
     // If table was assigned, set table status back to 'available'

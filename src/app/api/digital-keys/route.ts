@@ -103,6 +103,7 @@ export async function GET(request: NextRequest) {
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
         keyEnabled: room?.digitalKeyEnabled ?? false,
+        keySecret: room?.digitalKeySecret || undefined,
         lastAccess: null,
         accessCount: 0,
         status: keyStatus,
@@ -319,6 +320,7 @@ export async function POST(request: NextRequest) {
       data: {
         roomId: updatedRoom.id,
         roomNumber: updatedRoom.number,
+        keySecret: newSecret,
       },
     });
   } catch (error) {

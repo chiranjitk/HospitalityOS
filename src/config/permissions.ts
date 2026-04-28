@@ -291,6 +291,34 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['experience.manage', 'experience.*', '*'],
     description: 'Control guest app settings'
   },
+  'experience-revenue': {
+    permissions: ['experience_revenue.view', 'experience.view', 'experience.*', '*'],
+    description: 'View experience revenue analytics'
+  },
+  'experience-calendar': {
+    permissions: ['experience.view', 'experience.*', '*'],
+    description: 'View experience calendar'
+  },
+  'experience-feedback': {
+    permissions: ['experience_feedback.view', 'experience.view', 'experience.*', '*'],
+    description: 'View guest feedback and ratings'
+  },
+  'experiences': {
+    permissions: ['experiences.view', 'experiences.create', 'experiences.update', 'experiences.delete', 'experience.view', 'experience.*', '*'],
+    description: 'Manage experience catalog'
+  },
+  'experience-bookings': {
+    permissions: ['experience_bookings.view', 'experience_bookings.create', 'experience_bookings.update', 'experience_bookings.cancel', 'experience.view', 'experience.*', '*'],
+    description: 'Manage experience bookings'
+  },
+  'experience-pricing': {
+    permissions: ['experience_pricing.view', 'experience_pricing.manage', 'experience.view', 'experience.*', '*'],
+    description: 'Manage pricing and availability'
+  },
+  'experience-vendors': {
+    permissions: ['experience_vendors.view', 'experience_vendors.create', 'experience_vendors.update', 'experience_vendors.delete', 'experience.view', 'experience.*', '*'],
+    description: 'Manage experience vendors'
+  },
 
   // ---- Restaurant & POS ----
   'pos-orders': {
@@ -312,6 +340,46 @@ export const menuPermissions: PermissionConfig = {
   'pos-billing': {
     permissions: ['pos.billing', 'billing.view', 'pos.*', '*'],
     description: 'Manage POS billing'
+  },
+  'pos-room-service': {
+    permissions: ['room_service.view', 'room_service.create', 'pos.view', 'pos.*', '*'],
+    description: 'View and manage room service orders'
+  },
+  'pos-restaurant-reports': {
+    permissions: ['restaurant_reports.view', 'reports.view', 'pos.view', 'pos.*', '*'],
+    description: 'View restaurant reports and analytics'
+  },
+  'pos-recipes': {
+    permissions: ['recipes.view', 'recipes.create', 'recipes.update', 'recipes.delete', 'pos.manage', 'pos.*', '*'],
+    description: 'Manage recipes and food costs'
+  },
+  'pos-staff-assignment': {
+    permissions: ['pos_staff.view', 'pos_staff.manage', 'pos.view', 'pos.*', '*'],
+    description: 'Manage staff assignments to tables'
+  },
+  'pos-receipt-templates': {
+    permissions: ['receipt_templates.view', 'receipt_templates.manage', 'pos.view', 'pos.*', '*'],
+    description: 'Manage receipt templates'
+  },
+  'pos-modifiers': {
+    permissions: ['menu_modifiers.view', 'pos.manage', 'pos.*', '*'],
+    description: 'View and manage menu modifiers'
+  },
+  'pos-variants': {
+    permissions: ['menu_variants.view', 'pos.manage', 'pos.*', '*'],
+    description: 'View and manage menu variants'
+  },
+  'pos-table-layout': {
+    permissions: ['table_layout.view', 'pos.manage', 'pos.*', '*'],
+    description: 'View and manage table layout'
+  },
+  'pos-reservations': {
+    permissions: ['reservations.view', 'pos.manage', 'pos.*', '*'],
+    description: 'View and manage reservations'
+  },
+  'pos-inventory': {
+    permissions: ['inventory.view', 'inventory.create', 'inventory.update', 'inventory.delete', 'inventory.adjust', 'inventory.manage', 'pos.*', '*'],
+    description: 'View, create, update, delete, and adjust inventory stock items'
   },
 
   // ---- Inventory ----

@@ -1,168 +1,142 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { Prisma } from '@prisma/client';
 
-// GET /api/inventory - Get inventory data for calendar
-export async function GET(request: NextRequest) {    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-    }
-
-    // RBAC check
-    if (!hasPermission(user, 'inventory.view') && !hasPermission(user, 'inventory.*') && user.roleName !== 'admin') {
-      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
-    }
-
+// GET /api/inventory - List inventory items with filtering, pagination, stats
+export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const propertyId = searchParams.get('propertyId');
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
-    
-    if (!propertyId) {
+    const user = await getUserFromRequest(request);
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Property ID is required' } },
-        { status: 400 }
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+        { status: 401 }
       );
     }
-    
-    // Default to next 60 days if dates not provided
-    const start = startDate ? new Date(startDate) : new Date();
-    const end = endDate ? new Date(endDate) : new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
-    
-    // Set to start of day
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
-    
-    // Verify property belongs to tenant
-    const propertyCheck = await db.property.findFirst({
-      where: { id: propertyId, tenantId: user.tenantId },
-      select: { id: true },
-    });
-    if (!propertyCheck) {
+
+    if (!hasPermission(user, 'inventory.view') && !hasPermission(user, 'inventory.*') && !hasPermission(user, '*')) {
       return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Property not found or access denied' } },
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
         { status: 403 }
       );
     }
 
-    // Get room types with their rooms
-    const roomTypes = await db.roomType.findMany({
-      where: {
-        propertyId,
-        deletedAt: null,
-        status: 'active',
-      },
-      include: {
-        rooms: {
-          where: { deletedAt: null },
-        },
-        ratePlans: {
-          where: {
-            deletedAt: null,
-            status: 'active',
-          },
-          include: {
-            priceOverrides: {
-              where: {
-                date: { gte: start, lte: end },
-              },
-            },
-          },
-        },
-      },
-    });
-    
-    // Get bookings for the date range
-    const bookings = await db.booking.findMany({
-      where: {
-        propertyId,
-        status: { in: ['confirmed', 'checked_in'] },
-        OR: [
-          { checkIn: { lte: end }, checkOut: { gte: start } },
-        ],
-      },
-      select: {
-        id: true,
-        roomTypeId: true,
-        checkIn: true,
-        checkOut: true,
-        status: true,
-      },
-    });
-    
-    // Pre-index bookings by roomTypeId for O(1) lookup instead of O(N) filter per roomType per date
-    const bookingMap = new Map<string, { checkIn: Date; checkOut: Date }[]>();
-    for (const b of bookings) {
-      const arr = bookingMap.get(b.roomTypeId) || [];
-      arr.push({ checkIn: new Date(b.checkIn), checkOut: new Date(b.checkOut) });
-      bookingMap.set(b.roomTypeId, arr);
+    const searchParams = request.nextUrl.searchParams;
+    const propertyId = searchParams.get('propertyId');
+    const category = searchParams.get('category');
+    const status = searchParams.get('status');
+    const search = searchParams.get('search');
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(Math.max(1, parseInt(searchParams.get('limit') || '50')), 100);
+    const statsOnly = searchParams.get('stats') === 'true';
+
+    if (!propertyId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'propertyId is required' } },
+        { status: 400 }
+      );
     }
 
-    // Calculate inventory for each day
-    const inventoryData: Record<string, Record<string, { available: number; total: number; price: number }>> = {};
-    
-    // Generate all dates in range
-    const currentDate = new Date(start);
-    while (currentDate <= end) {
-      const dateStr = currentDate.toISOString().split('T')[0];
-      inventoryData[dateStr] = {};
-      
-      for (const roomType of roomTypes) {
-        const totalRooms = roomType.rooms.length;
-        
-        // Use pre-indexed map instead of bookings.filter()
-        const roomBookings = bookingMap.get(roomType.id) || [];
-        const bookedRooms = roomBookings.filter(b => currentDate >= b.checkIn && currentDate < b.checkOut).length;
-        
-        const available = Math.max(0, totalRooms - bookedRooms);
-        
-        // Get base price from first active rate plan
-        let price = roomType.basePrice;
-        const activeRatePlan = roomType.ratePlans[0];
-        if (activeRatePlan) {
-          price = activeRatePlan.basePrice;
-          
-          // Check for price overrides
-          const override = activeRatePlan.priceOverrides.find(
-            po => new Date(po.date).toISOString().split('T')[0] === dateStr
-          );
-          if (override) {
-            price = override.price;
-          }
-        }
-        
-        inventoryData[dateStr][roomType.id] = {
-          available,
-          total: totalRooms,
-          price: Math.round(price),
-        };
-      }
-      
-      currentDate.setDate(currentDate.getDate() + 1);
+    // Verify property belongs to user's tenant
+    const property = await db.property.findFirst({
+      where: { id: propertyId, tenantId: user.tenantId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!property) {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_PROPERTY', message: 'Property not found' } },
+        { status: 400 }
+      );
     }
-    
-    // Transform to array format for easier consumption
-    const result = Object.entries(inventoryData).flatMap(([date, roomTypesData]) =>
-      Object.entries(roomTypesData).map(([roomTypeId, data]) => ({
-        date,
-        roomTypeId,
-        available: data.available,
-        total: data.total,
-        price: data.price,
-      }))
-    );
-    
+
+    const where: Record<string, unknown> = { propertyId, deletedAt: null };
+
+    if (category && category !== 'all') {
+      where.category = category;
+    }
+
+    if (status && status !== 'all') {
+      where.status = status;
+    }
+
+    if (search) {
+      where.name = { contains: search, mode: 'insensitive' };
+    }
+
+    // Stats endpoint
+    if (statsOnly) {
+      const [allItems, lowStockItems, outOfStockItems, totalValueResult] = await Promise.all([
+        db.inventoryItem.count({ where }),
+        db.inventoryItem.count({ where: { ...where, status: 'low_stock', deletedAt: null } }),
+        db.inventoryItem.count({ where: { ...where, status: 'out_of_stock', deletedAt: null } }),
+        db.inventoryItem.aggregate({
+          where,
+          _sum: { currentStock: true, unitCost: true },
+        }),
+      ]);
+
+      // Calculate total value = sum of (currentStock * unitCost) for each item
+      const itemsForValue = await db.inventoryItem.findMany({
+        where,
+        select: { currentStock: true, unitCost: true },
+      });
+      const totalValue = itemsForValue.reduce((sum, item) => {
+        return sum + (Number(item.currentStock) * Number(item.unitCost));
+      }, 0);
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          totalItems: allItems,
+          lowStockAlerts: lowStockItems,
+          outOfStock: outOfStockItems,
+          totalValue,
+        },
+      });
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      db.inventoryItem.findMany({
+        where,
+        include: {
+          _count: { select: { movements: true } },
+        },
+        orderBy: { name: 'asc' },
+        take: limit,
+        skip,
+      }),
+      db.inventoryItem.count({ where }),
+    ]);
+
+    // Add computed value to each item
+    const itemsWithValue = items.map(item => ({
+      ...item,
+      value: Number(item.currentStock) * Number(item.unitCost),
+    }));
+
+    // Low stock / out of stock counts for meta
+    const lowStockCount = await db.inventoryItem.count({
+      where: { ...where, status: 'low_stock', deletedAt: null },
+    });
+    const outOfStockCount = await db.inventoryItem.count({
+      where: { ...where, status: 'out_of_stock', deletedAt: null },
+    });
+
     return NextResponse.json({
       success: true,
-      data: result,
-      roomTypes: roomTypes.map(rt => ({
-        id: rt.id,
-        name: rt.name,
-        code: rt.code,
-        basePrice: rt.basePrice,
-        totalRooms: rt.rooms.length,
-      })),
+      data: itemsWithValue,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+      meta: {
+        lowStockCount,
+        outOfStockCount,
+      },
     });
   } catch (error) {
     console.error('Error fetching inventory:', error);
@@ -173,233 +147,249 @@ export async function GET(request: NextRequest) {    const user = await getUserF
   }
 }
 
-// PATCH /api/inventory - Update room availability (close/open rooms for dates)
-export async function PATCH(request: NextRequest) {
-  const user = await getUserFromRequest(request);
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
-
-  // RBAC check
-  if (!hasPermission(user, 'inventory.manage') && !hasPermission(user, 'inventory.*') && user.roleName !== 'admin') {
-    return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
-  }
-
+// POST /api/inventory - Create inventory item
+export async function POST(request: NextRequest) {
   try {
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+        { status: 401 }
+      );
+    }
+
+    if (!hasPermission(user, 'inventory.create') && !hasPermission(user, 'inventory.*') && !hasPermission(user, '*')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const {
       propertyId,
-      roomTypeId,
-      date,
-      action,
-      available,
-      startDate,
-      endDate,
-      minStay,
-      maxStay,
-      reason,
+      name,
+      category,
+      currentStock = 0,
+      unit = 'pcs',
+      unitCost = 0,
+      lowStockThreshold = 10,
+      reorderLevel = 5,
+      supplierName,
+      supplierContact,
     } = body;
 
-    // Validate required fields
-    if (!propertyId || !roomTypeId) {
+    if (!propertyId || !name || !name.trim()) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Property ID and Room Type ID are required' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'propertyId and name are required' } },
         { status: 400 }
       );
     }
 
-    // Verify room type belongs to property
-    const roomType = await db.roomType.findFirst({
-      where: { id: roomTypeId, propertyId, deletedAt: null },
-      include: { rooms: { where: { deletedAt: null } } },
+    if (currentStock < 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'currentStock cannot be negative' } },
+        { status: 400 }
+      );
+    }
+
+    if (unitCost < 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'unitCost cannot be negative' } },
+        { status: 400 }
+      );
+    }
+
+    // Verify property belongs to user's tenant
+    const property = await db.property.findFirst({
+      where: { id: propertyId, tenantId: user.tenantId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!property) {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_PROPERTY', message: 'Property not found' } },
+        { status: 400 }
+      );
+    }
+
+    // Auto-calculate status based on stock vs threshold
+    const itemStatus = currentStock <= 0
+      ? 'out_of_stock'
+      : currentStock <= lowStockThreshold
+        ? 'low_stock'
+        : 'in_stock';
+
+    const item = await db.inventoryItem.create({
+      data: {
+        propertyId,
+        name: name.trim(),
+        category: category || null,
+        currentStock,
+        unit,
+        unitCost,
+        lowStockThreshold,
+        reorderLevel,
+        supplierName: supplierName || null,
+        supplierContact: supplierContact || null,
+        status: itemStatus,
+        lastRestocked: currentStock > 0 ? new Date() : null,
+      },
+      include: {
+        _count: { select: { movements: true } },
+      },
     });
 
-    if (!roomType) {
+    return NextResponse.json({ success: true, data: item }, { status: 201 });
+  } catch (error) {
+    console.error('Error creating inventory item:', error);
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create inventory item' } },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT /api/inventory - Update inventory item
+export async function PUT(request: NextRequest) {
+  try {
+    const user = await getUserFromRequest(request);
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Room type not found' } },
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+        { status: 401 }
+      );
+    }
+
+    if (!hasPermission(user, 'inventory.update') && !hasPermission(user, 'inventory.*') && !hasPermission(user, '*')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const { id, ...updateData } = body;
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'id is required' } },
+        { status: 400 }
+      );
+    }
+
+    // Verify item exists and belongs to user's tenant
+    const existing = await db.inventoryItem.findFirst({
+      where: { id, deletedAt: null },
+      include: { property: { select: { tenantId: true } } },
+    });
+    if (!existing || existing.property.tenantId !== user.tenantId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Item not found' } },
         { status: 404 }
       );
     }
 
-    const totalRooms = roomType.rooms.length;
+    // Build update object with only provided fields
+    const data: Record<string, unknown> = {};
 
-    // If action is 'close', create InventoryLock records
-    if (action === 'close') {
-      const lockStart = startDate || date;
-      const lockEnd = endDate || date;
+    const allowedFields = [
+      'name', 'category', 'unit', 'unitCost', 'lowStockThreshold',
+      'reorderLevel', 'supplierName', 'supplierContact',
+    ];
 
-      if (!lockStart || !lockEnd) {
-        return NextResponse.json(
-          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Date or date range is required' } },
-          { status: 400 }
-        );
+    for (const field of allowedFields) {
+      if (updateData[field] !== undefined) {
+        data[field] = updateData[field];
       }
-
-      const start = new Date(lockStart);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(lockEnd);
-      end.setHours(23, 59, 59, 999);
-
-      // Upsert inventory lock for the date range
-      // Delete only existing locks matching the same lock type for this room type in the range
-      const closeLockType = (body as Record<string, unknown>).lockType as string || 'maintenance';
-      await db.inventoryLock.deleteMany({
-        where: {
-          tenantId: user.tenantId,
-          propertyId,
-          roomTypeId,
-          startDate: { gte: start, lte: end },
-          lockType: closeLockType,
-        },
-      });
-
-      // Create a single lock covering the range
-      await db.inventoryLock.create({
-        data: {
-          tenantId: user.tenantId,
-          propertyId,
-          roomTypeId,
-          startDate: start,
-          endDate: end,
-          reason: reason || 'Manual closure',
-          lockType: closeLockType,
-          createdBy: user.id,
-        },
-      });
-
-      return NextResponse.json({
-        success: true,
-        message: `Availability closed for ${roomType.name} from ${start.toISOString().split('T')[0]} to ${end.toISOString().split('T')[0]}`,
-        data: {
-          roomTypeId,
-          startDate: start,
-          endDate: end,
-          action: 'closed',
-        },
-      });
     }
 
-    // If action is 'open', remove InventoryLock records
-    if (action === 'open') {
-      const lockStart = startDate || date;
-      const lockEnd = endDate || date;
+    // Auto-update status if currentStock or lowStockThreshold changes
+    const newStock = updateData.currentStock !== undefined ? updateData.currentStock : Number(existing.currentStock);
+    const newThreshold = updateData.lowStockThreshold !== undefined ? updateData.lowStockThreshold : Number(existing.lowStockThreshold);
 
-      if (!lockStart || !lockEnd) {
-        return NextResponse.json(
-          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Date or date range is required' } },
-          { status: 400 }
-        );
-      }
-
-      const start = new Date(lockStart);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(lockEnd);
-      end.setHours(23, 59, 59, 999);
-
-      const result = await db.inventoryLock.deleteMany({
-        where: {
-          tenantId: user.tenantId,
-          propertyId,
-          roomTypeId,
-          startDate: { gte: start, lte: end },
-        },
-      });
-
-      return NextResponse.json({
-        success: true,
-        message: `Availability opened for ${roomType.name} from ${start.toISOString().split('T')[0]} to ${end.toISOString().split('T')[0]}`,
-        data: {
-          roomTypeId,
-          startDate: start,
-          endDate: end,
-          action: 'opened',
-          locksRemoved: result.count,
-        },
-      });
+    if (updateData.currentStock !== undefined || updateData.lowStockThreshold !== undefined) {
+      data.status = newStock <= 0
+        ? 'out_of_stock'
+        : newStock <= newThreshold
+          ? 'low_stock'
+          : 'in_stock';
     }
 
-    // If 'available' is provided directly, update via InventoryLock
-    if (available !== undefined) {
-      const targetDate = date ? new Date(date) : new Date();
-      targetDate.setHours(0, 0, 0, 0);
-
-      // Remove existing lock for this date
-      await db.inventoryLock.deleteMany({
-        where: {
-          tenantId: user.tenantId,
-          propertyId,
-          roomTypeId,
-          startDate: { lte: targetDate },
-          endDate: { gte: targetDate },
-        },
-      });
-
-      // If available < total, create a lock
-      if (available < totalRooms) {
-        const roomsToClose = totalRooms - available;
-        await db.inventoryLock.create({
-          data: {
-            tenantId: user.tenantId,
-            propertyId,
-            roomTypeId,
-            startDate: targetDate,
-            endDate: targetDate,
-            reason: `Manual adjustment: ${roomsToClose} room(s) closed`,
-            lockType: 'maintenance',
-            createdBy: user.id,
-          },
-        });
-      }
-
-      // Update min/max stay on PriceOverride if provided
-      if (minStay !== undefined || maxStay !== undefined) {
-        const activeRatePlan = await db.ratePlan.findFirst({
-          where: { roomTypeId, deletedAt: null, status: 'active' },
-        });
-
-        if (activeRatePlan) {
-          const overrideData: Record<string, unknown> = {};
-          if (minStay !== undefined) overrideData.minStay = minStay;
-          if (maxStay !== undefined) overrideData.maxStay = maxStay;
-
-          await db.priceOverride.upsert({
-            where: {
-              ratePlanId_date: {
-                ratePlanId: activeRatePlan.id,
-                date: targetDate,
-              },
-            },
-            create: {
-              ratePlanId: activeRatePlan.id,
-              date: targetDate,
-              price: activeRatePlan.basePrice,
-              ...overrideData,
-            },
-            update: overrideData,
-          });
-        }
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: 'Availability updated successfully',
-        data: {
-          roomTypeId,
-          date: targetDate.toISOString().split('T')[0],
-          available,
-          total: totalRooms,
-        },
-      });
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'No fields to update' } },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json(
-      { success: false, error: { code: 'VALIDATION_ERROR', message: 'Provide action (close/open) or available count' } },
-      { status: 400 }
-    );
+    const item = await db.inventoryItem.update({
+      where: { id },
+      data,
+      include: {
+        _count: { select: { movements: true } },
+      },
+    });
+
+    return NextResponse.json({ success: true, data: item });
   } catch (error) {
-    console.error('Error updating inventory:', error);
+    console.error('Error updating inventory item:', error);
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update inventory' } },
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update inventory item' } },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/inventory - Soft delete inventory item
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+        { status: 401 }
+      );
+    }
+
+    if (!hasPermission(user, 'inventory.delete') && !hasPermission(user, 'inventory.*') && !hasPermission(user, '*')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
+    const searchParams = request.nextUrl.searchParams;
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'id is required' } },
+        { status: 400 }
+      );
+    }
+
+    // Verify item exists and belongs to user's tenant
+    const existing = await db.inventoryItem.findFirst({
+      where: { id, deletedAt: null },
+      include: { property: { select: { tenantId: true } } },
+    });
+    if (!existing || existing.property.tenantId !== user.tenantId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Item not found' } },
+        { status: 404 }
+      );
+    }
+
+    await db.inventoryItem.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+
+    return NextResponse.json({ success: true, data: { id } });
+  } catch (error) {
+    console.error('Error deleting inventory item:', error);
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete inventory item' } },
       { status: 500 }
     );
   }

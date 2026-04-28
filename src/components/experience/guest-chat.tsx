@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
   MessageSquare,
   Send,
@@ -267,7 +266,7 @@ export default function GuestChat() {
               <Phone className="h-4 w-4 text-cyan-500 dark:text-cyan-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold">4</div>
+              <div className="text-2xl font-bold">{new Set(conversations.map(c => c.channel)).size}</div>
               <div className="text-xs text-muted-foreground">Channels</div>
             </div>
           </div>

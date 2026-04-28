@@ -17,7 +17,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogDescription,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -44,9 +43,6 @@ import {
   Mail,
   MessageSquare,
   Globe,
-  User,
-  Lock,
-  Unlock,
   Zap,
   Battery,
   Signal,

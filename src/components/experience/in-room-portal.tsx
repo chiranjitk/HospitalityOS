@@ -149,6 +149,13 @@ export default function InRoomPortal() {
     fetchPortalData();
   }, [fetchPortalData]);
 
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (sliderTimerRef.current) clearTimeout(sliderTimerRef.current);
+    };
+  }, []);
+
   const handleControlToggle = async (control: RoomControl, enabled: boolean) => {
     if (!portalData) return;
 

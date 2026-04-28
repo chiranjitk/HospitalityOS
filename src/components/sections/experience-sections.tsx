@@ -7,6 +7,10 @@ const DigitalKeys = lazy(() => import('@/components/experience/digital-keys').th
 const InRoomPortal = lazy(() => import('@/components/experience/in-room-portal').then(m => ({ default: m.InRoomPortal })));
 const GuestAppControls = lazy(() => import('@/components/experience/guest-app-controls').then(m => ({ default: m.GuestAppControls })));
 const UnifiedInbox = lazy(() => import('@/components/communication/unified-inbox').then(m => ({ default: m.UnifiedInbox })));
+const ExperienceCatalog = lazy(() => import('@/components/experience/experience-catalog').then(m => ({ default: m.default })));
+const ExperienceBookings = lazy(() => import('@/components/experience/experience-bookings').then(m => ({ default: m.default })));
+const ExperiencePricing = lazy(() => import('@/components/experience/experience-pricing').then(m => ({ default: m.default })));
+const ExperienceVendors = lazy(() => import('@/components/experience/experience-vendors').then(m => ({ default: m.default })));
 const ParkingSlots = lazy(() => import('@/components/parking/slots').then(m => ({ default: m.ParkingSlots })));
 const VehicleTracking = lazy(() => import('@/components/parking/vehicle-tracking').then(m => ({ default: m.VehicleTracking })));
 
@@ -17,6 +21,10 @@ export const experienceSections: Record<string, React.LazyExoticComponent<any>> 
   InRoomPortal,
   GuestAppControls,
   UnifiedInbox,
+  ExperienceCatalog,
+  ExperienceBookings,
+  ExperiencePricing,
+  ExperienceVendors,
   ParkingSlots,
   VehicleTracking,
 };

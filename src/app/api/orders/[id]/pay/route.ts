@@ -32,6 +32,7 @@ export async function POST(
       splitCount,
       cardType,
       cardLast4,
+      bookingId,
     } = body;
 
     // Verify the order exists and belongs to the tenant
@@ -62,9 +63,62 @@ export async function POST(
     const currency = order.property?.currency || 'USD';
     const paymentAmount = order.totalAmount + (tipAmount || 0);
 
-    // Create or find a Folio for this order
+    // For room charges, find or create the booking's folio
     let folioId = order.folioId;
 
+    if (paymentMethod === 'room_charge' && !folioId) {
+      // Try to find an existing open folio for the booking
+      let targetFolioId: string | null = null;
+
+      if (bookingId) {
+        const bookingFolio = await db.folio.findFirst({
+          where: { bookingId, status: { in: ['open', 'partially_paid'] } },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (bookingFolio) {
+          targetFolioId = bookingFolio.id;
+        }
+      } else if (order.bookingId) {
+        const bookingFolio = await db.folio.findFirst({
+          where: { bookingId: order.bookingId, status: { in: ['open', 'partially_paid'] } },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (bookingFolio) {
+          targetFolioId = bookingFolio.id;
+        }
+      }
+
+      if (!targetFolioId) {
+        // Create a new folio for the room charge
+        const newFolio = await db.folio.create({
+          data: {
+            tenantId: user.tenantId,
+            propertyId: order.propertyId,
+            bookingId: bookingId || order.bookingId || undefined,
+            guestId: order.guestId || undefined,
+            folioNumber: `FOL-ROOM-${Date.now().toString(36).toUpperCase()}`,
+            currency,
+            subtotal: 0,
+            taxes: 0,
+            totalAmount: 0,
+            paidAmount: 0,
+            balance: 0,
+            status: 'open',
+          },
+        });
+        targetFolioId = newFolio.id;
+      }
+
+      folioId = targetFolioId;
+
+      // Link the order to this folio
+      await db.order.update({
+        where: { id: orderId },
+        data: { folioId },
+      });
+    }
+
+    // Create or find a Folio for this order (non-room-charge)
     if (!folioId) {
       const folio = await db.folio.create({
         data: {
@@ -91,25 +145,44 @@ export async function POST(
       });
     }
 
-    // Create folio line items for the order items if not already posted
+    // Create folio line items for the order (room charge or regular)
     const existingLineItems = await db.folioLineItem.count({
       where: { folioId, reference: `order-${orderId}` },
     });
 
     if (existingLineItems === 0) {
-      // Create a single line item for the order
-      await db.folioLineItem.create({
+      // Create line items for each order item
+      for (const item of (await db.orderItem.findMany({ where: { orderId }, include: { menuItem: { select: { name: true } } } }))) {
+        await db.folioLineItem.create({
+          data: {
+            folioId,
+            description: `${item.menuItem?.name || 'Restaurant Item'} x${item.quantity}${item.notes ? ` (${item.notes})` : ''}`,
+            category: 'restaurant',
+            subcategory: order.orderType,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalAmount: item.totalAmount,
+            taxAmount: Math.round(item.totalAmount * (order.subtotal > 0 ? (order.taxes / order.subtotal) : 0) * 100) / 100,
+            reference: `order-${orderId}`,
+            serviceDate: new Date(),
+          },
+        });
+      }
+    }
+
+    // Recalculate folio totals after adding line items
+    const allLineItems = await db.folioLineItem.findMany({ where: { folioId } });
+    const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+    const newTaxes = allLineItems.reduce((sum, li) => sum + li.taxAmount, 0);
+    const folioRecord = await db.folio.findUnique({ where: { id: folioId } });
+    if (folioRecord) {
+      await db.folio.update({
+        where: { id: folioId },
         data: {
-          folioId,
-          description: `Restaurant Order ${order.orderNumber}`,
-          category: 'restaurant',
-          quantity: 1,
-          unitPrice: order.subtotal,
-          totalAmount: order.subtotal,
-          taxRate: order.subtotal > 0 ? (order.taxes / order.subtotal) * 100 : 0,
-          taxAmount: order.taxes,
-          reference: `order-${orderId}`,
-          serviceDate: new Date(),
+          subtotal: newSubtotal,
+          taxes: newTaxes,
+          totalAmount: newSubtotal + newTaxes - (folioRecord.discount || 0),
+          balance: (newSubtotal + newTaxes - (folioRecord.discount || 0)) - (folioRecord.paidAmount || 0),
         },
       });
     }

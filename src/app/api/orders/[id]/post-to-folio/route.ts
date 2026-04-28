@@ -22,9 +22,9 @@ export async function POST(
     const body = await request.json();
     const { folioId, bookingId, chargeToRoom } = body;
 
-    // Get the order with items
-    const order = await db.order.findUnique({
-      where: { id: orderId },
+    // Get the order with items (tenant-scoped)
+    const order = await db.order.findFirst({
+      where: { id: orderId, tenantId: user.tenantId },
       include: {
         items: {
           include: {
@@ -56,6 +56,14 @@ export async function POST(
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } },
         { status: 404 }
+      );
+    }
+
+    // Tenant isolation check
+    if (order.tenantId !== user.tenantId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Tenant isolation violation' } },
+        { status: 403 }
       );
     }
 
@@ -293,8 +301,8 @@ export async function DELETE(
   try {
     const { id: orderId } = await params;
 
-    const order = await db.order.findUnique({
-      where: { id: orderId },
+    const order = await db.order.findFirst({
+      where: { id: orderId, tenantId: user.tenantId },
       include: {
         items: true,
       },
@@ -304,6 +312,14 @@ export async function DELETE(
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } },
         { status: 404 }
+      );
+    }
+
+    // Tenant isolation check
+    if (order.tenantId !== user.tenantId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Tenant isolation violation' } },
+        { status: 403 }
       );
     }
 

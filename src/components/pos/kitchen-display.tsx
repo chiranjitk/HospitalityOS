@@ -207,7 +207,9 @@ export default function KitchenDisplay() {
   const filterOrdersByStation = (orderList: Order[]) => {
     if (stationFilter === 'all' || stationFilter === 'Unassigned') return orderList;
     return orderList.filter(order =>
-      order.items.some(item => item.menuItem.kitchenStation === stationFilter)
+      order.items.some(item =>
+        item.menuItem.kitchenStation?.toLowerCase() === stationFilter.toLowerCase()
+      )
     );
   };
 

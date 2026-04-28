@@ -127,33 +127,26 @@ export default function PosSystems() {
   const handleSync = async (system: PosSystem) => {
     try {
       toast.loading(`Syncing ${system.name}...`);
-      const response = await fetch('/api/integrations/pos-systems', {
-        method: 'PUT',
+      const response = await fetch(`/api/integrations/pos-systems/${system.id}/sync`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: system.id,
-          syncStatus: 'syncing',
+          syncType: 'full',
+          direction: 'import',
         }),
       });
 
       if (response.ok) {
-        // Simulate sync completion (in real implementation, this would be handled by backend)
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        await fetch('/api/integrations/pos-systems', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: system.id,
-            syncStatus: 'synced',
-            lastSync: new Date().toISOString(),
-          }),
-        });
-
-        toast.success('Sync completed successfully!');
+        const data = await response.json();
+        if (data.success) {
+          toast.success('Sync completed successfully!');
+        } else {
+          toast.error(data.error?.message || 'Sync failed');
+        }
         fetchSystems();
       } else {
-        toast.error('Sync failed');
+        const data = await response.json();
+        toast.error(data.error?.message || 'Sync failed');
       }
     } catch (error) {
       console.error('Sync error:', error);
