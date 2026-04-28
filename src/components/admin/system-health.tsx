@@ -135,7 +135,9 @@ export function SystemHealth() {
             <CardTitle className="text-2xl">{healthData.server.uptime.value}{healthData.server.uptime.unit}</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <p className="text-sm text-emerald-500 dark:text-emerald-400">All systems operational</p>
+            <p className={`text-sm ${healthData.status === 'healthy' ? 'text-emerald-500 dark:text-emerald-400' : healthData.status === 'warning' ? 'text-amber-500 dark:text-amber-400' : 'text-red-500 dark:text-red-400'}`}>
+              {healthData.status === 'healthy' ? 'All systems operational' : healthData.status === 'warning' ? 'Some services degraded' : 'Critical issues detected'}
+            </p>
           </CardContent>
         </Card>
       </div>

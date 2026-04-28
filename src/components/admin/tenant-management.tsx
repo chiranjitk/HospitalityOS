@@ -57,7 +57,7 @@ const planColors: Record<string, string> = {
   trial: 'bg-gray-500',
   starter: 'bg-emerald-500',
   professional: 'bg-cyan-500',
-  enterprise: 'bg-violet-500',
+  enterprise: 'bg-teal-500',
 };
 
 const statusColors: Record<string, string> = {
@@ -105,8 +105,15 @@ export function TenantManagement() {
     }
   };
 
+  const sanitizeSlug = (val: string) => val.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+
   const handleSave = async () => {
     if (!editTenant) return;
+
+    if (!editTenant.name.trim() || !editTenant.slug.trim() || !editTenant.email.trim()) {
+      toast.error('Name, slug, and email are required');
+      return;
+    }
     
     setSaving(true);
     try {
@@ -276,7 +283,7 @@ export function TenantManagement() {
                   </div>
                   <div className="space-y-2">
                     <Label>Slug</Label>
-                    <Input value={editTenant.slug} onChange={(e) => setEditTenant({ ...editTenant, slug: e.target.value })} />
+                    <Input value={editTenant.slug} onChange={(e) => setEditTenant({ ...editTenant, slug: sanitizeSlug(e.target.value) })} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -318,15 +325,15 @@ export function TenantManagement() {
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Max Properties</Label>
-                    <Input type="number" value={editTenant.limits.properties} onChange={(e) => setEditTenant({ ...editTenant, limits: { ...editTenant.limits, properties: parseInt(e.target.value) } })} />
+                    <Input type="number" value={editTenant.limits.properties} onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 0) setEditTenant({ ...editTenant, limits: { ...editTenant.limits, properties: v } }); }} />
                   </div>
                   <div className="space-y-2">
                     <Label>Max Users</Label>
-                    <Input type="number" value={editTenant.limits.users} onChange={(e) => setEditTenant({ ...editTenant, limits: { ...editTenant.limits, users: parseInt(e.target.value) } })} />
+                    <Input type="number" value={editTenant.limits.users} onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 0) setEditTenant({ ...editTenant, limits: { ...editTenant.limits, users: v } }); }} />
                   </div>
                   <div className="space-y-2">
                     <Label>Max Rooms</Label>
-                    <Input type="number" value={editTenant.limits.rooms} onChange={(e) => setEditTenant({ ...editTenant, limits: { ...editTenant.limits, rooms: parseInt(e.target.value) } })} />
+                    <Input type="number" value={editTenant.limits.rooms} onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 0) setEditTenant({ ...editTenant, limits: { ...editTenant.limits, rooms: v } }); }} />
                   </div>
                 </div>
               </div>
@@ -368,7 +375,7 @@ export function TenantManagement() {
             <CardTitle className="text-2xl">{tenants.reduce((sum, t) => sum + t.properties, 0)}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="border-l-4 border-l-violet-500">
+        <Card className="border-l-4 border-l-teal-500">
           <CardHeader className="pb-2">
             <CardDescription>Monthly Revenue</CardDescription>
             <CardTitle className="text-2xl">{formatCurrency(tenants.reduce((sum, t) => sum + t.monthlyRevenue, 0))}</CardTitle>

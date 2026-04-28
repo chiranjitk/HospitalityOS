@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, DollarSign, TrendingUp, Users, Target, BarChart3 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, DollarSign, TrendingUp, Users, Target, BarChart3, AlertTriangle, RefreshCw } from 'lucide-react';
 import { SectionGuard } from '@/components/common/section-guard';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { toast } from 'sonner';
 
 interface RevenueData {
   overview: {
@@ -24,6 +26,7 @@ export function RevenueAnalytics() {
   const { formatCurrency } = useCurrency();
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     fetchRevenue();
@@ -31,19 +34,26 @@ export function RevenueAnalytics() {
 
   const fetchRevenue = async () => {
     try {
+      setLoading(true);
+      setError(false);
       const response = await fetch('/api/admin/revenue');
       const data = await response.json();
       if (data.success) {
         setRevenueData(data.data);
+      } else {
+        setError(true);
+        toast.error('Failed to load revenue data');
       }
     } catch {
+      setError(true);
       console.error('Failed to fetch revenue data');
+      toast.error('Failed to fetch revenue data');
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading || !revenueData) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -51,13 +61,39 @@ export function RevenueAnalytics() {
     );
   }
 
+  if (error || !revenueData) {
+    return (
+      <SectionGuard permission="admin.revenue">
+        <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+          <div className="flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/20">
+            <AlertTriangle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="text-center space-y-2">
+            <h2 className="text-lg font-semibold">Unable to Load Revenue Data</h2>
+            <p className="text-sm text-muted-foreground">Failed to fetch revenue analytics</p>
+          </div>
+          <Button variant="outline" onClick={fetchRevenue}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </div>
+      </SectionGuard>
+    );
+  }
+
   return (
     <SectionGuard permission="admin.revenue">
       <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Platform Revenue Analytics</h2>
-        <p className="text-muted-foreground">Track platform-wide revenue and subscription metrics</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Platform Revenue Analytics</h2>
+          <p className="text-muted-foreground">Track platform-wide revenue and subscription metrics</p>
+        </div>
+        <Button variant="outline" onClick={fetchRevenue} disabled={loading}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
       </div>
 
       {/* Key Metrics */}
@@ -80,7 +116,7 @@ export function RevenueAnalytics() {
             <CardTitle className="text-2xl">+{revenueData.overview.growth}%</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="border-l-4 border-l-violet-500">
+        <Card className="border-l-4 border-l-amber-500">
           <CardHeader className="pb-2">
             <CardDescription>Churn Rate</CardDescription>
             <CardTitle className="text-2xl">{revenueData.overview.churnRate}%</CardTitle>
@@ -114,7 +150,7 @@ export function RevenueAnalytics() {
               <TrendingUp className="h-4 w-4" />
               LTV:CAC Ratio
             </CardDescription>
-            <CardTitle className="text-2xl">{(revenueData.overview.ltv / revenueData.overview.cac).toFixed(1)}:1</CardTitle>
+            <CardTitle className="text-2xl">{revenueData.overview.cac > 0 ? (revenueData.overview.ltv / revenueData.overview.cac).toFixed(1) : '∞'}:1</CardTitle>
           </CardHeader>
         </Card>
       </div>

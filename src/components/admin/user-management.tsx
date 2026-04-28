@@ -236,6 +236,17 @@ export function UserManagement() {
       return;
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
     try {
       setIsSaving(true);
       const payload: Record<string, unknown> = {
@@ -460,8 +471,8 @@ export function UserManagement() {
   const getRoleBadge = (role?: { name: string; displayName: string }) => {
     if (!role) return <Badge variant="outline">No Role</Badge>;
     const colors: Record<string, string> = {
-      admin: 'bg-gradient-to-r from-violet-100 to-violet-200 text-violet-800 dark:from-violet-900 dark:to-violet-800 dark:text-violet-300',
-      manager: 'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 dark:from-blue-900 dark:to-blue-800 dark:text-blue-300',
+      admin: 'bg-gradient-to-r from-amber-100 to-amber-200 text-amber-800 dark:from-amber-900 dark:to-amber-800 dark:text-amber-300',
+      manager: 'bg-gradient-to-r from-cyan-100 to-cyan-200 text-cyan-800 dark:from-cyan-900 dark:to-cyan-800 dark:text-cyan-300',
       front_desk: 'bg-gradient-to-r from-emerald-100 to-emerald-200 text-emerald-800 dark:from-emerald-900 dark:to-emerald-800 dark:text-emerald-300',
       housekeeping: 'bg-gradient-to-r from-amber-100 to-amber-200 text-amber-800 dark:from-amber-900 dark:to-amber-800 dark:text-amber-300',
     };
@@ -553,10 +564,10 @@ export function UserManagement() {
         <Card className="hover:shadow-lg hover:shadow-primary/5 transition-all duration-200">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Verified</CardTitle>
-            <Shield className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+            <Shield className="h-4 w-4 text-teal-500 dark:text-teal-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.verified}</div>
+            <div className="text-2xl font-bold text-teal-600 dark:text-teal-400">{stats.verified}</div>
           </CardContent>
         </Card>
       </div>
@@ -671,7 +682,7 @@ export function UserManagement() {
                             <div className="flex items-center gap-2">
                               <p className="font-medium">{user.firstName} {user.lastName}</p>
                               {user.isPlatformAdmin && (
-                                <Badge variant="default" className="bg-purple-600 text-white text-[10px] px-1.5 py-0">
+                                <Badge variant="default" className="bg-amber-600 text-white text-[10px] px-1.5 py-0">
                                   Platform Admin
                                 </Badge>
                               )}
@@ -791,19 +802,19 @@ export function UserManagement() {
             )}
             {/* Platform admin toggle: only visible to platform admins */}
             {isPlatformAdmin && (
-              <div className="flex items-center gap-3 p-3 rounded-lg border border-purple-200 bg-purple-50 dark:bg-purple-950 dark:border-purple-800">
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800">
                 <input
                   type="checkbox"
                   id="isPlatformAdmin"
                   checked={formData.isPlatformAdmin}
                   onChange={(e) => setFormData(prev => ({ ...prev, isPlatformAdmin: e.target.checked }))}
-                  className="h-4 w-4 rounded border-gray-300 text-purple-600 dark:text-purple-400 focus:ring-purple-500"
+                  className="h-4 w-4 rounded border-gray-300 text-amber-600 dark:text-amber-400 focus:ring-amber-500"
                 />
                 <div>
-                  <Label htmlFor="isPlatformAdmin" className="text-sm font-medium text-purple-900 dark:text-purple-200">
+                  <Label htmlFor="isPlatformAdmin" className="text-sm font-medium text-amber-900 dark:text-amber-200">
                     Platform Admin
                   </Label>
-                  <p className="text-xs text-purple-700 dark:text-purple-300">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
                     Grant full access to all tenants and platform-level features
                   </p>
                 </div>
@@ -923,19 +934,19 @@ export function UserManagement() {
           <div className="space-y-4 py-4">
             {/* Platform admin toggle: only visible to platform admins */}
             {isPlatformAdmin && (
-              <div className="flex items-center gap-3 p-3 rounded-lg border border-purple-200 bg-purple-50 dark:bg-purple-950 dark:border-purple-800">
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800">
                 <input
                   type="checkbox"
                   id="edit-isPlatformAdmin"
                   checked={formData.isPlatformAdmin}
                   onChange={(e) => setFormData(prev => ({ ...prev, isPlatformAdmin: e.target.checked }))}
-                  className="h-4 w-4 rounded border-gray-300 text-purple-600 dark:text-purple-400 focus:ring-purple-500"
+                  className="h-4 w-4 rounded border-gray-300 text-amber-600 dark:text-amber-400 focus:ring-amber-500"
                 />
                 <div>
-                  <Label htmlFor="edit-isPlatformAdmin" className="text-sm font-medium text-purple-900 dark:text-purple-200">
+                  <Label htmlFor="edit-isPlatformAdmin" className="text-sm font-medium text-amber-900 dark:text-amber-200">
                     Platform Admin
                   </Label>
-                  <p className="text-xs text-purple-700 dark:text-purple-300">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
                     Grant full access to all tenants and platform-level features
                   </p>
                 </div>

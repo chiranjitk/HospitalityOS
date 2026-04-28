@@ -58,7 +58,7 @@ const planConfig: Record<string, { color: string; price: number; label: string }
   trial: { color: 'bg-gray-500', price: 0, label: 'Trial' },
   starter: { color: 'bg-emerald-500', price: 99, label: 'Starter' },
   professional: { color: 'bg-cyan-500', price: 499, label: 'Professional' },
-  enterprise: { color: 'bg-violet-500', price: 1999, label: 'Enterprise' },
+  enterprise: { color: 'bg-teal-500', price: 1999, label: 'Enterprise' },
 };
 
 const statusTransitions: Record<string, { next: string[]; labels: Record<string, string> }> = {
@@ -251,7 +251,7 @@ export function TenantLifecycle() {
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-5">
-        <Card className="border-l-4 border-l-blue-500">
+        <Card className="border-l-4 border-l-teal-500">
           <CardHeader className="pb-2">
             <CardDescription>Total Tenants</CardDescription>
             <CardTitle className="text-2xl">{stats.total}</CardTitle>

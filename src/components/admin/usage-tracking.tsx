@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { SectionGuard } from '@/components/common/section-guard';
-import { Loader2, Cpu, Database, HardDrive, Activity, BarChart3, AlertTriangle } from 'lucide-react';
+import { Loader2, Cpu, Database, HardDrive, Activity, BarChart3, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface UsageData {
@@ -55,6 +56,8 @@ export function UsageTracking() {
     }
   };
 
+  const pct = (used: number, limit: number) => limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -74,12 +77,12 @@ export function UsageTracking() {
             <h2 className="text-lg font-semibold">Unable to Load Usage Data</h2>
             <p className="text-sm text-muted-foreground">{error || 'No usage data available'}</p>
           </div>
-          <button
+          <Button
+            variant="outline"
             onClick={fetchUsage}
-            className="px-4 py-2 border rounded-md text-sm hover:bg-accent"
           >
             Retry
-          </button>
+          </Button>
         </div>
       </SectionGuard>
     );
@@ -89,9 +92,15 @@ export function UsageTracking() {
     <SectionGuard permission="admin.usage">
       <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Usage Tracking</h2>
-        <p className="text-muted-foreground">Monitor resource usage and limits</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Usage Tracking</h2>
+          <p className="text-muted-foreground">Monitor resource usage and limits</p>
+        </div>
+        <Button variant="outline" onClick={fetchUsage} disabled={loading}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
       </div>
 
       {/* Usage Overview */}
@@ -108,11 +117,11 @@ export function UsageTracking() {
               {usageData.overview.apiCalls.used.toLocaleString()} / {usageData.overview.apiCalls.limit.toLocaleString()}
             </div>
             <Progress 
-              value={(usageData.overview.apiCalls.used / usageData.overview.apiCalls.limit) * 100} 
+              value={pct(usageData.overview.apiCalls.used, usageData.overview.apiCalls.limit)} 
               className="h-2"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              {((usageData.overview.apiCalls.used / usageData.overview.apiCalls.limit) * 100).toFixed(1)}% used this month
+              {pct(usageData.overview.apiCalls.used, usageData.overview.apiCalls.limit).toFixed(1)}% used this month
             </p>
           </CardContent>
         </Card>
@@ -129,11 +138,11 @@ export function UsageTracking() {
               {usageData.overview.storage.used} MB / {usageData.overview.storage.limit} MB
             </div>
             <Progress 
-              value={(usageData.overview.storage.used / usageData.overview.storage.limit) * 100} 
+              value={pct(usageData.overview.storage.used, usageData.overview.storage.limit)} 
               className="h-2"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              {((usageData.overview.storage.used / usageData.overview.storage.limit) * 100).toFixed(1)}% used
+              {pct(usageData.overview.storage.used, usageData.overview.storage.limit).toFixed(1)}% used
             </p>
           </CardContent>
         </Card>
@@ -150,11 +159,11 @@ export function UsageTracking() {
               {usageData.overview.messages.used.toLocaleString()} / {usageData.overview.messages.limit.toLocaleString()}
             </div>
             <Progress 
-              value={(usageData.overview.messages.used / usageData.overview.messages.limit) * 100} 
+              value={pct(usageData.overview.messages.used, usageData.overview.messages.limit)} 
               className="h-2"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              {((usageData.overview.messages.used / usageData.overview.messages.limit) * 100).toFixed(1)}% used this month
+              {pct(usageData.overview.messages.used, usageData.overview.messages.limit).toFixed(1)}% used this month
             </p>
           </CardContent>
         </Card>
@@ -174,7 +183,7 @@ export function UsageTracking() {
                 <p className="text-xl font-bold">{usageData.overview.properties.used} / {usageData.overview.properties.limit}</p>
               </div>
               <Progress 
-                value={(usageData.overview.properties.used / usageData.overview.properties.limit) * 100} 
+                value={pct(usageData.overview.properties.used, usageData.overview.properties.limit)} 
                 className="w-20 h-2"
               />
             </div>
@@ -184,7 +193,7 @@ export function UsageTracking() {
                 <p className="text-xl font-bold">{usageData.overview.users.used} / {usageData.overview.users.limit}</p>
               </div>
               <Progress 
-                value={(usageData.overview.users.used / usageData.overview.users.limit) * 100} 
+                value={pct(usageData.overview.users.used, usageData.overview.users.limit)} 
                 className="w-20 h-2"
               />
             </div>
@@ -194,7 +203,7 @@ export function UsageTracking() {
                 <p className="text-xl font-bold">{usageData.overview.rooms.used} / {usageData.overview.rooms.limit}</p>
               </div>
               <Progress 
-                value={(usageData.overview.rooms.used / usageData.overview.rooms.limit) * 100} 
+                value={pct(usageData.overview.rooms.used, usageData.overview.rooms.limit)} 
                 className="w-20 h-2"
               />
             </div>
