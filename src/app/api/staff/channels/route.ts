@@ -188,7 +188,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create the channel with members
+    // Create the channel with members - always include the creator
+    const allMemberIds = [...new Set([user.id, ...(memberIds || [])])];
+
     const channel = await db.staffChannel.create({
       data: {
         tenantId: user.tenantId,
@@ -197,16 +199,11 @@ export async function POST(request: NextRequest) {
         description,
         department,
         createdBy: user.id,
-        members: memberIds && memberIds.length > 0 ? {
-          create: memberIds.map((userId: string) => ({
+        members: {
+          create: allMemberIds.map((userId: string) => ({
             userId,
-            role: 'member',
+            role: userId === user.id ? 'admin' : 'member',
           }))
-        } : {
-          create: {
-            userId: user.id,
-            role: 'admin',
-          }
         },
       },
       include: {

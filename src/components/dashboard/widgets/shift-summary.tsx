@@ -262,7 +262,7 @@ export function ShiftSummaryWidget() {
             <p className="text-lg font-bold text-violet-600 dark:text-violet-400 tabular-nums leading-none">
               {occupancyChange > 0 ? '+' : ''}{occupancyChange}%
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Occupancy</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Occupancy <Badge variant="outline" className="text-[8px] h-3 px-1 ml-0.5 align-middle">Est.</Badge></p>
           </motion.div>
         </div>
 

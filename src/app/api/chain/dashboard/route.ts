@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requirePermission } from '@/lib/auth/tenant-context';// GET /api/chain/dashboard - Chain-level dashboard data
-export async function GET(request: NextRequest) {    const user = await requirePermission(request, 'chain.view');
-    if (user instanceof NextResponse) return user;
+import { requirePermission } from '@/lib/auth/tenant-context';
 
-      try {
+// GET /api/chain/dashboard - Chain-level dashboard data
+export async function GET(request: NextRequest) {
+  const user = await requirePermission(request, 'chain.view');
+  if (user instanceof NextResponse) return user;
+
+  try {
     const searchParams = request.nextUrl.searchParams;
     const tenantId = user.tenantId;
     const brandId = searchParams.get('brandId');

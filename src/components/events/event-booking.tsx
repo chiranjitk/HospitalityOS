@@ -126,7 +126,7 @@ interface Stats {
 }
 
 export default function EventBooking() {
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, currency } = useCurrency();
   const [events, setEvents] = useState<Event[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [spaces, setSpaces] = useState<EventSpace[]>([]);
@@ -218,10 +218,6 @@ export default function EventBooking() {
       if (response.ok) {
         const data = await response.json();
         setProperties(data.properties || []);
-        // Set default tenant ID from first property
-        if (data.properties?.length > 0) {
-          // Fetch tenant ID from a different endpoint or set a default
-        }
       }
     } catch (error) {
       console.error('Error fetching properties:', error);
@@ -250,7 +246,7 @@ export default function EventBooking() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           propertyId: formData.propertyId,
-          spaceId: formData.spaceId || null,
+          spaceId: formData.spaceId === '__none__' ? null : formData.spaceId,
           name: formData.name,
           type: formData.type,
           description: formData.description || null,
@@ -299,7 +295,7 @@ export default function EventBooking() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           propertyId: formData.propertyId,
-          spaceId: formData.spaceId || null,
+          spaceId: formData.spaceId === '__none__' ? null : formData.spaceId,
           name: formData.name,
           type: formData.type,
           description: formData.description || null,
@@ -488,7 +484,7 @@ export default function EventBooking() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-8">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4 lg:grid-cols-4">
         <Card>
           <CardContent className="pt-4">
             <div className="text-sm text-muted-foreground">Total</div>
@@ -583,9 +579,18 @@ export default function EventBooking() {
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="conference">Conference</SelectItem>
+                <SelectItem value="seminar">Seminar</SelectItem>
+                <SelectItem value="workshop">Workshop</SelectItem>
+                <SelectItem value="exhibition">Exhibition</SelectItem>
                 <SelectItem value="wedding">Wedding</SelectItem>
                 <SelectItem value="meeting">Meeting</SelectItem>
                 <SelectItem value="party">Party</SelectItem>
+                <SelectItem value="gala">Gala</SelectItem>
+                <SelectItem value="banquet">Banquet</SelectItem>
+                <SelectItem value="corporate">Corporate</SelectItem>
+                <SelectItem value="training">Training</SelectItem>
+                <SelectItem value="product_launch">Product Launch</SelectItem>
+                <SelectItem value="team_building">Team Building</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -595,6 +600,7 @@ export default function EventBooking() {
       {/* Events Table */}
       <Card>
         <CardContent className="pt-6">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -659,7 +665,10 @@ export default function EventBooking() {
                             variant="ghost"
                             size="sm"
                             className="text-green-600 dark:text-green-400 hover:text-green-700"
-                            onClick={() => handleStatusChange(event, 'confirmed')}
+                            onClick={() => {
+                              if (!confirm('Are you sure you want to confirm this event?')) return;
+                              handleStatusChange(event, 'confirmed');
+                            }}
                           >
                             <CheckCircle className="h-4 w-4" />
                           </Button>
@@ -667,7 +676,10 @@ export default function EventBooking() {
                             variant="ghost"
                             size="sm"
                             className="text-red-600 dark:text-red-400 hover:text-red-700"
-                            onClick={() => handleStatusChange(event, 'cancelled')}
+                            onClick={() => {
+                              if (!confirm('Are you sure you want to cancel this event?')) return;
+                              handleStatusChange(event, 'cancelled');
+                            }}
                           >
                             <XCircle className="h-4 w-4" />
                           </Button>
@@ -685,6 +697,7 @@ export default function EventBooking() {
               ))}
             </TableBody>
           </Table>
+          </div>
 
           {filteredEvents.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12">
@@ -754,9 +767,18 @@ export default function EventBooking() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="conference">Conference</SelectItem>
+                    <SelectItem value="seminar">Seminar</SelectItem>
+                    <SelectItem value="workshop">Workshop</SelectItem>
+                    <SelectItem value="exhibition">Exhibition</SelectItem>
                     <SelectItem value="wedding">Wedding</SelectItem>
                     <SelectItem value="meeting">Meeting</SelectItem>
                     <SelectItem value="party">Party</SelectItem>
+                    <SelectItem value="gala">Gala</SelectItem>
+                    <SelectItem value="banquet">Banquet</SelectItem>
+                    <SelectItem value="corporate">Corporate</SelectItem>
+                    <SelectItem value="training">Training</SelectItem>
+                    <SelectItem value="product_launch">Product Launch</SelectItem>
+                    <SelectItem value="team_building">Team Building</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -858,7 +880,7 @@ export default function EventBooking() {
               <h4 className="font-medium mb-3">Pricing</h4>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label>Space Charge ($)</Label>
+                  <Label>Space Charge ({currency.symbol})</Label>
                   <Input
                     type="number"
                     value={formData.spaceCharge}
@@ -866,7 +888,7 @@ export default function EventBooking() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Catering Charge ($)</Label>
+                  <Label>Catering Charge ({currency.symbol})</Label>
                   <Input
                     type="number"
                     value={formData.cateringCharge}
@@ -874,7 +896,7 @@ export default function EventBooking() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>A/V Charge ($)</Label>
+                  <Label>A/V Charge ({currency.symbol})</Label>
                   <Input
                     type="number"
                     value={formData.avCharge}
@@ -882,7 +904,7 @@ export default function EventBooking() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Other Charges ($)</Label>
+                  <Label>Other Charges ({currency.symbol})</Label>
                   <Input
                     type="number"
                     value={formData.otherCharges}
@@ -890,7 +912,7 @@ export default function EventBooking() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Deposit ($)</Label>
+                  <Label>Deposit ({currency.symbol})</Label>
                   <Input
                     type="number"
                     value={formData.depositAmount}
@@ -997,9 +1019,18 @@ export default function EventBooking() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="conference">Conference</SelectItem>
+                    <SelectItem value="seminar">Seminar</SelectItem>
+                    <SelectItem value="workshop">Workshop</SelectItem>
+                    <SelectItem value="exhibition">Exhibition</SelectItem>
                     <SelectItem value="wedding">Wedding</SelectItem>
                     <SelectItem value="meeting">Meeting</SelectItem>
                     <SelectItem value="party">Party</SelectItem>
+                    <SelectItem value="gala">Gala</SelectItem>
+                    <SelectItem value="banquet">Banquet</SelectItem>
+                    <SelectItem value="corporate">Corporate</SelectItem>
+                    <SelectItem value="training">Training</SelectItem>
+                    <SelectItem value="product_launch">Product Launch</SelectItem>
+                    <SelectItem value="team_building">Team Building</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1092,7 +1123,7 @@ export default function EventBooking() {
               <h4 className="font-medium mb-3">Pricing</h4>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label>Space Charge ($)</Label>
+                  <Label>Space Charge ({currency.symbol})</Label>
                   <Input
                     type="number"
                     value={formData.spaceCharge}
@@ -1100,7 +1131,7 @@ export default function EventBooking() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Catering Charge ($)</Label>
+                  <Label>Catering Charge ({currency.symbol})</Label>
                   <Input
                     type="number"
                     value={formData.cateringCharge}
@@ -1108,7 +1139,7 @@ export default function EventBooking() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>A/V Charge ($)</Label>
+                  <Label>A/V Charge ({currency.symbol})</Label>
                   <Input
                     type="number"
                     value={formData.avCharge}
@@ -1116,7 +1147,7 @@ export default function EventBooking() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Other Charges ($)</Label>
+                  <Label>Other Charges ({currency.symbol})</Label>
                   <Input
                     type="number"
                     value={formData.otherCharges}
@@ -1124,7 +1155,7 @@ export default function EventBooking() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Deposit ($)</Label>
+                  <Label>Deposit ({currency.symbol})</Label>
                   <Input
                     type="number"
                     value={formData.depositAmount}

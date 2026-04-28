@@ -79,6 +79,22 @@ interface Shift {
   staff?: StaffMember;
 }
 
+interface AttendanceRecord {
+  id: string;
+  userId: string;
+  date: string;
+  status: string;
+  checkIn: string | null;
+  checkOut: string | null;
+  user?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    department: string;
+    jobTitle: string;
+  };
+}
+
 export default function ShiftScheduling() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -88,6 +104,8 @@ export default function ShiftScheduling() {
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [activeTab, setActiveTab] = useState('schedule');
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     staffId: '',
@@ -132,6 +150,29 @@ export default function ShiftScheduling() {
   useEffect(() => {
     fetchData();
   }, [selectedDate]);
+
+  // Fetch attendance data when attendance tab is active
+  useEffect(() => {
+    if (activeTab !== 'attendance') return;
+
+    const fetchAttendance = async () => {
+      try {
+        setAttendanceLoading(true);
+        const today = new Date().toISOString().split('T')[0];
+        const res = await fetch(`/api/staff/attendance?startDate=${today}&endDate=${today}`);
+        if (res.ok) {
+          const data = await res.json();
+          setAttendanceRecords(data.records || []);
+        }
+      } catch (error) {
+        console.error('Error fetching attendance:', error);
+      } finally {
+        setAttendanceLoading(false);
+      }
+    };
+
+    fetchAttendance();
+  }, [activeTab]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -403,17 +444,34 @@ export default function ShiftScheduling() {
               <CardDescription>Track clock in/out times</CardDescription>
             </CardHeader>
             <CardContent>
+              {attendanceLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="h-6 w-6 animate-spin text-teal-600 dark:text-teal-400" />
+                </div>
+              ) : (
               <ScrollArea className="h-[400px]">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Staff</TableHead>
                       <TableHead>Department</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Check In</TableHead>
+                      <TableHead>Check Out</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {staff.map((member) => (
+                    {staff.map((member) => {
+                      const record = attendanceRecords.find((r) => r.userId === member.id);
+                      const hasCheckedIn = !!record?.checkIn;
+                      const hasCheckedOut = !!record?.checkOut;
+                      const formatTime = (dateStr: string | null) => {
+                        if (!dateStr) return '--:--';
+                        return new Date(dateStr).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                      };
+
+                      return (
                       <TableRow key={member.id} className="hover:bg-muted/50 transition-colors">
                         <TableCell>
                           <div>
@@ -422,21 +480,34 @@ export default function ShiftScheduling() {
                           </div>
                         </TableCell>
                         <TableCell>{member.department}</TableCell>
+                        <TableCell>
+                          {hasCheckedOut ? (
+                            <Badge variant="outline" className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">Checked Out</Badge>
+                          ) : hasCheckedIn ? (
+                            <Badge variant="outline" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">Checked In</Badge>
+                          ) : (
+                            <Badge variant="secondary">Not Checked In</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>{formatTime(record?.checkIn ?? null)}</TableCell>
+                        <TableCell>{formatTime(record?.checkOut ?? null)}</TableCell>
                         <TableCell className="text-right">
-                          <Button size="sm" variant="outline" onClick={() => handleClockIn(member.id)} className="bg-gradient-to-r from-emerald-50 to-emerald-100 hover:from-emerald-100 hover:to-emerald-200 text-emerald-700 border-emerald-200 hover:border-emerald-300 transition-all duration-200">
+                          <Button size="sm" variant="outline" onClick={() => handleClockIn(member.id)} disabled={hasCheckedIn} className="bg-gradient-to-r from-emerald-50 to-emerald-100 hover:from-emerald-100 hover:to-emerald-200 text-emerald-700 border-emerald-200 hover:border-emerald-300 transition-all duration-200">
                             <CheckCircle className="mr-2 h-4 w-4" />
                             Clock In
                           </Button>
-                          <Button size="sm" variant="outline" className="ml-2 bg-gradient-to-r from-red-50 to-red-100 hover:from-red-100 hover:to-red-200 text-red-700 border-red-200 hover:border-red-300 transition-all duration-200" onClick={() => handleClockOut(member.id)}>
+                          <Button size="sm" variant="outline" className="ml-2 bg-gradient-to-r from-red-50 to-red-100 hover:from-red-100 hover:to-red-200 text-red-700 border-red-200 hover:border-red-300 transition-all duration-200" onClick={() => handleClockOut(member.id)} disabled={!hasCheckedIn || hasCheckedOut}>
                             <XCircle className="mr-2 h-4 w-4" />
                             Clock Out
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </ScrollArea>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -472,7 +543,14 @@ export default function ShiftScheduling() {
               <Label htmlFor="staff">Staff Member</Label>
               <Select
                 value={formData.staffId}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, staffId: value }))}
+                onValueChange={(value) => {
+                  const selected = staff.find(s => s.id === value);
+                  setFormData(prev => ({
+                    ...prev,
+                    staffId: value,
+                    department: selected?.department || prev.department,
+                  }));
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select staff member" />

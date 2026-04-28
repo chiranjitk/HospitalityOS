@@ -560,12 +560,12 @@ export default function AttendanceTracking() {
                           <TableCell>
                             {record.lateMinutes > 0 ? (
                               <span className="text-yellow-600 dark:text-yellow-400">{record.lateMinutes}</span>
-                            ) : 0}
+                            ) : '--'}
                           </TableCell>
                           <TableCell>
                             {record.earlyLeaveMinutes > 0 ? (
                               <span className="text-orange-600 dark:text-orange-400">{record.earlyLeaveMinutes}</span>
-                            ) : 0}
+                            ) : '--'}
                           </TableCell>
                         </TableRow>
                       ))

@@ -176,7 +176,7 @@ export default function ScheduledReports() {
     try {
       toast.success(`Running "${report.name}" now...`);
       const response = await fetch('/api/reports/scheduled', {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: report.id, action: 'run-now' }),
       });

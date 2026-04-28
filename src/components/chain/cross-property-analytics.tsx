@@ -36,7 +36,6 @@ import {
   Users,
   Globe,
   ArrowUpRight,
-  ArrowDownRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {

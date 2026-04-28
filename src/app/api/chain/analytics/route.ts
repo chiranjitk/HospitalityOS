@@ -5,17 +5,8 @@ import { requirePermission, hasPermission } from '@/lib/auth/tenant-context';
 // GET /api/chain/analytics - Cross-property analytics
 export async function GET(request: NextRequest) {
   try {
-    // Authentication check
-    const user = await requirePermission(request, 'chain.view'); if (user instanceof NextResponse) return user;
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
-
-    // requirePermission already validated 'chain.view', no need for double-check
-    // The redundant hasPermission check below is removed since requirePermission already ensures the user has 'chain.view' permission
+    const user = await requirePermission(request, 'chain.view');
+    if (user instanceof NextResponse) return user;
 
     const searchParams = request.nextUrl.searchParams;
     const tenantId = user.tenantId; // Use authenticated user's tenant
@@ -86,20 +77,6 @@ export async function GET(request: NextRequest) {
     });
 
     // Get payments for revenue analysis
-    const payments = await db.payment.findMany({
-      where: {
-        folio: {
-          booking: {
-            propertyId: { in: propertyIds },
-          },
-        },
-        status: 'completed',
-        processedAt: { gte: startDate },
-      },
-    });
-
-    // Revenue by property - batch query optimization
-    // Get all property payments in one aggregation
     const allPropertyPayments = await db.payment.findMany({
       where: {
         folio: {
@@ -225,7 +202,7 @@ export async function GET(request: NextRequest) {
 
     // Daily revenue trend
     const dailyRevenue: Record<string, number> = {};
-    payments.forEach((payment) => {
+    allPropertyPayments.forEach((payment) => {
       if (payment.processedAt) {
         const dateKey = payment.processedAt.toISOString().split('T')[0];
         dailyRevenue[dateKey] = (dailyRevenue[dateKey] || 0) + (payment.amount || 0);
@@ -266,7 +243,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Summary stats
-    const totalRevenue = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const totalRevenue = allPropertyPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
     const totalBookings = bookings.length;
     // Occupancy: count distinct rooms, not bookings
     const occupiedRoomIds = new Set(

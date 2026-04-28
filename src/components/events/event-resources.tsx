@@ -184,7 +184,7 @@ export default function EventResources() {
   const fetchEvents = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/events?status=confirmed,status=in_progress');
+      const response = await fetch('/api/events?status=confirmed&status=in_progress');
       if (!response.ok) throw new Error('Failed to fetch events');
       
       const data = await response.json();

@@ -156,17 +156,34 @@ export async function GET(request: NextRequest) {
     const maxOccupancy = Math.max(...occupancyData.map(d => d.occupancy), 0);
     const minOccupancy = Math.min(...occupancyData.map(d => d.occupancy), 100);
 
-    // Occupancy by room type
+    // Occupancy by room type — use booking overlap to count historical occupancy, not current room status
     const occupancyByRoomType = Object.entries(roomsByType).map(([typeId, data]) => {
-      const roomsOfType = rooms.filter(r => r.roomTypeId === typeId);
-      const occupiedRooms = roomsOfType.filter(r => r.status === 'occupied').length;
+      // Count bookings that overlap with the selected date range and belong to rooms of this type
+      const overlappingBookings = bookings.filter(b => {
+        const checkIn = new Date(b.checkIn);
+        const checkOut = new Date(b.checkOut);
+        return checkIn <= end && checkOut > start && b.room?.roomTypeId === typeId;
+      });
+
+      // Calculate occupied room-nights for this type within the period
+      const daysInPeriod = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      let occupiedRoomNights = 0;
+      for (const booking of overlappingBookings) {
+        const bStart = new Date(Math.max(booking.checkIn.getTime(), start.getTime()));
+        const bEnd = new Date(Math.min(booking.checkOut.getTime(), end.getTime()));
+        const nights = Math.ceil((bEnd.getTime() - bStart.getTime()) / (1000 * 60 * 60 * 24));
+        occupiedRoomNights += Math.max(0, nights);
+      }
+
+      const totalRoomNightsForType = data.count * daysInPeriod;
+      const avgOccupied = daysInPeriod > 0 ? Math.round(occupiedRoomNights / daysInPeriod) : 0;
 
       return {
         roomTypeId: typeId,
         roomTypeName: data.name,
         total: data.count,
-        occupied: occupiedRooms,
-        occupancy: data.count > 0 ? Math.round((occupiedRooms / data.count) * 100) : 0,
+        occupied: avgOccupied,
+        occupancy: totalRoomNightsForType > 0 ? Math.round((occupiedRoomNights / totalRoomNightsForType) * 100) : 0,
       };
     });
 

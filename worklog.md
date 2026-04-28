@@ -1574,3 +1574,24 @@ Stage Summary:
 - KDS now supports station filtering and bounded served orders
 - Recent payments visible after checkout
 - Lint: No new errors introduced (all errors are pre-existing)
+---
+Task ID: fresh-setup
+Agent: main
+Task: Set up StaySuite-HospitalityOS from scratch on fresh sandbox
+
+Work Log:
+- Cloned repo fresh from GitHub (commit da7d508)
+- Installed dependencies: bun install (1033 packages) + pm2 v6.0.14
+- PostgreSQL: Initialized data dir (initdb), started on port 5432, created staysuite database
+- Loaded FreeRADIUS PostgreSQL schema first (radacct, radcheck, radreply, radusergroup, radpostauth, nas)
+- Ran prisma db push to create all ~231 Prisma-managed tables
+- Loaded complete-database.sql successfully: 238 tables, 6 views, 55 functions
+- Compiled libtalloc from source (apt not available in sandbox) - installed to freeradius-install/lib
+- FreeRADIUS: Already pre-compiled at freeradius-install/, config test passed (exit 0)
+- Fixed paths in ecosystem.config.cjs (freeradius -> freeradius-install, added -D flag for dictionary)
+- Started services via PM2: FreeRADIUS + Next.js (PostgreSQL manual via pg_ctl)
+
+Stage Summary:
+- All 4 services verified: PostgreSQL ✅, FreeRADIUS ✅ (listening 1812/1813), Next.js ✅ (HTTP 200), PM2 ✅
+- FreeRADIUS compiled-in prefix was /home/z/freeradius-install but actual path includes /my-project/StaySuite-HospitalityOS/ prefix - worked around with -D and -l flags
+- libtalloc compiled from source since apt-get requires root access

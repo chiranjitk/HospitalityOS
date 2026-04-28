@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { triggerReport } from '@/lib/jobs/scheduler';
 
 // GET /api/reports/scheduled - List scheduled reports
 export async function GET(request: NextRequest) {
@@ -84,6 +85,43 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+
+    // Support "run-now" action to trigger a scheduled report immediately
+    if (body.action === 'run-now' && body.id) {
+      // Verify the report belongs to the user's tenant
+      const existingReport = await db.scheduledReport.findFirst({
+        where: { id: body.id, tenantId: user.tenantId },
+      });
+
+      if (!existingReport) {
+        return NextResponse.json(
+          { success: false, error: { code: 'NOT_FOUND', message: 'Scheduled report not found' } },
+          { status: 404 }
+        );
+      }
+
+      try {
+        const result = await triggerReport(body.id);
+        if (result.success) {
+          return NextResponse.json({
+            success: true,
+            historyId: result.historyId,
+          });
+        } else {
+          return NextResponse.json(
+            { success: false, error: { code: 'EXECUTION_FAILED', message: result.error } },
+            { status: 500 }
+          );
+        }
+      } catch (triggerError) {
+        console.error('Error triggering report:', triggerError);
+        return NextResponse.json(
+          { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to trigger report' } },
+          { status: 500 }
+        );
+      }
+    }
+
     const {
       name,
       type,

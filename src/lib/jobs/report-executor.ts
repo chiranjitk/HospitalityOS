@@ -614,38 +614,150 @@ function generateCSV(data: unknown): Buffer {
 }
 
 /**
- * Generate Excel content (simplified - returns CSV with xlsx extension hint)
- * In production, you'd use a library like exceljs
+ * Generate Excel content using SpreadsheetML (XML-based Excel format)
  */
 function generateExcel(data: unknown): Buffer {
-  // For now, return CSV content
-  // In production, implement proper Excel generation
-  return generateCSV(data);
-}
-
-/**
- * Generate PDF content (simplified)
- * In production, you'd use a library like pdfkit
- */
-function generatePDF(data: unknown): Buffer {
   const reportData = data as Record<string, unknown>;
-  let content = '';
+  const title = (reportData.title as string) || 'Report';
+  const period = reportData.period as { start: Date; end: Date } | undefined;
 
-  // Simple text-based PDF simulation
-  content += `${(reportData.title as string) || 'Report'}\n`;
-  content += `Generated: ${new Date().toISOString()}\n`;
-  content += `Period: ${(reportData.period as { start: Date; end: Date })?.start?.toISOString?.() || 'N/A'} to ${(reportData.period as { start: Date; end: Date })?.end?.toISOString?.() || 'N/A'}\n\n`;
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles>
+    <Style ss:ID="Header">
+      <Font ss:Bold="1"/>
+      <Interior ss:Color="#4A5568" ss:Pattern="Solid"/>
+      <Font ss:Color="#FFFFFF"/>
+    </Style>
+  </Styles>
+  <Worksheet ss:Name="Report">
+    <Table>`;
 
+  // Title row
+  xml += `<Row><Cell><Data ss:Type="String">${escapeXML(title)}</Data></Cell></Row>`;
+  xml += `<Row><Cell><Data ss:Type="String">Generated: ${new Date().toISOString()}</Data></Cell></Row>`;
+  if (period) {
+    xml += `<Row><Cell><Data ss:Type="String">Period: ${period.start?.toISOString?.() || 'N/A'} to ${period.end?.toISOString?.() || 'N/A'}</Data></Cell></Row>`;
+  }
+  xml += '<Row></Row>';
+
+  // Summary section
   if (reportData.summary) {
-    content += 'Summary:\n';
+    xml += `<Row ss:StyleID="Header"><Cell><Data ss:Type="String">Summary</Data></Cell></Row>`;
     const summary = reportData.summary as Record<string, unknown>;
     for (const [key, value] of Object.entries(summary)) {
-      content += `  ${key}: ${value}\n`;
+      xml += `<Row><Cell><Data ss:Type="String">${escapeXML(key)}</Data></Cell><Cell><Data ss:Type="String">${escapeXML(String(value))}</Data></Cell></Row>`;
+    }
+    xml += '<Row></Row>';
+  }
+
+  // Data rows
+  const dataArray = extractDataArray(reportData);
+  if (dataArray.length > 0) {
+    const headers = Object.keys(dataArray[0]);
+    xml += `<Row ss:StyleID="Header">${headers.map(h => `<Cell><Data ss:Type="String">${escapeXML(h)}</Data></Cell>`).join('')}</Row>`;
+    for (const row of dataArray) {
+      xml += `<Row>${Object.values(row).map(v => `<Cell><Data ss:Type="String">${escapeXML(String(v))}</Data></Cell>`).join('')}</Row>`;
     }
   }
 
-  // In production, use pdfkit or similar to generate actual PDF
-  return Buffer.from(content, 'utf-8');
+  xml += `    </Table>
+  </Worksheet>
+</Workbook>`;
+
+  return Buffer.from(xml, 'utf-8');
+}
+
+function escapeXML(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function extractDataArray(reportData: Record<string, unknown>): Record<string, unknown>[] {
+  if (Array.isArray(reportData.bookings)) return reportData.bookings as Record<string, unknown>[];
+  if (Array.isArray(reportData.tasks)) return reportData.tasks as Record<string, unknown>[];
+  if (Array.isArray(reportData.guests)) return reportData.guests as Record<string, unknown>[];
+  if (Array.isArray(reportData.payments)) return reportData.payments as Record<string, unknown>[];
+  return [];
+}
+
+/**
+ * Generate PDF content as a printable HTML document with proper PDF MIME type
+ */
+function generatePDF(data: unknown): Buffer {
+  const reportData = data as Record<string, unknown>;
+  const title = (reportData.title as string) || 'Report';
+  const period = reportData.period as { start: Date; end: Date } | undefined;
+
+  let html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${escapeXML(title)}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
+    .header { text-align: center; border-bottom: 2px solid #4a5568; padding-bottom: 20px; margin-bottom: 30px; }
+    .header h1 { margin: 0; color: #2d3748; font-size: 24px; }
+    .header .meta { color: #718096; font-size: 14px; margin-top: 8px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+    th { background-color: #4a5568; color: white; padding: 10px 8px; text-align: left; border: 1px solid #2d3748; }
+    td { padding: 8px; border: 1px solid #ddd; }
+    tr:nth-child(even) { background-color: #f7fafc; }
+    .footer { margin-top: 30px; text-align: center; color: #718096; font-size: 11px; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+    .summary { margin: 20px 0; padding: 15px; background-color: #f7fafc; border-left: 4px solid #4a5568; }
+    .summary h3 { margin: 0 0 10px 0; }
+    .summary dl { margin: 0; }
+    .summary dt { font-weight: bold; display: inline; }
+    .summary dd { display: inline; margin: 0 0 0 4px; margin-right: 16px; }
+    @media print { body { margin: 20px; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${escapeXML(title)}</h1>
+    <div class="meta">
+      Generated: ${new Date().toISOString()}
+      ${period ? ` | Period: ${period.start?.toISOString?.() || 'N/A'} to ${period.end?.toISOString?.() || 'N/A'}` : ''}
+    </div>
+  </div>`;
+
+  // Summary section
+  if (reportData.summary) {
+    html += '<div class="summary"><h3>Summary</h3><dl>';
+    const summary = reportData.summary as Record<string, unknown>;
+    for (const [key, value] of Object.entries(summary)) {
+      html += `<dt>${escapeXML(key)}:</dt><dd>${escapeXML(String(value))}</dd>`;
+    }
+    html += '</dl></div>';
+  }
+
+  // Data table
+  const dataArray = extractDataArray(reportData);
+  if (dataArray.length > 0) {
+    const headers = Object.keys(dataArray[0]);
+    html += '<table><thead><tr>';
+    for (const h of headers) {
+      html += `<th>${escapeXML(h)}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+    for (const row of dataArray) {
+      html += '<tr>';
+      for (const h of headers) {
+        html += `<td>${escapeXML(String(row[h]))}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+  }
+
+  html += `<div class="footer">
+    <p>StaySuite HospitalityOS - Confidential Report</p>
+  </div>
+</body>
+</html>`;
+
+  return Buffer.from(html, 'utf-8');
 }
 
 /**

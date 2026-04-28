@@ -2,14 +2,14 @@ module.exports = {
   apps: [
     {
       name: 'staysuite-freeradius',
-      script: '/home/z/my-project/StaySuite-HospitalityOS/freeradius/sbin/radiusd',
-      args: '-d /home/z/my-project/StaySuite-HospitalityOS/freeradius/etc/raddb -f',
+      script: '/home/z/my-project/StaySuite-HospitalityOS/freeradius-install/sbin/radiusd',
+      args: '-d /home/z/my-project/StaySuite-HospitalityOS/freeradius-install/etc/raddb -D /home/z/my-project/StaySuite-HospitalityOS/freeradius-install/share/freeradius -l /home/z/my-project/StaySuite-HospitalityOS/freeradius-install/var/log/radius.log -f',
       cwd: '/home/z/my-project/StaySuite-HospitalityOS',
       interpreter: 'none',
       watch: false,
       autorestart: true,
       env: {
-        LD_LIBRARY_PATH: '/home/z/my-project/StaySuite-HospitalityOS/freeradius-deps/lib:/home/z/my-project/StaySuite-HospitalityOS/freeradius/lib',
+        LD_LIBRARY_PATH: '/home/z/my-project/StaySuite-HospitalityOS/freeradius-install/lib',
       },
     },
     {

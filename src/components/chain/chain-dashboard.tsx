@@ -32,7 +32,8 @@ import {
   BedDouble,
   TrendingUp,
   TrendingDown,
-  ArrowRightLeft,
+  LogIn,
+  LogOut,
   Calendar,
   DollarSign,
   BarChart3,
@@ -318,7 +319,7 @@ export default function ChainDashboard() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-3">
-              <ArrowRightLeft className="h-8 w-8 text-teal-600 dark:text-teal-400" />
+              <LogIn className="h-8 w-8 text-teal-600 dark:text-teal-400" />
               <div>
                 <div className="text-3xl font-bold">{data.overview.todayArrivals}</div>
                 <p className="text-sm text-muted-foreground">
@@ -334,7 +335,7 @@ export default function ChainDashboard() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-3">
-              <ArrowRightLeft className="h-8 w-8 text-orange-500 dark:text-orange-400" />
+              <LogOut className="h-8 w-8 text-orange-500 dark:text-orange-400" />
               <div>
                 <div className="text-3xl font-bold">{data.overview.todayDepartures}</div>
                 <p className="text-sm text-muted-foreground">

@@ -138,21 +138,6 @@ export async function POST(
       }
     });
 
-    // Update event total amount - allResources already includes the newly created resource
-    const allResources = await db.eventResource.findMany({
-      where: { eventId: id }
-    });
-
-    // Fix: Don't double-count - allResources already includes the new resource
-    const resourcesTotal = allResources.reduce((acc, r) => acc + r.totalAmount, 0);
-
-    await db.event.update({
-      where: { id },
-      data: {
-        otherCharges: resourcesTotal
-      }
-    });
-
     return NextResponse.json(resource);
   } catch (error) {
     console.error('Error creating event resource:', error);
@@ -199,20 +184,6 @@ export async function DELETE(
     // Delete the resource
     await db.eventResource.delete({
       where: { id: resourceId, eventId: id }
-    });
-
-    // Update event total amount
-    const allResources = await db.eventResource.findMany({
-      where: { eventId: id }
-    });
-
-    const resourcesTotal = allResources.reduce((acc, r) => acc + r.totalAmount, 0);
-
-    await db.event.update({
-      where: { id },
-      data: {
-        otherCharges: resourcesTotal
-      }
     });
 
     return NextResponse.json({ message: 'Resource deleted successfully' });
@@ -293,20 +264,6 @@ export async function PUT(
     const resource = await db.eventResource.update({
       where: { id: resourceId, eventId: id },
       data
-    });
-
-    // Update event total amount
-    const allResources = await db.eventResource.findMany({
-      where: { eventId: id }
-    });
-
-    const resourcesTotal = allResources.reduce((acc, r) => acc + r.totalAmount, 0);
-
-    await db.event.update({
-      where: { id },
-      data: {
-        otherCharges: resourcesTotal
-      }
     });
 
     return NextResponse.json(resource);

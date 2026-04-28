@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // GET /api/brands/[id] - Get a single brand
 export async function GET(
@@ -8,22 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Authentication check
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
-
-    // Permission check
-    if (!hasPermission(user, 'brands.view') && !hasPermission(user, 'settings.view')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } },
-        { status: 403 }
-      );
-    }
+    const user = await requirePermission(request, 'chain.view');
+    if (user instanceof NextResponse) return user;
 
     const tenantId = user.tenantId;
     const { id } = await params;
@@ -81,22 +67,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Authentication check
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
-
-    // Permission check
-    if (!hasPermission(user, 'brands.edit') && !hasPermission(user, 'settings.edit')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } },
-        { status: 403 }
-      );
-    }
+    const user = await requirePermission(request, 'chain.manage');
+    if (user instanceof NextResponse) return user;
 
     const tenantId = user.tenantId;
     const { id } = await params;
@@ -189,22 +161,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Authentication check
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
-
-    // Permission check
-    if (!hasPermission(user, 'brands.delete') && !hasPermission(user, 'settings.edit')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } },
-        { status: 403 }
-      );
-    }
+    const user = await requirePermission(request, 'chain.manage');
+    if (user instanceof NextResponse) return user;
 
     const tenantId = user.tenantId;
     const { id } = await params;
