@@ -17,6 +17,8 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Settings,
   Plus,
@@ -33,6 +35,13 @@ import {
   Trash2,
   Star,
   RefreshCw,
+  Wifi,
+  Zap,
+  ShieldCheck,
+  MonitorSmartphone,
+  CheckCircle2,
+  XCircle,
+  Crown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -63,8 +72,16 @@ interface WiFiPlan {
 
 const planStatuses = [
   { value: 'active', label: 'Active', color: 'bg-emerald-500' },
-  { value: 'inactive', label: 'Inactive', color: 'bg-gray-500' },
+  { value: 'inactive', label: 'Inactive', color: 'bg-gray-400' },
 ];
+
+// Premium gradient presets for plan tiers based on speed
+const getPlanTier = (downloadSpeed: number) => {
+  if (downloadSpeed >= 100) return { label: 'Ultra', gradient: 'from-rose-500 via-pink-500 to-amber-500', accent: 'text-rose-500', bg: 'bg-rose-50 dark:bg-rose-950/30', border: 'border-rose-200 dark:border-rose-800/50', glow: 'shadow-rose-500/10' };
+  if (downloadSpeed >= 50) return { label: 'Premium', gradient: 'from-amber-500 via-orange-500 to-rose-500', accent: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-800/50', glow: 'shadow-amber-500/10' };
+  if (downloadSpeed >= 20) return { label: 'Pro', gradient: 'from-teal-500 via-emerald-500 to-cyan-500', accent: 'text-teal-500', bg: 'bg-teal-50 dark:bg-teal-950/30', border: 'border-teal-200 dark:border-teal-800/50', glow: 'shadow-teal-500/10' };
+  return { label: 'Basic', gradient: 'from-slate-400 via-slate-500 to-slate-600', accent: 'text-slate-500', bg: 'bg-slate-50 dark:bg-slate-950/30', border: 'border-slate-200 dark:border-slate-800/50', glow: 'shadow-slate-500/10' };
+};
 
 const currencies = [
   { value: 'USD', label: 'USD ($)' },
@@ -436,11 +453,11 @@ export default function WifiPlans() {
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            WiFi Plans
+            <Wifi className="h-5 w-5" />
+            WiFi Access Plans
           </h2>
           <p className="text-sm text-muted-foreground">
-            Configure WiFi service plans and pricing
+            Configure premium WiFi service plans and guest connectivity
           </p>
         </div>
         <div className="flex gap-2">
@@ -455,214 +472,319 @@ export default function WifiPlans() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats — Premium stat cards */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-violet-500/10">
-              <Settings className="h-4 w-4 text-violet-500 dark:text-violet-400" />
+        <div className="relative overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+          <div className="absolute -right-2 -top-2 h-16 w-16 rounded-full bg-teal-500/5" />
+          <div className="relative flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-emerald-600 shadow-sm">
+              <Settings className="h-5 w-5 text-white" />
             </div>
             <div>
-              <div className="text-2xl font-bold">{summary.totalPlans}</div>
-              <div className="text-xs text-muted-foreground">Total Plans</div>
+              <div className="text-2xl font-bold tracking-tight">{summary.totalPlans}</div>
+              <div className="text-xs text-muted-foreground font-medium">Total Plans</div>
             </div>
           </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <Star className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+        </div>
+        <div className="relative overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+          <div className="absolute -right-2 -top-2 h-16 w-16 rounded-full bg-emerald-500/5" />
+          <div className="relative flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 shadow-sm">
+              <CheckCircle2 className="h-5 w-5 text-white" />
             </div>
             <div>
-              <div className="text-2xl font-bold">{summary.activePlans}</div>
-              <div className="text-xs text-muted-foreground">Active Plans</div>
+              <div className="text-2xl font-bold tracking-tight">{summary.activePlans}</div>
+              <div className="text-xs text-muted-foreground font-medium">Active Plans</div>
             </div>
           </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-amber-500/10">
-              <Smartphone className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+        </div>
+        <div className="relative overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+          <div className="absolute -right-2 -top-2 h-16 w-16 rounded-full bg-amber-500/5" />
+          <div className="relative flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 shadow-sm">
+              <Smartphone className="h-5 w-5 text-white" />
             </div>
             <div>
-              <div className="text-2xl font-bold">{summary.totalUsers}</div>
-              <div className="text-xs text-muted-foreground">Total Users</div>
+              <div className="text-2xl font-bold tracking-tight">{summary.totalUsers}</div>
+              <div className="text-xs text-muted-foreground font-medium">Total Users</div>
             </div>
           </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-cyan-500/10">
-              <DollarSign className="h-4 w-4 text-cyan-500 dark:text-cyan-400" />
+        </div>
+        <div className="relative overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+          <div className="absolute -right-2 -top-2 h-16 w-16 rounded-full bg-cyan-500/5" />
+          <div className="relative flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-teal-600 shadow-sm">
+              <DollarSign className="h-5 w-5 text-white" />
             </div>
             <div>
-              <div className="text-2xl font-bold">{formatCurrency(summary.avgPrice)}</div>
-              <div className="text-xs text-muted-foreground">Avg Price</div>
+              <div className="text-2xl font-bold tracking-tight">{formatCurrency(summary.avgPrice)}</div>
+              <div className="text-xs text-muted-foreground font-medium">Avg Price</div>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by plan name..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
+      <div className="rounded-xl border bg-card p-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search plans..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 bg-muted/40 border-muted-foreground/10"
+              />
+            </div>
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-44 bg-muted/40 border-muted-foreground/10">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              {planStatuses.map(status => (
+                <SelectItem key={status.value} value={status.value}>
+                  {status.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Plans Grid — Premium cards */}
+      {isLoading ? (
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="rounded-xl border bg-card p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-5 w-28" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+              <Skeleton className="h-3 w-48" />
+              <div className="space-y-3 pt-2">
+                <div className="flex gap-3">
+                  <Skeleton className="h-2 flex-1 rounded-full" />
+                  <Skeleton className="h-2 flex-1 rounded-full" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+              </div>
+              <div className="flex items-center justify-between pt-3 border-t">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-6 w-16" />
               </div>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                {planStatuses.map(status => (
-                  <SelectItem key={status.value} value={status.value}>
-                    {status.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Plans Grid */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          ))}
         </div>
       ) : plans.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="rounded-full bg-muted/50 p-4 mb-3">
-            <Settings className="h-8 w-8 text-muted-foreground/40" />
-          </div>
-          <h3 className="text-sm font-medium text-muted-foreground">No WiFi plans found</h3>
-          <p className="text-xs text-muted-foreground/60 mt-1">Create your first plan to get started</p>
-        </div>
+        <EmptyState
+          icon={Wifi}
+          title="No WiFi plans found"
+          description="Create your first service plan to start offering WiFi connectivity to your guests"
+          action={{ label: 'Create Plan', onClick: () => { resetForm(); setIsCreateOpen(true); } }}
+        />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {plans.map((plan) => (
-            <Card key={plan.id} className={cn(
-              'relative overflow-hidden',
-              plan.status === 'inactive' && 'opacity-60'
-            )}>
-              {plan.priority > 0 && (
-                <div className="absolute top-2 right-2">
-                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700">
-                    <Star className="h-3 w-3 mr-1" />
-                    Featured
-                  </Badge>
-                </div>
-              )}
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    {plan.name}
-                    {defaultPlanId === plan.id && (
-                      <Badge variant="outline" className="bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-700 text-[10px] px-1.5 py-0">
-                        <Star className="h-3 w-3 mr-1 fill-teal-500" />
-                        Default
-                      </Badge>
-                    )}
-                  </CardTitle>
-                  {getStatusBadge(plan.status)}
-                </div>
-                {plan.description && (
-                  <p className="text-sm text-muted-foreground">{plan.description}</p>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {plans.map((plan) => {
+            const tier = getPlanTier(plan.downloadSpeed);
+            const isDefault = defaultPlanId === plan.id;
+            const isFeatured = plan.priority > 0;
+            const isFree = plan.price === 0;
+            const maxSpeed = 200; // reference max for progress bars
+            const dlPct = Math.min((plan.downloadSpeed / maxSpeed) * 100, 100);
+            const ulPct = Math.min((plan.uploadSpeed / maxSpeed) * 100, 100);
+
+            return (
+              <div
+                key={plan.id}
+                className={cn(
+                  'group relative overflow-hidden rounded-xl border bg-card transition-all duration-300 hover:-translate-y-1',
+                  plan.status === 'inactive'
+                    ? 'opacity-50 grayscale-[30%]'
+                    : 'hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/20',
+                  isFeatured && plan.status === 'active' && 'ring-1 ring-amber-400/40 dark:ring-amber-500/30 hover:shadow-amber-500/5',
+                  isDefault && plan.status === 'active' && !isFeatured && 'ring-1 ring-teal-400/40 dark:ring-teal-500/30 hover:shadow-teal-500/5',
                 )}
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Speed */}
-                <div className="flex items-center gap-4 text-sm">
-                  <div className="flex items-center gap-1">
-                    <ArrowDownToLine className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-                    <span className="font-medium">{plan.downloadSpeed} Mbps</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <ArrowUpFromLine className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-                    <span className="font-medium">{plan.uploadSpeed} Mbps</span>
-                  </div>
-                </div>
+              >
+                {/* Top gradient accent bar */}
+                <div className={cn(
+                  'h-1 w-full bg-gradient-to-r',
+                  plan.status === 'active' ? tier.gradient : 'from-gray-300 to-gray-400 dark:from-gray-600 dark:to-gray-700'
+                )} />
 
-                {/* Limits */}
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  {plan.dataLimit ? (
-                    <div className="flex items-center gap-1">
-                      <Database className="h-4 w-4" />
-                      <span>{formatDataSize(plan.dataLimit)}</span>
+                {/* Card content */}
+                <div className="p-5 space-y-4">
+                  {/* Header row */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-base tracking-tight">{plan.name}</h3>
+                        {isFeatured && plan.status === 'active' && (
+                          <span className={cn(
+                            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+                            'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm'
+                          )}>
+                            <Crown className="h-3 w-3" />
+                            Featured
+                          </span>
+                        )}
+                        {isDefault && !isFeatured && plan.status === 'active' && (
+                          <span className={cn(
+                            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+                            'bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-sm'
+                          )}>
+                            <ShieldCheck className="h-3 w-3" />
+                            Default
+                          </span>
+                        )}
+                        {isDefault && isFeatured && plan.status === 'active' && (
+                          <span className={cn(
+                            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+                            'bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-sm'
+                          )}>
+                            <ShieldCheck className="h-3 w-3" />
+                            Default
+                          </span>
+                        )}
+                      </div>
+                      {plan.description && (
+                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{plan.description}</p>
+                      )}
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      <Database className="h-4 w-4" />
-                      <span>Unlimited</span>
-                    </div>
-                  )}
-                  {plan.sessionLimit && (
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      <span>{formatDuration(plan.sessionLimit)}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1">
-                    <Smartphone className="h-4 w-4" />
-                    <span>{plan.maxDevices ?? 1} device{((plan.maxDevices ?? 1) > 1) ? 's' : ''}</span>
+                    {getStatusBadge(plan.status)}
                   </div>
-                  {(plan as Record<string, unknown>).fupPolicy && (
-                    <div className="flex items-center gap-1">
-                      <Gauge className="h-4 w-4 text-orange-500" />
-                      <span className="text-xs">{(plan as Record<string, unknown>).fupPolicy?.name || 'FUP'}</span>
+
+                  {/* Tier badge */}
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold',
+                      tier.bg, tier.accent
+                    )}>
+                      <Zap className="h-3 w-3" />
+                      {tier.label} Tier
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {plan.validityDays} day{plan.validityDays > 1 ? 's' : ''} validity
+                    </span>
+                  </div>
+
+                  {/* Speed visualization */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <ArrowDownToLine className="h-3.5 w-3.5 text-emerald-500" />
+                        Download
+                      </div>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{plan.downloadSpeed} Mbps</span>
                     </div>
-                  )}
-                </div>
+                    <div className="h-1.5 w-full rounded-full bg-emerald-500/10 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-700 ease-out"
+                        style={{ width: `${dlPct}%` }}
+                      />
+                    </div>
 
-                {/* Validity & Price */}
-                <div className="flex items-center justify-between pt-2 border-t">
-                  <div className="text-sm text-muted-foreground">
-                    {plan.validityDays} day{plan.validityDays > 1 ? 's' : ''} validity
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <ArrowUpFromLine className="h-3.5 w-3.5 text-amber-500" />
+                        Upload
+                      </div>
+                      <span className="font-bold text-amber-600 dark:text-amber-400">{plan.uploadSpeed} Mbps</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-amber-500/10 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-600 transition-all duration-700 ease-out"
+                        style={{ width: `${ulPct}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="text-xl font-bold">
-                    {plan.price > 0 ? formatCurrency(plan.price) : 'Free'}
+
+                  {/* Specs grid */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <Database className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{formatDataSize(plan.dataLimit)}</span>
+                    </div>
+                    {plan.sessionLimit ? (
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{formatDuration(plan.sessionLimit)}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">Unlimited</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <MonitorSmartphone className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{plan.maxDevices ?? 1} device{(plan.maxDevices ?? 1) > 1 ? 's' : ''}</span>
+                    </div>
+                    {(plan as Record<string, unknown>).fupPolicy ? (
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Gauge className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{(plan as Record<string, unknown>).fupPolicy?.name || 'FUP'}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Gauge className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">No FUP</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Price + Stats divider */}
+                  <div className="flex items-center justify-between pt-3 border-t border-dashed">
+                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                      <span>{plan._count?.vouchers || 0} vouchers</span>
+                      <span className="w-px h-3 bg-border" />
+                      <span>{plan._count?.sessions || 0} sessions</span>
+                    </div>
+                    <div className={cn(
+                      'text-right',
+                      isFree ? 'text-emerald-600 dark:text-emerald-400' : ''
+                    )}>
+                      {isFree ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-lg font-bold">Free</span>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="text-lg font-bold tracking-tight">{formatCurrency(plan.price)}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-8 text-xs rounded-lg transition-colors"
+                      onClick={() => openEditDialog(plan)}
+                    >
+                      <Pencil className="h-3 w-3 mr-1.5" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-red-600 hover:border-red-200 dark:hover:text-red-400 dark:hover:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                      onClick={() => openDeleteDialog(plan)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
-
-                {/* Stats */}
-                <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
-                  <span>{plan._count?.vouchers || 0} vouchers</span>
-                  <span>{plan._count?.sessions || 0} sessions</span>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => openEditDialog(plan)}
-                  >
-                    <Pencil className="h-3 w-3 mr-1" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-red-600 dark:text-red-400 hover:text-red-700"
-                    onClick={() => openDeleteDialog(plan)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
 
