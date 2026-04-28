@@ -36,7 +36,7 @@ interface LiveStats {
 }
 
 const HIGHLIGHT_CONFIG: Record<string, { color: string; bg: string; icon: React.ElementType }> = {
-  success: { color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/50', icon: CheckCircle2 },
+  success: { color: 'text-primary dark:text-primary', bg: 'bg-primary/10 dark:bg-primary/10', icon: CheckCircle2 },
   warning: { color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/50', icon: AlertTriangle },
   info: { color: 'text-sky-600 dark:text-sky-400', bg: 'bg-sky-50 dark:bg-sky-950/50', icon: TrendingUp },
   alert: { color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/50', icon: AlertTriangle },
@@ -226,10 +226,10 @@ export function ShiftSummaryWidget() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100/50 dark:border-emerald-800/50 text-center"
+            className="p-2.5 rounded-xl bg-primary/10 dark:bg-primary/10 border border-primary/20 dark:border-primary/20 text-center"
           >
-            <LogIn className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 mx-auto mb-1" />
-            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums leading-none">{liveStats.checkInsToday}</p>
+            <LogIn className="h-3.5 w-3.5 text-primary mx-auto mb-1" />
+            <p className="text-lg font-bold text-primary tabular-nums leading-none">{liveStats.checkInsToday}</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">{t('checkIns')}</p>
           </motion.div>
           <motion.div

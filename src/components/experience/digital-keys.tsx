@@ -225,7 +225,7 @@ export default function DigitalKeys() {
 
   const getStatusBadge = (status: string) => {
     const config: Record<string, { label: string; className: string }> = {
-      active: { label: 'Active', className: 'bg-emerald-500' },
+      active: { label: 'Active', className: 'bg-live' },
       pending: { label: 'Pending', className: 'bg-amber-500' },
       expired: { label: 'Expired', className: 'bg-gray-500' },
       disabled: { label: 'Disabled', className: 'bg-red-500' },
@@ -276,8 +276,8 @@ export default function DigitalKeys() {
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <Unlock className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Unlock className="h-4 w-4 text-primary" />
             </div>
             <div>
               <div className="text-2xl font-bold">{stats.active}</div>

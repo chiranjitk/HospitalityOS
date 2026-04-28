@@ -173,7 +173,7 @@ function KPIMetricCard({ metric, isLoading }: { metric: KPIMetric; isLoading?: b
   }
 
   const trendColors = {
-    up: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/40',
+    up: 'text-primary dark:text-primary bg-primary/10 dark:bg-primary/10',
     down: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/40',
     neutral: 'text-gray-600 bg-gray-50 dark:bg-gray-900/40',
   };
@@ -401,7 +401,7 @@ export default function KPIDashboardEnhanced() {
       changeLabel: 'vs yesterday',
       trend: stats.revenue.change >= 0 ? 'up' : 'down',
       icon: DollarSign,
-      color: 'bg-gradient-to-br from-emerald-500 to-teal-600',
+      color: 'bg-gradient-to-br from-primary to-primary',
       description: 'Total revenue collected today',
     },
     {
@@ -462,7 +462,7 @@ export default function KPIDashboardEnhanced() {
       title: 'Arrivals Today',
       value: stats.guests.arriving,
       icon: CalendarDays,
-      color: 'bg-gradient-to-br from-green-500 to-emerald-600',
+      color: 'bg-gradient-to-br from-primary to-primary',
       description: 'Expected check-ins today',
     },
     {
@@ -479,7 +479,7 @@ export default function KPIDashboardEnhanced() {
       title: 'Collected MTD',
       value: formatCurrency(stats.financials.totalCollected),
       icon: Wallet,
-      color: 'bg-gradient-to-br from-green-500 to-emerald-600',
+      color: 'bg-gradient-to-br from-primary to-primary',
       description: 'Total collected this month',
     },
     {
@@ -525,7 +525,7 @@ export default function KPIDashboardEnhanced() {
       title: 'Rooms Cleaned',
       value: stats.housekeeping.roomsCleaned,
       icon: Activity,
-      color: 'bg-gradient-to-br from-green-500 to-emerald-600',
+      color: 'bg-gradient-to-br from-primary to-primary',
       description: 'Rooms cleaned today',
     },
     {
@@ -770,7 +770,7 @@ export default function KPIDashboardEnhanced() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Confirmed</span>
-                  <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400">
+                  <Badge variant="secondary" className="bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary">
                     {stats.bookings.confirmed}
                   </Badge>
                 </div>
@@ -869,9 +869,9 @@ export default function KPIDashboardEnhanced() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/40">
+                  <div className="p-3 rounded-lg bg-primary/10 dark:bg-primary/10">
                     <p className="text-xs text-muted-foreground">Rooms Cleaned</p>
-                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.housekeeping.roomsCleaned}</p>
+                    <p className="text-2xl font-bold text-primary">{stats.housekeeping.roomsCleaned}</p>
                   </div>
                   <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/40">
                     <p className="text-xs text-muted-foreground">Rooms Pending</p>
@@ -884,7 +884,7 @@ export default function KPIDashboardEnhanced() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Inspection Pass Rate</span>
-                  <Badge variant="secondary" className="bg-green-100 text-green-800 dark:text-green-200">
+                  <Badge variant="secondary" className="bg-primary/10 text-primary dark:text-primary-foreground">
                     {stats.housekeeping.inspectionPassRate}%
                   </Badge>
                 </div>

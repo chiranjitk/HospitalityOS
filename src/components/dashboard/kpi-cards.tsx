@@ -89,12 +89,12 @@ const variantConfig: Record<CardVariant, {
   iconBg: string;
 }> = {
   emerald: {
-    iconGradient: 'bg-gradient-to-br from-emerald-400 to-teal-600',
-    topBarGradient: 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600',
-    barColor: 'bg-emerald-500 dark:bg-emerald-500',
-    barHoverColor: 'bg-emerald-600 dark:bg-emerald-400',
-    glowColor: 'group-hover:shadow-emerald-500/40',
-    iconBg: 'from-emerald-500 to-teal-600',
+    iconGradient: 'bg-gradient-to-br from-primary to-primary',
+    topBarGradient: 'bg-gradient-to-r from-primary via-primary to-primary',
+    barColor: 'bg-primary dark:bg-primary',
+    barHoverColor: 'bg-primary/80 dark:bg-primary/80',
+    glowColor: 'group-hover:shadow-primary/40',
+    iconBg: 'from-primary to-primary',
   },
   violet: {
     iconGradient: 'bg-gradient-to-br from-violet-400 to-purple-600',
@@ -273,7 +273,7 @@ function KPICard({
                     className={cn(
                       'inline-flex items-center gap-0.5 text-[11px] font-bold px-2 py-[3px] rounded-full border transition-all duration-300',
                       trend === 'up' &&
-                        'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50',
+                        'bg-primary/10 text-primary border-primary/20 dark:bg-primary/10 dark:text-primary dark:border-primary/20',
                       trend === 'down' &&
                         'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/50',
                       trend === 'neutral' &&
@@ -333,7 +333,7 @@ function KPICardSkeleton({ index = 0 }: { index?: number }) {
   const isGlassmorphism = themeId === 'frosted-glass';
 
   const accentColors = [
-    'bg-emerald-400/70',
+    'bg-primary/70',
     'bg-violet-400/70',
     'bg-cyan-400/70',
     'bg-amber-400/70',

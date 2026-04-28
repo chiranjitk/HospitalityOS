@@ -203,7 +203,7 @@ export default function ChatTransfer({
               <div className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">Current Assignee</div>
               {currentAssignee ? (
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-xs font-medium">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white text-xs font-medium">
                     {currentAssignee.firstName[0]}{currentAssignee.lastName[0]}
                   </div>
                   <div>

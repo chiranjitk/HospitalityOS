@@ -246,7 +246,7 @@ export default function Templates() {
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
-      'Guest Communication': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
+      'Guest Communication': 'bg-primary/15 text-primary',
       'Loyalty': 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300',
       'Revenue': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-300',
       'Billing': 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300',
@@ -275,7 +275,7 @@ export default function Templates() {
             variant={selectedCategory === category ? 'default' : 'outline'}
             size="sm"
             onClick={() => setSelectedCategory(category)}
-            className={selectedCategory === category ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
+            className={selectedCategory === category ? 'bg-primary hover:bg-primary/90' : ''}
           >
             {category}
           </Button>
@@ -310,7 +310,7 @@ export default function Templates() {
               )}
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-emerald-100 dark:bg-emerald-900 p-2">
+                  <div className="rounded-lg bg-primary/15 p-2">
                     {template.icon}
                   </div>
                   <div>
@@ -341,7 +341,7 @@ export default function Templates() {
                   <div className="space-y-1">
                     {template.actions.map((action, index) => (
                       <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <CheckCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                        <CheckCircle className="h-4 w-4 text-primary" />
                         {action.description}
                       </div>
                     ))}
@@ -349,7 +349,7 @@ export default function Templates() {
                 </div>
 
                 <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                  className="w-full bg-primary hover:bg-primary/90"
                   onClick={() => handleUseTemplate(template)}
                 >
                   <Copy className="h-4 w-4 mr-2" />
@@ -405,7 +405,7 @@ export default function Templates() {
             <Button variant="outline" onClick={() => setCustomizeDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateFromTemplate} disabled={isCreating} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button onClick={handleCreateFromTemplate} disabled={isCreating} className="bg-primary hover:bg-primary/90">
               {isCreating ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

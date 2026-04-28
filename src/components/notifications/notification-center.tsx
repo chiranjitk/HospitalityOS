@@ -83,7 +83,7 @@ const typeColorMap: Record<string, string> = {
   housekeeping: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
   system: 'bg-slate-500/10 text-slate-600 dark:text-slate-400',
   alerts: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  billing: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  billing: 'bg-primary/10 text-primary',
   maintenance: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
   inventory: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
   crm: 'bg-orange-500/10 text-orange-600 dark:text-orange-400',

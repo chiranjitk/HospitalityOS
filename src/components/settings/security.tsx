@@ -312,7 +312,7 @@ export default function SecuritySettings() {
                 <p className="font-medium">PCI DSS</p>
                 <p className="text-sm text-muted-foreground">Payment Card Industry compliance</p>
               </div>
-              <Badge variant={settings.compliance.pciDss ? 'default' : 'outline'} className={settings.compliance.pciDss ? 'bg-emerald-500' : ''}>
+              <Badge variant={settings.compliance.pciDss ? 'default' : 'outline'} className={settings.compliance.pciDss ? 'bg-primary' : ''}>
                 {settings.compliance.pciDss ? 'Compliant' : 'Not Configured'}
               </Badge>
             </div>
@@ -321,7 +321,7 @@ export default function SecuritySettings() {
                 <p className="font-medium">GDPR</p>
                 <p className="text-sm text-muted-foreground">EU data protection</p>
               </div>
-              <Badge variant={settings.compliance.gdpr ? 'default' : 'outline'} className={settings.compliance.gdpr ? 'bg-emerald-500' : ''}>
+              <Badge variant={settings.compliance.gdpr ? 'default' : 'outline'} className={settings.compliance.gdpr ? 'bg-primary' : ''}>
                 {settings.compliance.gdpr ? 'Compliant' : 'Not Configured'}
               </Badge>
             </div>
@@ -330,7 +330,7 @@ export default function SecuritySettings() {
                 <p className="font-medium">CCPA</p>
                 <p className="text-sm text-muted-foreground">California privacy law</p>
               </div>
-              <Badge variant={settings.compliance.ccpa ? 'default' : 'outline'} className={settings.compliance.ccpa ? 'bg-emerald-500' : ''}>
+              <Badge variant={settings.compliance.ccpa ? 'default' : 'outline'} className={settings.compliance.ccpa ? 'bg-primary' : ''}>
                 {settings.compliance.ccpa ? 'Compliant' : 'Not Configured'}
               </Badge>
             </div>
@@ -339,7 +339,7 @@ export default function SecuritySettings() {
                 <p className="font-medium">DPA</p>
                 <p className="text-sm text-muted-foreground">Data Processing Agreement</p>
               </div>
-              <Badge variant={settings.compliance.dataProcessingAgreement ? 'default' : 'outline'} className={settings.compliance.dataProcessingAgreement ? 'bg-emerald-500' : ''}>
+              <Badge variant={settings.compliance.dataProcessingAgreement ? 'default' : 'outline'} className={settings.compliance.dataProcessingAgreement ? 'bg-primary' : ''}>
                 {settings.compliance.dataProcessingAgreement ? 'Signed' : 'Not Signed'}
               </Badge>
             </div>

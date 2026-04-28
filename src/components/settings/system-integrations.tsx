@@ -586,8 +586,8 @@ export default function SystemIntegrations() {
                     <Icon className={`h-5 w-5 ${meta.color}`} />
                   </div>
                   {configured ? (
-                    <div className="flex items-center justify-center h-6 w-6 rounded-full bg-emerald-100 dark:bg-emerald-900/50">
-                      <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary/15">
+                      <Check className="h-3.5 w-3.5 text-primary" />
                     </div>
                   ) : (
                     <div className="flex items-center justify-center h-6 w-6 rounded-full bg-gray-100 dark:bg-gray-800">
@@ -605,7 +605,7 @@ export default function SystemIntegrations() {
                 {/* Badges */}
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {configured ? (
-                    <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-[10px] px-1.5">
+                    <Badge className="bg-primary/15 text-primary hover:bg-primary/15 text-[10px] px-1.5">
                       Configured
                     </Badge>
                   ) : (
@@ -640,7 +640,7 @@ export default function SystemIntegrations() {
               </div>
               <div className="flex items-center gap-2">
                 {selectedIntegration && (
-                  <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+                  <Badge className="bg-primary/15 text-primary">
                     {selectedIntegration.source === 'database' ? 'Database' : '.env'}
                   </Badge>
                 )}

@@ -34,10 +34,10 @@ interface StatusConfig {
 const statusConfig: Record<keyof RoomStatusCounts, StatusConfig> = {
   available: {
     label: 'Available',
-    colorClass: 'bg-emerald-500',
-    bgClass: 'bg-emerald-500/15',
-    indicatorClass: '[&>[data-slot=progress-indicator]]:bg-emerald-500',
-    textClass: 'text-emerald-600 dark:text-emerald-400',
+    colorClass: 'bg-primary',
+    bgClass: 'bg-primary/15',
+    indicatorClass: '[&>[data-slot=progress-indicator]]:bg-primary',
+    textClass: 'text-primary dark:text-primary',
   },
   occupied: {
     label: 'Occupied',

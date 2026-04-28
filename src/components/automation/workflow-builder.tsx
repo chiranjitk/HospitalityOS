@@ -316,7 +316,7 @@ export default function WorkflowBuilder() {
 
   const getNodeColor = (type: string) => {
     switch (type) {
-      case 'trigger': return 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950';
+      case 'trigger': return 'border-primary bg-primary/5';
       case 'condition': return 'border-amber-500 bg-amber-50 dark:bg-amber-950';
       case 'action': return 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950';
       default: return 'border-gray-500';
@@ -350,7 +350,7 @@ export default function WorkflowBuilder() {
             <ScrollArea className="h-[400px]">
               {loading ? (
                 <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
               ) : savedWorkflows.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
@@ -364,7 +364,7 @@ export default function WorkflowBuilder() {
                       key={wf.id}
                       className={`p-3 rounded-lg border cursor-pointer transition-colors ${
                         workflow.id === wf.id
-                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950'
+                          ? 'border-primary bg-primary/5'
                           : 'hover:border-gray-400'
                       }`}
                       onClick={() => setWorkflow(wf)}
@@ -408,7 +408,7 @@ export default function WorkflowBuilder() {
                 <Button variant="outline" size="sm" onClick={createNewWorkflow} title="Clear canvas">
                   <Plus className="h-4 w-4" />
                 </Button>
-                <Button size="sm" onClick={saveWorkflow} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+                <Button size="sm" onClick={saveWorkflow} disabled={saving} className="bg-primary hover:bg-primary/90">
                   {saving ? (
                     <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                   ) : (
@@ -598,7 +598,7 @@ export default function WorkflowBuilder() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setNodeDialogOpen(false)}>Cancel</Button>
-            <Button onClick={saveNode} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button onClick={saveNode} className="bg-primary hover:bg-primary/90">
               Add {nodeType.charAt(0).toUpperCase() + nodeType.slice(1)}
             </Button>
           </DialogFooter>

@@ -369,9 +369,9 @@ const kpiColorMap: Record<string, { value: string; icon: string; dot: string }> 
     dot: 'bg-border',
   },
   success: {
-    value: 'text-emerald-600 dark:text-emerald-400',
-    icon: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-    dot: 'bg-emerald-500 dark:bg-emerald-400',
+    value: 'text-primary',
+    icon: 'bg-primary/15 text-primary',
+    dot: 'bg-primary',
   },
   warning: {
     value: 'text-amber-600 dark:text-amber-400',

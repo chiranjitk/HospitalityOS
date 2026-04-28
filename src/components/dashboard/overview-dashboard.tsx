@@ -120,7 +120,7 @@ function useCountUp(target: number, duration: number = 1200) {
 function MeshBackground() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-gradient-to-br from-emerald-400/12 to-teal-400/8 blur-3xl animate-[float1_8s_ease-in-out_infinite]" />
+      <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-gradient-to-br from-primary/12 to-primary/8 blur-3xl animate-[float1_8s_ease-in-out_infinite]" />
       <div className="absolute -bottom-16 -left-16 w-60 h-60 rounded-full bg-gradient-to-br from-amber-400/10 to-orange-400/6 blur-3xl animate-[float2_10s_ease-in-out_infinite]" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-gradient-to-br from-violet-400/6 to-purple-400/5 blur-3xl animate-[float3_12s_ease-in-out_infinite]" />
     </div>
@@ -146,12 +146,12 @@ function GreetingCard({ occupancy = 0, arrivals = 0, alertsCount = 0 }: {
   let greeting: string;
   let Icon: LucideIcon;
   let accentColor = 'emerald';
-  let gradient = 'from-emerald-500 to-teal-500';
-  let iconBg = 'bg-gradient-to-br from-emerald-400 to-teal-600';
-  let ringColor = 'ring-emerald-400/40';
-  let chipBg = 'bg-emerald-50 dark:bg-emerald-950/40';
-  let chipText = 'text-emerald-700 dark:text-emerald-400';
-  let clockColor = 'text-emerald-600 dark:text-emerald-400';
+  let gradient = 'from-primary to-primary';
+  let iconBg = 'bg-gradient-to-br from-primary to-primary';
+  let ringColor = 'ring-primary/40';
+  let chipBg = 'bg-primary/10 dark:bg-primary/10';
+  let chipText = 'text-primary dark:text-primary';
+  let clockColor = 'text-primary dark:text-primary';
 
   if (hour >= 12 && hour < 17) {
     greeting = t('goodAfternoon'); Icon = CloudSun; accentColor = 'sky';
@@ -205,8 +205,8 @@ function GreetingCard({ occupancy = 0, arrivals = 0, alertsCount = 0 }: {
                   </h1>
                   <div className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg border text-xs font-mono font-semibold tabular-nums", chipBg, chipText, "border-border/40")}>
                     <div className="relative flex h-1.5 w-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-live opacity-60" />
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-live" />
                     </div>
                     {formatTime(currentTime.toISOString())}
                   </div>
@@ -252,8 +252,8 @@ function GreetingCard({ occupancy = 0, arrivals = 0, alertsCount = 0 }: {
 function LivePulse() {
   return (
     <span className="relative flex h-2 w-2 ml-1">
-      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
-      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-live opacity-50" />
+      <span className="relative inline-flex rounded-full h-2 w-2 bg-live" />
     </span>
   );
 }
@@ -284,8 +284,8 @@ function TodaySummaryCard({ summary, isLoading }: { summary: TodaySummary | null
   const statCards = [
     {
       label: t('arrivals'), count: arrivalsCount, icon: LogIn,
-      gradient: 'from-emerald-500 to-emerald-600',
-      lightBg: 'bg-emerald-50 dark:bg-emerald-950/50',
+      gradient: 'from-primary to-primary',
+      lightBg: 'bg-primary/10 dark:bg-primary/10',
       section: 'frontdesk-checkin',
     },
     {
@@ -403,7 +403,7 @@ function AlertsWidget({ alerts, isLoading }: { alerts: TodaySummary['alerts']; i
     warning: { bg: 'bg-amber-50 dark:bg-amber-950/50', iconColor: 'text-amber-600 dark:text-amber-400', dotColor: 'bg-amber-500' },
     error: { bg: 'bg-red-50 dark:bg-red-950/50', iconColor: 'text-red-600 dark:text-red-400', dotColor: 'bg-red-500' },
     info: { bg: 'bg-sky-50 dark:bg-sky-950/50', iconColor: 'text-sky-600 dark:text-sky-400', dotColor: 'bg-sky-500' },
-    success: { bg: 'bg-emerald-50 dark:bg-emerald-950/50', iconColor: 'text-emerald-600 dark:text-emerald-400', dotColor: 'bg-emerald-500' },
+    success: { bg: 'bg-primary/10 dark:bg-primary/10', iconColor: 'text-primary dark:text-primary', dotColor: 'bg-primary' },
   };
 
   const limitedAlerts = alerts.slice(0, 4);
@@ -428,9 +428,9 @@ function AlertsWidget({ alerts, isLoading }: { alerts: TodaySummary['alerts']; i
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.5, ease: 'easeOut' }}
-              className="rounded-full bg-emerald-50 dark:bg-emerald-950/50 p-3 mb-2 ring-4 ring-emerald-100 dark:ring-emerald-400/50"
+              className="rounded-full bg-primary/10 dark:bg-primary/10 p-3 mb-2 ring-4 ring-primary/30"
             >
-              <CheckCircle2 className="h-7 w-7 text-emerald-500" />
+              <CheckCircle2 className="h-7 w-7 text-primary" />
             </motion.div>
             <p className="text-sm font-semibold">{t('allClear')}</p>
             <p className="text-xs text-muted-foreground mt-0.5">{t('noPendingAlerts')}</p>
@@ -578,8 +578,8 @@ export default function OverviewDashboard() {
         <div className="flex items-center justify-between relative z-10">
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50">
             <div className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-40" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-live opacity-40" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-live" />
             </div>
             <span>{t('liveData')}</span>
           </div>

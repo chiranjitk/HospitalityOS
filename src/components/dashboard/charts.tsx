@@ -225,7 +225,7 @@ export function RevenueChart({ data, change }: { data: RevenueData[]; change: nu
             size="sm" 
             className={`h-8 text-xs gap-1 ${
               isPositive 
-                ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-400' 
+                ? 'text-primary bg-primary/10 hover:bg-primary/15 dark:bg-primary/10 dark:text-primary'
                 : 'text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-950 dark:text-red-400'
             }`}
           >

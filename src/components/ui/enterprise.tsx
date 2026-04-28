@@ -183,7 +183,7 @@ export function EnterpriseStatCard({
               className={cn(
                 'text-xs font-semibold px-2 py-0.5 rounded-full',
                 trend.direction === 'up' &&
-                  'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400',
+                  'bg-primary/10 text-primary',
                 trend.direction === 'down' &&
                   'bg-red-500/10 text-red-600 dark:bg-red-500/15 dark:text-red-400',
                 trend.direction === 'flat' &&
@@ -262,7 +262,7 @@ export function EnterpriseMetric({
           <span
             className={cn(
               'text-sm font-semibold',
-              trend.direction === 'up' && 'text-emerald-600 dark:text-emerald-400',
+              trend.direction === 'up' && 'text-primary',
               trend.direction === 'down' && 'text-red-600 dark:text-red-400',
               trend.direction === 'flat' && 'text-muted-foreground'
             )}
@@ -769,7 +769,7 @@ export function EnterpriseQuickStat({
 }: EnterpriseQuickStatProps) {
   const valueColorMap: Record<string, string> = {
     default: 'text-foreground',
-    success: 'text-emerald-600 dark:text-emerald-400',
+    success: 'text-primary',
     warning: 'text-amber-600 dark:text-amber-400',
     danger: 'text-red-600 dark:text-red-400',
   };

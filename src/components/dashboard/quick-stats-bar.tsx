@@ -71,9 +71,9 @@ export function QuickStatsBar() {
       icon: DollarSign,
       trend: stats.revenueChange >= 0 ? 'up' : 'down',
       trendValue: `${stats.revenueChange >= 0 ? '+' : ''}${stats.revenueChange}%`,
-      iconBg: 'bg-gradient-to-br from-emerald-500/15 to-emerald-500/5',
-      iconColor: 'text-emerald-600 dark:text-emerald-400',
-      borderHover: 'hover:border-emerald-200 dark:hover:border-emerald-800',
+      iconBg: 'bg-gradient-to-br from-primary/15 to-primary/5',
+      iconColor: 'text-primary dark:text-primary',
+      borderHover: 'hover:border-primary/20 dark:hover:border-primary/20',
     },
     {
       id: 'checkins',
@@ -161,7 +161,7 @@ export function QuickStatsBar() {
                   className={cn(
                     'flex items-center gap-0.5 text-[11px] font-medium ml-auto shrink-0',
                     stat.trend === 'up'
-                      ? 'text-emerald-600 dark:text-emerald-400'
+                      ? 'text-primary dark:text-primary'
                       : 'text-amber-600 dark:text-amber-400'
                   )}
                 >

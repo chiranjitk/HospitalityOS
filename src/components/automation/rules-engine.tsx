@@ -326,7 +326,7 @@ export default function RulesEngine() {
   };
 
   const getSuccessRateColor = (rate: number) => {
-    if (rate >= 90) return 'text-emerald-600 dark:text-emerald-400';
+    if (rate >= 90) return 'text-primary';
     if (rate >= 70) return 'text-amber-600 dark:text-amber-400';
     return 'text-red-600 dark:text-red-400';
   };
@@ -344,14 +344,14 @@ export default function RulesEngine() {
 
       {/* Stats Cards */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
-        <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950">
+        <Card className="bg-gradient-to-br from-primary/5 to-primary/10">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-muted-foreground">Total Rules</p>
                 <p className="text-2xl font-bold">{stats.totalRules}</p>
               </div>
-              <Zap className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              <Zap className="h-5 w-5 text-primary" />
             </div>
           </CardContent>
         </Card>
@@ -428,7 +428,7 @@ export default function RulesEngine() {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={() => handleOpenDialog()} className="bg-emerald-600 hover:bg-emerald-700">
+        <Button onClick={() => handleOpenDialog()} className="bg-primary hover:bg-primary/90">
           <Plus className="h-4 w-4 mr-2" />
           Create Rule
         </Button>
@@ -437,7 +437,7 @@ export default function RulesEngine() {
       {/* Rules List */}
       {loading ? (
         <div className="flex justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : rules.length === 0 ? (
         <Card>
@@ -462,9 +462,9 @@ export default function RulesEngine() {
               <CardContent className="p-6">
                 <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between">
                   <div className="flex items-start gap-4">
-                    <div className={`rounded-lg p-3 ${rule.isActive ? 'bg-emerald-100 dark:bg-emerald-900' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                    <div className={`rounded-lg p-3 ${rule.isActive ? 'bg-primary/15' : 'bg-gray-100 dark:bg-gray-800'}`}>
                       {rule.isActive ? (
-                        <Play className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                        <Play className="h-5 w-5 text-primary" />
                       ) : (
                         <Pause className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                       )}
@@ -607,7 +607,7 @@ export default function RulesEngine() {
                     {formData.actions.map((action, index) => (
                       <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                         <div className="flex items-center gap-2">
-                          <Zap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                          <Zap className="h-4 w-4 text-primary" />
                           <span className="font-medium capitalize">{action.type.replace('_', ' ')}</span>
                         </div>
                         <Button variant="ghost" size="icon" onClick={() => removeAction(index)}>
@@ -659,7 +659,7 @@ export default function RulesEngine() {
 
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseDialog}>Cancel</Button>
-            <Button onClick={handleSave} disabled={isSaving} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button onClick={handleSave} disabled={isSaving} className="bg-primary hover:bg-primary/90">
               {isSaving ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

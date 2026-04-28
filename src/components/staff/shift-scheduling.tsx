@@ -306,7 +306,7 @@ export default function ShiftScheduling() {
           <h2 className="text-2xl font-bold tracking-tight">Staff Scheduling</h2>
           <p className="text-muted-foreground">Manage shifts and track attendance</p>
         </div>
-        <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-md hover:shadow-lg hover:shadow-emerald-500/25 transition-all duration-200">
+        <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} className="bg-primary hover:bg-primary/90 text-white shadow-md hover:shadow-lg hover:shadow-primary/25 transition-all duration-200">
           <Plus className="mr-2 h-4 w-4" />
           Add Shift
         </Button>
@@ -320,7 +320,7 @@ export default function ShiftScheduling() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">{stats.totalStaff}</div>
+            <div className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">{stats.totalStaff}</div>
           </CardContent>
         </Card>
         <Card className="hover:shadow-lg hover:shadow-primary/5 transition-all duration-200">
@@ -412,7 +412,7 @@ export default function ShiftScheduling() {
                               variant={shift.status === 'completed' ? 'outline' : 'default'}
                               className={cn(
                                 shift.status === 'completed' && 'bg-gradient-to-r from-violet-100 to-violet-200 text-violet-800 dark:from-violet-900 dark:to-violet-800 dark:text-violet-300',
-                                shift.status === 'in_progress' && 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white',
+                                shift.status === 'in_progress' && 'bg-primary text-white',
                                 shift.status === 'scheduled' && 'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 dark:from-blue-900 dark:to-blue-800 dark:text-blue-300',
                                 shift.status === 'absent' && 'bg-gradient-to-r from-red-500 to-red-600 text-white',
                                 'shadow-sm'
@@ -486,7 +486,7 @@ export default function ShiftScheduling() {
                           {hasCheckedOut ? (
                             <Badge variant="outline" className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">Checked Out</Badge>
                           ) : hasCheckedIn ? (
-                            <Badge variant="outline" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">Checked In</Badge>
+                            <Badge variant="outline" className="bg-primary/15 text-primary">Checked In</Badge>
                           ) : (
                             <Badge variant="secondary">Not Checked In</Badge>
                           )}
@@ -494,7 +494,7 @@ export default function ShiftScheduling() {
                         <TableCell>{formatTime(record?.checkIn ?? null)}</TableCell>
                         <TableCell>{formatTime(record?.checkOut ?? null)}</TableCell>
                         <TableCell className="text-right">
-                          <Button size="sm" variant="outline" onClick={() => handleClockIn(member.id)} disabled={hasCheckedIn} className="bg-gradient-to-r from-emerald-50 to-emerald-100 hover:from-emerald-100 hover:to-emerald-200 text-emerald-700 border-emerald-200 hover:border-emerald-300 transition-all duration-200">
+                          <Button size="sm" variant="outline" onClick={() => handleClockIn(member.id)} disabled={hasCheckedIn} className="bg-primary/10 hover:bg-primary/20 text-primary border-primary/20 hover:border-primary/30 transition-all duration-200">
                             <CheckCircle className="mr-2 h-4 w-4" />
                             Clock In
                           </Button>

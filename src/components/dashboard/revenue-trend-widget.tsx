@@ -102,17 +102,17 @@ export function RevenueTrendWidget() {
       label: "Today's Revenue",
       value: formatCurrency(data.todayRevenue),
       icon: DollarSign,
-      color: 'text-emerald-600 dark:text-emerald-400',
-      bg: 'bg-emerald-50 dark:bg-emerald-900/40',
-      border: 'border-emerald-200/60 dark:border-emerald-800/40',
+      color: 'text-primary dark:text-primary',
+      bg: 'bg-primary/10 dark:bg-primary/10',
+      border: 'border-primary/20 dark:border-primary/20',
     },
     {
       label: 'vs Yesterday',
       value: isPositive ? `+${data.changePercent}%` : `${data.changePercent}%`,
       icon: isPositive ? TrendingUp : TrendingDown,
-      color: isPositive ? 'text-emerald-600 dark:text-emerald-400' : isNegative ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground',
-      bg: isPositive ? 'bg-emerald-50 dark:bg-emerald-900/40' : isNegative ? 'bg-red-50 dark:bg-red-900/40' : 'bg-muted',
-      border: isPositive ? 'border-emerald-200/60 dark:border-emerald-800/40' : isNegative ? 'border-red-200/60 dark:border-red-800/40' : 'border-border',
+      color: isPositive ? 'text-primary dark:text-primary' : isNegative ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground',
+      bg: isPositive ? 'bg-primary/10 dark:bg-primary/10' : isNegative ? 'bg-red-50 dark:bg-red-900/40' : 'bg-muted',
+      border: isPositive ? 'border-primary/20 dark:border-primary/20' : isNegative ? 'border-red-200/60 dark:border-red-800/40' : 'border-border',
     },
     {
       label: 'Weekly Total',
@@ -129,7 +129,7 @@ export function RevenueTrendWidget() {
       <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow duration-300">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <DollarSign className="h-4 w-4 text-primary" />
             Revenue Trend — Last 7 Days
           </CardTitle>
         </CardHeader>

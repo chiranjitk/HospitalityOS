@@ -105,11 +105,11 @@ export default function AIInsights() {
   };
 
   const typeColors = {
-    opportunity: 'from-emerald-500/20 to-green-500/20',
+    opportunity: 'from-primary/20 to-primary/10',
     alert: 'from-red-500/20 to-rose-500/20',
     insight: 'from-cyan-500/20 to-teal-500/20',
     recommendation: 'from-amber-500/20 to-orange-500/20',
-    prediction: 'from-teal-500/20 to-emerald-500/20',
+    prediction: 'from-teal-500/20 to-primary/10',
   };
 
   const impactColors = {
@@ -153,7 +153,7 @@ export default function AIInsights() {
             <CardTitle className="text-2xl">{stats.total}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="border-l-4 border-l-emerald-500">
+        <Card className="border-l-4 border-l-primary">
           <CardHeader className="pb-2">
             <CardDescription>Opportunities</CardDescription>
             <CardTitle className="text-2xl">{stats.opportunities}</CardTitle>
@@ -213,9 +213,9 @@ export default function AIInsights() {
               <CardContent>
                 <p className="text-sm text-muted-foreground mb-4">{insight.description}</p>
                 {insight.potentialRevenue && (
-                  <div className="flex items-center gap-2 mb-4 p-2 bg-emerald-500/10 rounded-lg">
-                    <TrendingUp className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-                    <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                  <div className="flex items-center gap-2 mb-4 p-2 bg-primary/10 rounded-lg">
+                    <TrendingUp className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium text-primary">
                       Potential Revenue: {formatCurrency(insight.potentialRevenue)}
                     </span>
                   </div>

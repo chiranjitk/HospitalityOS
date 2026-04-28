@@ -50,7 +50,7 @@ function MiniBarChart({ values, highlightIndex }: { values: number[]; highlightI
             className={cn(
               'flex-1 rounded-sm transition-all duration-300',
               isHighlight
-                ? 'bg-gradient-to-t from-emerald-500 to-emerald-400 shadow-sm'
+                ? 'bg-gradient-to-t from-primary to-primary shadow-sm'
                 : 'bg-muted-300 dark:bg-muted-600'
             )}
             style={{ height: `${height}%` }}
@@ -155,10 +155,10 @@ export function PropertyComparison() {
               <div key={metric.key} className="space-y-1.5">
                 <div className="grid grid-cols-3 gap-2 items-center">
                   <div className="text-xs text-muted-foreground font-medium">{metric.label}</div>
-                  <div className={cn('text-right text-sm font-bold tabular-nums', prop1Wins ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
+                  <div className={cn('text-right text-sm font-bold tabular-nums', prop1Wins ? 'text-primary' : 'text-muted-foreground')}>
                     {formatValue(val1, metric.format)}
                   </div>
-                  <div className={cn('text-right text-sm font-bold tabular-nums', !prop1Wins ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
+                  <div className={cn('text-right text-sm font-bold tabular-nums', !prop1Wins ? 'text-primary' : 'text-muted-foreground')}>
                     {formatValue(val2, metric.format)}
                   </div>
                 </div>

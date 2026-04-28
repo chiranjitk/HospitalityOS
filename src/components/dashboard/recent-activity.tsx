@@ -75,10 +75,10 @@ const categoryConfig: Record<ActivityCategory, {
 }> = {
   booking: {
     icon: CalendarDays,
-    dotColor: 'bg-emerald-500',
-    bgColor: 'bg-emerald-50 dark:bg-emerald-950/40',
-    textColor: 'text-emerald-700 dark:text-emerald-400',
-    borderColor: 'border-emerald-200 dark:border-emerald-800',
+    dotColor: 'bg-primary',
+    bgColor: 'bg-primary/10 dark:bg-primary/10',
+    textColor: 'text-primary dark:text-primary',
+    borderColor: 'border-primary/20 dark:border-primary/20',
   },
   payment: {
     icon: CreditCard,
@@ -111,12 +111,12 @@ const categoryConfig: Record<ActivityCategory, {
 };
 
 const statusIcons: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string }> = {
-  completed: { icon: CheckCircle2, color: 'text-emerald-500 dark:text-emerald-400' },
-  passed: { icon: CheckCircle2, color: 'text-emerald-500 dark:text-emerald-400' },
-  confirmed: { icon: CheckCircle2, color: 'text-emerald-500 dark:text-emerald-400' },
-  approved: { icon: CheckCircle2, color: 'text-emerald-500 dark:text-emerald-400' },
+  completed: { icon: CheckCircle2, color: 'text-primary' },
+  passed: { icon: CheckCircle2, color: 'text-primary' },
+  confirmed: { icon: CheckCircle2, color: 'text-primary' },
+  approved: { icon: CheckCircle2, color: 'text-primary' },
   checked_in: { icon: LogIn, color: 'text-teal-500 dark:text-teal-400' },
-  positive: { icon: TrendingUp, color: 'text-emerald-500 dark:text-emerald-400' },
+  positive: { icon: TrendingUp, color: 'text-primary' },
   refunded: { icon: Banknote, color: 'text-amber-500 dark:text-amber-400' },
   pending: { icon: Clock, color: 'text-amber-500 dark:text-amber-400' },
   open: { icon: AlertCircle, color: 'text-amber-500 dark:text-amber-400' },
@@ -290,7 +290,7 @@ function TimelineItem({ activity, isLast }: { activity: ActivityItem; isLast: bo
             </Badge>
           )}
           {activity.amount && (
-            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+            <span className="text-[10px] font-semibold text-primary">
               ${activity.amount.toLocaleString()}
             </span>
           )}

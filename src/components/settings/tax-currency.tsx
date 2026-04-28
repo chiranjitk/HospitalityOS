@@ -495,7 +495,7 @@ export default function TaxCurrencySettings() {
                     <Globe className="h-5 w-5" />
                     Exchange Rates
                     {settings.isRealTimeRates ? (
-                      <Badge variant="default" className="ml-2 bg-emerald-500">
+                      <Badge variant="default" className="ml-2 bg-live">
                         <CheckCircle className="h-3 w-3 mr-1" />
                         Live
                       </Badge>
@@ -662,7 +662,7 @@ export default function TaxCurrencySettings() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <span className={tax.included ? 'text-emerald-500 dark:text-emerald-400' : 'text-muted-foreground'}>
+                          <span className={tax.included ? 'text-primary' : 'text-muted-foreground'}>
                             {tax.included ? 'Yes' : 'No'}
                           </span>
                         </TableCell>

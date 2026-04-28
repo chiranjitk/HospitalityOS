@@ -65,9 +65,9 @@ const categoryConfigs: CategoryConfig[] = [
   {
     key: 'cleanliness',
     label: 'Cleanliness',
-    barColor: 'bg-emerald-500',
-    bgLight: 'bg-emerald-50',
-    bgDark: 'dark:bg-emerald-900/40',
+    barColor: 'bg-primary',
+    bgLight: 'bg-primary/10',
+    bgDark: 'dark:bg-primary/10',
   },
   {
     key: 'service',
@@ -105,14 +105,14 @@ const categoryConfigs: CategoryConfig[] = [
 
 function ratingColorClass(score: number | null) {
   const s = score ?? 0;
-  if (s >= 4) return 'text-emerald-600 dark:text-emerald-400';
+  if (s >= 4) return 'text-primary dark:text-primary';
   if (s >= 3) return 'text-amber-600 dark:text-amber-400';
   return 'text-red-600 dark:text-red-400';
 }
 
 function ratingBgClass(score: number | null) {
   const s = score ?? 0;
-  if (s >= 4) return 'bg-emerald-50 dark:bg-emerald-900/40';
+  if (s >= 4) return 'bg-primary/10 dark:bg-primary/10';
   if (s >= 3) return 'bg-amber-50 dark:bg-amber-900/40';
   return 'bg-red-50 dark:bg-red-900/40';
 }
@@ -141,7 +141,7 @@ function ScoreRing({
   const gradientId = 'satisfactionGrad';
   let stopColor1 = '#10b981';
   let stopColor2 = '#059669';
-  let textColor = 'text-emerald-600 dark:text-emerald-400';
+  let textColor = 'text-primary dark:text-primary';
 
   if (safeScore >= 4) {
     stopColor1 = '#10b981';
@@ -273,7 +273,7 @@ function CategoryRow({
             className={cn(
               'flex items-center gap-0.5 text-[10px] font-medium',
               trendNum > 0
-                ? 'text-emerald-600 dark:text-emerald-400'
+                ? 'text-primary dark:text-primary'
                 : trendNum < 0
                   ? 'text-red-600 dark:text-red-400'
                   : 'text-muted-foreground'
@@ -504,7 +504,7 @@ export function GuestSatisfactionWidget() {
                   className={cn(
                     'flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded-full',
                     trendNum > 0
-                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
+                      ? 'bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary'
                       : trendNum < 0
                         ? 'bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-400'
                         : 'bg-muted text-muted-foreground'

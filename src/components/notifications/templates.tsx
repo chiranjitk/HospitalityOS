@@ -37,7 +37,7 @@ const typeIcons = {
 
 const typeColors = {
   email: 'from-cyan-500/20 to-teal-500/20',
-  sms: 'from-green-500/20 to-emerald-500/20',
+  sms: 'from-primary/20 to-primary/10',
   push: 'from-amber-500/20 to-orange-500/20',
   in_app: 'from-violet-500/20 to-purple-500/20',
 };
@@ -297,7 +297,7 @@ export default function Templates() {
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border-l-4 border-l-emerald-500">
+        <Card className="border-l-4 border-l-primary">
           <CardHeader className="pb-2">
             <CardDescription>Total Templates</CardDescription>
             <CardTitle className="text-2xl">{stats.total}</CardTitle>

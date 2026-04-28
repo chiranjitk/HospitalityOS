@@ -279,7 +279,7 @@ export default function ExperienceBookings() {
       case 'confirmed':
         return { label: 'Start', icon: Clock, newStatus: 'in_progress', color: 'text-purple-600 dark:text-purple-400' };
       case 'in_progress':
-        return { label: 'Complete', icon: CheckCircle, newStatus: 'completed', color: 'text-emerald-600 dark:text-emerald-400' };
+        return { label: 'Complete', icon: CheckCircle, newStatus: 'completed', color: 'text-primary' };
       default:
         return null;
     }
@@ -362,8 +362,8 @@ export default function ExperienceBookings() {
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <DollarSign className="h-4 w-4 text-emerald-500" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <DollarSign className="h-4 w-4 text-primary" />
             </div>
             <div>
               <div className="text-2xl font-bold">

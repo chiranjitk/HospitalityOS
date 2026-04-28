@@ -32,7 +32,7 @@ function getBarColor(occupancy: number): string {
 function getBarBg(occupancy: number): string {
   if (occupancy >= 85) return 'bg-red-50 dark:bg-red-900/40';
   if (occupancy >= 60) return 'bg-amber-50 dark:bg-amber-900/40';
-  return 'bg-emerald-50 dark:bg-emerald-900/40';
+  return 'bg-primary/10 dark:bg-primary/10';
 }
 
 function ChartTooltip({ active, payload, label }: any) {
@@ -152,7 +152,7 @@ export function OccupancyForecastWidget() {
                     'text-xs font-bold tabular-nums',
                     d.occupancy >= 85 ? 'text-red-600 dark:text-red-400' :
                     d.occupancy >= 60 ? 'text-amber-600 dark:text-amber-400' :
-                    'text-emerald-600 dark:text-emerald-400'
+                    'text-primary'
                   )}
                 >
                   {d.occupancy}%
@@ -174,7 +174,7 @@ export function OccupancyForecastWidget() {
                 'h-2 w-2 rounded-full',
                 data.avgOccupancy >= 85 ? 'bg-red-500' :
                 data.avgOccupancy >= 60 ? 'bg-amber-500' :
-                'bg-emerald-500'
+                'bg-primary'
               )} />
               <span className="text-xs text-muted-foreground">Avg. Forecast Occupancy</span>
             </div>

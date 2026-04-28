@@ -73,7 +73,7 @@ function TaskItem({ task }: { task: HousekeepingStats['recentTasks'][0] }) {
   const priorityColors: Record<string, string> = {
     high: 'text-red-600 dark:text-red-400',
     medium: 'text-amber-600 dark:text-amber-400',
-    low: 'text-green-600 dark:text-green-400',
+    low: 'text-primary',
   };
 
   return (
@@ -185,7 +185,7 @@ export default function HousekeepingDashboard() {
           title="Inspected"
           value={stats.roomsInspected}
           icon={CheckCircle2}
-          color="bg-gradient-to-br from-green-500 to-emerald-600"
+          color="bg-gradient-to-br from-primary to-primary"
         />
         <StatCard
           title="Maintenance"
@@ -224,12 +224,12 @@ export default function HousekeepingDashboard() {
                 {stats.taskBreakdown.stayover}
               </Badge>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/10">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-primary/10 dark:bg-primary/10">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                <div className="w-2 h-2 rounded-full bg-primary"></div>
                 <span className="text-sm font-medium">Touch-ups</span>
               </div>
-              <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400">
+              <Badge variant="secondary" className="bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary">
                 {stats.taskBreakdown.touchup}
               </Badge>
             </div>

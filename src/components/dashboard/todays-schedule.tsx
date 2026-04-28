@@ -85,7 +85,7 @@ function ScheduleItemRow({ item, type }: { item: ScheduleItem; type: 'arrival' |
         className={cn(
           'h-7 w-7 rounded-full flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110',
           type === 'arrival'
-            ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400'
+            ? 'bg-primary/10 dark:bg-primary/10 text-primary'
             : 'bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400'
         )}
       >
@@ -196,8 +196,8 @@ export function TodaysSchedule() {
             <Clock className="h-4 w-4 text-primary" />
             Today&apos;s Schedule
             <span className="relative flex h-2 w-2 ml-0.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-live opacity-50" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-live" />
             </span>
           </CardTitle>
           <Button
@@ -215,11 +215,11 @@ export function TodaysSchedule() {
           {/* Arrivals */}
           <div>
             <div className="flex items-center gap-1.5 mb-2">
-              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+              <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+              <span className="text-xs font-semibold text-primary uppercase tracking-wider">
                 Arrivals
               </span>
-              <Badge variant="secondary" className="text-[10px] h-4 px-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 border-0">
+              <Badge variant="secondary" className="text-[10px] h-4 px-1.5 bg-primary/10 text-primary dark:bg-primary/10 border-0">
                 {arrivals.length}
               </Badge>
             </div>
@@ -262,7 +262,7 @@ export function TodaysSchedule() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950 transition-colors"
+            className="h-7 text-xs text-primary hover:text-primary hover:bg-primary/10 dark:hover:bg-primary/10 transition-colors"
             onClick={() => setActiveSection('frontdesk-checkin')}
           >
             View All Arrivals

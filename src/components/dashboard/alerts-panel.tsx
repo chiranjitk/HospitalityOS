@@ -80,11 +80,11 @@ function EmptyAlertState({ message = 'All caught up!', subMessage = 'No active a
   return (
     <div className="flex flex-col items-center justify-center h-[300px] text-center">
       <div className="relative mb-4">
-        <div className="rounded-full bg-emerald-50 dark:bg-emerald-900/40 p-4 ring-4 ring-emerald-100 dark:ring-emerald-400/50 shadow-sm">
-          <CheckCircle2 className="h-8 w-8 text-emerald-500 dark:text-emerald-400" />
+        <div className="rounded-full bg-primary/10 dark:bg-primary/10 p-4 ring-4 ring-primary/30 shadow-sm">
+          <CheckCircle2 className="h-8 w-8 text-primary" />
         </div>
         {/* Animated ping ring */}
-        <div className="absolute inset-[-4px] rounded-full border-2 border-emerald-300 dark:border-emerald-700 animate-ping opacity-20" />
+        <div className="absolute inset-[-4px] rounded-full border-2 border-primary/30 animate-ping opacity-20" />
       </div>
       <p className="text-sm font-semibold text-foreground">{message}</p>
       <p className="text-xs text-muted-foreground mt-1 max-w-[220px]">{subMessage}</p>

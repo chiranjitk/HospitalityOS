@@ -109,7 +109,7 @@ function StatCard({ title, value, subtitle, icon: Icon, color, onClick, progress
 
 function ArrivalCard({ arrival, formatTime }: { arrival: FrontDeskStats['arrivals'][0]; formatTime: (time: string) => string }) {
   const statusColors: Record<string, string> = {
-    confirmed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400',
+    confirmed: 'bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary',
     pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400',
     checked_in: 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-400',
     vip: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-400',
@@ -187,7 +187,7 @@ function DepartureCard({ departure, formatCurrency, formatTime }: {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
-  const balanceColor = departure.balance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400';
+  const balanceColor = departure.balance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-primary dark:text-primary';
 
   return (
     <motion.div
@@ -219,7 +219,7 @@ function DepartureCard({ departure, formatCurrency, formatTime }: {
           </p>
           <Badge variant="secondary" className={departure.balance > 0 
             ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400"
-            : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400"
+            : "bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary"
           }>
             {departure.balance > 0 ? 'Payment Due' : 'Ready'}
           </Badge>
@@ -390,7 +390,7 @@ export default function FrontDeskDashboard() {
           title="Arrivals Today"
           value={stats.arrivalsToday}
           icon={LogIn}
-          color="bg-gradient-to-br from-green-500 to-emerald-600"
+          color="bg-gradient-to-br from-primary to-primary"
           onClick={() => router.push('/?section=frontdesk-checkin')}
           progress={stats.checkInsCompleted}
           target={stats.arrivalsToday}
@@ -482,7 +482,7 @@ export default function FrontDeskDashboard() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-medium flex items-center gap-2">
-                <LogIn className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <LogIn className="h-4 w-4 text-primary" />
                 Today's Arrivals
                 <Badge variant="secondary" className="ml-1">{stats.arrivals.length}</Badge>
               </CardTitle>

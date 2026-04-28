@@ -38,7 +38,7 @@ const typeConfig: Record<string, { icon: typeof Bell; color: string; bg: string 
   booking: { icon: Calendar, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-950/30' },
   system: { icon: Settings, color: 'text-slate-600', bg: 'bg-slate-50 dark:bg-slate-950/30' },
   alert: { icon: AlertTriangle, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/30' },
-  payment: { icon: CreditCard, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30' },
+  payment: { icon: CreditCard, color: 'text-primary', bg: 'bg-primary/10' },
   security: { icon: Shield, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30' },
   wifi: { icon: Wifi, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-950/30' },
 };

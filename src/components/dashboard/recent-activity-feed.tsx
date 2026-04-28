@@ -41,7 +41,7 @@ interface ActivityItem {
 
 const categoryConfig: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
   booking: { icon: CalendarPlus, color: 'text-sky-600 dark:text-sky-400', bg: 'bg-sky-500/10' },
-  payment: { icon: DollarSign, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10' },
+  payment: { icon: DollarSign, color: 'text-primary dark:text-primary', bg: 'bg-primary/10' },
   housekeeping: { icon: Wrench, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10' },
   guest: { icon: UserCheck, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-500/10' },
   system: { icon: Settings, color: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-500/10' },
@@ -128,8 +128,8 @@ export function RecentActivityFeed() {
               <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               {t('recentActivity')}
               <span className="relative flex h-2 w-2 ml-1">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-live opacity-50" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-live" />
               </span>
             </CardTitle>
             <Badge variant="secondary" className="text-xs tabular-nums">
@@ -179,7 +179,7 @@ export function RecentActivityFeed() {
 
             {activities.length === 0 && (
               <div className="flex flex-col items-center py-6 text-center">
-                <CheckCircle2 className="h-8 w-8 text-emerald-500 dark:text-emerald-400/50 mb-2" />
+                <CheckCircle2 className="h-8 w-8 text-primary mb-2" />
                 <p className="text-sm text-muted-foreground">{t('noRecentActivity')}</p>
               </div>
             )}

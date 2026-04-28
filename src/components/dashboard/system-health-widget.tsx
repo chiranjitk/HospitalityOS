@@ -36,19 +36,19 @@ interface SystemHealthWidgetProps {
 type StatusLevel = 'healthy' | 'warning' | 'critical';
 
 const statusDotColors: Record<StatusLevel, string> = {
-  healthy: 'bg-emerald-500',
+  healthy: 'bg-primary',
   warning: 'bg-amber-500',
   critical: 'bg-red-500',
 };
 
 const statusIconColors: Record<StatusLevel, string> = {
-  healthy: 'text-emerald-600 dark:text-emerald-400',
+  healthy: 'text-primary dark:text-primary',
   warning: 'text-amber-600 dark:text-amber-400',
   critical: 'text-red-600 dark:text-red-400',
 };
 
 const statusBgColors: Record<StatusLevel, string> = {
-  healthy: 'bg-emerald-50 dark:bg-emerald-900/40',
+  healthy: 'bg-primary/10 dark:bg-primary/10',
   warning: 'bg-amber-50 dark:bg-amber-900/40',
   critical: 'bg-red-50 dark:bg-red-900/40',
 };
@@ -219,7 +219,7 @@ export function SystemHealthWidget({ stats, roomStatus, isLoading }: SystemHealt
     <Card className="border border-border/50 shadow-sm">
       <CardHeader className="pb-3">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <Activity className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          <Activity className="h-4 w-4 text-primary" />
           System Health
         </CardTitle>
       </CardHeader>

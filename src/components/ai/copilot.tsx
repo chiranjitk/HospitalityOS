@@ -210,7 +210,7 @@ export default function AICopilot() {
                   className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : ''}`}
                 >
                   {message.role === 'assistant' && (
-                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center flex-shrink-0">
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center flex-shrink-0">
                       <Bot className="h-4 w-4 text-white" />
                     </div>
                   )}
@@ -264,7 +264,7 @@ export default function AICopilot() {
                     )}
                   </div>
                   {message.role === 'user' && (
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center flex-shrink-0">
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center flex-shrink-0">
                       <User className="h-4 w-4 text-white" />
                     </div>
                   )}

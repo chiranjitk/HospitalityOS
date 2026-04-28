@@ -527,7 +527,7 @@ export function UIStyleToggle() {
                   )} />
                   {group.name}
                   {isEnterprise && (
-                    <Badge className="h-4 text-[9px] px-1.5 py-0 leading-none font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/25">
+                    <Badge className="h-4 text-[9px] px-1.5 py-0 leading-none font-bold bg-primary/15 text-primary border-primary/20 hover:bg-primary/25">
                       NEW
                     </Badge>
                   )}
@@ -652,7 +652,7 @@ function CategoryHeader({ category }: { category: typeof groupedThemes[0] }) {
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-sm">{category.name}</h3>
             {isNew && (
-              <Badge className="h-5 text-[10px] px-1.5 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/25">
+              <Badge className="h-5 text-[10px] px-1.5 bg-primary/15 text-primary border-primary/20 hover:bg-primary/25">
                 NEW
               </Badge>
             )}

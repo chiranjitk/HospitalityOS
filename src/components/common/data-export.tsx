@@ -111,7 +111,7 @@ export function DataExport({ data, filename, title }: DataExportProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
         <DropdownMenuItem onClick={() => handleExport('csv')} className="gap-2 cursor-pointer">
-          <FileText className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          <FileText className="h-4 w-4 text-primary" />
           <div>
             <p className="text-sm font-medium">CSV</p>
             <p className="text-[10px] text-muted-foreground">Comma-separated values</p>

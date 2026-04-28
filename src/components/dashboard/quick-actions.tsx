@@ -14,14 +14,14 @@ export function QuickActions() {
   const { setActiveSection } = useUIStore();
 
   const quickActions = [
-    { labelKey: 'newBooking', icon: CalendarPlus, gradient: 'from-emerald-400 to-emerald-600', tooltipKey: 'newBookingTip', section: 'bookings-calendar' },
+    { labelKey: 'newBooking', icon: CalendarPlus, gradient: 'from-primary to-primary', tooltipKey: 'newBookingTip', section: 'bookings-calendar' },
     { labelKey: 'checkIn', icon: LogIn, gradient: 'from-teal-400 to-teal-600', tooltipKey: 'checkInTip', section: 'frontdesk-checkin' },
     { labelKey: 'checkOut', icon: LogOut, gradient: 'from-amber-400 to-orange-500', tooltipKey: 'checkOutTip', section: 'frontdesk-checkout' },
     { labelKey: 'newGuest', icon: Users, gradient: 'from-violet-400 to-purple-500', tooltipKey: 'newGuestTip', section: 'guests-list' },
     { labelKey: 'payment', icon: CreditCard, gradient: 'from-pink-400 to-rose-500', tooltipKey: 'paymentTip', section: 'billing-payments' },
     { labelKey: 'service', icon: Sparkles, gradient: 'from-cyan-400 to-sky-500', tooltipKey: 'serviceTip', section: 'experience-requests' },
     { labelKey: 'message', icon: MessageSquare, gradient: 'from-orange-400 to-amber-500', tooltipKey: 'messageTip', section: 'experience-chat' },
-    { labelKey: 'wifiPass', icon: Wifi, gradient: 'from-emerald-400 to-cyan-500', tooltipKey: 'wifiPassTip', section: 'wifi-vouchers' },
+    { labelKey: 'wifiPass', icon: Wifi, gradient: 'from-primary to-cyan-500', tooltipKey: 'wifiPassTip', section: 'wifi-vouchers' },
   ];
 
   return (

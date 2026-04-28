@@ -210,7 +210,7 @@ export default function StatsTicker() {
         icon: LogIn,
         label: 'Arrivals',
         value: String(stats.guests.arriving),
-        iconColor: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+        iconColor: 'bg-primary/10 text-primary dark:text-primary',
       },
       {
         id: 'departures',

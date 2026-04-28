@@ -15,7 +15,7 @@ interface Channel { name: string; icon: React.ElementType; bookings: number; rev
 interface ChannelData { channels: Channel[]; totalRevenue: number; totalBookings: number; conversionRate: number; }
 
 const CHANNEL_COLORS = [
-  { color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/50', barBg: 'bg-emerald-500' },
+  { color: 'text-primary dark:text-primary', bg: 'bg-primary/10 dark:bg-primary/10', barBg: 'bg-primary' },
   { color: 'text-sky-600 dark:text-sky-400', bg: 'bg-sky-50 dark:bg-sky-950/50', barBg: 'bg-sky-500' },
   { color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-950/50', barBg: 'bg-violet-500' },
   { color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/50', barBg: 'bg-amber-500' },

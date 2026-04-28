@@ -79,14 +79,14 @@ const statusColors: Record<string, string> = {
 };
 
 const dayStatusColors: Record<string, string> = {
-  available: 'border-emerald-200 dark:border-emerald-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/30',
+  available: 'border-primary/30 hover:bg-primary/5 dark:hover:bg-primary/10',
   few_left: 'border-amber-200 dark:border-amber-900 hover:bg-amber-50 dark:hover:bg-amber-950/30',
   fully_booked: 'border-red-200 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/30',
   unavailable: 'border-gray-200 dark:border-gray-800 opacity-50',
 };
 
 const dayStatusDots: Record<string, string> = {
-  available: 'bg-emerald-500',
+  available: 'bg-primary',
   few_left: 'bg-amber-500',
   fully_booked: 'bg-red-500',
   unavailable: 'bg-gray-400',
@@ -285,7 +285,7 @@ export default function ExperienceCalendar() {
             {/* Legend */}
             <div className="flex gap-4 mb-4 flex-wrap text-xs">
               <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                <div className="w-2.5 h-2.5 rounded-full bg-primary" />
                 <span>Available</span>
               </div>
               <div className="flex items-center gap-1.5">

@@ -108,7 +108,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   technical: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   language: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
   certification: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  soft_skill: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  soft_skill: 'bg-primary/15 text-primary',
   hospitality: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
 };
 
@@ -349,7 +349,7 @@ export default function SkillsManagement() {
   const getProficiencyColor = (level: number) => {
     if (level <= 2) return 'text-orange-600 dark:text-orange-400';
     if (level <= 3) return 'text-blue-600 dark:text-blue-400';
-    return 'text-green-600 dark:text-green-400';
+    return 'text-primary';
   };
 
   const getProficiencyProgress = (level: number) => {
@@ -454,10 +454,10 @@ export default function SkillsManagement() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Certified</CardTitle>
-            <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <ShieldCheck className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{certifiedSkills}</div>
+            <div className="text-2xl font-bold text-primary">{certifiedSkills}</div>
             <p className="text-xs text-muted-foreground">
               {totalSkills > 0 ? `${Math.round((certifiedSkills / totalSkills) * 100)}% of total` : 'No skills'}
             </p>
@@ -647,7 +647,7 @@ export default function SkillsManagement() {
                                       'w-fit gap-1',
                                       expired && '',
                                       expiring && 'border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-950/50 dark:text-amber-400',
-                                      !expired && !expiring && 'border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-400'
+                                      !expired && !expiring && 'border-primary text-primary bg-primary/5'
                                     )}
                                   >
                                     <ShieldCheck className="h-3 w-3" />
@@ -839,7 +839,7 @@ export default function SkillsManagement() {
                   }
                 />
                 <Label htmlFor="certified" className="flex items-center gap-2 cursor-pointer">
-                  <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <ShieldCheck className="h-4 w-4 text-primary" />
                   Staff member is certified in this skill
                 </Label>
               </div>

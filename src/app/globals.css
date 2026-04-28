@@ -47,6 +47,8 @@
   --color-gradient-end: var(--gradient-end);
   --color-premium: var(--premium);
   --color-premium-foreground: var(--premium-foreground);
+  /* Live / Online status — follows theme primary color */
+  --color-live: var(--primary);
 }
 
 /* ============================================

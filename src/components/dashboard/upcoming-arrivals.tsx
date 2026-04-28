@@ -28,7 +28,7 @@ export function UpcomingArrivals() {
   const [isLoading, setIsLoading] = React.useState(true);
 
   const arrivalStatusConfig: Record<string, { labelKey: string; className: string; icon: typeof CheckCircle2 }> = {
-    confirmed: { labelKey: 'statusConfirmed', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400', icon: CheckCircle2 },
+    confirmed: { labelKey: 'statusConfirmed', className: 'bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary', icon: CheckCircle2 },
     vip: { labelKey: 'statusVip', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', icon: Star },
     pending: { labelKey: 'statusPending', className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400', icon: Clock },
     early: { labelKey: 'statusEarly', className: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-400', icon: Clock },
@@ -37,7 +37,7 @@ export function UpcomingArrivals() {
   };
 
   const departureStatusConfig: Record<string, { labelKey: string; className: string }> = {
-    on_time: { labelKey: 'statusOnTime', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' },
+    on_time: { labelKey: 'statusOnTime', className: 'bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary' },
     overdue: { labelKey: 'statusOverdue', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' },
     extended: { labelKey: 'statusExtended', className: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400' },
   };
@@ -128,7 +128,7 @@ export function UpcomingArrivals() {
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="text-sm font-medium">{formatTime(departure.time)}</p>
-                        <p className={cn("text-xs font-medium", departure.balance > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400")}>{departure.balance > 0 ? `${formatCurrency(departure.balance)} ${t('due')}` : t('settled')}</p>
+                        <p className={cn("text-xs font-medium", departure.balance > 0 ? "text-amber-600 dark:text-amber-400" : "text-primary")}>{departure.balance > 0 ? `${formatCurrency(departure.balance)} ${t('due')}` : t('settled')}</p>
                       </div>
                       <Badge variant="secondary" className={cn("text-[10px] h-4 px-1.5", statusConfig.className)}>{t(statusConfig.labelKey)}</Badge>
                     </div>

@@ -98,7 +98,7 @@ const statuses = [
   { value: 'pending', label: 'Pending', color: 'bg-gray-500' },
   { value: 'assigned', label: 'Assigned', color: 'bg-cyan-500' },
   { value: 'in_progress', label: 'In Progress', color: 'bg-amber-500' },
-  { value: 'completed', label: 'Completed', color: 'bg-emerald-500' },
+  { value: 'completed', label: 'Completed', color: 'bg-emerald-500' },,
   { value: 'cancelled', label: 'Cancelled', color: 'bg-red-500' },
 ];
 
@@ -362,8 +362,8 @@ export default function ServiceRequests() {
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <CheckCircle2 className="h-4 w-4 text-primary" />
             </div>
             <div>
               <div className="text-2xl font-bold">{completedToday}</div>
@@ -463,7 +463,7 @@ export default function ServiceRequests() {
                     </div>
                     {request.assignee && (
                       <div className="flex items-center gap-2 mb-2">
-                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-[10px]">
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white text-[10px]">
                           {request.assignee.firstName[0]}{request.assignee.lastName[0]}
                         </div>
                         <span className="text-xs text-muted-foreground">{request.assignee.firstName} {request.assignee.lastName}</span>
@@ -498,7 +498,7 @@ export default function ServiceRequests() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1 h-9 text-emerald-600 dark:text-emerald-400"
+                          className="flex-1 h-9 text-primary"
                           onClick={() => handleUpdateStatus(request.id, 'completed')}
                         >
                           Complete
@@ -547,7 +547,7 @@ export default function ServiceRequests() {
                           <TableCell>
                             {request.assignee ? (
                               <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-xs">
+                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white text-xs">
                                   {request.assignee.firstName[0]}{request.assignee.lastName[0]}
                                 </div>
                                 <div>
@@ -596,7 +596,7 @@ export default function ServiceRequests() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="text-emerald-600 dark:text-emerald-400"
+                                  className="text-primary"
                                   onClick={() => handleUpdateStatus(request.id, 'completed')}
                                 >
                                   Complete

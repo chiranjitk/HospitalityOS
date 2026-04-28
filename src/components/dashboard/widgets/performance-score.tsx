@@ -31,9 +31,9 @@ function CircularScoreGauge({ score, grade, gradeLabel, size = 120 }: { score: n
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (score / 100) * circumference;
-  const strokeColor = score >= 80 ? 'stroke-emerald-500' : score >= 60 ? 'stroke-amber-500' : 'stroke-red-500';
+  const strokeColor = score >= 80 ? 'stroke-primary' : score >= 60 ? 'stroke-amber-500' : 'stroke-red-500';
   const glowColor = score >= 80 ? 'group-hover:drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]' : score >= 60 ? 'group-hover:drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]' : 'group-hover:drop-shadow-[0_0_8px_rgba(239,68,68,0.4)]';
-  const colorClass = score >= 80 ? 'text-emerald-600 dark:text-emerald-400' : score >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
+  const colorClass = score >= 80 ? 'text-primary dark:text-primary' : score >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
 
   return (
     <div className="relative group">
@@ -70,7 +70,7 @@ export function PerformanceScoreWidget() {
         const service = stats?.pendingServiceRequests || 0;
         const metrics: PerformanceMetric[] = [
           { label: t('metricOccupancy'), labelKey: 'occupancy', score: Math.min(100, Math.round(occupancy * 1.1)), maxScore: 100, weight: 30, icon: Bed, color: 'text-violet-600 dark:text-violet-400', trend: occupancy > 65 ? 'up' : occupancy > 40 ? 'stable' : 'down', trendValue: 0 },
-          { label: t('metricRevenue'), labelKey: 'revenue', score: Math.min(100, Math.round(revenue > 50000 ? 90 : revenue > 20000 ? 70 : revenue > 5000 ? 50 : 30)), maxScore: 100, weight: 25, icon: DollarSign, color: 'text-emerald-600 dark:text-emerald-400', trend: revenue > 30000 ? 'up' : 'stable', trendValue: 0 },
+          { label: t('metricRevenue'), labelKey: 'revenue', score: Math.min(100, Math.round(revenue > 50000 ? 90 : revenue > 20000 ? 70 : revenue > 5000 ? 50 : 30)), maxScore: 100, weight: 25, icon: DollarSign, color: 'text-primary dark:text-primary', trend: revenue > 30000 ? 'up' : 'stable', trendValue: 0 },
           { label: t('metricGuestSat'), labelKey: 'guestSat', score: 86, maxScore: 100, weight: 25, icon: Star, color: 'text-amber-600 dark:text-amber-400', trend: 'up', trendValue: 3 },
           { label: t('metricOperations'), labelKey: 'operations', score: Math.min(100, Math.round(service < 3 ? 95 : service < 8 ? 75 : 55)), maxScore: 100, weight: 20, icon: Zap, color: 'text-cyan-600 dark:text-cyan-400', trend: service < 5 ? 'up' : 'down', trendValue: 0 },
         ];
@@ -88,12 +88,12 @@ export function PerformanceScoreWidget() {
 
   return (
     <Card className="border border-border/50 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 rounded-2xl overflow-hidden">
-      <div className={cn('h-[2px] w-full', data.overallScore >= 80 ? 'bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500' : data.overallScore >= 60 ? 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500' : 'bg-gradient-to-r from-red-400 via-rose-400 to-red-500')} />
+      <div className={cn('h-[2px] w-full', data.overallScore >= 80 ? 'bg-gradient-to-r from-primary via-primary to-primary' : data.overallScore >= 60 ? 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500' : 'bg-gradient-to-r from-red-400 via-rose-400 to-red-500')} />
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-semibold flex items-center gap-2"><Gauge className="h-4 w-4 text-primary" />{t('performanceScore')}</CardTitle>
           <div className="flex items-center gap-1.5">
-            <Badge variant="outline" className={cn('text-[10px] px-2 py-0 h-5 border-0 bg-muted/50', data.overallScore >= 80 ? 'text-emerald-600 dark:text-emerald-400' : data.overallScore >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400')}>{GRADE_LABELS[data.grade] || data.grade}</Badge>
+            <Badge variant="outline" className={cn('text-[10px] px-2 py-0 h-5 border-0 bg-muted/50', data.overallScore >= 80 ? 'text-primary' : data.overallScore >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400')}>{GRADE_LABELS[data.grade] || data.grade}</Badge>
             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={fetchData}><RefreshCw className="h-3 w-3 text-muted-foreground" /></Button>
           </div>
         </div>
@@ -107,10 +107,10 @@ export function PerformanceScoreWidget() {
               <motion.div key={metric.labelKey} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 + 0.5 }} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5"><Icon className={cn('h-3.5 w-3.5', metric.color)} /><span className="font-medium text-muted-foreground">{metric.label}</span><span className="text-[10px] text-muted-foreground/50">({metric.weight}%)</span></div>
-                  <div className="flex items-center gap-1.5"><span className="font-bold tabular-nums">{metric.score}</span>{metric.trend === 'up' && <TrendingUp className="h-3 w-3 text-emerald-500 dark:text-emerald-400" />}{metric.trend === 'down' && <TrendingDown className="h-3 w-3 text-red-500 dark:text-red-400" />}</div>
+                  <div className="flex items-center gap-1.5"><span className="font-bold tabular-nums">{metric.score}</span>{metric.trend === 'up' && <TrendingUp className="h-3 w-3 text-primary" />}{metric.trend === 'down' && <TrendingDown className="h-3 w-3 text-red-500 dark:text-red-400" />}</div>
                 </div>
                 <div className="relative h-1.5 bg-muted/50 rounded-full overflow-hidden">
-                  <motion.div className={cn('absolute inset-y-0 left-0 rounded-full', metric.score >= 80 ? 'bg-emerald-500' : metric.score >= 60 ? 'bg-amber-500' : 'bg-red-500')} initial={{ width: 0 }} animate={{ width: `${metric.score}%` }} transition={{ duration: 0.8, delay: i * 0.1 + 0.6, ease: 'easeOut' }} />
+                  <motion.div className={cn('absolute inset-y-0 left-0 rounded-full', metric.score >= 80 ? 'bg-primary' : metric.score >= 60 ? 'bg-amber-500' : 'bg-red-500')} initial={{ width: 0 }} animate={{ width: `${metric.score}%` }} transition={{ duration: 0.8, delay: i * 0.1 + 0.6, ease: 'easeOut' }} />
                 </div>
               </motion.div>
             );

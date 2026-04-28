@@ -48,10 +48,10 @@ export function StatsBar() {
               trend: d.checkInsToday > 0 ? 'up' : 'neutral',
               trendValue: d.checkInsToday > 0 ? `+${d.checkInsToday}` : '0',
               icon: LogIn,
-              gradient: 'from-emerald-500/10 to-teal-500/5',
-              iconBg: 'bg-emerald-500/10',
-              iconColor: 'text-emerald-600 dark:text-emerald-400',
-              borderHover: 'hover:border-emerald-300/50 dark:hover:border-emerald-700/50',
+              gradient: 'from-primary/10 to-primary/5',
+              iconBg: 'bg-primary/10',
+              iconColor: 'text-primary dark:text-primary',
+              borderHover: 'hover:border-primary/30 dark:hover:border-primary/30',
             },
             {
               id: 'checkouts',
@@ -165,7 +165,7 @@ export function StatsBar() {
                 {stat.trend && stat.trendValue && stat.trend !== 'neutral' && (
                   <div className={cn(
                     'flex items-center gap-0.5 mt-0.5 text-[10px] font-semibold tabular-nums',
-                    stat.trend === 'up' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'
+                    stat.trend === 'up' ? 'text-primary dark:text-primary' : 'text-red-500 dark:text-red-400'
                   )}>
                     {stat.trend === 'up' ? (
                       <TrendingUp className="h-2.5 w-2.5" />

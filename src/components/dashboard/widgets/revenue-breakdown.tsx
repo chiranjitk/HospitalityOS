@@ -60,7 +60,7 @@ export function RevenueBreakdownWidget() {
           const comparedToYesterday = stats.revenue.change != null ? stats.revenue.change : null;
           const bookingSources = charts?.bookingSources || [];
           const colors = [
-            { icon: Bed, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500' },
+            { icon: Bed, color: 'text-primary dark:text-primary', bg: 'bg-primary' },
             { icon: Utensils, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500' },
             { icon: Flower2, color: 'text-pink-600 dark:text-pink-400', bg: 'bg-pink-500' },
             { icon: Car, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-500' },
@@ -72,7 +72,7 @@ export function RevenueBreakdownWidget() {
             return { label: source.source || t('other'), amount: 0, percentage: 0, ...c };
           });
           if (segments.length === 0 && total > 0) {
-            segments.push({ label: t('roomRevenue'), amount: total, percentage: 100, icon: Bed, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500' });
+            segments.push({ label: t('roomRevenue'), amount: total, percentage: 100, icon: Bed, color: 'text-primary dark:text-primary', bg: 'bg-primary' });
           }
           const totalBookings = bookingSources.reduce((sum: number, s: { bookings?: number }) => sum + (s.bookings || 0), 0);
           segments.forEach((seg: RevenueSegment, idx: number) => { seg.percentage = totalBookings > 0 ? Math.round(((bookingSources[idx]?.bookings || 0) / totalBookings) * 100) : 0; });
@@ -89,9 +89,9 @@ export function RevenueBreakdownWidget() {
   if (!data || (data.total === 0 && data.segments.length === 0)) {
     return (
       <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
-        <div className="h-[2px] bg-gradient-to-r from-emerald-400 via-amber-400 to-pink-400" />
+        <div className="h-[2px] bg-gradient-to-r from-primary via-amber-400 to-pink-400" />
         <CardHeader className="pb-3"><CardTitle className="text-base font-semibold flex items-center gap-2"><PieChart className="h-4 w-4 text-primary" />{t('revenueBreakdown')}</CardTitle></CardHeader>
-        <CardContent><div className="flex flex-col items-center justify-center py-8 text-center"><div className="rounded-full bg-emerald-50 dark:bg-emerald-900/40 p-3 mb-3"><DollarSign className="h-6 w-6 text-emerald-400 dark:text-emerald-300" /></div><p className="text-sm font-medium text-muted-foreground">{t('noRevenueData')}</p><p className="text-xs text-muted-foreground/60 mt-1">{t('noRevenueDataDesc')}</p></div></CardContent>
+        <CardContent><div className="flex flex-col items-center justify-center py-8 text-center"><div className="rounded-full bg-primary/10 dark:bg-primary/10 p-3 mb-3"><DollarSign className="h-6 w-6 text-primary" /></div><p className="text-sm font-medium text-muted-foreground">{t('noRevenueData')}</p><p className="text-xs text-muted-foreground/60 mt-1">{t('noRevenueDataDesc')}</p></div></CardContent>
       </Card>
     );
   }
@@ -105,7 +105,7 @@ export function RevenueBreakdownWidget() {
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-semibold flex items-center gap-2"><PieChart className="h-4 w-4 text-primary" />{t('revenueBreakdown')}</CardTitle>
           <div className="flex items-center gap-1.5">
-            {data.comparedToYesterday != null && <Badge variant="outline" className="text-[10px] px-2 py-0 h-5 border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-400"><TrendingUp className="h-2.5 w-2.5 mr-0.5" /> +{data.comparedToYesterday}%</Badge>}
+            {data.comparedToYesterday != null && <Badge variant="outline" className="text-[10px] px-2 py-0 h-5 border-primary/20 text-primary dark:border-primary/20"><TrendingUp className="h-2.5 w-2.5 mr-0.5" /> +{data.comparedToYesterday}%</Badge>}
           </div>
         </div>
       </CardHeader>
@@ -115,7 +115,7 @@ export function RevenueBreakdownWidget() {
           <div className="space-y-2 flex-1">
             <div><p className="text-[10px] text-muted-foreground font-medium">{t('todaysRevenue')}</p><p className="text-xl font-bold tabular-nums">{formatCurrency(data.total)}</p></div>
             {data.comparedToYesterday != null && (
-              <div className="space-y-1"><div className="flex items-center justify-between text-[10px]"><span className="text-muted-foreground">{t('vsLastWeek')}</span><span className={cn('font-semibold', data.comparedToYesterday >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400')}>{data.comparedToYesterday >= 0 ? '+' : ''}{data.comparedToYesterday}%</span></div></div>
+              <div className="space-y-1"><div className="flex items-center justify-between text-[10px]"><span className="text-muted-foreground">{t('vsLastWeek')}</span><span className={cn('font-semibold', data.comparedToYesterday >= 0 ? 'text-primary' : 'text-red-600 dark:text-red-400')}>{data.comparedToYesterday >= 0 ? '+' : ''}{data.comparedToYesterday}%</span></div></div>
             )}
           </div>
         </div>
@@ -126,7 +126,7 @@ export function RevenueBreakdownWidget() {
                 const Icon = segment.icon;
                 return (
                   <motion.div key={segment.label} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ delay: i * 0.06 }} className="flex items-center gap-2.5 group">
-                    <div className={cn('h-7 w-7 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110', segment.color.includes('emerald') ? 'bg-emerald-50 dark:bg-emerald-950/50' : segment.color.includes('amber') ? 'bg-amber-50 dark:bg-amber-950/50' : segment.color.includes('pink') ? 'bg-pink-50 dark:bg-pink-950/50' : segment.color.includes('cyan') ? 'bg-cyan-50 dark:bg-cyan-950/50' : segment.color.includes('violet') ? 'bg-violet-50 dark:bg-violet-950/50' : 'bg-slate-50 dark:bg-slate-950/50')}>
+                    <div className={cn('h-7 w-7 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110', segment.color.includes('primary') ? 'bg-primary/10 dark:bg-primary/10' : segment.color.includes('amber') ? 'bg-amber-50 dark:bg-amber-950/50' : segment.color.includes('pink') ? 'bg-pink-50 dark:bg-pink-950/50' : segment.color.includes('cyan') ? 'bg-cyan-50 dark:bg-cyan-950/50' : segment.color.includes('violet') ? 'bg-violet-50 dark:bg-violet-950/50' : 'bg-slate-50 dark:bg-slate-950/50')}>
                       <Icon className={cn('h-3.5 w-3.5', segment.color)} />
                     </div>
                     <div className="flex-1 min-w-0">

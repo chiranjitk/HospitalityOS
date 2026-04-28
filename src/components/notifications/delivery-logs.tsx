@@ -31,7 +31,7 @@ const typeIcons = {
 };
 
 const statusColors = {
-  delivered: 'bg-emerald-500',
+  delivered: 'bg-primary',
   failed: 'bg-red-500',
   bounced: 'bg-amber-500',
   pending: 'bg-gray-500',
@@ -92,7 +92,7 @@ export default function DeliveryLogs() {
             <CardTitle className="text-2xl">{stats.total}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="border-l-4 border-l-emerald-500">
+        <Card className="border-l-4 border-l-primary">
           <CardHeader className="pb-2">
             <CardDescription>Delivered</CardDescription>
             <CardTitle className="text-2xl">{stats.delivered}</CardTitle>

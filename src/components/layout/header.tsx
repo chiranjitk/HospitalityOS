@@ -60,12 +60,12 @@ interface HeaderProps {
   onMenuClick?: () => void;
 }
 
-// Small emerald pulsing dot for live indicators
+// Theme-aware pulsing dot for live indicators (uses --color-live → --primary)
 function LiveDot() {
   return (
     <span className="relative flex h-1.5 w-1.5">
-      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
-      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-live/50" />
+      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-live" />
     </span>
   );
 }
@@ -155,7 +155,7 @@ export function Header({ className, onMenuClick }: HeaderProps) {
 
   const quickActions = [
     { label: tNav('allBookings'), icon: CalendarPlus, section: 'bookings-calendar', color: 'text-blue-500 dark:text-blue-400', permission: 'bookings-calendar' },
-    { label: tNav('checkIn'), icon: UserPlus, section: 'frontdesk-checkin', color: 'text-emerald-500 dark:text-emerald-400', permission: 'frontdesk-checkin' },
+    { label: tNav('checkIn'), icon: UserPlus, section: 'frontdesk-checkin', color: 'text-live', permission: 'frontdesk-checkin' },
     { label: tNav('serviceRequests'), icon: Sparkles, section: 'experience-requests', color: 'text-purple-500 dark:text-purple-400', permission: 'experience-requests' },
   ].filter(action => canAccessMenu(action.permission));
 
@@ -347,14 +347,14 @@ export function Header({ className, onMenuClick }: HeaderProps) {
                     </Avatar>
                     {/* Online status indicator with subtle pulse */}
                     <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
-                      <span className="animate-[statusPulse_2.5s_ease-in-out_infinite] absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-40" />
-                      <span className="relative inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500 border-[2px] border-background" />
+                      <span className="animate-[statusPulse_2.5s_ease-in-out_infinite] absolute inline-flex h-full w-full rounded-full bg-live/40" />
+                      <span className="relative inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-live border-[2px] border-background" />
                     </span>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" sideOffset={6} className="text-xs font-medium">
                   <span className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-live" />
                     {tLayout('online')}
                   </span>
                 </TooltipContent>

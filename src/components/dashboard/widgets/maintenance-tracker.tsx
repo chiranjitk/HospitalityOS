@@ -28,7 +28,7 @@ function SummaryBadge({ count, label, variant, t }: { count: number; label: stri
   const configs: Record<TaskStatus, { color: string; bg: string; border: string; icon: React.ElementType }> = {
     pending: { color: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/40', border: 'border-amber-200 dark:border-amber-800', icon: Clock },
     inProgress: { color: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/40', border: 'border-blue-200 dark:border-blue-800', icon: CircleDot },
-    completed: { color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/40', border: 'border-emerald-200 dark:border-emerald-800', icon: CheckCircle2 },
+    completed: { color: 'text-primary dark:text-primary', bg: 'bg-primary/10 dark:bg-primary/10', border: 'border-primary/20 dark:border-primary/20', icon: CheckCircle2 },
     overdue: { color: 'text-red-700 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/40', border: 'border-red-200 dark:border-red-800', icon: AlertTriangle },
   };
   const config = configs[variant];
@@ -46,13 +46,13 @@ function TaskRow({ task, index, t }: { task: MaintenanceTask; index: number; t: 
   const configs: Record<TaskStatus, { color: string; bg: string; border: string; labelKey: string }> = {
     pending: { color: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/40', border: 'border-amber-200 dark:border-amber-800', labelKey: 'pending' },
     inProgress: { color: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/40', border: 'border-blue-200 dark:border-blue-800', labelKey: 'inProgress' },
-    completed: { color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/40', border: 'border-emerald-200 dark:border-emerald-800', labelKey: 'done' },
+    completed: { color: 'text-primary dark:text-primary', bg: 'bg-primary/10 dark:bg-primary/10', border: 'border-primary/20 dark:border-primary/20', labelKey: 'done' },
     overdue: { color: 'text-red-700 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/40', border: 'border-red-200 dark:border-red-800', labelKey: 'overdue' },
   };
   const config = configs[task.status];
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.06, duration: 0.3 }} className={cn('flex items-start gap-3 p-3 rounded-xl border transition-all duration-200', 'hover:shadow-sm hover:-translate-y-0.5', config.bg, config.border)}>
-      <div className="flex-shrink-0 pt-1.5"><span className={cn('block h-2.5 w-2.5 rounded-full', task.priority === 'high' ? 'bg-red-500' : task.priority === 'medium' ? 'bg-amber-500' : 'bg-emerald-500')} /></div>
+      <div className="flex-shrink-0 pt-1.5"><span className={cn('block h-2.5 w-2.5 rounded-full', task.priority === 'high' ? 'bg-red-500' : task.priority === 'medium' ? 'bg-amber-500' : 'bg-primary')} /></div>
       <div className="flex-1 min-w-0 space-y-1.5">
         <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium truncate">{task.title}</span><Badge variant="outline" className={cn('text-[10px] px-1.5 py-0 h-5 flex-shrink-0', config.color, config.border)}>{t(config.labelKey)}</Badge></div>
         <p className="text-xs text-muted-foreground truncate">{task.location}</p>

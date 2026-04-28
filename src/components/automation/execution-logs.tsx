@@ -122,7 +122,7 @@ export default function ExecutionLogs() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'success': return <CheckCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />;
+      case 'success': return <CheckCircle className="h-4 w-4 text-primary" />;
       case 'failed': return <XCircle className="h-4 w-4 text-red-500 dark:text-red-400" />;
       default: return <AlertCircle className="h-4 w-4 text-amber-500 dark:text-amber-400" />;
     }
@@ -130,7 +130,7 @@ export default function ExecutionLogs() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'success': return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300';
+      case 'success': return 'bg-primary/15 text-primary';
       case 'failed': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
       default: return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300';
     }
@@ -170,14 +170,14 @@ export default function ExecutionLogs() {
 
       {/* Stats Cards */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
-        <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950">
+        <Card className="bg-gradient-to-br from-primary/5 to-primary/10">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-muted-foreground">Total Executions</p>
                 <p className="text-2xl font-bold">{stats.totalExecutions.toLocaleString()}</p>
               </div>
-              <Zap className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              <Zap className="h-5 w-5 text-primary" />
             </div>
           </CardContent>
         </Card>
@@ -296,7 +296,7 @@ export default function ExecutionLogs() {
                     <div className="flex items-center gap-3">
                       <div className={`rounded-full p-1.5 ${
                         log.status === 'success' 
-                          ? 'bg-emerald-100 dark:bg-emerald-900' 
+                          ? 'bg-primary/15' 
                           : 'bg-red-100 dark:bg-red-900'
                       }`}>
                         {getStatusIcon(log.status)}
@@ -389,7 +389,7 @@ export default function ExecutionLogs() {
               {selectedLog.status === 'success' && selectedLog.actionsResult && (
                 <div className="space-y-2">
                   <h4 className="font-medium text-sm">Actions Result</h4>
-                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950 rounded-lg text-sm font-mono overflow-x-auto">
+                  <div className="p-3 bg-primary/5 rounded-lg text-sm font-mono overflow-x-auto">
                     {(() => {
                       try {
                         return <pre>{JSON.stringify(JSON.parse(selectedLog.actionsResult!), null, 2)}</pre>;

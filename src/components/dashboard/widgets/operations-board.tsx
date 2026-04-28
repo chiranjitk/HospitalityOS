@@ -38,7 +38,7 @@ interface OperationItem {
 }
 
 const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: string; labelKey: string }> = {
-  checkin: { icon: LogIn, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/50', labelKey: 'checkIn' },
+  checkin: { icon: LogIn, color: 'text-primary dark:text-primary', bg: 'bg-primary/10 dark:bg-primary/10', labelKey: 'checkIn' },
   checkout: { icon: LogOut, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-950/50', labelKey: 'checkOut' },
   housekeeping: { icon: Sparkles, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-950/50', labelKey: 'housekeeping' },
   'room-service': { icon: Coffee, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/50', labelKey: 'roomService' },
@@ -50,7 +50,7 @@ const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string; labelKey: string }> = {
   pending: { color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-50 dark:bg-amber-950/50', border: 'border-amber-200 dark:border-amber-800', labelKey: 'pending' },
   'in-progress': { color: 'text-sky-700 dark:text-sky-300', bg: 'bg-sky-50 dark:bg-sky-950/50', border: 'border-sky-200 dark:border-sky-800', labelKey: 'inProgress' },
-  completed: { color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-50 dark:bg-emerald-950/50', border: 'border-emerald-200 dark:border-emerald-800', labelKey: 'done' },
+  completed: { color: 'text-primary dark:text-primary-300', bg: 'bg-primary/10 dark:bg-primary/10', border: 'border-primary/20 dark:border-primary/20', labelKey: 'done' },
   overdue: { color: 'text-red-700 dark:text-red-300', bg: 'bg-red-50 dark:bg-red-950/50', border: 'border-red-200 dark:border-red-800', labelKey: 'overdue' },
 };
 
@@ -162,8 +162,8 @@ export function OperationsBoardWidget() {
             {t('operationsBoard')}
             {isLive && (
               <span className="relative flex h-2 w-2 ml-1">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-live opacity-50" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-live" />
               </span>
             )}
           </CardTitle>
@@ -226,8 +226,8 @@ export function OperationsBoardWidget() {
                 animate={{ opacity: 1 }}
                 className="flex flex-col items-center justify-center py-8 text-center"
               >
-                <div className="rounded-full bg-emerald-50 dark:bg-emerald-900/40 p-2.5 mb-2">
-                  <CheckCircle2 className="h-6 w-6 text-emerald-500 dark:text-emerald-400" />
+                <div className="rounded-full bg-primary/10 dark:bg-primary/10 p-2.5 mb-2">
+                  <CheckCircle2 className="h-6 w-6 text-primary" />
                 </div>
                 <p className="text-sm font-medium">{t('allCaughtUp')}</p>
                 <p className="text-xs text-muted-foreground">{t('noOperations', { filter: filter === 'all' ? '' : filter.replace('-', ' ') })}</p>

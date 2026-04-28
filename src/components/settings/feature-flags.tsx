@@ -274,7 +274,7 @@ export default function FeatureFlags() {
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border-l-4 border-l-emerald-500">
+        <Card className="border-l-4 border-l-primary">
           <CardHeader className="pb-2">
             <CardDescription>Base Modules</CardDescription>
             <CardTitle className="text-2xl flex items-center gap-2">
@@ -292,7 +292,7 @@ export default function FeatureFlags() {
         <Card className="border-l-4 border-l-cyan-500">
           <CardHeader className="pb-2">
             <CardDescription>Enabled</CardDescription>
-            <CardTitle className="text-2xl text-emerald-600 dark:text-emerald-400">{enabledCount}</CardTitle>
+            <CardTitle className="text-2xl text-primary">{enabledCount}</CardTitle>
           </CardHeader>
         </Card>
         <Card className="border-l-4 border-l-amber-500">
@@ -328,15 +328,15 @@ export default function FeatureFlags() {
         <div className="space-y-6 pr-4">
           {/* Base Modules Section */}
           {(activeTab === 'all' || activeTab === 'base') && baseFeatures.length > 0 && (
-            <Card className="border-l-4 border-l-emerald-500">
+            <Card className="border-l-4 border-l-primary">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2 text-lg">
-                      <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" variant="outline">
+                      <Badge className="bg-primary/15 text-primary" variant="outline">
                         {FEATURE_CATEGORIES.base.name}
                       </Badge>
-                      <Lock className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      <Lock className="h-4 w-4 text-primary" />
                     </CardTitle>
                     <CardDescription className="mt-1">{FEATURE_CATEGORIES.base.description}</CardDescription>
                   </div>
@@ -347,16 +347,16 @@ export default function FeatureFlags() {
                   {baseFeatures.map((feature) => (
                     <div 
                       key={feature.key}
-                      className="flex items-center justify-between p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/30"
+                      className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/20"
                     >
                       <div className="flex items-center gap-3">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
                         <div>
                           <p className="font-medium text-sm">{feature.name}</p>
                           <p className="text-xs text-muted-foreground">{feature.menuItems.length} menu items</p>
                         </div>
                       </div>
-                      <Badge variant="outline" className="text-xs border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400">
+                      <Badge variant="outline" className="text-xs border-primary/30 text-primary">
                         Always On
                       </Badge>
                     </div>
@@ -428,7 +428,7 @@ export default function FeatureFlags() {
                           >
                             <div className="flex items-center gap-3">
                               {feature.enabled ? (
-                                <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                                <CheckCircle2 className="h-4 w-4 text-primary" />
                               ) : (
                                 <XCircle className="h-4 w-4 text-muted-foreground/50" />
                               )}

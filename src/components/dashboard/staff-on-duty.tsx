@@ -31,7 +31,7 @@ const roleIcons: Record<string, React.ElementType> = {
 const roleColors: Record<string, string> = {
   'Front Desk': 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
   'Concierge': 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  'Housekeeping': 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  'Housekeeping': 'bg-primary/10 text-primary dark:text-primary',
   'Maintenance': 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
   'Security': 'bg-red-500/10 text-red-600 dark:text-red-400',
 };
@@ -110,7 +110,7 @@ export function StaffOnDutyWidget() {
               {t('staffOnDuty')}
             </CardTitle>
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 text-xs tabular-nums">
+              <Badge variant="secondary" className="bg-primary/10 text-primary dark:bg-primary/10 text-xs tabular-nums">
                 {onlineCount} {t('activeLower')}
               </Badge>
               <Badge variant="outline" className="text-xs tabular-nums">
@@ -145,7 +145,7 @@ export function StaffOnDutyWidget() {
                     </div>
                     <span className={cn(
                       'absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-background',
-                      member.isOnline ? 'bg-emerald-500' : 'bg-slate-400'
+                      member.isOnline ? 'bg-live' : 'bg-slate-400'
                     )} />
                   </div>
 

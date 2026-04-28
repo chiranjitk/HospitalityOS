@@ -21,8 +21,8 @@ const getColorForValue = (value: number) => {
   if (value >= 60) return 'bg-gradient-to-br from-amber-300 to-amber-400';
   if (value >= 45) return 'bg-gradient-to-br from-yellow-300 to-yellow-400';
   if (value >= 30) return 'bg-gradient-to-br from-lime-300 to-lime-400';
-  if (value >= 15) return 'bg-gradient-to-br from-green-300 to-green-400';
-  return 'bg-gradient-to-br from-emerald-300 to-emerald-400';
+  if (value >= 15) return 'bg-gradient-to-br from-primary/60 to-primary/80';
+  return 'bg-gradient-to-br from-primary/80 to-primary';
 };
 
 const getTextColor = (value: number) => {
@@ -239,7 +239,7 @@ export function OccupancyHeatmap() {
                             <div className="font-medium">{format(cellDate, 'EEE, MMM d')}</div>
                             <div className={cn(
                               'font-bold',
-                              value >= 90 ? 'text-red-600 dark:text-red-400' : value >= 75 ? 'text-orange-600 dark:text-orange-400' : value >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'
+                              value >= 90 ? 'text-red-600 dark:text-red-400' : value >= 75 ? 'text-orange-600 dark:text-orange-400' : value >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-primary'
                             )}>
                               {value}% occupancy
                             </div>

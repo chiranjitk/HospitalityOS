@@ -153,7 +153,7 @@ export default function ExperienceVendors() {
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10"><Handshake className="h-4 w-4 text-emerald-500" /></div>
+            <div className="p-2 rounded-lg bg-primary/10"><Handshake className="h-4 w-4 text-primary" /></div>
             <div><div className="text-2xl font-bold">{vendors.filter(v => v.status === 'active').length}</div><div className="text-xs text-muted-foreground">Active</div></div>
           </div>
         </Card>

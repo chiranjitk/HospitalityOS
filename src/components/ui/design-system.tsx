@@ -33,7 +33,7 @@ export const GradientCard = forwardRef<HTMLDivElement, GradientCardProps>(
             'absolute top-0 left-0 right-0 h-[3px]',
             variant === 'default' && 'bg-gradient-to-r from-violet-500 to-purple-600 dark:from-amber-400 dark:to-amber-600',
             variant === 'primary' && 'bg-gradient-to-r from-violet-500 to-indigo-600 dark:from-amber-400 dark:to-amber-600',
-            variant === 'emerald' && 'bg-gradient-to-r from-emerald-400 to-teal-500',
+            variant === 'emerald' && 'bg-gradient-to-r from-primary to-primary/70',
             variant === 'blue' && 'bg-gradient-to-r from-blue-400 to-indigo-500',
             variant === 'amber' && 'bg-gradient-to-r from-amber-400 to-orange-500',
             variant === 'violet' && 'bg-gradient-to-r from-violet-400 to-purple-500'
@@ -62,7 +62,7 @@ export const GradientButton = forwardRef<HTMLButtonElement, GradientButtonProps>
         className={cn(
           'font-semibold shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5',
           variant === 'primary' && 'bg-gradient-to-r from-violet-500 to-indigo-600 text-white hover:from-violet-600 hover:to-indigo-700 dark:from-amber-400 dark:to-amber-600 dark:text-gray-900 dark:hover:from-amber-500 dark:hover:to-amber-700',
-          variant === 'emerald' && 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:from-emerald-600 hover:to-teal-700',
+          variant === 'emerald' && 'bg-gradient-to-r from-primary to-primary/80 text-white hover:from-primary hover:to-primary/70',
           variant === 'amber' && 'bg-gradient-to-r from-amber-400 to-orange-500 text-white hover:from-amber-500 hover:to-orange-600',
           variant === 'danger' && 'bg-gradient-to-r from-red-500 to-rose-600 text-white hover:from-red-600 hover:to-rose-700',
           className
@@ -96,7 +96,7 @@ export function GradientIcon({ icon: Icon, variant = 'primary', size = 'md', cla
 
   const variantClasses = {
     primary: 'bg-gradient-to-br from-violet-500 to-indigo-600 text-white dark:from-amber-400 dark:to-amber-600 dark:text-gray-900',
-    emerald: 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white',
+    emerald: 'bg-gradient-to-br from-primary to-primary/80 text-white',
     blue: 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white',
     amber: 'bg-gradient-to-br from-amber-400 to-orange-500 text-white',
     violet: 'bg-gradient-to-br from-violet-500 to-purple-600 text-white',
@@ -137,7 +137,7 @@ export function StatCard({ title, value, icon, iconVariant = 'primary', change, 
             className={cn(
               'text-xs font-semibold px-2 py-1 rounded-full',
               change.positive
-                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                ? 'bg-primary/15 text-primary'
                 : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
             )}
           >
@@ -240,7 +240,7 @@ interface GradientBadgeProps {
 export function GradientBadge({ children, variant = 'primary', className }: GradientBadgeProps) {
   const variantClasses = {
     primary: 'bg-gradient-to-r from-violet-500 to-indigo-600 text-white dark:from-amber-400 dark:to-amber-600 dark:text-gray-900',
-    success: 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white',
+    success: 'bg-gradient-to-r from-primary to-primary/80 text-white',
     warning: 'bg-gradient-to-r from-amber-400 to-orange-500 text-white',
     danger: 'bg-gradient-to-r from-red-500 to-rose-600 text-white',
     info: 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white',
@@ -301,7 +301,7 @@ export function GradientProgress({ value, max = 100, className, variant = 'prima
 
   const variantClasses = {
     primary: 'from-violet-500 to-indigo-600 dark:from-amber-400 dark:to-amber-600',
-    emerald: 'from-emerald-500 to-teal-600',
+    emerald: 'from-primary to-primary/80',
     amber: 'from-amber-400 to-orange-500',
   };
 

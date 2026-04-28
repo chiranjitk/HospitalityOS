@@ -522,11 +522,11 @@ export default function GeneralSettingsComponent() {
       {/* Settings Impact Information */}
       <div className="grid gap-4 md:grid-cols-2">
         {/* Currency Impact */}
-        <Card className="border-0 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-2xl bg-gradient-to-br from-emerald-50/50 to-transparent dark:from-emerald-950/20">
+        <Card className="border-0 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-2xl bg-gradient-to-br from-primary/5 to-transparent">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <div className="rounded-lg bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 p-1.5">
-                <DollarSign className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+              <div className="rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 p-1.5">
+                <DollarSign className="h-4 w-4 text-primary" />
               </div>
               Currency Setting Impact
             </CardTitle>

@@ -13,7 +13,7 @@ interface StaffMember { name: string; role: string; score: number; initials: str
 interface StaffData { topPerformers: StaffMember[]; shiftCompletion: number; tasksCompleted: number; tasksPending: number; onTimeRate: number; }
 
 const STAFF_COLORS = [
-  { color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/50' },
+  { color: 'text-primary dark:text-primary', bg: 'bg-primary/10 dark:bg-primary/10' },
   { color: 'text-sky-600 dark:text-sky-400', bg: 'bg-sky-50 dark:bg-sky-950/50' },
   { color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-950/50' },
   { color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/50' },
@@ -21,7 +21,7 @@ const STAFF_COLORS = [
   { color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-950/50' },
 ];
 
-function CircularProgress({ value, size = 56, strokeWidth = 5, color = 'stroke-emerald-500' }: { value: number; size?: number; strokeWidth?: number; color?: string }) {
+function CircularProgress({ value, size = 56, strokeWidth = 5, color = 'stroke-primary' }: { value: number; size?: number; strokeWidth?: number; color?: string }) {
   const radius = (size - strokeWidth) / 2; const circumference = 2 * Math.PI * radius;
   const offset = circumference - (value / 100) * circumference;
   return (
@@ -67,9 +67,9 @@ export default function StaffPerformanceWidget() {
   if (!data || data.topPerformers.length === 0) {
     return (
       <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
-        <div className="h-[2px] bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400" />
-        <CardHeader className="pb-3"><CardTitle className="text-base font-semibold flex items-center gap-2"><Trophy className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />{t('staffPerformance')}</CardTitle></CardHeader>
-        <CardContent><div className="flex flex-col items-center justify-center py-8 text-center"><div className="rounded-full bg-emerald-50 dark:bg-emerald-900/40 p-3 mb-3"><Trophy className="h-6 w-6 text-emerald-400 dark:text-emerald-300" /></div><p className="text-sm font-medium text-muted-foreground">{t('noPerformanceData')}</p><p className="text-xs text-muted-foreground/60 mt-1">{t('noPerformanceDataDesc')}</p></div></CardContent>
+        <div className="h-[2px] bg-gradient-to-r from-primary via-primary to-cyan-400" />
+        <CardHeader className="pb-3"><CardTitle className="text-base font-semibold flex items-center gap-2"><Trophy className="h-4 w-4 text-primary" />{t('staffPerformance')}</CardTitle></CardHeader>
+        <CardContent><div className="flex flex-col items-center justify-center py-8 text-center"><div className="rounded-full bg-primary/10 dark:bg-primary/10 p-3 mb-3"><Trophy className="h-6 w-6 text-primary" /></div><p className="text-sm font-medium text-muted-foreground">{t('noPerformanceData')}</p><p className="text-xs text-muted-foreground/60 mt-1">{t('noPerformanceDataDesc')}</p></div></CardContent>
       </Card>
     );
   }
@@ -79,11 +79,11 @@ export default function StaffPerformanceWidget() {
 
   return (
     <Card className="border border-border/50 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 rounded-2xl overflow-hidden">
-      <div className="h-[2px] bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400" />
+      <div className="h-[2px] bg-gradient-to-r from-primary via-primary to-cyan-400" />
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold flex items-center gap-2"><Trophy className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />{t('staffPerformance')}</CardTitle>
-          <Badge variant="outline" className="text-[10px] px-2 py-0 h-5 border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-400">{t('thisShift')}</Badge>
+          <CardTitle className="text-base font-semibold flex items-center gap-2"><Trophy className="h-4 w-4 text-primary" />{t('staffPerformance')}</CardTitle>
+          <Badge variant="outline" className="text-[10px] px-2 py-0 h-5 border-primary/20 text-primary dark:border-primary/20">{t('thisShift')}</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -97,7 +97,7 @@ export default function StaffPerformanceWidget() {
           ))}
         </div>
         <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/50">
-          <div className="text-center p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/10"><CircularProgress value={data.shiftCompletion} size={44} strokeWidth={4} /><p className="text-[10px] text-muted-foreground mt-1 font-medium">{t('shiftDone')}</p></div>
+          <div className="text-center p-2 rounded-lg bg-primary/10 dark:bg-primary/10"><CircularProgress value={data.shiftCompletion} size={44} strokeWidth={4} /><p className="text-[10px] text-muted-foreground mt-1 font-medium">{t('shiftDone')}</p></div>
           <div className="text-center p-2 rounded-lg bg-sky-50 dark:bg-sky-950/10"><div className="flex items-center justify-center gap-1 h-[44px]"><CheckCircle2 className="h-4 w-4 text-sky-600 dark:text-sky-400" /><span className="text-lg font-bold text-sky-600 dark:text-sky-400 tabular-nums">{data.tasksCompleted}</span>{totalTasks > 0 && <span className="text-xs text-muted-foreground">/ {totalTasks}</span>}</div><p className="text-[10px] text-muted-foreground mt-1 font-medium">{t('tasksDone')}</p></div>
           <div className="text-center p-2 rounded-lg bg-amber-50 dark:bg-amber-950/10"><div className="flex items-center justify-center gap-1 h-[44px]"><Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" /><span className="text-lg font-bold text-amber-600 dark:text-amber-400 tabular-nums">{data.onTimeRate}%</span></div><p className="text-[10px] text-muted-foreground mt-1 font-medium">{t('onTime')}</p></div>
         </div>

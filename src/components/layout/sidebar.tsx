@@ -597,9 +597,9 @@ function QuickStats({ collapsed }: { collapsed?: boolean }) {
           <TooltipTrigger asChild>
             <div className="flex items-center justify-center h-9 w-9 mx-auto rounded-xl bg-sidebar-accent/20 transition-all duration-200">
               {loading ? (
-                <Loader2 className="h-3.5 w-3.5 text-emerald-400 dark:text-emerald-300 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 text-live animate-spin" />
               ) : (
-                <Activity className="h-3.5 w-3.5 text-emerald-400 dark:text-emerald-300" />
+                <Activity className="h-3.5 w-3.5 text-live" />
               )}
             </div>
           </TooltipTrigger>
@@ -617,7 +617,7 @@ function QuickStats({ collapsed }: { collapsed?: boolean }) {
         {/* Occupancy */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <BedDouble className="h-3 w-3 text-emerald-400 dark:text-emerald-300 flex-shrink-0" />
+            <BedDouble className="h-3 w-3 text-live flex-shrink-0" />
             {loading ? (
               <Loader2 className="h-3 w-3 text-sidebar-foreground animate-spin" />
             ) : (
@@ -684,8 +684,8 @@ function UserProfile({ collapsed }: { collapsed?: boolean }) {
               <span className="text-[11px] font-bold text-sidebar-primary">{initials}</span>
               {/* Online status dot with pulse */}
               <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-40" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 border-[1.5px] border-sidebar" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-live opacity-40" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-live border-[1.5px] border-sidebar" />
               </span>
             </div>
           </TooltipTrigger>
@@ -709,8 +709,8 @@ function UserProfile({ collapsed }: { collapsed?: boolean }) {
           </div>
           {/* Online status dot with enhanced pulse */}
           <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 border-[2px] border-sidebar shadow-sm shadow-emerald-400/30" />
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-live opacity-50" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-live border-[2px] border-sidebar shadow-sm shadow-live/30" />
           </span>
         </div>
         

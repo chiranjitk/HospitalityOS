@@ -97,7 +97,7 @@ function TaskItem({ task }: { task: Task }) {
   const statusConfig = {
     pending: { color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300', icon: Clock },
     in_progress: { color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-400', icon: Loader2 },
-    completed: { color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400', icon: CheckCircle2 },
+    completed: { color: 'bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary', icon: CheckCircle2 },
   };
 
   const typeIcons: Record<string, typeof Sparkles> = {
@@ -139,7 +139,7 @@ function TaskItem({ task }: { task: Task }) {
         "h-4 w-4",
         task.status === 'pending' && "text-muted-foreground",
         task.status === 'in_progress' && "text-cyan-600 dark:text-cyan-400 animate-spin",
-        task.status === 'completed' && "text-emerald-600 dark:text-emerald-400"
+        task.status === 'completed' && "text-primary"
       )} />
     </div>
   );
@@ -233,7 +233,7 @@ export default function CommandCenter() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-teal-500 to-emerald-600">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-primary to-primary">
                 <Bed className="h-4 w-4 text-white" />
               </div>
               <div>
@@ -249,7 +249,7 @@ export default function CommandCenter() {
             count={data.rooms.available}
             total={data.totalRooms}
             icon={DoorOpen}
-            color="bg-gradient-to-br from-emerald-500 to-teal-600"
+            color="bg-gradient-to-br from-primary to-primary"
           />
           <RoomStatusCard
             title="Occupied"
@@ -298,14 +298,14 @@ export default function CommandCenter() {
         <CardContent className="space-y-4">
           {/* Upcoming Check-ins */}
           <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-            <div className="rounded-lg p-2 bg-gradient-to-br from-emerald-500 to-teal-600">
+            <div className="rounded-lg p-2 bg-gradient-to-br from-primary to-primary">
               <CalendarClock className="h-4 w-4 text-white" />
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium">Upcoming Check-ins</p>
               <p className="text-xs text-muted-foreground">Next 3 hours</p>
             </div>
-            <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{data.upcomingCheckIns}</span>
+            <span className="text-2xl font-bold text-primary">{data.upcomingCheckIns}</span>
           </div>
 
           {/* Staff on Duty */}

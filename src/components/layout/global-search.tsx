@@ -178,16 +178,16 @@ export function GlobalSearch() {
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       confirmed: 'text-blue-500 dark:text-blue-400',
-      checked_in: 'text-green-500 dark:text-green-400',
-      checked_out: 'text-gray-500',
+      checked_in: 'text-live',
+      checked_out: 'text-muted-foreground',
       cancelled: 'text-red-500 dark:text-red-400',
-      available: 'text-green-500 dark:text-green-400',
+      available: 'text-live',
       occupied: 'text-orange-500 dark:text-orange-400',
       maintenance: 'text-yellow-500 dark:text-yellow-400',
-      active: 'text-green-500 dark:text-green-400',
-      inactive: 'text-gray-500',
+      active: 'text-live',
+      inactive: 'text-muted-foreground',
     };
-    return colors[status] || 'text-gray-500';
+    return colors[status] || 'text-muted-foreground';
   };
 
   return (

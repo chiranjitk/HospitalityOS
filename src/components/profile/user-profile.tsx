@@ -358,7 +358,7 @@ export default function UserProfile() {
           <div className="relative">
             <Avatar className="h-20 w-20">
               <AvatarImage src={user?.avatar || undefined} />
-              <AvatarFallback className="bg-gradient-to-br from-teal-500 to-emerald-600 text-white text-xl">
+              <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-white text-xl">
                 {getInitials()}
               </AvatarFallback>
             </Avatar>
@@ -379,7 +379,7 @@ export default function UserProfile() {
               <Badge variant="secondary" className="capitalize">
                 {user?.roleName || 'Staff'}
               </Badge>
-              <Badge variant="outline" className="text-emerald-600 dark:text-emerald-400 border-emerald-600">
+              <Badge variant="outline" className="text-primary border-primary">
                 <Check className="h-3 w-3 mr-1" />
                 Verified
               </Badge>
@@ -578,7 +578,7 @@ export default function UserProfile() {
                 </div>
                 <div className="flex items-center gap-2">
                   {twoFAEnabled && (
-                    <Badge variant="default" className="bg-emerald-600">
+                    <Badge variant="default" className="bg-primary">
                       <Check className="h-3 w-3 mr-1" />
                       Enabled
                     </Badge>
@@ -809,7 +809,7 @@ export default function UserProfile() {
                         <div className="flex items-center gap-2">
                           <p className="font-medium">{session.device}</p>
                           {session.current && (
-                            <Badge variant="outline" className="text-emerald-600 dark:text-emerald-400 border-emerald-600">
+                            <Badge variant="outline" className="text-primary border-primary">
                               Current
                             </Badge>
                           )}
