@@ -21,7 +21,6 @@ import {
   CartesianGrid,
   XAxis,
   YAxis,
-  ResponsiveContainer,
   PieChart,
   Pie,
   Cell,
@@ -99,7 +98,7 @@ const chartColors = [
 ];
 
 export default function RevenueReports() {
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, currency } = useCurrency();
   const { formatDate: formatDateUtil } = useTimezone();
 
   function formatDate(dateStr: string) {
@@ -206,10 +205,10 @@ export default function RevenueReports() {
             `revenue-report-${dateRange}d`,
             [
               { key: 'date', label: 'Date' },
-              { key: 'revenue', label: 'Revenue ($)' },
+              { key: 'revenue', label: `Revenue (${currency.symbol})` },
               { key: 'bookings', label: 'Bookings' },
-              { key: 'taxes', label: 'Taxes ($)' },
-              { key: 'payments', label: 'Payments ($)' },
+              { key: 'taxes', label: `Taxes (${currency.symbol})` },
+              { key: 'payments', label: `Payments (${currency.symbol})` },
             ]
           )}>
             <Download className="h-4 w-4" />

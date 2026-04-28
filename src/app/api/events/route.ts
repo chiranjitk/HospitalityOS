@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const propertyId = searchParams.get('propertyId');
     const spaceId = searchParams.get('spaceId');
-    const status = searchParams.get('status');
+    const statuses = searchParams.getAll('status');
     const type = searchParams.get('type');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
       where.spaceId = spaceId;
     }
 
-    if (status) {
-      where.status = status;
+    if (statuses.length > 0) {
+      where.status = { in: statuses };
     }
 
     if (type) {

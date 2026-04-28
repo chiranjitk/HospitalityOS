@@ -31,7 +31,7 @@ import {
   MapPin
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday, parseISO, startOfWeek, endOfWeek, addDays } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday, parseISO, startOfWeek, endOfWeek, addDays } from 'date-fns';
 
 interface Property {
   id: string;
@@ -192,9 +192,18 @@ export default function EventCalendar() {
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'conference': return 'bg-purple-500';
+      case 'seminar': return 'bg-indigo-500';
+      case 'workshop': return 'bg-cyan-500';
+      case 'exhibition': return 'bg-violet-500';
       case 'wedding': return 'bg-pink-500';
       case 'meeting': return 'bg-blue-500';
       case 'party': return 'bg-orange-500';
+      case 'gala': return 'bg-rose-500';
+      case 'banquet': return 'bg-amber-500';
+      case 'corporate': return 'bg-slate-500';
+      case 'training': return 'bg-sky-500';
+      case 'product_launch': return 'bg-fuchsia-500';
+      case 'team_building': return 'bg-lime-500';
       default: return 'bg-teal-500';
     }
   };
@@ -254,7 +263,7 @@ export default function EventCalendar() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-8">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4 lg:grid-cols-4">
         <Card>
           <CardContent className="pt-4">
             <div className="text-sm text-muted-foreground">Total</div>
@@ -357,7 +366,7 @@ export default function EventCalendar() {
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <CardTitle className="text-lg min-w-[180px] text-center">
-                {formatDate(currentDate)}
+                {format(currentDate, 'MMMM yyyy')}
               </CardTitle>
               <Button variant="outline" size="icon" onClick={goToNextMonth}>
                 <ChevronRight className="h-4 w-4" />

@@ -108,6 +108,7 @@ export default function ADRRevPAR() {
   const [isLoading, setIsLoading] = useState(true);
   const [dateRange, setDateRange] = useState('30');
   const [granularity, setGranularity] = useState('daily');
+  const [prevPeriodData, setPrevPeriodData] = useState<ADRRevPARData[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -115,8 +116,10 @@ export default function ADRRevPAR() {
       try {
         const end = new Date();
         const start = subDays(end, parseInt(dateRange));
+        const prevEnd = subDays(start, 1);
+        const prevStart = subDays(prevEnd, parseInt(dateRange) - 1);
 
-        // Fetch revenue data
+        // Fetch current period revenue data
         const revenueParams = new URLSearchParams({
           startDate: start.toISOString(),
           endDate: end.toISOString(),
@@ -125,7 +128,7 @@ export default function ADRRevPAR() {
         const revenueResponse = await fetch(`/api/reports/revenue?${revenueParams}`);
         const revenueResult = await revenueResponse.json();
 
-        // Fetch occupancy data
+        // Fetch current period occupancy data
         const occupancyParams = new URLSearchParams({
           startDate: start.toISOString(),
           endDate: end.toISOString(),
@@ -134,8 +137,26 @@ export default function ADRRevPAR() {
         const occupancyResponse = await fetch(`/api/reports/occupancy?${occupancyParams}`);
         const occupancyResult = await occupancyResponse.json();
 
+        // Fetch previous period revenue data
+        const prevRevenueParams = new URLSearchParams({
+          startDate: prevStart.toISOString(),
+          endDate: prevEnd.toISOString(),
+          granularity,
+        });
+        const prevRevenueResponse = await fetch(`/api/reports/revenue?${prevRevenueParams}`);
+        const prevRevenueResult = await prevRevenueResponse.json();
+
+        // Fetch previous period occupancy data
+        const prevOccupancyParams = new URLSearchParams({
+          startDate: prevStart.toISOString(),
+          endDate: prevEnd.toISOString(),
+          granularity,
+        });
+        const prevOccupancyResponse = await fetch(`/api/reports/occupancy?${prevOccupancyParams}`);
+        const prevOccupancyResult = await prevOccupancyResponse.json();
+
         if (revenueResult.success && occupancyResult.success) {
-          // Combine revenue and occupancy data
+          // Combine current period revenue and occupancy data
           const combinedData: ADRRevPARData[] = revenueResult.data.revenueData.map((rev: { date: string; revenue: number; bookings: number }) => {
             const occ = occupancyResult.data.occupancyData.find(
               (o: { date: string }) => o.date === rev.date
@@ -163,6 +184,34 @@ export default function ADRRevPAR() {
           });
 
           setData(combinedData);
+        }
+
+        // Build previous period combined data for comparison
+        if (prevRevenueResult.success && prevOccupancyResult.success) {
+          const prevCombined: ADRRevPARData[] = prevRevenueResult.data.revenueData.map((rev: { date: string; revenue: number; bookings: number }) => {
+            const occ = prevOccupancyResult.data.occupancyData.find(
+              (o: { date: string }) => o.date === rev.date
+            ) || { occupied: 0, total: 100, occupancy: 0 };
+
+            const soldRooms = occ.occupied;
+            const availableRooms = occ.total;
+            const occupancy = occ.occupancy;
+
+            const adr = soldRooms > 0 ? rev.revenue / soldRooms : 0;
+            const revpar = availableRooms > 0 ? rev.revenue / availableRooms : 0;
+
+            return {
+              date: rev.date,
+              adr: Math.round(adr * 100) / 100,
+              revpar: Math.round(revpar * 100) / 100,
+              occupancy,
+              revenue: rev.revenue,
+              availableRooms,
+              soldRooms,
+            };
+          });
+
+          setPrevPeriodData(prevCombined);
         }
       } catch (err) {
         console.error('Failed to fetch ADR/RevPAR data:', err);
@@ -213,22 +262,20 @@ export default function ADRRevPAR() {
     : 0;
   const totalRevenue = data.reduce((sum, d) => sum + d.revenue, 0);
 
-  // Calculate changes by comparing first half vs second half of current data
-  const midPoint = Math.floor(data.length / 2);
-  const firstHalf = data.slice(0, midPoint);
-  const secondHalf = data.slice(midPoint);
-
+  // Calculate changes by comparing current period vs previous period
   const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
   const calcChange = (current: number, previous: number) =>
     previous > 0 ? ((current - previous) / previous) * 100 : 0;
 
-  const adrChange = calcChange(avg(secondHalf.map(d => d.adr)), avg(firstHalf.map(d => d.adr)));
-  const revparChange = calcChange(avg(secondHalf.map(d => d.revpar)), avg(firstHalf.map(d => d.revpar)));
-  const occupancyChange = calcChange(avg(secondHalf.map(d => d.occupancy)), avg(firstHalf.map(d => d.occupancy)));
-  const revenueChange = calcChange(
-    secondHalf.reduce((s, d) => s + d.revenue, 0),
-    firstHalf.reduce((s, d) => s + d.revenue, 0)
-  );
+  const prevADR = prevPeriodData.length > 0 ? avg(prevPeriodData.map(d => d.adr)) : 0;
+  const prevRevPAR = prevPeriodData.length > 0 ? avg(prevPeriodData.map(d => d.revpar)) : 0;
+  const prevOccupancy = prevPeriodData.length > 0 ? avg(prevPeriodData.map(d => d.occupancy)) : 0;
+  const prevRevenue = prevPeriodData.reduce((s, d) => s + d.revenue, 0);
+
+  const adrChange = calcChange(avgADR, prevADR);
+  const revparChange = calcChange(avgRevPAR, prevRevPAR);
+  const occupancyChange = calcChange(avgOccupancy, prevOccupancy);
+  const revenueChange = calcChange(totalRevenue, prevRevenue);
 
   return (
     <div className="space-y-6">

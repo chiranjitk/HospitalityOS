@@ -292,13 +292,19 @@ const REPORT_CONFIGS: Record<string, {
       return staff.map((user) => {
         const totalDays = user.attendance.length;
         const presentDays = user.attendance.filter((a) => a.status === 'present').length;
+
+        // Calculate avg rating from completed task feedback if available
+        const ratedTasks = user.tasks.filter((t) => (t as Record<string, unknown>).rating !== undefined && (t as Record<string, unknown>).rating !== null);
+        const avgRating = ratedTasks.length > 0
+          ? ratedTasks.reduce((sum: number, t: Record<string, unknown>) => sum + (t.rating as number), 0) / ratedTasks.length
+          : null;
         
         return {
           staffId: user.id.substring(0, 8),
           staffName: `${user.firstName} ${user.lastName}`,
           department: user.department || 'General',
           tasksCompleted: user.tasks.length,
-          avgRating: 0,
+          avgRating: avgRating !== null ? Math.round(avgRating * 10) / 10 : null,
           attendanceRate: totalDays > 0 ? (presentDays / totalDays) * 100 : 0,
           hoursWorked: 0,
         };
@@ -365,7 +371,7 @@ export async function GET(request: NextRequest) {    const user = await getUserF
         break;
       case 'pdf':
         content = generateHTMLTable(data, config.columns, options);
-        filename = `${reportType}_report_${new Date().toISOString().split('T')[0]}.html`;
+        filename = `${reportType}_report_${new Date().toISOString().split('T')[0]}.pdf`;
         break;
       case 'excel':
         content = generateExcelXML(data, config.columns, options);

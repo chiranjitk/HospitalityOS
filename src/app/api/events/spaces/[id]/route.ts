@@ -1,27 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // GET /api/events/spaces/[id] - Get a single event space
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+  const user = await requirePermission(request, 'events.view');
+  if (user instanceof NextResponse) return user;
 
-    if (!hasPermission(user, 'events.view')) {
-      return NextResponse.json(
-        { error: 'Forbidden - Insufficient permissions' },
-        { status: 403 }
-      );
-    }
+  try {
 
     const { id } = await params;
 
@@ -84,21 +73,10 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+  const user = await requirePermission(request, 'events.manage');
+  if (user instanceof NextResponse) return user;
 
-    if (!hasPermission(user, 'events.update')) {
-      return NextResponse.json(
-        { error: 'Forbidden - Insufficient permissions' },
-        { status: 403 }
-      );
-    }
+  try {
 
     const { id } = await params;
     const body = await request.json();
@@ -163,21 +141,10 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+  const user = await requirePermission(request, 'events.manage');
+  if (user instanceof NextResponse) return user;
 
-    if (!hasPermission(user, 'events.delete')) {
-      return NextResponse.json(
-        { error: 'Forbidden - Insufficient permissions' },
-        { status: 403 }
-      );
-    }
+  try {
 
     const { id } = await params;
 

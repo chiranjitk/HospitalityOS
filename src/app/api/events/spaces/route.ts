@@ -1,24 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // GET /api/events/spaces - List all event spaces
 export async function GET(request: NextRequest) {
-  try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+  const user = await requirePermission(request, 'events.view');
+  if (user instanceof NextResponse) return user;
 
-    if (!hasPermission(user, 'events.view')) {
-      return NextResponse.json(
-        { error: 'Forbidden - Insufficient permissions' },
-        { status: 403 }
-      );
-    }
+  try {
 
     const searchParams = request.nextUrl.searchParams;
     const propertyId = searchParams.get('propertyId');
@@ -82,21 +71,10 @@ export async function GET(request: NextRequest) {
 
 // POST /api/events/spaces - Create a new event space
 export async function POST(request: NextRequest) {
-  try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+  const user = await requirePermission(request, 'events.manage');
+  if (user instanceof NextResponse) return user;
 
-    if (!hasPermission(user, 'events.create')) {
-      return NextResponse.json(
-        { error: 'Forbidden - Insufficient permissions' },
-        { status: 403 }
-      );
-    }
+  try {
 
     const body = await request.json();
     const {

@@ -115,7 +115,6 @@ export default function EventSpaces() {
   const [amenityInput, setAmenityInput] = useState('');
 
   useEffect(() => {
-    fetchSpaces();
     fetchProperties();
   }, []);
 

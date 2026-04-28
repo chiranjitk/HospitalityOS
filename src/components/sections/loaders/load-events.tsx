@@ -2,7 +2,6 @@
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
     case 'events-spaces':
-    case 'events-list':
       return import('@/components/events/event-spaces');
     case 'events-calendar':
       return import('@/components/events/event-calendar');

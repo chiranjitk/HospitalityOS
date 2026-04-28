@@ -26,7 +26,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  ResponsiveContainer,
   Area,
   AreaChart,
 } from 'recharts';
@@ -108,14 +107,13 @@ export default function GuestAnalyticsReports() {
   const [data, setData] = useState<GuestAnalyticsReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [dateRange, setDateRange] = useState('30');
-  const [propertyId, setPropertyId] = useState('all');
   const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`/api/guests/analytics?dateRange=${dateRange}&propertyId=${propertyId}`);
+        const response = await fetch(`/api/guests/analytics?dateRange=${dateRange}`);
         const result = await response.json();
 
         if (result.success) {
@@ -167,7 +165,7 @@ export default function GuestAnalyticsReports() {
     };
 
     fetchData();
-  }, [dateRange, propertyId]);
+  }, [dateRange]);
 
   if (isLoading || !data) {
     return (
@@ -217,16 +215,7 @@ export default function GuestAnalyticsReports() {
               <SelectItem value="365">Last year</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={propertyId} onValueChange={setPropertyId}>
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="Property" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Properties</SelectItem>
-              <SelectItem value="p1">Grand Hotel</SelectItem>
-              <SelectItem value="p2">Beach Resort</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Single-tenant mode: multi-property selection coming soon */}
           <Button variant="outline" size="sm" className="gap-2" onClick={() => exportToCSV(
             data.segmentRevenue.segments.map(s => ({
               segment: s.name,
@@ -461,8 +450,13 @@ export default function GuestAnalyticsReports() {
             {/* Age Distribution */}
             <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-lg">Age Distribution</CardTitle>
-                <CardDescription>Guest age groups breakdown</CardDescription>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  Age Distribution
+                  <Badge variant="secondary" className="text-xs font-normal bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                    Estimated
+                  </Badge>
+                </CardTitle>
+                <CardDescription>Guest age groups breakdown (based on industry averages)</CardDescription>
               </CardHeader>
               <CardContent>
                 <ChartContainer config={chartConfig} className="h-[160px] sm:h-[200px] w-full">

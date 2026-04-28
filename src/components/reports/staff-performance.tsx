@@ -109,13 +109,14 @@ export default function StaffPerformance() {
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState('7');
   const [department, setDepartment] = useState('all');
+  const [fetchKey, setFetchKey] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch(`/api/staff/performance?days=${dateRange}&department=${department}`);
+        const response = await fetch(`/api/staff/performance?days=${dateRange}&department=${department}&_k=${fetchKey}`);
         const result = await response.json();
         if (result.success) {
           setData(result.data);
@@ -130,7 +131,7 @@ export default function StaffPerformance() {
       }
     };
     fetchData();
-  }, [dateRange, department]);
+  }, [dateRange, department, fetchKey]);
 
   if (isLoading || !data) {
     return (
@@ -160,12 +161,7 @@ export default function StaffPerformance() {
       <Card className="border-0 shadow-sm">
         <CardContent className="py-12 text-center">
           <p className="text-muted-foreground">{error}</p>
-          <Button variant="outline" className="mt-4" onClick={() => {
-            // Toggle dateRange to a different value and back to force re-fetch
-            const current = dateRange;
-            setDateRange('');
-            setTimeout(() => setDateRange(current), 0);
-          }}>
+          <Button variant="outline" className="mt-4" onClick={() => setFetchKey(k => k + 1)}>
             Retry
           </Button>
         </CardContent>
