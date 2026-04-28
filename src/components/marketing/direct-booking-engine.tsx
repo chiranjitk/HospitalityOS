@@ -214,6 +214,8 @@ export default function DirectBookingEngine() {
 </script>
 <div id="staysuite-booking-widget"></div>`;
 
+  const embedCodeDisplay = embedCode.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -718,7 +720,7 @@ export default function DirectBookingEngine() {
               </p>
               <div className="relative">
                 <pre className="bg-muted p-4 rounded-lg text-xs overflow-x-auto">
-                  {embedCode}
+                  {embedCodeDisplay}
                 </pre>
                 <Button
                   variant="outline"
