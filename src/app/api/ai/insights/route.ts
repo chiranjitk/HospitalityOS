@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
             impact: s.impact,
             potentialRevenue: s.potentialRevenue,
             confidence: s.confidence,
-            action: JSON.parse(s.data || '{}').action,
+            action: (() => { try { return JSON.parse(s.data || '{}').action; } catch { return 'Review'; } })(),
             createdAt: s.createdAt.toISOString(),
             status: s.status,
             appliedAt: s.appliedAt?.toISOString(),

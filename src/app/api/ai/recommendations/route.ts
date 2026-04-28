@@ -38,7 +38,8 @@ export async function GET(request: NextRequest) {
     const propertyId = searchParams.get('propertyId') || undefined;
     const contextType = searchParams.get('context') as RecommendationContext | null;
     const status = searchParams.get('status') || undefined;
-    const limit = parseInt(searchParams.get('limit') || '20', 10);
+    const rawLimit = parseInt(searchParams.get('limit') || '20', 10);
+    const limit = Math.min(Math.max(1, isNaN(rawLimit) ? 20 : rawLimit), 100);
 
     const context: AIContext = {
       tenantId,

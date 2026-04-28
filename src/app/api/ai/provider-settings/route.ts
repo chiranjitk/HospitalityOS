@@ -158,6 +158,24 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { providers, features, defaultProvider } = body;
 
+    // Validate provider settings
+    if (providers) {
+      for (const p of providers) {
+        if (p.temperature !== undefined && (isNaN(p.temperature) || p.temperature < 0 || p.temperature > 2)) {
+          return NextResponse.json(
+            { success: false, error: { code: 'VALIDATION_ERROR', message: 'Temperature must be between 0 and 2' } },
+            { status: 400 }
+          );
+        }
+        if (p.maxTokens !== undefined && (isNaN(p.maxTokens) || p.maxTokens < 1)) {
+          return NextResponse.json(
+            { success: false, error: { code: 'VALIDATION_ERROR', message: 'Max tokens must be a positive number' } },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // Get tenant
     const tenant = await db.tenant.findUnique({
       where: { id: tenantId, deletedAt: null },

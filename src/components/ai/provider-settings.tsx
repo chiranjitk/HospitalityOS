@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Bot, Save, Key, Settings } from 'lucide-react';
+import { Loader2, Bot, Save, Key, Settings, Zap, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AIProvider {
@@ -38,6 +38,8 @@ export default function AIProviderSettings() {
   const [settings, setSettings] = useState<AISettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testingProvider, setTestingProvider] = useState<string | null>(null);
+  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchSettings();
@@ -94,6 +96,28 @@ export default function AIProviderSettings() {
       ...settings,
       features: { ...settings.features, [key]: value },
     });
+  };
+
+  const handleTestConnection = async (providerId: string) => {
+    setTestingProvider(providerId);
+    try {
+      const response = await fetch('/api/ai/copilot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: 'test' }],
+        }),
+      });
+      if (response.ok) {
+        toast.success('AI connection successful');
+      } else {
+        toast.error('AI connection failed');
+      }
+    } catch {
+      toast.error('AI connection failed');
+    } finally {
+      setTestingProvider(null);
+    }
   };
 
   if (loading || !settings) {
@@ -153,6 +177,13 @@ export default function AIProviderSettings() {
             </div>
             <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
               <div>
+                <p className="font-medium">Auto Tagging</p>
+                <p className="text-sm text-muted-foreground">Automatically tag bookings and guests</p>
+              </div>
+              <Switch checked={settings.features.autoTagging} onCheckedChange={(v) => updateFeature('autoTagging', v)} />
+            </div>
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+              <div>
                 <p className="font-medium">Sentiment Analysis</p>
                 <p className="text-sm text-muted-foreground">Analyze guest feedback sentiment</p>
               </div>
@@ -171,7 +202,13 @@ export default function AIProviderSettings() {
                 <Key className="h-5 w-5" />
                 {provider.name}
               </CardTitle>
-              <Switch checked={provider.enabled} onCheckedChange={(v) => updateProvider(provider.id, 'enabled', v)} />
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleTestConnection(provider.id)} disabled={testingProvider === provider.id}>
+                  {testingProvider === provider.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Zap className="h-4 w-4 mr-1" />}
+                  Test Connection
+                </Button>
+                <Switch checked={provider.enabled} onCheckedChange={(v) => updateProvider(provider.id, 'enabled', v)} />
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -182,17 +219,53 @@ export default function AIProviderSettings() {
               </div>
               <div className="space-y-2">
                 <Label>API Key</Label>
-                <Input type="password" value={provider.apiKey} onChange={(e) => updateProvider(provider.id, 'apiKey', e.target.value)} placeholder="sk-xxxxx" />
+                <div className="flex gap-2">
+                  <Input 
+                    type={visibleKeys.has(provider.id) ? 'text' : 'password'} 
+                    value={provider.apiKey} 
+                    onChange={(e) => updateProvider(provider.id, 'apiKey', e.target.value)} 
+                    placeholder="sk-xxxxx" 
+                  />
+                  <Button variant="ghost" size="icon" onClick={() => {
+                    const next = new Set(visibleKeys);
+                    if (next.has(provider.id)) next.delete(provider.id); else next.add(provider.id);
+                    setVisibleKeys(next);
+                  }}>
+                    {visibleKeys.has(provider.id) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+                {provider.apiKey === '' && (
+                  <p className="text-xs text-amber-500">No API key configured</p>
+                )}
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Temperature</Label>
-                <Input type="number" step="0.1" value={provider.temperature} onChange={(e) => updateProvider(provider.id, 'temperature', parseFloat(e.target.value))} />
+                <Input 
+                  type="number" 
+                  step="0.1" 
+                  min={0} 
+                  max={2} 
+                  value={provider.temperature} 
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val) && val >= 0 && val <= 2) updateProvider(provider.id, 'temperature', val);
+                  }} 
+                />
               </div>
               <div className="space-y-2">
                 <Label>Max Tokens</Label>
-                <Input type="number" value={provider.maxTokens} onChange={(e) => updateProvider(provider.id, 'maxTokens', parseInt(e.target.value))} />
+                <Input 
+                  type="number" 
+                  min={1} 
+                  max={32000} 
+                  value={provider.maxTokens}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val) && val >= 1) updateProvider(provider.id, 'maxTokens', val);
+                  }} 
+                />
               </div>
             </div>
             {provider.enabled && (
@@ -219,11 +292,13 @@ export default function AIProviderSettings() {
         <CardContent>
           <Select value={settings.defaultProvider} onValueChange={(v) => setSettings({ ...settings, defaultProvider: v })}>
             <SelectTrigger className="w-full md:w-[300px]">
-              <SelectValue />
+              <SelectValue placeholder="Select a provider" />
             </SelectTrigger>
             <SelectContent>
-              {settings.providers.filter(p => p.enabled).map(p => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              {settings.providers.map(p => (
+                <SelectItem key={p.id} value={p.id} disabled={!p.enabled}>
+                  {p.name} {!p.enabled ? '(disabled)' : ''}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>

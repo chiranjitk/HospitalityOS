@@ -25,15 +25,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Store feedback in the database (non-critical, so we don't throw on failure)
+    // Store feedback in the database using AISuggestion model (non-critical, so we don't throw on failure)
     try {
-      await db.aIFeedback.create({
+      await db.aISuggestion.create({
         data: {
           tenantId: user.tenantId,
-          userId: user.id,
-          messageId,
-          positive: !!positive,
-          context: context || null,
+          type: 'feedback',
+          title: positive ? 'Positive Feedback' : 'Negative Feedback',
+          description: `Message: ${messageId}`,
+          impact: positive ? 'high' : 'low',
+          confidence: 1.0,
+          status: 'applied',
+          data: JSON.stringify({ messageId, positive: !!positive, userId: user.id, context: context || null }),
         },
       });
     } catch (dbError) {

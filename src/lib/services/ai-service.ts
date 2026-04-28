@@ -138,6 +138,7 @@ class AIService {
     const cached = this.getCached<DatabaseContext>(cacheKey);
     if (cached) return cached;
 
+    try {
     const { tenantId, propertyId } = context;
 
     // Get bookings
@@ -250,12 +251,20 @@ class AIService {
     const twoMonthsAgo = new Date(today);
     twoMonthsAgo.setDate(twoMonthsAgo.getDate() - 60);
 
-    const [todayPayments, monthPayments, lastMonthPayments] = await Promise.all([
+    const [todayPayments, weekPayments, monthPayments, lastMonthPayments] = await Promise.all([
       db.payment.findMany({
         where: {
           tenantId,
           status: 'completed',
           createdAt: { gte: today },
+        },
+        select: { amount: true },
+      }),
+      db.payment.findMany({
+        where: {
+          tenantId,
+          status: 'completed',
+          createdAt: { gte: weekAgo },
         },
         select: { amount: true },
       }),
@@ -278,6 +287,7 @@ class AIService {
     ]);
 
     const todayRevenue = todayPayments.reduce((sum, p) => sum + p.amount, 0);
+    const weekRevenue = weekPayments.reduce((sum, p) => sum + p.amount, 0);
     const monthRevenue = monthPayments.reduce((sum, p) => sum + p.amount, 0);
     const lastMonthRevenue = lastMonthPayments.reduce((sum, p) => sum + p.amount, 0);
     const revenueTrend = lastMonthRevenue > 0
@@ -327,7 +337,7 @@ class AIService {
       })),
       revenue: {
         today: todayRevenue,
-        week: monthRevenue / 4,
+        week: weekRevenue,
         month: monthRevenue,
         trend: revenueTrend,
       },
@@ -342,6 +352,19 @@ class AIService {
     this.setCache(cacheKey, dbContext, 300000);
 
     return dbContext;
+    } catch (error) {
+      console.error('Error building database context:', error);
+      // Return minimal context so AI features don't completely fail
+      const fallbackContext: DatabaseContext = {
+        bookings: [],
+        rooms: [],
+        guests: [],
+        tasks: [],
+        revenue: { today: 0, week: 0, month: 0, trend: 0 },
+        occupancy: { current: 0, total: 0, rate: 0 },
+      };
+      return fallbackContext;
+    }
   }
 
   /**
