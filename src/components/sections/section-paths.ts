@@ -202,7 +202,7 @@ const sectionPaths: Record<string, string> = {
   'marketing-reputation': '@/components/marketing/reputation-dashboard',
   'marketing-reviews': '@/components/marketing/review-sources',
   'marketing-sources': '@/components/marketing/review-sources',
-  'marketing-promotions': '@/components/crm/campaigns',
+  'marketing-promotions': '@/components/marketing/promotions',
   'marketing-booking-engine': '@/components/marketing/direct-booking-engine',
 
   // Events
