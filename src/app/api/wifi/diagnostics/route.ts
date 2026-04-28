@@ -431,133 +431,167 @@ async function handlePacketCapture(
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Tool: SPEED TEST — real upload + download measurement
+// Tool: SPEED TEST — real Ookla speedtest with live progress streaming
+// Uses speedtest-net progress callback for real-time gauge updates
 // ═══════════════════════════════════════════════════════════════════
 
-function formatSpeed(bps: number) {
-  return {
-    bitsPerSecond: Math.round(bps),
-    kbps: Math.round(bps / 1000),
-    mbps: parseFloat((bps / 1_000_000).toFixed(2)),
-  };
+interface SpeedTestSession {
+  id: string;
+  phase: 'starting' | 'ping' | 'download' | 'upload' | 'complete' | 'error';
+  progress: number;
+  ping: { latency: number; jitter: number } | null;
+  download: { currentSpeed: number; maxSpeed: number; bytes: number } | null;
+  upload: { currentSpeed: number; maxSpeed: number; bytes: number } | null;
+  result: Record<string, unknown> | null;
+  error: string | null;
+  startedAt: number;
 }
 
-async function measureDownload(): Promise<{
-  speed: ReturnType<typeof formatSpeed>;
-  totalBytes: number;
-  durationSeconds: number;
-  server: string;
-  error?: string;
-}> {
-  // Multiple files, increasing size for accuracy
-  const tests = [
-    { url: 'http://speedtest.tele2.net/1MB.zip', label: 'Tele2 (1MB)' },
-    { url: 'http://speedtest.tele2.net/5MB.zip', label: 'Tele2 (5MB)' },
-    { url: 'https://proof.ovh.net/files/1Mb.dat', label: 'OVH (1MB)' },
-    { url: 'https://proof.ovh.net/files/10Mb.dat', label: 'OVH (10MB)' },
-  ];
+const speedTestSessions = new Map<string, SpeedTestSession>();
 
-  for (const test of tests) {
-    try {
-      const start = Date.now();
-      const response = await fetch(test.url, { signal: AbortSignal.timeout(30_000) });
-      if (!response.ok) continue;
-
-      const reader = response.body?.getReader();
-      if (!reader) continue;
-
-      let totalBytes = 0;
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        totalBytes += value.length;
-      }
-
-      const durationSec = (Date.now() - start) / 1000;
-      if (durationSec < 0.5) continue; // skip if too fast, not accurate
-
-      const bps = (totalBytes * 8) / durationSec;
-      return { speed: formatSpeed(bps), totalBytes, durationSeconds: parseFloat(durationSec.toFixed(2)), server: test.label };
-    } catch {
-      continue;
+// Cleanup old sessions every 5 minutes
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [id, session] of speedTestSessions) {
+      if (now - session.startedAt > 300_000) speedTestSessions.delete(id);
     }
-  }
+  },
+  300_000,
+).unref();
 
-  return { speed: formatSpeed(0), totalBytes: 0, durationSeconds: 0, server: '', error: 'No download test servers responded' };
-}
-
-async function measureUpload(): Promise<{
-  speed: ReturnType<typeof formatSpeed>;
-  totalBytes: number;
-  durationSeconds: number;
-  server: string;
-  error?: string;
-}> {
-  // Upload: POST random data to httpbin.org — measures real upstream throughput
-  const uploadSize = 2 * 1024 * 1024; // 2 MB upload payload
-  const payload = Buffer.alloc(uploadSize, 'x');
-
-  const endpoints = [
-    { url: 'https://httpbin.org/post', label: 'httpbin.org' },
-    { url: 'https://eu.httpbin.org/post', label: 'eu.httpbin.org' },
-  ];
-
-  for (const ep of endpoints) {
-    try {
-      const start = Date.now();
-      const response = await fetch(ep.url, {
-        method: 'POST',
-        body: payload,
-        signal: AbortSignal.timeout(30_000),
-        headers: { 'Content-Type': 'application/octet-stream' },
-      });
-
-      if (!response.ok) continue;
-
-      // Consume response body
-      await response.text();
-
-      const durationSec = (Date.now() - start) / 1000;
-      if (durationSec < 0.5) continue;
-
-      // Use only the upload time (total minus estimated server processing)
-      // Be conservative: subtract 0.3s for server processing overhead
-      const effectiveSec = Math.max(durationSec - 0.3, 0.5);
-      const bps = (uploadSize * 8) / effectiveSec;
-
-      return { speed: formatSpeed(bps), totalBytes: uploadSize, durationSeconds: parseFloat(durationSec.toFixed(2)), server: ep.label };
-    } catch {
-      continue;
-    }
-  }
-
-  return { speed: formatSpeed(0), totalBytes: 0, durationSeconds: 0, server: '', error: 'No upload test servers responded' };
-}
-
-async function handleSpeedTest() {
-  const [downloadResult, uploadResult] = await Promise.all([
-    measureDownload(),
-    measureUpload(),
-  ]);
-
-  return {
-    download: {
-      ...downloadResult.speed,
-      totalBytes: downloadResult.totalBytes,
-      totalMB: parseFloat((downloadResult.totalBytes / 1_048_576).toFixed(2)),
-      durationSeconds: downloadResult.durationSeconds,
-      server: downloadResult.server,
-      error: downloadResult.error,
-    },
-    upload: {
-      ...uploadResult.speed,
-      totalBytes: uploadResult.totalBytes,
-      totalMB: parseFloat((uploadResult.totalBytes / 1_048_576).toFixed(2)),
-      durationSeconds: uploadResult.durationSeconds,
-      server: uploadResult.server,
-      error: uploadResult.error,
-    },
+/** Start a background speed test, return testId immediately for polling */
+function handleSpeedTest() {
+  const testId = Math.random().toString(36).slice(2, 10);
+  const session: SpeedTestSession = {
+    id: testId, phase: 'starting', progress: 0,
+    ping: null, download: null, upload: null,
+    result: null, error: null, startedAt: Date.now(),
   };
+  speedTestSessions.set(testId, session);
+
+  // Fire-and-forget — progress callback updates session in real-time
+  runSpeedTest(testId, session).catch(() => {});
+
+  return { testId, phase: 'starting' as const };
+}
+
+/** Background worker: runs Ookla speedtest with progress streaming */
+async function runSpeedTest(testId: string, session: SpeedTestSession) {
+  try {
+    const speedTestMod = await import('speedtest-net');
+    const speedTest = speedTestMod.default as (
+      opts?: Record<string, unknown>,
+    ) => Promise<Record<string, unknown>>;
+
+    // speedtest-net never emits 'result' progress event type.
+    // The actual final result is the resolved promise — capture it directly.
+    const finalResult = await speedTest({
+      acceptLicense: true,
+      acceptGdpr: true,
+      progress: (event: Record<string, unknown>) => {
+        const type = event.type as string;
+        session.progress = Number(event.progress ?? 0);
+
+        if (type === 'testStart' || type === 'ping') {
+          session.phase = 'ping';
+          const pg = event.ping as { latency: number; jitter: number } | undefined;
+          if (pg) session.ping = { latency: pg.latency, jitter: pg.jitter };
+        } else if (type === 'download') {
+          session.phase = 'download';
+          const dl = event.download as { bandwidth: number; bytes: number } | undefined;
+          if (dl) {
+            const speed = (dl.bandwidth * 8) / 1_000_000;
+            const prev = session.download;
+            session.download = {
+              currentSpeed: parseFloat(speed.toFixed(2)),
+              maxSpeed: parseFloat(Math.max(prev?.maxSpeed || 0, speed).toFixed(2)),
+              bytes: dl.bytes,
+            };
+          }
+        } else if (type === 'upload') {
+          session.phase = 'upload';
+          const ul = event.upload as { bandwidth: number; bytes: number } | undefined;
+          if (ul) {
+            const speed = (ul.bandwidth * 8) / 1_000_000;
+            const prev = session.upload;
+            session.upload = {
+              currentSpeed: parseFloat(speed.toFixed(2)),
+              maxSpeed: parseFloat(Math.max(prev?.maxSpeed || 0, speed).toFixed(2)),
+              bytes: ul.bytes,
+            };
+          }
+        }
+      },
+    });
+
+    // Build final result from the resolved promise (not progress events)
+    const r = finalResult || {};
+    const dl = r.download as { bandwidth: number; bytes: number; elapsed: number } | undefined;
+    const ul = r.upload as { bandwidth: number; bytes: number; elapsed: number } | undefined;
+    const pg = r.ping as { latency: number; jitter: number } | undefined;
+    const srv = r.server as { host: string; name: string; location: string; country: string } | undefined;
+    const iface = r.interface as { externalIp: string; internalIp: string; name: string } | undefined;
+
+    // Log final result for debugging
+    console.log('[speedtest] Final result:', JSON.stringify({
+      dlBandwidth: dl?.bandwidth,
+      ulBandwidth: ul?.bandwidth,
+      dlMbps: dl ? ((dl.bandwidth * 8) / 1_000_000).toFixed(2) : 'N/A',
+      ulMbps: ul ? ((ul.bandwidth * 8) / 1_000_000).toFixed(2) : 'N/A',
+      pingLatency: pg?.latency,
+      progressDlCurrent: session.download?.currentSpeed,
+      progressUlCurrent: session.upload?.currentSpeed,
+    }));
+
+    session.phase = 'complete';
+    session.result = {
+      download: {
+        megabitsPerSecond: dl ? parseFloat(((dl.bandwidth * 8) / 1_000_000).toFixed(2)) : session.download?.currentSpeed || 0,
+        bytes: dl?.bytes ?? session.download?.bytes ?? 0,
+        totalMB: dl ? parseFloat((dl.bytes / 1_048_576).toFixed(2)) : session.download ? parseFloat((session.download.bytes / 1_048_576).toFixed(2)) : 0,
+        elapsed: dl ? parseFloat((dl.elapsed / 1000).toFixed(1)) : 0,
+      },
+      upload: {
+        megabitsPerSecond: ul ? parseFloat(((ul.bandwidth * 8) / 1_000_000).toFixed(2)) : session.upload?.currentSpeed || 0,
+        bytes: ul?.bytes ?? session.upload?.bytes ?? 0,
+        totalMB: ul ? parseFloat((ul.bytes / 1_048_576).toFixed(2)) : session.upload ? parseFloat((session.upload.bytes / 1_048_576).toFixed(2)) : 0,
+        elapsed: ul ? parseFloat((ul.elapsed / 1000).toFixed(1)) : 0,
+      },
+      ping: {
+        latency: pg?.latency ?? session.ping?.latency ?? 0,
+        jitter: pg?.jitter ?? session.ping?.jitter ?? 0,
+      },
+      server: srv ? { host: srv.host, name: srv.name, location: srv.location, country: srv.country } : null,
+      isp: String(r.isp ?? ''),
+      packetLoss: Number(r.packetLoss ?? 0),
+      interface: iface ? { externalIp: iface.externalIp, internalIp: iface.internalIp, name: iface.name } : null,
+    };
+
+    // Auto-cleanup completed session after 2 minutes
+    setTimeout(() => speedTestSessions.delete(testId), 120_000).unref();
+  } catch (err: unknown) {
+    session.phase = 'error';
+    session.error = err instanceof Error ? err.message : 'Speed test failed';
+  }
+}
+
+/** Poll live speed test progress by testId */
+function handleSpeedTestStatus(testId: string) {
+  const session = speedTestSessions.get(testId);
+  if (!session) return { error: 'Test session not found or expired. Start a new test.' };
+
+  const response: Record<string, unknown> = {
+    testId: session.id,
+    phase: session.phase,
+    progress: session.progress,
+  };
+  if (session.ping) response.ping = session.ping;
+  if (session.download) response.download = session.download;
+  if (session.upload) response.upload = session.upload;
+  if (session.error) response.error = session.error;
+  if (session.result) response.result = session.result;
+  return response;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -817,6 +851,7 @@ const VALID_ACTIONS = new Set([
   'network-scan',
   'packet-capture',
   'speed-test',
+  'speed-test-status',
   'port-check',
   'conntrack',
 ]);
@@ -826,15 +861,7 @@ export async function GET(request: NextRequest) {
   const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
-  // ── Rate limit ──────────────────────────────────────────────────────
-  if (!checkRateLimit(user.id)) {
-    return NextResponse.json(
-      { success: false, error: 'Rate limit exceeded. Max 30 requests per minute.' },
-      { status: 429 },
-    );
-  }
-
-  // ── Parse action ────────────────────────────────────────────────────
+  // ── Parse action (before rate limit so we can exempt polling) ──────
   const { searchParams } = new URL(request.url);
   const action = searchParams.get('action');
 
@@ -845,6 +872,17 @@ export async function GET(request: NextRequest) {
         error: `Invalid action. Valid: ${Array.from(VALID_ACTIONS).join(', ')}`,
       },
       { status: 400 },
+    );
+  }
+
+  // ── Rate limit ──────────────────────────────────────────────────────
+  // speed-test-status is exempt: polling at 300ms for ~25s needs ~83 reqs,
+  // well over the 30/min limit. It's safe to exempt because testId is
+  // validated (8-char alphanumeric) and sessions auto-expire in 5 minutes.
+  if (action !== 'speed-test-status' && !checkRateLimit(user.id)) {
+    return NextResponse.json(
+      { success: false, error: 'Rate limit exceeded. Max 30 requests per minute.' },
+      { status: 429 },
     );
   }
 
@@ -951,9 +989,22 @@ export async function GET(request: NextRequest) {
         break;
       }
 
-      // ── SPEED TEST ──────────────────────────────────────────────
+      // ── SPEED TEST (start) ──────────────────────────────────
       case 'speed-test': {
-        data = await handleSpeedTest();
+        data = handleSpeedTest();
+        break;
+      }
+
+      // ── SPEED TEST STATUS (poll) ─────────────────────────────────
+      case 'speed-test-status': {
+        const tid = searchParams.get('testId');
+        if (!tid || !/^[a-z0-9]{8}$/.test(tid)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid test ID' },
+            { status: 400 },
+          );
+        }
+        data = handleSpeedTestStatus(tid);
         break;
       }
 

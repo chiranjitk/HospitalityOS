@@ -5,6 +5,8 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Exclude native/binary packages from bundling — they are loaded at runtime via dynamic import
+  serverExternalPackages: ['speedtest-net'],
   typescript: {
     // Skip type-checking during build to avoid OOM on servers with limited RAM.
     // The project has 700+ source files; tsc requires >2GB which exceeds typical VPS memory.

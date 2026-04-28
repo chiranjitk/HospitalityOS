@@ -11,7 +11,7 @@
  * API: /api/wifi/diagnostics?action=<tool>&host=...&...
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -1021,143 +1021,528 @@ function PacketCaptureTool() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Tool 7: SPEED TEST — Upload + Download
+// Tool 7: SPEED TEST — Live Ookla meter with animated SVG gauge
 // ═══════════════════════════════════════════════════════════════════
+
+const GAUGE_SCALES = [10, 25, 50, 100, 250, 500, 1000, 2000, 5000];
+
+function getAutoScale(speed: number, current: number): number {
+  if (speed > current * 0.8) {
+    for (const s of GAUGE_SCALES) {
+      if (s > speed * 1.3) return s;
+    }
+    return 5000;
+  }
+  return current;
+}
+
+function getScaleSteps(max: number): number[] {
+  const nice = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000];
+  let interval = 1;
+  for (const s of nice) {
+    if (max / s <= 6) { interval = s; break; }
+  }
+  const marks: number[] = [];
+  for (let i = 0; i <= max + 0.001; i += interval) {
+    marks.push(Math.min(Math.round(i), max));
+  }
+  if (marks[marks.length - 1] < max) marks.push(max);
+  return marks;
+}
+
+function SpeedGauge({
+  speed,
+  maxScale,
+  phase,
+  pingMs,
+}: {
+  speed: number;
+  maxScale: number;
+  phase: string;
+  pingMs?: number | null;
+}) {
+  const CX = 150;
+  const CY = 150;
+  const R = 108;
+  const STROKE = 8;
+  const CIRC = 2 * Math.PI * R;
+  const ARC = Math.PI * R;
+
+  const ratio = Math.min(Math.max(speed, 0) / maxScale, 1);
+  const offset = ARC * (1 - ratio);
+
+  const phaseColor: Record<string, string> = {
+    starting: 'rgb(148 163 184)',
+    ping: 'rgb(6 182 212)',
+    download: 'rgb(20 184 166)',
+    upload: 'rgb(249 115 22)',
+    complete: 'rgb(16 185 129)',
+    error: 'rgb(239 68 68)',
+  };
+  const color = phaseColor[phase] || phaseColor.starting;
+
+  const steps = getScaleSteps(maxScale);
+  const pos = (t: number, r = R) => {
+    const a = Math.PI * (1 - t);
+    return { x: CX + r * Math.cos(a), y: CY - r * Math.sin(a) };
+  };
+
+  const isPing = phase === 'ping';
+  const centerNum = isPing ? (pingMs != null ? pingMs.toFixed(1) : '...') : speed.toFixed(2);
+  const centerUnit = isPing ? 'ms' : 'Mbps';
+
+  return (
+    <svg viewBox="0 0 300 200" className="w-full max-w-xs mx-auto" aria-label="Speed gauge">
+      <defs>
+        <filter id="g-glow">
+          <feGaussianBlur stdDeviation="4" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <linearGradient id={`grad-${phase}`} x1="0%" y1="0%" x2="100%" y2="0%">
+          {phase === 'download' && (
+            <>
+              <stop offset="0%" stopColor="rgb(20 184 166)" />
+              <stop offset="100%" stopColor="rgb(16 185 129)" />
+            </>
+          )}
+          {phase === 'upload' && (
+            <>
+              <stop offset="0%" stopColor="rgb(249 115 22)" />
+              <stop offset="100%" stopColor="rgb(239 68 68)" />
+            </>
+          )}
+          {phase !== 'download' && phase !== 'upload' && (
+            <stop offset="0%" stopColor={color} />
+          )}
+        </linearGradient>
+      </defs>
+
+      {/* Background arc */}
+      <circle
+        cx={CX} cy={CY} r={R} fill="none"
+        stroke="rgb(148 163 184)" strokeWidth={STROKE}
+        strokeDasharray={`${ARC} ${CIRC}`}
+        strokeLinecap="round"
+        transform={`rotate(180 ${CX} ${CY})`}
+        opacity={0.15}
+      />
+
+      {/* Minor ticks */}
+      {Array.from({ length: 21 }, (_, idx) => idx / 20).map((t, idx) => {
+        const o = pos(t, R + 3);
+        const inner = pos(t, R - 4);
+        return (
+          <line key={`m${idx}`} x1={inner.x} y1={inner.y} x2={o.x} y2={o.y}
+            stroke="rgb(148 163 184)" strokeWidth={1} opacity={0.25} />
+        );
+      })}
+
+      {/* Active arc with glow */}
+      {ratio > 0.005 && (
+        <circle
+          cx={CX} cy={CY} r={R} fill="none"
+          stroke={`url(#grad-${phase})`} strokeWidth={STROKE}
+          strokeDasharray={`${ARC} ${CIRC}`}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          transform={`rotate(180 ${CX} ${CY})`}
+          filter="url(#g-glow)"
+          style={{ transition: 'stroke-dashoffset 0.35s ease-out' }}
+        />
+      )}
+
+      {/* Scale labels */}
+      {steps.map((v, i) => {
+        const t = v / maxScale;
+        const p = pos(t, R + 18);
+        return (
+          <text key={`l${i}`} x={p.x} y={p.y + 3} textAnchor="middle"
+            fill="rgb(100 116 139)" fontSize={9} fontFamily="ui-monospace,monospace">
+            {v}
+          </text>
+        );
+      })}
+
+      {/* Center speed number */}
+      <text x={CX} y={CY - 42} textAnchor="middle"
+        fill="currentColor" fontSize={38} fontWeight="700"
+        fontFamily="ui-monospace,monospace"
+        style={{ transition: 'all 0.15s ease-out' }}>
+        {centerNum}
+      </text>
+      <text x={CX} y={CY - 18} textAnchor="middle"
+        fill="rgb(100 116 139)" fontSize={13} fontWeight="500">
+        {centerUnit}
+      </text>
+    </svg>
+  );
+}
 
 function SpeedTestTool() {
   const { toast } = useToast();
-  const [state, setState] = useState<RunState>('idle');
-  const [result, setResult] = useState<ToolResult | null>(null);
 
-  const run = useCallback(async () => {
-    setState('loading');
-    setResult(null);
-    try {
-      const qs = new URLSearchParams({ action: 'speed-test' });
-      const res = await fetch(`/api/wifi/diagnostics?${qs}`);
-      const json = await res.json();
-      const r: ToolResult = {
-        success: json.success !== false,
-        duration_ms: json.duration_ms || 0,
-        data: json.data || {},
-        error: json.error,
-      };
-      setResult(r);
-      setState('done');
-      if (r.success) {
-        const dl = (json.data?.download as Record<string, unknown>) || null;
-        const ul = (json.data?.upload as Record<string, unknown>) || null;
-        const parts: string[] = [];
-        if (dl && !dl.error) parts.push(`↓ ${dl.megabitsPerSecond} Mbps`);
-        if (ul && !ul.error) parts.push(`↑ ${ul.megabitsPerSecond} Mbps`);
-        toast({ title: 'Speed Test Complete', description: parts.length > 0 ? parts.join(' | ') : 'No results' });
+  // State
+  const [phase, setPhase] = useState<string>('idle');
+  const [displaySpeed, setDisplaySpeed] = useState(0);
+  const [maxScale, setMaxScale] = useState(100);
+  const [progress, setProgress] = useState(0);
+  const [pingData, setPingData] = useState<{ latency: number; jitter: number } | null>(null);
+  const [finalResult, setFinalResult] = useState<Record<string, unknown> | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // Refs
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const animRef = useRef<number | null>(null);
+  const currentSpeedRef = useRef(0);
+  const targetSpeedRef = useRef(0);
+  const maxScaleRef = useRef(100);
+  const prevPhaseRef = useRef<string>('idle');
+  const lastSpeedTimeRef = useRef<number>(Date.now());
+  const isDecayingRef = useRef(false);
+  const staleCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Smooth animation loop — interpolates toward target speed at 60fps
+  useEffect(() => {
+    const running = ['starting', 'ping', 'download', 'upload'].includes(phase);
+    if (!running) {
+      setDisplaySpeed(targetSpeedRef.current);
+      currentSpeedRef.current = targetSpeedRef.current;
+      return;
+    }
+    const animate = () => {
+      const diff = targetSpeedRef.current - currentSpeedRef.current;
+      if (Math.abs(diff) < 0.02) {
+        currentSpeedRef.current = targetSpeedRef.current;
+        setDisplaySpeed(targetSpeedRef.current);
       } else {
-        toast({ title: 'Speed Test Failed', description: r.error, variant: 'destructive' });
+        currentSpeedRef.current += diff * 0.12;
+        setDisplaySpeed(currentSpeedRef.current);
       }
+      animRef.current = requestAnimationFrame(animate);
+    };
+    animRef.current = requestAnimationFrame(animate);
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+  }, [phase]);
+
+  // Stale speed detector: decays gauge after 1.5s of no speed updates during active test
+  useEffect(() => {
+    const running = ['download', 'upload'].includes(phase);
+    if (!running) {
+      if (staleCheckRef.current) { clearInterval(staleCheckRef.current); staleCheckRef.current = null; }
+      isDecayingRef.current = false;
+      setIsTransitioning(false);
+      return;
+    }
+    // Reset decay state when new phase starts
+    if (phase !== prevPhaseRef.current) {
+      isDecayingRef.current = false;
+      setIsTransitioning(false);
+    }
+    staleCheckRef.current = setInterval(() => {
+      const elapsed = Date.now() - lastSpeedTimeRef.current;
+      if (elapsed > 1500 && !isDecayingRef.current && currentSpeedRef.current > 1) {
+        // Speed hasn't updated in 1.5s — phase is transitioning, start smooth decay
+        isDecayingRef.current = true;
+        targetSpeedRef.current = 0;
+        setIsTransitioning(true);
+      }
+    }, 500);
+    return () => { if (staleCheckRef.current) { clearInterval(staleCheckRef.current); staleCheckRef.current = null; } };
+  }, [phase]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+      if (staleCheckRef.current) clearInterval(staleCheckRef.current);
+    };
+  }, []);
+
+  const startTest = useCallback(async () => {
+    // Reset state
+    setPhase('starting');
+    targetSpeedRef.current = 0;
+    currentSpeedRef.current = 0;
+    setDisplaySpeed(0);
+    maxScaleRef.current = 100;
+    setMaxScale(100);
+    setProgress(0);
+    setPingData(null);
+    setFinalResult(null);
+    setErrorMsg(null);
+    prevPhaseRef.current = 'starting';
+    lastSpeedTimeRef.current = Date.now();
+    isDecayingRef.current = false;
+
+    try {
+      const res = await fetch('/api/wifi/diagnostics?action=speed-test');
+      const json = await res.json();
+      if (!json.success) {
+        setPhase('error');
+        setErrorMsg(json.error || 'Failed to start speed test');
+        toast({ title: 'Speed Test Failed', description: json.error, variant: 'destructive' });
+        return;
+      }
+      const testId = json.data?.testId;
+      if (!testId) {
+        setPhase('error');
+        setErrorMsg('No test ID returned');
+        return;
+      }
+
+      // Poll for live progress every 300ms
+      pollRef.current = setInterval(async () => {
+        try {
+          const pr = await fetch(`/api/wifi/diagnostics?action=speed-test-status&testId=${testId}`);
+          const pj = await pr.json();
+          const d = pj.data;
+          if (!d) return;
+
+          const newPhase = d.phase as string;
+          setPhase(newPhase);
+          setProgress(d.progress ?? 0);
+
+          // Handle download → upload transition (reset gauge)
+          if (newPhase !== prevPhaseRef.current) {
+            if (newPhase === 'upload' && prevPhaseRef.current === 'download') {
+              targetSpeedRef.current = 0;
+              currentSpeedRef.current = 0;
+              setDisplaySpeed(0);
+            }
+            prevPhaseRef.current = newPhase;
+          }
+
+          if (d.ping) setPingData(d.ping);
+          if (d.download) {
+            const dl = d.download as { currentSpeed: number };
+            const spd = dl.currentSpeed || 0;
+            if (spd > 0) {
+              targetSpeedRef.current = spd;
+              lastSpeedTimeRef.current = Date.now();
+              isDecayingRef.current = false;
+              setIsTransitioning(false);
+              const newMax = getAutoScale(spd, maxScaleRef.current);
+              if (newMax !== maxScaleRef.current) {
+                maxScaleRef.current = newMax;
+                setMaxScale(newMax);
+              }
+            }
+          }
+          if (d.upload) {
+            const ul = d.upload as { currentSpeed: number };
+            const spd = ul.currentSpeed || 0;
+            if (spd > 0) {
+              targetSpeedRef.current = spd;
+              lastSpeedTimeRef.current = Date.now();
+              isDecayingRef.current = false;
+              setIsTransitioning(false);
+            }
+          }
+          if (d.result) {
+            setFinalResult(d.result as Record<string, unknown>);
+            const dlRes = (d.result as Record<string, unknown>).download as Record<string, unknown> | undefined;
+            const ulRes = (d.result as Record<string, unknown>).upload as Record<string, unknown> | undefined;
+            if (dlRes) targetSpeedRef.current = Number(dlRes.megabitsPerSecond || dlRes.currentSpeed || 0);
+            else if (ulRes) targetSpeedRef.current = Number(ulRes.megabitsPerSecond || ulRes.currentSpeed || 0);
+          }
+          if (d.error) setErrorMsg(String(d.error));
+
+          if (newPhase === 'complete') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            const fr = d.result as Record<string, unknown> | undefined;
+            const dl2 = fr?.download as Record<string, unknown> | undefined;
+            const ul2 = fr?.upload as Record<string, unknown> | undefined;
+            const pg2 = fr?.ping as Record<string, unknown> | undefined;
+            const parts: string[] = [];
+            if (dl2) parts.push(`↓ ${dl2.megabitsPerSecond} Mbps`);
+            if (ul2) parts.push(`↑ ${ul2.megabitsPerSecond} Mbps`);
+            if (pg2) parts.push(`⚡ ${pg2.latency} ms`);
+            toast({ title: 'Speed Test Complete', description: parts.join(' | ') });
+          }
+          if (newPhase === 'error') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            toast({ title: 'Speed Test Failed', description: String(d.error || 'Unknown error'), variant: 'destructive' });
+          }
+        } catch { /* ignore poll errors */ }
+      }, 300);
     } catch {
-      setState('done');
-      setResult({ success: false, duration_ms: 0, data: {}, error: 'Network error' });
+      setPhase('error');
+      setErrorMsg('Network error');
+      toast({ title: 'Error', description: 'Failed to start speed test', variant: 'destructive' });
     }
   }, [toast]);
 
-  const data = result?.data as Record<string, unknown> | undefined;
-  const download = data?.download as Record<string, unknown> | null;
-  const upload = data?.upload as Record<string, unknown> | null;
+  const isRunning = ['starting', 'ping', 'download', 'upload'].includes(phase);
+  const isComplete = phase === 'complete';
+
+  const phaseLabel: Record<string, string> = {
+    starting: 'Initializing...',
+    ping: 'Testing Ping',
+    download: 'Testing Download',
+    upload: 'Testing Upload',
+    complete: 'Complete',
+    error: 'Error',
+    idle: '',
+  };
+
+  const download = finalResult?.download as Record<string, unknown> | null;
+  const upload = finalResult?.upload as Record<string, unknown> | null;
+  const ping = finalResult?.ping as Record<string, unknown> | null;
+  const server = finalResult?.server as Record<string, unknown> | null;
+  const isp = finalResult?.isp as string | null;
+  const packetLoss = finalResult?.packetLoss as number | null;
+  const netIface = finalResult?.interface as Record<string, unknown> | null;
   const dlMbps = download ? Number(download.megabitsPerSecond ?? 0) : 0;
   const ulMbps = upload ? Number(upload.megabitsPerSecond ?? 0) : 0;
+  const pingLat = ping ? Number(ping.latency ?? 0) : 0;
+  const pingJit = ping ? Number(ping.jitter ?? 0) : 0;
 
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Gauge} title="Speed Test" description="Real upload + download throughput measurement from public test servers" gradient="from-orange-500 to-red-500" />
+        <ToolHeader icon={Gauge} title="Speed Test" description="Real Ookla-powered bandwidth test with live speed meter" gradient="from-orange-500 to-red-500" />
 
         <div className="flex items-center gap-3">
-          <RunButton loading={state === 'loading'} onClick={run} label="Start Speed Test" />
-          {result && <DurationBadge ms={result.duration_ms} />}
-          {state === 'loading' && (
-            <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Testing download + upload...
-            </span>
-          )}
+          <RunButton loading={isRunning} onClick={startTest} label={isRunning ? 'Testing...' : 'Start Speed Test'} disabled={isRunning} />
+          {isComplete && <Badge variant="outline" className="text-[10px] ml-1">Powered by Ookla</Badge>}
         </div>
 
-        {result?.error && <ErrorBox message={result.error} />}
+        {errorMsg && <ErrorBox message={errorMsg} />}
 
-        {state === 'loading' && (
-          <div className="mt-6 space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground flex items-center gap-1.5"><Download className="h-3 w-3" /> Download</span>
-                <span className="font-medium">Testing...</span>
-              </div>
-              <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                <div className="h-full w-2/3 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 animate-pulse" />
-              </div>
+        {/* ── Live Gauge ── */}
+        {(isRunning || isComplete) && (
+          <div className="mt-6">
+            <SpeedGauge
+              speed={displaySpeed}
+              maxScale={maxScale}
+              phase={phase}
+              pingMs={pingData?.latency}
+            />
+
+            {/* Phase badge */}
+            <div className="text-center mt-1">
+              <Badge
+                variant="outline"
+                className={cn(
+                  'text-xs transition-colors',
+                  phase === 'download' && !isTransitioning && 'border-teal-500/50 text-teal-600 dark:text-teal-400',
+                  phase === 'upload' && !isTransitioning && 'border-orange-500/50 text-orange-600 dark:text-orange-400',
+                  phase === 'ping' && 'border-cyan-500/50 text-cyan-600 dark:text-cyan-400',
+                  phase === 'complete' && 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400',
+                  isTransitioning && 'border-amber-500/50 text-amber-600 dark:text-amber-400',
+                )}
+              >
+                {isTransitioning ? (
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    {phase === 'download' ? 'Finishing download...' : 'Preparing upload...'}
+                  </span>
+                ) : (
+                  <>
+                    {phase === 'ping' && '⚡ '}{phase === 'download' && '↓ '}{phase === 'upload' && '↑ '}
+                    {phaseLabel[phase] || ''}
+                    {isRunning && phase !== 'starting' && phase !== 'idle' && ` — ${Math.round(progress * 100)}%`}
+                  </>
+                )}
+              </Badge>
             </div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground flex items-center gap-1.5"><Upload className="h-3 w-3" /> Upload</span>
-                <span className="font-medium">Testing...</span>
+
+            {/* Ping info */}
+            {pingData && !isComplete && (
+              <div className="flex justify-center gap-4 mt-2 text-xs text-muted-foreground">
+                <span>Ping: <strong className="text-foreground tabular-nums">{pingData.latency.toFixed(1)} ms</strong></span>
+                <span>Jitter: <strong className="text-foreground tabular-nums">{pingData.jitter.toFixed(1)} ms</strong></span>
               </div>
-              <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 animate-pulse" />
-              </div>
-            </div>
+            )}
           </div>
         )}
 
-        {result?.success && (download || upload) && (
+        {/* ── Final Results ── */}
+        {isComplete && finalResult && !errorMsg && (
           <div className="mt-6 space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Download */}
-              <div className="rounded-xl border bg-muted/30 p-5">
-                <div className="flex items-center gap-2 mb-3">
+            {/* 3-card metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-xl border bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-teal-950/20 dark:to-emerald-950/20 p-5 text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
                   <Download className="h-4 w-4 text-teal-500" />
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Download</span>
-                  {download?.error ? <Badge variant="destructive" className="text-[10px] ml-auto">Failed</Badge> : null}
                 </div>
-                {download && !download.error ? (
-                  <>
-                    <div className="flex items-end gap-1">
-                      <span className="text-3xl font-bold tabular-nums text-teal-600 dark:text-teal-400">{dlMbps.toFixed(2)}</span>
-                      <span className="text-sm text-muted-foreground mb-0.5">Mbps</span>
-                    </div>
-                    <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
-                      <div className="flex justify-between"><span>Downloaded</span><span className="font-mono tabular-nums">{String(download.totalMB)} MB</span></div>
-                      <div className="flex justify-between"><span>Time</span><span className="font-mono tabular-nums">{download.durationSeconds}s</span></div>
-                      <div className="flex justify-between"><span>Server</span><span>{String(download.server)}</span></div>
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-xs text-red-500">{String(download?.error || 'Download test unavailable')}</p>
+                <div className="flex items-end justify-center gap-1">
+                  <span className="text-3xl font-bold tabular-nums text-teal-600 dark:text-teal-400">{dlMbps.toFixed(2)}</span>
+                  <span className="text-sm text-muted-foreground mb-0.5">Mbps</span>
+                </div>
+                {download && (
+                  <p className="text-[11px] text-muted-foreground mt-1.5 font-mono tabular-nums">
+                    {String(download.totalMB)} MB in {String(download.elapsed)}s
+                  </p>
                 )}
               </div>
-
-              {/* Upload */}
-              <div className="rounded-xl border bg-muted/30 p-5">
-                <div className="flex items-center gap-2 mb-3">
+              <div className="rounded-xl border bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 p-5 text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
                   <Upload className="h-4 w-4 text-orange-500" />
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Upload</span>
-                  {upload?.error ? <Badge variant="destructive" className="text-[10px] ml-auto">Failed</Badge> : null}
                 </div>
-                {upload && !upload.error ? (
-                  <>
-                    <div className="flex items-end gap-1">
-                      <span className="text-3xl font-bold tabular-nums text-orange-600 dark:text-orange-400">{ulMbps.toFixed(2)}</span>
-                      <span className="text-sm text-muted-foreground mb-0.5">Mbps</span>
-                    </div>
-                    <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
-                      <div className="flex justify-between"><span>Uploaded</span><span className="font-mono tabular-nums">{String(upload.totalMB)} MB</span></div>
-                      <div className="flex justify-between"><span>Time</span><span className="font-mono tabular-nums">{upload.durationSeconds}s</span></div>
-                      <div className="flex justify-between"><span>Server</span><span>{String(upload.server)}</span></div>
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-xs text-red-500">{String(upload?.error || 'Upload test unavailable')}</p>
+                <div className="flex items-end justify-center gap-1">
+                  <span className="text-3xl font-bold tabular-nums text-orange-600 dark:text-orange-400">{ulMbps.toFixed(2)}</span>
+                  <span className="text-sm text-muted-foreground mb-0.5">Mbps</span>
+                </div>
+                {upload && (
+                  <p className="text-[11px] text-muted-foreground mt-1.5 font-mono tabular-nums">
+                    {String(upload.totalMB)} MB in {String(upload.elapsed)}s
+                  </p>
                 )}
               </div>
+              <div className="rounded-xl border bg-gradient-to-br from-cyan-50 to-sky-50 dark:from-cyan-950/20 dark:to-sky-950/20 p-5 text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Activity className="h-4 w-4 text-cyan-500" />
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ping</span>
+                </div>
+                <div className="flex items-end justify-center gap-1">
+                  <span className="text-3xl font-bold tabular-nums text-cyan-600 dark:text-cyan-400">{pingLat.toFixed(1)}</span>
+                  <span className="text-sm text-muted-foreground mb-0.5">ms</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1.5 font-mono tabular-nums">
+                  Jitter: {pingJit.toFixed(1)} ms
+                </p>
+              </div>
             </div>
+
+            {/* Server & ISP */}
+            {(server || isp || netIface || packetLoss !== null) && (
+              <div className="rounded-xl border bg-muted/30 p-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {isp && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">ISP</p>
+                      <p className="text-xs font-medium mt-1 truncate">{isp}</p>
+                    </div>
+                  )}
+                  {server && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Server</p>
+                      <p className="text-xs font-medium mt-1 truncate">{String(server.name)}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{String(server.location)}{server.country ? `, ${String(server.country)}` : ''}</p>
+                    </div>
+                  )}
+                  {netIface?.externalIp && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">External IP</p>
+                      <p className="text-xs font-mono mt-1">{String(netIface.externalIp)}</p>
+                    </div>
+                  )}
+                  {packetLoss !== null && packetLoss !== undefined && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Packet Loss</p>
+                      <p className={cn('text-xs font-medium mt-1', packetLoss === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400')}>
+                        {packetLoss.toFixed(1)}%
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
