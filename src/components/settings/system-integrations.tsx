@@ -29,8 +29,6 @@ import {
   HardDrive,
   Bell,
   Chrome,
-  Wifi,
-  Sparkles,
   MessageCircle,
   Shield,
   Check,
@@ -56,8 +54,6 @@ type IntegrationType =
   | 's3_storage'
   | 'fcm'
   | 'google_oauth'
-  | 'radius'
-  | 'ai'
   | 'whatsapp';
 
 interface IntegrationMeta {
@@ -145,24 +141,6 @@ const INTEGRATION_META: IntegrationMeta[] = [
     hoverBorder: 'hover:border-emerald-300',
   },
   {
-    type: 'radius',
-    label: 'RADIUS / WiFi',
-    sublabel: 'WiFi auth',
-    icon: Wifi,
-    color: 'text-cyan-600 dark:text-cyan-400',
-    bgColor: 'bg-cyan-50 dark:bg-cyan-950/40',
-    hoverBorder: 'hover:border-cyan-300',
-  },
-  {
-    type: 'ai',
-    label: 'AI Provider',
-    sublabel: 'AI services',
-    icon: Sparkles,
-    color: 'text-rose-600 dark:text-rose-400',
-    bgColor: 'bg-rose-50 dark:bg-rose-950/40',
-    hoverBorder: 'hover:border-rose-300',
-  },
-  {
     type: 'whatsapp',
     label: 'WhatsApp Business',
     sublabel: 'WhatsApp API',
@@ -227,25 +205,6 @@ const INTEGRATION_SCHEMAS: Record<IntegrationType, IntegrationSchema> = {
       { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'xxxxxxxxxxxx.apps.googleusercontent.com', required: true },
       { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'GOCSPX-xxxxxxxx', required: true },
       { key: 'redirectUri', label: 'Redirect URI', type: 'url', placeholder: 'https://yourhotel.com/api/auth/google/callback', required: true },
-    ],
-  },
-  radius: {
-    description:
-      'Configure RADIUS server for WiFi authentication. Guests receive auto-generated credentials upon check-in.',
-    fields: [
-      { key: 'host', label: 'RADIUS Host', type: 'text', placeholder: '192.168.1.100', required: true },
-      { key: 'authPort', label: 'Auth Port', type: 'number', placeholder: '1812' },
-      { key: 'acctPort', label: 'Accounting Port', type: 'number', placeholder: '1813' },
-      { key: 'secret', label: 'Shared Secret', type: 'password', placeholder: 'Enter RADIUS shared secret', required: true },
-    ],
-  },
-  ai: {
-    description:
-      'Configure your AI provider for smart recommendations, chat, revenue forecasting, and other AI-powered features.',
-    fields: [
-      { key: 'provider', label: 'AI Provider', type: 'text', placeholder: 'openai, anthropic, google', required: true },
-      { key: 'apiKey', label: 'API Key', type: 'password', placeholder: 'Enter your API key', required: true },
-      { key: 'model', label: 'Default Model', type: 'text', placeholder: 'gpt-4o-mini' },
     ],
   },
   whatsapp: {
@@ -549,7 +508,7 @@ export default function SystemIntegrations() {
       {/* ── Loading skeleton ── */}
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
+          {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-36 rounded-xl" />
           ))}
         </div>

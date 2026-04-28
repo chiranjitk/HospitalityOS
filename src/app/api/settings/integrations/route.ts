@@ -63,25 +63,6 @@ const INTEGRATION_TYPES = {
       { key: 'redirectUri', label: 'Redirect URI', type: 'text', sensitive: false },
     ],
   },
-  radius: {
-    label: 'WiFi / RADIUS',
-    icon: 'wifi',
-    fields: [
-      { key: 'host', label: 'RADIUS Host', type: 'text', sensitive: false },
-      { key: 'authPort', label: 'Auth Port', type: 'number', sensitive: false, placeholder: '1812' },
-      { key: 'acctPort', label: 'Acct Port', type: 'number', sensitive: false, placeholder: '1813' },
-      { key: 'secret', label: 'RADIUS Secret', type: 'password', sensitive: true },
-    ],
-  },
-  ai: {
-    label: 'AI Provider',
-    icon: 'sparkles',
-    fields: [
-      { key: 'provider', label: 'AI Provider', type: 'text', sensitive: false, placeholder: 'openai' },
-      { key: 'apiKey', label: 'API Key', type: 'password', sensitive: true },
-      { key: 'model', label: 'Model', type: 'text', sensitive: false, placeholder: 'gpt-4o-mini' },
-    ],
-  },
   whatsapp: {
     label: 'WhatsApp Business',
     icon: 'message-circle',
@@ -334,102 +315,6 @@ function testGoogleOAuth(
 }
 
 /**
- * Validate RADIUS host/port/secret format
- */
-function testRadius(
-  config: Record<string, string | number | boolean>,
-): { success: boolean; error?: string } {
-  const host = String(config.host ?? '');
-  const authPort = Number(config.authPort) || 0;
-  const acctPort = Number(config.acctPort) || 0;
-  const secret = String(config.secret ?? '');
-
-  if (!host) return { success: false, error: 'RADIUS Host is required' };
-  if (!secret) return { success: false, error: 'RADIUS Secret is required' };
-  if (authPort <= 0 || authPort > 65535) {
-    return { success: false, error: 'Auth Port must be between 1 and 65535' };
-  }
-  if (acctPort <= 0 || acctPort > 65535) {
-    return { success: false, error: 'Acct Port must be between 1 and 65535' };
-  }
-
-  return { success: true };
-}
-
-/**
- * Test AI provider connection by hitting the models endpoint
- */
-async function testAI(
-  config: Record<string, string | number | boolean>,
-): Promise<{ success: boolean; error?: string }> {
-  const provider = String(config.provider ?? 'openai').toLowerCase();
-  const apiKey = String(config.apiKey ?? '');
-
-  if (!apiKey) return { success: false, error: 'API Key is required' };
-
-  try {
-    const baseUrlMap: Record<string, string> = {
-      openai: 'https://api.openai.com',
-      anthropic: 'https://api.anthropic.com',
-      google: 'https://generativelanguage.googleapis.com',
-      azure: '',
-      ollama: 'http://localhost:11434',
-    };
-
-    const baseUrl = baseUrlMap[provider];
-    if (!baseUrl && provider !== 'azure') {
-      return { success: false, error: `Unknown AI provider: ${provider}` };
-    }
-
-    if (provider === 'openai') {
-      const res = await fetch(`${baseUrl}/v1/models`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (!res.ok) {
-        return { success: false, error: `OpenAI API returned ${res.status}: ${await res.text().catch(() => 'Unknown error')}` };
-      }
-      return { success: true };
-    }
-
-    if (provider === 'anthropic') {
-      // Anthropic doesn't have a simple list endpoint, validate key format
-      if (!/^sk-ant-/.test(apiKey)) {
-        return { success: false, error: 'Anthropic API key should start with sk-ant-' };
-      }
-      return { success: true };
-    }
-
-    if (provider === 'google') {
-      // Google AI uses API key as query param — test with a simple models list
-      const res = await fetch(`${baseUrl}/v1beta/models?key=${apiKey}`, {
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (!res.ok) {
-        return { success: false, error: `Google AI API returned ${res.status}` };
-      }
-      return { success: true };
-    }
-
-    if (provider === 'ollama') {
-      const res = await fetch(`${baseUrl}/api/tags`, {
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!res.ok) {
-        return { success: false, error: `Ollama returned ${res.status} — ensure the Ollama service is running` };
-      }
-      return { success: true };
-    }
-
-    // Generic validation for unknown providers
-    return { success: true, error: undefined };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Unknown error';
-    return { success: false, error: `AI connection test failed: ${msg}` };
-  }
-}
-
-/**
  * Validate WhatsApp Business credentials format
  */
 function testWhatsApp(
@@ -466,10 +351,6 @@ async function runConnectionTest(
       return testFCM(config);
     case 'google_oauth':
       return testGoogleOAuth(config);
-    case 'radius':
-      return testRadius(config);
-    case 'ai':
-      return testAI(config);
     case 'whatsapp':
       return testWhatsApp(config);
     default:
