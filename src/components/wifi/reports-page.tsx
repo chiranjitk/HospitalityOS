@@ -6,6 +6,8 @@ import {
   Area,
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -50,6 +52,8 @@ import {
 } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import {
   BarChart3,
   TrendingUp,
@@ -93,6 +97,10 @@ import {
   Loader2,
   FileCheck,
   History,
+  Bell,
+  Network,
+  Check,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -1684,212 +1692,1096 @@ function SyslogConfigTab() {
 
 // ==================== TAB 6: SYSTEM HEALTH ====================
 
-function SystemHealthTab() {
-  const [loading, setLoading] = useState(true);
-  const [systemInfo, setSystemInfo] = useState<any>(null);
-  const [resources, setResources] = useState<any>(null);
-  const [services, setServices] = useState<any[]>([]);
-  const [interfaceTraffic, setInterfaceTraffic] = useState<any[]>([]);
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const { toast } = useToast();
+// --- Helper: Color coding for metric thresholds ---
+function getMetricColor(value: number): { bg: string; text: string; icon: string; spark: string } {
+  if (value > 80) return { bg: 'bg-red-500/10 dark:bg-red-500/15', text: 'text-red-600 dark:text-red-400', icon: 'text-red-500 dark:text-red-400', spark: '#f43f5e' };
+  if (value > 60) return { bg: 'bg-amber-500/10 dark:bg-amber-500/15', text: 'text-amber-600 dark:text-amber-400', icon: 'text-amber-500 dark:text-amber-400', spark: '#f59e0b' };
+  return { bg: 'bg-teal-500/10 dark:bg-teal-500/15', text: 'text-teal-600 dark:text-teal-400', icon: 'text-teal-500 dark:text-teal-400', spark: '#14b8a6' };
+}
 
-  const fetchHealth = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/wifi/reports/health');
-      const result = await res.json();
-      if (result.success) {
-        const data = result.data || {};
-        setSystemInfo(data.systemInfo || null);
-        setResources(data.resources || { cpu: 0, ram: 0, disk: 0 });
-        setServices(data.services || []);
-        setInterfaceTraffic(data.interfaceTraffic || []);
-        setAlerts(data.alerts || []);
-      } else {
-        toast({ title: 'Error', description: typeof result.error === 'string' ? result.error : result.error?.message || 'Failed to fetch system health', variant: 'destructive' });
-      }
-    } catch (e) {
-      console.error(e);
-      toast({ title: 'Error', description: 'Failed to fetch system health', variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    fetchHealth();
-  }, [fetchHealth]);
-
-  // Poll for real resource data from API
-  useEffect(() => {
-    if (!resources) return;
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch('/api/wifi/reports/health');
-        const result = await res.json();
-        if (result.success && result.data?.resources) {
-          setResources(result.data.resources);
-        }
-      } catch {
-        // Silently fail on polling
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [resources]);
-
-  if (loading || !systemInfo || !resources) return <LoadingSpinner message="Loading system health..." />;
-
-  const cpuColor = resources.cpu > 80 ? 'red' : resources.cpu > 60 ? 'amber' : 'teal';
-  const ramColor = resources.ram > 80 ? 'red' : resources.ram > 60 ? 'amber' : 'teal';
-  const diskColor = resources.disk > 80 ? 'red' : resources.disk > 60 ? 'amber' : 'emerald';
+// --- Helper: SVG sparkline ---
+function MiniSparkline({ data, color, width = 80, height = 28 }: { data: number[]; color: string; width?: number; height?: number }) {
+  if (!data || data.length < 2) return null;
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data, 0);
+  const range = max - min || 1;
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((v - min) / range) * (height - 4) - 2;
+    return `${x},${y}`;
+  }).join(' ');
 
   return (
-    <div className="space-y-4">
-      {/* System Info */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2"><Monitor className="h-4 w-4" /> System Information</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <InfoItem label="Hostname" value={systemInfo.hostname} />
-            <InfoItem label="Kernel" value={systemInfo.kernel} />
-            <InfoItem label="Uptime" value={formatDuration(systemInfo.uptime)} />
-            <InfoItem label="CPU" value={systemInfo.cpuModel.split('@')[0].trim()} />
-            <InfoItem label="Total RAM" value={`${(systemInfo.totalRam / 1024).toFixed(0)} GB`} />
-            <InfoItem label="CPU Cores" value={systemInfo.cpuCores.toString()} />
-          </div>
-        </CardContent>
-      </Card>
+    <svg width={width} height={height} className="overflow-visible">
+      <polyline points={points} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.8} />
+    </svg>
+  );
+}
 
-      {/* Resource Gauges */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4" /> Resource Usage</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap justify-center gap-8 py-4">
-            <div className="relative">
-              <CircularGauge value={Math.round(resources.cpu)} label="CPU Usage" color={cpuColor} />
-            </div>
-            <div className="relative">
-              <CircularGauge value={Math.round(resources.ram)} label="RAM Usage" color={ramColor} />
-            </div>
-            <div className="relative">
-              <CircularGauge value={Math.round(resources.disk)} label="Disk Usage" color={diskColor} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+// --- Helper: format HH:MM:SS from epoch ---
+function formatTime(ts: number): string {
+  const d = new Date(ts * 1000);
+  return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
 
-      {/* Service Status */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2"><Server className="h-4 w-4" /> Service Status</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {services.map((svc: any) => {
-              const isRunning = svc.status === 'running' || svc.status === 'loaded';
-              const StatusIcon = isRunning ? CheckCircle2 : XCircle;
-              return (
-                <div key={svc.name} className="rounded-lg border p-3 flex items-start gap-3">
-                  <div className="mt-0.5">
-                    <StatusIcon className={cn('h-5 w-5', isRunning ? 'text-emerald-500 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-sm">{svc.name}</p>
-                      <Badge variant={isRunning ? 'default' : 'destructive'} className={cn('text-xs', isRunning && 'bg-emerald-600')}>
-                        {svc.status}
-                      </Badge>
-                    </div>
-                    <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
-                      {svc.pid && <p>PID: <span className="font-mono">{svc.pid}</span></p>}
-                      {svc.uptime && <p>Uptime: {formatDuration(svc.uptime)}</p>}
-                      {svc.version && <p>Version: {svc.version}</p>}
-                      {'rulesCount' in svc && <p>Rules: <span className="font-mono">{svc.rulesCount}</span></p>}
-                      {'activeConnections' in svc && <p>Active connections: <span className="font-mono">{svc.activeConnections}</span></p>}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+// --- Helper: format Mbps ---
+function formatMbps(val: number): string {
+  if (val >= 1000) return `${(val / 1000).toFixed(1)} Gbps`;
+  if (val >= 1) return `${val.toFixed(1)} Mbps`;
+  if (val >= 0.001) return `${(val * 1000).toFixed(0)} Kbps`;
+  return `${val.toFixed(2)} Mbps`;
+}
 
-      {/* Interface Traffic */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2"><Wifi className="h-4 w-4" /> Interface Traffic</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {interfaceTraffic.map((iface: any) => (
-              <div key={iface.name} className="rounded-lg border p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <Badge variant="outline" className="font-mono text-xs">{iface.name}</Badge>
-                  <div className="flex items-center gap-3 text-xs">
-                    <span className="text-teal-600 dark:text-teal-400">↓ {formatBytes(iface.rx)}</span>
-                    <span className="text-amber-600 dark:text-amber-400">↑ {formatBytes(iface.tx)}</span>
-                  </div>
-                </div>
-                {/* Sparkline */}
-                <div className="flex items-end gap-[2px] h-8">
-                  {iface.history.map((val: number, i: number) => (
-                    <div
-                      key={i}
-                      className="flex-1 bg-gradient-to-t from-teal-500/40 to-teal-400/80 rounded-t-sm transition-all"
-                      style={{ height: `${val}%` }}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+// --- Helper: format session time HH:MM:SS ---
+function formatSessionTime(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
 
-      {/* Alerts */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> System Alerts</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {alerts.map((alert: any) => {
-              const Icon = alert.icon || AlertTriangle;
-              const severityStyles: Record<string, string> = {
-                warning: 'border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700',
-                info: 'border-teal-300 bg-teal-50 dark:bg-teal-950/20 dark:border-teal-700',
-                success: 'border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-700',
-              };
-              const iconStyles: Record<string, string> = {
-                warning: 'text-amber-500 dark:text-amber-400',
-                info: 'text-teal-500 dark:text-teal-400',
-                success: 'text-emerald-500 dark:text-emerald-400',
-              };
-              return (
-                <div key={alert.id} className={cn('flex items-center gap-3 rounded-lg border p-3', severityStyles[alert.severity])}>
-                  <Icon className={cn('h-4 w-4 flex-shrink-0', iconStyles[alert.severity])} />
-                  <p className="text-sm flex-1">{alert.message}</p>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">{alert.time}</span>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+// --- Helper: format bytes with color ---
+function formatBytesColored(bytes: number): { text: string; color: string } {
+  const gb = bytes / (1024 * 1024 * 1024);
+  const mb = bytes / (1024 * 1024);
+  if (gb >= 1) return { text: `${gb.toFixed(1)} GB`, color: gb > 10 ? 'text-amber-600 dark:text-amber-400' : 'text-teal-600 dark:text-teal-400' };
+  return { text: `${mb.toFixed(1)} MB`, color: 'text-muted-foreground' };
+}
+
+// --- Range selector component ---
+function RangeSelector({ value, onChange, ranges }: { value: string; onChange: (r: string) => void; ranges?: string[] }) {
+  const opts = ranges || ['1h', '6h', '24h', '7d', '30d', '1y'];
+  return (
+    <div className="flex gap-1">
+      {opts.map(r => (
+        <Button key={r} variant={value === r ? 'default' : 'outline'} size="sm" className="h-7 px-2.5 text-xs" onClick={() => onChange(r)}>
+          {r}
+        </Button>
+      ))}
     </div>
   );
 }
 
-function InfoItem({ label, value }: { label: string; value: string }) {
+// --- Custom health chart tooltip ---
+function HealthChartTooltip({ active, payload, label, unit = 'Mbps' }: { active?: boolean; payload?: any[]; label?: string; unit?: string }) {
+  if (!active || !payload?.length) return null;
   return (
-    <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-sm font-medium truncate mt-0.5" title={value}>{value}</p>
+    <div className="rounded-lg border bg-background px-3 py-2 shadow-lg text-xs">
+      <p className="font-medium mb-1.5">{label}</p>
+      {payload.map((entry: any, i: number) => (
+        <p key={i} className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: entry.color }} />
+          <span className="text-muted-foreground">{entry.name}:</span>
+          <span className="font-mono font-medium tabular-nums">
+            {entry.value != null ? (unit === '%' ? `${entry.value.toFixed(1)}%` : formatMbps(entry.value)) : '—'}
+          </span>
+        </p>
+      ))}
     </div>
+  );
+}
+
+// --- Interface colors map ---
+const IFACE_COLORS = ['#14b8a6', '#f97316', '#06b6d4', '#f43f5e', '#8b5cf6', '#eab308'];
+
+// ==================== MAIN SYSTEM HEALTH TAB ====================
+
+function SystemHealthTab() {
+  const { toast } = useToast();
+
+  // Shared metrics state (polled every 2s)
+  const [metrics, setMetrics] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Alerts state
+  const [alertRules, setAlertRules] = useState<any[]>([]);
+  const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
+  const [alertHistory, setAlertHistory] = useState<any[]>([]);
+
+  // Active users state
+  const [activeUsers, setActiveUsers] = useState<any[]>([]);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [userBwRange, setUserBwRange] = useState('24h');
+
+  // Add rule dialog
+  const [showAddRule, setShowAddRule] = useState(false);
+  const [newRule, setNewRule] = useState({ metric: 'cpu', operator: '>', threshold: '', label: '' });
+
+  // Interfaces tab
+  const [selectedIface, setSelectedIface] = useState<string>('');
+  const [ifaceHistRange, setIfaceHistRange] = useState('24h');
+  const [ifaceHistData, setIfaceHistData] = useState<any>(null);
+  const [ifaceHistLoading, setIfaceHistLoading] = useState(false);
+
+  // System resources tab
+  const [cpuRange, setCpuRange] = useState('24h');
+  const [memRange, setMemRange] = useState('24h');
+  const [diskRange, setDiskRange] = useState('24h');
+  const [cpuHistData, setCpuHistData] = useState<any>(null);
+  const [memHistData, setMemHistData] = useState<any>(null);
+  const [diskHistData, setDiskHistData] = useState<any>(null);
+
+  // User bandwidth graph
+  const [userBwData, setUserBwData] = useState<any>(null);
+
+  // --- Fetch metrics every 2s ---
+  const fetchMetrics = useCallback(async () => {
+    try {
+      const res = await fetch('/api/wifi/health?action=metrics');
+      const result = await res.json();
+      if (result.success) {
+        setMetrics(result.data);
+        // Auto-select first interface
+        if (result.data?.interfaces?.length && !selectedIface) {
+          setSelectedIface(result.data.interfaces[0].name);
+        }
+        if (loading) setLoading(false);
+      }
+    } catch {
+      if (loading) setLoading(false);
+    }
+  }, [selectedIface, loading]);
+
+  useEffect(() => {
+    fetchMetrics();
+    const interval = setInterval(fetchMetrics, 2000);
+    return () => clearInterval(interval);
+  }, [fetchMetrics]);
+
+  // --- Fetch alerts ---
+  const fetchAlerts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/wifi/health?action=alerts');
+      const result = await res.json();
+      if (result.success) {
+        const d = result.data;
+        setAlertRules(d?.rules || []);
+        setActiveAlerts(d?.active || []);
+        setAlertHistory(d?.history || []);
+      }
+    } catch {
+      // silent
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAlerts();
+    const interval = setInterval(fetchAlerts, 15000);
+    return () => clearInterval(interval);
+  }, [fetchAlerts]);
+
+  // --- Fetch active users ---
+  const fetchUsers = useCallback(async () => {
+    try {
+      const res = await fetch('/api/wifi/health?action=active-users');
+      const result = await res.json();
+      if (result.success) setActiveUsers(result.data || []);
+    } catch {
+      // silent
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+    const interval = setInterval(fetchUsers, 10000);
+    return () => clearInterval(interval);
+  }, [fetchUsers]);
+
+  // --- Fetch interface history ---
+  useEffect(() => {
+    if (!selectedIface) return;
+    let cancelled = false;
+    (async () => {
+      setIfaceHistLoading(true);
+      try {
+        const res = await fetch(`/api/wifi/health?action=rrd-graph&type=interface&name=${selectedIface}&range=${ifaceHistRange}`);
+        const result = await res.json();
+        if (!cancelled && result.success) setIfaceHistData(result.data);
+      } catch { /* silent */ }
+      if (!cancelled) setIfaceHistLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedIface, ifaceHistRange]);
+
+  // --- Fetch system resource history ---
+  useEffect(() => {
+    let cancelled = false;
+    const fetch = async (type: string, range: string, setter: (d: any) => void) => {
+      try {
+        const res = await fetch(`/api/wifi/health?action=rrd-graph&type=${type}&range=${range}`);
+        const result = await res.json();
+        if (!cancelled && result.success) setter(result.data);
+      } catch { /* silent */ }
+    };
+    fetch('cpu', cpuRange, setCpuHistData);
+    fetch('memory', memRange, setMemHistData);
+    fetch('disk', diskRange, setDiskHistData);
+    return () => { cancelled = true; };
+  }, [cpuRange, memRange, diskRange]);
+
+  // --- Fetch user bandwidth graph ---
+  useEffect(() => {
+    if (!selectedUser) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/wifi/reports/bandwidth-graph?source=user&name=${encodeURIComponent(selectedUser)}&range=${userBwRange}`);
+        const result = await res.json();
+        if (!cancelled && result.success) setUserBwData(result);
+      } catch { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedUser, userBwRange]);
+
+  // --- Acknowledge alert ---
+  const handleAckAlert = async (alertId: string) => {
+    try {
+      await fetch('/api/wifi/health?action=acknowledge-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alertId }),
+      });
+      setActiveAlerts(prev => prev.filter(a => a.id !== alertId));
+      toast({ title: 'Alert Acknowledged' });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to acknowledge alert', variant: 'destructive' });
+    }
+  };
+
+  // --- Save alert rules ---
+  const handleSaveRule = async () => {
+    if (!newRule.threshold) return;
+    try {
+      const res = await fetch('/api/wifi/health?action=set-alert-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rules: [...alertRules, { ...newRule, threshold: parseFloat(newRule.threshold), enabled: true }] }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast({ title: 'Rule Saved' });
+        setShowAddRule(false);
+        setNewRule({ metric: 'cpu', operator: '>', threshold: '', label: '' });
+        fetchAlerts();
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to save rule', variant: 'destructive' });
+    }
+  };
+
+  // --- Toggle rule ---
+  const handleToggleRule = async (ruleId: string, enabled: boolean) => {
+    try {
+      await fetch('/api/wifi/health?action=set-alert-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rules: alertRules.map(r => r.id === ruleId ? { ...r, enabled } : r),
+        }),
+      });
+      setAlertRules(prev => prev.map(r => r.id === ruleId ? { ...r, enabled } : r));
+    } catch { /* silent */ }
+  };
+
+  // --- Derived values ---
+  const cpuPct = metrics?.cpu?.usage ?? 0;
+  const ramPct = metrics?.memory?.percent ?? 0;
+  const diskPct = metrics?.disk?.percent ?? 0;
+  const cores = metrics?.cpu?.cores ?? 0;
+  const totalRam = metrics?.memory?.total ?? 0;
+  const totalDisk = metrics?.disk?.total ?? 0;
+  const interfaces = metrics?.interfaces ?? [];
+  const history = metrics?.history ?? {};
+
+  // Build real-time bandwidth chart data (last 60 points)
+  const bwChartData = useMemo(() => {
+    if (!history?.timestamps?.length) return [];
+    const ts = history.timestamps;
+    const ifaces = history.interfaces || {};
+    const start = Math.max(0, ts.length - 60);
+    return ts.slice(start).map((t: number, i: number) => {
+      const point: any = { time: formatTime(t) };
+      Object.entries(ifaces).forEach(([name, speeds]: [string, any]) => {
+        point[`${name}_rx`] = speeds?.rxSpeed?.[start + i] ?? 0;
+        point[`${name}_tx`] = speeds?.txSpeed?.[start + i] ?? 0;
+      });
+      return point;
+    });
+  }, [history]);
+
+  // Compute RRD chart data helper
+  const buildRrdChartData = useCallback((rrdData: any) => {
+    if (!rrdData?.timestamps?.length) return [];
+    const ds = rrdData.data || {};
+    return rrdData.timestamps.map((ts: number, i: number) => {
+      const point: any = { time: formatTime(ts) };
+      Object.entries(ds).forEach(([key, arr]: [string, any]) => {
+        point[key] = arr?.[i] ?? 0;
+      });
+      return point;
+    });
+  }, []);
+
+  const ifaceHistChartData = useMemo(() => buildRrdChartData(ifaceHistData), [ifaceHistData, buildRrdChartData]);
+  const cpuHistChartData = useMemo(() => buildRrdChartData(cpuHistData), [cpuHistData, buildRrdChartData]);
+  const memHistChartData = useMemo(() => buildRrdChartData(memHistData), [memHistData, buildRrdChartData]);
+  const diskHistChartData = useMemo(() => buildRrdChartData(diskHistData), [diskHistData, buildRrdChartData]);
+
+  // User BW chart data
+  const userBwChartData = useMemo(() => {
+    if (!userBwData?.timestamps?.length) return [];
+    return userBwData.timestamps.map((ts: number, i: number) => ({
+      time: formatTime(ts),
+      download: userBwData.data?.in?.[i] ?? 0,
+      upload: userBwData.data?.out?.[i] ?? 0,
+    }));
+  }, [userBwData]);
+
+  // Build bandwidth chart config
+  const bwChartConfig = useMemo((): ChartConfig => {
+    const cfg: ChartConfig = {};
+    interfaces.forEach((iface: any, i: number) => {
+      const color = IFACE_COLORS[i % IFACE_COLORS.length];
+      cfg[`${iface.name}_rx`] = { label: `${iface.name} ↓`, color };
+      cfg[`${iface.name}_tx`] = { label: `${iface.name} ↑`, color };
+    });
+    return cfg;
+  }, [interfaces]);
+
+  // Active users sort
+  const [userSortKey, setUserSortKey] = useState<string>('username');
+  const [userSortDir, setUserSortDir] = useState<'asc' | 'desc'>('asc');
+  const sortedUsers = useMemo(() => {
+    const sorted = [...activeUsers].sort((a, b) => {
+      const aVal = a[userSortKey] ?? '';
+      const bVal = b[userSortKey] ?? '';
+      const cmp = typeof aVal === 'number' && typeof bVal === 'number' ? aVal - bVal : String(aVal).localeCompare(String(bVal));
+      return userSortDir === 'asc' ? cmp : -cmp;
+    });
+    return sorted;
+  }, [activeUsers, userSortKey, userSortDir]);
+
+  const handleUserSort = (key: string) => {
+    if (userSortKey === key) setUserSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setUserSortKey(key); setUserSortDir('asc'); }
+  };
+
+  // Summary stats for active users (before early return — hooks must be before conditional returns)
+  const totalUserBw = useMemo(() =>
+    activeUsers.reduce((sum: number, u: any) => sum + (u.inputBytes || 0) + (u.outputBytes || 0), 0),
+    [activeUsers]
+  );
+
+  // Metric card data (pure computation, no hooks)
+  const getMetricCards = () => [
+    { label: 'CPU', value: cpuPct, icon: Cpu, history: history?.cpu },
+    { label: 'RAM', value: ramPct, icon: MemoryStick, history: history?.memory },
+    { label: 'Disk', value: diskPct, icon: HardDrive, history: history?.disk },
+    { label: 'Active Alerts', value: activeAlerts.length, icon: Bell, history: null },
+  ];
+
+  if (loading && !metrics) return <LoadingSpinner message="Loading system health..." />;
+
+  const metricCards = getMetricCards();
+
+  return (
+    <Tabs defaultValue="overview" className="space-y-4">
+      <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+        <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
+        <TabsTrigger value="interfaces" className="text-xs sm:text-sm">Interfaces</TabsTrigger>
+        <TabsTrigger value="resources" className="text-xs sm:text-sm">Resources</TabsTrigger>
+        <TabsTrigger value="users" className="text-xs sm:text-sm">Active Users</TabsTrigger>
+        <TabsTrigger value="alerts" className="text-xs sm:text-sm">Alerts</TabsTrigger>
+      </TabsList>
+
+      {/* ==================== SUB-TAB 1: OVERVIEW ==================== */}
+      <TabsContent value="overview" className="space-y-4">
+        {/* Top row: 4 metric cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {metricCards.map(card => {
+            const mc = card.label === 'Active Alerts'
+              ? (card.value > 0 ? { bg: 'bg-red-500/10 dark:bg-red-500/15', text: 'text-red-600 dark:text-red-400', icon: 'text-red-500 dark:text-red-400', spark: '#f43f5e' } : { bg: 'bg-teal-500/10 dark:bg-teal-500/15', text: 'text-teal-600 dark:text-teal-400', icon: 'text-teal-500 dark:text-teal-400', spark: '#14b8a6' })
+              : getMetricColor(card.value);
+            const Icon = card.icon;
+            return (
+              <Card key={card.label} className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className={cn('p-2 rounded-lg', mc.bg)}>
+                    <Icon className={cn('h-4 w-4', mc.icon)} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted-foreground">{card.label}</p>
+                    <p className={cn('text-2xl font-bold tabular-nums leading-tight', mc.text)}>
+                      {card.label === 'Active Alerts' ? card.value : `${Math.round(card.value)}%`}
+                    </p>
+                  </div>
+                  {card.history && card.history.length > 1 && (
+                    <MiniSparkline data={card.history.slice(-20)} color={mc.spark} />
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Middle: Real-time interface bandwidth graph */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Network className="h-4 w-4 text-muted-foreground" />
+                Real-time Interface Bandwidth
+              </CardTitle>
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                {interfaces.map((iface: any, i: number) => (
+                  <span key={iface.name} className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: IFACE_COLORS[i % IFACE_COLORS.length] }} />
+                    <span className="font-mono">{iface.name}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {bwChartData.length > 0 ? (
+              <ChartContainer config={bwChartConfig} className="h-[280px] w-full">
+                <AreaChart data={bwChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                  <defs>
+                    {interfaces.map((iface: any, i: number) => {
+                      const c = IFACE_COLORS[i % IFACE_COLORS.length];
+                      return (
+                        <React.Fragment key={iface.name}>
+                          <linearGradient id={`grad-${iface.name}-rx`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={c} stopOpacity={0.3} />
+                            <stop offset="95%" stopColor={c} stopOpacity={0.02} />
+                          </linearGradient>
+                          <linearGradient id={`grad-${iface.name}-tx`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={c} stopOpacity={0.15} />
+                            <stop offset="95%" stopColor={c} stopOpacity={0.01} />
+                          </linearGradient>
+                        </React.Fragment>
+                      );
+                    })}
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
+                  <XAxis dataKey="time" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatMbps(v)} width={70} />
+                  <ChartTooltip content={<HealthChartTooltip />} />
+                  {interfaces.map((iface: any, i: number) => {
+                    const c = IFACE_COLORS[i % IFACE_COLORS.length];
+                    return (
+                      <React.Fragment key={iface.name}>
+                        <Area type="monotone" dataKey={`${iface.name}_rx`} name={`${iface.name} ↓`} stroke={c} fill={`url(#grad-${iface.name}-rx)`} strokeWidth={1.5} dot={false} />
+                        <Area type="monotone" dataKey={`${iface.name}_tx`} name={`${iface.name} ↑`} stroke={c} fill={`url(#grad-${iface.name}-tx)`} strokeWidth={1} strokeDasharray="4 2" dot={false} />
+                      </React.Fragment>
+                    );
+                  })}
+                </AreaChart>
+              </ChartContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[280px] text-sm text-muted-foreground">Waiting for data...</div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Bottom: Active alerts panel */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Active Alerts
+              {activeAlerts.length > 0 && (
+                <Badge variant="destructive" className="ml-1">{activeAlerts.length}</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {activeAlerts.length === 0 ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                No active alerts — everything looks good!
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {activeAlerts.map((alert: any) => (
+                  <div key={alert.id} className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700 p-3">
+                    <AlertTriangle className="h-4 w-4 text-amber-500 dark:text-amber-400 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{alert.label || `${alert.metric} ${alert.operator} ${alert.threshold}`}</p>
+                      <p className="text-xs text-muted-foreground">Value: <span className="font-mono tabular-nums">{alert.value}</span> · Triggered {alert.triggeredAt ? new Date(alert.triggeredAt).toLocaleString() : 'recently'}</p>
+                    </div>
+                    {!alert.acknowledged && (
+                      <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => handleAckAlert(alert.id)}>Acknowledge</Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* ==================== SUB-TAB 2: INTERFACES ==================== */}
+      <TabsContent value="interfaces" className="space-y-4">
+        {/* Interface selector */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-medium text-muted-foreground">Interface:</span>
+              {interfaces.map((iface: any) => (
+                <Button key={iface.name} variant={selectedIface === iface.name ? 'default' : 'outline'} size="sm" className="font-mono text-xs" onClick={() => setSelectedIface(iface.name)}>
+                  <Wifi className="h-3 w-3 mr-1.5" />
+                  {iface.name}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Real-time graph for selected interface */}
+        {selectedIface && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-mono">{selectedIface} — Real-time Traffic</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {bwChartData.length > 0 ? (
+                <ChartContainer config={{
+                  rx: { label: 'Download', color: '#14b8a6' },
+                  tx: { label: 'Upload', color: '#f97316' },
+                }} className="h-[260px] w-full">
+                  <AreaChart data={bwChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="iface-rx-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.02} />
+                      </linearGradient>
+                      <linearGradient id="iface-tx-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#f97316" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
+                    <XAxis dataKey="time" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatMbps(v)} width={70} />
+                    <ChartTooltip content={<HealthChartTooltip />} />
+                    <Area type="monotone" dataKey={`${selectedIface}_rx`} name="Download" stroke="#14b8a6" fill="url(#iface-rx-grad)" strokeWidth={2} dot={false} />
+                    <Area type="monotone" dataKey={`${selectedIface}_tx`} name="Upload" stroke="#f97316" fill="url(#iface-tx-grad)" strokeWidth={2} dot={false} />
+                  </AreaChart>
+                </ChartContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">Waiting for data...</div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Historical RRD graph */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-base font-mono">{selectedIface} — Historical</CardTitle>
+              <RangeSelector value={ifaceHistRange} onChange={setIfaceHistRange} />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {ifaceHistLoading ? (
+              <div className="flex items-center justify-center h-[260px]"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : ifaceHistChartData.length > 0 ? (
+              <ChartContainer config={{
+                download: { label: 'Download', color: '#14b8a6' },
+                upload: { label: 'Upload', color: '#f97316' },
+              }} className="h-[260px] w-full">
+                <LineChart data={ifaceHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
+                  <XAxis dataKey="time" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatMbps(v)} width={70} />
+                  <ChartTooltip content={<HealthChartTooltip />} />
+                  <Line type="monotone" dataKey="download" name="Download" stroke="#14b8a6" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="upload" name="Upload" stroke="#f97316" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ChartContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">No historical data available</div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Stats summary bar */}
+        {(() => {
+          const iface = interfaces.find((i: any) => i.name === selectedIface);
+          if (!iface) return null;
+          const rxCol = formatBytesColored(iface.rxBytes || 0);
+          const txCol = formatBytesColored(iface.txBytes || 0);
+          return (
+            <Card className="p-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Current ↓</p>
+                  <p className="text-lg font-bold tabular-nums text-teal-600 dark:text-teal-400">{formatMbps(iface.rxSpeed || 0)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Current ↑</p>
+                  <p className="text-lg font-bold tabular-nums text-orange-600 dark:text-orange-400">{formatMbps(iface.txSpeed || 0)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Total Received</p>
+                  <p className={cn('text-lg font-bold tabular-nums', rxCol.color)}>{rxCol.text}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Total Transmitted</p>
+                  <p className={cn('text-lg font-bold tabular-nums', txCol.color)}>{txCol.text}</p>
+                </div>
+              </div>
+            </Card>
+          );
+        })()}
+      </TabsContent>
+
+      {/* ==================== SUB-TAB 3: SYSTEM RESOURCES ==================== */}
+      <TabsContent value="resources" className="space-y-4">
+        {/* Three resource cards: CPU, RAM, Disk */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* CPU */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Cpu className="h-4 w-4 text-teal-500 dark:text-teal-400" /> CPU
+                </CardTitle>
+                <span className={cn('text-2xl font-bold tabular-nums', getMetricColor(cpuPct).text)}>{Math.round(cpuPct)}%</span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div className="h-full rounded-full bg-gradient-to-r from-teal-400 to-emerald-500 transition-all duration-700" style={{ width: `${cpuPct}%` }} />
+              </div>
+              <div className="flex items-center justify-between">
+                <RangeSelector value={cpuRange} onChange={setCpuRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+              </div>
+              {cpuHistChartData.length > 0 ? (
+                <ChartContainer config={{ cpu: { label: 'CPU', color: '#14b8a6' } }} className="h-[160px] w-full">
+                  <AreaChart data={cpuHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="cpu-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} width={40} />
+                    <ChartTooltip content={<HealthChartTooltip unit="%" />} />
+                    <Area type="monotone" dataKey="cpu" name="CPU" stroke="#14b8a6" fill="url(#cpu-grad)" strokeWidth={1.5} dot={false} />
+                  </AreaChart>
+                </ChartContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[160px] text-xs text-muted-foreground">No data</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* RAM */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <MemoryStick className="h-4 w-4 text-orange-500 dark:text-orange-400" /> RAM
+                </CardTitle>
+                <span className={cn('text-2xl font-bold tabular-nums', getMetricColor(ramPct).text)}>{Math.round(ramPct)}%</span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div className="h-full rounded-full bg-gradient-to-r from-orange-400 to-amber-500 transition-all duration-700" style={{ width: `${ramPct}%` }} />
+              </div>
+              <div className="flex items-center justify-between">
+                <RangeSelector value={memRange} onChange={setMemRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+              </div>
+              {memHistChartData.length > 0 ? (
+                <ChartContainer config={{ memory: { label: 'RAM', color: '#f97316' } }} className="h-[160px] w-full">
+                  <AreaChart data={memHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="mem-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#f97316" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} width={40} />
+                    <ChartTooltip content={<HealthChartTooltip unit="%" />} />
+                    <Area type="monotone" dataKey="memory" name="RAM" stroke="#f97316" fill="url(#mem-grad)" strokeWidth={1.5} dot={false} />
+                  </AreaChart>
+                </ChartContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[160px] text-xs text-muted-foreground">No data</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Disk */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <HardDrive className="h-4 w-4 text-rose-500 dark:text-rose-400" /> Disk
+                </CardTitle>
+                <span className={cn('text-2xl font-bold tabular-nums', getMetricColor(diskPct).text)}>{Math.round(diskPct)}%</span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div className="h-full rounded-full bg-gradient-to-r from-rose-400 to-rose-500 transition-all duration-700" style={{ width: `${diskPct}%` }} />
+              </div>
+              <div className="flex items-center justify-between">
+                <RangeSelector value={diskRange} onChange={setDiskRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+              </div>
+              {diskHistChartData.length > 0 ? (
+                <ChartContainer config={{ disk: { label: 'Disk', color: '#f43f5e' } }} className="h-[160px] w-full">
+                  <AreaChart data={diskHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="disk-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#f43f5e" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} width={40} />
+                    <ChartTooltip content={<HealthChartTooltip unit="%" />} />
+                    <Area type="monotone" dataKey="disk" name="Disk" stroke="#f43f5e" fill="url(#disk-grad)" strokeWidth={1.5} dot={false} />
+                  </AreaChart>
+                </ChartContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[160px] text-xs text-muted-foreground">No data</div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Summary bar */}
+        <Card className="p-4">
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-xs text-muted-foreground">CPU Cores</p>
+              <p className="text-lg font-bold tabular-nums">{cores}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total RAM</p>
+              <p className="text-lg font-bold tabular-nums">{formatBytes(totalRam)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total Disk</p>
+              <p className="text-lg font-bold tabular-nums">{formatBytes(totalDisk)}</p>
+            </div>
+          </div>
+        </Card>
+      </TabsContent>
+
+      {/* ==================== SUB-TAB 4: ACTIVE USERS ==================== */}
+      <TabsContent value="users" className="space-y-4">
+        {/* Header */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge variant="default" className="text-sm px-3 py-1">
+            <Users className="h-3 w-3 mr-1.5" />
+            {activeUsers.length} active sessions
+          </Badge>
+          <Badge variant="outline" className="text-sm px-3 py-1">
+            Total bandwidth: <span className="font-mono ml-1">{formatBytes(totalUserBw)}</span>
+          </Badge>
+          <Button variant="outline" size="sm" className="ml-auto" onClick={fetchUsers}>
+            <RefreshCw className="h-3 w-3 mr-1.5" /> Refresh
+          </Button>
+        </div>
+
+        {/* Users table */}
+        <Card>
+          <CardContent className="p-0">
+            <ScrollArea className="max-h-96">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="cursor-pointer" onClick={() => handleUserSort('username')}>
+                      Username <SortIcon col="username" isActive={userSortKey === 'username'} />
+                    </TableHead>
+                    <TableHead className="hidden md:table-cell">NAS IP</TableHead>
+                    <TableHead className="cursor-pointer" onClick={() => handleUserSort('framedIpAddress')}>
+                      IP Address <SortIcon col="framedIpAddress" isActive={userSortKey === 'framedIpAddress'} />
+                    </TableHead>
+                    <TableHead className="hidden sm:table-cell">MAC</TableHead>
+                    <TableHead className="cursor-pointer" onClick={() => handleUserSort('sessionTime')}>
+                      Session <SortIcon col="sessionTime" isActive={userSortKey === 'sessionTime'} />
+                    </TableHead>
+                    <TableHead className="cursor-pointer text-right" onClick={() => handleUserSort('outputBytes')}>
+                      Download <SortIcon col="outputBytes" isActive={userSortKey === 'outputBytes'} />
+                    </TableHead>
+                    <TableHead className="cursor-pointer text-right" onClick={() => handleUserSort('inputBytes')}>
+                      Upload <SortIcon col="inputBytes" isActive={userSortKey === 'inputBytes'} />
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                        No active users found
+                      </TableCell>
+                    </TableRow>
+                  ) : sortedUsers.map((user: any) => {
+                    const dl = formatBytesColored(user.outputBytes || 0);
+                    const ul = formatBytesColored(user.inputBytes || 0);
+                    const isSelected = selectedUser === user.username;
+                    return (
+                      <TableRow
+                        key={user.username}
+                        className={cn('cursor-pointer hover:bg-muted/30', isSelected && 'bg-teal-50 dark:bg-teal-950/20')}
+                        onClick={() => setSelectedUser(isSelected ? null : user.username)}
+                      >
+                        <TableCell className="font-medium">{user.username}</TableCell>
+                        <TableCell className="hidden md:table-cell font-mono text-xs text-muted-foreground">{user.nasIpAddress || '—'}</TableCell>
+                        <TableCell className="font-mono text-xs">{user.framedIpAddress || '—'}</TableCell>
+                        <TableCell className="hidden sm:table-cell font-mono text-xs text-muted-foreground">{user.macAddress || '—'}</TableCell>
+                        <TableCell className="font-mono text-xs tabular-nums">{user.sessionTime ? formatSessionTime(user.sessionTime) : '—'}</TableCell>
+                        <TableCell className={cn('text-right font-mono text-xs tabular-nums', dl.color)}>{dl.text}</TableCell>
+                        <TableCell className={cn('text-right font-mono text-xs tabular-nums', ul.color)}>{ul.text}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        {/* Selected user bandwidth graph */}
+        {selectedUser && (
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                  {selectedUser} — Bandwidth
+                </CardTitle>
+                <RangeSelector value={userBwRange} onChange={setUserBwRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {userBwChartData.length > 0 ? (
+                <ChartContainer config={{
+                  download: { label: 'Download', color: '#14b8a6' },
+                  upload: { label: 'Upload', color: '#f97316' },
+                }} className="h-[260px] w-full">
+                  <AreaChart data={userBwChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="user-bw-dl" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.02} />
+                      </linearGradient>
+                      <linearGradient id="user-bw-ul" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#f97316" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
+                    <XAxis dataKey="time" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatMbps(v)} width={70} />
+                    <ChartTooltip content={<HealthChartTooltip />} />
+                    <Area type="monotone" dataKey="download" name="Download" stroke="#14b8a6" fill="url(#user-bw-dl)" strokeWidth={2} dot={false} />
+                    <Area type="monotone" dataKey="upload" name="Upload" stroke="#f97316" fill="url(#user-bw-ul)" strokeWidth={2} dot={false} />
+                  </AreaChart>
+                </ChartContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading bandwidth data...
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </TabsContent>
+
+      {/* ==================== SUB-TAB 5: ALERTS ==================== */}
+      <TabsContent value="alerts" className="space-y-4">
+        {/* Alert Rules Configuration */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Settings className="h-4 w-4 text-muted-foreground" /> Alert Rules
+              </CardTitle>
+              <Button size="sm" onClick={() => setShowAddRule(true)}>
+                <Plus className="h-3 w-3 mr-1.5" /> Add Rule
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ScrollArea className="max-h-64">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Metric</TableHead>
+                    <TableHead>Condition</TableHead>
+                    <TableHead className="text-right">Threshold</TableHead>
+                    <TableHead>Label</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {alertRules.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-6">No alert rules configured</TableCell>
+                    </TableRow>
+                  ) : alertRules.map((rule: any) => (
+                    <TableRow key={rule.id}>
+                      <TableCell className="font-medium capitalize">{rule.metric}</TableCell>
+                      <TableCell className="font-mono text-sm">{rule.operator}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">{rule.threshold}</TableCell>
+                      <TableCell className="text-sm">{rule.label || '—'}</TableCell>
+                      <TableCell className="text-center">
+                        <Switch checked={rule.enabled} onCheckedChange={(checked) => handleToggleRule(rule.id, checked)} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        {/* Active Alerts */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              Active Alerts
+              {activeAlerts.length > 0 && <Badge variant="destructive" className="ml-1">{activeAlerts.length}</Badge>}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {activeAlerts.length === 0 ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                All clear — no active alerts
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {activeAlerts.map((alert: any) => (
+                  <div key={alert.id} className={cn(
+                    'flex items-center gap-3 rounded-lg border p-3',
+                    alert.acknowledged
+                      ? 'border-slate-200 bg-slate-50 dark:bg-slate-900/20 dark:border-slate-700'
+                      : 'border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700'
+                  )}>
+                    <AlertTriangle className={cn('h-4 w-4 shrink-0', alert.acknowledged ? 'text-muted-foreground' : 'text-amber-500 dark:text-amber-400')} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{alert.label || `${alert.metric} ${alert.operator} ${alert.threshold}`}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Current: <span className="font-mono tabular-nums">{alert.value}</span> · Threshold: <span className="font-mono">{alert.threshold}</span>
+                        {alert.triggeredAt && <span className="ml-2">{new Date(alert.triggeredAt).toLocaleString()}</span>}
+                      </p>
+                    </div>
+                    {!alert.acknowledged && (
+                      <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => handleAckAlert(alert.id)}>
+                        <Check className="h-3 w-3 mr-1" /> Ack
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Alert History */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <History className="h-4 w-4 text-muted-foreground" /> Alert History
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {alertHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No resolved alerts in history</p>
+            ) : (
+              <ScrollArea className="max-h-64">
+                <div className="space-y-1.5">
+                  {alertHistory.map((item: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-3 rounded-md border border-border/50 px-3 py-2 text-sm">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate">{item.label || `${item.metric} ${item.operator} ${item.threshold}`}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Triggered: {item.triggeredAt ? new Date(item.triggeredAt).toLocaleString() : '—'}
+                          {item.resolvedAt && <span> · Resolved: {new Date(item.resolvedAt).toLocaleString()}</span>}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Add Rule Dialog */}
+        <Dialog open={showAddRule} onOpenChange={setShowAddRule}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Alert Rule</DialogTitle>
+              <DialogDescription>Configure a new alert threshold for system monitoring.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>Metric</Label>
+                <Select value={newRule.metric} onValueChange={v => setNewRule(p => ({ ...p, metric: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cpu">CPU Usage</SelectItem>
+                    <SelectItem value="memory">RAM Usage</SelectItem>
+                    <SelectItem value="disk">Disk Usage</SelectItem>
+                    <SelectItem value="interface_rx">Interface RX Speed</SelectItem>
+                    <SelectItem value="interface_tx">Interface TX Speed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Operator</Label>
+                  <Select value={newRule.operator} onValueChange={v => setNewRule(p => ({ ...p, operator: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value=">">&gt; Greater than</SelectItem>
+                      <SelectItem value=">=">&ge; Greater or equal</SelectItem>
+                      <SelectItem value="<">&lt; Less than</SelectItem>
+                      <SelectItem value="<=">&le; Less or equal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Threshold</Label>
+                  <Input
+                    type="number"
+                    value={newRule.threshold}
+                    onChange={e => setNewRule(p => ({ ...p, threshold: e.target.value }))}
+                    placeholder="e.g. 80"
+                    className="tabular-nums"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Label (optional)</Label>
+                <Input
+                  value={newRule.label}
+                  onChange={e => setNewRule(p => ({ ...p, label: e.target.value }))}
+                  placeholder="e.g. High CPU usage warning"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowAddRule(false)}>Cancel</Button>
+              <Button onClick={handleSaveRule} disabled={!newRule.threshold}>Save Rule</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </TabsContent>
+    </Tabs>
   );
 }
