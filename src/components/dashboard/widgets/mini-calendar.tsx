@@ -98,7 +98,7 @@ export function MiniCalendarWidget() {
       </CardHeader>
       <CardContent className="space-y-3">
         {isLoadingEvents ? (
-          <div className="space-y-3"><div className="grid grid-cols-7 gap-0.5">{weekDays.map((wd) => <div key={wd} className="text-center text-[10px] font-semibold text-muted-foreground py-1">{wd}</div>)}{calendarCells.map((day, i) => <div key={i} className="h-9">{day !== null && <div className="h-full w-full rounded-lg bg-muted/15 animate-pulse" />}</div>)}]}</div></div>
+          <div className="space-y-3"><div className="grid grid-cols-7 gap-0.5">{weekDays.map((wd) => <div key={wd} className="text-center text-[10px] font-semibold text-muted-foreground py-1">{wd}</div>)}{calendarCells.map((day, i) => <div key={i} className="h-9">{day !== null && <div className="h-full w-full rounded-lg bg-muted/15 animate-pulse" />}</div>)}</div></div>
         ) : (
           <>
             <div className="grid grid-cols-7 gap-0.5">

@@ -465,7 +465,7 @@ const t = useTranslations('billing');
             Invoices
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            t('invoicesDesc')
+            {t('invoicesDesc')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -475,7 +475,7 @@ const t = useTranslations('billing');
           </Button>
           <Button onClick={() => { resetForm(); setIsCreateOpen(true); }} className="bg-gradient-to-r from-emerald-600 to-emerald-500 hover:shadow-lg hover:shadow-emerald-500/20 transition-all duration-300">
             <Plus className="h-4 w-4 mr-1.5" />
-            <span className="hidden xs:inline>{t('newInvoice')}</span>
+            <span className="hidden xs:inline">{t('newInvoice')}</span>
             <span className="xs:hidden">New</span>
           </Button>
         </div>
@@ -551,7 +551,7 @@ const t = useTranslations('billing');
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all>{t('allStatus')}</SelectItem>
+                <SelectItem value="all">{t('allStatus')}</SelectItem>
                 {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
                   <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
                 ))}
@@ -571,8 +571,8 @@ const t = useTranslations('billing');
           ) : invoices.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground px-4">
               <FileText className="h-12 w-12 mb-3 opacity-30" />
-              <p className="font-medium">>{t('noInvoicesFound')</p>}
-              <p className="text-sm mt-1">>{t('createFirstInvoice')</p>}
+              <p className="font-medium">{t('noInvoicesFound')}</p>
+              <p className="text-sm mt-1">{t('createFirstInvoice')}</p>
               <Button className="mt-4" onClick={() => { resetForm(); setIsCreateOpen(true); }}>
                 <Plus className="h-4 w-4 mr-1.5" />Create Invoice
               </Button>
@@ -710,8 +710,8 @@ const t = useTranslations('billing');
                             <DropdownMenuContent align="end">
                               {!['paid', 'cancelled'].includes(invoice.status) && (
                                 <>
-                                  <DropdownMenuItem onClick={() => markAsSent(invoice)}><Send className="h-4 w-4 mr-2" /{t('markSent')}</DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => markAsPaid(invoice)}><CreditCard className="h-4 w-4 mr-2" /{t('markPaid')}</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => markAsSent(invoice)}><Send className="h-4 w-4 mr-2" /> {t('markSent')}</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => markAsPaid(invoice)}><CreditCard className="h-4 w-4 mr-2" /> {t('markPaid')}</DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                 </>
                               )}
@@ -735,13 +735,13 @@ const t = useTranslations('billing');
       <Dialog open={isCreateOpen} onOpenChange={(open) => { if (!open) resetForm(); setIsCreateOpen(open); }}>
         <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg>{t('createInvoice')}</DialogTitle>
-            <DialogDescription>>{t('createInvoiceDesc')</DialogDescription>}
+            <DialogTitle className="text-lg">{t('createInvoice')}</DialogTitle>
+            <DialogDescription>{t('createInvoiceDesc')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-5 py-2">
             {/* Customer Info */}
             <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider>{t('customerDetails')}</h4>
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t('customerDetails')}</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="customerName">Name *</Label>
@@ -767,7 +767,7 @@ const t = useTranslations('billing');
             {/* Line Items */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider>{t('lineItems')}</h4>
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t('lineItems')}</h4>
                 <Button variant="ghost" size="sm" onClick={addLineItem} className="h-8 text-xs">
                   <Plus className="h-3 w-3 mr-1" />Add Item
                 </Button>
@@ -777,7 +777,7 @@ const t = useTranslations('billing');
                   <Card key={item.id} className="p-3">
                     <div className="grid grid-cols-12 gap-2 items-start">
                       <div className="col-span-12 sm:col-span-5">
-                        <Label className="text-xs text-muted-foreground>{t('description')}</tax>
+                        <Label className="text-xs text-muted-foreground">{t('description')}</Label>
                         <Input
                           placeholder=">t('itemDescription')"
                           value={item.description}
@@ -859,7 +859,7 @@ const t = useTranslations('billing');
 
             {/* Invoice Settings */}
             <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider>{t('invoiceSettings')}</h4>
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t('invoiceSettings')}</h4>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="currency">Currency</Label>
@@ -897,7 +897,7 @@ const t = useTranslations('billing');
           <DialogFooter className="flex-col sm:flex-row gap-2 pt-2">
             <Button variant="outline" onClick={() => { resetForm(); setIsCreateOpen(false); }} className="w-full sm:w-auto">Cancel</Button>
             <Button onClick={handleCreate} disabled={isSaving} className="w-full sm:w-auto">
-              {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating...</> : <><FileText className="h-4 w-4 mr-2" />>t('createInvoice')/>}
+              {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating...</> : <><FileText className="h-4 w-4 mr-2" />{t('createInvoice')}</>}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -956,13 +956,13 @@ const t = useTranslations('billing');
               {/* Line Items */}
               <Card className="overflow-hidden">
                 <div className="px-4 py-3 bg-muted/30 border-b">
-                  <h4 className="text-sm font-semibold>{t('lineItems')}</h4>
+                  <h4 className="text-sm font-semibold">{t('lineItems')}</h4>
                 </div>
                 <div className="hidden sm:block">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead{t('description')}</TableHead>
+                        <TableHead>{t('description')}</TableHead>
                         <TableHead className="text-center w-[60px]">Qty</TableHead>
                         <TableHead className="text-right w-[100px]">Unit Price</TableHead>
                         <TableHead className="text-right w-[80px]">Tax</TableHead>

@@ -19,11 +19,11 @@ const MAX_WIDTH = 800;
 const TARGET_QUALITY = 0.7; // ~200KB target
 
 export default function MenuImageUpload({
-const t = useTranslations('pos');
   currentImageUrl,
   onImageUploaded,
   onImageRemoved,
 }: MenuImageUploadProps) {
+  const t = useTranslations('pos');
   const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(currentImageUrl || null);
   const [uploading, setUploading] = useState(false);

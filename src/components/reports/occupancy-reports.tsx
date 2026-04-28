@@ -110,7 +110,6 @@ const statusColors: Record<string, string> = {
 };
 
 function getOccupancyColor(occupancy: number): string {
-const t = useTranslations('reports');
   if (occupancy >= 90) return 'text-emerald-600 dark:text-emerald-400';
   if (occupancy >= 70) return 'text-amber-600 dark:text-amber-400';
   if (occupancy >= 50) return 'text-orange-600 dark:text-orange-400';

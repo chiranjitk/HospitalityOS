@@ -691,7 +691,7 @@ const t = useTranslations('billing');
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all>{t('allStatus')}</SelectItem>
+                <SelectItem value="all">{t('allStatus')}</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
@@ -943,7 +943,7 @@ const t = useTranslations('billing');
 
             {/* Description */}
             <div className="space-y-2">
-              <Label htmlFor="policy-desc>{t('description')}</found>
+              <Label htmlFor="policy-desc">{t('description')}</Label>
               <Textarea
                 id="policy-desc"
                 value={formDescription}

@@ -18,6 +18,7 @@ interface RoomStatusCounts { available: number; occupied: number; maintenance: n
 interface RoomStatusData { statusCounts: RoomStatusCounts; totalRooms: number; occupancyRate: number; todaysArrivals: number; todaysDepartures: number; }
 
 function OccupancyRing({ value, size = 100 }: { value: number; size?: number }) {
+  const t = useTranslations('dashboard');
   const radius = (size - 12) / 2; const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (value / 100) * circumference; const center = size / 2;
   const ringColor = value >= 90 ? 'text-red-500 dark:text-red-400' : value >= 70 ? 'text-amber-500 dark:text-amber-400' : value >= 40 ? 'text-emerald-500 dark:text-emerald-400' : 'text-teal-500 dark:text-teal-400';
@@ -51,7 +52,7 @@ function DistributionBar({ statusCounts, totalRooms, t }: { statusCounts: RoomSt
   return (
     <div className="space-y-2">
       <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted"><AnimatePresence>{segments.map((seg) => <motion.div key={seg.key} className={cn('h-full', seg.bar)} initial={{ width: 0 }} animate={{ width: `${seg.pct}%` }} transition={{ duration: 0.8, ease: 'easeOut', delay: 0.3 }} />)}</AnimatePresence></div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1">{segments.map((seg) => { const config = statusItems.find((s) => s.key === seg.key)!; return (<div key={seg.key} className="flex items-center gap-1.5"><span className={cn('inline-block h-2 w-2 rounded-full', seg.bar)} /><span className="text-[11px] text-muted-foreground leading-none">{t(config.labelKey)}{' '}<span className="font-medium tabular-nums">{seg.count}</span></div>); })}</div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1">{segments.map((seg) => { const config = statusItems.find((s) => s.key === seg.key)!; return (<div key={seg.key} className="flex items-center gap-1.5"><span className={cn('inline-block h-2 w-2 rounded-full', seg.bar)} /><span className="text-[11px] text-muted-foreground leading-none">{t(config.labelKey)}{' '}<span className="font-medium tabular-nums">{seg.count}</span></span></div>); })}</div>
     </div>
   );
 }

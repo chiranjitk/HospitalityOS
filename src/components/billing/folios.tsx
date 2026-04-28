@@ -127,8 +127,8 @@ const folioStatuses = [
 ];
 
 const lineItemCategories = [
-  { value: 'room', label: t('roomCharge') },
-  { value: 'food', label: t('foodBeverage') },
+  { value: 'room', label: 'Room Charge' },
+  { value: 'food', label: 'Food & Beverage' },
   { value: 'service', label: 'Services' },
   { value: 'amenity', label: 'Amenities' },
   { value: 'tax', label: 'Tax' },
@@ -479,7 +479,7 @@ const t = useTranslations('billing');
             Folios
           </h2>
           <p className="text-sm text-muted-foreground">
-            t('foliosDesc')
+            {t('foliosDesc')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -503,7 +503,7 @@ const t = useTranslations('billing');
             </div>
             <div>
               <div className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-violet-400 bg-clip-text text-transparent">{folios.length}</div>
-              <div className="text-xs text-muted-foreground>{t('totalFolios')}</useState>
+              <div className="text-xs text-muted-foreground">{t('totalFolios')}</div>
             </div>
           </div>
         </Card>
@@ -514,7 +514,7 @@ const t = useTranslations('billing');
             </div>
             <div>
               <div className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-400 bg-clip-text text-transparent">{openFolios}</div>
-              <div className="text-xs text-muted-foreground>{t('openFolios')}</useState>
+              <div className="text-xs text-muted-foreground">{t('openFolios')}</div>
             </div>
           </div>
         </Card>
@@ -562,7 +562,7 @@ const t = useTranslations('billing');
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all>{t('allStatus')}</SelectItem>
+                <SelectItem value="all">{t('allStatus')}</SelectItem>
                 {folioStatuses.map(status => (
                   <SelectItem key={status.value} value={status.value}>
                     {status.label}
@@ -584,8 +584,8 @@ const t = useTranslations('billing');
           ) : folios.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <FileText className="h-12 w-12 mb-4" />
-              <p{t('noFoliosFound')}</useState>
-              <p className="text-sm">>{t('createFirstFolio')</p>}
+              <p>{t('noFoliosFound')}</p>
+              <p className="text-sm">{t('createFirstFolio')}</p>
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
@@ -760,7 +760,7 @@ const t = useTranslations('billing');
               Folio {selectedFolio?.folioNumber}
             </DialogTitle>
             <DialogDescription>
-              {t('viewAndManage')}</useState>
+              {t('viewAndManage')}
             </DialogDescription>
           </DialogHeader>
           {selectedFolio && (
@@ -794,7 +794,7 @@ const t = useTranslations('billing');
               {/* Line Items */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium>{t('lineItems')}</h3>
+                  <h3 className="font-medium">{t('lineItems')}</h3>
                   {selectedFolio.status === 'open' && (
                     <Button size="sm" onClick={() => setIsAddItemOpen(true)}>
                       <Plus className="h-3 w-3 mr-1" />
@@ -806,7 +806,7 @@ const t = useTranslations('billing');
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead{t('description')}</TableHead>
+                        <TableHead>{t('description')}</TableHead>
                         <TableHead>Category</TableHead>
                         <TableHead className="text-right">Qty</TableHead>
                         <TableHead className="text-right">Unit Price</TableHead>
@@ -852,7 +852,7 @@ const t = useTranslations('billing');
                       {(!selectedFolio.lineItems || selectedFolio.lineItems.length === 0) && (
                         <TableRow>
                           <TableCell colSpan={selectedFolio.status === 'open' ? 7 : 6} className="text-center text-muted-foreground">
-                            {t('noLineItems')}</Price>
+                            {t('noLineItems')}
                           </TableCell>
                         </TableRow>
                       )}
@@ -951,14 +951,14 @@ const t = useTranslations('billing');
       <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle{t('addLineItem')}</DialogTitle>
+            <DialogTitle>{t('addLineItem')}</DialogTitle>
             <DialogDescription>
-              {t('addLineItemDesc')}</Price>
+              {t('addLineItemDesc')}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="description>{t('description')}</Price>
+              <Label htmlFor="description">{t('description')}</Label>
               <Input
                 id="description"
                 placeholder="e.g., Room Service"

@@ -118,7 +118,6 @@ const OCCASIONS = [
 ];
 
 function formatDate(dateStr: string) {
-const t = useTranslations('pos');
   const d = new Date(dateStr);
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }

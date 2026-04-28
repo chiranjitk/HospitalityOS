@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { 
 import { useTranslations } from 'next-intl';
+import { 
   ImagePlus, 
   X, 
   Upload, 
@@ -24,12 +24,12 @@ interface RoomImageGalleryProps {
 }
 
 export function RoomImageGallery({ 
-  const t = useTranslations('pms');
   roomId, 
   images, 
   onImagesChange,
   maxImages = 10 
 }: RoomImageGalleryProps) {
+  const t = useTranslations('pms');
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setIsOpen] = useState(false);

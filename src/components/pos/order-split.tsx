@@ -17,7 +17,7 @@ interface OrderSplitProps {
 }
 
 export function OrderSplit({ order, onSplit }: OrderSplitProps) {
- order, onSplit }: OrderSplitProps) {const t = useTranslations('pos');
+  const t = useTranslations('pos');
   const [splits, setSplits] = useState<number[][]>([order.items.map((_, i) => i)]);
   const [splitting, setSplitting] = useState(false);
 

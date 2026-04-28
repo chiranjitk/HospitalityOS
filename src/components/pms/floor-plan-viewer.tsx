@@ -85,7 +85,6 @@ const roomStatuses = [
 ];
 
 export function FloorPlanViewer({
-  const t = useTranslations('pms');
   floorPlan,
   rooms,
   positions,
@@ -93,6 +92,7 @@ export function FloorPlanViewer({
   showStats = true,
   className,
 }: FloorPlanViewerProps) {
+  const t = useTranslations('pms');
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);

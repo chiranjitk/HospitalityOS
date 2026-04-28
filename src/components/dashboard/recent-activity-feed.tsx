@@ -55,7 +55,7 @@ const typeIcons: Record<string, React.ElementType> = {
   cleaning_completed: CheckCircle2,
 };
 
-function getTimeAgo(timestamp: string): string {
+function getTimeAgo(timestamp: string, t: (key: string, params?: Record<string, unknown>) => string): string {
   const now = new Date();
   const time = new Date(timestamp);
   const diffMs = now.getTime() - time.getTime();
@@ -171,7 +171,7 @@ export function RecentActivityFeed() {
 
                   {/* Time */}
                   <span className="text-[10px] text-muted-foreground/60 tabular-nums flex-shrink-0 mt-0.5">
-                    {getTimeAgo(activity.timestamp)}
+                    {getTimeAgo(activity.timestamp, t)}
                   </span>
                 </motion.div>
               );

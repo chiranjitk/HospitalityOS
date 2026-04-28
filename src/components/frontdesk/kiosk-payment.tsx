@@ -93,7 +93,6 @@ const PROCESSING_DELAY_MS = 2500;
 // --- Component ---
 
 export default function KioskPayment({
-  const t = useTranslations('frontdesk');
   bookingId,
   amount,
   currency,
@@ -103,6 +102,7 @@ export default function KioskPayment({
   onCancel,
   onBack,
 }: KioskPaymentProps) {
+  const t = useTranslations('frontdesk');
   const [step, setStep] = useState<PaymentStep>('method_select');
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);

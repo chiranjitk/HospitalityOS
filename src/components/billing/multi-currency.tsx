@@ -184,7 +184,7 @@ const t = useTranslations('billing');
             <ArrowLeftRight className="h-5 w-5" />
             Multi-Currency Billing
           </h2>
-          <p className="text-sm text-muted-foreground">{t('multiCurrencyDesc')</p>}
+          <p className="text-sm text-muted-foreground">{t('multiCurrencyDesc')}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={fetchRates}>

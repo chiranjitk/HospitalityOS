@@ -492,7 +492,7 @@ const t = useTranslations('billing');
             </div>
             <div>
               <div className="text-2xl font-bold">{stats.total}</div>
-              <div className="text-xs text-muted-foreground>{t('totalDiscounts')}</Record>
+              <div className="text-xs text-muted-foreground">{t('totalDiscounts')}</div>
             </div>
           </div>
         </Card>
@@ -561,7 +561,7 @@ const t = useTranslations('billing');
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all>{t('allStatus')}</SelectItem>
+                <SelectItem value="all">{t('allStatus')}</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
@@ -580,8 +580,8 @@ const t = useTranslations('billing');
           ) : discounts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Tag className="h-12 w-12 mb-4" />
-              <p>>{t('noDiscountsFound')</p>}
-              <p className="text-sm">>{t('createFirstDiscount')</p>}
+              <p>{t('noDiscountsFound')}</p>
+              <p className="text-sm">{t('createFirstDiscount')}</p>
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
@@ -769,7 +769,7 @@ const t = useTranslations('billing');
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description>{t('description')}</uses>
+              <Label htmlFor="description">{t('description')}</Label>
               <Textarea
                 id="description"
                 value={formData.description}

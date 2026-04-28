@@ -21,7 +21,7 @@ const quickNotes = [
 ];
 
 export function OrderItemNotes({ value = '', onChange, maxLength = 200 }: OrderItemNotesProps) {
- value = '', onChange, maxLength = 200 }: OrderItemNotesProps) {const t = useTranslations('pos');
+  const t = useTranslations('pos');
   const [open, setOpen] = useState(false);
 
   const handleQuickNote = (note: string) => {

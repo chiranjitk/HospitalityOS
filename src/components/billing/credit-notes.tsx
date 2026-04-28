@@ -275,7 +275,7 @@ const t = useTranslations('billing');
             <FileText className="h-5 w-5" />
             Credit Notes
           </h2>
-          <p className="text-sm text-muted-foreground">{t('creditNotesDesc')</p>}
+          <p className="text-sm text-muted-foreground">{t('creditNotesDesc')}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => { fetchFolios(); fetchCreditNotes(); }}>
@@ -300,7 +300,7 @@ const t = useTranslations('billing');
               <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
                 {formatCurrency(totalIssued)}
               </div>
-              <div className="text-xs text-muted-foreground>{t('totalIssued')}</useState>
+              <div className="text-xs text-muted-foreground">{t('totalIssued')}</div>
             </div>
           </div>
         </Card>
@@ -348,7 +348,7 @@ const t = useTranslations('billing');
       {/* Folio Selector */}
       <Card>
         <CardContent className="p-4">
-          <Label className="text-sm font-medium>{t('selectFolio')}</useState>
+          <Label className="text-sm font-medium">{t('selectFolio')}</Label>
           <Select value={selectedFolioId} onValueChange={setSelectedFolioId}>
             <SelectTrigger className="mt-2">
               <SelectValue placeholder="Choose a folio" />
@@ -464,8 +464,8 @@ const t = useTranslations('billing');
       <Dialog open={showCreateDialog} onOpenChange={(open) => { if (!open) resetForm(); setShowCreateDialog(open); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle{t('createCreditNote')}</DialogTitle>
-            <DialogDescription>>{t('createCreditNoteDesc')</DialogDescription>}
+            <DialogTitle>{t('createCreditNote')}</DialogTitle>
+            <DialogDescription>{t('createCreditNoteDesc')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
@@ -550,7 +550,7 @@ const t = useTranslations('billing');
       <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle{t('cancelCreditNote')}</DialogTitle>
+            <DialogTitle>{t('cancelCreditNote')}</DialogTitle>
             <DialogDescription>
               Are you sure you want to cancel credit note <span className="font-bold">{cancelTarget?.creditNoteNumber}</span>?
               {cancelTarget && cancelTarget.appliedAmount > 0 && (

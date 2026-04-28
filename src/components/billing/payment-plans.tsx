@@ -317,7 +317,7 @@ const t = useTranslations('billing');
             <CreditCard className="h-5 w-5" />
             Payment Plans
           </h2>
-          <p className="text-sm text-muted-foreground">{t('paymentPlansDesc')</p>}
+          <p className="text-sm text-muted-foreground">{t('paymentPlansDesc')}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => { fetchFolios(); fetchSchedules(); }}>
@@ -382,7 +382,7 @@ const t = useTranslations('billing');
       {/* Folio Selector */}
       <Card>
         <CardContent className="p-4">
-          <Label className="text-sm font-medium>{t('selectFolio')}</Paid>
+          <Label className="text-sm font-medium">{t('selectFolio')}</Label>
           <Select value={selectedFolioId} onValueChange={handleFolioChange}>
             <SelectTrigger className="mt-2">
               <SelectValue placeholder="Choose a folio to view payment plans" />
@@ -552,7 +552,7 @@ const t = useTranslations('billing');
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle{t('createPaymentPlan')}</DialogTitle>
+            <DialogTitle>{t('createPaymentPlan')}</DialogTitle>
             <DialogDescription>Set up installment payments for a guest folio</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">

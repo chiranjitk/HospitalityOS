@@ -59,7 +59,7 @@ interface MetricCardProps {
 }
 
 function MetricCard({ title, value, change, icon, colorClass }: MetricCardProps) {
- title, value, change, icon, colorClass }: MetricCardProps) {const t = useTranslations('reports');
+  const t = useTranslations('reports');
   const isPositive = change >= 0;
   return (
     <Card className={`border-0 shadow-sm ${colorClass}`}>

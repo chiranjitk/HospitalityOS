@@ -113,7 +113,7 @@ const refundStatuses = [
 
 const methodOptions = [
   { value: 'all', label: 'All Methods' },
-  { value: 'card', label: t('creditDebitCard') },
+  { value: 'card', label: 'Credit/Debit Card' },
   { value: 'cash', label: 'Cash' },
   { value: 'bank_transfer', label: 'Bank Transfer' },
   { value: 'wallet', label: 'Digital Wallet' },
@@ -306,10 +306,10 @@ const t = useTranslations('billing');
         <div>
           <h2 className="text-xl font-semibold flex items-center gap-2">
             <RotateCcw className="h-5 w-5" />
-            {t('refundsTitle')}</Record>
+            {t('refundsTitle')}
           </h2>
           <p className="text-sm text-muted-foreground">
-            t('refundsDesc')
+            {t('refundsDesc')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -400,7 +400,7 @@ const t = useTranslations('billing');
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all>{t('allStatus')}</SelectItem>
+                <SelectItem value="all">{t('allStatus')}</SelectItem>
                 <SelectItem value="refundable">Refundable</SelectItem>
                 <SelectItem value="refunded">Refunded</SelectItem>
                 <SelectItem value="partially_refunded">Partial Refund</SelectItem>
@@ -420,8 +420,8 @@ const t = useTranslations('billing');
           ) : filteredPayments.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <RotateCcw className="h-12 w-12 mb-4" />
-              <p>>{t('noRefundRecords')</p>}
-              <p className="text-sm">>{t('noMatchingFilters')</p>}
+              <p>{t('noRefundRecords')}</p>
+              <p className="text-sm">{t('noMatchingFilters')}</p>
             </div>
           ) : (
             <ScrollArea className="h-[500px]">

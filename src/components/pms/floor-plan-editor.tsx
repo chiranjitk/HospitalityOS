@@ -102,7 +102,6 @@ interface HistoryState {
 }
 
 export function FloorPlanEditor({
-  const t = useTranslations('pms');
   floorPlan,
   rooms,
   initialPositions,
@@ -110,6 +109,7 @@ export function FloorPlanEditor({
   onExport,
   readOnly = false,
 }: FloorPlanEditorProps) {
+  const t = useTranslations('pms');
   const { toast } = useToast();
   
   // Editor states
@@ -183,8 +183,8 @@ export function FloorPlanEditor({
   }, [history, historyIndex]);
 
   // Refs for callbacks that will be defined later but are needed in the keyboard shortcut effect
-  const handleSaveRef = useRef<() => void>();
-  const removeSelectedRoomsRef = useRef<() => void>();
+  const handleSaveRef = useRef<(() => void) | undefined>(undefined);
+  const removeSelectedRoomsRef = useRef<(() => void) | undefined>(undefined);
 
   // Keyboard shortcuts
   useEffect(() => {

@@ -105,7 +105,6 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 function formatChartDate(dateStr: string) {
-const t = useTranslations('revenue');
   return format(new Date(dateStr), 'MMM dd');
 }
 

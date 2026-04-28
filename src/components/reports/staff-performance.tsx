@@ -92,7 +92,6 @@ const chartConfig = {
 const chartColors = ['#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
 
 function formatTime(minutes: number) {
-const t = useTranslations('reports');
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;

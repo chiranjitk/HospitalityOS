@@ -122,7 +122,6 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 function formatDate(dateStr: string) {
-const t = useTranslations('revenue');
   return format(parseISO(dateStr), 'MMM dd');
 }
 

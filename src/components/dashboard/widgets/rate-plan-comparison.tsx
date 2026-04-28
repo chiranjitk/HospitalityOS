@@ -47,7 +47,7 @@ function PlanCard({ plan, isBest, maxRev, index, t }: { plan: RatePlan; isBest: 
       <div className="mb-3"><div className="flex items-center justify-between mb-1"><p className="text-[10px] text-muted-foreground uppercase tracking-wider">{t('revenue')}</p><p className="text-xs font-semibold tabular-nums">{formatCurrency(plan.revenue)}</p></div><MiniBar value={plan.revenue} maxValue={maxRev} color="bg-violet-500" delay={0.3 + index * 0.1} /></div>
       <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border/50">
         <span>{plan.roomsBooked} / {plan.totalRooms} {t('roomsLower')}</span>
-        <span className="font-medium tabular-nums">{formatCurrency(Math.round(plan.revenue / plan.roomsBooked))}/{t('room')}</span>
+        <span className="font-medium tabular-nums">{formatCurrency(Math.round(plan.revenue / plan.roomsBooked))} / {t('room')}</span>
       </div>
     </motion.div>
   );

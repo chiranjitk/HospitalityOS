@@ -94,7 +94,8 @@ const getStatusConfig = (status: string) => {
 export default function RoomGrid() {
   const { toast } = useToast();
   const { user, isAuthenticated } = useAuth();
-  
+  const t = useTranslations('frontdesk');
+
   // Room state
   const [rooms, setRooms] = useState<Room[]>([]);
   const [properties, setProperties] = useState<{ id: string; name: string }[]>([]);
@@ -184,7 +185,6 @@ export default function RoomGrid() {
     reconnect,
     disconnect 
   } = useSocket({
-  const t = useTranslations('frontdesk');
     tenantId: user?.tenantId || '',
     userId: user?.id || '',
     autoConnect: isAuthenticated,

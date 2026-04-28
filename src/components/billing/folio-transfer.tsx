@@ -290,7 +290,7 @@ const t = useTranslations('billing');
             <ArrowRightLeft className="h-5 w-5" />
             Folio Transfer
           </h2>
-          <p className="text-sm text-muted-foreground">{t('folioTransferDesc')</p>}
+          <p className="text-sm text-muted-foreground">{t('folioTransferDesc')}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={fetchFolios}>
@@ -348,7 +348,7 @@ const t = useTranslations('billing');
       {/* Folios list with history button */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base>{t('foliosTitle')}</CardTitle>
+          <CardTitle className="text-base">{t('foliosTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -498,7 +498,7 @@ const t = useTranslations('billing');
                               }}
                             />
                           </TableHead>
-                          <TableHead{t('description')}</TableHead>
+                          <TableHead>{t('description')}</TableHead>
                           <TableHead className="text-right">Amount</TableHead>
                         </TableRow>
                       </TableHeader>

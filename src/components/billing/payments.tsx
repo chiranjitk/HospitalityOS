@@ -132,7 +132,7 @@ const methodBadgeColors: Record<string, string> = {
 };
 
 const paymentMethods = [
-  { value: 'card', label: t('creditDebitCard'), icon: CreditCard, description: 'Visa, Mastercard, Amex' },
+  { value: 'card', label: 'Credit/Debit Card', icon: CreditCard, description: 'Visa, Mastercard, Amex' },
   { value: 'cash', label: 'Cash', icon: Banknote, description: 'Cash payment' },
   { value: 'bank_transfer', label: 'Bank Transfer', icon: Building2, description: 'Wire transfer' },
   { value: 'wallet', label: 'Digital Wallet', icon: Wallet, description: 'Apple Pay, Google Pay' },
@@ -475,7 +475,7 @@ const t = useTranslations('billing');
             Payments
           </h2>
           <p className="text-sm text-muted-foreground">
-            t('paymentsDesc')
+            {t('paymentsDesc')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -499,7 +499,7 @@ const t = useTranslations('billing');
             </div>
             <div>
               <div className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-violet-400 bg-clip-text text-transparent">{summary.count}</div>
-              <div className="text-xs text-muted-foreground>{t('totalPayments')}</useState>
+              <div className="text-xs text-muted-foreground">{t('totalPayments')}</div>
             </div>
           </div>
         </Card>
@@ -510,7 +510,7 @@ const t = useTranslations('billing');
             </div>
             <div>
               <div className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-400 bg-clip-text text-transparent">{formatCurrency(summary.totalAmount)}</div>
-              <div className="text-xs text-muted-foreground>{t('totalProcessed')}</useState>
+              <div className="text-xs text-muted-foreground">{t('totalProcessed')}</div>
             </div>
           </div>
         </Card>
@@ -571,7 +571,7 @@ const t = useTranslations('billing');
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all>{t('allStatus')}</SelectItem>
+                <SelectItem value="all">{t('allStatus')}</SelectItem>
                 {paymentStatuses.map(status => (
                   <SelectItem key={status.value} value={status.value}>
                     {status.label}
@@ -593,8 +593,8 @@ const t = useTranslations('billing');
           ) : payments.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <CreditCard className="h-12 w-12 mb-4" />
-              <p>>{t('noPaymentsFound')</p>}
-              <p className="text-sm">>{t('processFirstPayment')</p>}
+              <p>{t('noPaymentsFound')}</p>
+              <p className="text-sm">{t('processFirstPayment')}</p>
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
@@ -712,15 +712,15 @@ const t = useTranslations('billing');
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
           <DialogHeader className="shrink-0">
-            <DialogTitle{t('processPayment')}</DialogTitle>
+            <DialogTitle>{t('processPayment')}</DialogTitle>
             <DialogDescription>
-              {t('recordPayment')}</Methods>
+              {t('recordPayment')}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-2 -mr-2">
             {/* Folio Selection */}
             <div className="space-y-2">
-              <Label htmlFor="folioId>{t('selectFolio')}</Methods>
+              <Label htmlFor="folioId">{t('selectFolio')}</Label>
               <Select
                 value={formData.folioId}
                 onValueChange={(value) => {
@@ -773,7 +773,7 @@ const t = useTranslations('billing');
 
             {/* Amount */}
             <div className="space-y-2">
-              <Label htmlFor="amount>{t('paymentAmount')}</Methods>
+              <Label htmlFor="amount">{t('paymentAmount')}</Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -809,7 +809,7 @@ const t = useTranslations('billing');
 
             {/* Payment Method Selection */}
             <div className="space-y-2">
-              <Label{t('paymentMethodLabel')}</Methods>
+              <Label>{t('paymentMethodLabel')}</Label>
               <RadioGroup
                 value={formData.method}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, method: value }))}
