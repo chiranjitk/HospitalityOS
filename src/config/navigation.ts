@@ -77,6 +77,7 @@ import {
   CalendarCheck,
   Handshake,
   LayoutGrid,
+  ChefHat,
 } from 'lucide-react';
 
 export interface NavItem {
