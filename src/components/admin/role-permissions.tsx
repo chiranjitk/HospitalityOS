@@ -411,7 +411,7 @@ export function RolePermissions() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [matrixRoleId]);
 
   const fetchAuditLogs = useCallback(async () => {
     try {
@@ -420,7 +420,7 @@ export function RolePermissions() {
       const queryParams = isPlatformAdmin && selectedTenantId 
         ? `?tenantId=${selectedTenantId}&entityType=Role&limit=50` 
         : '?entityType=Role&limit=50';
-      const response = await fetch('/api/audit-logs' + queryParams);
+      const response = await fetch('/api/admin/audit-logs' + queryParams);
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data) {
@@ -759,10 +759,10 @@ export function RolePermissions() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <Users className="h-4 w-4 text-teal-500 dark:text-teal-400" />
+            <Users className="h-4 w-4 text-blue-500 dark:text-blue-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-teal-600 dark:text-teal-400">{stats.totalUsers}</div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.totalUsers}</div>
           </CardContent>
         </Card>
       </div>
@@ -1250,7 +1250,7 @@ export function RolePermissions() {
                   </div>
                   <Separator orientation="vertical" className="h-4" />
                   <div className="text-sm">
-                    <span className="text-teal-600 dark:text-teal-400 font-medium">{testerPerms.length}</span> raw entries
+                    <span className="text-blue-600 dark:text-blue-400 font-medium">{testerPerms.length}</span> raw entries
                   </div>
                 </div>
 
@@ -1409,26 +1409,26 @@ export function RolePermissions() {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="border-teal-200 dark:border-teal-800">
+              <Card className="border-blue-200 dark:border-blue-800">
                 <CardContent className="pt-4 pb-4">
                   <div className="flex items-center gap-2">
-                    <ArrowRight className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                    <ArrowRight className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                     <div>
                       <p className="text-xs text-muted-foreground">Unique to {compareRoles[0].displayName}</p>
-                      <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
+                      <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                         {comparePerms[0].perms.size - intersection.size}
                       </p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-              <Card className="border-amber-200 dark:border-amber-800">
+              <Card className="border-purple-200 dark:border-purple-800">
                 <CardContent className="pt-4 pb-4">
                   <div className="flex items-center gap-2">
-                    <ArrowRight className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    <ArrowRight className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                     <div>
                       <p className="text-xs text-muted-foreground">Unique to {compareRoles[1].displayName}</p>
-                      <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                      <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                         {comparePerms[1].perms.size - intersection.size}
                       </p>
                     </div>
@@ -1475,8 +1475,8 @@ export function RolePermissions() {
                                           ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-300'
                                           : isDiff
                                             ? r0
-                                              ? 'bg-teal-50 border-teal-200 text-teal-800 dark:bg-teal-900/30 dark:border-teal-800 dark:text-teal-300'
-                                              : 'bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-300'
+                                              ? 'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300'
+                                              : 'bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-900/30 dark:border-purple-800 dark:text-purple-300'
                                             : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400'
                                         }
                                       `}
@@ -1485,9 +1485,9 @@ export function RolePermissions() {
                                         <CheckCircle2 className="h-3 w-3" />
                                       ) : isDiff ? (
                                         r0 ? (
-                                          <><span className="text-teal-600 dark:text-teal-400">R1</span><Ban className="h-3 w-3 text-red-400 dark:text-red-300" /></>
+                                          <><span className="text-blue-600 dark:text-blue-400">R1</span><Ban className="h-3 w-3 text-red-400 dark:text-red-300" /></>
                                         ) : (
-                                          <><Ban className="h-3 w-3 text-red-400 dark:text-red-300" /><span className="text-amber-600 dark:text-amber-400">R2</span></>
+                                          <><Ban className="h-3 w-3 text-red-400 dark:text-red-300" /><span className="text-purple-600 dark:text-purple-400">R2</span></>
                                         )
                                       ) : (
                                         <><Ban className="h-3 w-3" /><Ban className="h-3 w-3" /></>
@@ -1514,11 +1514,11 @@ export function RolePermissions() {
                 <span>Both Granted</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="h-4 w-8 rounded bg-teal-50 border border-teal-200 dark:bg-teal-900/30 dark:border-teal-800" />
+                <div className="h-4 w-8 rounded bg-blue-50 border border-blue-200 dark:bg-blue-900/30 dark:border-blue-800" />
                 <span>Only {compareRoles[0].displayName}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="h-4 w-8 rounded bg-amber-50 border border-amber-200 dark:bg-amber-900/30 dark:border-amber-800" />
+                <div className="h-4 w-8 rounded bg-purple-50 border border-purple-200 dark:bg-purple-900/30 dark:border-purple-800" />
                 <span>Only {compareRoles[1].displayName}</span>
               </div>
               <div className="flex items-center gap-1.5">

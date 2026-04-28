@@ -1,9 +1,8 @@
 /**
  * System Integrations Hub API
  *
- * GET    — List all system integrations for the current tenant (with masked secrets)
- * POST   — Create or update a system integration config (or test connection)
- * DELETE — Delete a system integration by type
+ * GET  — List all system integrations for the current tenant (with masked secrets)
+ * POST — Create or update a system integration config
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -63,6 +62,25 @@ const INTEGRATION_TYPES = {
       { key: 'redirectUri', label: 'Redirect URI', type: 'text', sensitive: false },
     ],
   },
+  radius: {
+    label: 'WiFi / RADIUS',
+    icon: 'wifi',
+    fields: [
+      { key: 'host', label: 'RADIUS Host', type: 'text', sensitive: false },
+      { key: 'authPort', label: 'Auth Port', type: 'number', sensitive: false, placeholder: '1812' },
+      { key: 'acctPort', label: 'Acct Port', type: 'number', sensitive: false, placeholder: '1813' },
+      { key: 'secret', label: 'RADIUS Secret', type: 'password', sensitive: true },
+    ],
+  },
+  ai: {
+    label: 'AI Provider',
+    icon: 'sparkles',
+    fields: [
+      { key: 'provider', label: 'AI Provider', type: 'text', sensitive: false, placeholder: 'openai' },
+      { key: 'apiKey', label: 'API Key', type: 'password', sensitive: true },
+      { key: 'model', label: 'Model', type: 'text', sensitive: false, placeholder: 'gpt-4o-mini' },
+    ],
+  },
   whatsapp: {
     label: 'WhatsApp Business',
     icon: 'message-circle',
@@ -102,260 +120,6 @@ function isActive(
     const v = config[f.key];
     return v !== undefined && v !== null && v !== '';
   });
-}
-
-/** Decrypt the full config JSON from an integration record */
-function parseDecryptedConfig(configJson: string): Record<string, string> {
-  if (!configJson) return {};
-  try {
-    const raw = JSON.parse(configJson) as Record<string, string>;
-    const decrypted: Record<string, string> = {};
-    for (const [key, value] of Object.entries(raw)) {
-      if (typeof value === 'string' && isEncrypted(value)) {
-        const dec = decrypt(value);
-        decrypted[key] = dec !== null ? dec : value;
-      } else {
-        decrypted[key] = String(value);
-      }
-    }
-    return decrypted;
-  } catch {
-    return {};
-  }
-}
-
-/**
- * Build the encrypted config map, preserving existing encrypted values
- * when the frontend sends '****' (meaning "keep existing").
- *
- * @param typeDef  - The integration type field definitions
- * @param rawConfig - The incoming config values from the frontend
- * @param existingConfig - The existing encrypted config from the DB record
- */
-function buildEncryptedConfig(
-  typeDef: (typeof INTEGRATION_TYPES)[IntegrationType],
-  rawConfig: Record<string, string | number | boolean>,
-  existingConfig: Record<string, string>,
-): Record<string, string> {
-  const encryptedConfig: Record<string, string> = {};
-
-  for (const field of typeDef.fields) {
-    const value = rawConfig[field.key];
-    if (value === undefined || value === null) {
-      // If field not provided at all, preserve existing if present
-      if (field.key in existingConfig) {
-        encryptedConfig[field.key] = existingConfig[field.key];
-      }
-      continue;
-    }
-
-    const strValue = String(value);
-
-    if (field.sensitive) {
-      if (strValue === '****') {
-        // Frontend says "keep existing" — carry over the encrypted value from DB
-        if (field.key in existingConfig) {
-          encryptedConfig[field.key] = existingConfig[field.key];
-        }
-        continue;
-      }
-
-      // Decrypt first if already encrypted to avoid double-encrypting
-      let plaintext = strValue;
-      if (isEncrypted(strValue)) {
-        const dec = decrypt(strValue);
-        if (dec !== null) plaintext = dec;
-      }
-      encryptedConfig[field.key] = encrypt(plaintext);
-    } else {
-      encryptedConfig[field.key] = strValue;
-    }
-  }
-
-  return encryptedConfig;
-}
-
-// ── Connection test helpers ────────────────────────────────────────────────
-
-/**
- * Test SMTP connection using nodemailer transport.verify()
- */
-async function testSMTP(
-  config: Record<string, string | number | boolean>,
-): Promise<{ success: boolean; error?: string }> {
-  const host = String(config.host ?? '');
-  const port = Number(config.port) || 587;
-  const user = String(config.user ?? '');
-  const password = String(config.password ?? '');
-  const secure = config.secure === true;
-
-  if (!host) return { success: false, error: 'SMTP host is required' };
-  if (!user) return { success: false, error: 'SMTP username is required' };
-  if (!password) return { success: false, error: 'SMTP password is required' };
-
-  try {
-    const nodemailer = await import('nodemailer');
-    const transport = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass: password },
-      connectionTimeout: 10_000,
-      greetingTimeout: 5_000,
-    });
-
-    await transport.verify();
-    transport.close();
-    return { success: true };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Unknown SMTP error';
-    return { success: false, error: `SMTP connection failed: ${msg}` };
-  }
-}
-
-/**
- * Validate Twilio SMS credentials format
- */
-function testSMS(
-  config: Record<string, string | number | boolean>,
-): { success: boolean; error?: string } {
-  const accountSid = String(config.accountSid ?? '');
-  const authToken = String(config.authToken ?? '');
-  const phoneNumber = String(config.phoneNumber ?? '');
-
-  if (!accountSid) return { success: false, error: 'Account SID is required' };
-  if (!authToken) return { success: false, error: 'Auth Token is required' };
-  if (!phoneNumber) return { success: false, error: 'Phone Number is required' };
-
-  // Twilio Account SID starts with "AC"
-  if (!/^AC[a-fA-F0-9]{32}$/.test(accountSid)) {
-    return { success: false, error: 'Account SID format is invalid (should start with AC followed by 32 hex chars)' };
-  }
-
-  return { success: true };
-}
-
-/**
- * Validate S3 storage credentials format
- */
-function testS3(
-  config: Record<string, string | number | boolean>,
-): { success: boolean; error?: string } {
-  const endpoint = String(config.endpoint ?? '');
-  const bucket = String(config.bucket ?? '');
-  const region = String(config.region ?? '');
-  const accessKey = String(config.accessKey ?? '');
-  const secretKey = String(config.secretKey ?? '');
-
-  if (!endpoint) return { success: false, error: 'S3 Endpoint is required' };
-  if (!bucket) return { success: false, error: 'Bucket Name is required' };
-  if (!region) return { success: false, error: 'Region is required' };
-  if (!accessKey) return { success: false, error: 'Access Key is required' };
-  if (!secretKey) return { success: false, error: 'Secret Key is required' };
-
-  // AWS access keys are 20-char alphanumeric
-  if (accessKey.length < 16) {
-    return { success: false, error: 'Access Key appears to be too short' };
-  }
-  // AWS secret keys are 40-char alphanumeric
-  if (secretKey.length < 32) {
-    return { success: false, error: 'Secret Key appears to be too short' };
-  }
-
-  return { success: true };
-}
-
-/**
- * Validate FCM credentials format
- */
-function testFCM(
-  config: Record<string, string | number | boolean>,
-): { success: boolean; error?: string } {
-  const senderId = String(config.senderId ?? '');
-  const serverKey = String(config.serverKey ?? '');
-
-  if (!senderId) return { success: false, error: 'FCM Sender ID is required' };
-  if (!serverKey) return { success: false, error: 'FCM Server Key is required' };
-
-  // Server key is typically long (legacy) or a JSON string (service account)
-  if (serverKey.length < 20) {
-    return { success: false, error: 'FCM Server Key appears to be too short' };
-  }
-
-  return { success: true };
-}
-
-/**
- * Validate Google OAuth credentials format
- */
-function testGoogleOAuth(
-  config: Record<string, string | number | boolean>,
-): { success: boolean; error?: string } {
-  const clientId = String(config.clientId ?? '');
-  const clientSecret = String(config.clientSecret ?? '');
-  const redirectUri = String(config.redirectUri ?? '');
-
-  if (!clientId) return { success: false, error: 'Google Client ID is required' };
-  if (!clientSecret) return { success: false, error: 'Google Client Secret is required' };
-  if (!redirectUri) return { success: false, error: 'Redirect URI is required' };
-
-  // Client ID format: xxx.apps.googleusercontent.com
-  if (!/\.apps\.googleusercontent\.com$/.test(clientId)) {
-    return { success: false, error: 'Client ID format is invalid (should end with .apps.googleusercontent.com)' };
-  }
-
-  // Redirect URI should be a valid URL
-  try {
-    new URL(redirectUri);
-  } catch {
-    return { success: false, error: 'Redirect URI must be a valid URL' };
-  }
-
-  return { success: true };
-}
-
-/**
- * Validate WhatsApp Business credentials format
- */
-function testWhatsApp(
-  config: Record<string, string | number | boolean>,
-): { success: boolean; error?: string } {
-  const businessAccountId = String(config.businessAccountId ?? '');
-  const appSecret = String(config.appSecret ?? '');
-  const phoneNumberId = String(config.phoneNumberId ?? '');
-  const accessToken = String(config.accessToken ?? '');
-  const phoneNumber = String(config.phoneNumber ?? '');
-
-  if (!businessAccountId) return { success: false, error: 'Business Account ID is required' };
-  if (!appSecret) return { success: false, error: 'App Secret is required' };
-  if (!phoneNumberId) return { success: false, error: 'Phone Number ID is required' };
-  if (!accessToken) return { success: false, error: 'Access Token is required' };
-  if (!phoneNumber) return { success: false, error: 'From Phone Number is required' };
-
-  return { success: true };
-}
-
-/** Map each integration type to its test function */
-async function runConnectionTest(
-  type: IntegrationType,
-  config: Record<string, string | number | boolean>,
-): Promise<{ success: boolean; error?: string }> {
-  switch (type) {
-    case 'smtp':
-      return testSMTP(config);
-    case 'sms_twilio':
-      return testSMS(config);
-    case 's3_storage':
-      return testS3(config);
-    case 'fcm':
-      return testFCM(config);
-    case 'google_oauth':
-      return testGoogleOAuth(config);
-    case 'whatsapp':
-      return testWhatsApp(config);
-    default:
-      return { success: false, error: `Unknown integration type: ${type}` };
-  }
 }
 
 // ── GET ────────────────────────────────────────────────────────────────────
@@ -421,7 +185,6 @@ export async function GET(request: NextRequest) {
         status: row.status,
         config: masked,
         active: isActive(row.type as IntegrationType, parsed),
-        source: 'database' as const,
         lastSyncAt: row.lastSyncAt,
         lastError: row.lastError,
         createdAt: row.createdAt,
@@ -466,11 +229,10 @@ export async function POST(request: NextRequest) {
 
     const tenantId = user.tenantId;
     const body = await request.json();
-    const { type, config: rawConfig, name, test } = body as {
+    const { type, config: rawConfig, name } = body as {
       type: string;
       config: Record<string, string | number | boolean>;
       name?: string;
-      test?: boolean;
     };
 
     if (!type || !(type in INTEGRATION_TYPES)) {
@@ -480,72 +242,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const integrationType = type as IntegrationType;
-    const typeDef = INTEGRATION_TYPES[integrationType];
+    const typeDef = INTEGRATION_TYPES[type as IntegrationType];
+    const encryptedConfig: Record<string, string> = {};
 
-    // ── Test connection mode (Bug 3 fix) ─────────────────────────────────
-    if (test === true) {
-      // Build a plaintext config from the incoming values, replacing '****'
-      // with existing DB values if available so the test uses real credentials
-      const existingRecord = await db.integration.findFirst({
-        where: { tenantId, type, provider: type },
-      });
-      const existingEncrypted = existingRecord
-        ? JSON.parse(existingRecord.config || '{}') as Record<string, string>
-        : {};
+    for (const field of typeDef.fields) {
+      const value = rawConfig[field.key];
+      if (value === undefined || value === null) continue;
 
-      // Build a config with real values for testing
-      const testConfig: Record<string, string | number | boolean> = {};
-      for (const field of typeDef.fields) {
-        const value = rawConfig[field.key];
-        const strValue = value !== undefined && value !== null ? String(value) : '';
+      const strValue = String(value);
 
-        if (field.sensitive && strValue === '****') {
-          // Use the decrypted existing value
-          const encVal = existingEncrypted[field.key];
-          if (encVal) {
-            const dec = isEncrypted(encVal) ? decrypt(encVal) : null;
-            testConfig[field.key] = dec !== null ? dec : encVal;
-          }
-        } else if (value !== undefined && value !== null) {
-          // Decrypt if already encrypted
-          if (field.sensitive && isEncrypted(strValue)) {
-            const dec = decrypt(strValue);
-            testConfig[field.key] = dec !== null ? dec : strValue;
-          } else {
-            testConfig[field.key] = value;
-          }
+      if (field.sensitive) {
+        // Skip re-encrypting masked values sent back from the UI
+        if (strValue === '****') continue;
+
+        // Decrypt first if already encrypted to avoid double-encrypting
+        let plaintext = strValue;
+        if (isEncrypted(strValue)) {
+          const dec = decrypt(strValue);
+          if (dec !== null) plaintext = dec;
         }
-      }
-
-      const result = await runConnectionTest(integrationType, testConfig);
-
-      if (result.success) {
-        return NextResponse.json({
-          success: true,
-          message: 'Connection test passed',
-        });
+        encryptedConfig[field.key] = encrypt(plaintext);
       } else {
-        return NextResponse.json(
-          {
-            success: false,
-            error: result.error || 'Connection test failed',
-          },
-          { status: 400 },
-        );
+        encryptedConfig[field.key] = strValue;
       }
     }
-
-    // ── Save mode — read existing record to preserve encrypted values (Bug 1 fix) ─
-    const existingRecord = await db.integration.findFirst({
-      where: { tenantId, type, provider: type },
-    });
-
-    const existingEncrypted: Record<string, string> = existingRecord
-      ? (JSON.parse(existingRecord.config || '{}') as Record<string, string>)
-      : {};
-
-    const encryptedConfig = buildEncryptedConfig(typeDef, rawConfig, existingEncrypted);
 
     const integration = await db.integration.upsert({
       where: {
@@ -571,7 +291,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Build masked response (Bug 5: includes id)
+    // Build masked response
     const masked: Record<string, unknown> = {};
     for (const field of typeDef.fields) {
       const raw = encryptedConfig[field.key] ?? '';
@@ -597,7 +317,6 @@ export async function POST(request: NextRequest) {
         status: integration.status,
         config: masked,
         active: isActive(type as IntegrationType, encryptedConfig),
-        source: 'database' as const,
         updatedAt: integration.updatedAt,
       },
     });
@@ -605,60 +324,6 @@ export async function POST(request: NextRequest) {
     console.error('[Integrations] POST error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to save integration' },
-      { status: 500 },
-    );
-  }
-}
-
-// ── DELETE ─────────────────────────────────────────────────────────────────
-
-export async function DELETE(request: NextRequest) {
-  try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 },
-      );
-    }
-
-    if (!hasPermission(user, 'settings.manage')) {
-      return NextResponse.json(
-        { success: false, error: 'Permission denied' },
-        { status: 403 },
-      );
-    }
-
-    const tenantId = user.tenantId;
-    const body = await request.json();
-    const { type } = body as { type?: string };
-
-    if (!type || !(type in INTEGRATION_TYPES)) {
-      return NextResponse.json(
-        { success: false, error: `Invalid integration type. Must be one of: ${Object.keys(INTEGRATION_TYPES).join(', ')}` },
-        { status: 400 },
-      );
-    }
-
-    const deleted = await db.integration.deleteMany({
-      where: {
-        tenantId,
-        type,
-        provider: type, // system integrations use the type as provider
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: deleted.count > 0
-        ? `Integration "${INTEGRATION_TYPES[type as IntegrationType].label}" deleted successfully`
-        : 'No matching integration found to delete',
-      deletedCount: deleted.count,
-    });
-  } catch (error) {
-    console.error('[Integrations] DELETE error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to delete integration' },
       { status: 500 },
     );
   }

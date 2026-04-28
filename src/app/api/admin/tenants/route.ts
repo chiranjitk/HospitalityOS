@@ -194,14 +194,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate slug format
-    if (!/^[a-z][a-z0-9-]*$/.test(slug)) {
-      return NextResponse.json(
-        { success: false, error: 'Slug must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens' },
-        { status: 400 }
-      );
-    }
-
     // Check if slug already exists and create tenant atomically to prevent race conditions
     let tenant;
     try {

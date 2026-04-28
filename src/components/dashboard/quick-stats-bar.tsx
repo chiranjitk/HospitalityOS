@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface QuickStatsData {
   checkInsToday: number;
@@ -40,6 +41,7 @@ export function QuickStatsBar() {
   const [stats, setStats] = useState<QuickStatsData>(INITIAL_STATS);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const { formatCurrency } = useCurrency();
+  const t = useTranslations('dashboard');
 
   const fetchStats = useCallback(async () => {
     try {
@@ -64,7 +66,7 @@ export function QuickStatsBar() {
   const statItems = [
     {
       id: 'revenue',
-      label: "Today's Revenue",
+      label: t('todaysRevenue'),
       value: formatCurrency(stats.revenueToday),
       icon: DollarSign,
       trend: stats.revenueChange >= 0 ? 'up' : 'down',
@@ -75,7 +77,7 @@ export function QuickStatsBar() {
     },
     {
       id: 'checkins',
-      label: "Check-ins Today",
+      label: t('checkInsToday'),
       value: String(stats.checkInsToday),
       icon: LogIn,
       trend: 'neutral',
@@ -86,7 +88,7 @@ export function QuickStatsBar() {
     },
     {
       id: 'checkouts',
-      label: "Check-outs Today",
+      label: t('checkOutsToday'),
       value: String(stats.checkOutsToday),
       icon: LogOut,
       trend: 'neutral',
@@ -97,7 +99,7 @@ export function QuickStatsBar() {
     },
     {
       id: 'rooms',
-      label: 'Available Rooms',
+      label: t('availableRooms'),
       value: `${stats.availableRooms}/${stats.totalRooms}`,
       icon: DoorOpen,
       trend: 'neutral',
@@ -108,7 +110,7 @@ export function QuickStatsBar() {
     },
     {
       id: 'rating',
-      label: 'Avg Rating',
+      label: t('avgRating'),
       value: `${stats.avgRating}`,
       icon: Star,
       trend: stats.ratingChange >= 0 ? 'up' : 'down',

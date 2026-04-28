@@ -4,6 +4,7 @@ import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/contexts/I18nContext';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -85,6 +86,7 @@ export function Header({ className, onMenuClick }: HeaderProps) {
   const paletteRef = useRef<CommandPaletteHandle>(null);
   const router = useRouter();
   const { tNav, tCommon, tAuth } = useI18n();
+  const tLayout = useTranslations('layout');
   const { isDark, toggleMode } = useUIStyle();
   const { themeId } = useUIStyleStore();
 
@@ -176,7 +178,7 @@ export function Header({ className, onMenuClick }: HeaderProps) {
           onClick={onMenuClick}
         >
           <Menu className="h-5 w-5" />
-          <span className="sr-only">Toggle menu</span>
+          <span className="sr-only">{tLayout('toggleMenu')}</span>
         </Button>
 
         {/* Page Title - Mobile & Desktop */}
@@ -210,10 +212,10 @@ export function Header({ className, onMenuClick }: HeaderProps) {
             setCommandPaletteOpen(true);
             paletteRef.current?.open();
           }}
-          title="Search modules, bookings, guests, and more..."
+          title={tLayout('searchModulesFull')}
         >
           <Search className="mr-2 h-4 w-4 text-muted-foreground/50" />
-          <span className="flex-1 text-left text-sm text-muted-foreground/70">Search modules, bookings, guests...</span>
+          <span className="flex-1 text-left text-sm text-muted-foreground/70">{tLayout('searchModules')}</span>
           <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted/60 px-1.5 font-mono text-[10px] font-medium text-muted-foreground/50 sm:flex">
             <span className="text-xs"><Command className="h-3 w-3" /></span>K
           </kbd>
@@ -235,7 +237,7 @@ export function Header({ className, onMenuClick }: HeaderProps) {
               className="h-9 gap-1.5 hidden md:flex bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all duration-200 rounded-xl"
             >
               <Plus className="h-4 w-4" />
-              <span className="hidden xl:inline">Quick Actions</span>
+              <span className="hidden xl:inline">{tCommon('quickActions')}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48 rounded-xl">
@@ -265,7 +267,7 @@ export function Header({ className, onMenuClick }: HeaderProps) {
               <HelpCircle className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom" sideOffset={4} className="text-xs font-medium">Help Center</TooltipContent>
+          <TooltipContent side="bottom" sideOffset={4} className="text-xs font-medium">{tLayout('helpCenter')}</TooltipContent>
         </Tooltip>
 
         {/* Keyboard Shortcuts Button */}
@@ -281,7 +283,7 @@ export function Header({ className, onMenuClick }: HeaderProps) {
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" sideOffset={4} className="text-xs font-medium">
-            Keyboard Shortcuts (?)
+            {tLayout('keyboardShortcuts')}
           </TooltipContent>
         </Tooltip>
 
@@ -296,7 +298,7 @@ export function Header({ className, onMenuClick }: HeaderProps) {
           }}
         >
           <Search className="h-4 w-4" />
-          <span className="sr-only">Search</span>
+          <span className="sr-only">{tLayout('search')}</span>
         </Button>
 
         {/* Language Switcher */}
@@ -319,7 +321,7 @@ export function Header({ className, onMenuClick }: HeaderProps) {
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" sideOffset={4} className="text-xs font-medium">
-            {isDark ? 'Light Mode' : 'Dark Mode'}
+            {isDark ? tLayout('lightMode') : tLayout('darkMode')}
           </TooltipContent>
         </Tooltip>
         
@@ -353,7 +355,7 @@ export function Header({ className, onMenuClick }: HeaderProps) {
                 <TooltipContent side="bottom" sideOffset={6} className="text-xs font-medium">
                   <span className="flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                    Online
+                    {tLayout('online')}
                   </span>
                 </TooltipContent>
               </Tooltip>

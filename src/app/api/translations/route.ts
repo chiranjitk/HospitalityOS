@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   
   try {
     // Construct the file path safely
-    const messagesDir = path.join(process.cwd(), 'messages');
+    const messagesDir = path.join(process.cwd(), 'src', 'messages');
     const filePath = path.join(messagesDir, `${locale}.json`);
     
     // Ensure the resolved path is still within messages directory (double-check)

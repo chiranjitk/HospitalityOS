@@ -174,9 +174,9 @@ export async function GET(request: NextRequest) {
       },
       daily,
       breakdown: {
-        bookings: { apiCalls: Math.floor(bookingCount * 10), percentage: apiCallsUsed > 0 ? Math.floor(bookingCount * 10 / apiCallsUsed * 100) : 0 },
-        guests: { apiCalls: Math.floor(guestCount * 5), percentage: apiCallsUsed > 0 ? Math.floor(guestCount * 5 / apiCallsUsed * 100) : 0 },
-        billing: { apiCalls: Math.floor(paymentCount * 3), percentage: apiCallsUsed > 0 ? Math.floor(paymentCount * 3 / apiCallsUsed * 100) : 0 },
+        bookings: { apiCalls: Math.floor(bookingCount * 10), percentage: Math.floor(bookingCount * 10 / apiCallsUsed * 100) || 0 },
+        guests: { apiCalls: Math.floor(guestCount * 5), percentage: Math.floor(guestCount * 5 / apiCallsUsed * 100) || 0 },
+        billing: { apiCalls: Math.floor(paymentCount * 3), percentage: Math.floor(paymentCount * 3 / apiCallsUsed * 100) || 0 },
         reports: { apiCalls: Math.floor(apiCallsUsed * 0.1), percentage: 10 },
         integrations: { apiCalls: Math.floor(apiCallsUsed * 0.08), percentage: 8 },
         other: { apiCalls: Math.floor(apiCallsUsed * 0.15), percentage: 15 },

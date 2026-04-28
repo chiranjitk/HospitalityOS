@@ -8,10 +8,13 @@ import { Loader2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/app-layout';
 import { ErrorBoundary } from '@/components/common/error-boundary';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 
 function SectionContent({ section }: { section: string }) {
   const [Comp, setComp] = useState<React.ComponentType<any> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const tCommon = useTranslations('common');
+  const tDash = useTranslations('dashboard');
 
   useEffect(() => {
     let cancelled = false;
@@ -57,7 +60,7 @@ function SectionContent({ section }: { section: string }) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
         <p className="text-red-500 dark:text-red-400 font-medium">{error}</p>
-        <button className="px-4 py-2 border rounded-md text-sm hover:bg-accent" onClick={() => window.location.reload()}>Refresh Page</button>
+        <button className="px-4 py-2 border rounded-md text-sm hover:bg-accent" onClick={() => window.location.reload()}>{tDash('refreshPage')}</button>
       </div>
     );
   }
@@ -66,7 +69,7 @@ function SectionContent({ section }: { section: string }) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-3">
         <Loader2 className="h-8 w-8 animate-spin text-teal-600 dark:text-teal-400" />
-        <p className="text-sm text-muted-foreground">Loading...</p>
+        <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
       </div>
     );
   }
@@ -84,6 +87,7 @@ export default function Home() {
   const { activeSection } = useUIStore();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const tCommon = useTranslations('common');
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -96,7 +100,7 @@ export default function Home() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-teal-600 dark:text-teal-400" />
-          <p className="text-muted-foreground text-sm">Loading...</p>
+          <p className="text-muted-foreground text-sm">{tCommon('loading')}</p>
         </div>
       </div>
     );

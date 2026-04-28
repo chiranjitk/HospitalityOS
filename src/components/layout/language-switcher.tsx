@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -10,10 +10,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { locales, languages, indianLanguages, globalLanguages, type Locale } from '@/i18n/config';
+import { useLocale } from 'next-intl';
+import { languages, indianLanguages, globalLanguages, type Locale } from '@/i18n/config';
 import { Globe, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useI18n } from '@/contexts/I18nContext';
+import { useTranslations } from 'next-intl';
 
 interface LanguageSwitcherProps {
   variant?: 'default' | 'compact' | 'grouped';
@@ -24,19 +25,35 @@ export function LanguageSwitcher({
   variant = 'default', 
   showLabel = true 
 }: LanguageSwitcherProps) {
-  const { locale, setLocale, isLoading } = useI18n();
+  const locale = useLocale() as Locale;
+  const [switching, setSwitching] = useState(false);
+  const t = useTranslations('language');
 
   const handleLanguageChange = async (newLocale: Locale) => {
-    if (newLocale === locale) return;
+    if (newLocale === locale || switching) return;
+    setSwitching(true);
     
     try {
-      await setLocale(newLocale);
-      toast.success('Language changed successfully');
+      // Save locale to cookie via API
+      const res = await fetch('/api/settings/locale', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locale: newLocale }),
+      });
       
-      // Full page reload to apply new translations from next-intl
+      if (!res.ok) {
+        toast.error('Failed to change language');
+        setSwitching(false);
+        return;
+      }
+      
+      toast.success(t('languageChanged'));
+      
+      // Full page reload to ensure server re-reads the locale cookie
       window.location.reload();
     } catch {
       toast.error('Failed to change language');
+      setSwitching(false);
     }
   };
 
@@ -49,14 +66,14 @@ export function LanguageSwitcher({
             variant="ghost" 
             size="icon" 
             className="h-9 w-9"
-            disabled={isLoading}
+            disabled={switching}
           >
-            {isLoading ? (
+            {switching ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Globe className="h-4 w-4" />
             )}
-            <span className="sr-only">Select language</span>
+            <span className="sr-only">{t('selectLanguage')}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
@@ -90,9 +107,9 @@ export function LanguageSwitcher({
           <Button 
             variant="ghost" 
             className={`gap-2 ${showLabel ? '' : 'px-2'}`}
-            disabled={isLoading}
+            disabled={switching}
           >
-            {isLoading ? (
+            {switching ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Globe className="h-4 w-4" />
@@ -161,9 +178,9 @@ export function LanguageSwitcher({
         <Button 
           variant="ghost" 
           className={`gap-2 ${showLabel ? '' : 'px-2'}`}
-          disabled={isLoading}
+          disabled={switching}
         >
-          {isLoading ? (
+          {switching ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <Globe className="h-4 w-4" />

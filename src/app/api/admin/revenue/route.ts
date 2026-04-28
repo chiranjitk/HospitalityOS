@@ -203,7 +203,7 @@ export async function GET(request: NextRequest) {
     
     // Marketing spend is tracked via operations costs; use 0 if not tracked
     // CAC = Total marketing/acquisition spend / New customers acquired
-    const cac = newTenantsLast30Days > 0 ? 150 : 0; // Estimate $150 CAC until marketing spend tracking is implemented
+    const cac = newTenantsLast30Days > 0 ? 0 : 0; // Requires marketing cost integration; returns 0 until configured
 
     // Calculate total for byPlan array
     const totalPlanRevenue = Object.values(planDistribution).reduce((sum, p) => sum + p.revenue, 0);

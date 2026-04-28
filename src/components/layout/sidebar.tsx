@@ -50,6 +50,7 @@ import { usePermissions } from '@/contexts/PermissionContext';
 import { getFeatureForMenuItem } from '@/lib/feature-flags';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslatedNavigation } from '@/hooks/useNavigationTranslations';
+import { useTranslations } from 'next-intl';
 import { useUIStyleStore } from '@/lib/themes/store';
 import { useTenantSwitcher } from '@/hooks/use-tenant-switcher';
 import {
@@ -407,6 +408,7 @@ function NavigationContent({
 // =============================================
 function SearchInput({ searchQuery, setSearchQuery }: SearchInputProps) {
   const [isFocused, setIsFocused] = useState(false);
+  const tLayout = useTranslations('layout');
   
   return (
     <div className="px-3 pt-2 pb-1 flex-shrink-0">
@@ -426,7 +428,7 @@ function SearchInput({ searchQuery, setSearchQuery }: SearchInputProps) {
           )} />
         </motion.div>
         <Input
-          placeholder="Search navigation..."
+          placeholder={tLayout('searchNavigation')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onFocus={() => setIsFocused(true)}
@@ -461,6 +463,7 @@ function SearchInput({ searchQuery, setSearchQuery }: SearchInputProps) {
 // TENANT SWITCHER - Compact & Clean
 // =============================================
 function TenantSwitcher({ collapsed }: { collapsed?: boolean }) {
+  const tLayout = useTranslations('layout');
   const { isPlatformAdmin, availableTenants, activeTenantId, switchTenant, isLoading } =
     useTenantSwitcher();
 
@@ -476,7 +479,7 @@ function TenantSwitcher({ collapsed }: { collapsed?: boolean }) {
             </div>
           </TooltipTrigger>
           <TooltipContent side="right" sideOffset={8} className="text-xs font-medium">
-            Platform Admin
+            {tLayout('platformAdmin')}
           </TooltipContent>
         </Tooltip>
       </div>
@@ -488,17 +491,17 @@ function TenantSwitcher({ collapsed }: { collapsed?: boolean }) {
       <div className="flex items-center gap-2 mb-1.5">
         <Crown className="h-3 w-3 text-amber-400 dark:text-amber-300 flex-shrink-0" />
         <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground">
-          Platform Admin
+          {tLayout('platformAdmin')}
         </span>
       </div>
       {isLoading ? (
         <div className="flex items-center gap-2 text-[11px] text-sidebar-foreground py-1 px-1">
           <Loader2 className="h-3 w-3 animate-spin" />
-          Loading...
+          {tLayout('loadingText')}
         </div>
       ) : availableTenants.length === 0 ? (
         <div className="text-[11px] text-sidebar-foreground py-1 px-1">
-          No tenants found
+          {tLayout('noTenantsFound')}
         </div>
       ) : (
         <Select
@@ -508,7 +511,7 @@ function TenantSwitcher({ collapsed }: { collapsed?: boolean }) {
           <SelectTrigger className="w-full h-8 bg-sidebar-accent/20 backdrop-blur-sm border-sidebar-border/[0.12] text-sidebar-foreground text-[11px] rounded-xl focus-visible:ring-sidebar-primary/30 hover:bg-sidebar-accent/25 hover:border-sidebar-border/20 transition-all duration-200">
             <div className="flex items-center gap-2 min-w-0">
               <Building2 className="h-3 w-3 text-sidebar-foreground flex-shrink-0" />
-              <SelectValue placeholder="Select tenant" />
+              <SelectValue placeholder={tLayout('selectTenant')} />
             </div>
           </SelectTrigger>
           <SelectContent>
@@ -543,6 +546,7 @@ function formatRevenue(amount: number): string {
 }
 
 function QuickStats({ collapsed }: { collapsed?: boolean }) {
+  const tLayout = useTranslations('layout');
   const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState<{ occupancyRate: number; revenueToday: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -600,7 +604,7 @@ function QuickStats({ collapsed }: { collapsed?: boolean }) {
             </div>
           </TooltipTrigger>
           <TooltipContent side="right" sideOffset={8} className="text-xs font-medium">
-            {occupancyDisplay} Occupancy · {revenueDisplay} Revenue
+            {occupancyDisplay} {tLayout('occupancy')} · {revenueDisplay} {tLayout('revenue')}
           </TooltipContent>
         </Tooltip>
       </div>
@@ -620,7 +624,7 @@ function QuickStats({ collapsed }: { collapsed?: boolean }) {
               <span className="text-[11px] font-semibold text-sidebar-foreground tabular-nums">{occupancyDisplay}</span>
             )}
           </div>
-          <p className="text-[9px] text-sidebar-foreground mt-0.5 uppercase tracking-wider">Occupancy</p>
+          <p className="text-[9px] text-sidebar-foreground mt-0.5 uppercase tracking-wider">{tLayout('occupancy')}</p>
           {/* Mini gradient bar */}
           <div className="mt-1 h-1 rounded-full bg-sidebar-accent/30 overflow-hidden">
             <div 
@@ -643,7 +647,7 @@ function QuickStats({ collapsed }: { collapsed?: boolean }) {
               <span className="text-[11px] font-semibold text-sidebar-foreground tabular-nums">{revenueDisplay}</span>
             )}
           </div>
-          <p className="text-[9px] text-sidebar-foreground mt-0.5 uppercase tracking-wider">Revenue</p>
+          <p className="text-[9px] text-sidebar-foreground mt-0.5 uppercase tracking-wider">{tLayout('revenue')}</p>
           {/* Mini gradient bar */}
           <div className="mt-1 h-1 rounded-full bg-sidebar-accent/30 overflow-hidden">
             <div 

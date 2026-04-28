@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { useUIStore, useAuthStore } from '@/store';
+import { useTranslations } from 'next-intl';
 import {
   Sun,
   Moon,
@@ -134,6 +135,7 @@ function GreetingCard({ occupancy = 0, arrivals = 0, alertsCount = 0 }: {
   const [currentTime, setCurrentTime] = useState(new Date());
   const { formatTime } = useTimezone();
   const { currentProperty } = useAuthStore();
+  const t = useTranslations('dashboard');
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -141,7 +143,8 @@ function GreetingCard({ occupancy = 0, arrivals = 0, alertsCount = 0 }: {
   }, []);
 
   const hour = currentTime.getHours();
-  let greeting = 'Good Morning', Icon = Sun;
+  let greeting: string;
+  let Icon: LucideIcon;
   let accentColor = 'emerald';
   let gradient = 'from-emerald-500 to-teal-500';
   let iconBg = 'bg-gradient-to-br from-emerald-400 to-teal-600';
@@ -151,23 +154,25 @@ function GreetingCard({ occupancy = 0, arrivals = 0, alertsCount = 0 }: {
   let clockColor = 'text-emerald-600 dark:text-emerald-400';
 
   if (hour >= 12 && hour < 17) {
-    greeting = 'Good Afternoon'; Icon = CloudSun; accentColor = 'sky';
+    greeting = t('goodAfternoon'); Icon = CloudSun; accentColor = 'sky';
     gradient = 'from-sky-500 to-cyan-500';
     iconBg = 'bg-gradient-to-br from-sky-400 to-cyan-600';
     ringColor = 'ring-sky-400/40'; chipBg = 'bg-sky-50 dark:bg-sky-950/40';
     chipText = 'text-sky-700 dark:text-sky-400'; clockColor = 'text-sky-600 dark:text-sky-400';
   } else if (hour >= 17 && hour < 21) {
-    greeting = 'Good Evening'; Icon = Moon; accentColor = 'violet';
+    greeting = t('goodEvening'); Icon = Moon; accentColor = 'violet';
     gradient = 'from-violet-500 to-purple-500';
     iconBg = 'bg-gradient-to-br from-violet-400 to-purple-600';
     ringColor = 'ring-violet-400/40'; chipBg = 'bg-violet-50 dark:bg-violet-950/40';
     chipText = 'text-violet-700 dark:text-violet-400'; clockColor = 'text-violet-600 dark:text-violet-400';
   } else if (hour >= 21 || hour < 5) {
-    greeting = 'Good Night'; Icon = Moon; accentColor = 'slate';
+    greeting = t('goodNight'); Icon = Moon; accentColor = 'slate';
     gradient = 'from-slate-600 to-slate-800';
     iconBg = 'bg-gradient-to-br from-slate-500 to-slate-700';
     ringColor = 'ring-slate-400/40'; chipBg = 'bg-slate-100 dark:bg-slate-800/40';
     chipText = 'text-slate-700 dark:text-slate-400'; clockColor = 'text-slate-500 dark:text-slate-400';
+  } else {
+    greeting = t('goodMorning'); Icon = Sun;
   }
 
   const dayName = currentTime.toLocaleDateString('en-US', { weekday: 'long' });
@@ -257,6 +262,7 @@ function LivePulse() {
 
 function TodaySummaryCard({ summary, isLoading }: { summary: TodaySummary | null; isLoading: boolean }) {
   const { setActiveSection } = useUIStore();
+  const t = useTranslations('dashboard');
 
   const arrivalsCount = useCountUp(summary?.arrivals || 0);
   const departuresCount = useCountUp(summary?.departures || 0);
@@ -277,25 +283,25 @@ function TodaySummaryCard({ summary, isLoading }: { summary: TodaySummary | null
 
   const statCards = [
     {
-      label: 'Arrivals', count: arrivalsCount, icon: LogIn,
+      label: t('arrivals'), count: arrivalsCount, icon: LogIn,
       gradient: 'from-emerald-500 to-emerald-600',
       lightBg: 'bg-emerald-50 dark:bg-emerald-950/50',
       section: 'frontdesk-checkin',
     },
     {
-      label: 'Departures', count: departuresCount, icon: LogOut,
+      label: t('departures'), count: departuresCount, icon: LogOut,
       gradient: 'from-amber-500 to-orange-500',
       lightBg: 'bg-amber-50 dark:bg-amber-950/50',
       section: 'frontdesk-checkout',
     },
     {
-      label: 'In House', count: inHouseCount, icon: Users,
+      label: t('inHouse'), count: inHouseCount, icon: Users,
       gradient: 'from-violet-500 to-purple-500',
       lightBg: 'bg-violet-50 dark:bg-violet-950/50',
       section: 'guests-list',
     },
     {
-      label: 'Available', count: availableCount, icon: Bed,
+      label: t('available'), count: availableCount, icon: Bed,
       gradient: 'from-cyan-500 to-teal-500',
       lightBg: 'bg-cyan-50 dark:bg-cyan-950/50',
       section: 'frontdesk-room-grid',
@@ -308,7 +314,7 @@ function TodaySummaryCard({ summary, isLoading }: { summary: TodaySummary | null
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold text-foreground">Today&apos;s Overview</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t('todaysOverview')}</h3>
             <LivePulse />
           </div>
           <Badge variant="outline" className="text-[11px] rounded-full border-primary/40 text-primary bg-primary/10 font-medium">
@@ -352,7 +358,7 @@ function TodaySummaryCard({ summary, isLoading }: { summary: TodaySummary | null
           ))}
         </div>
         {summary.arrivals === 0 && summary.departures === 0 && summary.inHouse === 0 && summary.availableRooms === 0 && (
-          <p className="text-center text-xs text-muted-foreground/50 mt-3">No activity recorded for today yet</p>
+          <p className="text-center text-xs text-muted-foreground/50 mt-3">{t('noActivityToday')}</p>
         )}
       </CardContent>
     </Card>
@@ -377,6 +383,7 @@ function SectionLabel({ icon: Icon, title }: { icon: LucideIcon; title: string }
 
 function AlertsWidget({ alerts, isLoading }: { alerts: TodaySummary['alerts']; isLoading: boolean }) {
   const { setActiveSection } = useUIStore();
+  const t = useTranslations('dashboard');
 
   if (isLoading) {
     return (
@@ -407,7 +414,7 @@ function AlertsWidget({ alerts, isLoading }: { alerts: TodaySummary['alerts']; i
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Bell className="h-4 w-4 text-amber-500" />
-            <h3 className="text-sm font-semibold text-foreground">Alerts</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t('alerts')}</h3>
           </div>
           {alerts.length > 0 && (
             <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400 text-[11px] font-semibold">
@@ -425,8 +432,8 @@ function AlertsWidget({ alerts, isLoading }: { alerts: TodaySummary['alerts']; i
             >
               <CheckCircle2 className="h-7 w-7 text-emerald-500" />
             </motion.div>
-            <p className="text-sm font-semibold">All Clear</p>
-            <p className="text-xs text-muted-foreground mt-0.5">No pending alerts</p>
+            <p className="text-sm font-semibold">{t('allClear')}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{t('noPendingAlerts')}</p>
           </div>
         ) : (
           <div className="space-y-2 max-h-[280px] overflow-y-auto scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent pr-1">
@@ -464,7 +471,7 @@ function AlertsWidget({ alerts, isLoading }: { alerts: TodaySummary['alerts']; i
             className="w-full mt-3 hover:bg-muted/60 transition-colors text-xs font-medium"
             onClick={() => setActiveSection('dashboard-alerts')}
           >
-            View All Alerts ({alerts.length})
+            {t('viewAllAlerts')} ({alerts.length})
             <ArrowRight className="ml-1 h-3 w-3" />
           </Button>
         )}
@@ -480,6 +487,7 @@ export default function OverviewDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const t = useTranslations('dashboard');
 
   const fetchData = useCallback(async (showRefreshLoader = false) => {
     if (showRefreshLoader) setIsRefreshing(true);
@@ -573,7 +581,7 @@ export default function OverviewDashboard() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-40" />
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
             </div>
-            <span>Live data</span>
+            <span>{t('liveData')}</span>
           </div>
           <DashboardHeader
             onRefresh={() => fetchData(true)}
@@ -599,7 +607,7 @@ export default function OverviewDashboard() {
 
         {/* ── Operations Center ── */}
         <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
-          <SectionLabel icon={Radio} title="Operations Center" />
+          <SectionLabel icon={Radio} title={t('operationsCenter')} />
           <div className="grid gap-5 grid-cols-1 lg:grid-cols-3">
             <ShiftSummaryWidget />
             <OperationsBoardWidget />
@@ -609,7 +617,7 @@ export default function OverviewDashboard() {
 
         {/* ── Front Desk & Rooms ── */}
         <div className="relative z-10 space-y-2">
-          <SectionLabel icon={Bed} title="Front Desk & Rooms" />
+          <SectionLabel icon={Bed} title={t('frontDeskRooms')} />
           <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
             <TodaysSchedule />
             <RoomStatusWidget />
@@ -618,7 +626,7 @@ export default function OverviewDashboard() {
 
         {/* ── Alerts, Activity & Staff ── */}
         <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
-          <SectionLabel icon={Bell} title="Alerts & Activity" />
+          <SectionLabel icon={Bell} title={t('alertsActivity')} />
           <div className="grid gap-5 grid-cols-1 md:grid-cols-3">
             <AlertsWidget alerts={summary?.alerts || []} isLoading={isLoading} />
             <RecentActivityFeed />
@@ -628,7 +636,7 @@ export default function OverviewDashboard() {
 
         {/* ── Maintenance & Guest Insights ── */}
         <div className="relative z-10 space-y-2">
-          <SectionLabel icon={Wrench} title="Maintenance & Insights" />
+          <SectionLabel icon={Wrench} title={t('maintenanceInsights')} />
           <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
             <MaintenanceTrackerWidget />
             <GuestSegmentsWidget />
@@ -637,7 +645,7 @@ export default function OverviewDashboard() {
 
         {/* ── Revenue & Performance ── */}
         <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
-          <SectionLabel icon={Zap} title="Revenue & Performance" />
+          <SectionLabel icon={Zap} title={t('revenuePerformance')} />
           <div className="grid gap-5 grid-cols-1 md:grid-cols-2">
             <PerformanceScoreWidget />
             <RevenueBreakdownWidget />
@@ -647,7 +655,7 @@ export default function OverviewDashboard() {
 
         {/* ── Guest Intelligence ── */}
         <div className="relative z-10 space-y-2">
-          <SectionLabel icon={Crown} title="Guest Intelligence" />
+          <SectionLabel icon={Crown} title={t('guestIntelligence')} />
           <div className="grid gap-5 grid-cols-1 md:grid-cols-3">
             <LoyaltyWidget />
             <StaffPerformanceWidget />
@@ -657,7 +665,7 @@ export default function OverviewDashboard() {
 
         {/* ── Channel & Communication ── */}
         <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
-          <SectionLabel icon={MessageSquare} title="Channel & Communication" />
+          <SectionLabel icon={MessageSquare} title={t('channelCommunication')} />
           <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
             <ChannelPerformanceWidget />
             <GuestCommunicationWidget />
@@ -666,7 +674,7 @@ export default function OverviewDashboard() {
 
         {/* ── Upcoming ── */}
         <div className="relative z-10 space-y-2">
-          <SectionLabel icon={Calendar} title="Upcoming" />
+          <SectionLabel icon={Calendar} title={t('upcomingSection')} />
           <div className="grid gap-5 grid-cols-1 lg:grid-cols-3">
             <UpcomingArrivals />
             <MiniCalendarWidget />
@@ -676,13 +684,13 @@ export default function OverviewDashboard() {
 
         {/* ── Guest Feedback ── */}
         <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
-          <SectionLabel icon={Users} title="Guest Feedback" />
+          <SectionLabel icon={Users} title={t('guestFeedbackSection')} />
           <GuestFeedbackWidget />
         </div>
 
         {/* ── Analytics ── */}
         <div className="relative z-10 space-y-2">
-          <SectionLabel icon={BarChart3} title="Analytics" />
+          <SectionLabel icon={BarChart3} title={t('analytics')} />
           <DashboardCharts />
         </div>
 

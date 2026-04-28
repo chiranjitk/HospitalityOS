@@ -397,6 +397,7 @@ function KPICardSkeleton({ index = 0 }: { index?: number }) {
 function KPICardError() {
   const { themeId } = useUIStyleStore();
   const isNeumorphism = themeId === 'neumorphism';
+  const { tDashboard } = useI18n();
 
   return (
     <Card
@@ -412,7 +413,7 @@ function KPICardError() {
           <AlertTriangle className="h-4.5 w-4.5 text-destructive/70" />
         </div>
         <span className="text-xs text-muted-foreground font-medium">
-          Failed to load
+          {tDashboard('failedToLoad')}
         </span>
       </CardContent>
     </Card>
