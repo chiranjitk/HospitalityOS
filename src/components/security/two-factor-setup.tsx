@@ -25,7 +25,6 @@ import {
   Copy,
   Check,
   AlertTriangle,
-  QrCode,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SectionGuard } from '@/components/common/section-guard';
@@ -127,8 +126,8 @@ export default function TwoFactorSetup() {
   };
 
   const handleDisable = async () => {
-    if (!disableCode && !disablePassword) {
-      toast.error('Please enter your verification code or password');
+    if (!disableCode || !disablePassword) {
+      toast.error('Both 2FA code and password are required');
       return;
     }
 
@@ -137,7 +136,7 @@ export default function TwoFactorSetup() {
       const response = await fetch('/api/auth/2fa/disable', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: disableCode || undefined, password: disablePassword || undefined }),
+        body: JSON.stringify({ totpCode: disableCode, password: disablePassword }),
       });
 
       const data = await response.json();
@@ -167,18 +166,15 @@ export default function TwoFactorSetup() {
     toast.success('Copied to clipboard');
   };
 
-  if (isLoading && !setupData) {
-    return (
+  return (
+    <SectionGuard permission="security.2fa">
+    {isLoading && !setupData ? (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-teal-600 dark:text-teal-400" />
         </CardContent>
       </Card>
-    );
-  }
-
-  return (
-    <SectionGuard permission="security.2fa">
+    ) : (
       <div className="space-y-6">
       <Card>
         <CardHeader>
@@ -344,7 +340,7 @@ export default function TwoFactorSetup() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Enter 2FA Code or Password</Label>
+              <Label>Enter 2FA Code</Label>
               <Input
                 placeholder="6-digit code from authenticator"
                 value={disableCode}
@@ -352,7 +348,7 @@ export default function TwoFactorSetup() {
                 className="text-center font-mono"
                 maxLength={6}
               />
-              <div className="text-center text-muted-foreground text-sm">or</div>
+              <Label className="mt-2">Enter Your Password</Label>
               <Input
                 type="password"
                 placeholder="Your password"
@@ -379,6 +375,7 @@ export default function TwoFactorSetup() {
         </DialogContent>
       </Dialog>
     </div>
+    )}
     </SectionGuard>
   );
 }

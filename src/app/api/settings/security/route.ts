@@ -290,7 +290,8 @@ export async function PUT(request: NextRequest) {
     }
 
     // Build new settings object
-    const currentSettings = tenant.settings ? JSON.parse(tenant.settings) : {};
+    let currentSettings: Record<string, unknown> = {};
+    try { currentSettings = tenant.settings ? JSON.parse(tenant.settings) : {}; } catch { currentSettings = {}; }
     const newSettings = {
       ...currentSettings,
       // Authentication

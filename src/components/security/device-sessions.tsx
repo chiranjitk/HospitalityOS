@@ -253,7 +253,7 @@ export default function DeviceSessions() {
                           </div>
                           <div className="space-y-1">
                             <div className="font-medium">
-                              {session.deviceType} - {session.browser}
+                              {session.deviceType}
                             </div>
                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
                               <span className="flex items-center gap-1">
@@ -271,7 +271,7 @@ export default function DeviceSessions() {
                             <div className="flex items-center gap-4 text-xs text-muted-foreground">
                               <span className="flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
-                                Last active {formatDistanceToNow(new Date(session.lastActive), { addSuffix: true })}
+                                Session started {formatDistanceToNow(new Date(session.lastActive), { addSuffix: true })}
                               </span>
                               <span>•</span>
                               <span>

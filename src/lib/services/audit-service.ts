@@ -308,8 +308,21 @@ class AuditLogService {
       ...(entityType && { entityType }),
       ...(entityId && { entityId }),
       ...(ipAddress && { ipAddress: { contains: ipAddress } }),
-      ...(dateFrom && { createdAt: { gte: dateFrom } }),
-      ...(dateTo && { createdAt: { lte: dateTo } }),
+      ...(dateFrom || dateTo ? {
+        createdAt: {
+          ...(dateFrom && { gte: dateFrom }),
+          ...(dateTo && { lte: dateTo }),
+        },
+      } : {}),
+      ...(search && {
+        OR: [
+          { userName: { contains: search, mode: 'insensitive' } },
+          { ipAddress: { contains: search, mode: 'insensitive' } },
+          { entityType: { contains: search, mode: 'insensitive' } },
+          { action: { contains: search, mode: 'insensitive' } },
+          { details: { contains: search, mode: 'insensitive' } },
+        ]
+      }),
     };
 
     // Get total count
