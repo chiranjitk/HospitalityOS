@@ -4,7 +4,7 @@ import dns from 'dns';
 import fs from 'fs';
 import net from 'net';
 import os from 'os';
-import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
 
 const RADIUS_SERVICE_URL =
@@ -441,25 +441,8 @@ const VALID_ACTIONS = new Set<string>([
 
 export async function GET(request: NextRequest) {
   // --- Auth & authorisation ---------------------------------------------------
-  let session;
-  try {
-    session = await requireAuth();
-  } catch {
-    return NextResponse.json(
-      { success: false, error: 'Authentication required' },
-      { status: 401 },
-    );
-  }
-
-  const hasWifiPermission = hasPermission(session, 'wifi.manage');
-  const hasReportsPermission = hasPermission(session, 'reports.view');
-
-  if (!hasWifiPermission && !hasReportsPermission) {
-    return NextResponse.json(
-      { success: false, error: 'Insufficient permissions' },
-      { status: 403 },
-    );
-  }
+  const user = await requirePermission(request, 'wifi.manage');
+  if (user instanceof NextResponse) return user;
 
   // --- Parse action -----------------------------------------------------------
   const { searchParams } = new URL(request.url);
