@@ -6398,26 +6398,28 @@ model WiFiGateway {
 /// (plan level) and WiFi users (user override). Priority chain:
 ///   User override pool > Plan pool > Default pool > No restriction
 model IpPool {
-  id          String        @id @default(uuid()) @db.Uuid
-  tenantId    String        @db.Uuid
-  propertyId  String?       @db.Uuid
-  name        String
-  description String?
-  gateway     String?       @db.Inet
-  subnet      String?       @db.Inet // CIDR subnet e.g. 10.0.0.0/24
-  isDefault   Boolean       @default(false) // Default pool if no pool assigned
-  enabled     Boolean       @default(true)
-  createdAt   DateTime      @default(now()) @db.Timestamptz
-  updatedAt   DateTime      @updatedAt @db.Timestamptz
-  ranges      IpPoolRange[]
-  plans       WiFiPlan[]
-  users       WiFiUser[]    @relation("UserIpPoolOverride")
-  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id            String        @id @default(uuid()) @db.Uuid
+  tenantId      String        @db.Uuid
+  propertyId    String?       @db.Uuid
+  name          String
+  description   String?
+  gateway       String?       @db.Inet
+  subnet        String?       @db.Inet // CIDR subnet e.g. 10.0.0.0/24
+  isDefault     Boolean       @default(false) // Default pool if no pool assigned
+  captivePortal Boolean       @default(false) // When true, subnet is written to /etc/restrictednetwork for default-deny + captive portal redirect
+  enabled       Boolean       @default(true)
+  createdAt     DateTime      @default(now()) @db.Timestamptz
+  updatedAt     DateTime      @updatedAt @db.Timestamptz
+  ranges        IpPoolRange[]
+  plans         WiFiPlan[]
+  users         WiFiUser[]    @relation("UserIpPoolOverride")
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, name])
   @@index([tenantId])
   @@index([propertyId])
   @@index([isDefault])
+  @@index([captivePortal])
 }
 
 /// IpPoolRange - Individual IP range within a pool

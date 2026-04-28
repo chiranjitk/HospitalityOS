@@ -61,6 +61,7 @@ interface IpPool {
   gateway: string | null;
   subnet: string | null;
   isDefault: boolean;
+  captivePortal: boolean;
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
@@ -75,8 +76,14 @@ interface IpPool {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatInet(val: string | null | undefined): string {
+  if (!val) return '';
+  // PostgreSQL inet may have /32 suffix for single IPs — keep CIDR for subnets
+  return val.replace(/\/32$/, '');
+}
+
+/** Format inet for table display — strip CIDR for single IPs */
+function formatInetDisplay(val: string | null | undefined): string {
   if (!val) return '—';
-  // PostgreSQL inet may have /32 suffix for single IPs
   return val.replace(/\/32$/, '').replace(/\/\d+$/, '');
 }
 
@@ -182,6 +189,7 @@ export default function IpPoolManagement() {
     gateway: '',
     subnet: '',
     isDefault: false,
+    captivePortal: false,
     enabled: true,
     ranges: [{ startIp: '', endIp: '', comment: '' }] as IpPoolRange[],
   });
@@ -231,6 +239,10 @@ export default function IpPoolManagement() {
     setRangeErrors([]);
     if (!formData.name?.trim()) {
       toast({ title: 'Validation Error', description: 'Pool name is required', variant: 'destructive' });
+      return;
+    }
+    if (!formData.subnet?.trim() || !formData.subnet.includes('/')) {
+      toast({ title: 'Validation Error', description: 'Subnet in CIDR format is required (e.g., 10.0.0.0/24)', variant: 'destructive' });
       return;
     }
     const validRanges = formData.ranges.filter(r => r.startIp && r.endIp);
@@ -289,6 +301,14 @@ export default function IpPoolManagement() {
   const handleUpdate = async () => {
     if (!selectedPool) return;
     setRangeErrors([]);
+    if (!formData.name?.trim()) {
+      toast({ title: 'Validation Error', description: 'Pool name is required', variant: 'destructive' });
+      return;
+    }
+    if (!formData.subnet?.trim() || !formData.subnet.includes('/')) {
+      toast({ title: 'Validation Error', description: 'Subnet in CIDR format is required (e.g., 10.0.0.0/24)', variant: 'destructive' });
+      return;
+    }
     const clientValidation = validateFormRanges(formData.ranges);
     if (!clientValidation.valid) {
       setRangeErrors(clientValidation.errors);
@@ -374,6 +394,7 @@ export default function IpPoolManagement() {
       gateway: formatInet(pool.gateway),
       subnet: formatInet(pool.subnet),
       isDefault: pool.isDefault,
+      captivePortal: pool.captivePortal,
       enabled: pool.enabled,
       ranges: pool.ranges.length > 0
         ? pool.ranges.map(r => ({
@@ -393,6 +414,7 @@ export default function IpPoolManagement() {
       gateway: '',
       subnet: '',
       isDefault: false,
+      captivePortal: false,
       enabled: true,
       ranges: [{ startIp: '', endIp: '', comment: '' }],
     });
@@ -604,25 +626,33 @@ export default function IpPoolManagement() {
 
                       {/* Subnet */}
                       <TableCell className="font-mono text-xs">
-                        {pool.subnet ? formatInet(pool.subnet) : '—'}
+                        {pool.subnet ? formatInetDisplay(pool.subnet) : '—'}
                       </TableCell>
 
                       {/* Gateway */}
                       <TableCell className="font-mono text-xs">
-                        {pool.gateway ? formatInet(pool.gateway) : '—'}
+                        {pool.gateway ? formatInetDisplay(pool.gateway) : '—'}
                       </TableCell>
 
                       {/* Status */}
                       <TableCell className="text-center">
-                        <Badge variant={pool.enabled ? 'default' : 'secondary'} className={cn(
-                          'text-[10px] px-2',
-                          pool.enabled
-                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10'
-                            : 'bg-gray-500/10 text-gray-500 hover:bg-gray-500/10'
-                        )}>
-                          <div className={cn('w-1.5 h-1.5 rounded-full mr-1.5', pool.enabled ? 'bg-emerald-500' : 'bg-gray-400')} />
-                          {pool.enabled ? 'Active' : 'Disabled'}
-                        </Badge>
+                        <div className="flex items-center justify-center gap-1.5">
+                          {pool.captivePortal && (
+                            <Badge className="text-[10px] px-1.5 py-0 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800">
+                              <ShieldCheck className="h-3 w-3 mr-0.5" />
+                              Portal
+                            </Badge>
+                          )}
+                          <Badge variant={pool.enabled ? 'default' : 'secondary'} className={cn(
+                            'text-[10px] px-2',
+                            pool.enabled
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10'
+                              : 'bg-gray-500/10 text-gray-500 hover:bg-gray-500/10'
+                          )}>
+                            <div className={cn('w-1.5 h-1.5 rounded-full mr-1.5', pool.enabled ? 'bg-emerald-500' : 'bg-gray-400')} />
+                            {pool.enabled ? 'Active' : 'Disabled'}
+                          </Badge>
+                        </div>
                       </TableCell>
 
                       {/* Ranges count */}
@@ -712,8 +742,8 @@ export default function IpPoolManagement() {
                                     {pool.ranges.map((range, idx) => (
                                       <TableRow key={range.id || idx}>
                                         <TableCell className="text-xs text-muted-foreground">{idx + 1}</TableCell>
-                                        <TableCell className="font-mono text-xs font-medium">{formatInet(range.startIp)}</TableCell>
-                                        <TableCell className="font-mono text-xs font-medium">{formatInet(range.endIp)}</TableCell>
+                                        <TableCell className="font-mono text-xs font-medium">{formatInetDisplay(range.startIp)}</TableCell>
+                                        <TableCell className="font-mono text-xs font-medium">{formatInetDisplay(range.endIp)}</TableCell>
                                         <TableCell className="text-xs text-muted-foreground">{range.comment || '—'}</TableCell>
                                         <TableCell className="text-xs text-center tabular-nums">
                                           {range.total_ips !== undefined && range.total_ips > 0
@@ -784,12 +814,13 @@ export default function IpPoolManagement() {
             {/* Network Config */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="pool-subnet">Subnet (CIDR)</Label>
+                <Label htmlFor="pool-subnet">Subnet (CIDR) <span className="text-destructive">*</span></Label>
                 <Input
                   id="pool-subnet"
                   placeholder="e.g., 10.0.0.0/24"
                   value={formData.subnet}
                   onChange={(e) => setFormData(prev => ({ ...prev, subnet: e.target.value }))}
+                  required
                 />
               </div>
               <div className="space-y-2">
@@ -805,7 +836,7 @@ export default function IpPoolManagement() {
             </div>
 
             {/* Flags */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                 <div>
                   <Label className="text-sm font-medium">Default Pool</Label>
@@ -814,6 +845,22 @@ export default function IpPoolManagement() {
                 <Switch
                   checked={formData.isDefault}
                   onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isDefault: checked }))}
+                />
+              </div>
+              <div className={cn(
+                "flex items-center justify-between p-3 rounded-lg border transition-colors",
+                formData.captivePortal ? "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800" : "bg-muted/50 border-transparent"
+              )}>
+                <div>
+                  <Label className="text-sm font-medium flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
+                    Captive Portal
+                  </Label>
+                  <p className="text-xs text-muted-foreground">Default-deny + redirect to portal</p>
+                </div>
+                <Switch
+                  checked={formData.captivePortal}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, captivePortal: checked }))}
                 />
               </div>
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
@@ -921,6 +968,12 @@ export default function IpPoolManagement() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {selectedPool?.name}
+              {selectedPool?.captivePortal && (
+                <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700">
+                  <ShieldCheck className="h-3 w-3 mr-0.5" />
+                  Portal
+                </Badge>
+              )}
               {selectedPool?.isDefault && (
                 <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700">
                   <Star className="h-3 w-3 mr-0.5 fill-amber-500" />
@@ -936,11 +989,11 @@ export default function IpPoolManagement() {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-muted-foreground">Subnet</span>
-                  <p className="font-mono">{formatInet(selectedPool.subnet)}</p>
+                  <p className="font-mono">{formatInetDisplay(selectedPool.subnet)}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Gateway</span>
-                  <p className="font-mono">{formatInet(selectedPool.gateway)}</p>
+                  <p className="font-mono">{formatInetDisplay(selectedPool.gateway)}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Status</span>
@@ -977,9 +1030,9 @@ export default function IpPoolManagement() {
                 <div className="space-y-1.5 max-h-40 overflow-y-auto">
                   {selectedPool.ranges.map((range, idx) => (
                     <div key={range.id || idx} className="flex items-center gap-2 bg-muted/30 rounded px-3 py-1.5 text-xs">
-                      <span className="font-mono">{formatInet(range.startIp)}</span>
+                      <span className="font-mono">{formatInetDisplay(range.startIp)}</span>
                       <span className="text-muted-foreground">→</span>
-                      <span className="font-mono">{formatInet(range.endIp)}</span>
+                      <span className="font-mono">{formatInetDisplay(range.endIp)}</span>
                       {range.comment && <span className="text-muted-foreground">({range.comment})</span>}
                     </div>
                   ))}

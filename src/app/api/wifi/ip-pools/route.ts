@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { syncRestrictedNetwork } from '@/lib/restricted-network';
 
 // ─── IP Overlap Helpers ─────────────────────────────────────────────────────
 
@@ -68,7 +69,7 @@ async function findCrossPoolOverlaps(ranges: RangeInput[], excludePoolId?: strin
     if (!s || !e) continue;
 
     const overlapping = await db.$queryRawUnsafe(`
-      SELECT ip.name as pool_name, r."startIp", r."endIp"
+      SELECT ip.name as pool_name, r."startIp"::text as "startIp", r."endIp"::text as "endIp"
       FROM "IpPoolRange" r
       JOIN "IpPool" ip ON ip.id = r."poolId"
       WHERE ($1::inet <= r."endIp" AND r."startIp" <= $2::inet)
@@ -116,8 +117,12 @@ export async function GET(request: NextRequest) {
     const propertyId = searchParams.get('propertyId') || '';
 
     const pools = await db.$queryRawUnsafe(`
-      SELECT 
-        ip.*,
+      SELECT
+        ip.id, ip."tenantId", ip."propertyId", ip.name, ip.description,
+        ip.gateway::text as gateway,
+        ip.subnet::text as subnet,
+        ip."isDefault", ip."captivePortal", ip.enabled,
+        ip."createdAt", ip."updatedAt",
         COALESCE(pc.cnt, 0)::int as _planCount,
         COALESCE(uc.cnt, 0)::int as _userCount,
         COALESCE(rc.cnt, 0)::int as _rangeCount
@@ -136,7 +141,8 @@ export async function GET(request: NextRequest) {
     if (poolIds.length > 0) {
       const placeholders = poolIds.map((_, i) => `\$${i + 1}::uuid`).join(',');
       ranges = await db.$queryRawUnsafe(`
-        SELECT r.*, (r."endIp" - r."startIp" + 1)::numeric as total_ips
+        SELECT r.id, r."poolId", r."startIp"::text as "startIp", r."endIp"::text as "endIp", r.comment, r."createdAt",
+               (r."endIp" - r."startIp" + 1)::numeric as total_ips
         FROM "IpPoolRange" r
         WHERE r."poolId" IN (${placeholders})
         ORDER BY r."startIp"
@@ -182,7 +188,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, description, gateway, subnet, isDefault, propertyId, enabled, ranges } = body;
+    const { name, description, gateway, subnet, isDefault, captivePortal, propertyId, enabled, ranges } = body;
 
     if (!name?.trim()) {
       return NextResponse.json(
@@ -222,23 +228,33 @@ export async function POST(request: NextRequest) {
       await db.$executeRawUnsafe(`UPDATE "IpPool" SET "isDefault" = false WHERE "tenantId" = $1::uuid`, tenantId);
     }
 
+    // Sanitize inet fields: only pass valid IP/CIDR, otherwise null
+    const safeGateway = (gateway && gateway.trim() && isValidIp(gateway.trim())) ? gateway.trim() : null;
+    const safeSubnet = (subnet && subnet.trim() && subnet.trim().includes('/') && isValidIp(subnet.trim().split('/')[0])) ? subnet.trim() : null;
+
     // Create pool
     const result = await db.$queryRawUnsafe(`
-      INSERT INTO "IpPool" (id, "tenantId", "propertyId", name, description, gateway, subnet, "isDefault", enabled, "createdAt", "updatedAt")
-      VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3, $4, $5::inet, $6::inet, $7, $8, NOW(), NOW())
-      RETURNING *
+      INSERT INTO "IpPool" (id, "tenantId", "propertyId", name, description, gateway, subnet, "isDefault", "captivePortal", enabled, "createdAt", "updatedAt")
+      VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3, $4, $5::inet, $6::inet, $7, $8, $9, NOW(), NOW())
+      RETURNING id, "tenantId", "propertyId", name, description,
+                gateway::text as gateway, subnet::text as subnet,
+                "isDefault", "captivePortal", enabled, "createdAt", "updatedAt"
     `, 
       tenantId,
       propertyId || null,
       name.trim(),
       description || null,
-      gateway || null,
-      subnet || null,
+      safeGateway,
+      safeSubnet,
       isDefault ? true : false,
+      captivePortal ? true : false,
       enabled !== false
     ) as any[];
 
     const pool = result[0];
+
+    // Sync /etc/restrictednetwork
+    await syncRestrictedNetwork();
 
     // Create ranges
     for (const range of validRanges) {
@@ -272,7 +288,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, name, description, gateway, subnet, isDefault, enabled, ranges } = body;
+    const { id, name, description, gateway, subnet, isDefault, captivePortal, enabled, ranges } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -307,6 +323,10 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    // Sanitize inet fields: only pass valid IP/CIDR, otherwise null
+    const safeGateway = (gateway && gateway.trim() && isValidIp(gateway.trim())) ? gateway.trim() : null;
+    const safeSubnet = (subnet && subnet.trim() && subnet.trim().includes('/') && isValidIp(subnet.trim().split('/')[0])) ? subnet.trim() : null;
+
     // Update pool
     const result = await db.$queryRawUnsafe(`
       UPDATE "IpPool" SET
@@ -315,11 +335,14 @@ export async function PUT(request: NextRequest) {
         gateway = $4::inet,
         subnet = $5::inet,
         "isDefault" = $6,
-        enabled = $7,
+        "captivePortal" = $7,
+        enabled = $8,
         "updatedAt" = now()
       WHERE id = $1::uuid
-      RETURNING *
-    `, id, name, description || null, gateway || null, subnet || null, isDefault ? true : false, enabled !== false) as any[];
+      RETURNING id, "tenantId", "propertyId", name, description,
+                gateway::text as gateway, subnet::text as subnet,
+                "isDefault", "captivePortal", enabled, "createdAt", "updatedAt"
+    `, id, name, description || null, safeGateway, safeSubnet, isDefault ? true : false, captivePortal ? true : false, enabled !== false) as any[];
 
     if (!result.length) {
       return NextResponse.json(
@@ -340,8 +363,11 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    // Sync /etc/restrictednetwork
+    await syncRestrictedNetwork();
+
+    return NextResponse.json({
+      success: true,
       data: result[0],
       message: `IP pool "${name}" updated successfully`
     });
@@ -384,6 +410,9 @@ export async function DELETE(request: NextRequest) {
 
     // Delete pool (ranges cascade)
     await db.$executeRawUnsafe(`DELETE FROM "IpPool" WHERE id = $1::uuid`, id);
+
+    // Sync /etc/restrictednetwork
+    await syncRestrictedNetwork();
 
     return NextResponse.json({ 
       success: true, 
