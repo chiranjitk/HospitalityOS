@@ -40,6 +40,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 // ─── Data Types ────────────────────────────────────────────────────────────────
 
@@ -187,6 +188,7 @@ const faqs = [
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export default function HelpCenterLanding() {
+  const t = useTranslations('help');
   const [searchQuery, setSearchQuery] = useState('');
   const [articles, setArticles] = useState<HelpArticle[]>([]);
   const [articlesLoading, setArticlesLoading] = useState(true);

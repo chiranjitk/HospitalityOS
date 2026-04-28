@@ -40,6 +40,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { format, parseISO, isWithinInterval, addDays } from 'date-fns';
+import { useTranslations } from 'next-intl';
 import {
   Tag,
   Plus,
@@ -180,6 +181,7 @@ function getDiscountIcon(type: string) {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function Promotions() {
+  const t = useTranslations('marketing');
   const { formatCurrency, currency } = useCurrency();
 
   // Data state

@@ -56,6 +56,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -126,6 +127,7 @@ interface Stats {
 }
 
 export default function EventBooking() {
+  const t = useTranslations('events');
   const { formatCurrency, currency } = useCurrency();
   const [events, setEvents] = useState<Event[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);

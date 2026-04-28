@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SectionGuard } from '@/components/common/section-guard';
+import { useTranslations } from 'next-intl';
 
 interface WorkflowNode {
   id: string;
@@ -71,6 +72,7 @@ function safeJsonParse(text: string, fallback: unknown = []): unknown {
 }
 
 export default function WorkflowBuilder() {
+  const t = useTranslations('automation');
   const [workflow, setWorkflow] = useState<Workflow>({
     name: '',
     description: '',

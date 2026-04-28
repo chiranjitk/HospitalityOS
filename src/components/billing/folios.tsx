@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
@@ -125,8 +127,8 @@ const folioStatuses = [
 ];
 
 const lineItemCategories = [
-  { value: 'room', label: 'Room Charge' },
-  { value: 'food', label: 'Food & Beverage' },
+  { value: 'room', label: t('roomCharge') },
+  { value: 'food', label: t('foodBeverage') },
   { value: 'service', label: 'Services' },
   { value: 'amenity', label: 'Amenities' },
   { value: 'tax', label: 'Tax' },
@@ -135,6 +137,7 @@ const lineItemCategories = [
 ];
 
 export default function Folios() {
+const t = useTranslations('billing');
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const { formatDate, formatTime, formatDateTime, settings } = useTimezone();
@@ -223,7 +226,7 @@ export default function Folios() {
       console.error('Error fetching folios:', error);
       toast({
         title: 'Error',
-        description: 'Failed to fetch folios',
+        description: t('failedToFetch'),
         variant: 'destructive',
       });
     } finally {
@@ -266,7 +269,7 @@ export default function Folios() {
     if (!createFormData.bookingId) {
       toast({
         title: 'Validation Error',
-        description: 'Please select a booking',
+        description: t('selectBooking'),
         variant: 'destructive',
       });
       return;
@@ -291,7 +294,7 @@ export default function Folios() {
       if (result.success) {
         toast({
           title: 'Success',
-          description: 'Folio created successfully',
+          description: t('folioCreated'),
         });
         setIsCreateOpen(false);
         fetchFolios();
@@ -319,7 +322,7 @@ export default function Folios() {
     if (!selectedFolio || !lineItemFormData.description || !lineItemFormData.unitPrice) {
       toast({
         title: 'Validation Error',
-        description: 'Please fill in all required fields',
+        description: t('fillRequiredFields'),
         variant: 'destructive',
       });
       return;
@@ -356,7 +359,7 @@ export default function Folios() {
       if (result.success) {
         toast({
           title: 'Success',
-          description: 'Line item added successfully',
+          description: t('lineItemAdded'),
         });
         setIsAddItemOpen(false);
         setLineItemFormData({
@@ -402,7 +405,7 @@ export default function Folios() {
       if (result.success) {
         toast({
           title: 'Success',
-          description: 'Line item removed successfully',
+          description: t('lineItemRemoved'),
         });
         // Refresh folio details
         viewFolioDetails(selectedFolio.id);
@@ -431,7 +434,7 @@ export default function Folios() {
       if (result.success) {
         toast({
           title: 'Success',
-          description: 'Folio closed successfully',
+          description: t('folioClosed'),
         });
         setIsDetailOpen(false);
         fetchFolios();
@@ -476,7 +479,7 @@ export default function Folios() {
             Folios
           </h2>
           <p className="text-sm text-muted-foreground">
-            Manage guest billing and charges
+            t('foliosDesc')
           </p>
         </div>
         <div className="flex gap-2">
@@ -500,7 +503,7 @@ export default function Folios() {
             </div>
             <div>
               <div className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-violet-400 bg-clip-text text-transparent">{folios.length}</div>
-              <div className="text-xs text-muted-foreground">Total Folios</div>
+              <div className="text-xs text-muted-foreground>{t('totalFolios')}</useState>
             </div>
           </div>
         </Card>
@@ -511,7 +514,7 @@ export default function Folios() {
             </div>
             <div>
               <div className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-400 bg-clip-text text-transparent">{openFolios}</div>
-              <div className="text-xs text-muted-foreground">Open Folios</div>
+              <div className="text-xs text-muted-foreground>{t('openFolios')}</useState>
             </div>
           </div>
         </Card>
@@ -547,7 +550,7 @@ export default function Folios() {
               <div className="relative focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/30 rounded-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by folio number..."
+                  placeholder="t('searchFolios')"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
@@ -559,7 +562,7 @@ export default function Folios() {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="all>{t('allStatus')}</SelectItem>
                 {folioStatuses.map(status => (
                   <SelectItem key={status.value} value={status.value}>
                     {status.label}
@@ -581,8 +584,8 @@ export default function Folios() {
           ) : folios.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <FileText className="h-12 w-12 mb-4" />
-              <p>No folios found</p>
-              <p className="text-sm">Create your first folio to get started</p>
+              <p{t('noFoliosFound')}</useState>
+              <p className="text-sm">>{t('createFirstFolio')</p>}
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
@@ -679,7 +682,7 @@ export default function Folios() {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Create New Folio</DialogTitle>
+            <DialogTitle>Create {t('newFolio')}</DialogTitle>
             <DialogDescription>
               Create a folio for a booking
             </DialogDescription>
@@ -757,7 +760,7 @@ export default function Folios() {
               Folio {selectedFolio?.folioNumber}
             </DialogTitle>
             <DialogDescription>
-              View and manage folio details
+              {t('viewAndManage')}</useState>
             </DialogDescription>
           </DialogHeader>
           {selectedFolio && (
@@ -791,7 +794,7 @@ export default function Folios() {
               {/* Line Items */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium">Line Items</h3>
+                  <h3 className="font-medium>{t('lineItems')}</h3>
                   {selectedFolio.status === 'open' && (
                     <Button size="sm" onClick={() => setIsAddItemOpen(true)}>
                       <Plus className="h-3 w-3 mr-1" />
@@ -803,7 +806,7 @@ export default function Folios() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Description</TableHead>
+                        <TableHead{t('description')}</TableHead>
                         <TableHead>Category</TableHead>
                         <TableHead className="text-right">Qty</TableHead>
                         <TableHead className="text-right">Unit Price</TableHead>
@@ -849,7 +852,7 @@ export default function Folios() {
                       {(!selectedFolio.lineItems || selectedFolio.lineItems.length === 0) && (
                         <TableRow>
                           <TableCell colSpan={selectedFolio.status === 'open' ? 7 : 6} className="text-center text-muted-foreground">
-                            No line items
+                            {t('noLineItems')}</Price>
                           </TableCell>
                         </TableRow>
                       )}
@@ -948,14 +951,14 @@ export default function Folios() {
       <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Line Item</DialogTitle>
+            <DialogTitle{t('addLineItem')}</DialogTitle>
             <DialogDescription>
-              Add a charge to the folio. Taxes are automatically applied based on category.
+              {t('addLineItemDesc')}</Price>
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description>{t('description')}</Price>
               <Input
                 id="description"
                 placeholder="e.g., Room Service"

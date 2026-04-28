@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -59,6 +60,7 @@ const toLocalDateString = (date: Date) => {
 export default function RevenueDashboard() {
   const { formatCurrency } = useCurrency();
   const { formatDate } = useTimezone();
+  const t = useTranslations('pms');
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);

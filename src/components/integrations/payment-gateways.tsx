@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, CreditCard, Check, X, Settings, Plus, Shield, TestTube } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface PaymentGateway {
   id: string;
@@ -42,6 +43,7 @@ const providerOptions = [
 ];
 
 export function PaymentGateways() {
+  const t = useTranslations('integrations');
   const { formatCurrency } = useCurrency();
   const [gateways, setGateways] = useState<PaymentGateway[]>([]);
   const [loading, setLoading] = useState(true);

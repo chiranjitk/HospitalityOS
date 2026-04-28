@@ -37,6 +37,7 @@ import {
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { exportToCSV } from '@/lib/export-utils';
+import { useTranslations } from 'next-intl';
 
 interface SyncLog {
   id: string;
@@ -54,6 +55,7 @@ interface SyncLog {
 }
 
 export default function SyncLogs() {
+  const t = useTranslations('channels');
   const [logs, setLogs] = useState<SyncLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');

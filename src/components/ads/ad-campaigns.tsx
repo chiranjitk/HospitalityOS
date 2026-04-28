@@ -48,6 +48,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface AdCampaign {
   id: string;
@@ -116,6 +117,7 @@ const platformColors: Record<string, string> = {
 };
 
 export default function AdCampaigns() {
+  const t = useTranslations('ads');
   const { formatCurrency } = useCurrency();
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
   const [stats, setStats] = useState<CampaignStats>({

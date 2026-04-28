@@ -57,6 +57,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface StockItem {
   id: string;
@@ -103,6 +104,7 @@ const CATEGORIES = [
 const UNITS = ['piece', 'kg', 'liter', 'box', 'pack', 'bottle', 'roll', 'set', 'gallon', 'meter'];
 
 export default function StockItems() {
+  const t = useTranslations('inventory');
   const { formatCurrency } = useCurrency();
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [stats, setStats] = useState<StockStats | null>(null);

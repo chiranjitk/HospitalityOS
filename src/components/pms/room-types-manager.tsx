@@ -68,6 +68,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 // Helper functions for CSV
 const escapeCSV = (value: unknown): string => {
@@ -1479,6 +1480,7 @@ interface AmenityManagerProps {
 
 function AmenityManager({ amenities, onRefresh }: AmenityManagerProps) {
   const { toast } = useToast();
+  const t = useTranslations('pms');
   const [isCreating, setIsCreating] = useState(false);
   const [newAmenity, setNewAmenity] = useState({ name: '', category: 'general' });
   const [isSaving, setIsSaving] = useState(false);

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, RefreshCw, Play, X, AlertTriangle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface RetryItem {
   id: string;
@@ -24,6 +25,7 @@ interface RetryItem {
 }
 
 export default function RetryQueue() {
+  const t = useTranslations('webhooks');
   const [queue, setQueue] = useState<RetryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, pending: 0, failed: 0, nextRetry: null as string | null });

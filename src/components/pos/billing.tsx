@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -73,6 +75,7 @@ interface Order {
 }
 
 export default function POSBilling() {
+const t = useTranslations('pos');
   const { propertyId } = usePropertyId();
   const { formatCurrency } = useCurrency();
   const [orders, setOrders] = useState<Order[]>([]);

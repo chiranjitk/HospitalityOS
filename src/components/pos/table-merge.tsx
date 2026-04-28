@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback } from 'react';
 import { usePropertyId } from '@/hooks/use-property';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +19,7 @@ interface Table { id: string; number: string; capacity: number; area?: string; s
 interface MergeRecord { id: string; tableIds: string; partySize: number; status: string; mergedAt: string; splitAt?: string; tables: Table[]; }
 
 export default function TableMerge() {
+const t = useTranslations('pos');
   const { propertyId } = usePropertyId();
   const [tables, setTables] = useState<Table[]>([]);
   const [merges, setMerges] = useState<MergeRecord[]>([]);

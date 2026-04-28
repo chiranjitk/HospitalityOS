@@ -26,6 +26,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface TermsSection {
   title: string;
@@ -55,6 +56,7 @@ interface ESignatureProps {
 }
 
 export function ESignature({ token, hasSigned, signedAt, onComplete }: ESignatureProps) {
+  const t = useTranslations('portal');
   const { toast } = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isLoading, setIsLoading] = useState(false);

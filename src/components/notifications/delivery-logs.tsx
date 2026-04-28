@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Mail, MessageSquare, Bell, Smartphone, Check, X, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useTranslations } from 'next-intl';
 
 interface DeliveryLog {
   id: string;
@@ -37,6 +38,7 @@ const statusColors = {
 };
 
 export default function DeliveryLogs() {
+  const t = useTranslations('notifications');
   const [logs, setLogs] = useState<DeliveryLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, delivered: 0, failed: 0, bounced: 0, deliveryRate: '0' });

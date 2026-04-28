@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Webhook, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useTranslations } from 'next-intl';
 
 interface WebhookDelivery {
   id: string;
@@ -23,6 +24,7 @@ interface WebhookDelivery {
 }
 
 export default function WebhookDelivery() {
+  const t = useTranslations('webhooks');
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, success: 0, failed: 0, pending: 0 });

@@ -70,6 +70,7 @@ import { cn } from '@/lib/utils';
 import { SectionGuard } from '@/components/common/section-guard';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/contexts/PermissionContext';
+import { useTranslations } from 'next-intl';
 
 interface Tenant {
   id: string;
@@ -110,6 +111,7 @@ interface Role {
 }
 
 export function UserManagement() {
+  const t = useTranslations('admin');
   const { user: currentUser, isPlatformAdmin } = useAuth();
   const { hasPermission } = usePermissions();
 

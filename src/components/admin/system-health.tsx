@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { SectionGuard } from '@/components/common/section-guard';
 import { Loader2, Zap, Database, Cpu, HardDrive, Activity, RefreshCw, AlertTriangle, Check } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface SystemHealthData {
   status: string;
@@ -26,6 +27,7 @@ interface SystemHealthData {
 }
 
 export function SystemHealth() {
+  const t = useTranslations('admin');
   const [healthData, setHealthData] = useState<SystemHealthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

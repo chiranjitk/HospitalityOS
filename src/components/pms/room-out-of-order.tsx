@@ -51,6 +51,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -115,6 +116,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 export default function RoomOutOfOrder() {
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
+  const t = useTranslations('pms');
 
   const [blocks, setBlocks] = useState<MaintenanceBlock[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);

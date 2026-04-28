@@ -48,6 +48,7 @@ import { toast } from 'sonner';
 import { format, subDays, eachDayOfInterval } from 'date-fns';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { exportToCSV } from '@/lib/export-utils';
+import { useTranslations } from 'next-intl';
 
 interface PerformanceMetric {
   date: string;
@@ -120,6 +121,7 @@ const dateRanges = [
 ];
 
 export default function PerformanceTracking() {
+  const t = useTranslations('ads');
   const { formatCurrency } = useCurrency();
   const [performanceData, setPerformanceData] = useState<PerformanceMetric[]>([]);
   const [summary, setSummary] = useState<PerformanceSummary | null>(null);

@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
@@ -130,7 +132,7 @@ const methodBadgeColors: Record<string, string> = {
 };
 
 const paymentMethods = [
-  { value: 'card', label: 'Credit/Debit Card', icon: CreditCard, description: 'Visa, Mastercard, Amex' },
+  { value: 'card', label: t('creditDebitCard'), icon: CreditCard, description: 'Visa, Mastercard, Amex' },
   { value: 'cash', label: 'Cash', icon: Banknote, description: 'Cash payment' },
   { value: 'bank_transfer', label: 'Bank Transfer', icon: Building2, description: 'Wire transfer' },
   { value: 'wallet', label: 'Digital Wallet', icon: Wallet, description: 'Apple Pay, Google Pay' },
@@ -152,6 +154,7 @@ const gateways = [
 ];
 
 export default function Payments() {
+const t = useTranslations('billing');
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const { formatDate, formatTime, formatDateTime, settings } = useTimezone();
@@ -281,7 +284,7 @@ export default function Payments() {
     if (!formData.folioId || !formData.amount || !formData.method) {
       toast({
         title: 'Validation Error',
-        description: 'Please fill in all required fields',
+        description: t('fillRequiredFields'),
         variant: 'destructive',
       });
       return;
@@ -318,7 +321,7 @@ export default function Payments() {
       if (result.success) {
         toast({
           title: 'Success',
-          description: 'Payment processed successfully',
+          description: t('paymentProcessed'),
         });
         setIsCreateOpen(false);
         resetForm();
@@ -332,7 +335,7 @@ export default function Payments() {
       } else {
         toast({
           title: 'Error',
-          description: result.error?.message || 'Failed to process payment',
+          description: result.error?.message || t('failedToProcess'),
           variant: 'destructive',
         });
       }
@@ -340,7 +343,7 @@ export default function Payments() {
       console.error('Error processing payment:', error);
       toast({
         title: 'Error',
-        description: 'Failed to process payment',
+        description: t('failedToProcess'),
         variant: 'destructive',
       });
     } finally {
@@ -353,7 +356,7 @@ export default function Payments() {
     if (!selectedPayment || !refundData.amount || !refundData.reason) {
       toast({
         title: 'Validation Error',
-        description: 'Please fill in all required fields',
+        description: t('fillRequiredFields'),
         variant: 'destructive',
       });
       return;
@@ -385,7 +388,7 @@ export default function Payments() {
       if (result.success) {
         toast({
           title: 'Success',
-          description: 'Refund processed successfully',
+          description: t('refundProcessed'),
         });
         setIsRefundOpen(false);
         setRefundData({ amount: '', reason: '' });
@@ -472,7 +475,7 @@ export default function Payments() {
             Payments
           </h2>
           <p className="text-sm text-muted-foreground">
-            Process and manage payments
+            t('paymentsDesc')
           </p>
         </div>
         <div className="flex gap-2">
@@ -496,7 +499,7 @@ export default function Payments() {
             </div>
             <div>
               <div className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-violet-400 bg-clip-text text-transparent">{summary.count}</div>
-              <div className="text-xs text-muted-foreground">Total Payments</div>
+              <div className="text-xs text-muted-foreground>{t('totalPayments')}</useState>
             </div>
           </div>
         </Card>
@@ -507,7 +510,7 @@ export default function Payments() {
             </div>
             <div>
               <div className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-400 bg-clip-text text-transparent">{formatCurrency(summary.totalAmount)}</div>
-              <div className="text-xs text-muted-foreground">Total Processed</div>
+              <div className="text-xs text-muted-foreground>{t('totalProcessed')}</useState>
             </div>
           </div>
         </Card>
@@ -543,7 +546,7 @@ export default function Payments() {
               <div className="relative focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/30 rounded-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by transaction ID..."
+                  placeholder="t('searchPayments')"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
@@ -568,7 +571,7 @@ export default function Payments() {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="all>{t('allStatus')}</SelectItem>
                 {paymentStatuses.map(status => (
                   <SelectItem key={status.value} value={status.value}>
                     {status.label}
@@ -590,8 +593,8 @@ export default function Payments() {
           ) : payments.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <CreditCard className="h-12 w-12 mb-4" />
-              <p>No payments found</p>
-              <p className="text-sm">Process your first payment to get started</p>
+              <p>>{t('noPaymentsFound')</p>}
+              <p className="text-sm">>{t('processFirstPayment')</p>}
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
@@ -709,15 +712,15 @@ export default function Payments() {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
           <DialogHeader className="shrink-0">
-            <DialogTitle>Process Payment</DialogTitle>
+            <DialogTitle{t('processPayment')}</DialogTitle>
             <DialogDescription>
-              Record a new payment
+              {t('recordPayment')}</Methods>
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-2 -mr-2">
             {/* Folio Selection */}
             <div className="space-y-2">
-              <Label htmlFor="folioId">Select Folio</Label>
+              <Label htmlFor="folioId>{t('selectFolio')}</Methods>
               <Select
                 value={formData.folioId}
                 onValueChange={(value) => {
@@ -770,7 +773,7 @@ export default function Payments() {
 
             {/* Amount */}
             <div className="space-y-2">
-              <Label htmlFor="amount">Payment Amount</Label>
+              <Label htmlFor="amount>{t('paymentAmount')}</Methods>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -806,7 +809,7 @@ export default function Payments() {
 
             {/* Payment Method Selection */}
             <div className="space-y-2">
-              <Label>Payment Method</Label>
+              <Label{t('paymentMethodLabel')}</Methods>
               <RadioGroup
                 value={formData.method}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, method: value }))}
@@ -1032,7 +1035,7 @@ export default function Payments() {
               Process Refund
             </DialogTitle>
             <DialogDescription>
-              Refund payment {selectedPayment?.transactionId}
+              {t('refundPayment')} {selectedPayment?.transactionId}
             </DialogDescription>
           </DialogHeader>
           {selectedPayment && (

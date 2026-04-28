@@ -34,6 +34,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface JourneyEvent {
   id: string;
@@ -136,6 +137,7 @@ const stageConfig: Record<StageKey, {
 const stageOrder: StageKey[] = ['discovery', 'booking', 'pre_arrival', 'stay', 'post_stay', 'retention'];
 
 export function GuestJourney({ guestId }: GuestJourneyProps) {
+  const t = useTranslations('guests');
   const { toast } = useToast();
   const { formatDate } = useTimezone();
   const [data, setData] = useState<JourneyData | null>(null);

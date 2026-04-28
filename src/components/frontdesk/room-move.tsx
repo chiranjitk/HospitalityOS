@@ -56,6 +56,7 @@ import { useTimezone } from '@/contexts/TimezoneContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 
 interface Room {
   id: string;
@@ -143,6 +144,7 @@ export default function RoomMove() {
   const { formatDate, formatDateTime } = useTimezone();
   const { formatCurrency } = useCurrency();
   const { user } = useAuth();
+  const t = useTranslations('frontdesk');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Booking[]>([]);

@@ -55,6 +55,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { differenceInDays, subDays } from 'date-fns';
 import { DateRange } from 'react-day-picker';
+import { useTranslations } from 'next-intl';
 
 interface Stay {
   id: string;
@@ -110,6 +111,7 @@ export default function StayHistoryManagement() {
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const { formatDate } = useTimezone();
+  const t = useTranslations('guests');
   const [stays, setStays] = useState<Stay[]>([]);
   const [guests, setGuests] = useState<Guest[]>([]);
   const [isLoading, setIsLoading] = useState(true);

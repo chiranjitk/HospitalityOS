@@ -24,6 +24,7 @@ import { Loader2, Building2, Plus, MoreHorizontal, Edit, Trash2, Search, Check, 
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { SectionGuard } from '@/components/common/section-guard';
+import { useTranslations } from 'next-intl';
 
 interface Tenant {
   id: string;
@@ -75,6 +76,7 @@ const defaultLimits: Record<string, { properties: number; users: number; rooms: 
 };
 
 export function TenantManagement() {
+  const t = useTranslations('admin');
   const { formatCurrency } = useCurrency();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);

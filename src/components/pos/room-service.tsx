@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { usePropertyId } from '@/hooks/use-property';
@@ -75,6 +77,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function RoomService() {
+const t = useTranslations('pos');
   const { propertyId } = usePropertyId();
   const { formatCurrency } = useCurrency();
   const [rooms, setRooms] = useState<RoomWithGuest[]>([]);

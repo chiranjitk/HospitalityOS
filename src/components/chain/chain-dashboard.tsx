@@ -39,6 +39,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 import {
   BarChart,
   Bar,
@@ -104,6 +105,7 @@ interface DashboardData {
 const COLORS = ['#0D9488', '#14B8A6', '#2DD4BF', '#5EEAD4', '#99F6E4', '#CCFBF1'];
 
 export default function ChainDashboard() {
+  const t = useTranslations('chain');
   const { formatCurrency } = useCurrency();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);

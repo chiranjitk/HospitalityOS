@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -103,6 +105,7 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 function formatChartDate(dateStr: string) {
+const t = useTranslations('revenue');
   return format(new Date(dateStr), 'MMM dd');
 }
 

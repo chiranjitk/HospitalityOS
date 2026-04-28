@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,6 +13,7 @@ interface OrderItem { name: string; quantity: number; price: number; status: str
 interface OrderData { orderNumber: string; items: OrderItem[]; totalAmount: number; status: string; createdAt: string; estimatedWait: number; }
 
 export default function CustomerDisplay() {
+  const t = useTranslations('pos');
   const { formatCurrency } = useCurrency();
   const [order, setOrder] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);

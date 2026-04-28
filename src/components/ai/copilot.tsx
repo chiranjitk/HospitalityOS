@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Bot, Send, User, Lightbulb, Sparkles, Copy, ThumbsUp, ThumbsDown, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface Message {
   id: string;
@@ -46,6 +47,7 @@ function SimpleMarkdown({ content }: { content: string }) {
 }
 
 export default function AICopilot() {
+  const t = useTranslations('ai');
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',

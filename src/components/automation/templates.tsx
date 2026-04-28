@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SectionGuard } from '@/components/common/section-guard';
+import { useTranslations } from 'next-intl';
 
 interface Template {
   id: string;
@@ -183,6 +184,7 @@ const templates: Template[] = [
 const categories = ['All', 'Guest Communication', 'Loyalty', 'Revenue', 'Billing', 'Operations', 'VIP'];
 
 export default function Templates() {
+  const t = useTranslations('automation');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [customizeDialogOpen, setCustomizeDialogOpen] = useState(false);

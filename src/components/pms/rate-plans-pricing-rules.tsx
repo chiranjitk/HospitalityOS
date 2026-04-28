@@ -45,6 +45,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, addMonths, subMonths, isWeekend } from 'date-fns';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 // Types
 interface RoomType {
@@ -174,6 +175,7 @@ const getPriceColor = (basePrice: number, currentPrice: number): string => {
 export default function RatePlansPricingRules() {
   const { toast } = useToast();
   const { formatCurrency, currency } = useCurrency();
+  const t = useTranslations('pms');
   
   // State
   const [ratePlans, setRatePlans] = useState<RatePlan[]>([]);

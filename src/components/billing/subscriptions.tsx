@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
@@ -111,6 +113,7 @@ const billingCycles = [
 ];
 
 export default function Subscriptions() {
+const t = useTranslations('billing');
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const { formatDate, formatTime, formatDateTime, settings } = useTimezone();

@@ -48,6 +48,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface CRSConnection {
   id: string;
@@ -88,6 +89,7 @@ interface CRSStats {
 }
 
 export default function CRS() {
+  const t = useTranslations('channels');
   const { formatCurrency } = useCurrency();
   const [connections, setConnections] = useState<CRSConnection[]>([]);
   const [bookingSources, setBookingSources] = useState<BookingSource[]>([]);

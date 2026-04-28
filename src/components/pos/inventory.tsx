@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect } from 'react';
 import { usePropertyId } from '@/hooks/use-property';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -70,6 +72,7 @@ const stockStatus = (item: InventoryItem) => {
 
 // ---- Component ----
 export default function InventoryManagement() {
+const t = useTranslations('pos');
   const { propertyId } = usePropertyId();
   const { formatCurrency } = useCurrency();
 

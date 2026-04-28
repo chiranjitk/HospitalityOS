@@ -45,6 +45,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -95,6 +96,7 @@ const cancellationPolicies = [
 ];
 
 export function RatePlansManager() {
+  const t = useTranslations('pms');
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const [ratePlans, setRatePlans] = useState<RatePlan[]>([]);

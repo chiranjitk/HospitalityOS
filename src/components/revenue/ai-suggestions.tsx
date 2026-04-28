@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -60,6 +62,7 @@ const impactColors: Record<string, string> = {
 };
 
 export default function AISuggestions() {
+const t = useTranslations('revenue');
   const { formatCurrency } = useCurrency();
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
   const [summary, setSummary] = useState<AISuggestionsSummary | null>(null);

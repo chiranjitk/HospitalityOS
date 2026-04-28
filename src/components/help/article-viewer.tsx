@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUIStore } from '@/store';
+import { useTranslations } from 'next-intl';
 
 interface Article {
   id: string;
@@ -46,6 +47,7 @@ const categoryColors: Record<string, string> = {
 };
 
 export function ArticleViewer({ articleId, onBack }: ArticleViewerProps) {
+  const t = useTranslations('help');
   const [article, setArticle] = useState<Article | null>(null);
   const [relatedArticles, setRelatedArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);

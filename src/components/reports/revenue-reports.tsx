@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
@@ -98,6 +100,7 @@ const chartColors = [
 ];
 
 export default function RevenueReports() {
+const t = useTranslations('reports');
   const { formatCurrency, currency } = useCurrency();
   const { formatDate: formatDateUtil } = useTimezone();
 

@@ -41,6 +41,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -405,6 +406,7 @@ function getStatusBadgeClasses(status: string) {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function TutorialProgressPage() {
+  const t = useTranslations('help');
   const [userProgress, setUserProgress] = useState<UserTutorial[]>([]);
   const [completedStepsMap, setCompletedStepsMap] = useState<
     Record<string, string[]>

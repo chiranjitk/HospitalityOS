@@ -56,6 +56,7 @@ import {
 } from 'recharts';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
+import { useTranslations } from 'next-intl';
 
 interface RevenueByProperty {
   propertyId: string;
@@ -132,6 +133,7 @@ interface AnalyticsData {
 const COLORS = ['#0D9488', '#14B8A6', '#2DD4BF', '#5EEAD4', '#99F6E4', '#CCFBF1', '#F97316', '#FB923C'];
 
 export default function CrossPropertyAnalytics() {
+  const t = useTranslations('chain');
   const { formatCurrency } = useCurrency();
   const { formatDate } = useTimezone();
   const [data, setData] = useState<AnalyticsData | null>(null);

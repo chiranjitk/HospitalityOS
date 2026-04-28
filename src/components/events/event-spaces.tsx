@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -83,6 +84,7 @@ interface Stats {
 }
 
 export default function EventSpaces() {
+  const t = useTranslations('events');
   const { formatCurrency } = useCurrency();
   const [spaces, setSpaces] = useState<EventSpace[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);

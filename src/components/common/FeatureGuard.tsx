@@ -4,6 +4,7 @@ import { useFeatureFlags } from '@/contexts/FeatureFlagsContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Lock, Sparkles, ArrowUpRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface FeatureGuardProps {
   featureId: string;
@@ -111,6 +112,7 @@ export function FeatureGuard({
 
 // Compact version for inline use
 export function FeatureBadge({ featureId }: { featureId: string }) {
+  const t = useTranslations('common');
   const { isFeatureEnabled } = useFeatureFlags();
 
   if (isFeatureEnabled(featureId)) {

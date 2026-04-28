@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface BookingEngineSettings {
   enabled: boolean;
@@ -74,6 +75,7 @@ const emptyStats: BookingStats = {
 };
 
 export default function DirectBookingEngine() {
+  const t = useTranslations('marketing');
   const { formatCurrency } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

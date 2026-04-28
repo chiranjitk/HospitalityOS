@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback } from 'react';
 import { usePropertyId } from '@/hooks/use-property';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +18,7 @@ interface StaffMember { id: string; name: string; role: string; status: string; 
 interface Assignment { id: string; tableId: string; tableNumber: string; staffId: string; staffName: string; startedAt: string; }
 
 export default function StaffAssignment() {
+const t = useTranslations('pos');
   const { propertyId } = usePropertyId();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);

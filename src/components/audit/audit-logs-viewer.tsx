@@ -66,6 +66,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useTranslations } from 'next-intl';
 
 // Types
 interface AuditLogEntry {
@@ -201,6 +202,7 @@ const actionOptions = [
 ];
 
 export function AuditLogsViewer() {
+  const t = useTranslations('audit');
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [stats, setStats] = useState<AuditStats | null>(null);
   const [pagination, setPagination] = useState<Pagination>({

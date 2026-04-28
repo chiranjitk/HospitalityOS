@@ -85,6 +85,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useTranslations } from 'next-intl';
 
 // ============================================
 // TYPES
@@ -415,6 +416,7 @@ const formatRelativeTime = (date: Date | null) => {
 // ============================================
 
 export default function OTAConnections() {
+  const t = useTranslations('channels');
   const isMobile = useIsMobile();
   
   // State

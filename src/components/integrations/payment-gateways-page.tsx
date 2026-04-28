@@ -42,6 +42,7 @@ import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface PaymentGateway {
   id: string;
@@ -109,6 +110,7 @@ const paymentMethods = [
 ];
 
 export default function PaymentGatewaysPage() {
+  const t = useTranslations('integrations');
   const { formatCurrency } = useCurrency();
   const [data, setData] = useState<PaymentGatewaysPageData | null>(null);
   const [loading, setLoading] = useState(true);

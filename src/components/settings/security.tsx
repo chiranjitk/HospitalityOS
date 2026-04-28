@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Shield, Key, Lock, Save, Activity } from 'lucide-react';
 import { toast } from 'sonner';
 import { SectionGuard } from '@/components/common/section-guard';
+import { useTranslations } from 'next-intl';
 
 interface SecuritySettings {
   authentication: {
@@ -59,6 +60,7 @@ interface SecuritySettings {
 }
 
 export default function SecuritySettings() {
+  const t = useTranslations('settings');
   const [settings, setSettings] = useState<SecuritySettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

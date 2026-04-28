@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -93,6 +95,7 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export default function CompetitorPricing() {
+const t = useTranslations('revenue');
   const { formatCurrency } = useCurrency();
   const [data, setData] = useState<CompetitorPricing | null>(null);
   const [isLoading, setIsLoading] = useState(true);

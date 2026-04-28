@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
@@ -97,6 +99,7 @@ const discountTypes = [
 ];
 
 export default function Discounts() {
+const t = useTranslations('billing');
   const { toast } = useToast();
   const { formatCurrency, currency } = useCurrency();
   const { formatDate, formatTime, formatDateTime, settings } = useTimezone();
@@ -195,7 +198,7 @@ export default function Discounts() {
     if (!formData.name || !formData.discountValue) {
       toast({
         title: 'Validation Error',
-        description: 'Please fill in all required fields',
+        description: t('fillRequiredFields'),
         variant: 'destructive',
       });
       return;
@@ -256,7 +259,7 @@ export default function Discounts() {
     if (!selectedDiscount || !formData.name || !formData.discountValue) {
       toast({
         title: 'Validation Error',
-        description: 'Please fill in all required fields',
+        description: t('fillRequiredFields'),
         variant: 'destructive',
       });
       return;
@@ -489,7 +492,7 @@ export default function Discounts() {
             </div>
             <div>
               <div className="text-2xl font-bold">{stats.total}</div>
-              <div className="text-xs text-muted-foreground">Total Discounts</div>
+              <div className="text-xs text-muted-foreground>{t('totalDiscounts')}</Record>
             </div>
           </div>
         </Card>
@@ -536,7 +539,7 @@ export default function Discounts() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by code or name..."
+                  placeholder="t('searchDiscounts')"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
@@ -558,7 +561,7 @@ export default function Discounts() {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="all>{t('allStatus')}</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
@@ -577,8 +580,8 @@ export default function Discounts() {
           ) : discounts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Tag className="h-12 w-12 mb-4" />
-              <p>No discounts found</p>
-              <p className="text-sm">Create your first discount code to get started</p>
+              <p>>{t('noDiscountsFound')</p>}
+              <p className="text-sm">>{t('createFirstDiscount')</p>}
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
@@ -766,7 +769,7 @@ export default function Discounts() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description>{t('description')}</uses>
               <Textarea
                 id="description"
                 value={formData.description}

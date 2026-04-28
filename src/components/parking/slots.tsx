@@ -51,6 +51,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { usePropertyId } from '@/hooks/use-property';
+import { useTranslations } from 'next-intl';
 
 interface ParkingSlot {
   id: string;
@@ -98,6 +99,7 @@ const statuses = [
 ];
 
 export default function ParkingSlots() {
+  const t = useTranslations('parking');
   const { toast } = useToast();
   const { propertyId } = usePropertyId();
   const [slots, setSlots] = useState<ParkingSlot[]>([]);

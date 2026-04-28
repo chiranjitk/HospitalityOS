@@ -25,6 +25,7 @@ import {
   User, Mail, Star, DollarSign, Calendar, Building
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface Segment {
   id: string;
@@ -95,6 +96,7 @@ const loyaltyTiers = ['bronze', 'silver', 'gold', 'platinum'];
 const bookingSources = ['direct', 'booking_com', 'airbnb', 'expedia', 'walk_in', 'other'];
 
 export default function GuestSegments() {
+  const t = useTranslations('crm');
   const [segments, setSegments] = useState<Segment[]>([]);
   const [stats, setStats] = useState<SegmentStats>({ totalSegments: 0, totalMembers: 0, avgMembersPerSegment: 0 });
   const [loading, setLoading] = useState(true);

@@ -31,6 +31,7 @@ import {
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
+import { useTranslations } from 'next-intl';
 
 interface BookingSyncItem {
   id: string;
@@ -60,6 +61,7 @@ interface BookingSyncStats {
 }
 
 export default function BookingSync() {
+  const t = useTranslations('channels');
   const { formatCurrency } = useCurrency();
   const { formatDate } = useTimezone();
   const [bookingData, setBookingData] = useState<BookingSyncItem[]>([]);

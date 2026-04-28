@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday, parseISO, startOfWeek, endOfWeek, addDays } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -95,6 +96,7 @@ interface Stats {
 }
 
 export default function EventCalendar() {
+  const t = useTranslations('events');
   const { formatCurrency } = useCurrency();
   const { formatDate, formatDateTime } = useTimezone();
   const [events, setEvents] = useState<Event[]>([]);

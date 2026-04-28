@@ -20,6 +20,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 import { motion } from 'framer-motion';
 import { useUIStore } from '@/store';
 
@@ -62,13 +63,14 @@ function getTimeAgo(timestamp: string): string {
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return `${diffDays}d ago`;
+  if (diffMins < 1) return t('justNow');
+  if (diffMins < 60) return t('minutesAgoShort', { count: diffMins });
+  if (diffHours < 24) return t('hoursAgoShort', { count: diffHours });
+  return t('daysAgoShort', { count: diffDays });
 }
 
 export function RecentActivityFeed() {
+  const t = useTranslations('dashboard');
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { setActiveSection } = useUIStore();
@@ -124,14 +126,14 @@ export function RecentActivityFeed() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              Recent Activity
+              {t('recentActivity')}
               <span className="relative flex h-2 w-2 ml-1">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
               </span>
             </CardTitle>
             <Badge variant="secondary" className="text-xs tabular-nums">
-              {activities.length} items
+              {activities.length} {t('itemsLower')}
             </Badge>
           </div>
         </CardHeader>
@@ -178,7 +180,7 @@ export function RecentActivityFeed() {
             {activities.length === 0 && (
               <div className="flex flex-col items-center py-6 text-center">
                 <CheckCircle2 className="h-8 w-8 text-emerald-500 dark:text-emerald-400/50 mb-2" />
-                <p className="text-sm text-muted-foreground">No recent activity</p>
+                <p className="text-sm text-muted-foreground">{t('noRecentActivity')}</p>
               </div>
             )}
           </div>
@@ -191,7 +193,7 @@ export function RecentActivityFeed() {
               className="w-full mt-2 hover:bg-muted/60 transition-colors text-xs"
               onClick={() => setActiveSection('dashboard-activity')}
             >
-              View All Activity
+              {t('viewAllActivity')}
               <ArrowRight className="ml-1 h-3 w-3" />
             </Button>
           )}

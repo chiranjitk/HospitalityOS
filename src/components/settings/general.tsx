@@ -15,6 +15,7 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { SectionGuard } from '@/components/common/section-guard';
+import { useTranslations } from 'next-intl';
 
 // Comprehensive timezone list organized by region
 const TIMEZONES = [
@@ -161,6 +162,7 @@ interface GeneralSettings {
 }
 
 export default function GeneralSettingsComponent() {
+  const t = useTranslations('settings');
   const [settings, setSettings] = useState<GeneralSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

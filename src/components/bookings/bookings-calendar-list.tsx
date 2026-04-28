@@ -67,6 +67,7 @@ import {
 import { cn } from '@/lib/utils';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, addDays, differenceInDays, startOfWeek, endOfWeek } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { useTranslations } from 'next-intl';
 
 // ============ SHARED TYPES ============
 interface Property {
@@ -161,6 +162,7 @@ const getTomorrowLocal = () => {
 
 // ============ MAIN COMPONENT ============
 export function BookingsCalendarList() {
+  const t = useTranslations('bookings');
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between gap-4">

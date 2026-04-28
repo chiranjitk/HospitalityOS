@@ -22,6 +22,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface Notification {
   id: string;
@@ -45,6 +46,7 @@ const typeConfig: Record<string, { icon: typeof Bell; color: string; bg: string 
 
 
 export default function NotificationCenterPage() {
+  const t = useTranslations('notifications');
   const { toast } = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);

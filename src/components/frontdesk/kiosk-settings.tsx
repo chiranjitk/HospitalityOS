@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 // ============================================================
 // Types
@@ -82,6 +83,7 @@ const DEFAULTS: KioskSettingsData = {
 
 export default function KioskSettingsPage() {
   const { toast } = useToast();
+  const t = useTranslations('frontdesk');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);

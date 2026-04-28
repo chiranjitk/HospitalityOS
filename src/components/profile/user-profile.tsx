@@ -41,6 +41,7 @@ import {
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { indianLanguages, globalLanguages } from '@/i18n/config';
+import { useTranslations } from 'next-intl';
 
 interface UserSession {
   id: string;
@@ -78,6 +79,7 @@ const defaultPreferences: UserPreferences = {
 };
 
 export default function UserProfile() {
+  const t = useTranslations('profile');
   const { user, refreshUser } = useAuth();
   const { setActiveSection } = useUIStore();
   const { locale, setLocale } = useI18n();

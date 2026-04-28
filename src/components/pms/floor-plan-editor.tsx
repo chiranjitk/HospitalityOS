@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useTranslations } from 'next-intl';
 
 interface RoomType {
   id: string;
@@ -101,6 +102,7 @@ interface HistoryState {
 }
 
 export function FloorPlanEditor({
+  const t = useTranslations('pms');
   floorPlan,
   rooms,
   initialPositions,

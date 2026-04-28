@@ -22,6 +22,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface GuestData {
   id: string;
@@ -70,6 +71,7 @@ const genders = [
 ];
 
 export function GuestDetails({ token, guest, isComplete, onUpdate, onComplete }: GuestDetailsProps) {
+  const t = useTranslations('portal');
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(!isComplete);

@@ -63,6 +63,7 @@ import {
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { format } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface PurchaseOrderItem {
   id: string;
@@ -142,6 +143,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof
 };
 
 export default function PurchaseOrders() {
+  const t = useTranslations('inventory');
   const { formatCurrency } = useCurrency();
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);

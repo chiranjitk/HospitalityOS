@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Webhook, Plus, Settings, Trash2, Copy, Eye, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface WebhookEndpoint {
   id: string;
@@ -43,6 +44,7 @@ const eventTypes = [
 ];
 
 export default function WebhookEvents() {
+  const t = useTranslations('webhooks');
   const [endpoints, setEndpoints] = useState<WebhookEndpoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, active: 0, totalTriggers: 0, avgSuccessRate: 0 });

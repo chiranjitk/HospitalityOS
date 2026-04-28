@@ -355,6 +355,7 @@ export function NotificationBellButton() {
 // ============================================
 
 import { create } from 'zustand';
+import { useTranslations } from 'next-intl';
 
 interface NotificationCenterState {
   notifications: NotificationItem[];
@@ -431,6 +432,7 @@ export const useNotificationCenterStore = create<NotificationCenterState>((set) 
 // ============================================
 
 export function NotificationCenter() {
+  const t = useTranslations('notifications');
   const {
     notifications,
     unreadCount,

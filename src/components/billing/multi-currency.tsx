@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -64,6 +66,7 @@ interface ExchangeRate {
 }
 
 export default function MultiCurrency() {
+const t = useTranslations('billing');
   const { toast } = useToast();
 
   const [rates, setRates] = useState<ExchangeRate[]>([]);
@@ -181,7 +184,7 @@ export default function MultiCurrency() {
             <ArrowLeftRight className="h-5 w-5" />
             Multi-Currency Billing
           </h2>
-          <p className="text-sm text-muted-foreground">Manage exchange rates and multi-currency charges</p>
+          <p className="text-sm text-muted-foreground">{t('multiCurrencyDesc')</p>}
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={fetchRates}>

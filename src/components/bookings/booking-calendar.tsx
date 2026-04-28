@@ -74,6 +74,7 @@ import {
 import { cn } from '@/lib/utils';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, addDays, addWeeks, subWeeks, differenceInDays, startOfWeek, endOfWeek, isWithinInterval, parseISO, isSameWeek, getWeek, eachWeekOfInterval } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -158,6 +159,7 @@ const weekDaysShort = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 type CalendarView = 'month' | 'week' | 'timeline';
 
 export function BookingCalendar() {
+  const t = useTranslations('bookings');
   const { toast } = useToast();
   const { formatCurrency, currency } = useCurrency();
   const { formatDate, formatDateTime } = useTimezone();

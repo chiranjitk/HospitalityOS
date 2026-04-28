@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 import {
   Radio,
   LogIn,
@@ -36,21 +37,21 @@ interface OperationItem {
   guestName?: string;
 }
 
-const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: string; label: string }> = {
-  checkin: { icon: LogIn, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/50', label: 'Check-in' },
-  checkout: { icon: LogOut, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-950/50', label: 'Check-out' },
-  housekeeping: { icon: Sparkles, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-950/50', label: 'Housekeeping' },
-  'room-service': { icon: Coffee, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/50', label: 'Room Service' },
-  maintenance: { icon: Wrench, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/50', label: 'Maintenance' },
-  valet: { icon: Car, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-950/50', label: 'Valet' },
-  concierge: { icon: Bell, color: 'text-pink-600 dark:text-pink-400', bg: 'bg-pink-50 dark:bg-pink-950/50', label: 'Concierge' },
+const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: string; labelKey: string }> = {
+  checkin: { icon: LogIn, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/50', labelKey: 'checkIn' },
+  checkout: { icon: LogOut, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-950/50', labelKey: 'checkOut' },
+  housekeeping: { icon: Sparkles, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-950/50', labelKey: 'housekeeping' },
+  'room-service': { icon: Coffee, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/50', labelKey: 'roomService' },
+  maintenance: { icon: Wrench, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/50', labelKey: 'maintenance' },
+  valet: { icon: Car, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-950/50', labelKey: 'valet' },
+  concierge: { icon: Bell, color: 'text-pink-600 dark:text-pink-400', bg: 'bg-pink-50 dark:bg-pink-950/50', labelKey: 'concierge' },
 };
 
-const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string; label: string }> = {
-  pending: { color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-50 dark:bg-amber-950/50', border: 'border-amber-200 dark:border-amber-800', label: 'Pending' },
-  'in-progress': { color: 'text-sky-700 dark:text-sky-300', bg: 'bg-sky-50 dark:bg-sky-950/50', border: 'border-sky-200 dark:border-sky-800', label: 'In Progress' },
-  completed: { color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-50 dark:bg-emerald-950/50', border: 'border-emerald-200 dark:border-emerald-800', label: 'Done' },
-  overdue: { color: 'text-red-700 dark:text-red-300', bg: 'bg-red-50 dark:bg-red-950/50', border: 'border-red-200 dark:border-red-800', label: 'Overdue' },
+const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string; labelKey: string }> = {
+  pending: { color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-50 dark:bg-amber-950/50', border: 'border-amber-200 dark:border-amber-800', labelKey: 'pending' },
+  'in-progress': { color: 'text-sky-700 dark:text-sky-300', bg: 'bg-sky-50 dark:bg-sky-950/50', border: 'border-sky-200 dark:border-sky-800', labelKey: 'inProgress' },
+  completed: { color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-50 dark:bg-emerald-950/50', border: 'border-emerald-200 dark:border-emerald-800', labelKey: 'done' },
+  overdue: { color: 'text-red-700 dark:text-red-300', bg: 'bg-red-50 dark:bg-red-950/50', border: 'border-red-200 dark:border-red-800', labelKey: 'overdue' },
 };
 
 const TASK_TYPE_MAP: Record<string, OperationItem['type']> = {
@@ -74,15 +75,15 @@ const TASK_STATUS_MAP: Record<string, OperationItem['status']> = {
   cancelled: 'completed',
 };
 
-function mapTasksToOperations(tasks: Array<{ id: string; type?: string; title?: string; room?: string; status?: string; priority?: string; scheduledAt?: string; assignee?: string }>): OperationItem[] {
+function mapTasksToOperations(tasks: Array<{ id: string; type?: string; title?: string; room?: string; status?: string; priority?: string; scheduledAt?: string; assignee?: string }>, t: (key: string) => string): OperationItem[] {
   return tasks.map(task => ({
     id: task.id,
     type: TASK_TYPE_MAP[task.type || ''] || 'maintenance',
-    title: task.title || 'Task',
+    title: task.title || t('task'),
     subtitle: [
-      task.room ? `Room ${task.room}` : '',
+      task.room ? t('roomNumber', { number: task.room }) : '',
       task.assignee || '',
-    ].filter(Boolean).join(' — ') || 'No details',
+    ].filter(Boolean).join(' — ') || t('noDetails'),
     status: TASK_STATUS_MAP[task.status || 'pending'] || 'pending',
     time: task.scheduledAt
       ? new Date(task.scheduledAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -95,6 +96,8 @@ function mapTasksToOperations(tasks: Array<{ id: string; type?: string; title?: 
 type FilterType = 'all' | 'pending' | 'in-progress' | 'overdue';
 
 export function OperationsBoardWidget() {
+  const t = useTranslations('dashboard');
+  const tc = useTranslations('common');
   const [operations, setOperations] = useState<OperationItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('all');
@@ -105,7 +108,7 @@ export function OperationsBoardWidget() {
       const response = await fetch('/api/dashboard');
       const result = await response.json();
       if (result.success && result.data?.commandCenter?.todaysTasks) {
-        const mappedOps = mapTasksToOperations(result.data.commandCenter.todaysTasks);
+        const mappedOps = mapTasksToOperations(result.data.commandCenter.todaysTasks, t);
         setOperations(mappedOps);
       } else {
         setOperations([]);
@@ -115,7 +118,7 @@ export function OperationsBoardWidget() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchData();
@@ -150,14 +153,13 @@ export function OperationsBoardWidget() {
 
   return (
     <Card className="border border-border/50 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 rounded-2xl overflow-hidden">
-      {/* Live indicator gradient bar */}
       <div className="h-[2px] bg-gradient-to-r from-rose-400 via-amber-400 to-emerald-400" />
 
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <Radio className="h-4 w-4 text-primary" />
-            Operations Board
+            {t('operationsBoard')}
             {isLive && (
               <span className="relative flex h-2 w-2 ml-1">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
@@ -177,7 +179,6 @@ export function OperationsBoardWidget() {
           </div>
         </div>
 
-        {/* Status summary pills */}
         <div className="flex items-center gap-2 pt-1">
           <button onClick={() => setFilter('all')} className={cn(
             'text-[11px] font-semibold px-2.5 py-1 rounded-full transition-all duration-200',
@@ -185,7 +186,7 @@ export function OperationsBoardWidget() {
               ? 'bg-primary text-primary-foreground shadow-sm'
               : 'bg-muted/50 text-muted-foreground hover:bg-muted'
           )}>
-            All {operations.length}
+            {t('all')} {operations.length}
           </button>
           <button onClick={() => setFilter('pending')} className={cn(
             'text-[11px] font-semibold px-2.5 py-1 rounded-full transition-all duration-200 flex items-center gap-1',
@@ -228,8 +229,8 @@ export function OperationsBoardWidget() {
                 <div className="rounded-full bg-emerald-50 dark:bg-emerald-900/40 p-2.5 mb-2">
                   <CheckCircle2 className="h-6 w-6 text-emerald-500 dark:text-emerald-400" />
                 </div>
-                <p className="text-sm font-medium">All caught up!</p>
-                <p className="text-xs text-muted-foreground">No {filter === 'all' ? '' : filter.replace('-', ' ')} operations</p>
+                <p className="text-sm font-medium">{t('allCaughtUp')}</p>
+                <p className="text-xs text-muted-foreground">{t('noOperations', { filter: filter === 'all' ? '' : filter.replace('-', ' ') })}</p>
               </motion.div>
             ) : (
               filteredOps.map((op, i) => {
@@ -253,7 +254,6 @@ export function OperationsBoardWidget() {
                     )}
                   >
                     <div className="flex items-start gap-2.5">
-                      {/* Type icon */}
                       <div className={cn(
                         'h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-transform duration-200 group-hover:scale-110',
                         typeConfig.bg
@@ -261,13 +261,12 @@ export function OperationsBoardWidget() {
                         <TypeIcon className={cn('h-4 w-4', typeConfig.color)} />
                       </div>
 
-                      {/* Content */}
                       <div className="flex-1 min-w-0 space-y-0.5">
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-medium truncate">{op.title}</p>
                           {op.priority === 'high' && (
                             <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-red-200 text-red-600 dark:border-red-800 dark:text-red-400">
-                              URGENT
+                              {t('urgent')}
                             </Badge>
                           )}
                         </div>
@@ -277,11 +276,11 @@ export function OperationsBoardWidget() {
                             'text-[10px] font-medium px-1.5 py-0.5 rounded-full',
                             statusConfig.bg, statusConfig.color
                           )}>
-                            {statusConfig.label}
+                            {t(statusConfig.labelKey)}
                           </span>
                           {op.roomNumber && (
                             <span className="text-[10px] font-mono text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
-                              Room {op.roomNumber}
+                              {t('roomNumber', { number: op.roomNumber })}
                             </span>
                           )}
                           <span className="text-[10px] text-muted-foreground/60 flex items-center gap-0.5">
@@ -290,7 +289,6 @@ export function OperationsBoardWidget() {
                         </div>
                       </div>
 
-                      {/* Arrow */}
                       <ArrowRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-muted-foreground/60 transition-colors flex-shrink-0 mt-1" />
                     </div>
                   </motion.div>
@@ -300,7 +298,6 @@ export function OperationsBoardWidget() {
           </div>
         </AnimatePresence>
 
-        {/* Custom scrollbar styling */}
         <style>{`
           .custom-scrollbar::-webkit-scrollbar {
             width: 4px;

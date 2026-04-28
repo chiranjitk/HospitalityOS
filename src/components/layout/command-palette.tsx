@@ -30,6 +30,7 @@ import {
   Search,
 } from 'lucide-react';
 import { useUIStore } from '@/store';
+import { useTranslations } from 'next-intl';
 import type { LucideIcon } from 'lucide-react';
 
 interface NavItem {
@@ -70,6 +71,7 @@ export interface CommandPaletteHandle {
 export const CommandPalette = forwardRef<CommandPaletteHandle>(
   function CommandPalette(_props, ref) {
     const [open, setOpen] = useState(false);
+    const t = useTranslations('layout');
     const setActiveSection = useUIStore((s) => s.setActiveSection);
 
     // Expose open/close to parent via ref
@@ -102,21 +104,21 @@ export const CommandPalette = forwardRef<CommandPaletteHandle>(
       <CommandDialog
         open={open}
         onOpenChange={setOpen}
-        title="Command Palette"
-        description="Search navigation and actions"
+        title={t('commandPalette')}
+        description={t('searchNavigation')}
       >
-        <CommandInput placeholder="Search pages, actions..." />
+        <CommandInput placeholder={t('searchModules')} />
 
         <CommandList className="max-h-[360px]">
           <CommandEmpty>
             <div className="flex flex-col items-center py-6 text-muted-foreground">
               <Search className="h-8 w-8 mb-2 opacity-40" />
-              <p className="text-sm">No results found</p>
-              <p className="text-xs mt-1">Try a different search term</p>
+              <p className="text-sm">{t('noResultsFound')}</p>
+              <p className="text-xs mt-1">{t('tryDifferentSearch')}</p>
             </div>
           </CommandEmpty>
 
-          <CommandGroup heading="Navigation">
+          <CommandGroup heading={t('navigationGroup')}>
             {NAVIGATION_ITEMS.map((item) => (
               <CommandItem
                 key={item.id}
@@ -133,7 +135,7 @@ export const CommandPalette = forwardRef<CommandPaletteHandle>(
 
           <CommandSeparator />
 
-          <CommandGroup heading="Actions">
+          <CommandGroup heading={t('actionsGroup')}>
             {ACTION_ITEMS.map((item) => (
               <CommandItem
                 key={`action-${item.id}-${item.label}`}
@@ -153,16 +155,16 @@ export const CommandPalette = forwardRef<CommandPaletteHandle>(
           <div className="flex items-center gap-4">
             <span>
               <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono text-[10px]">↑↓</kbd>{' '}
-              navigate
+              {t('navigate')}
             </span>
             <span>
               <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono text-[10px]">↵</kbd>{' '}
-              select
+              {t('select')}
             </span>
           </div>
           <span>
             <kbd className="px-1.5 py-0.5 rounded bg-muted font-mono text-[10px]">esc</kbd>{' '}
-            close
+            {t('close')}
           </span>
         </div>
       </CommandDialog>

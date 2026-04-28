@@ -4,6 +4,7 @@ import React from 'react';
 import { ChevronRight, Home } from 'lucide-react';
 import { useUIStore } from '@/store';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 // Map section IDs to readable breadcrumb names
 // Section IDs follow patterns like "overview", "bookings-calendar", "pms-room-types", etc.
@@ -214,6 +215,7 @@ function getBreadcrumbSegments(section: string): string[] {
 }
 
 export function Breadcrumb() {
+  const t = useTranslations('layout');
   const { activeSection } = useUIStore();
 
   const segments = getBreadcrumbSegments(activeSection);

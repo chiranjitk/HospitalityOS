@@ -30,6 +30,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface ReviewSource {
   id: string;
@@ -86,6 +87,7 @@ const sourceTypes = [
 // No mock data - all data comes from the API
 
 export default function ReviewSources() {
+  const t = useTranslations('marketing');
   const [sources, setSources] = useState<ReviewSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [addDialog, setAddDialog] = useState(false);

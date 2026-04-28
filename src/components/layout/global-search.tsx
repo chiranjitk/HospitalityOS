@@ -32,6 +32,7 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface SearchResult {
   bookings: Array<{
@@ -86,6 +87,7 @@ interface SearchResult {
 }
 
 export function GlobalSearch() {
+  const t = useTranslations('layout');
   const [query, setQuery] = React.useState('');
   const [results, setResults] = React.useState<SearchResult | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);

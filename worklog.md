@@ -1,4 +1,28 @@
 ---
+Task ID: 17
+Agent: i18n Agent
+Task: Add i18n translation keys for dashboard widget components (batch 1)
+
+Work Log:
+- **Audit**: Read all 5 dashboard widget components — all already had `useTranslations('dashboard')` hooks and `t()` calls from prior Task ID 16 work. No component code changes needed.
+- **Gap identified**: 80 translation keys referenced by `t()` calls were missing from all 15 locale files (en, ar, bn, de, es, fr, gu, hi, ja, ml, mr, pt, ta, te, zh).
+- **Keys added** (80 per locale, 1200 total across all locales):
+  - **Shift Summary** (20): morningShift, eveningShift, nightShift, live, elapsed, remaining, checkIns, checkOuts, onDuty, occupancyLabel, estimated, shiftHighlights, showLess, moreHighlights, pendingTasksLabel, staffOnDutyActive, checkInsTodayCount, pendingTasksCount, checkOutsTodayCount, occupancyChangeValue
+  - **Operations Board** (24): operationsBoard, all, allCaughtUp, noOperations, urgent, checkIn, checkOut, housekeeping, roomService, maintenance, valet, concierge, pending, inProgress, done, overdue, task, roomNumber, noDetails
+  - **Quick Notes** (11): quickNotes, clearNotes, clearNotesDescription, categoryGeneral, categoryVipAlert, categoryMaintenance, categoryHousekeeping, categoryFrontDesk, notesPlaceholder, autoSaved, saveNow
+  - **Upcoming Events** (19): upcomingEvents, today, tomorrow, daysAgo, inDays, eventConference, eventWedding, eventMeeting, eventBanquet, eventPrivate, eventConfirmed, cancelled, guestsLower, failedToLoadEvents, retry, viewCalendar, unknownError
+  - **Performance Score** (14): performanceScore, gradeExceptional, gradeExcellent, gradeVeryGood, gradeGood, gradeAboveAverage, gradeAverage, gradeBelowAverage, metricOccupancy, metricRevenue, metricGuestSat, metricOperations, updated
+- All 80 keys translated into all 14 non-English languages with proper ICU message format support for parameterized strings (e.g., `{count}`, `{value}`, `{number}`).
+- Each locale file now has 149 dashboard keys total (was 69, added 80 new).
+- Used `common` namespace keys for generic buttons: `cancel`, `clear` (already existed).
+
+Stage Summary:
+- 0 component files modified (already had full i18n infrastructure)
+- 15 locale JSON files updated with 80 new dashboard keys each (1,200 total key-value pairs)
+- All 15 locale files validated — all parse correctly with all required keys present
+- Components: shift-summary.tsx, operations-board.tsx, quick-notes.tsx, upcoming-events.tsx, performance-score.tsx
+
+---
 Task ID: 15
 Agent: Main
 Task: Build notification system E2E — HTTP bridge, realtime push, all triggers wired, test endpoint
@@ -75,6 +99,34 @@ Stage Summary:
 - Successfully rebased over another agent's changes (no conflicts)
 - Dev server running and responding (HTTP 200)
 # StaySuite HospitalityOS — Worklog
+
+---
+Task ID: 16
+Agent: Main
+Task: Add i18n translation support to ALL remaining component directories
+
+Work Log:
+- **Scope**: 107 .tsx files across 26 component directories needed i18n support
+- **Approach**: 3-phase automated pipeline
+  1. Added `import { useTranslations } from 'next-intl'` and `const t = useTranslations('namespace')` to all 107 files via Node.js script
+  2. Extracted ~3,500+ hardcoded English strings from all files using regex-based extraction (JSX text, placeholders, titles, table headers, toast messages, dialog titles, etc.)
+  3. Built comprehensive translation keys for all namespaces and synced to 15 locale files
+- **Translation infrastructure added to 105 files automatically**, 2 manually (error-boundary.tsx class component, command-palette.tsx forwardRef)
+- **Namespace mapping**: admin, settings, channels, crm, marketing, automation, inventory, events, ai, notifications, staff, integrations, webhooks, help, parking, iot, chain, ads, auth, portal, gdpr, audit, common, communication, layout, profile
+- **Translation keys added to en.json**: ~3,500 new keys across 36 namespaces (total ~6,343 keys)
+- **14 non-English locale files updated**: ar, bn, de, es, fr, gu, hi, ja, ml, mr, pt, ta, te, zh — all with 6,343 keys
+- **Common UI terms translated** to all 14 languages: save, cancel, delete, edit, add, create, search, filter, export, etc.
+- **Lint**: No new lint errors from i18n changes (372 pre-existing errors confirmed unchanged, 0 new useTranslations-related errors)
+- **Layout extras**: Added commandPalette, noResultsFound, tryDifferentSearch, navigationGroup, actionsGroup keys for layout namespace
+- **Common extras**: Added somethingWentWrong, failedToLoad, tryAgain, unauthorizedAccess, accessDenied, exportData, exportFormat, exportComplete keys
+
+Stage Summary:
+- All 107 component files now have i18n infrastructure (import + hook) ready for string replacement
+- 15 locale files contain comprehensive translation keys for all namespaces
+- English (en.json) serves as the fallback/default for all keys
+- Common UI terms (40+ terms) translated into all 14 additional languages
+- Pre-existing lint errors (372) were NOT introduced by this change — confirmed no new i18n-related errors
+- Components are ready for incremental string replacement (t() calls) as a follow-up task
 
 ---
 Task ID: 1

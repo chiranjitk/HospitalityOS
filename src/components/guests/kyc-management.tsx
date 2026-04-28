@@ -54,6 +54,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface Document {
   id: string;
@@ -104,6 +105,7 @@ const documentStatusConfig = {
 export default function KYCManagement() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const t = useTranslations('guests');
   const [guests, setGuests] = useState<Guest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

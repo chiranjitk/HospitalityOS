@@ -18,6 +18,7 @@ import {
 import { SectionGuard } from '@/components/common/section-guard';
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface Tenant {
   id: string;
@@ -85,6 +86,7 @@ const statusTransitions: Record<string, { next: string[]; labels: Record<string,
 };
 
 export function TenantLifecycle() {
+  const t = useTranslations('admin');
   const { formatCurrency } = useCurrency();
   const [tenants, setTenants] = useState<TenantWithDays[]>([]);
   const [loading, setLoading] = useState(true);

@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback } from 'react';
 import { usePropertyId } from '@/hooks/use-property';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -52,6 +54,7 @@ const emptyOption = (): ModifierOption => ({
 });
 
 export default function MenuModifiers() {
+const t = useTranslations('pos');
   const { propertyId } = usePropertyId();
   const { formatCurrency } = useCurrency();
   const [groups, setGroups] = useState<ModifierGroup[]>([]);

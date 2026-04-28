@@ -57,6 +57,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface Event {
   id: string;
@@ -132,6 +133,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function EventResources() {
+  const t = useTranslations('events');
   const { formatCurrency } = useCurrency();
   const [events, setEvents] = useState<Event[]>([]);
   const [resources, setResources] = useState<EventResource[]>([]);

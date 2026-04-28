@@ -23,6 +23,7 @@ import {
 } from 'recharts';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface EnergyData {
   dailyMetrics: Array<{
@@ -69,6 +70,7 @@ interface EnergyData {
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 export default function EnergyDashboard() {
+  const t = useTranslations('iot');
   const { formatCurrency } = useCurrency();
   const [data, setData] = useState<EnergyData | null>(null);
   const [loading, setLoading] = useState(true);

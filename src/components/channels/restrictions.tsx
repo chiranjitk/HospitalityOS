@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 // Helper function to safely parse composite IDs
 // Prefers :: delimiter, falls back to : delimiter for legacy UUID support
@@ -74,6 +75,7 @@ interface RestrictionStats {
 }
 
 export default function Restrictions() {
+  const t = useTranslations('channels');
   const [restrictions, setRestrictions] = useState<RestrictionItem[]>([]);
   const [stats, setStats] = useState<RestrictionStats>({ total: 0, active: 0, stopSell: 0, cta: 0, ctd: 0 });
   const [loading, setLoading] = useState(true);

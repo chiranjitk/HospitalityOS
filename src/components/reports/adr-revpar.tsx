@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -57,6 +59,7 @@ interface MetricCardProps {
 }
 
 function MetricCard({ title, value, change, icon, colorClass }: MetricCardProps) {
+ title, value, change, icon, colorClass }: MetricCardProps) {const t = useTranslations('reports');
   const isPositive = change >= 0;
   return (
     <Card className={`border-0 shadow-sm ${colorClass}`}>

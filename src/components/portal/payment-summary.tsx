@@ -19,6 +19,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface PaymentSummaryProps {
   booking: {
@@ -63,6 +64,7 @@ export function PaymentSummary({
   isComplete, 
   onComplete 
 }: PaymentSummaryProps) {
+  const t = useTranslations('portal');
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const [isLoading, setIsLoading] = useState(false);

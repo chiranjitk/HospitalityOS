@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, DollarSign, TrendingUp, Users, Target, BarChart3 } from 'lucide-react';
 import { SectionGuard } from '@/components/common/section-guard';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface RevenueData {
   overview: {
@@ -21,6 +22,7 @@ interface RevenueData {
 }
 
 export function RevenueAnalytics() {
+  const t = useTranslations('admin');
   const { formatCurrency } = useCurrency();
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
   const [loading, setLoading] = useState(true);

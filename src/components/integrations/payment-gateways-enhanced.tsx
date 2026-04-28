@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface GatewayHealth {
   status: 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
@@ -80,6 +81,7 @@ const providerOptions = [
 ];
 
 export function PaymentGatewaysEnhanced() {
+  const t = useTranslations('integrations');
   const { formatCurrency } = useCurrency();
   const [gateways, setGateways] = useState<PaymentGateway[]>([]);
   const [loading, setLoading] = useState(true);

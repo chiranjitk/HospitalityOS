@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Loader2, Lightbulb, TrendingUp, AlertTriangle, Sparkles, Check, X, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface AIInsight {
   id: string;
@@ -22,6 +23,7 @@ interface AIInsight {
 }
 
 export default function AIInsights() {
+  const t = useTranslations('ai');
   const { formatCurrency } = useCurrency();
   const [insights, setInsights] = useState<AIInsight[]>([]);
   const [loading, setLoading] = useState(true);

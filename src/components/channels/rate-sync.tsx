@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface RateSyncItem {
   id: string;
@@ -64,6 +65,7 @@ interface RateSyncStats {
 }
 
 export default function RateSync() {
+  const t = useTranslations('channels');
   const { formatCurrency } = useCurrency();
   const [rateData, setRateData] = useState<RateSyncItem[]>([]);
   const [stats, setStats] = useState<RateSyncStats>({ total: 0, synced: 0, outOfSync: 0, errors: 0, avgBasePrice: 0 });

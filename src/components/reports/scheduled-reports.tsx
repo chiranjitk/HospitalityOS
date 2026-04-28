@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -88,6 +90,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function ScheduledReports() {
+const t = useTranslations('reports');
   const { formatDate, formatDateTime } = useTimezone();
   const [scheduledReports, setScheduledReports] = useState<ScheduledReport[]>([]);
   const [reportHistory, setReportHistory] = useState<ReportHistory[]>([]);

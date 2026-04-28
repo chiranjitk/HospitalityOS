@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 const UserManagement = dynamic(
   () => import('@/components/admin/user-management').then(mod => {
@@ -23,5 +24,6 @@ const UserManagement = dynamic(
 );
 
 export default function UserManagementWrapper() {
+  const t = useTranslations('admin');
   return <UserManagement />;
 }

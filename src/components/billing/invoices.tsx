@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
@@ -135,6 +137,7 @@ const CURRENCIES = [
 ];
 
 export default function Invoices() {
+const t = useTranslations('billing');
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const { formatDate, formatDateTime } = useTimezone();
@@ -242,11 +245,11 @@ export default function Invoices() {
   const handleCreate = async () => {
     const validItems = lineItems.filter(i => i.description.trim() && i.totalAmount > 0);
     if (!formData.customerName.trim()) {
-      toast({ title: 'Required', description: 'Customer name is required', variant: 'destructive' });
+      toast({ title: 'Required', description: t('customerNameRequired'), variant: 'destructive' });
       return;
     }
     if (validItems.length === 0) {
-      toast({ title: 'Required', description: 'Add at least one line item with a description and amount', variant: 'destructive' });
+      toast({ title: 'Required', description: t('addAtLeastOneItem'), variant: 'destructive' });
       return;
     }
 
@@ -283,11 +286,11 @@ export default function Invoices() {
         resetForm();
         fetchInvoices();
       } else {
-        toast({ title: 'Error', description: result.error?.message || 'Failed to create invoice', variant: 'destructive' });
+        toast({ title: 'Error', description: result.error?.message || t('failedToProcess'), variant: 'destructive' });
       }
     } catch (error) {
       console.error('Error creating invoice:', error);
-      toast({ title: 'Error', description: 'Failed to create invoice', variant: 'destructive' });
+      toast({ title: 'Error', description: t('failedToProcess'), variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -316,7 +319,7 @@ export default function Invoices() {
       toast({ title: 'Downloaded', description: `Invoice ${invoice.invoiceNumber} PDF downloaded` });
     } catch (error) {
       console.error('PDF error:', error);
-      toast({ title: 'Error', description: 'Failed to generate PDF', variant: 'destructive' });
+      toast({ title: 'Error', description: t('failedToGeneratePdf'), variant: 'destructive' });
     } finally {
       setActionLoading(null);
     }
@@ -462,7 +465,7 @@ export default function Invoices() {
             Invoices
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Create, manage, and send invoices
+            t('invoicesDesc')
           </p>
         </div>
         <div className="flex gap-2">
@@ -472,7 +475,7 @@ export default function Invoices() {
           </Button>
           <Button onClick={() => { resetForm(); setIsCreateOpen(true); }} className="bg-gradient-to-r from-emerald-600 to-emerald-500 hover:shadow-lg hover:shadow-emerald-500/20 transition-all duration-300">
             <Plus className="h-4 w-4 mr-1.5" />
-            <span className="hidden xs:inline">New Invoice</span>
+            <span className="hidden xs:inline>{t('newInvoice')}</span>
             <span className="xs:hidden">New</span>
           </Button>
         </div>
@@ -536,7 +539,7 @@ export default function Invoices() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search invoices..."
+                  placeholder="t('searchInvoices')"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 h-10"
@@ -548,7 +551,7 @@ export default function Invoices() {
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="all>{t('allStatus')}</SelectItem>
                 {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
                   <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
                 ))}
@@ -568,8 +571,8 @@ export default function Invoices() {
           ) : invoices.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground px-4">
               <FileText className="h-12 w-12 mb-3 opacity-30" />
-              <p className="font-medium">No invoices found</p>
-              <p className="text-sm mt-1">Create your first invoice to get started</p>
+              <p className="font-medium">>{t('noInvoicesFound')</p>}
+              <p className="text-sm mt-1">>{t('createFirstInvoice')</p>}
               <Button className="mt-4" onClick={() => { resetForm(); setIsCreateOpen(true); }}>
                 <Plus className="h-4 w-4 mr-1.5" />Create Invoice
               </Button>
@@ -707,8 +710,8 @@ export default function Invoices() {
                             <DropdownMenuContent align="end">
                               {!['paid', 'cancelled'].includes(invoice.status) && (
                                 <>
-                                  <DropdownMenuItem onClick={() => markAsSent(invoice)}><Send className="h-4 w-4 mr-2" />Mark Sent</DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => markAsPaid(invoice)}><CreditCard className="h-4 w-4 mr-2" />Mark Paid</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => markAsSent(invoice)}><Send className="h-4 w-4 mr-2" /{t('markSent')}</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => markAsPaid(invoice)}><CreditCard className="h-4 w-4 mr-2" /{t('markPaid')}</DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                 </>
                               )}
@@ -732,17 +735,17 @@ export default function Invoices() {
       <Dialog open={isCreateOpen} onOpenChange={(open) => { if (!open) resetForm(); setIsCreateOpen(open); }}>
         <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg">Create Invoice</DialogTitle>
-            <DialogDescription>Fill in the details below to create a new invoice</DialogDescription>
+            <DialogTitle className="text-lg>{t('createInvoice')}</DialogTitle>
+            <DialogDescription>>{t('createInvoiceDesc')</DialogDescription>}
           </DialogHeader>
           <div className="space-y-5 py-2">
             {/* Customer Info */}
             <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Customer Details</h4>
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider>{t('customerDetails')}</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="customerName">Name *</Label>
-                  <Input id="customerName" placeholder="Customer name" value={formData.customerName} onChange={(e) => setFormData(p => ({ ...p, customerName: e.target.value }))} />
+                  <Input id="customerName" placeholder=">t('nameRequired')" value={formData.customerName} onChange={(e) => setFormData(p => ({ ...p, customerName: e.target.value }))} />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="customerEmail">Email</Label>
@@ -764,7 +767,7 @@ export default function Invoices() {
             {/* Line Items */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Line Items</h4>
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider>{t('lineItems')}</h4>
                 <Button variant="ghost" size="sm" onClick={addLineItem} className="h-8 text-xs">
                   <Plus className="h-3 w-3 mr-1" />Add Item
                 </Button>
@@ -774,9 +777,9 @@ export default function Invoices() {
                   <Card key={item.id} className="p-3">
                     <div className="grid grid-cols-12 gap-2 items-start">
                       <div className="col-span-12 sm:col-span-5">
-                        <Label className="text-xs text-muted-foreground">Description</Label>
+                        <Label className="text-xs text-muted-foreground>{t('description')}</tax>
                         <Input
-                          placeholder="Item description"
+                          placeholder=">t('itemDescription')"
                           value={item.description}
                           onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
                           className="h-9 text-sm mt-0.5"
@@ -856,7 +859,7 @@ export default function Invoices() {
 
             {/* Invoice Settings */}
             <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Invoice Settings</h4>
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider>{t('invoiceSettings')}</h4>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="currency">Currency</Label>
@@ -894,7 +897,7 @@ export default function Invoices() {
           <DialogFooter className="flex-col sm:flex-row gap-2 pt-2">
             <Button variant="outline" onClick={() => { resetForm(); setIsCreateOpen(false); }} className="w-full sm:w-auto">Cancel</Button>
             <Button onClick={handleCreate} disabled={isSaving} className="w-full sm:w-auto">
-              {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating...</> : <><FileText className="h-4 w-4 mr-2" />Create Invoice</>}
+              {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating...</> : <><FileText className="h-4 w-4 mr-2" />>t('createInvoice')/>}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -953,13 +956,13 @@ export default function Invoices() {
               {/* Line Items */}
               <Card className="overflow-hidden">
                 <div className="px-4 py-3 bg-muted/30 border-b">
-                  <h4 className="text-sm font-semibold">Line Items</h4>
+                  <h4 className="text-sm font-semibold>{t('lineItems')}</h4>
                 </div>
                 <div className="hidden sm:block">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Description</TableHead>
+                        <TableHead{t('description')}</TableHead>
                         <TableHead className="text-center w-[60px]">Qty</TableHead>
                         <TableHead className="text-right w-[100px]">Unit Price</TableHead>
                         <TableHead className="text-right w-[80px]">Tax</TableHead>

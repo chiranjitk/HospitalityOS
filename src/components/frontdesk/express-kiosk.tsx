@@ -28,6 +28,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 
 type KioskStep = 'enter_code' | 'verify_details' | 'id_terms' | 'success' | 'error';
 
@@ -100,6 +101,7 @@ const TIMEOUT_SECONDS = 120;
 
 export default function ExpressKiosk() {
   const { toast } = useToast();
+  const t = useTranslations('frontdesk');
   const [step, setStep] = useState<KioskStep>('enter_code');
   const [confirmationCode, setConfirmationCode] = useState('');
   const [bookingData, setBookingData] = useState<KioskBookingData | null>(null);

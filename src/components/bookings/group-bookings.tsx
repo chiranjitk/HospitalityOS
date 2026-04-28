@@ -74,6 +74,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { format, differenceInDays } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -156,6 +157,7 @@ export default function GroupBookings() {
   const { user } = useAuth();
   const { formatCurrency } = useCurrency();
   const { formatDate } = useTimezone();
+  const t = useTranslations('bookings');
   const [groups, setGroups] = useState<GroupBooking[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);

@@ -63,6 +63,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface StaffMember {
   id: string;
@@ -120,6 +121,7 @@ const PROFICIENCY_LABELS: Record<number, string> = {
 };
 
 export default function SkillsManagement() {
+  const t = useTranslations('staff');
   const [skills, setSkills] = useState<StaffSkill[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [summary, setSummary] = useState<SkillsSummary | null>(null);

@@ -51,6 +51,7 @@ import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTax, type Tax, type TaxGroup } from '@/contexts/TaxContext';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface CurrencySettings {
   default: string;
@@ -120,6 +121,7 @@ const TAX_TYPE_OPTIONS = [
 ];
 
 export default function TaxCurrencySettings() {
+  const t = useTranslations('settings');
   const [settings, setSettings] = useState<TaxCurrencySettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

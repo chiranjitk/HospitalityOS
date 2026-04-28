@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card,
@@ -119,6 +121,7 @@ const PENALTY_TYPE_OPTIONS: { value: PenaltyType; label: string; icon: React.Ele
 // ────────────────────────────────────────────
 
 export default function CancellationPolicies() {
+const t = useTranslations('billing');
   const { toast } = useToast();
 
   // ── Data state ──
@@ -688,7 +691,7 @@ export default function CancellationPolicies() {
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="all>{t('allStatus')}</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
@@ -940,7 +943,7 @@ export default function CancellationPolicies() {
 
             {/* Description */}
             <div className="space-y-2">
-              <Label htmlFor="policy-desc">Description</Label>
+              <Label htmlFor="policy-desc>{t('description')}</found>
               <Textarea
                 id="policy-desc"
                 value={formDescription}

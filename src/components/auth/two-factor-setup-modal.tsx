@@ -24,6 +24,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface TwoFactorSetupModalProps {
   open: boolean;
@@ -32,6 +33,7 @@ interface TwoFactorSetupModalProps {
 }
 
 export function TwoFactorSetupModal({ open, onOpenChange, onSuccess }: TwoFactorSetupModalProps) {
+  const t = useTranslations('auth');
   const [step, setStep] = useState<'setup' | 'verify' | 'backup'>('setup');
   const [loading, setLoading] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);

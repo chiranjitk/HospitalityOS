@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, FileText, Plus, Edit, Copy, Trash2, Mail, MessageSquare, Bell, Smartphone, Eye } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface NotificationTemplate {
   id: string;
@@ -42,6 +43,7 @@ const typeColors = {
 };
 
 export default function Templates() {
+  const t = useTranslations('notifications');
   const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, active: 0, emailTemplates: 0, totalSent: 0 });

@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, formatDistanceToNow } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface BookingInfo {
   id: string;
@@ -77,6 +78,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function AuditLogs() {
+  const t = useTranslations('bookings');
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

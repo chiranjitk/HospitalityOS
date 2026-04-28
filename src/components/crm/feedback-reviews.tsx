@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface Review {
   id: string;
@@ -80,6 +81,7 @@ interface FeedbackStats {
 }
 
 export default function FeedbackReviews() {
+  const t = useTranslations('crm');
   const [reviews, setReviews] = useState<Review[]>([]);
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [reviewStats, setReviewStats] = useState<ReviewStats>({

@@ -39,6 +39,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { differenceInDays, addDays, format } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 // ============ CONSTANTS ============
 const COUNTRIES = [
@@ -205,6 +206,7 @@ export default function WalkIn() {
   const { formatCurrency, currency } = useCurrency();
   const { formatDate } = useTimezone();
   const { user } = useAuth();
+  const t = useTranslations('frontdesk');
   
   const currencySymbol = currency.symbol;
   

@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback } from 'react';
 import { usePropertyId } from '@/hooks/use-property';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -37,6 +39,7 @@ interface Variant {
 }
 
 export default function MenuVariants() {
+const t = useTranslations('pos');
   const { propertyId } = usePropertyId();
   const { formatCurrency } = useCurrency();
   const [variants, setVariants] = useState<Variant[]>([]);

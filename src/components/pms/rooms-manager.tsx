@@ -51,6 +51,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { RoomImageGallery } from './room-image-gallery';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -1221,6 +1222,7 @@ interface RoomFormProps {
 
 function RoomForm({ formData, setFormData, properties, roomTypes }: RoomFormProps) {
   const { formatCurrency } = useCurrency();
+  const t = useTranslations('pms');
   const selectedProperty = properties.find(p => p.id === formData.propertyId);
   
   return (

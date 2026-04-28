@@ -52,6 +52,7 @@ import {
 } from '@/lib/feature-flags';
 import { navigationConfig } from '@/config/navigation';
 import { SectionGuard } from '@/components/common/section-guard';
+import { useTranslations } from 'next-intl';
 
 interface FeatureData {
   id: string;
@@ -82,6 +83,7 @@ const subcategoryIcons: Record<string, React.ReactNode> = {
 };
 
 export default function FeatureFlags() {
+  const t = useTranslations('settings');
   const [features, setFeatures] = useState<FeatureData[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

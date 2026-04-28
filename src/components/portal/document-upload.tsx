@@ -32,6 +32,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface Document {
   id: string;
@@ -64,6 +65,7 @@ const statusConfig: Record<string, { icon: React.ElementType; color: string; bgC
 };
 
 export function DocumentUpload({ token, documents, kycComplete, onUpdate }: DocumentUploadProps) {
+  const t = useTranslations('portal');
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);

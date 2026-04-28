@@ -46,6 +46,7 @@ import {
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface StockItem {
   id: string;
@@ -87,6 +88,7 @@ const LOG_TYPES = [
 ];
 
 export default function ConsumptionLogs() {
+  const t = useTranslations('inventory');
   const { formatCurrency } = useCurrency();
   const [logs, setLogs] = useState<ConsumptionLog[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);

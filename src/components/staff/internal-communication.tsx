@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslations } from 'next-intl';
 import {
   Tooltip,
   TooltipContent,
@@ -90,6 +91,7 @@ interface OnlineUser {
 }
 
 export default function InternalCommunication() {
+  const t = useTranslations('staff');
   const { user } = useAuth();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [channels, setChannels] = useState<ChatChannel[]>([]);

@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, UtensilsCrossed, Server, Settings, Plus, RefreshCw, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface PosSystem {
   id: string;
@@ -45,6 +46,7 @@ const providerOptions = [
 ];
 
 export default function PosSystems() {
+  const t = useTranslations('integrations');
   const [systems, setSystems] = useState<PosSystem[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, connected: 0, totalOutlets: 0, totalMenuItems: 0 });

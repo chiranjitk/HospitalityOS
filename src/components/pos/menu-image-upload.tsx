@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -17,6 +19,7 @@ const MAX_WIDTH = 800;
 const TARGET_QUALITY = 0.7; // ~200KB target
 
 export default function MenuImageUpload({
+const t = useTranslations('pos');
   currentImageUrl,
   onImageUploaded,
   onImageRemoved,

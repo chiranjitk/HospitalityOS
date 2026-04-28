@@ -29,6 +29,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface SyncStatus {
   connectionId: string;
@@ -76,6 +77,7 @@ const getStatusBadge = (status: string) => {
 };
 
 export default function InventorySync() {
+  const t = useTranslations('channels');
   const [syncData, setSyncData] = useState<SyncStatus[]>([]);
   const [stats, setStats] = useState<InventoryStats>({
     totalRoomTypes: 0,

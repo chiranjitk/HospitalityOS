@@ -72,6 +72,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslations } from 'next-intl';
 
 interface StaffMember {
   id: string;
@@ -135,6 +136,7 @@ const CATEGORIES = [
 ];
 
 export default function TaskAssignment() {
+  const t = useTranslations('staff');
   const { user } = useAuth();
   const currentUserId = user?.id || null;
   const [tasks, setTasks] = useState<Task[]>([]);

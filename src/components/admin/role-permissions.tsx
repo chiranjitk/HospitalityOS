@@ -80,6 +80,7 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { SectionGuard } from '@/components/common/section-guard';
+import { useTranslations } from 'next-intl';
 
 // ============================================================
 // TYPES
@@ -337,6 +338,7 @@ function effectivePermissions(rolePerms: string[]): Set<string> {
 // ============================================================
 
 export function RolePermissions() {
+  const t = useTranslations('admin');
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

@@ -29,6 +29,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface Stay {
   id: string;
@@ -70,6 +71,7 @@ const statusColors: Record<string, string> = {
 };
 
 export function StayHistory({ guestId }: StayHistoryProps) {
+  const t = useTranslations('guests');
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const { formatDate } = useTimezone();

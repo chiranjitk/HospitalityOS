@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { usePropertyId } from '@/hooks/use-property';
@@ -89,6 +91,7 @@ const kitchenStatusConfig: Record<string, { color: string; bgColor: string; bord
 };
 
 export default function KitchenDisplay() {
+const t = useTranslations('pos');
   const { formatCurrency } = useCurrency();
   const { propertyId } = usePropertyId();
   const [orders, setOrders] = useState<Order[]>([]);

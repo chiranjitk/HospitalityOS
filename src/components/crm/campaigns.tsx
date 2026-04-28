@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface Campaign {
   id: string;
@@ -98,6 +99,7 @@ const typeColors: Record<string, string> = {
 };
 
 export default function Campaigns() {
+  const t = useTranslations('crm');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [stats, setStats] = useState<CampaignStats>({
     total: 0, draft: 0, scheduled: 0, sent: 0,

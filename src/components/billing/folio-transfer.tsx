@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -108,6 +110,7 @@ const REASONS = [
 ];
 
 export default function FolioTransfer() {
+const t = useTranslations('billing');
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
 
@@ -140,7 +143,7 @@ export default function FolioTransfer() {
       const json = await res.json();
       if (json.success) setFolios(json.data);
     } catch {
-      toast({ title: 'Error', description: 'Failed to fetch folios', variant: 'destructive' });
+      toast({ title: 'Error', description: t('failedToFetch'), variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -287,7 +290,7 @@ export default function FolioTransfer() {
             <ArrowRightLeft className="h-5 w-5" />
             Folio Transfer
           </h2>
-          <p className="text-sm text-muted-foreground">Transfer charges between guest folios</p>
+          <p className="text-sm text-muted-foreground">{t('folioTransferDesc')</p>}
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={fetchFolios}>
@@ -345,7 +348,7 @@ export default function FolioTransfer() {
       {/* Folios list with history button */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Folios</CardTitle>
+          <CardTitle className="text-base>{t('foliosTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -495,7 +498,7 @@ export default function FolioTransfer() {
                               }}
                             />
                           </TableHead>
-                          <TableHead>Description</TableHead>
+                          <TableHead{t('description')}</TableHead>
                           <TableHead className="text-right">Amount</TableHead>
                         </TableRow>
                       </TableHeader>

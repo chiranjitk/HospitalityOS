@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +24,7 @@ const presetValues = { percentage: [5, 10, 15, 20, 25, 30], fixed: [5, 10, 15, 2
 const reasons = ['Staff meal', 'Loyalty', 'Manager approval', 'Promotion', 'Complaint recovery', 'Happy hour', 'Early bird', 'Birthday', 'Other'];
 
 export function OrderDiscount({ order, onApply }: OrderDiscountProps) {
+ order, onApply }: OrderDiscountProps) {const t = useTranslations('pos');
   const { formatCurrency } = useCurrency();
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<'percentage' | 'fixed'>('percentage');

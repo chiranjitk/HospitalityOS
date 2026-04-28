@@ -69,6 +69,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, differenceInDays } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -125,6 +126,7 @@ const waitlistStatuses: Record<string, { label: string; color: string; icon: Rea
 export default function Waitlist() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const t = useTranslations('bookings');
   const [entries, setEntries] = useState<WaitlistEntry[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);

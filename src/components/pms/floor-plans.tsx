@@ -58,6 +58,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useTranslations } from 'next-intl';
 
 const LazyFloorPlanEditor = React.lazy(() => import('./floor-plan-editor').then(m => ({ default: m.FloorPlanEditor })));
 const LazyFloorPlanViewer = React.lazy(() => import('./floor-plan-viewer').then(m => ({ default: m.FloorPlanViewer })));
@@ -147,6 +148,7 @@ function safeJsonParse(str: string | null | undefined, fallback: any = []): any 
 
 export default function FloorPlans() {
   const { toast } = useToast();
+  const t = useTranslations('pms');
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);

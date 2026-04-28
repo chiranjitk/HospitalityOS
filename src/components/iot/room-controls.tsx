@@ -28,6 +28,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface Room {
   id: string;
@@ -53,6 +54,7 @@ interface RoomControlsProps {
 }
 
 export default function RoomControls({ roomId }: RoomControlsProps) {
+  const t = useTranslations('iot');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);

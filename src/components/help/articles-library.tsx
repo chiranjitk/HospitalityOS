@@ -26,6 +26,7 @@ import {
   Filter, Loader2, ChevronDown, X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 // ──────────────── Interfaces ────────────────
 
@@ -93,6 +94,7 @@ function formatDate(dateStr: string | null) {
 // ──────────────── Component ────────────────
 
 export default function ArticlesLibrary() {
+  const t = useTranslations('help');
   const [articles, setArticles] = useState<HelpArticle[]>([]);
   const [stats, setStats] = useState<HelpStats>({
     total: 0, published: 0, draft: 0, totalViews: 0, totalHelpful: 0, categories: [],

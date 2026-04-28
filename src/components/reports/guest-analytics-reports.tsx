@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -102,6 +104,7 @@ const chartColors = [
 ];
 
 export default function GuestAnalyticsReports() {
+const t = useTranslations('reports');
   const { formatCurrency } = useCurrency();
   const { formatDate } = useTimezone();
   const [data, setData] = useState<GuestAnalyticsReport | null>(null);

@@ -69,6 +69,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
+import { useTranslations } from 'next-intl';
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -248,6 +249,7 @@ const defaultFormData: FormData = {
 
 export default function PropertiesList() {
   const { toast } = useToast();
+  const t = useTranslations('pms');
   const [properties, setProperties] = useState<Property[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

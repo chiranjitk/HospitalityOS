@@ -40,6 +40,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslations } from 'next-intl';
 
 interface Document {
   id: string;
@@ -74,6 +75,7 @@ const statusConfig: Record<string, { icon: React.ElementType; color: string; bgC
 };
 
 export function KYCDocuments({ guestId }: KYCDocumentsProps) {
+  const t = useTranslations('guests');
   const { toast } = useToast();
   const { user } = useAuth();
   const [documents, setDocuments] = useState<Document[]>([]);

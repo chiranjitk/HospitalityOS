@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Bell, Mail, MessageSquare, Smartphone, Clock, Save } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface NotificationSettings {
   email: {
@@ -54,6 +55,7 @@ interface NotificationSettings {
 }
 
 export default function NotificationSettingsComponent() {
+  const t = useTranslations('notifications');
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

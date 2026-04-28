@@ -58,6 +58,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface Vendor {
   id: string;
@@ -105,6 +106,7 @@ const PAYMENT_TERMS = [
 ];
 
 export default function Vendors() {
+  const t = useTranslations('inventory');
   const { formatCurrency } = useCurrency();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [stats, setStats] = useState<VendorStats | null>(null);

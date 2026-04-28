@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { SectionGuard } from '@/components/common/section-guard';
 import { Loader2, Cpu, Database, HardDrive, Activity, BarChart3, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslations } from 'next-intl';
 
 interface UsageData {
   overview: {
@@ -22,6 +23,7 @@ interface UsageData {
 }
 
 export function UsageTracking() {
+  const t = useTranslations('admin');
   const { user } = useAuth();
   const [usageData, setUsageData] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState(true);

@@ -59,6 +59,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { exportToCSV } from '@/lib/export-utils';
 import { format, formatDistanceToNow, startOfMonth, endOfMonth, subDays } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -127,6 +128,7 @@ const paymentMethods = [
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function ParkingBilling() {
+  const t = useTranslations('parking');
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const { propertyId } = usePropertyId();

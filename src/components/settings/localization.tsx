@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Globe, Languages, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { locales, localeNames, localeFlags, type Locale } from '@/i18n/config';
+import { useTranslations } from 'next-intl';
 
 interface LocalizationSettings {
   language: {
@@ -43,6 +44,7 @@ interface LocalizationSettings {
 }
 
 export default function LocalizationSettings() {
+  const t = useTranslations('settings');
   const [settings, setSettings] = useState<LocalizationSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

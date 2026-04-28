@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { 
+import { useTranslations } from 'next-intl';
   ImagePlus, 
   X, 
   Upload, 
@@ -23,6 +24,7 @@ interface RoomImageGalleryProps {
 }
 
 export function RoomImageGallery({ 
+  const t = useTranslations('pms');
   roomId, 
   images, 
   onImagesChange,

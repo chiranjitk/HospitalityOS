@@ -10,6 +10,7 @@ import {
   Lightbulb, Target, Loader2, Play, RotateCcw
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface TutorialStep {
   id: string;
@@ -192,6 +193,7 @@ export function TutorialOverlay({
   onSkip,
   autoStart = true,
 }: TutorialOverlayProps) {
+  const t = useTranslations('help');
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [progress, setProgress] = useState<TutorialProgress | null>(null);

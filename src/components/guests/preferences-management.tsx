@@ -58,6 +58,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useTranslations } from 'next-intl';
 
 interface GuestPreferences {
   roomPreferences: {
@@ -194,6 +195,7 @@ const preferenceCategories = [
 
 export default function PreferencesManagement() {
   const { toast } = useToast();
+  const t = useTranslations('guests');
   const [guests, setGuests] = useState<Guest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

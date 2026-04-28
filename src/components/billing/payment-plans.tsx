@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -107,6 +109,7 @@ const FREQUENCY_OPTIONS = [
 ];
 
 export default function PaymentPlans() {
+const t = useTranslations('billing');
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
 
@@ -314,7 +317,7 @@ export default function PaymentPlans() {
             <CreditCard className="h-5 w-5" />
             Payment Plans
           </h2>
-          <p className="text-sm text-muted-foreground">Create and manage installment payment schedules</p>
+          <p className="text-sm text-muted-foreground">{t('paymentPlansDesc')</p>}
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => { fetchFolios(); fetchSchedules(); }}>
@@ -379,7 +382,7 @@ export default function PaymentPlans() {
       {/* Folio Selector */}
       <Card>
         <CardContent className="p-4">
-          <Label className="text-sm font-medium">Select Folio</Label>
+          <Label className="text-sm font-medium>{t('selectFolio')}</Paid>
           <Select value={selectedFolioId} onValueChange={handleFolioChange}>
             <SelectTrigger className="mt-2">
               <SelectValue placeholder="Choose a folio to view payment plans" />
@@ -549,7 +552,7 @@ export default function PaymentPlans() {
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create Payment Plan</DialogTitle>
+            <DialogTitle{t('createPaymentPlan')}</DialogTitle>
             <DialogDescription>Set up installment payments for a guest folio</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">

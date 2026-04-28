@@ -58,6 +58,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface StaffMember {
   id: string;
@@ -91,6 +92,7 @@ interface AttendanceStats {
 }
 
 export default function AttendanceTracking() {
+  const t = useTranslations('staff');
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [stats, setStats] = useState<AttendanceStats | null>(null);

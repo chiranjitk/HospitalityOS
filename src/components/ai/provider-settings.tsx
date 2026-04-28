@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Progress } from '@/components/ui/progress';
 import { Loader2, Bot, Save, Key, Settings, Zap, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface AIProvider {
   id: string;
@@ -35,6 +36,7 @@ interface AISettings {
 }
 
 export default function AIProviderSettings() {
+  const t = useTranslations('ai');
   const [settings, setSettings] = useState<AISettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

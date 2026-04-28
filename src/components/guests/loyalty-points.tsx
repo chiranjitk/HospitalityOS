@@ -40,6 +40,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface LoyaltyData {
   guest: {
@@ -128,6 +129,7 @@ const redemptionOptions = [
 ];
 
 export function LoyaltyPoints({ guestId }: LoyaltyPointsProps) {
+  const t = useTranslations('guests');
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const { formatDate } = useTimezone();

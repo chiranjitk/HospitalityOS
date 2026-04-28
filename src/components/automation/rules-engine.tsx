@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SectionGuard } from '@/components/common/section-guard';
+import { useTranslations } from 'next-intl';
 
 interface AutomationRule {
   id: string;
@@ -64,6 +65,7 @@ function getErrorMessage(error: unknown): string {
 }
 
 export default function RulesEngine() {
+  const t = useTranslations('automation');
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [stats, setStats] = useState<RuleStats>({
     totalRules: 0,

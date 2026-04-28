@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Wifi, Router, Settings, Plus, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface WifiGateway {
   id: string;
@@ -44,6 +45,7 @@ const gatewayTypes = [
 ];
 
 export default function WifiGateways() {
+  const t = useTranslations('integrations');
   const [gateways, setGateways] = useState<WifiGateway[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, connected: 0, totalAPs: 0, activeSessions: 0 });

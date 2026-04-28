@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -78,6 +79,7 @@ interface OverbookingStats {
 
 export default function OverbookingSettings() {
   const { toast } = useToast();
+  const t = useTranslations('pms');
   const [properties, setProperties] = useState<Property[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<string>('');

@@ -49,6 +49,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface ChannelMapping {
   id: string;
@@ -90,6 +91,7 @@ interface MappingStats {
 }
 
 export default function ChannelMapping() {
+  const t = useTranslations('channels');
   const [mappings, setMappings] = useState<ChannelMapping[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [ratePlans, setRatePlans] = useState<RatePlan[]>([]);

@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface StockItem {
   id: string;
@@ -57,6 +58,7 @@ interface Vendor {
 }
 
 export default function LowStockAlerts() {
+  const t = useTranslations('inventory');
   const { formatCurrency } = useCurrency();
   const [lowStockItems, setLowStockItems] = useState<StockItem[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);

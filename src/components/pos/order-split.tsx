@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +17,7 @@ interface OrderSplitProps {
 }
 
 export function OrderSplit({ order, onSplit }: OrderSplitProps) {
+ order, onSplit }: OrderSplitProps) {const t = useTranslations('pos');
   const [splits, setSplits] = useState<number[][]>([order.items.map((_, i) => i)]);
   const [splitting, setSplitting] = useState(false);
 

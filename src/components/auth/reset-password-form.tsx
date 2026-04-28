@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Hotel, Eye, EyeOff, CheckCircle, XCircle, Lock } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 function ResetPasswordFormContent() {
   const searchParams = useSearchParams();
@@ -297,6 +298,7 @@ function ResetPasswordFormContent() {
 }
 
 export function ResetPasswordForm() {
+  const t = useTranslations('auth');
   return (
     <Suspense fallback={
       <Card className="w-full max-w-md shadow-xl border-0">

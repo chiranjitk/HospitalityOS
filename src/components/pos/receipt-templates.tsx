@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback } from 'react';
 import { usePropertyId } from '@/hooks/use-property';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,6 +46,7 @@ const sampleOrder = { orderNumber: 'ORD-001', table: '5', date: new Date().toLoc
 ], subtotal: 62.94, tax: 6.29, total: 69.23, paymentMethod: 'Credit Card' };
 
 export default function ReceiptTemplates() {
+const t = useTranslations('pos');
   const { propertyId } = usePropertyId();
   const [loading, setLoading] = useState(true);
   const [template, setTemplate] = useState<ReceiptTemplate>(defaultTemplate);

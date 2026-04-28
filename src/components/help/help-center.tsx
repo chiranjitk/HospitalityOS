@@ -25,6 +25,7 @@ import {
   ChevronRight, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface HelpArticle {
   id: string;
@@ -86,6 +87,7 @@ interface HelpCenterProps {
 }
 
 export function HelpCenter({ onSelectArticle }: HelpCenterProps) {
+  const t = useTranslations('help');
   const [articles, setArticles] = useState<HelpArticle[]>([]);
   const [stats, setStats] = useState<HelpStats>({
     total: 0,

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 
 // =============================================================================
 // DEMO/SIMULATION NOTE: This is a kiosk demo payment component.
@@ -92,6 +93,7 @@ const PROCESSING_DELAY_MS = 2500;
 // --- Component ---
 
 export default function KioskPayment({
+  const t = useTranslations('frontdesk');
   bookingId,
   amount,
   currency,

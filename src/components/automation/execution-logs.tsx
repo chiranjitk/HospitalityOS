@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SectionGuard } from '@/components/common/section-guard';
+import { useTranslations } from 'next-intl';
 
 interface ExecutionLog {
   id: string;
@@ -40,6 +41,7 @@ interface LogStats {
 }
 
 export default function ExecutionLogs() {
+  const t = useTranslations('automation');
   const [logs, setLogs] = useState<ExecutionLog[]>([]);
   const [stats, setStats] = useState<LogStats>({
     totalExecutions: 0,

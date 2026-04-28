@@ -66,6 +66,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { format, addDays, parseISO } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -129,6 +130,7 @@ const lockTypes = [
 
 export default function InventoryLocking() {
   const { toast } = useToast();
+  const t = useTranslations('pms');
   const [properties, setProperties] = useState<Property[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);

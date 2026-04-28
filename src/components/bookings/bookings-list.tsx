@@ -60,6 +60,7 @@ import { cn } from '@/lib/utils';
 import { exportToCSV } from '@/lib/export-utils';
 import { useToast } from '@/hooks/use-toast';
 import { differenceInDays } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -970,6 +971,7 @@ interface BookingFormProps {
 
 function BookingForm({ formData, setFormData, properties, roomTypes, guests }: BookingFormProps) {
   const { formatCurrency } = useCurrency();
+  const t = useTranslations('bookings');
   const selectedRoomType = roomTypes.find(rt => rt.id === formData.roomTypeId);
   
   return (

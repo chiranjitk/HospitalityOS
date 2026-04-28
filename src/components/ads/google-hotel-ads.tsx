@@ -62,6 +62,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { usePropertyId } from '@/hooks/use-property';
+import { useTranslations } from 'next-intl';
 
 interface GoogleAdsConnection {
   id: string;
@@ -133,6 +134,7 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export default function GoogleHotelAds() {
+  const t = useTranslations('ads');
   const { formatCurrency } = useCurrency();
   const { propertyId } = usePropertyId();
   const [connection, setConnection] = useState<GoogleAdsConnection | null>(null);

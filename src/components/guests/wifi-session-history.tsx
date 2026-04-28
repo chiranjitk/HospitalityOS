@@ -38,6 +38,7 @@ import { useTimezone } from '@/contexts/TimezoneContext';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { Button } from '@/components/ui/button';
+import { useTranslations } from 'next-intl';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -140,6 +141,7 @@ function parseTimestamp(ts: string): Date {
 export default function WifiSessionHistory({ guestId }: GuestWifiHistoryProps) {
   const { formatDate } = useTimezone();
   const { toast } = useToast();
+  const t = useTranslations('guests');
 
   // Data state
   const [wifiLink, setWifiLink] = useState<WifiLink | null>(null);

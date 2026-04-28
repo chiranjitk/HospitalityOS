@@ -56,6 +56,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface StaffMember {
   id: string;
@@ -96,6 +97,7 @@ interface AttendanceRecord {
 }
 
 export default function ShiftScheduling() {
+  const t = useTranslations('staff');
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);

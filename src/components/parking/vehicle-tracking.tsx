@@ -50,6 +50,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { exportToCSV } from '@/lib/export-utils';
 import { format, formatDistanceToNow } from 'date-fns';
 import { usePropertyId } from '@/hooks/use-property';
+import { useTranslations } from 'next-intl';
 
 interface Vehicle {
   id: string;
@@ -85,6 +86,7 @@ interface Vehicle {
 // Vehicle interface - no mock data, using real API
 
 export default function VehicleTracking() {
+  const t = useTranslations('parking');
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const { propertyId } = usePropertyId();

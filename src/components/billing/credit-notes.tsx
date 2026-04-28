@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -103,6 +105,7 @@ const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secon
 };
 
 export default function CreditNotes() {
+const t = useTranslations('billing');
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
 
@@ -249,7 +252,7 @@ export default function CreditNotes() {
         win.print();
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to generate PDF', variant: 'destructive' });
+      toast({ title: 'Error', description: t('failedToGeneratePdf'), variant: 'destructive' });
     }
   };
 
@@ -272,7 +275,7 @@ export default function CreditNotes() {
             <FileText className="h-5 w-5" />
             Credit Notes
           </h2>
-          <p className="text-sm text-muted-foreground">Issue and manage billing adjustments</p>
+          <p className="text-sm text-muted-foreground">{t('creditNotesDesc')</p>}
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => { fetchFolios(); fetchCreditNotes(); }}>
@@ -297,7 +300,7 @@ export default function CreditNotes() {
               <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
                 {formatCurrency(totalIssued)}
               </div>
-              <div className="text-xs text-muted-foreground">Total Issued</div>
+              <div className="text-xs text-muted-foreground>{t('totalIssued')}</useState>
             </div>
           </div>
         </Card>
@@ -345,7 +348,7 @@ export default function CreditNotes() {
       {/* Folio Selector */}
       <Card>
         <CardContent className="p-4">
-          <Label className="text-sm font-medium">Select Folio</Label>
+          <Label className="text-sm font-medium>{t('selectFolio')}</useState>
           <Select value={selectedFolioId} onValueChange={setSelectedFolioId}>
             <SelectTrigger className="mt-2">
               <SelectValue placeholder="Choose a folio" />
@@ -461,8 +464,8 @@ export default function CreditNotes() {
       <Dialog open={showCreateDialog} onOpenChange={(open) => { if (!open) resetForm(); setShowCreateDialog(open); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create Credit Note</DialogTitle>
-            <DialogDescription>Issue a credit note for billing adjustments</DialogDescription>
+            <DialogTitle{t('createCreditNote')}</DialogTitle>
+            <DialogDescription>>{t('createCreditNoteDesc')</DialogDescription>}
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
@@ -547,7 +550,7 @@ export default function CreditNotes() {
       <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Cancel Credit Note</DialogTitle>
+            <DialogTitle{t('cancelCreditNote')}</DialogTitle>
             <DialogDescription>
               Are you sure you want to cancel credit note <span className="font-bold">{cancelTarget?.creditNoteNumber}</span>?
               {cancelTarget && cancelTarget.appliedAmount > 0 && (

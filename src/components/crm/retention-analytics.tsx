@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUIStore } from '@/store';
+import { useTranslations } from 'next-intl';
 
 interface RetentionMetric {
   label: string;
@@ -82,6 +83,7 @@ interface GuestRecord {
 }
 
 export default function RetentionAnalytics() {
+  const t = useTranslations('crm');
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState<RetentionMetric[]>([]);
   const [cohortData, setCohortData] = useState<CohortData[]>([]);

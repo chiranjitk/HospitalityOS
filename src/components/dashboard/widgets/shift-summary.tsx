@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 import {
   Clock,
   Users,
@@ -41,11 +42,11 @@ const HIGHLIGHT_CONFIG: Record<string, { color: string; bg: string; icon: React.
   alert: { color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/50', icon: AlertTriangle },
 };
 
-function getShiftName(): string {
+function getShiftName(t: (key: string) => string): string {
   const hour = new Date().getHours();
-  if (hour >= 6 && hour < 14) return 'Morning Shift';
-  if (hour >= 14 && hour < 22) return 'Evening Shift';
-  return 'Night Shift';
+  if (hour >= 6 && hour < 14) return t('morningShift');
+  if (hour >= 14 && hour < 22) return t('eveningShift');
+  return t('nightShift');
 }
 
 function getShiftTimes(): { start: string; end: string; progressPercent: number } {
@@ -54,15 +55,14 @@ function getShiftTimes(): { start: string; end: string; progressPercent: number 
   const totalMinutes = hour * 60 + minute;
   
   if (hour >= 6 && hour < 14) {
-    const elapsed = totalMinutes - 360; // 6:00
+    const elapsed = totalMinutes - 360;
     return { start: '06:00', end: '14:00', progressPercent: Math.round((elapsed / 480) * 100) };
   }
   if (hour >= 14 && hour < 22) {
-    const elapsed = totalMinutes - 840; // 14:00
+    const elapsed = totalMinutes - 840;
     return { start: '14:00', end: '22:00', progressPercent: Math.round((elapsed / 480) * 100) };
   }
-  // Night shift: 22:00 - 06:00
-  const elapsed = hour >= 22 ? totalMinutes - 1320 : totalMinutes + 120; // wraps midnight
+  const elapsed = hour >= 22 ? totalMinutes - 1320 : totalMinutes + 120;
   return { start: '22:00', end: '06:00', progressPercent: Math.min(100, Math.round((elapsed / 480) * 100)) };
 }
 
@@ -74,6 +74,8 @@ function getOccupancyChange(): number {
 }
 
 export function ShiftSummaryWidget() {
+  const t = useTranslations('dashboard');
+  const tc = useTranslations('common');
   const [isLoading, setIsLoading] = useState(true);
   const [showAllHighlights, setShowAllHighlights] = useState(false);
   const [liveStats, setLiveStats] = useState<LiveStats>({
@@ -131,16 +133,16 @@ export function ShiftSummaryWidget() {
       const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
       setHighlights([
-        { id: 'h1', type: 'info', message: `Staff on duty: ${newStats.activeStaff} active`, time: timeStr },
-        { id: 'h2', type: 'success', message: `Check-ins today: ${newStats.checkInsToday}`, time: timeStr },
-        { id: 'h3', type: newStats.pendingTasks > 5 ? 'warning' : 'success', message: `${newStats.pendingTasks} pending tasks`, time: timeStr },
-        { id: 'h4', type: 'info', message: `Check-outs today: ${newStats.checkOutsToday}`, time: timeStr },
-        { id: 'h5', type: 'success', message: `Occupancy ${occupancyChange > 0 ? '+' : ''}${occupancyChange}% change`, time: timeStr },
+        { id: 'h1', type: 'info', message: t('staffOnDutyActive', { count: newStats.activeStaff }), time: timeStr },
+        { id: 'h2', type: 'success', message: t('checkInsTodayCount', { count: newStats.checkInsToday }), time: timeStr },
+        { id: 'h3', type: newStats.pendingTasks > 5 ? 'warning' : 'success', message: t('pendingTasksCount', { count: newStats.pendingTasks }), time: timeStr },
+        { id: 'h4', type: 'info', message: t('checkOutsTodayCount', { count: newStats.checkOutsToday }), time: timeStr },
+        { id: 'h5', type: 'success', message: t('occupancyChangeValue', { value: `${occupancyChange > 0 ? '+' : ''}${occupancyChange}%` }), time: timeStr },
       ]);
     } catch {
       // Keep existing stats on error
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const init = async () => {
@@ -150,7 +152,6 @@ export function ShiftSummaryWidget() {
     init();
   }, [fetchLiveData]);
 
-  // Refresh live data periodically
   useEffect(() => {
     const interval = setInterval(() => {
       fetchLiveData();
@@ -186,11 +187,11 @@ export function ShiftSummaryWidget() {
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <Coffee className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            {getShiftName()}
+            {getShiftName(t)}
           </CardTitle>
           <Badge variant="outline" className="text-xs rounded-full border-primary/40 text-primary bg-primary/10">
             <Clock className="h-3 w-3 mr-1" />
-            Live
+            {t('live')}
           </Badge>
         </div>
       </CardHeader>
@@ -199,7 +200,7 @@ export function ShiftSummaryWidget() {
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">{start}</span>
-            <span className="font-medium text-foreground">{elapsedHours}h {elapsedMins}m elapsed</span>
+            <span className="font-medium text-foreground">{elapsedHours}h {elapsedMins}m {t('elapsed')}</span>
             <span className="text-muted-foreground">{end}</span>
           </div>
           <div className="relative h-2.5 rounded-full bg-muted overflow-hidden">
@@ -209,13 +210,12 @@ export function ShiftSummaryWidget() {
               animate={{ width: `${Math.min(98, Math.max(5, progressPercent))}%` }}
               transition={{ duration: 1.2, ease: 'easeOut' }}
             />
-            {/* Current time marker */}
             <div
               className="absolute top-0 bottom-0 w-0.5 bg-foreground/50"
               style={{ left: `${Math.min(98, Math.max(5, progressPercent))}%` }}
             />
           </div>
-          <p className="text-[11px] text-muted-foreground text-center">{remainHours}h {remainMins}m remaining</p>
+          <p className="text-[11px] text-muted-foreground text-center">{remainHours}h {remainMins}m {t('remaining')}</p>
         </div>
 
         <Separator className="opacity-50" />
@@ -230,7 +230,7 @@ export function ShiftSummaryWidget() {
           >
             <LogIn className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 mx-auto mb-1" />
             <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums leading-none">{liveStats.checkInsToday}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Check-ins</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{t('checkIns')}</p>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -240,7 +240,7 @@ export function ShiftSummaryWidget() {
           >
             <LogOut className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400 mx-auto mb-1" />
             <p className="text-lg font-bold text-orange-600 dark:text-orange-400 tabular-nums leading-none">{liveStats.checkOutsToday}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Check-outs</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{t('checkOuts')}</p>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -250,7 +250,7 @@ export function ShiftSummaryWidget() {
           >
             <Users className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400 mx-auto mb-1" />
             <p className="text-lg font-bold text-sky-600 dark:text-sky-400 tabular-nums leading-none">{liveStats.activeStaff}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">On Duty</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{t('onDuty')}</p>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -262,14 +262,14 @@ export function ShiftSummaryWidget() {
             <p className="text-lg font-bold text-violet-600 dark:text-violet-400 tabular-nums leading-none">
               {occupancyChange > 0 ? '+' : ''}{occupancyChange}%
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Occupancy <Badge variant="outline" className="text-[8px] h-3 px-1 ml-0.5 align-middle">Est.</Badge></p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{t('occupancyLabel')} <Badge variant="outline" className="text-[8px] h-3 px-1 ml-0.5 align-middle">{t('estimated')}</Badge></p>
           </motion.div>
         </div>
 
         {/* Shift Highlights */}
         <div className="space-y-1.5">
           <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-            Shift Highlights
+            {t('shiftHighlights')}
           </p>
           <AnimatePresence mode="popLayout">
             {visibleHighlights.map((h, i) => {
@@ -304,7 +304,7 @@ export function ShiftSummaryWidget() {
               className="w-full text-xs h-7"
               onClick={() => setShowAllHighlights(!showAllHighlights)}
             >
-              {showAllHighlights ? 'Show Less' : `+${highlights.length - 3} More Highlights`}
+              {showAllHighlights ? t('showLess') : t('moreHighlights', { count: highlights.length - 3 })}
               <ArrowRight className={cn('ml-1 h-3 w-3 transition-transform', showAllHighlights && 'rotate-90')} />
             </Button>
           )}
@@ -315,7 +315,7 @@ export function ShiftSummaryWidget() {
           <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-100/50 dark:border-amber-800/50">
             <div className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              <span className="text-xs font-medium">Pending Tasks</span>
+              <span className="text-xs font-medium">{t('pendingTasksLabel')}</span>
             </div>
             <Badge className="bg-amber-500 text-white text-[10px] h-5 px-1.5 border-0">
               {liveStats.pendingTasks}

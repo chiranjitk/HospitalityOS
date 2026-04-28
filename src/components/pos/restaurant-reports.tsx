@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { usePropertyId } from '@/hooks/use-property';
@@ -11,6 +13,7 @@ import { Loader2, BarChart3, DollarSign, ShoppingCart, UtensilsCrossed, Grid3X3,
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function RestaurantReports() {
+const t = useTranslations('pos');
   const { propertyId } = usePropertyId();
   const { formatCurrency } = useCurrency();
   const [loading, setLoading] = useState(true);

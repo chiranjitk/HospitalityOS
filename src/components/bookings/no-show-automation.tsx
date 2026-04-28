@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 // =====================================================
 // TYPES
@@ -87,6 +88,7 @@ interface DetectionResult {
 
 export default function NoShowAutomation() {
   const { formatCurrency } = useCurrency();
+  const t = useTranslations('bookings');
   // --- Settings ---
   const [settings, setSettings] = useState<NoShowSettings>({
     noShowBufferHours: 1,

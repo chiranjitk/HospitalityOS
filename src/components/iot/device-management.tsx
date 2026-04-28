@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface Device {
   id: string;
@@ -93,6 +94,7 @@ const statusBadgeVariants: Record<string, 'default' | 'secondary' | 'destructive
 };
 
 export default function DeviceManagement() {
+  const t = useTranslations('iot');
   const [devices, setDevices] = useState<Device[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);

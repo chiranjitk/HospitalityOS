@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { usePropertyId } from '@/hooks/use-property';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -73,6 +75,7 @@ const CANVAS_W = 1200;
 const CANVAS_H = 800;
 
 export default function TableLayout() {
+const t = useTranslations('pos');
   const { propertyId } = usePropertyId();
   const [tables, setTables] = useState<LayoutTable[]>([]);
   const [loading, setLoading] = useState(true);

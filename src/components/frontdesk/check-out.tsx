@@ -47,6 +47,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { differenceInDays, startOfDay, endOfDay } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface Room {
   id: string;
@@ -125,6 +126,7 @@ export default function CheckOut() {
   const { formatCurrency } = useCurrency();
   const { formatDate } = useTimezone();
   const { user } = useAuth();
+  const t = useTranslations('frontdesk');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

@@ -36,6 +36,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface Booking {
   id: string;
@@ -108,6 +109,7 @@ interface Room {
 
 export default function Conflicts() {
   const { toast } = useToast();
+  const t = useTranslations('bookings');
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [overbookings, setOverbookings] = useState<Overbooking[]>([]);
   const [stats, setStats] = useState<Stats>({

@@ -34,6 +34,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -80,6 +81,7 @@ const toLocalDateString = (date: Date) => {
 export default function InventoryCalendar() {
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
+  const t = useTranslations('pms');
   const [properties, setProperties] = useState<Property[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [ratePlans, setRatePlans] = useState<RatePlan[]>([]);

@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
@@ -111,13 +113,14 @@ const refundStatuses = [
 
 const methodOptions = [
   { value: 'all', label: 'All Methods' },
-  { value: 'card', label: 'Credit/Debit Card' },
+  { value: 'card', label: t('creditDebitCard') },
   { value: 'cash', label: 'Cash' },
   { value: 'bank_transfer', label: 'Bank Transfer' },
   { value: 'wallet', label: 'Digital Wallet' },
 ];
 
 export default function Refunds() {
+const t = useTranslations('billing');
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const { formatDate, formatTime, formatDateTime, settings } = useTimezone();
@@ -164,7 +167,7 @@ export default function Refunds() {
       console.error('Error fetching payments:', error);
       toast({
         title: 'Error',
-        description: 'Failed to fetch refund data',
+        description: t('failedToFetchRefunds'),
         variant: 'destructive',
       });
     } finally {
@@ -191,7 +194,7 @@ export default function Refunds() {
     if (!selectedPayment || !refundData.amount || !refundData.reason) {
       toast({
         title: 'Validation Error',
-        description: 'Please fill in all required fields',
+        description: t('fillRequiredFields'),
         variant: 'destructive',
       });
       return;
@@ -238,7 +241,7 @@ export default function Refunds() {
       if (result.success) {
         toast({
           title: 'Success',
-          description: refundData.isPartial ? 'Partial refund processed successfully' : 'Full refund processed successfully',
+          description: refundData.isPartial ? t('partialRefundProcessed') : t('fullRefundProcessed'),
         });
         setIsProcessOpen(false);
         setRefundData({ amount: '', reason: '', isPartial: false });
@@ -303,10 +306,10 @@ export default function Refunds() {
         <div>
           <h2 className="text-xl font-semibold flex items-center gap-2">
             <RotateCcw className="h-5 w-5" />
-            Refunds Management
+            {t('refundsTitle')}</Record>
           </h2>
           <p className="text-sm text-muted-foreground">
-            Process and manage refund requests
+            t('refundsDesc')
           </p>
         </div>
         <div className="flex gap-2">
@@ -373,7 +376,7 @@ export default function Refunds() {
               <div className="relative focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/30 rounded-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by transaction ID..."
+                  placeholder="t('searchPayments')"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
@@ -397,7 +400,7 @@ export default function Refunds() {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="all>{t('allStatus')}</SelectItem>
                 <SelectItem value="refundable">Refundable</SelectItem>
                 <SelectItem value="refunded">Refunded</SelectItem>
                 <SelectItem value="partially_refunded">Partial Refund</SelectItem>
@@ -417,8 +420,8 @@ export default function Refunds() {
           ) : filteredPayments.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <RotateCcw className="h-12 w-12 mb-4" />
-              <p>No refund records found</p>
-              <p className="text-sm">No payments match the current filters</p>
+              <p>>{t('noRefundRecords')</p>}
+              <p className="text-sm">>{t('noMatchingFilters')</p>}
             </div>
           ) : (
             <ScrollArea className="h-[500px]">

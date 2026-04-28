@@ -6,12 +6,14 @@ import { Header } from './header';
 import { Breadcrumb } from './breadcrumb';
 import { useUIStore, useAuthStore } from '@/store';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
+  const t = useTranslations('layout');
   const { sidebarCollapsed } = useUIStore();
   const { setLoading, setProperties, setCurrentProperty } = useAuthStore();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);

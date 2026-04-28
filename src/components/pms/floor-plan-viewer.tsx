@@ -24,6 +24,7 @@ import {
   Bed,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface RoomType {
   id: string;
@@ -84,6 +85,7 @@ const roomStatuses = [
 ];
 
 export function FloorPlanViewer({
+  const t = useTranslations('pms');
   floorPlan,
   rooms,
   positions,

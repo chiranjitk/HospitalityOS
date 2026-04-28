@@ -53,6 +53,7 @@ import {
 } from 'lucide-react';
 import { ConsentForm } from './consent-form';
 import { SectionGuard } from '@/components/common/section-guard';
+import { useTranslations } from 'next-intl';
 
 interface GDPRRequest {
   id: string;
@@ -113,6 +114,7 @@ interface GDPRManagerProps {
 }
 
 export function GDPRManager({ tenantId }: GDPRManagerProps) {
+  const t = useTranslations('gdpr');
   const [requests, setRequests] = useState<GDPRRequest[]>([]);
   const [consentRecords, setConsentRecords] = useState<ConsentRecord[]>([]);
   const [gdprStats, setGdprStats] = useState<GDPRStats | null>(null);

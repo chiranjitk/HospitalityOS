@@ -43,6 +43,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslations } from 'next-intl';
 
 interface Booking {
   id: string;
@@ -117,6 +118,7 @@ export default function RegistrationCard() {
   const { toast } = useToast();
   const { formatDate } = useTimezone();
   const { user } = useAuth();
+  const t = useTranslations('frontdesk');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Booking[]>([]);
   const [isSearching, setIsSearching] = useState(false);

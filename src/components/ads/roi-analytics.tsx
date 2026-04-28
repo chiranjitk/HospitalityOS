@@ -49,6 +49,7 @@ import { toast } from 'sonner';
 import { format, subDays } from 'date-fns';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { exportToCSV } from '@/lib/export-utils';
+import { useTranslations } from 'next-intl';
 
 interface ROIData {
   date: string;
@@ -112,6 +113,7 @@ const dateRanges = [
 ];
 
 export default function ROIAnalytics() {
+  const t = useTranslations('ads');
   const { formatCurrency } = useCurrency();
   const [roiData, setRoiData] = useState<ROIData[]>([]);
   const [channelData, setChannelData] = useState<ChannelComparison[]>([]);

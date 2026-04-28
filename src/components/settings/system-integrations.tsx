@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SectionGuard } from '@/components/common/section-guard';
+import { useTranslations } from 'next-intl';
 
 // ──────────────────────────────────────────────
 // Types
@@ -274,6 +275,7 @@ function isSensitiveField(field: FieldSchema): boolean {
 // ──────────────────────────────────────────────
 
 export default function SystemIntegrations() {
+  const t = useTranslations('settings');
   // ── State ──
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

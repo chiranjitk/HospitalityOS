@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2, Shield } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface ConsentFormProps {
   tenantId: string;
@@ -62,6 +63,7 @@ const consentVersion = '1.0.0';
 const consentText = 'By providing consent, you agree to our Privacy Policy and Terms of Service.';
 
 export function ConsentForm({ tenantId, guestId: initialGuestId, onSuccess, onError }: ConsentFormProps) {
+  const t = useTranslations('gdpr');
   const [guestId, setGuestId] = useState(initialGuestId || '');
   const [consents, setConsents] = useState<Record<string, boolean>>({
     essential: true, // Always required

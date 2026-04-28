@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface Preferences {
   // Room Preferences
@@ -115,6 +116,7 @@ export function PreferenceSelection({
   onUpdate, 
   onComplete 
 }: PreferenceSelectionProps) {
+  const t = useTranslations('portal');
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [preferences, setPreferences] = useState<Preferences>(initialPreferences);

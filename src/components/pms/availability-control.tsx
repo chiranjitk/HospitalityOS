@@ -50,6 +50,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday, parseISO, startOfMonth, endOfMonth } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -105,6 +106,7 @@ export default function AvailabilityControl() {
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const { formatDate, formatDateTime } = useTimezone();
+  const t = useTranslations('pms');
   const [properties, setProperties] = useState<Property[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);

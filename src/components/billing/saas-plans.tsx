@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import React, { useState, useEffect } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -78,6 +80,7 @@ interface SaaSPlan {
 // No more hardcoded plan definitions on the client.
 
 export default function SaaSPlans() {
+const t = useTranslations('billing');
   const { toast } = useToast();
   const { formatCurrency, currency } = useCurrency();
   const [plans, setPlans] = useState<SaaSPlan[]>([]);

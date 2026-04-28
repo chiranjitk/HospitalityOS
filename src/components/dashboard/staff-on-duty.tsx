@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Clock, Shield, HeadphonesIcon, Wrench, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 import { motion } from 'framer-motion';
 
 interface StaffMember {
@@ -36,6 +37,7 @@ const roleColors: Record<string, string> = {
 };
 
 export function StaffOnDutyWidget() {
+  const t = useTranslations('dashboard');
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [totalOnDuty, setTotalOnDuty] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -105,14 +107,14 @@ export function StaffOnDutyWidget() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <Users className="h-4 w-4 text-primary" />
-              Staff On Duty
+              {t('staffOnDuty')}
             </CardTitle>
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 text-xs tabular-nums">
-                {onlineCount} active
+                {onlineCount} {t('activeLower')}
               </Badge>
               <Badge variant="outline" className="text-xs tabular-nums">
-                {totalOnDuty} total
+                {totalOnDuty} {t('totalLower')}
               </Badge>
             </div>
           </div>

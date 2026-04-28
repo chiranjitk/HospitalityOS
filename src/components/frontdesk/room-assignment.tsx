@@ -41,6 +41,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { format, differenceInDays } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface Room {
   id: string;
@@ -93,6 +94,7 @@ interface Booking {
 
 export default function RoomAssignment() {
   const { toast } = useToast();
+  const t = useTranslations('frontdesk');
   
   // Data states
   const [unassignedBookings, setUnassignedBookings] = useState<Booking[]>([]);

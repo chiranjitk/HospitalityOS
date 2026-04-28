@@ -77,6 +77,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 // Types
 interface ChatMessage {
@@ -175,6 +176,7 @@ const priorityConfig: Record<string, { color: string; label: string }> = {
 };
 
 export default function UnifiedInbox() {
+  const t = useTranslations('communication');
   const { toast } = useToast();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);

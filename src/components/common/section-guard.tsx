@@ -2,6 +2,7 @@
 
 import { usePermissions } from '@/contexts/PermissionContext';
 import { ShieldX } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface SectionGuardProps {
   permission: string;
@@ -10,6 +11,7 @@ interface SectionGuardProps {
 }
 
 export function SectionGuard({ permission, children, fallback }: SectionGuardProps) {
+  const t = useTranslations('common');
   const { hasPermission } = usePermissions();
 
   if (!hasPermission(permission)) {

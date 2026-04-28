@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface GuestPreferencesProps {
   guestId: string;
@@ -149,6 +150,7 @@ const commonAllergies = [
 ];
 
 export function GuestPreferences({ guestId }: GuestPreferencesProps) {
+  const t = useTranslations('guests');
   const { toast } = useToast();
   const [preferences, setPreferences] = useState<Preferences>(defaultPreferences);
   const [isLoading, setIsLoading] = useState(true);

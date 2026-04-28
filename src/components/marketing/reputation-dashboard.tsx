@@ -33,6 +33,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface Review {
   id: string;
@@ -87,6 +88,7 @@ interface ReviewsResponse {
 }
 
 export default function ReputationDashboard() {
+  const t = useTranslations('marketing');
   const [data, setData] = useState<ReviewsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

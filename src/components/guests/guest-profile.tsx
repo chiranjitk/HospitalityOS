@@ -35,6 +35,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface Guest {
   id: string;
@@ -101,6 +102,7 @@ const kycStatusColors: Record<string, string> = {
 };
 
 export function GuestProfile({ guestId, onBack }: GuestProfileProps) {
+  const t = useTranslations('guests');
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const { formatDate } = useTimezone();

@@ -65,6 +65,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useMediaQuery } from '@/hooks/use-media-query';
+import { useTranslations } from 'next-intl';
 
 interface Guest {
   id: string;
@@ -109,6 +110,7 @@ const sources = [
 export default function GuestsList({ onSelectGuest }: GuestsListProps) {
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
+  const t = useTranslations('guests');
 
   // Responsive breakpoints
   const isDesktop = useMediaQuery('(min-width: 768px)');

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 interface LoyaltyTier {
   name: string;
@@ -99,6 +100,7 @@ const redemptionOptions = [
 ];
 
 export default function LoyaltyPrograms() {
+  const t = useTranslations('crm');
   const { formatCurrency } = useCurrency();
   const [tiers, setTiers] = useState<LoyaltyTier[]>(defaultTiers);
   const [stats, setStats] = useState<LoyaltyStats>({

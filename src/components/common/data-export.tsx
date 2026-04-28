@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Download, FileSpreadsheet, FileText, FileJson, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface DataExportProps {
   data: Record<string, unknown>[];
@@ -57,6 +58,7 @@ function downloadFile(content: string, filename: string, mimeType: string) {
 }
 
 export function DataExport({ data, filename, title }: DataExportProps) {
+  const t = useTranslations('common');
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExport = useCallback(async (format: 'csv' | 'tsv' | 'json') => {

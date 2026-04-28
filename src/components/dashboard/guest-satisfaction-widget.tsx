@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store';
+import { useTranslations } from 'next-intl';
 import {
   Star,
   TrendingUp,
@@ -418,6 +419,7 @@ function GuestSatisfactionSkeleton() {
 /* ------------------------------------------------------------------ */
 
 export function GuestSatisfactionWidget() {
+  const t = useTranslations('dashboard');
   const { setActiveSection } = useUIStore();
   const [data, setData] = useState<GuestSatisfactionData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -432,11 +434,11 @@ export function GuestSatisfactionWidget() {
         setError(null);
       } else {
         setError(
-          json.error?.message || 'Failed to load guest satisfaction data'
+          json.error?.message || t('failedToLoadSatisfaction')
         );
       }
     } catch {
-      setError('Network error');
+      setError(t('networkError'));
     } finally {
       setIsLoading(false);
     }
@@ -454,7 +456,7 @@ export function GuestSatisfactionWidget() {
         <CardContent className="p-6 flex flex-col items-center justify-center gap-2 text-center">
           <ShieldAlert className="h-8 w-8 text-muted-foreground/40" />
           <p className="text-sm text-muted-foreground">
-            {error || 'Unable to load satisfaction data'}
+            {error || t('unableToLoadSatisfaction')}
           </p>
           <Button
             variant="outline"
@@ -463,7 +465,7 @@ export function GuestSatisfactionWidget() {
             className="mt-1"
           >
             <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-            Retry
+            {t('retry')}
           </Button>
         </CardContent>
       </Card>
@@ -483,11 +485,11 @@ export function GuestSatisfactionWidget() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <MessageSquare className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-              Guest Satisfaction
+              {t('guestSatisfaction')}
             </CardTitle>
             <Badge variant="outline" className="text-xs font-normal gap-1">
               <Star className="h-3 w-3 fill-amber-400 text-amber-400 dark:text-amber-300" />
-              {data.totalReviews} reviews
+              {data.totalReviews} {t('reviewsLower')}
             </Badge>
           </div>
         </CardHeader>
@@ -497,7 +499,7 @@ export function GuestSatisfactionWidget() {
             <ScoreRing score={data.overallScore} size={96} />
             <div className="flex-1 space-y-1.5">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">Overall</span>
+                <span className="text-xs text-muted-foreground">{t('overall')}</span>
                 <div
                   className={cn(
                     'flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded-full',
@@ -518,7 +520,7 @@ export function GuestSatisfactionWidget() {
               </div>
               <StarRating rating={data.overallScore} />
               <p className="text-[11px] text-muted-foreground">
-                Based on {data.totalReviews} guest reviews
+                {t('basedOnReviews', { count: data.totalReviews })}
               </p>
             </div>
           </div>
@@ -529,7 +531,7 @@ export function GuestSatisfactionWidget() {
           {/* Category breakdown */}
           <div className="space-y-2.5">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Category Scores
+              {t('categoryScores')}
             </p>
             {categoryConfigs.map((config) => {
               const catData = data.categories[config.key];
@@ -554,7 +556,7 @@ export function GuestSatisfactionWidget() {
           {/* Recent review snippets */}
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Recent Reviews
+              {t('recentReviews')}
             </p>
             <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
               {data.recentReviews.map((review, idx) => (
@@ -570,7 +572,7 @@ export function GuestSatisfactionWidget() {
             onClick={() => setActiveSection('crm-feedback')}
           >
             <MessageSquare className="h-3.5 w-3.5" />
-            View All Reviews
+            {t('viewAllReviews')}
             <ArrowRight className="h-3 w-3 ml-auto" />
           </Button>
         </CardContent>

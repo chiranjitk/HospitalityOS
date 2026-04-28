@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -19,6 +21,7 @@ const quickNotes = [
 ];
 
 export function OrderItemNotes({ value = '', onChange, maxLength = 200 }: OrderItemNotesProps) {
+ value = '', onChange, maxLength = 200 }: OrderItemNotesProps) {const t = useTranslations('pos');
   const [open, setOpen] = useState(false);
 
   const handleQuickNote = (note: string) => {

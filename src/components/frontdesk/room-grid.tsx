@@ -39,6 +39,7 @@ import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUIStore } from '@/store';
 import { useSocket, RoomStatusEvent, RoomInitialState } from '@/hooks/use-socket';
+import { useTranslations } from 'next-intl';
 
 interface Room {
   id: string;
@@ -183,6 +184,7 @@ export default function RoomGrid() {
     reconnect,
     disconnect 
   } = useSocket({
+  const t = useTranslations('frontdesk');
     tenantId: user?.tenantId || '',
     userId: user?.id || '',
     autoConnect: isAuthenticated,

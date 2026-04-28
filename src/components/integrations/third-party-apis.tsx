@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Progress } from '@/components/ui/progress';
 import { Loader2, Key, Plus, Settings, Trash2, Copy, RefreshCw, Power } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 interface ThirdPartyApi {
   id: string;
@@ -48,6 +49,7 @@ const categoryColors = {
 };
 
 export default function ThirdPartyApis() {
+  const t = useTranslations('integrations');
   const [apis, setApis] = useState<ThirdPartyApi[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, active: 0, totalRequests: 0 });

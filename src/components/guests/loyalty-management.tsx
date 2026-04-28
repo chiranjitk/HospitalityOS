@@ -52,6 +52,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useTimezone } from '@/contexts/TimezoneContext';
+import { useTranslations } from 'next-intl';
 
 interface LoyaltyData {
   guest: {
@@ -144,6 +145,7 @@ export default function LoyaltyManagement() {
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
   const { formatDate } = useTimezone();
+  const t = useTranslations('guests');
   const [guests, setGuests] = useState<Guest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
