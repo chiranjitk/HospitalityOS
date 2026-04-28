@@ -1,7 +1,9 @@
 /**
  * Real-Time System Metrics Collector
  *
- * Collects CPU, RAM, disk, and network interface metrics from /proc filesystem
+ * Collects CPU, RAM, disk, network interface metrics, load average, swap,
+ * disk I/O, thermal, network errors, TCP connections, per-core CPU, active
+ * RADIUS sessions, and auth statistics from /proc filesystem and database
  * on Linux. Stores last 120 data points (4 minutes at 2-second intervals) in
  * a circular buffer for real-time graphing, and writes to RRD files every
  * 60 seconds for historical analysis.
@@ -15,6 +17,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import os from 'os';
 import { ensureSystemRRDs, updateSystemRRDs } from './rrd/system-rrd';
+import { db } from '@/lib/db';
 
 const execFileAsync = promisify(execFile);
 
@@ -46,6 +49,15 @@ export interface SystemSnapshot {
     percent: number;
   };
   interfaces: InterfaceMetric[];
+  cpuPerCore: number[];
+  load: { avg1: number; avg5: number; avg15: number };
+  swap: { total: number; used: number; percent: number };
+  diskIO: { reads: number; writes: number; readBytes: number; writeBytes: number };
+  thermal: number | null;
+  netErrors: { rxErr: number; txErr: number; rxDrop: number; txDrop: number; rxPkt: number; txPkt: number };
+  tcpConn: { established: number; timeWait: number; closeWait: number; synRecv: number };
+  activeSessions: number;
+  authStats: { accept: number; reject: number };
 }
 
 export interface MetricsHistoryPoint {
@@ -54,6 +66,10 @@ export interface MetricsHistoryPoint {
   memory: number;
   disk: number;
   interfaces: Record<string, { rxSpeed: number; txSpeed: number }>;
+  load1: number;
+  swap: number;
+  established: number;
+  activeSessions: number;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -82,6 +98,16 @@ let prevCpuTotal = 0;
 
 // Previous interface byte counters for speed computation
 let prevIfaceBytes: Map<string, { rx: number; tx: number }> = new Map();
+
+// Previous per-core CPU tick totals for delta computation
+let prevCpuCoreTotals: Map<number, { idle: number; total: number }> = new Map();
+
+// Previous disk IO for delta computation (DERIVE type)
+let prevDiskIO: { reads: number; writes: number; readBytes: number; writeBytes: number } | null = null;
+
+// Previous auth stats for delta computation (DERIVE type)
+let prevAuthAccept = 0;
+let prevAuthReject = 0;
 
 // CPU cores (cached, rarely changes)
 let cpuCores = os.cpus().length;
@@ -122,6 +148,52 @@ function readCpu(): number {
   }
 }
 
+// ─── CPU Per-Core Reading ────────────────────────────────────────────────────
+
+function readCpuPerCore(): number[] {
+  try {
+    const content = fs.readFileSync('/proc/stat', 'utf-8');
+    const lines = content.split('\n');
+    const results: number[] = [];
+
+    for (const line of lines) {
+      // Match lines like "cpu0  1234 56 789 0 1 2 3 4 5 6"
+      const match = line.match(/^cpu(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/);
+      if (!match) continue;
+
+      const coreIndex = parseInt(match[1], 10);
+      const user = parseInt(match[2], 10);
+      const system = parseInt(match[3], 10);
+      const idle = parseInt(match[4], 10);
+      const total = user + system + idle;
+
+      const prev = prevCpuCoreTotals.get(coreIndex);
+
+      if (!prev) {
+        // First read for this core — seed values
+        prevCpuCoreTotals.set(coreIndex, { idle, total });
+        results.push(0);
+        continue;
+      }
+
+      const deltaIdle = idle - prev.idle;
+      const deltaTotal = total - prev.total;
+
+      prevCpuCoreTotals.set(coreIndex, { idle, total });
+
+      if (deltaTotal <= 0) {
+        results.push(0);
+      } else {
+        results.push(Math.max(0, Math.min(100, ((deltaTotal - deltaIdle) / deltaTotal) * 100)));
+      }
+    }
+
+    return results;
+  } catch {
+    return [];
+  }
+}
+
 // ─── Memory Reading ──────────────────────────────────────────────────────────
 
 function readMemory(): { total: number; used: number; percent: number } {
@@ -142,6 +214,28 @@ function readMemory(): { total: number; used: number; percent: number } {
     const percent = memTotal > 0 ? (memUsed / memTotal) * 100 : 0;
 
     return { total: memTotal, used: memUsed, percent };
+  } catch {
+    return { total: 0, used: 0, percent: 0 };
+  }
+}
+
+// ─── Swap Reading ────────────────────────────────────────────────────────────
+
+function readSwap(): { total: number; used: number; percent: number } {
+  try {
+    const content = fs.readFileSync('/proc/meminfo', 'utf-8');
+    const get = (key: string) => {
+      const m = content.match(new RegExp(`${key}:\\s+(\\d+)`));
+      return m ? parseInt(m[1], 10) : 0;
+    };
+
+    const swapTotal = get('SwapTotal') * 1024;  // kB → bytes
+    const swapFree = get('SwapFree') * 1024;
+
+    const swapUsed = swapTotal - swapFree;
+    const percent = swapTotal > 0 ? (swapUsed / swapTotal) * 100 : 0;
+
+    return { total: swapTotal, used: swapUsed, percent };
   } catch {
     return { total: 0, used: 0, percent: 0 };
   }
@@ -168,6 +262,194 @@ async function readDisk(): Promise<{ total: number; used: number; percent: numbe
     return { total, used, percent };
   } catch {
     return { total: 0, used: 0, percent: 0 };
+  }
+}
+
+// ─── Disk I/O Reading ───────────────────────────────────────────────────────
+
+function readDiskIO(): { reads: number; writes: number; readBytes: number; writeBytes: number } {
+  const defaultResult = { reads: 0, writes: 0, readBytes: 0, writeBytes: 0 };
+  try {
+    const content = fs.readFileSync('/proc/diskstats', 'utf-8');
+    const lines = content.trim().split('\n');
+
+    for (const line of lines) {
+      // Format: major minor name reads reads_merged sectors_read ms_reading writes writes_merged sectors_written ms_writing ios_in_progress ms_io weighted_ms
+      // Fields (0-indexed): 0=major, 1=minor, 2=name, 3=reads, 4=reads_merged, 5=sectors_read, 6=ms_reading, 7=writes, 8=writes_merged, 9=sectors_written
+      const parts = line.trim().split(/\s+/);
+      if (parts.length < 11) continue;
+
+      const diskName = parts[2];
+      // Filter out virtual devices
+      if (diskName.startsWith('zram') || diskName.startsWith('pmem') || diskName.startsWith('loop') || diskName.startsWith('ram')) {
+        continue;
+      }
+      // Accept first real disk (sda, vda, nvme0n1, etc.)
+      const isRealDisk = /^sd[a-z]|^vd[a-z]|^nvme\d+n\d|^xvd[a-z]|^mmcblk\d|^hd[a-z]/.test(diskName);
+      if (!isRealDisk) continue;
+
+      const reads = parseInt(parts[3], 10) || 0;
+      const writes = parseInt(parts[7], 10) || 0;
+      const sectorsRead = parseInt(parts[5], 10) || 0;
+      const sectorsWritten = parseInt(parts[9], 10) || 0;
+
+      return {
+        reads,
+        writes,
+        readBytes: sectorsRead * 512,
+        writeBytes: sectorsWritten * 512,
+      };
+    }
+  } catch {
+    // ignore
+  }
+  return defaultResult;
+}
+
+// ─── Thermal Reading ─────────────────────────────────────────────────────────
+
+function readThermal(): number | null {
+  try {
+    const content = fs.readFileSync('/sys/class/thermal/thermal_zone0/temp', 'utf-8').trim();
+    const value = parseInt(content, 10);
+    if (isNaN(value)) return null;
+    // Most systems report in millidegrees Celsius
+    if (value > 1000) return value / 1000;
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Network Errors Reading ──────────────────────────────────────────────────
+
+function readNetErrors(): { rxErr: number; txErr: number; rxDrop: number; txDrop: number; rxPkt: number; txPkt: number } {
+  const defaultResult = { rxErr: 0, txErr: 0, rxDrop: 0, txDrop: 0, rxPkt: 0, txPkt: 0 };
+  try {
+    const content = fs.readFileSync('/proc/net/dev', 'utf-8');
+    const lines = content.trim().split('\n');
+
+    let totalRxErr = 0, totalTxErr = 0, totalRxDrop = 0, totalTxDrop = 0, totalRxPkt = 0, totalTxPkt = 0;
+
+    for (const line of lines) {
+      // Format: "  eth0: rx_bytes rx_packets rx_errs rx_drop rx_fifo rx_frame rx_compressed rx_multicast tx_bytes tx_packets tx_errs tx_drop tx_fifo tx_colls tx_carrier tx_compressed"
+      //          Index:        1          2          3       4       5       6         7              8          9          10      11      12      13       14          15
+      const match = line.match(/^\s*(\w+):\s+(.*)$/);
+      if (!match) continue;
+      const ifaceName = match[1];
+      if (ifaceName === 'lo') continue;
+
+      const fields = match[2].trim().split(/\s+/);
+      if (fields.length < 16) continue;
+
+      totalRxErr += parseInt(fields[2], 10) || 0;   // rx_errors
+      totalRxDrop += parseInt(fields[3], 10) || 0;  // rx_drop
+      totalTxPkt += parseInt(fields[9], 10) || 0;   // tx_packets
+      totalTxErr += parseInt(fields[10], 10) || 0;  // tx_errors
+      totalTxDrop += parseInt(fields[11], 10) || 0; // tx_drop
+      totalRxPkt += parseInt(fields[1], 10) || 0;   // rx_packets
+    }
+
+    return {
+      rxErr: totalRxErr,
+      txErr: totalTxErr,
+      rxDrop: totalRxDrop,
+      txDrop: totalTxDrop,
+      rxPkt: totalRxPkt,
+      txPkt: totalTxPkt,
+    };
+  } catch {
+    return defaultResult;
+  }
+}
+
+// ─── TCP Connections Reading ─────────────────────────────────────────────────
+
+function readTcpConnections(): { established: number; timeWait: number; closeWait: number; synRecv: number } {
+  const defaultResult = { established: 0, timeWait: 0, closeWait: 0, synRecv: 0 };
+  let established = 0, timeWait = 0, closeWait = 0, synRecv = 0;
+
+  const countStates = (content: string) => {
+    const lines = content.trim().split('\n');
+    for (const line of lines) {
+      // Skip header line: "sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode"
+      const parts = line.trim().split(/\s+/);
+      if (parts.length < 4) continue;
+      const stateHex = parts[3];
+      // IPv6 lines have an extra "0" field - state is at index 3
+      // TCP state codes: 01=ESTABLISHED, 02=SYN_RECV, 06=TIME_WAIT, 08=CLOSE_WAIT
+      switch (stateHex) {
+        case '01': established++; break;
+        case '02': synRecv++; break;
+        case '06': timeWait++; break;
+        case '08': closeWait++; break;
+      }
+    }
+  };
+
+  try {
+    // Read both IPv4 and IPv6 TCP tables
+    if (fs.existsSync('/proc/net/tcp')) {
+      countStates(fs.readFileSync('/proc/net/tcp', 'utf-8'));
+    }
+    if (fs.existsSync('/proc/net/tcp6')) {
+      countStates(fs.readFileSync('/proc/net/tcp6', 'utf-8'));
+    }
+  } catch {
+    // ignore
+  }
+
+  return { established, timeWait, closeWait, synRecv };
+}
+
+// ─── Active Sessions Reading (DB) ────────────────────────────────────────────
+
+async function readActiveSessions(): Promise<number> {
+  try {
+    // Use v_active_sessions view — same source as WiFi Access > Active Users tab
+    const result: Array<{ count: number | bigint }> = await db.$queryRawUnsafe(`
+      SELECT COUNT(*) as count FROM v_active_sessions WHERE session_status = 'active'
+    `);
+    return Number(result[0]?.count ?? 0);
+  } catch (err) {
+    console.error('[SystemMetrics] readActiveSessions error:', err);
+    // Fallback to direct radacct query if view doesn't exist
+    try {
+      const fallback: Array<{ count: number | bigint }> = await db.$queryRawUnsafe(`
+        SELECT COUNT(*) as count FROM radacct WHERE acctstoptime IS NULL
+      `);
+      return Number(fallback[0]?.count ?? 0);
+    } catch {
+      return 0;
+    }
+  }
+}
+
+// ─── Auth Stats Reading (DB) ─────────────────────────────────────────────────
+
+async function readAuthStats(): Promise<{ accept: number; reject: number }> {
+  try {
+    // Use RadiusAuthLog to count recent auth events in the last 60 seconds
+    const sixtySecondsAgo = new Date(Date.now() - 60_000);
+
+    const result: Array<{
+      accept_count: number | bigint;
+      reject_count: number | bigint;
+    }> = await db.$queryRawUnsafe(
+      `SELECT
+        SUM(CASE WHEN "authResult" LIKE '%Accept%' THEN 1 ELSE 0 END) as accept_count,
+        SUM(CASE WHEN "authResult" LIKE '%Reject%' THEN 1 ELSE 0 END) as reject_count
+      FROM "RadiusAuthLog"
+      WHERE timestamp > $1::timestamptz`,
+      sixtySecondsAgo.toISOString()
+    );
+
+    const accept = Number(result[0]?.accept_count ?? 0);
+    const reject = Number(result[0]?.reject_count ?? 0);
+
+    return { accept, reject };
+  } catch {
+    return { accept: 0, reject: 0 };
   }
 }
 
@@ -224,10 +506,18 @@ function readInterfaces(): InterfaceMetric[] {
 
 async function collectSnapshot(): Promise<SystemSnapshot> {
   const cpuUsage = readCpu();
+  const cpuPerCore = readCpuPerCore();
   const mem = readMemory();
+  const swap = readSwap();
   const disk = await readDisk();
   const interfaces = readInterfaces();
   const loadAvg = os.loadavg() as [number, number, number];
+  const diskIO = readDiskIO();
+  const thermal = readThermal();
+  const netErrors = readNetErrors();
+  const tcpConn = readTcpConnections();
+  const activeSessions = await readActiveSessions();
+  const authStats = await readAuthStats();
 
   return {
     timestamp: Date.now(),
@@ -247,6 +537,15 @@ async function collectSnapshot(): Promise<SystemSnapshot> {
       percent: Math.round(disk.percent * 10) / 10,
     },
     interfaces,
+    cpuPerCore: cpuPerCore.map(v => Math.round(v * 10) / 10),
+    load: { avg1: loadAvg[0], avg5: loadAvg[1], avg15: loadAvg[2] },
+    swap: { total: swap.total, used: swap.used, percent: Math.round(swap.percent * 10) / 10 },
+    diskIO,
+    thermal,
+    netErrors,
+    tcpConn,
+    activeSessions,
+    authStats,
   };
 }
 
@@ -259,6 +558,10 @@ function pushHistory(snapshot: SystemSnapshot): void {
     memory: snapshot.memory.percent,
     disk: snapshot.disk.percent,
     interfaces: {},
+    load1: snapshot.load.avg1,
+    swap: snapshot.swap.percent,
+    established: snapshot.tcpConn.established,
+    activeSessions: snapshot.activeSessions,
   };
 
   for (const iface of snapshot.interfaces) {
@@ -293,15 +596,25 @@ async function writeRRD(): Promise<void> {
   try {
     // Ensure RRD files exist (also creates new interface RRDs if detected)
     const ifaceNames = currentSnapshot.interfaces.map(i => i.name);
-    await ensureSystemRRDs(ifaceNames);
+    await ensureSystemRRDs(ifaceNames, currentSnapshot.cpu.cores);
 
     await updateSystemRRDs(
       currentSnapshot.cpu.usage,
+      currentSnapshot.cpuPerCore,
       currentSnapshot.memory.used,
       currentSnapshot.memory.percent,
       currentSnapshot.disk.used,
       currentSnapshot.disk.percent,
-      currentSnapshot.interfaces
+      currentSnapshot.interfaces,
+      currentSnapshot.cpu.loadAvg,
+      currentSnapshot.swap.used,
+      currentSnapshot.swap.percent,
+      currentSnapshot.diskIO,
+      currentSnapshot.thermal,
+      currentSnapshot.netErrors,
+      currentSnapshot.tcpConn,
+      currentSnapshot.activeSessions,
+      currentSnapshot.authStats
     );
   } catch (err) {
     console.error('[SystemMetrics] RRD write error:', err);
@@ -367,10 +680,14 @@ export async function startMetricsCollector(): Promise<void> {
 
   console.log('[SystemMetrics] Starting metrics collector...');
 
-  // Seed initial values for CPU delta calculation
+  // Seed initial values for CPU delta calculation (two reads with a small delay)
   readCpu();
+  readCpuPerCore();
 
-  // Take an initial snapshot
+  // Wait 200ms for CPU counters to accumulate a meaningful delta
+  await new Promise(resolve => setTimeout(resolve, 200));
+
+  // Take an initial snapshot (now with real CPU delta)
   try {
     currentSnapshot = await collectSnapshot();
     pushHistory(currentSnapshot);

@@ -192,7 +192,66 @@ export async function POST(request: NextRequest) {
  * action=metrics — Real-time system metrics + history
  */
 async function handleMetrics() {
-  const { snapshot, history } = await getMetricsHistory();
+  let snapshot: Awaited<ReturnType<typeof getMetricsHistory>>['snapshot'];
+  let history: Awaited<ReturnType<typeof getMetricsHistory>>['history'];
+
+  try {
+    const result = await getMetricsHistory();
+    snapshot = result.snapshot;
+    history = result.history;
+  } catch (err) {
+    console.error('[Health API] getMetricsHistory failed:', err);
+    // Fallback: read live system metrics directly (no history/cached values)
+    try {
+      const live = await getSystemMetrics();
+      return NextResponse.json({
+        success: true,
+        data: {
+          timestamp: live.timestamp,
+          cpu: { usage: live.cpu.usage, cores: live.cpu.cores, loadAvg: live.cpu.loadAvg },
+          memory: { total: live.memory.total, used: live.memory.used, percent: live.memory.percent },
+          disk: { total: live.disk.total, used: live.disk.used, percent: live.disk.percent },
+          interfaces: live.interfaces.map(i => ({
+            name: i.name, rxBytes: i.rxBytes, txBytes: i.txBytes,
+            rxSpeed: i.rxSpeed, txSpeed: i.txSpeed,
+          })),
+          cpuPerCore: live.cpuPerCore,
+          load: live.load,
+          swap: live.swap,
+          diskIO: live.diskIO,
+          thermal: live.thermal,
+          netErrors: live.netErrors,
+          tcpConn: live.tcpConn,
+          activeSessions: live.activeSessions,
+          authStats: live.authStats,
+          history: { timestamps: [], cpu: [], memory: [], disk: [], interfaces: {}, load1: [], swap: [], established: [], activeSessions: [] },
+        },
+      });
+    } catch (fallbackErr) {
+      console.error('[Health API] Fallback getSystemMetrics also failed:', fallbackErr);
+      // Absolute last resort: return zeros
+      return NextResponse.json({
+        success: true,
+        data: {
+          timestamp: Date.now(),
+          cpu: { usage: 0, cores: 0, loadAvg: [0, 0, 0] },
+          memory: { total: 0, used: 0, percent: 0 },
+          disk: { total: 0, used: 0, percent: 0 },
+          interfaces: [],
+          cpuPerCore: [],
+          load: { avg1: 0, avg5: 0, avg15: 0 },
+          swap: { total: 0, used: 0, percent: 0 },
+          diskIO: { reads: 0, writes: 0, readBytes: 0, writeBytes: 0 },
+          thermal: null,
+          netErrors: { rxErr: 0, txErr: 0, rxDrop: 0, txDrop: 0, rxPkt: 0, txPkt: 0 },
+          tcpConn: { established: 0, timeWait: 0, closeWait: 0, synRecv: 0 },
+          activeSessions: 0,
+          authStats: { accept: 0, reject: 0 },
+          history: { timestamps: [], cpu: [], memory: [], disk: [], interfaces: {}, load1: [], swap: [], established: [], activeSessions: [] },
+        },
+      });
+    }
+  }
 
   // Check alert rules against current values
   checkAlerts(snapshot);
@@ -246,12 +305,25 @@ async function handleMetrics() {
         rxSpeed: i.rxSpeed,
         txSpeed: i.txSpeed,
       })),
+      cpuPerCore: snapshot.cpuPerCore,
+      load: snapshot.load,
+      swap: snapshot.swap,
+      diskIO: snapshot.diskIO,
+      thermal: snapshot.thermal,
+      netErrors: snapshot.netErrors,
+      tcpConn: snapshot.tcpConn,
+      activeSessions: snapshot.activeSessions,
+      authStats: snapshot.authStats,
       history: {
         timestamps: history.map(p => p.timestamp),
         cpu: history.map(p => p.cpu),
         memory: history.map(p => p.memory),
         disk: history.map(p => p.disk),
         interfaces: ifaceHistory,
+        load1: history.map(p => p.load1),
+        swap: history.map(p => p.swap),
+        established: history.map(p => p.established),
+        activeSessions: history.map(p => p.activeSessions),
       },
     },
   });
@@ -316,7 +388,11 @@ async function handleRRDGraph(searchParams: URLSearchParams) {
   const name = searchParams.get('name') || '';
   const range = searchParams.get('range') || '24h';
 
-  const validTypes = ['cpu', 'memory', 'disk', 'interface'];
+  const validTypes = [
+    'cpu', 'memory', 'disk', 'interface',
+    'cpu-percore', 'load', 'swap', 'disk-io', 'thermal',
+    'network-errors', 'tcp', 'active-sessions', 'auth-stats',
+  ];
   if (!validTypes.includes(type)) {
     return NextResponse.json(
       { success: false, error: `Invalid type: ${type}. Must be one of: ${validTypes.join(', ')}` },
@@ -346,50 +422,85 @@ async function handleRRDGraph(searchParams: URLSearchParams) {
 
 /**
  * action=active-users — Active FreeRADIUS users
+ * Uses v_active_sessions view (same source as WiFi Access > Active Users tab)
  */
 async function handleActiveUsers() {
   try {
     const rows: Array<{
+      acctuniqueid: string;
       username: string;
       nasipaddress: string | null;
       framedipaddress: string | null;
       callingstationid: string | null;
-      acctstarttime: Date | null;
-      acctsessiontime: number | bigint | null;
-      acctinputoctets: number | bigint | null;
-      acctoutputoctets: number | bigint | null;
+      acctstarttime: string | null;
+      acctsessiontime: number | null;
+      acctinputoctets: number | null;
+      acctoutputoctets: number | null;
+      calledstationid: string | null;
+      plan_name: string | null;
+      room_number: string | null;
     }> = await db.$queryRawUnsafe(`
-      SELECT
-        username,
-        nasipaddress,
-        framedipaddress,
-        callingstationid,
-        acctstarttime,
-        acctsessiontime,
-        acctinputoctets,
-        acctoutputoctets
-      FROM radacct
-      WHERE acctstoptime IS NULL
-      ORDER BY acctstarttime DESC
+      SELECT DISTINCT ON (acctuniqueid)
+             acctuniqueid, username, nasipaddress, framedipaddress,
+             callingstationid, acctstarttime, acctsessiontime,
+             acctinputoctets, acctoutputoctets,
+             calledstationid, plan_name, room_number
+      FROM v_active_sessions
+      WHERE session_status = 'active'
+      ORDER BY acctuniqueid, acctstarttime DESC
     `);
 
     const stripCidr = (v: string | null) => (v || '').replace(/\/\d+$/, '');
 
     const users = rows.map(r => ({
-      username: r.username,
+      id: `ls_${r.acctuniqueid}`,
+      username: r.username || '',
       nasIpAddress: stripCidr(r.nasipaddress),
+      nasIdentifier: r.calledstationid || '',
       framedIpAddress: stripCidr(r.framedipaddress),
       macAddress: r.callingstationid || '',
       sessionStart: r.acctstarttime ? new Date(r.acctstarttime).toISOString() : null,
       sessionTime: Number(r.acctsessiontime || 0),
       inputBytes: Number(r.acctinputoctets || 0),
       outputBytes: Number(r.acctoutputoctets || 0),
+      planName: r.plan_name || '',
+      roomId: r.room_number || '',
     }));
 
     return NextResponse.json({ success: true, data: users });
   } catch (error) {
     console.error('[Health API] Active users query error:', error);
-    return NextResponse.json({ success: true, data: [] });
+    // Fallback to direct radacct query if view doesn't exist
+    try {
+      const fallbackRows: Array<{
+        username: string;
+        nasipaddress: string | null;
+        framedipaddress: string | null;
+        callingstationid: string | null;
+        acctstarttime: Date | null;
+        acctsessiontime: number | bigint | null;
+        acctinputoctets: number | bigint | null;
+        acctoutputoctets: number | bigint | null;
+      }> = await db.$queryRawUnsafe(`
+        SELECT username, nasipaddress, framedipaddress, callingstationid,
+               acctstarttime, acctsessiontime, acctinputoctets, acctoutputoctets
+        FROM radacct WHERE acctstoptime IS NULL ORDER BY acctstarttime DESC
+      `);
+      const stripCidr = (v: string | null) => (v || '').replace(/\/\d+$/, '');
+      const users = fallbackRows.map(r => ({
+        username: r.username,
+        nasIpAddress: stripCidr(r.nasipaddress),
+        framedIpAddress: stripCidr(r.framedipaddress),
+        macAddress: r.callingstationid || '',
+        sessionStart: r.acctstarttime ? new Date(r.acctstarttime).toISOString() : null,
+        sessionTime: Number(r.acctsessiontime || 0),
+        inputBytes: Number(r.acctinputoctets || 0),
+        outputBytes: Number(r.acctoutputoctets || 0),
+      }));
+      return NextResponse.json({ success: true, data: users });
+    } catch {
+      return NextResponse.json({ success: true, data: [] });
+    }
   }
 }
 

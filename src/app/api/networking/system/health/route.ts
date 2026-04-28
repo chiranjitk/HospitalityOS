@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
+import { getSystemMetrics } from '@/lib/system-metrics';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs';
+import os from 'os';
 
+const execFileAsync = promisify(execFile);
+
+/**
+ * GET /api/networking/system/health
+ *
+ * Returns real system health metrics from /proc filesystem.
+ * Falls back to live system calls when no DB record exists.
+ */
 export async function GET(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
@@ -10,7 +23,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const propertyId = searchParams.get('propertyId') || 'property-1';
 
-    // Check if we have real health data in the database
+    // Check if we have stored health data in the database
     const health = await db.systemNetworkHealth.findUnique({
       where: { propertyId },
     });
@@ -31,29 +44,101 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Return mock system health data
+    // No DB record — fetch LIVE metrics from the system (no mock/dummy data)
+    const snapshot = await getSystemMetrics();
+    const hostname = os.hostname();
+    const uptime = Math.floor(os.uptime());
+
+    // Read kernel version from /proc/version
+    let kernel = 'unknown';
+    try {
+      const procVersion = fs.readFileSync('/proc/version', 'utf-8');
+      const km = procVersion.match(/Linux version (\S+)/);
+      if (km) kernel = km[1];
+    } catch { /* ignore */ }
+
+    // Read CPU temperature from thermal zone (Rocky Linux / standard Linux)
+    let cpuTemperature: number | null = null;
+    try {
+      const thermalPaths = [
+        '/sys/class/thermal/thermal_zone0/temp',
+        '/sys/class/hwmon/hwmon0/temp1_input',
+      ];
+      for (const tp of thermalPaths) {
+        if (fs.existsSync(tp)) {
+          const raw = parseInt(fs.readFileSync(tp, 'utf-8').trim(), 10);
+          if (!isNaN(raw)) {
+            cpuTemperature = raw >= 1000 ? raw / 1000 : raw; // Some report in millidegrees
+            break;
+          }
+        }
+      }
+    } catch { /* ignore */ }
+
+    // Check service status via systemd or process checking
+    const services = await getServiceStatus();
+
     return NextResponse.json({
-      hostname: 'staysuite-gateway',
-      kernel: '6.1.0-17-amd64',
-      uptime: Math.floor(process.uptime()),
-      cpuUsage: 23.5,
-      ramTotal: 8192,
-      ramUsed: 3072,
-      diskTotal: 256000,
-      diskUsed: 89000,
-      cpuTemperature: 52.3,
-      services: {
-        freeradius: { running: true, pid: 1234 },
-        kea: { running: true, pid: 2345 },
-        dnsmasq: { running: true, pid: 3456 },
-        nftables: { running: true },
-        captivePortal: { running: true, pid: 4567 },
-        nginx: { running: true, pid: 5678 },
-        cron: { running: true, pid: 6789 },
-      },
+      hostname,
+      kernel,
+      uptime,
+      cpuUsage: snapshot.cpu.usage,
+      ramTotal: Math.round(snapshot.memory.total / (1024 * 1024)), // MB
+      ramUsed: Math.round(snapshot.memory.used / (1024 * 1024)),   // MB
+      diskTotal: Math.round(snapshot.disk.total / (1024 * 1024)),   // MB
+      diskUsed: Math.round(snapshot.disk.used / (1024 * 1024)),     // MB
+      cpuTemperature,
+      services,
       lastUpdated: new Date().toISOString(),
     });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch system health' }, { status: 500 });
   }
+}
+
+/**
+ * Check real service status using systemctl or process table.
+ */
+async function getServiceStatus(): Promise<Record<string, { running: boolean; pid?: number }>> {
+  const serviceNames = ['freeradius', 'kea-dhcp4', 'dnsmasq', 'nginx', 'cron'];
+  const result: Record<string, { running: boolean; pid?: number }> = {};
+
+  for (const svc of serviceNames) {
+    try {
+      // Try systemctl is-active first
+      const { stdout } = await execFileAsync('systemctl', ['is-active', svc], { timeout: 3000 });
+      const status = stdout.trim();
+      result[svc] = { running: status === 'active' };
+
+      // Get PID if running
+      if (status === 'active') {
+        try {
+          const { stdout: pidOut } = await execFileAsync('systemctl', ['show', svc, '--property=MainPID'], { timeout: 3000 });
+          const pidMatch = pidOut.match(/MainPID=(\d+)/);
+          if (pidMatch && parseInt(pidMatch[1], 10) > 0) {
+            result[svc].pid = parseInt(pidMatch[1], 10);
+          }
+        } catch { /* ignore pid fetch */ }
+      }
+    } catch {
+      // systemctl not available or service not found — check via pgrep
+      try {
+        const { stdout } = await execFileAsync('pgrep', ['-x', svc], { timeout: 2000 });
+        const pids = stdout.trim().split('\n').filter(Boolean);
+        result[svc] = { running: pids.length > 0, pid: pids.length > 0 ? parseInt(pids[0], 10) : undefined };
+      } catch {
+        result[svc] = { running: false };
+      }
+    }
+  }
+
+  // Check nftables (kernel module, not a systemd service)
+  try {
+    await execFileAsync('nft', ['list', 'ruleset'], { timeout: 3000 });
+    result['nftables'] = { running: true };
+  } catch {
+    result['nftables'] = { running: false };
+  }
+
+  return result;
 }

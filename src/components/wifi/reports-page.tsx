@@ -74,6 +74,7 @@ import {
   XCircle,
   Server,
   Cpu,
+  Database,
   HardDrive,
   MemoryStick,
   Shield,
@@ -1718,19 +1719,30 @@ function MiniSparkline({ data, color, width = 80, height = 28 }: { data: number[
   );
 }
 
-// --- Helper: format HH:MM:SS from epoch ---
+// --- Helper: format HH:MM:SS from epoch (handles both seconds and ms timestamps) ---
 function formatTime(ts: number): string {
-  const d = new Date(ts * 1000);
+  // Real-time history uses ms timestamps, RRD uses seconds
+  const ms = ts < 1e12 ? ts * 1000 : ts;
+  const d = new Date(ms);
   return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-// --- Helper: format Mbps ---
-function formatMbps(val: number): string {
-  if (val >= 1000) return `${(val / 1000).toFixed(1)} Gbps`;
-  if (val >= 1) return `${val.toFixed(1)} Mbps`;
-  if (val >= 0.001) return `${(val * 1000).toFixed(0)} Kbps`;
-  return `${val.toFixed(2)} Mbps`;
+// --- Helper: format bandwidth (input: bytes/sec → output: human-readable Kbps/Mbps/Gbps) ---
+function formatBandwidth(bytesPerSec: number): string {
+  // Convert bytes/sec to bits/sec, then to human-readable units
+  const bps = bytesPerSec * 8;
+  const gbps = bps / 1_000_000_000;
+  const mbps = bps / 1_000_000;
+  const kbps = bps / 1_000;
+  if (gbps >= 1) return `${gbps.toFixed(1)} Gbps`;
+  if (mbps >= 1) return `${mbps.toFixed(1)} Mbps`;
+  if (kbps >= 1) return `${kbps.toFixed(0)} Kbps`;
+  if (bytesPerSec > 0) return `${bytesPerSec.toFixed(0)} B/s`;
+  return '0 B/s';
 }
+
+// Keep formatMbps as alias for backward compat (re-export)
+const formatMbps = formatBandwidth;
 
 // --- Helper: format session time HH:MM:SS ---
 function formatSessionTime(seconds: number): string {
@@ -1821,8 +1833,28 @@ function SystemHealthTab() {
   const [memHistData, setMemHistData] = useState<any>(null);
   const [diskHistData, setDiskHistData] = useState<any>(null);
 
+  // New resource graphs state
+  const [loadRange, setLoadRange] = useState('24h');
+  const [swapRange, setSwapRange] = useState('24h');
+  const [diskIoRange, setDiskIoRange] = useState('24h');
+  const [thermalRange, setThermalRange] = useState('24h');
+  const [netErrRange, setNetErrRange] = useState('24h');
+  const [tcpRange, setTcpRange] = useState('24h');
+  const [loadHistData, setLoadHistData] = useState<any>(null);
+  const [swapHistData, setSwapHistData] = useState<any>(null);
+  const [diskIoHistData, setDiskIoHistData] = useState<any>(null);
+  const [thermalHistData, setThermalHistData] = useState<any>(null);
+  const [netErrHistData, setNetErrHistData] = useState<any>(null);
+  const [tcpHistData, setTcpHistData] = useState<any>(null);
+
   // User bandwidth graph
   const [userBwData, setUserBwData] = useState<any>(null);
+
+  // Active Users history graphs
+  const [sessionHistRange, setSessionHistRange] = useState('24h');
+  const [sessionHistData, setSessionHistData] = useState<any>(null);
+  const [authHistRange, setAuthHistRange] = useState('24h');
+  const [authHistData, setAuthHistData] = useState<any>(null);
 
   // --- Fetch metrics every 2s ---
   const fetchMetrics = useCallback(async () => {
@@ -1836,9 +1868,18 @@ function SystemHealthTab() {
           setSelectedIface(result.data.interfaces[0].name);
         }
         if (loading) setLoading(false);
+      } else {
+        // Log API errors for debugging (only first time)
+        if (loading) {
+          console.warn('[SystemHealth] metrics API error:', result.error);
+          setLoading(false);
+        }
       }
-    } catch {
-      if (loading) setLoading(false);
+    } catch (err) {
+      if (loading) {
+        console.warn('[SystemHealth] metrics fetch error:', err);
+        setLoading(false);
+      }
     }
   }, [selectedIface, loading]);
 
@@ -1906,18 +1947,37 @@ function SystemHealthTab() {
   // --- Fetch system resource history ---
   useEffect(() => {
     let cancelled = false;
-    const fetch = async (type: string, range: string, setter: (d: any) => void) => {
+    const loadGraph = async (type: string, range: string, setter: (d: any) => void) => {
       try {
-        const res = await fetch(`/api/wifi/health?action=rrd-graph&type=${type}&range=${range}`);
+        const res = await window.fetch(`/api/wifi/health?action=rrd-graph&type=${type}&range=${range}`);
         const result = await res.json();
         if (!cancelled && result.success) setter(result.data);
       } catch { /* silent */ }
     };
-    fetch('cpu', cpuRange, setCpuHistData);
-    fetch('memory', memRange, setMemHistData);
-    fetch('disk', diskRange, setDiskHistData);
+    loadGraph('cpu', cpuRange, setCpuHistData);
+    loadGraph('memory', memRange, setMemHistData);
+    loadGraph('disk', diskRange, setDiskHistData);
     return () => { cancelled = true; };
   }, [cpuRange, memRange, diskRange]);
+
+  // --- Fetch new resource history ---
+  useEffect(() => {
+    let cancelled = false;
+    const fetchRrd = async (type: string, range: string, setter: (d: any) => void) => {
+      try {
+        const res = await window.fetch(`/api/wifi/health?action=rrd-graph&type=${type}&range=${range}`);
+        const result = await res.json();
+        if (!cancelled && result.success) setter(result.data);
+      } catch { /* silent */ }
+    };
+    fetchRrd('load', loadRange, setLoadHistData);
+    fetchRrd('swap', swapRange, setSwapHistData);
+    fetchRrd('disk-io', diskIoRange, setDiskIoHistData);
+    fetchRrd('thermal', thermalRange, setThermalHistData);
+    fetchRrd('network-errors', netErrRange, setNetErrHistData);
+    fetchRrd('tcp', tcpRange, setTcpHistData);
+    return () => { cancelled = true; };
+  }, [loadRange, swapRange, diskIoRange, thermalRange, netErrRange, tcpRange]);
 
   // --- Fetch user bandwidth graph ---
   useEffect(() => {
@@ -1932,6 +1992,21 @@ function SystemHealthTab() {
     })();
     return () => { cancelled = true; };
   }, [selectedUser, userBwRange]);
+
+  // --- Fetch active sessions and auth history ---
+  useEffect(() => {
+    let cancelled = false;
+    const fetchRrd = async (type: string, range: string, setter: (d: any) => void) => {
+      try {
+        const res = await window.fetch(`/api/wifi/health?action=rrd-graph&type=${type}&range=${range}`);
+        const result = await res.json();
+        if (!cancelled && result.success) setter(result.data);
+      } catch { /* silent */ }
+    };
+    fetchRrd('active-sessions', sessionHistRange, setSessionHistData);
+    fetchRrd('auth-stats', authHistRange, setAuthHistData);
+    return () => { cancelled = true; };
+  }, [sessionHistRange, authHistRange]);
 
   // --- Acknowledge alert ---
   const handleAckAlert = async (alertId: string) => {
@@ -1993,6 +2068,15 @@ function SystemHealthTab() {
   const interfaces = metrics?.interfaces ?? [];
   const history = metrics?.history ?? {};
 
+  // New derived values
+  const loadAvg = metrics?.loadAvg ?? [0, 0, 0];
+  const swapPct = metrics?.swap?.percent ?? 0;
+  const cpuTemp = metrics?.thermal?.cpu_temp ?? 0;
+  const diskIoReads = metrics?.diskIo?.reads ?? 0;
+  const diskIoWrites = metrics?.diskIo?.writes ?? 0;
+  const netErrors = metrics?.netErrors ?? { rx_err: 0, tx_err: 0, rx_drop: 0, tx_drop: 0 };
+  const tcpStates = metrics?.tcp ?? { established: 0, time_wait: 0, close_wait: 0, syn_recv: 0 };
+
   // Build real-time bandwidth chart data (last 60 points)
   const bwChartData = useMemo(() => {
     if (!history?.timestamps?.length) return [];
@@ -2015,10 +2099,17 @@ function SystemHealthTab() {
     const ds = rrdData.data || {};
     return rrdData.timestamps.map((ts: number, i: number) => {
       const point: any = { time: formatTime(ts) };
+      let hasValid = false;
       Object.entries(ds).forEach(([key, arr]: [string, any]) => {
-        point[key] = arr?.[i] ?? 0;
+        const val = arr?.[i];
+        point[key] = (val !== null && val !== undefined && !isNaN(val)) ? Number(val) : 0;
+        if (point[key] !== 0) hasValid = true;
       });
       return point;
+    }).filter((point: any, idx: number, arr: any[]) => {
+      // Keep point if it's the last one or if next point is different (avoid duplicate timestamps)
+      if (idx === arr.length - 1) return true;
+      return point.time !== arr[idx + 1].time;
     });
   }, []);
 
@@ -2026,6 +2117,14 @@ function SystemHealthTab() {
   const cpuHistChartData = useMemo(() => buildRrdChartData(cpuHistData), [cpuHistData, buildRrdChartData]);
   const memHistChartData = useMemo(() => buildRrdChartData(memHistData), [memHistData, buildRrdChartData]);
   const diskHistChartData = useMemo(() => buildRrdChartData(diskHistData), [diskHistData, buildRrdChartData]);
+  const loadHistChartData = useMemo(() => buildRrdChartData(loadHistData), [loadHistData, buildRrdChartData]);
+  const swapHistChartData = useMemo(() => buildRrdChartData(swapHistData), [swapHistData, buildRrdChartData]);
+  const diskIoHistChartData = useMemo(() => buildRrdChartData(diskIoHistData), [diskIoHistData, buildRrdChartData]);
+  const thermalHistChartData = useMemo(() => buildRrdChartData(thermalHistData), [thermalHistData, buildRrdChartData]);
+  const netErrHistChartData = useMemo(() => buildRrdChartData(netErrHistData), [netErrHistData, buildRrdChartData]);
+  const tcpHistChartData = useMemo(() => buildRrdChartData(tcpHistData), [tcpHistData, buildRrdChartData]);
+  const sessionHistChartData = useMemo(() => buildRrdChartData(sessionHistData), [sessionHistData, buildRrdChartData]);
+  const authHistChartData = useMemo(() => buildRrdChartData(authHistData), [authHistData, buildRrdChartData]);
 
   // User BW chart data
   const userBwChartData = useMemo(() => {
@@ -2289,16 +2388,16 @@ function SystemHealthTab() {
               <div className="flex items-center justify-center h-[260px]"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : ifaceHistChartData.length > 0 ? (
               <ChartContainer config={{
-                download: { label: 'Download', color: '#14b8a6' },
-                upload: { label: 'Upload', color: '#f97316' },
+                rx: { label: 'Download (RX)', color: '#14b8a6' },
+                tx: { label: 'Upload (TX)', color: '#f97316' },
               }} className="h-[260px] w-full">
                 <LineChart data={ifaceHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
                   <XAxis dataKey="time" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatMbps(v)} width={70} />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatBandwidth(v)} width={70} />
                   <ChartTooltip content={<HealthChartTooltip />} />
-                  <Line type="monotone" dataKey="download" name="Download" stroke="#14b8a6" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="upload" name="Upload" stroke="#f97316" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="rx" name="Download (RX)" stroke="#14b8a6" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="tx" name="Upload (TX)" stroke="#f97316" strokeWidth={2} dot={false} />
                 </LineChart>
               </ChartContainer>
             ) : (
@@ -2360,7 +2459,7 @@ function SystemHealthTab() {
                 <RangeSelector value={cpuRange} onChange={setCpuRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
               </div>
               {cpuHistChartData.length > 0 ? (
-                <ChartContainer config={{ cpu: { label: 'CPU', color: '#14b8a6' } }} className="h-[160px] w-full">
+                <ChartContainer config={{ usage: { label: 'CPU', color: '#14b8a6' } }} className="h-[160px] w-full">
                   <AreaChart data={cpuHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="cpu-grad" x1="0" y1="0" x2="0" y2="1">
@@ -2371,7 +2470,7 @@ function SystemHealthTab() {
                     <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} width={40} />
                     <ChartTooltip content={<HealthChartTooltip unit="%" />} />
-                    <Area type="monotone" dataKey="cpu" name="CPU" stroke="#14b8a6" fill="url(#cpu-grad)" strokeWidth={1.5} dot={false} />
+                    <Area type="monotone" dataKey="usage" name="CPU" stroke="#14b8a6" fill="url(#cpu-grad)" strokeWidth={1.5} dot={false} />
                   </AreaChart>
                 </ChartContainer>
               ) : (
@@ -2398,7 +2497,7 @@ function SystemHealthTab() {
                 <RangeSelector value={memRange} onChange={setMemRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
               </div>
               {memHistChartData.length > 0 ? (
-                <ChartContainer config={{ memory: { label: 'RAM', color: '#f97316' } }} className="h-[160px] w-full">
+                <ChartContainer config={{ percent: { label: 'RAM', color: '#f97316' } }} className="h-[160px] w-full">
                   <AreaChart data={memHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="mem-grad" x1="0" y1="0" x2="0" y2="1">
@@ -2409,7 +2508,7 @@ function SystemHealthTab() {
                     <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} width={40} />
                     <ChartTooltip content={<HealthChartTooltip unit="%" />} />
-                    <Area type="monotone" dataKey="memory" name="RAM" stroke="#f97316" fill="url(#mem-grad)" strokeWidth={1.5} dot={false} />
+                    <Area type="monotone" dataKey="percent" name="RAM" stroke="#f97316" fill="url(#mem-grad)" strokeWidth={1.5} dot={false} />
                   </AreaChart>
                 </ChartContainer>
               ) : (
@@ -2436,7 +2535,7 @@ function SystemHealthTab() {
                 <RangeSelector value={diskRange} onChange={setDiskRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
               </div>
               {diskHistChartData.length > 0 ? (
-                <ChartContainer config={{ disk: { label: 'Disk', color: '#f43f5e' } }} className="h-[160px] w-full">
+                <ChartContainer config={{ percent: { label: 'Disk', color: '#f43f5e' } }} className="h-[160px] w-full">
                   <AreaChart data={diskHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="disk-grad" x1="0" y1="0" x2="0" y2="1">
@@ -2447,7 +2546,252 @@ function SystemHealthTab() {
                     <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} width={40} />
                     <ChartTooltip content={<HealthChartTooltip unit="%" />} />
-                    <Area type="monotone" dataKey="disk" name="Disk" stroke="#f43f5e" fill="url(#disk-grad)" strokeWidth={1.5} dot={false} />
+                    <Area type="monotone" dataKey="percent" name="Disk" stroke="#f43f5e" fill="url(#disk-grad)" strokeWidth={1.5} dot={false} />
+                  </AreaChart>
+                </ChartContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[160px] text-xs text-muted-foreground">No data</div>
+              )}
+            </CardContent>
+          </Card>
+          {/* Load Average */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-teal-500 dark:text-teal-400" /> Load Average
+                </CardTitle>
+                <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
+                  <span className="text-teal-600 dark:text-teal-400">{loadAvg[0]?.toFixed(2)}</span>
+                  <span className="text-orange-600 dark:text-orange-400">{loadAvg[1]?.toFixed(2)}</span>
+                  <span className="text-rose-600 dark:text-rose-400">{loadAvg[2]?.toFixed(2)}</span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>1m / 5m / 15m</span>
+                <RangeSelector value={loadRange} onChange={setLoadRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+              </div>
+              {loadHistChartData.length > 0 ? (
+                <ChartContainer config={{
+                  load1: { label: '1 min', color: '#14b8a6' },
+                  load5: { label: '5 min', color: '#f97316' },
+                  load15: { label: '15 min', color: '#f43f5e' },
+                }} className="h-[160px] w-full">
+                  <LineChart data={loadHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
+                    <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} width={40} />
+                    <ChartTooltip content={<HealthChartTooltip />} />
+                    <Line type="monotone" dataKey="load1" name="1 min" stroke="#14b8a6" strokeWidth={1.5} dot={false} />
+                    <Line type="monotone" dataKey="load5" name="5 min" stroke="#f97316" strokeWidth={1.5} dot={false} />
+                    <Line type="monotone" dataKey="load15" name="15 min" stroke="#f43f5e" strokeWidth={1.5} dot={false} />
+                  </LineChart>
+                </ChartContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[160px] text-xs text-muted-foreground">No data</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Swap */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Database className="h-4 w-4 text-amber-500 dark:text-amber-400" /> Swap
+                </CardTitle>
+                <span className={cn('text-2xl font-bold tabular-nums', getMetricColor(swapPct).text)}>{swapPct > 0 ? `${Math.round(swapPct)}%` : '—'}</span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 transition-all duration-700" style={{ width: `${swapPct}%` }} />
+              </div>
+              <div className="flex items-center justify-between">
+                <RangeSelector value={swapRange} onChange={setSwapRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+              </div>
+              {swapHistChartData.length > 0 ? (
+                <ChartContainer config={{ percent: { label: 'Swap', color: '#eab308' } }} className="h-[160px] w-full">
+                  <AreaChart data={swapHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="swap-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#eab308" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#eab308" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} width={40} />
+                    <ChartTooltip content={<HealthChartTooltip unit="%" />} />
+                    <Area type="monotone" dataKey="percent" name="Swap" stroke="#eab308" fill="url(#swap-grad)" strokeWidth={1.5} dot={false} />
+                  </AreaChart>
+                </ChartContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[160px] text-xs text-muted-foreground">No data</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Disk I/O */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Database className="h-4 w-4 text-teal-500 dark:text-teal-400" /> Disk I/O
+                </CardTitle>
+                <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
+                  <span className="text-teal-600 dark:text-teal-400">R: {formatBandwidth(diskIoReads)}</span>
+                  <span className="text-orange-600 dark:text-orange-400">W: {formatBandwidth(diskIoWrites)}</span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <RangeSelector value={diskIoRange} onChange={setDiskIoRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+              </div>
+              {diskIoHistChartData.length > 0 ? (
+                <ChartContainer config={{
+                  read_bytes: { label: 'Read', color: '#14b8a6' },
+                  write_bytes: { label: 'Write', color: '#f97316' },
+                }} className="h-[160px] w-full">
+                  <LineChart data={diskIoHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
+                    <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatBandwidth(v)} width={55} />
+                    <ChartTooltip content={<HealthChartTooltip />} />
+                    <Line type="monotone" dataKey="read_bytes" name="Read" stroke="#14b8a6" strokeWidth={1.5} dot={false} />
+                    <Line type="monotone" dataKey="write_bytes" name="Write" stroke="#f97316" strokeWidth={1.5} dot={false} />
+                  </LineChart>
+                </ChartContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[160px] text-xs text-muted-foreground">No data</div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Second row of resource cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* CPU Temperature */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Thermometer className="h-4 w-4 text-red-500 dark:text-red-400" /> CPU Temperature
+                </CardTitle>
+                <span className="text-2xl font-bold tabular-nums text-red-600 dark:text-red-400">{cpuTemp.toFixed(1)}°C</span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <RangeSelector value={thermalRange} onChange={setThermalRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+              </div>
+              {thermalHistChartData.length > 0 ? (
+                <ChartContainer config={{ cpu_temp: { label: 'CPU Temp', color: '#f43f5e' } }} className="h-[160px] w-full">
+                  <AreaChart data={thermalHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="thermal-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#f43f5e" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}°C`} width={40} />
+                    <ChartTooltip content={<HealthChartTooltip unit="°C" />} />
+                    <Area type="monotone" dataKey="cpu_temp" name="CPU Temp" stroke="#f43f5e" fill="url(#thermal-grad)" strokeWidth={1.5} dot={false} />
+                  </AreaChart>
+                </ChartContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[160px] text-xs text-muted-foreground">No data</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Network Errors */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-rose-500 dark:text-rose-400" /> Network Errors
+                </CardTitle>
+                <span className="text-2xl font-bold tabular-nums text-rose-600 dark:text-rose-400">
+                  {((netErrors.rx_err || 0) + (netErrors.tx_err || 0)).toLocaleString()}
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <RangeSelector value={netErrRange} onChange={setNetErrRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+              </div>
+              {netErrHistChartData.length > 0 ? (
+                <ChartContainer config={{
+                  rx_err: { label: 'RX Errors', color: '#f43f5e' },
+                  tx_err: { label: 'TX Errors', color: '#eab308' },
+                }} className="h-[160px] w-full">
+                  <LineChart data={netErrHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
+                    <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} width={45} />
+                    <ChartTooltip content={<HealthChartTooltip />} />
+                    <Line type="monotone" dataKey="rx_err" name="RX Errors" stroke="#f43f5e" strokeWidth={1.5} dot={false} />
+                    <Line type="monotone" dataKey="tx_err" name="TX Errors" stroke="#eab308" strokeWidth={1.5} dot={false} />
+                  </LineChart>
+                </ChartContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[160px] text-xs text-muted-foreground">No data</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* TCP Connections */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Network className="h-4 w-4 text-teal-500 dark:text-teal-400" /> TCP Connections
+                </CardTitle>
+                <span className="text-2xl font-bold tabular-nums text-teal-600 dark:text-teal-400">{tcpStates.established?.toLocaleString() ?? 0}</span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <RangeSelector value={tcpRange} onChange={setTcpRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+              </div>
+              {tcpHistChartData.length > 0 ? (
+                <ChartContainer config={{
+                  established: { label: 'Established', color: '#14b8a6' },
+                  time_wait: { label: 'Time Wait', color: '#eab308' },
+                  close_wait: { label: 'Close Wait', color: '#f43f5e' },
+                  syn_recv: { label: 'SYN Recv', color: '#8b5cf6' },
+                }} className="h-[160px] w-full">
+                  <AreaChart data={tcpHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="tcp-est-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.02} />
+                      </linearGradient>
+                      <linearGradient id="tcp-tw-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#eab308" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#eab308" stopOpacity={0.02} />
+                      </linearGradient>
+                      <linearGradient id="tcp-cw-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#f43f5e" stopOpacity={0.02} />
+                      </linearGradient>
+                      <linearGradient id="tcp-syn-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
+                    <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} width={40} />
+                    <ChartTooltip content={<HealthChartTooltip />} />
+                    <Area type="monotone" dataKey="syn_recv" name="SYN Recv" stroke="#8b5cf6" fill="url(#tcp-syn-grad)" stackId="tcp" strokeWidth={1} dot={false} />
+                    <Area type="monotone" dataKey="close_wait" name="Close Wait" stroke="#f43f5e" fill="url(#tcp-cw-grad)" stackId="tcp" strokeWidth={1} dot={false} />
+                    <Area type="monotone" dataKey="time_wait" name="Time Wait" stroke="#eab308" fill="url(#tcp-tw-grad)" stackId="tcp" strokeWidth={1} dot={false} />
+                    <Area type="monotone" dataKey="established" name="Established" stroke="#14b8a6" fill="url(#tcp-est-grad)" stackId="tcp" strokeWidth={1.5} dot={false} />
                   </AreaChart>
                 </ChartContainer>
               ) : (
@@ -2596,6 +2940,80 @@ function SystemHealthTab() {
             </CardContent>
           </Card>
         )}
+
+        {/* Active Sessions History */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-4 w-4 text-teal-500 dark:text-teal-400" /> Active Sessions — History
+              </CardTitle>
+              <RangeSelector value={sessionHistRange} onChange={setSessionHistRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {sessionHistChartData.length > 0 ? (
+              <ChartContainer config={{ count: { label: 'Sessions', color: '#14b8a6' } }} className="h-[260px] w-full">
+                <AreaChart data={sessionHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="session-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
+                  <XAxis dataKey="time" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
+                  <ChartTooltip content={<HealthChartTooltip />} />
+                  <Area type="monotone" dataKey="count" name="Sessions" stroke="#14b8a6" fill="url(#session-grad)" strokeWidth={2} dot={false} />
+                </AreaChart>
+              </ChartContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">No session history data</div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Authentication Stats */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Shield className="h-4 w-4 text-emerald-500 dark:text-emerald-400" /> Authentication Stats
+              </CardTitle>
+              <RangeSelector value={authHistRange} onChange={setAuthHistRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {authHistChartData.length > 0 ? (
+              <ChartContainer config={{
+                accept: { label: 'Accept', color: '#10b981' },
+                reject: { label: 'Reject', color: '#f43f5e' },
+              }} className="h-[260px] w-full">
+                <AreaChart data={authHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="auth-accept-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
+                    </linearGradient>
+                    <linearGradient id="auth-reject-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#f43f5e" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
+                  <XAxis dataKey="time" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
+                  <ChartTooltip content={<HealthChartTooltip />} />
+                  <Area type="monotone" dataKey="accept" name="Accept" stroke="#10b981" fill="url(#auth-accept-grad)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="reject" name="Reject" stroke="#f43f5e" fill="url(#auth-reject-grad)" strokeWidth={2} dot={false} />
+                </AreaChart>
+              </ChartContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">No authentication stats data</div>
+            )}
+          </CardContent>
+        </Card>
       </TabsContent>
 
       {/* ==================== SUB-TAB 5: ALERTS ==================== */}

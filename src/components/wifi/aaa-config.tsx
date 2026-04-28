@@ -1057,37 +1057,30 @@ export default function AAAConfig() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="flex-nowrap w-full max-w-5xl overflow-x-auto snap-x snap-mandatory no-scrollbar h-auto">
-          <TabsTrigger value="status" className="flex-none flex items-center gap-1.5 text-xs sm:text-sm min-h-[44px] shrink-0 snap-start">
+        <TabsList className="flex w-full max-w-5xl h-auto p-1 overflow-x-auto no-scrollbar">
+          <TabsTrigger value="status" className="shrink-0 snap-start">
             <Server className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Status</span>
-            <span className="sm:hidden">Stat</span>
+            Status
           </TabsTrigger>
-          <TabsTrigger value="nas" className="flex-none flex items-center gap-1.5 text-xs sm:text-sm min-h-[44px] shrink-0 snap-start">
+          <TabsTrigger value="nas" className="shrink-0 snap-start">
             <Wifi className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">NAS Clients</span>
-            <span className="sm:hidden">NAS</span>
+            NAS Clients
           </TabsTrigger>
-          <TabsTrigger value="authentication" className="flex-none flex items-center gap-1.5 text-xs sm:text-sm min-h-[44px] shrink-0 snap-start">
+          <TabsTrigger value="authentication" className="shrink-0 snap-start">
             <Shield className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Auth</span>
-            <span className="sm:hidden">Auth</span>
+            Auth
           </TabsTrigger>
-          <TabsTrigger value="credentials" className="flex-none flex items-center gap-1.5 text-xs sm:text-sm min-h-[44px] shrink-0 snap-start">
+          <TabsTrigger value="credentials" className="shrink-0 snap-start">
             <UserCog className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Credentials</span>
-            <span className="sm:hidden">Cred</span>
+            Credentials
           </TabsTrigger>
-          <TabsTrigger value="authorization" className="flex-none flex items-center gap-1.5 text-xs sm:text-sm min-h-[44px] shrink-0 snap-start">
+          <TabsTrigger value="authorization" className="shrink-0 snap-start">
             <Key className="h-3.5 w-3.5" />
-            <span className="hidden md:inline">Authorization</span>
-            <span className="md:hidden sm:inline">Author</span>
-            <span className="sm:hidden">Authz</span>
+            Authorization
           </TabsTrigger>
-          <TabsTrigger value="accounting" className="flex-none flex items-center gap-1.5 text-xs sm:text-sm min-h-[44px] shrink-0 snap-start">
+          <TabsTrigger value="accounting" className="shrink-0 snap-start">
             <Database className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Accounting</span>
-            <span className="sm:hidden">Acct</span>
+            Accounting
           </TabsTrigger>
         </TabsList>
 

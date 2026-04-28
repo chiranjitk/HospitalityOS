@@ -166,7 +166,6 @@ export async function fetchRRD(
     '--json',
     '--start', String(start),
     '--end', String(end),
-    '--cf', cf,
   ];
 
   if (resolution && resolution > 0) {
@@ -197,14 +196,23 @@ export async function fetchRRD(
     }
 
     // Parse data columns
+    // rrdtool xport --json: data rows contain DS values only (no timestamps)
+    // Timestamps computed from meta.start + idx * meta.step
     if (parsed.data) {
       const timestamps: number[] = [];
-      parsed.data.forEach((row: number[]) => {
-        timestamps.push(row[0]);
-        for (let i = 1; i < row.length; i++) {
-          const key = dsNames[i - 1];
+      const metaStart = parsed.meta?.start ?? start;
+      const metaStep = parsed.meta?.step ?? 60;
+      parsed.data.forEach((row: number[], idx: number) => {
+        timestamps.push(metaStart + idx * metaStep);
+        for (let i = 0; i < dsNames.length; i++) {
+          const key = dsNames[i];
           if (key && data[key]) {
-            data[key].push(row[i] !== null ? row[i] : 0);
+            const val = row[i];
+            if (val !== null && val !== undefined && !isNaN(Number(val))) {
+              data[key].push(Number(val));
+            } else {
+              data[key].push(0);
+            }
           }
         }
       });

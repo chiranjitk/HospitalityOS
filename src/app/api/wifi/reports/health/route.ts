@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
-import crypto from 'crypto';
+import { getSystemMetrics } from '@/lib/system-metrics';
+import os from 'os';
+import fs from 'fs';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 
-// GET /api/wifi/reports/health - System health metrics
+const execFileAsync = promisify(execFile);
+
+// GET /api/wifi/reports/health - System health metrics (100% real from /proc)
 export async function GET(request: NextRequest) {
   const user = await requirePermission(request, 'reports.view');
   if (user instanceof NextResponse) return user;
@@ -35,12 +41,12 @@ export async function GET(request: NextRequest) {
           }
 
           const systemInfo = {
-            hostname: health.hostname || 'staysuite-gw-01',
-            kernel: health.kernelVersion || 'Linux 5.15.0-91-generic',
-            uptime: health.uptime || 864000,
-            cpuModel: health.cpuTemperature ? 'Intel(R) Xeon(R) E-2388G @ 3.2GHz' : 'ARM Cortex-A72 @ 1.5GHz',
-            totalRam: health.ramTotal || 16384,
-            cpuCores: 8,
+            hostname: health.hostname || os.hostname(),
+            kernel: health.kernelVersion || getKernelVersion(),
+            uptime: health.uptime || Math.floor(os.uptime()),
+            cpuModel: os.cpus()[0]?.model || 'Unknown',
+            totalRam: health.ramTotal || Math.round(os.totalmem() / (1024 * 1024)),
+            cpuCores: os.cpus().length,
           };
 
           const resources = {
@@ -57,86 +63,55 @@ export async function GET(request: NextRequest) {
             version: info.version,
           }));
 
-          const interfaceTraffic = [
-            { name: 'eth0', rx: 125000000000, tx: 45000000000, history: [30, 45, 55, 40, 60, 50, 45, 65, 55, 70, 60, 50] },
-            { name: 'eth1', rx: 80000000000, tx: 30000000000, history: [20, 35, 40, 30, 45, 35, 30, 50, 40, 55, 45, 35] },
-            { name: 'wlan0', rx: 200000000000, tx: 80000000000, history: [40, 55, 70, 60, 75, 65, 55, 80, 70, 85, 75, 65] },
-            { name: 'wlan1', rx: 150000000000, tx: 55000000000, history: [25, 40, 50, 35, 55, 45, 35, 60, 50, 65, 55, 45] },
-          ];
-
-          const alerts = [
-            { id: 'a1', severity: 'warning', icon: 'AlertTriangle', message: 'CPU usage exceeded 80% threshold briefly', time: '2h ago' },
-            { id: 'a2', severity: 'info', icon: 'Activity', message: 'FreeRADIUS service restarted automatically', time: '6h ago' },
-            { id: 'a3', severity: 'success', icon: 'CheckCircle2', message: 'System backup completed successfully', time: '1d ago' },
-          ];
-
           return NextResponse.json({
             success: true,
             data: {
               systemInfo,
               resources,
               services: serviceList,
-              interfaceTraffic,
-              alerts,
+              interfaceTraffic: [], // Populated from real-time API
+              alerts: [],
             },
           });
         }
       }
     }
 
-    // Fallback: Return deterministic default health data (no Math.random)
-    const hourOfDay = new Date().getHours();
-    const cpuUsage = 35 + (hourOfDay * 1.2) % 30; // deterministic based on time of day
-    const ramUsage = 55 + (hourOfDay * 0.8) % 20;
-    const diskUsage = 42 + (hourOfDay * 0.5) % 15;
+    // Fallback: Use REAL system metrics from /proc (no simulated data)
+    const snapshot = await getSystemMetrics();
 
     const systemInfo = {
-      hostname: 'staysuite-gw-01',
-      kernel: 'Linux 5.15.0-91-generic',
-      uptime: 864000 + Math.floor((Date.now() / 1000) % 3600), // deterministic
-      cpuModel: 'Intel(R) Xeon(R) E-2388G @ 3.2GHz',
-      totalRam: 16384,
-      cpuCores: 8,
+      hostname: os.hostname(),
+      kernel: getKernelVersion(),
+      uptime: Math.floor(os.uptime()),
+      cpuModel: os.cpus()[0]?.model || 'Unknown',
+      totalRam: Math.round(os.totalmem() / (1024 * 1024)),
+      cpuCores: os.cpus().length,
     };
 
     const resources = {
-      cpu: Math.round(cpuUsage),
-      ram: Math.round(ramUsage),
-      disk: Math.round(diskUsage),
+      cpu: Math.round(snapshot.cpu.usage),
+      ram: Math.round(snapshot.memory.percent),
+      disk: Math.round(snapshot.disk.percent),
     };
 
-    const services = [
-      { name: 'FreeRADIUS', status: 'running', pid: 1234, uptime: 864000, version: '3.2.3', rulesCount: 45, activeConnections: 127 },
-      { name: 'Kea DHCP', status: 'running', pid: 2345, uptime: 864000, version: '2.2.0', activeConnections: 83 },
-      { name: 'Nginx', status: 'running', pid: 3456, uptime: 864000, version: '1.24.0', rulesCount: 12 },
-      { name: 'Captive Portal', status: 'running', pid: 4567, uptime: 864000, version: '2.1.0' },
-      { name: 'Iptables', status: 'running', pid: 5678, uptime: 864000, version: '1.8.7', rulesCount: 156, activeConnections: 342 },
-      { name: 'DNS Resolver', status: 'running', pid: 6789, uptime: 864000, version: '9.18.18' },
-      { name: 'Bandwidth Monitor', status: 'loaded', pid: 7890, uptime: 432000, version: '1.4.2' },
-      { name: 'Log Forwarder', status: 'running', pid: 8901, uptime: 864000, version: '3.5.1' },
-    ];
-
-    const interfaceTraffic = [
-      { name: 'eth0', rx: 125000000000, tx: 45000000000, history: [30, 45, 55, 40, 60, 50, 45, 65, 55, 70, 60, 50] },
-      { name: 'eth1', rx: 80000000000, tx: 30000000000, history: [20, 35, 40, 30, 45, 35, 30, 50, 40, 55, 45, 35] },
-      { name: 'wlan0', rx: 200000000000, tx: 80000000000, history: [40, 55, 70, 60, 75, 65, 55, 80, 70, 85, 75, 65] },
-      { name: 'wlan1', rx: 150000000000, tx: 55000000000, history: [25, 40, 50, 35, 55, 45, 35, 60, 50, 65, 55, 45] },
-    ];
-
-    const alerts = [
-      { id: 'a1', severity: 'warning', icon: 'AlertTriangle', message: 'CPU usage exceeded 80% threshold briefly', time: '2h ago' },
-      { id: 'a2', severity: 'info', icon: 'Activity', message: 'FreeRADIUS service restarted automatically', time: '6h ago' },
-      { id: 'a3', severity: 'success', icon: 'CheckCircle2', message: 'System backup completed successfully', time: '1d ago' },
-    ];
+    // Build interface traffic from real snapshot
+    const interfaceTraffic = snapshot.interfaces.map(iface => ({
+      name: iface.name,
+      rx: iface.rxBytes,
+      tx: iface.txBytes,
+      rxSpeed: iface.rxSpeed,  // bytes/sec
+      txSpeed: iface.txSpeed,  // bytes/sec
+    }));
 
     return NextResponse.json({
       success: true,
       data: {
         systemInfo,
         resources,
-        services,
+        services: [],
         interfaceTraffic,
-        alerts,
+        alerts: [],
       },
     });
   } catch (error) {
@@ -145,5 +120,18 @@ export async function GET(request: NextRequest) {
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch system health' } },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Read kernel version from /proc/version
+ */
+function getKernelVersion(): string {
+  try {
+    const content = fs.readFileSync('/proc/version', 'utf-8');
+    const match = content.match(/Linux version (\S+)/);
+    return match ? `Linux ${match[1]}` : 'Linux';
+  } catch {
+    return 'Linux';
   }
 }
