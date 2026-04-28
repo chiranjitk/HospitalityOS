@@ -80,7 +80,9 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
       if (user.isPlatformAdmin) return true;
       // SaaS menus are exclusive to platform admin
       if (menuItemId.startsWith('saas-')) return false;
-      // Admin role or wildcard permission has access to everything
+      // Admin menus are exclusive to platform admin (cross-tenant operations)
+      if (menuItemId.startsWith('admin-')) return false;
+      // Admin role or wildcard permission has access to everything else
       if (isAdmin || permissions.includes('*')) return true;
       return hasMenuAccess(permissions, menuItemId);
     },
@@ -91,9 +93,9 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
     if (!user) return [];
     // Platform admin has access to all menus
     if (user.isPlatformAdmin) return Object.keys(menuPermissions);
-    // SaaS menus are exclusive to platform admin
+    // SaaS and Admin menus are exclusive to platform admin
     if (isAdmin || permissions.includes('*')) {
-      return Object.keys(menuPermissions).filter(id => !id.startsWith('saas-'));
+      return Object.keys(menuPermissions).filter(id => !id.startsWith('saas-') && !id.startsWith('admin-'));
     }
     return Object.keys(menuPermissions).filter(menuId =>
       hasMenuAccess(permissions, menuId)

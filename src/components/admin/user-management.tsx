@@ -187,7 +187,7 @@ export function UserManagement() {
   const fetchTenants = async () => {
     if (!isPlatformAdmin) return;
     try {
-      const response = await fetch('/api/tenants');
+      const response = await fetch('/api/admin/tenants');
       if (!response.ok) return; // Silently fail - tenant list is optional for platform admins
       const data = await response.json();
       setTenants((data.data?.tenants || data.tenants || []).map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })));
@@ -342,6 +342,14 @@ export function UserManagement() {
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
 
+    // Prevent self-delete
+    if (selectedUser.id === currentUser?.id) {
+      toast.error('You cannot delete your own account');
+      setIsDeleteDialogOpen(false);
+      setSelectedUser(null);
+      return;
+    }
+
     try {
       setIsSaving(true);
       const response = await fetch(`/api/users/${selectedUser.id}`, {
@@ -402,6 +410,11 @@ export function UserManagement() {
   };
 
   const handleToggleStatus = async (user: User) => {
+    // Prevent self-deactivation
+    if (user.id === currentUser?.id) {
+      toast.error('You cannot deactivate your own account');
+      return;
+    }
     const newStatus = user.status === 'active' ? 'inactive' : 'active';
     try {
       const response = await fetch(`/api/users/${user.id}`, {
@@ -752,10 +765,11 @@ export function UserManagement() {
                                 setSelectedUser(user);
                                 setIsDeleteDialogOpen(true);
                               }}
+                              disabled={user.id === currentUser?.id}
                               className="text-red-600 dark:text-red-400"
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
-                              Delete User
+                              {user.id === currentUser?.id ? 'Cannot Delete Self' : 'Delete User'}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

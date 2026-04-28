@@ -113,7 +113,7 @@ export function RevenueAnalytics() {
         <Card className="border-l-4 border-l-amber-500">
           <CardHeader className="pb-2">
             <CardDescription>Revenue Growth</CardDescription>
-            <CardTitle className="text-2xl">+{revenueData.overview.growth}%</CardTitle>
+            <CardTitle className="text-2xl">{revenueData.overview.growth >= 0 ? '+' : ''}{revenueData.overview.growth}%</CardTitle>
           </CardHeader>
         </Card>
         <Card className="border-l-4 border-l-amber-500">

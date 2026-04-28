@@ -114,6 +114,13 @@ export function TenantManagement() {
       toast.error('Name, slug, and email are required');
       return;
     }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editTenant.email)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
     
     setSaving(true);
     try {
@@ -134,7 +141,7 @@ export function TenantManagement() {
           setTenants([...tenants, data.data]);
           toast.success('Tenant created successfully');
         } else {
-          setTenants(tenants.map(t => t.id === editTenant.id ? editTenant : t));
+          setTenants(tenants.map(t => t.id === editTenant.id ? { ...t, ...data.data } : t));
           toast.success('Tenant updated successfully');
         }
         setDialogOpen(false);
