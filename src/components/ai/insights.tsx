@@ -5,7 +5,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Lightbulb, TrendingUp, AlertTriangle, Sparkles, Check, X } from 'lucide-react';
+import { Loader2, Lightbulb, TrendingUp, AlertTriangle, Sparkles, Check, X, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AIInsight {
@@ -26,12 +26,14 @@ export default function AIInsights() {
   const [insights, setInsights] = useState<AIInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, opportunities: 0, alerts: 0, totalPotentialRevenue: 0 });
+  const [activeFilter, setActiveFilter] = useState('all');
 
   useEffect(() => {
     fetchInsights();
   }, []);
 
   const fetchInsights = async () => {
+    setLoading(true);
     try {
       const response = await fetch('/api/ai/insights');
       const data = await response.json();
@@ -105,7 +107,7 @@ export default function AIInsights() {
     alert: 'from-red-500/20 to-rose-500/20',
     insight: 'from-cyan-500/20 to-teal-500/20',
     recommendation: 'from-amber-500/20 to-orange-500/20',
-    prediction: 'from-violet-500/20 to-purple-500/20',
+    prediction: 'from-teal-500/20 to-emerald-500/20',
   };
 
   const impactColors = {
@@ -123,6 +125,9 @@ export default function AIInsights() {
   }
 
   const activeInsights = insights.filter(i => i.status === 'active');
+  const filteredInsights = activeFilter === 'all'
+    ? activeInsights
+    : activeInsights.filter(i => i.category === activeFilter);
 
   return (
     <div className="space-y-6">
@@ -132,6 +137,10 @@ export default function AIInsights() {
           <h2 className="text-2xl font-bold tracking-tight">AI Insights</h2>
           <p className="text-muted-foreground">AI-powered recommendations and opportunities</p>
         </div>
+        <Button variant="outline" size="sm" onClick={fetchInsights} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -154,7 +163,7 @@ export default function AIInsights() {
             <CardTitle className="text-2xl">{stats.alerts}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="border-l-4 border-l-violet-500">
+        <Card className="border-l-4 border-l-teal-500">
           <CardHeader className="pb-2">
             <CardDescription>Potential Revenue</CardDescription>
             <CardTitle className="text-2xl">{formatCurrency(stats.totalPotentialRevenue)}</CardTitle>
@@ -162,9 +171,23 @@ export default function AIInsights() {
         </Card>
       </div>
 
+      {/* Category Filter */}
+      <div className="flex flex-wrap gap-2">
+        {['all', 'revenue', 'operations', 'guest'].map(cat => (
+          <Button
+            key={cat}
+            variant={activeFilter === cat ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveFilter(cat)}
+          >
+            {cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1)}
+          </Button>
+        ))}
+      </div>
+
       {/* Insights Grid */}
       <div className="grid gap-4">
-        {activeInsights.map((insight) => {
+        {filteredInsights.map((insight) => {
           const Icon = typeIcons[insight.type];
           return (
             <Card key={insight.id} className="overflow-hidden">
@@ -211,11 +234,13 @@ export default function AIInsights() {
         })}
       </div>
 
-      {activeInsights.length === 0 && (
+      {filteredInsights.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
             <Lightbulb className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <p className="text-muted-foreground">No active insights at the moment</p>
+            <p className="text-muted-foreground">
+              {activeFilter === 'all' ? 'No active insights at the moment' : `No active ${activeFilter} insights at the moment`}
+            </p>
           </CardContent>
         </Card>
       )}

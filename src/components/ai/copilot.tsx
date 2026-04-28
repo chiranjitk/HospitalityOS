@@ -5,8 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Bot, Send, User, Lightbulb, Sparkles, Copy, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Loader2, Bot, Send, User, Lightbulb, Sparkles, Copy, ThumbsUp, ThumbsDown, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Message {
@@ -25,6 +24,26 @@ const suggestedPrompts = [
   "Which guests have special requests today?",
   "What are the top performing room types?",
 ];
+
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/on\w+="[^"]*"/gi, '')
+    .replace(/on\w+='[^']*'/gi, '');
+}
+
+function SimpleMarkdown({ content }: { content: string }) {
+  const html = content
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`(.*?)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-sm">$1</code>')
+    .replace(/^- (.*?)$/gm, '<li class="ml-4">$1</li>')
+    .replace(/(<li.*<\/li>)/s, '<ul class="list-disc">$1</ul>')
+    .replace(/\n\n/g, '<br/><br/>')
+    .replace(/\n/g, '<br/>');
+
+  return <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />;
+}
 
 export default function AICopilot() {
   const [messages, setMessages] = useState<Message[]>([
@@ -45,6 +64,16 @@ export default function AICopilot() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  const handleNewChat = () => {
+    setMessages([{
+      id: Date.now().toString(),
+      role: 'assistant',
+      content: "Hello! I'm your AI Copilot for StaySuite. I can help you with:\n\n• **Booking Management**: Search bookings, check availability, modify reservations\n• **Guest Services**: Guest lookup, preferences, special requests\n• **Operations**: Room status, housekeeping tasks, maintenance alerts\n• **Analytics**: Revenue reports, occupancy trends, performance metrics\n\nHow can I assist you today?",
+      timestamp: new Date(),
+      suggestions: suggestedPrompts.slice(0, 3),
+    }]);
+  };
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -120,9 +149,13 @@ export default function AICopilot() {
     setInput(suggestion);
   };
 
-  const handleCopy = (content: string) => {
-    navigator.clipboard.writeText(content);
-    toast.success('Copied to clipboard');
+  const handleCopy = async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      toast.success('Copied to clipboard');
+    } catch {
+      toast.error('Failed to copy to clipboard');
+    }
   };
 
   const handleFeedback = async (messageId: string, positive: boolean) => {
@@ -153,9 +186,13 @@ export default function AICopilot() {
           <p className="text-muted-foreground">Your intelligent hospitality assistant</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleNewChat}>
+            <Plus className="h-4 w-4 mr-1" />
+            New Chat
+          </Button>
           <Badge variant="outline" className="gap-1">
             <Sparkles className="h-3 w-3" />
-            GPT-4 Powered
+            AI Powered
           </Badge>
         </div>
       </div>
@@ -163,7 +200,7 @@ export default function AICopilot() {
       {/* Chat Area */}
       <Card className="flex-1 flex flex-col min-h-0">
         <CardContent className="flex-1 flex flex-col p-0 min-h-0">
-          <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+          <div className="flex-1 overflow-y-auto p-4" ref={scrollRef}>
             <div className="space-y-4">
               {messages.map((message) => (
                 <div
@@ -183,8 +220,12 @@ export default function AICopilot() {
                           : 'bg-muted'
                       }`}
                     >
-                      <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
-                        {message.content}
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        {message.role === 'assistant' ? (
+                          <SimpleMarkdown content={message.content} />
+                        ) : (
+                          <span className="whitespace-pre-wrap">{message.content}</span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
@@ -221,7 +262,7 @@ export default function AICopilot() {
                     )}
                   </div>
                   {message.role === 'user' && (
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center flex-shrink-0">
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center flex-shrink-0">
                       <User className="h-4 w-4 text-white" />
                     </div>
                   )}
@@ -238,7 +279,7 @@ export default function AICopilot() {
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           {/* Input Area */}
           <div className="border-t p-4">

@@ -45,6 +45,14 @@ export async function POST(request: NextRequest) {
     const body: CopilotRequest = await request.json();
     const { messages, context, action, query } = body;
 
+    // Validate messages array
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'messages array is required' } },
+        { status: 400 }
+      );
+    }
+
     const tenantId = user.tenantId;
     const aiContext: AIContext = {
       tenantId,
