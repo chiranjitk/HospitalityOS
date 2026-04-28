@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,10 +22,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { 
-  Zap, Plus, Search, Edit, Trash2, Play, Pause, Settings,
-  Clock, CheckCircle, XCircle, AlertCircle, Copy
+  Zap, Plus, Search, Edit, Trash2, Play, Pause,
+  Clock, CheckCircle, XCircle, AlertCircle, Copy, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { SectionGuard } from '@/components/common/section-guard';
 
 interface AutomationRule {
   id: string;
@@ -55,6 +56,13 @@ interface TriggerEvent {
   description: string;
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object' && 'message' in error) {
+    return (error as { message: string }).message;
+  }
+  return String(error);
+}
+
 export default function RulesEngine() {
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [stats, setStats] = useState<RuleStats>({
@@ -71,6 +79,9 @@ export default function RulesEngine() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
   const [deleteRuleId, setDeleteRuleId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isToggling, setIsToggling] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -83,11 +94,9 @@ export default function RulesEngine() {
   });
   const [newAction, setNewAction] = useState({ type: '', config: {} });
 
-  useEffect(() => {
-    fetchRules();
-  }, [search, statusFilter]);
+  const debounceRef = useRef<NodeJS.Timeout>();
 
-  const fetchRules = async () => {
+  const fetchRules = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -95,6 +104,7 @@ export default function RulesEngine() {
       if (statusFilter && statusFilter !== 'all') params.append('isActive', statusFilter);
 
       const response = await fetch(`/api/automation/rules?${params}`);
+      if (!response.ok) throw new Error('Request failed');
       const data = await response.json();
 
       if (data.success) {
@@ -108,17 +118,34 @@ export default function RulesEngine() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, statusFilter]);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchRules();
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [fetchRules]);
 
   const handleOpenDialog = (rule?: AutomationRule) => {
     if (rule) {
       setEditingRule(rule);
+      let parsedActions: Array<{ type: string; config: Record<string, unknown> }> = [];
+      try {
+        parsedActions = JSON.parse(rule.actions);
+        if (!Array.isArray(parsedActions)) parsedActions = [];
+      } catch {
+        parsedActions = [];
+      }
       setFormData({
         name: rule.name,
         description: rule.description || '',
         triggerEvent: rule.triggerEvent,
         triggerConditions: rule.triggerConditions || '',
-        actions: JSON.parse(rule.actions),
+        actions: parsedActions,
         isActive: rule.isActive,
       });
     } else {
@@ -166,6 +193,17 @@ export default function RulesEngine() {
       return;
     }
 
+    // Validate triggerConditions JSON
+    if (formData.triggerConditions.trim()) {
+      try {
+        JSON.parse(formData.triggerConditions);
+      } catch {
+        toast.error('Trigger conditions must be valid JSON');
+        return;
+      }
+    }
+
+    setIsSaving(true);
     try {
       const url = '/api/automation/rules';
       const method = editingRule ? 'PUT' : 'POST';
@@ -179,6 +217,7 @@ export default function RulesEngine() {
         body: JSON.stringify(body),
       });
 
+      if (!response.ok) throw new Error('Request failed');
       const data = await response.json();
 
       if (data.success) {
@@ -186,15 +225,18 @@ export default function RulesEngine() {
         handleCloseDialog();
         fetchRules();
       } else {
-        toast.error(data.error.message);
+        toast.error(getErrorMessage(data.error));
       }
     } catch (error) {
       console.error('Error saving rule:', error);
       toast.error('Failed to save rule');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleToggleActive = async (rule: AutomationRule) => {
+    setIsToggling(rule.id);
     try {
       const response = await fetch('/api/automation/rules', {
         method: 'PUT',
@@ -202,17 +244,20 @@ export default function RulesEngine() {
         body: JSON.stringify({ id: rule.id, isActive: !rule.isActive }),
       });
 
+      if (!response.ok) throw new Error('Request failed');
       const data = await response.json();
 
       if (data.success) {
         toast.success(rule.isActive ? 'Rule paused' : 'Rule activated');
         fetchRules();
       } else {
-        toast.error(data.error.message);
+        toast.error(getErrorMessage(data.error));
       }
     } catch (error) {
       console.error('Error toggling rule:', error);
       toast.error('Failed to update rule');
+    } finally {
+      setIsToggling(null);
     }
   };
 
@@ -223,20 +268,23 @@ export default function RulesEngine() {
   const confirmDelete = async () => {
     if (!deleteRuleId) return;
 
+    setIsDeleting(true);
     try {
       const response = await fetch(`/api/automation/rules?id=${deleteRuleId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Request failed');
       const data = await response.json();
 
       if (data.success) {
         toast.success('Rule deleted successfully');
         fetchRules();
       } else {
-        toast.error(data.error.message);
+        toast.error(getErrorMessage(data.error));
       }
     } catch (error) {
       console.error('Error deleting rule:', error);
       toast.error('Failed to delete rule');
     } finally {
+      setIsDeleting(false);
       setDeleteRuleId(null);
     }
   };
@@ -250,18 +298,20 @@ export default function RulesEngine() {
           name: `${rule.name} (Copy)`,
           description: rule.description,
           triggerEvent: rule.triggerEvent,
+          triggerConditions: rule.triggerConditions,
           actions: rule.actions,
           isActive: false,
         }),
       });
 
+      if (!response.ok) throw new Error('Request failed');
       const data = await response.json();
 
       if (data.success) {
         toast.success('Rule duplicated successfully');
         fetchRules();
       } else {
-        toast.error(data.error.message);
+        toast.error(getErrorMessage(data.error));
       }
     } catch (error) {
       console.error('Error duplicating rule:', error);
@@ -280,6 +330,7 @@ export default function RulesEngine() {
   };
 
   return (
+    <SectionGuard permission="automation.manage">
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-2">
@@ -384,7 +435,7 @@ export default function RulesEngine() {
       {/* Rules List */}
       {loading ? (
         <div className="flex justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
         </div>
       ) : rules.length === 0 ? (
         <Card>
@@ -448,6 +499,7 @@ export default function RulesEngine() {
                     <Switch
                       checked={rule.isActive}
                       onCheckedChange={() => handleToggleActive(rule)}
+                      disabled={isToggling === rule.id}
                     />
                     <Button variant="ghost" size="icon" onClick={() => duplicateRule(rule)}>
                       <Copy className="h-4 w-4" />
@@ -605,8 +657,15 @@ export default function RulesEngine() {
 
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseDialog}>Cancel</Button>
-            <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700">
-              {editingRule ? 'Update Rule' : 'Create Rule'}
+            <Button onClick={handleSave} disabled={isSaving} className="bg-emerald-600 hover:bg-emerald-700">
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                editingRule ? 'Update Rule' : 'Create Rule'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -622,13 +681,21 @@ export default function RulesEngine() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
-              Delete
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700" disabled={isDeleting}>
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </SectionGuard>
   );
 }

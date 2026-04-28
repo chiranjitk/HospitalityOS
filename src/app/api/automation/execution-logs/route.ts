@@ -64,23 +64,27 @@ export async function GET(request: NextRequest) {
       db.automationExecutionLog.count({ where }),
     ]);
 
-    // Calculate stats
-    const allLogs = await db.automationExecutionLog.findMany({
-      where: { rule: { tenantId } },
-      select: { status: true, executedAt: true },
-    });
-
+    // Calculate stats using aggregation instead of loading all rows
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    const [totalCount, successCount, failedCount, todayCount] = await Promise.all([
+      db.automationExecutionLog.count({ where: { rule: { tenantId } } }),
+      db.automationExecutionLog.count({ where: { rule: { tenantId }, status: 'success' } }),
+      db.automationExecutionLog.count({ where: { rule: { tenantId }, status: 'failed' } }),
+      db.automationExecutionLog.count({
+        where: { rule: { tenantId }, executedAt: { gte: today } },
+      }),
+    ]);
+
     const stats = {
-      totalExecutions: allLogs.length,
-      successful: allLogs.filter((l) => l.status === 'success').length,
-      failed: allLogs.filter((l) => l.status === 'failed').length,
-      successRate: allLogs.length > 0
-        ? Math.round((allLogs.filter((l) => l.status === 'success').length / allLogs.length) * 100)
+      totalExecutions: totalCount,
+      successful: successCount,
+      failed: failedCount,
+      successRate: totalCount > 0
+        ? Math.round((successCount / totalCount) * 100)
         : 0,
-      executionsToday: allLogs.filter((l) => new Date(l.executedAt) >= today).length,
+      executionsToday: todayCount,
     };
 
     return NextResponse.json({
@@ -208,6 +212,7 @@ export async function DELETE(request: NextRequest) {
     const ruleId = searchParams.get('ruleId');
     const beforeDate = searchParams.get('beforeDate');
     const olderThanDays = searchParams.get('olderThanDays');
+    const days = olderThanDays ? parseInt(olderThanDays, 10) : NaN;
 
     const where: Prisma.AutomationExecutionLogWhereInput = {
       rule: { tenantId: user.tenantId }, // Ensure only tenant's logs are deleted
@@ -219,9 +224,9 @@ export async function DELETE(request: NextRequest) {
 
     if (beforeDate) {
       where.executedAt = { lt: new Date(beforeDate) };
-    } else if (olderThanDays) {
+    } else if (olderThanDays && !isNaN(days) && days > 0) {
       const date = new Date();
-      date.setDate(date.getDate() - parseInt(olderThanDays));
+      date.setDate(date.getDate() - days);
       where.executedAt = { lt: date };
     }
 
