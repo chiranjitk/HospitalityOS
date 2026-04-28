@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { notifyGuestReview } from '@/lib/notify';
 
 const MAX_LIMIT = 100;
 
@@ -292,6 +293,14 @@ export async function POST(request: NextRequest) {
         comment,
         source,
       },
+    });
+
+    notifyGuestReview({
+      tenantId,
+      userId: user.id,
+      guestName: `${guest.firstName} ${guest.lastName}`.trim(),
+      rating: overallRating,
+      reviewText: comment || title || undefined,
     });
 
     return NextResponse.json({ success: true, data: review }, { status: 201 });

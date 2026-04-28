@@ -445,7 +445,7 @@ export class NotificationService {
   }
 
   /**
-   * Send in-app notification (store in database)
+   * Send in-app notification (store in database + push via realtime)
    */
   private async sendInAppNotification(data: NotificationData): Promise<InAppResult> {
     try {
@@ -468,6 +468,18 @@ export class NotificationService {
         },
       });
 
+      // Push via realtime service for instant bell icon update
+      this.emitRealtime({
+        id: notification.id,
+        tenantId: data.tenantId,
+        userId: data.userId,
+        type: data.category === 'error' ? 'error' : data.category === 'warning' ? 'warning' : data.category === 'success' ? 'success' : 'info',
+        title: data.title,
+        message: data.message,
+        actionUrl: data.link,
+        timestamp: notification.createdAt,
+      });
+
       return {
         success: true,
         notificationId: notification.id,
@@ -478,6 +490,36 @@ export class NotificationService {
         error: error instanceof Error ? error.message : 'Failed to create notification',
       };
     }
+  }
+
+  /**
+   * Emit notification via realtime service HTTP bridge for instant delivery
+   */
+  private emitRealtime(payload: {
+    id: string;
+    tenantId: string;
+    userId?: string;
+    type: 'info' | 'warning' | 'error' | 'success';
+    title: string;
+    message: string;
+    actionUrl?: string;
+    timestamp: Date;
+  }): void {
+    // Fire-and-forget: don't block the notification flow
+    const realtimeUrl = process.env.REALTIME_SERVICE_URL || 'http://localhost:3003';
+    fetch(`${realtimeUrl}/emit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event: 'notification:alert',
+        data: {
+          ...payload,
+          timestamp: payload.timestamp instanceof Date ? payload.timestamp.toISOString() : payload.timestamp,
+        },
+      }),
+    }).catch(() => {
+      // Silently fail — the 30s polling fallback in the bell will pick it up
+    });
   }
 
   /**

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { notifyRoomMaintenance } from '@/lib/notify';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -209,6 +210,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         },
       },
     });
+
+    // Notify when work order starts in-progress for a room
+    if (status === 'in_progress' && existingWorkOrder.status !== 'in_progress' && existingWorkOrder.roomId) {
+      const room = await db.room.findUnique({ where: { id: existingWorkOrder.roomId }, select: { number: true, propertyId: true } });
+      if (room) {
+        notifyRoomMaintenance({
+          tenantId: user.tenantId,
+          userId: user.id,
+          roomNumber: room.number,
+          previousStatus: existingWorkOrder.status,
+          propertyId: room.propertyId,
+        });
+      }
+    }
 
     return NextResponse.json({ success: true, data: workOrder });
   } catch (error) {

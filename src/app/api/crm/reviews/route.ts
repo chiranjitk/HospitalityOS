@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
-import { requirePermission } from '@/lib/auth/tenant-context';// GET /api/crm/reviews - List all reviews
+import { requirePermission } from '@/lib/auth/tenant-context';
+import { notifyGuestReview } from '@/lib/notify';
+
+// GET /api/crm/reviews - List all reviews
 export async function GET(request: NextRequest) {    const user = await requirePermission(request, 'crm.view');
     if (user instanceof NextResponse) return user;
 
@@ -171,6 +174,14 @@ export async function POST(request: NextRequest) {    const user = await require
           },
         },
       },
+    });
+
+    notifyGuestReview({
+      tenantId: user.tenantId,
+      userId: user.id,
+      guestName: `${guestExists.firstName} ${guestExists.lastName}`.trim(),
+      rating: overallRating,
+      reviewText: comment || title || undefined,
     });
 
     return NextResponse.json({

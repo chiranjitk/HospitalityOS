@@ -1,4 +1,28 @@
 ---
+Task ID: 15
+Agent: Main
+Task: Build notification system E2E — HTTP bridge, realtime push, all triggers wired, test endpoint
+
+Work Log:
+- **Audit**: Found notification infrastructure (960-line NotificationService, 9 API routes, UI components, Socket.IO realtime) was solid but dead — `sendInAppNotification()` wrote to DB only, never pushed via Socket.IO; `sendNotification()` helper was never imported by any business flow
+- **HTTP Bridge**: Added `POST /emit` + `GET /health` HTTP endpoints to realtime service (port 3003) so server-side Next.js code can emit Socket.IO events via HTTP POST
+- **Realtime Push**: Modified `sendInAppNotification()` to call new `emitRealtime()` method after DB create — pushes `notification:alert` via HTTP bridge → Socket.IO → instantly to bell icon
+- **Acknowledge Bug Fix**: Removed non-existent `read: true` field from `notification:acknowledge` handler in realtime service (Prisma model only has `readAt`)
+- **Test Endpoint**: Created `POST /api/notifications/test` (send test notification) and `GET /api/notifications/test` (diagnostics)
+- **All Triggers Wired** (15 total):
+  - Already wired (6): booking created/confirmed/cancelled, guest check-in/out, payment received/failed, task completed, service request
+  - New (9): no-show, task reassigned, work order created/started, inventory low stock, guest review (CRM + reputation)
+- **Realtime Service**: Started via PM2 with socket.io dependency installed
+- **E2E Verified**: Created 3 test notifications in DB + pushed via realtime → bell icon shows them correctly
+
+Stage Summary:
+- Full notification pipeline working: DB → NotificationService → HTTP Bridge → Socket.IO → Bell Icon
+- 15 notification triggers across bookings, payments, housekeeping, maintenance, inventory, reviews, service requests
+- Polling fallback (30s) still works if realtime service is down
+- ESLint: 0 errors on all modified files
+- Services: staysuite-dev (port 3000) + realtime-service (port 3003) running via PM2
+
+---
 Task ID: 6
 Agent: Main
 Task: Fix remaining Channel Manager module issues (28 bug fixes)

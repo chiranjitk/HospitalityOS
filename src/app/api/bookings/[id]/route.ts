@@ -9,7 +9,7 @@ import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { evaluateCancellationPolicy } from '@/lib/cancellation-policy-engine';
 import type { CancellationResult } from '@/lib/cancellation-policy-engine';
 import { emailService } from '@/lib/services/email-service';
-import { notifyBookingConfirmed, notifyBookingCancelled, notifyGuestCheckedIn, notifyGuestCheckedOut } from '@/lib/notify';
+import { notifyBookingConfirmed, notifyBookingCancelled, notifyGuestCheckedIn, notifyGuestCheckedOut, notifyNoShow } from '@/lib/notify';
 
 // Helper: auto-close folio and generate invoice on checkout (must be called within a transaction)
 async function autoCloseFolioAndGenerateInvoice(bookingId: string, tx: Parameters<Parameters<typeof db.$transaction>[0]>[0]) {
@@ -859,6 +859,17 @@ export async function PUT(
       });
     }
     
+    if (status === 'no_show' && existingBooking.status !== 'no_show') {
+      notifyNoShow({
+        tenantId: booking.tenantId,
+        userId: user.id,
+        bookingId: booking.id,
+        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
+        confirmationCode: booking.confirmationCode,
+        roomNumber: booking.room?.number,
+      });
+    }
+    
     // Cancellation policy integration — evaluate and apply penalty
     let cancellationResult: CancellationResult | null = null;
     if (status === 'cancelled' && existingBooking.status !== 'cancelled') {
@@ -1644,6 +1655,17 @@ export async function PATCH(
         confirmationCode: booking.confirmationCode,
         guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
         reason: cancellationReason,
+      });
+    }
+
+    if (status === 'no_show' && existingBooking.status !== 'no_show') {
+      notifyNoShow({
+        tenantId: booking.tenantId,
+        userId: user.id,
+        bookingId: booking.id,
+        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
+        confirmationCode: booking.confirmationCode,
+        roomNumber: booking.room?.number,
       });
     }
 

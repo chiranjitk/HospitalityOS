@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { logInventory } from '@/lib/audit';
+import { notifyInventoryAlert } from '@/lib/notify';
 
 /**
  * DEPRECATED: This endpoint routes to db.stockItem (hotel supplies / procurement inventory),
@@ -168,6 +169,25 @@ export async function PATCH(
       where: { id },
       data: updateData,
     });
+
+    // Check for low/out-of-stock after quantity update
+    if (quantity !== undefined && updatedItem.lowStockAlert) {
+      const effectiveMin = minQuantity !== undefined ? minQuantity : updatedItem.minQuantity;
+      const newQuantity = quantity;
+      if (newQuantity <= 0) {
+        notifyInventoryAlert({
+          tenantId: user.tenantId, userId: user.id,
+          itemName: updatedItem.name, currentStock: newQuantity, threshold: effectiveMin,
+          status: 'out_of_stock',
+        });
+      } else if (newQuantity <= effectiveMin) {
+        notifyInventoryAlert({
+          tenantId: user.tenantId, userId: user.id,
+          itemName: updatedItem.name, currentStock: newQuantity, threshold: effectiveMin,
+          status: 'low_stock',
+        });
+      }
+    }
 
     // If status changed, create an audit log entry
     if (status !== undefined && status !== existing.status) {

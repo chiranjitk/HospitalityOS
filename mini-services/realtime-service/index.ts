@@ -4,7 +4,79 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-const httpServer = createServer()
+const httpServer = createServer(async (req, res) => {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200)
+    res.end()
+    return
+  }
+
+  // Health check
+  if (req.method === 'GET' && req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ status: 'ok', uptime: process.uptime(), connections: io.sockets.sockets.size }))
+    return
+  }
+
+  // Emit event endpoint
+  if (req.method === 'POST' && req.url === '/emit') {
+    try {
+      const body = await new Promise<string>((resolve, reject) => {
+        let data = ''
+        req.on('data', chunk => data += chunk)
+        req.on('end', () => resolve(data))
+        req.on('error', reject)
+      })
+
+      const { event, data: eventData, target } = JSON.parse(body)
+
+      if (!event || !eventData) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Missing event or data field' }))
+        return
+      }
+
+      // Emit to specific target or broadcast
+      if (target?.userId) {
+        io.to(`user:${target.userId}`).emit(event, eventData)
+      } else if (target?.propertyId) {
+        io.to(`property:${target.propertyId}`).emit(event, eventData)
+      } else if (target?.room) {
+        io.to(target.room).emit(event, eventData)
+      } else if (target?.tenantId) {
+        io.to(`tenant:${target.tenantId}`).emit(event, eventData)
+      } else if (eventData.tenantId) {
+        // Auto-detect: emit to tenant room
+        io.to(`tenant:${eventData.tenantId}`).emit(event, eventData)
+        // Also emit to user room if userId present
+        if (eventData.userId) {
+          io.to(`user:${eventData.userId}`).emit(event, eventData)
+        }
+      } else {
+        io.emit(event, eventData)
+      }
+
+      console.log(`[HTTP Bridge] Emitted: ${event}`)
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: true, event }))
+    } catch (error) {
+      console.error('[HTTP Bridge] Error:', error)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Internal server error' }))
+    }
+    return
+  }
+
+  // Default: 404
+  res.writeHead(404, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify({ error: 'Not found' }))
+})
 const io = new Server(httpServer, {
   path: '/socket.io',
   cors: {
@@ -660,7 +732,6 @@ io.on('connection', async (socket: AuthenticatedSocket) => {
           userId: userId
         },
         data: {
-          read: true,
           readAt: new Date()
         }
       })
@@ -991,7 +1062,8 @@ export function getConnectionStats() {
 
 const PORT = 3003
 httpServer.listen(PORT, () => {
-  console.log(`[Realtime Service] WebSocket server running on port ${PORT}`)
+  console.log(`[Realtime Service] Running on port ${PORT} (WebSocket + HTTP)`)
+  console.log(`[Realtime Service] HTTP Bridge: POST /emit | GET /health`)
 })
 
 // Graceful shutdown

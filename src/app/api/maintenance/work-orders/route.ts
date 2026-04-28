@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { notifyRoomMaintenance } from '@/lib/notify';
 import crypto from 'crypto';
 
 interface RouteParams {
@@ -334,6 +335,20 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Notify if work order is for a room
+    if (roomId) {
+      const room = await db.room.findUnique({ where: { id: roomId }, select: { number: true } });
+      if (room) {
+        notifyRoomMaintenance({
+          tenantId: user.tenantId,
+          userId: user.id,
+          roomNumber: room.number,
+          previousStatus: 'work_order_created',
+          propertyId,
+        });
+      }
+    }
+
     return NextResponse.json({ success: true, data: workOrder }, { status: 201 });
   } catch (error) {
     console.error('Error creating work order:', error);
@@ -481,6 +496,20 @@ export async function PUT(request: NextRequest) {
         },
       },
     });
+
+    // Notify when work order starts in-progress for a room
+    if (status === 'in_progress' && existingWorkOrder.status !== 'in_progress' && existingWorkOrder.roomId) {
+      const room = await db.room.findUnique({ where: { id: existingWorkOrder.roomId }, select: { number: true } });
+      if (room) {
+        notifyRoomMaintenance({
+          tenantId: user.tenantId,
+          userId: user.id,
+          roomNumber: room.number,
+          previousStatus: existingWorkOrder.status,
+          propertyId: existingWorkOrder.propertyId,
+        });
+      }
+    }
 
     return NextResponse.json({ success: true, data: workOrder });
   } catch (error) {

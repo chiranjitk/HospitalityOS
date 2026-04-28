@@ -196,3 +196,16 @@ export function notifyServiceRequestCreated(p: {
     data: { requestType: p.requestType, roomNumber: p.roomNumber, guestName: p.guestName },
   });
 }
+
+export function notifyNoShow(p: {
+  tenantId: string; userId: string; bookingId: string; guestName: string;
+  confirmationCode: string; roomNumber?: string;
+}): void {
+  fire({
+    tenantId: p.tenantId, userId: p.userId, type: 'booking', category: 'warning',
+    title: 'Guest No-Show',
+    message: `${p.guestName} did not show up for booking ${p.confirmationCode}${p.roomNumber ? ` — Room ${p.roomNumber}` : ''}`,
+    icon: 'UserX', actionType: 'view_booking',
+    data: { bookingId: p.bookingId, confirmationCode: p.confirmationCode },
+  });
+}

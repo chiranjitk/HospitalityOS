@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { notifyInventoryAlert } from '@/lib/notify';
 
 // GET /api/inventory/stock - List all stock items
 export async function GET(request: NextRequest) {    const user = await getUserFromRequest(request);
@@ -195,6 +196,16 @@ export async function POST(request: NextRequest) {    const user = await getUser
         lowStockAlert,
       },
     });
+
+    // Alert if initial stock is at or below threshold
+    if (lowStockAlert && quantity <= minQuantity) {
+      const alertStatus = quantity <= 0 ? 'out_of_stock' as const : 'low_stock' as const;
+      notifyInventoryAlert({
+        tenantId, userId: user.id,
+        itemName: name, currentStock: quantity, threshold: minQuantity,
+        status: alertStatus,
+      });
+    }
 
     return NextResponse.json({ 
       success: true, 

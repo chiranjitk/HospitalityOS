@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { completeCleaningAndInspect, inspectAndReleaseRoom } from '@/lib/housekeeping-automation';
-import { notifyTaskCompleted } from '@/lib/notify';
+import { notifyTaskCompleted, notifyTaskAssigned } from '@/lib/notify';
 
 // GET /api/tasks/[id] - Get a single task
 export async function GET(
@@ -276,6 +276,18 @@ export async function PUT(
         userId: user.id,
         taskTitle: task.title,
         roomNumber: task.room?.number,
+      });
+    }
+
+    // Notify new assignee when a task is assigned/reassigned
+    if (assignedTo && assignedTo !== existingTask.assignedTo) {
+      notifyTaskAssigned({
+        tenantId: task.tenantId,
+        assigneeUserId: assignedTo,
+        taskTitle: task.title,
+        taskPriority: task.priority || 'medium',
+        roomNumber: task.room?.number,
+        assignedBy: user.name,
       });
     }
 
