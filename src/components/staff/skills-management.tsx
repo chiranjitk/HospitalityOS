@@ -62,6 +62,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface StaffMember {
   id: string;
@@ -261,11 +262,14 @@ export default function SkillsManagement() {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    let deletedOldSkill = false;
+
     if (editOriginalName && formData.skillName !== editOriginalName) {
       // If skillName changed, delete old and create new (unique constraint on userId + skillName)
       try {
         const deleteRes = await fetch(`/api/staff/skills?id=${deleteItemId || ''}`, { method: 'DELETE' });
         if (!deleteRes.ok) throw new Error('Failed to update skill');
+        deletedOldSkill = true;
       } catch {
         toast.error('Failed to update skill');
         return;
@@ -300,7 +304,29 @@ export default function SkillsManagement() {
       resetForm();
       fetchData();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update skill');
+      // If create failed after successful delete, attempt rollback by recreating the original
+      if (deletedOldSkill && editOriginalName) {
+        try {
+          await fetch('/api/staff/skills', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: formData.userId,
+              skillName: editOriginalName,
+              category: formData.category,
+              skillLevel: parseInt(formData.skillLevel, 10),
+              certified: formData.certified,
+              certifiedAt: formData.certified ? formData.certifiedAt || new Date().toISOString() : null,
+              notes: formData.notes || null,
+            }),
+          });
+          toast.error('Failed to update skill. Original skill has been restored.');
+        } catch {
+          toast.error('Failed to update skill and could not restore the original. Please re-add the skill manually.');
+        }
+      } else {
+        toast.error(error instanceof Error ? error.message : 'Failed to update skill');
+      }
     }
   };
 

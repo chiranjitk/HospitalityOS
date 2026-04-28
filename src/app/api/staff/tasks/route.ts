@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     
     if (priority) where.priority = priority;
     if (status) where.status = status;
-    if (assignedTo) where.assignedTo = assignedTo;
+    if (assignedTo === 'unassigned') where.assignedTo = null; else if (assignedTo) where.assignedTo = assignedTo;
     if (category) where.category = category;
 
     const tasks = await db.task.findMany({

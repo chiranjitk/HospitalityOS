@@ -195,10 +195,11 @@ export default function StaffPerformance() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Departments</SelectItem>
-              <SelectItem value="Housekeeping">Housekeeping</SelectItem>
-              <SelectItem value="Front Desk">Front Desk</SelectItem>
-              <SelectItem value="Maintenance">Maintenance</SelectItem>
-              <SelectItem value="F&B">F&B</SelectItem>
+              {data.departmentStats.map((dept) => (
+                <SelectItem key={dept.department} value={dept.department}>
+                  {dept.department}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button variant="outline" size="sm" className="gap-2" onClick={() => {

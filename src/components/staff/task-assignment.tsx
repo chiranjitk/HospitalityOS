@@ -626,6 +626,7 @@ export default function TaskAssignment() {
                                     )}
                                   </>
                                 )}
+                                {task.status === 'pending' && (
                                 <DropdownMenuItem 
                                   onClick={() => handleDelete(task.id)}
                                   className="text-red-600 dark:text-red-400"
@@ -633,6 +634,7 @@ export default function TaskAssignment() {
                                   <Trash2 className="mr-2 h-4 w-4" />
                                   Delete
                                 </DropdownMenuItem>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>

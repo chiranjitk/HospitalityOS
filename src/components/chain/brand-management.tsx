@@ -86,6 +86,7 @@ interface BrandFormData {
   logo: string;
   primaryColor: string;
   secondaryColor: string;
+  standards: string;
   status: string;
 }
 
@@ -96,6 +97,7 @@ const initialFormData: BrandFormData = {
   logo: '',
   primaryColor: '#0D9488',
   secondaryColor: '#14B8A6',
+  standards: '{}',
   status: 'active',
 };
 
@@ -146,10 +148,19 @@ export default function BrandManagement() {
     brand.code.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Code validation regex (must match API: /^[A-Z0-9]{1,10}$/)
+  const CODE_REGEX = /^[A-Z0-9]{1,10}$/;
+  const codeValidationError = formData.code && !CODE_REGEX.test(formData.code);
+
   // Create brand
   const handleCreate = async () => {
     if (!formData.name || !formData.code) {
       toast.error('Name and code are required');
+      return;
+    }
+
+    if (codeValidationError) {
+      toast.error('Code must be 1-10 uppercase letters and numbers only');
       return;
     }
 
@@ -182,6 +193,16 @@ export default function BrandManagement() {
   // Update brand
   const handleUpdate = async () => {
     if (!selectedBrand) return;
+
+    if (!formData.name || !formData.code) {
+      toast.error('Name and code are required');
+      return;
+    }
+
+    if (codeValidationError) {
+      toast.error('Code must be 1-10 uppercase letters and numbers only');
+      return;
+    }
 
     try {
       setSaving(true);
@@ -248,6 +269,7 @@ export default function BrandManagement() {
       logo: brand.logo || '',
       primaryColor: brand.primaryColor || '#0D9488',
       secondaryColor: brand.secondaryColor || '#14B8A6',
+      standards: brand.standards || '{}',
       status: brand.status,
     });
     setIsEditOpen(true);
@@ -493,6 +515,11 @@ export default function BrandManagement() {
               <p className="text-xs text-muted-foreground">
                 A unique code (max 10 characters)
               </p>
+              {codeValidationError && (
+                <p className="text-xs text-red-500">
+                  Code must be 1-10 uppercase letters and numbers only
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
@@ -560,6 +587,20 @@ export default function BrandManagement() {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="standards">Brand Standards (JSON)</Label>
+              <Textarea
+                id="standards"
+                value={formData.standards}
+                onChange={(e) => setFormData({ ...formData, standards: e.target.value })}
+                placeholder='{"checkInTime": "15:00", "checkOutTime": "11:00"}'
+                rows={4}
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                JSON object defining brand standards (check-in/out times, amenities, etc.)
+              </p>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
               <Select
                 value={formData.status}
@@ -579,7 +620,7 @@ export default function BrandManagement() {
             <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreate} disabled={saving} className="bg-teal-600 hover:bg-teal-700">
+            <Button onClick={handleCreate} disabled={saving || codeValidationError} className="bg-teal-600 hover:bg-teal-700">
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Create Brand
             </Button>
@@ -617,6 +658,11 @@ export default function BrandManagement() {
                 placeholder="GRAND"
                 maxLength={10}
               />
+              {codeValidationError && (
+                <p className="text-xs text-red-500">
+                  Code must be 1-10 uppercase letters and numbers only
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-description">Description</Label>
@@ -684,6 +730,20 @@ export default function BrandManagement() {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="edit-standards">Brand Standards (JSON)</Label>
+              <Textarea
+                id="edit-standards"
+                value={formData.standards}
+                onChange={(e) => setFormData({ ...formData, standards: e.target.value })}
+                placeholder='{"checkInTime": "15:00", "checkOutTime": "11:00"}'
+                rows={4}
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                JSON object defining brand standards (check-in/out times, amenities, etc.)
+              </p>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="edit-status">Status</Label>
               <Select
                 value={formData.status}
@@ -703,7 +763,7 @@ export default function BrandManagement() {
             <Button variant="outline" onClick={() => setIsEditOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleUpdate} disabled={saving} className="bg-teal-600 hover:bg-teal-700">
+            <Button onClick={handleUpdate} disabled={saving || codeValidationError} className="bg-teal-600 hover:bg-teal-700">
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Update Brand
             </Button>
