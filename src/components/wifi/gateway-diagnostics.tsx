@@ -52,6 +52,7 @@ import {
   Search,
   Shield,
   Terminal,
+  Upload,
   XCircle,
   Zap,
 } from 'lucide-react';
@@ -1020,7 +1021,7 @@ function PacketCaptureTool() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Tool 7: SPEED TEST
+// Tool 7: SPEED TEST — Upload + Download
 // ═══════════════════════════════════════════════════════════════════
 
 function SpeedTestTool() {
@@ -1045,12 +1046,11 @@ function SpeedTestTool() {
       setState('done');
       if (r.success) {
         const dl = (json.data?.download as Record<string, unknown>) || null;
-        if (dl) {
-          toast({
-            title: 'Speed Test Complete',
-            description: `Download: ${dl.megabitsPerSecond} Mbps`,
-          });
-        }
+        const ul = (json.data?.upload as Record<string, unknown>) || null;
+        const parts: string[] = [];
+        if (dl && !dl.error) parts.push(`↓ ${dl.megabitsPerSecond} Mbps`);
+        if (ul && !ul.error) parts.push(`↑ ${ul.megabitsPerSecond} Mbps`);
+        toast({ title: 'Speed Test Complete', description: parts.length > 0 ? parts.join(' | ') : 'No results' });
       } else {
         toast({ title: 'Speed Test Failed', description: r.error, variant: 'destructive' });
       }
@@ -1062,12 +1062,14 @@ function SpeedTestTool() {
 
   const data = result?.data as Record<string, unknown> | undefined;
   const download = data?.download as Record<string, unknown> | null;
-  const mbps = download ? Number(download.megabitsPerSecond ?? 0) : 0;
+  const upload = data?.upload as Record<string, unknown> | null;
+  const dlMbps = download ? Number(download.megabitsPerSecond ?? 0) : 0;
+  const ulMbps = upload ? Number(upload.megabitsPerSecond ?? 0) : 0;
 
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Gauge} title="Speed Test" description="Measure download throughput by downloading a test file from a public server" gradient="from-orange-500 to-red-500" />
+        <ToolHeader icon={Gauge} title="Speed Test" description="Real upload + download throughput measurement from public test servers" gradient="from-orange-500 to-red-500" />
 
         <div className="flex items-center gap-3">
           <RunButton loading={state === 'loading'} onClick={run} label="Start Speed Test" />
@@ -1075,7 +1077,7 @@ function SpeedTestTool() {
           {state === 'loading' && (
             <span className="text-xs text-muted-foreground flex items-center gap-1.5">
               <Loader2 className="h-3 w-3 animate-spin" />
-              Testing download speed...
+              Testing download + upload...
             </span>
           )}
         </div>
@@ -1083,34 +1085,79 @@ function SpeedTestTool() {
         {result?.error && <ErrorBox message={result.error} />}
 
         {state === 'loading' && (
-          <div className="mt-6 space-y-2">
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Download Speed</span>
-              <span className="font-medium">Testing...</span>
+          <div className="mt-6 space-y-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground flex items-center gap-1.5"><Download className="h-3 w-3" /> Download</span>
+                <span className="font-medium">Testing...</span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                <div className="h-full w-2/3 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 animate-pulse" />
+              </div>
             </div>
-            <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-              <div className="h-full w-1/3 rounded-full bg-gradient-to-r from-orange-500 to-red-500 animate-pulse" />
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground flex items-center gap-1.5"><Upload className="h-3 w-3" /> Upload</span>
+                <span className="font-medium">Testing...</span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 animate-pulse" />
+              </div>
             </div>
           </div>
         )}
 
-        {download && (
-          <div className="mt-6 space-y-4">
-            <div className="flex items-end gap-2">
-              <span className="text-4xl font-bold tabular-nums text-orange-600 dark:text-orange-400">
-                {mbps.toFixed(2)}
-              </span>
-              <span className="text-sm text-muted-foreground mb-1">Mbps</span>
+        {result?.success && (download || upload) && (
+          <div className="mt-6 space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Download */}
+              <div className="rounded-xl border bg-muted/30 p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Download className="h-4 w-4 text-teal-500" />
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Download</span>
+                  {download?.error ? <Badge variant="destructive" className="text-[10px] ml-auto">Failed</Badge> : null}
+                </div>
+                {download && !download.error ? (
+                  <>
+                    <div className="flex items-end gap-1">
+                      <span className="text-3xl font-bold tabular-nums text-teal-600 dark:text-teal-400">{dlMbps.toFixed(2)}</span>
+                      <span className="text-sm text-muted-foreground mb-0.5">Mbps</span>
+                    </div>
+                    <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
+                      <div className="flex justify-between"><span>Downloaded</span><span className="font-mono tabular-nums">{String(download.totalMB)} MB</span></div>
+                      <div className="flex justify-between"><span>Time</span><span className="font-mono tabular-nums">{download.durationSeconds}s</span></div>
+                      <div className="flex justify-between"><span>Server</span><span>{String(download.server)}</span></div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-red-500">{String(download?.error || 'Download test unavailable')}</p>
+                )}
+              </div>
+
+              {/* Upload */}
+              <div className="rounded-xl border bg-muted/30 p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Upload className="h-4 w-4 text-orange-500" />
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Upload</span>
+                  {upload?.error ? <Badge variant="destructive" className="text-[10px] ml-auto">Failed</Badge> : null}
+                </div>
+                {upload && !upload.error ? (
+                  <>
+                    <div className="flex items-end gap-1">
+                      <span className="text-3xl font-bold tabular-nums text-orange-600 dark:text-orange-400">{ulMbps.toFixed(2)}</span>
+                      <span className="text-sm text-muted-foreground mb-0.5">Mbps</span>
+                    </div>
+                    <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
+                      <div className="flex justify-between"><span>Uploaded</span><span className="font-mono tabular-nums">{String(upload.totalMB)} MB</span></div>
+                      <div className="flex justify-between"><span>Time</span><span className="font-mono tabular-nums">{upload.durationSeconds}s</span></div>
+                      <div className="flex justify-between"><span>Server</span><span>{String(upload.server)}</span></div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-red-500">{String(upload?.error || 'Upload test unavailable')}</p>
+                )}
+              </div>
             </div>
-            <Progress value={Math.min(mbps, 100)} className="h-2" />
-            <SummaryBar
-              items={[
-                { label: 'Downloaded', value: `${download.totalMB} MB` },
-                { label: 'Duration', value: `${download.durationSeconds}s` },
-                { label: 'Throughput', value: `${download.bitsPerSecond} bps` },
-                { label: 'Server', value: String(data?.server || 'unknown') },
-              ]}
-            />
           </div>
         )}
       </CardContent>
@@ -1255,7 +1302,7 @@ function PortCheckTool() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Tool 9: CONNECTION TABLE (Conntrack)
+// Tool 9: CONNECTION TABLE (/proc/net/tcp + tcp6 + udp + udp6)
 // ═══════════════════════════════════════════════════════════════════
 
 function ConntrackTool() {
@@ -1263,6 +1310,7 @@ function ConntrackTool() {
   const [search, setSearch] = useState('');
   const [state, setState] = useState<RunState>('idle');
   const [result, setResult] = useState<ToolResult | null>(null);
+  const [viewTab, setViewTab] = useState<'tcp' | 'udp'>('tcp');
 
   const run = useCallback(async () => {
     setState('loading');
@@ -1281,7 +1329,7 @@ function ConntrackTool() {
       setResult(r);
       setState('done');
       if (r.success) {
-        toast({ title: 'Connection Table Loaded', description: `${json.data?.total || 0} entries` });
+        toast({ title: 'Connection Table Loaded', description: `${json.data?.total || 0} total connections` });
       }
     } catch {
       setState('done');
@@ -1290,59 +1338,108 @@ function ConntrackTool() {
   }, [search, toast]);
 
   const data = result?.data as Record<string, unknown> | undefined;
-  const entries = (data?.entries as string[]) || [];
+  const connections = (data?.connections as Array<Record<string, unknown>>) || [];
+  const udpConnections = (data?.udpConnections as Array<Record<string, unknown>>) || [];
+  const stateCounts = (data?.stateCounts as Record<string, number>) || {};
+
+  const getStateBadge = (state: string) => {
+    switch (state) {
+      case 'ESTABLISHED': return <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-[10px]">{state}</Badge>;
+      case 'LISTEN': return <Badge className="bg-teal-500 hover:bg-teal-600 text-white border-0 text-[10px]">{state}</Badge>;
+      case 'TIME_WAIT': return <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-[10px]">{state}</Badge>;
+      case 'CLOSE_WAIT': return <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-0 text-[10px]">{state}</Badge>;
+      case 'SYN_SENT': case 'SYN_RECV': return <Badge className="bg-cyan-500 hover:bg-cyan-600 text-white border-0 text-[10px]">{state}</Badge>;
+      default: return <Badge variant="outline" className="text-[10px]">{state}</Badge>;
+    }
+  };
+
+  const displayRows = viewTab === 'tcp' ? connections : udpConnections;
+  const maxRows = 200;
+  const shownRows = displayRows.slice(0, maxRows);
 
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Activity} title="Connection Table" description="View active NAT/firewall connection tracking entries (nf_conntrack)" gradient="from-slate-500 to-gray-600" />
+        <ToolHeader icon={Activity} title="Connection Table" description="All active TCP + UDP connections from /proc/net (no root required)" gradient="from-slate-500 to-gray-600" />
 
         <div className="flex items-end gap-3">
           <div className="flex-1 max-w-sm">
-            <Label className="text-xs">Filter</Label>
+            <Label className="text-xs">Filter (IP / Port / State)</Label>
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="tcp or 192.168..."
+              placeholder="192.168 or ESTABLISHED or :443"
               className="mt-1 h-8 text-xs font-mono"
               onKeyDown={(e) => e.key === 'Enter' && run()}
             />
           </div>
           <RunButton loading={state === 'loading'} onClick={run} label="Load Connections" />
           {result && <DurationBadge ms={result.duration_ms} />}
-          {result?.success && data?.source && (
-            <Badge variant="outline" className="text-[10px] ml-2">
-              via {String(data.source)}
-            </Badge>
-          )}
         </div>
 
         {result?.error && <ErrorBox message={result.error} />}
 
-        {entries.length > 0 && (
-          <div className="mt-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Activity className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs font-medium">{entries.length} active connections</span>
-            </div>
-            <TerminalOutput
-              content={entries.slice(0, 500).join('\n')}
-              label="Connection Entries"
-              maxHeight="max-h-96"
+        {result?.success && (
+          <>
+            <SummaryBar
+              items={[
+                { label: 'TCP', value: String(data?.totalTcp ?? 0) },
+                { label: 'UDP', value: String(data?.totalUdp ?? 0) },
+                { label: 'Total', value: String(data?.total ?? 0) },
+                { label: 'Source', value: String(data?.source ?? '—') },
+              ]}
             />
-            {entries.length > 500 && (
-              <p className="mt-1 text-[10px] text-muted-foreground">
-                Showing first 500 of {entries.length} entries
-              </p>
-            )}
-          </div>
-        )}
 
-        {state === 'done' && entries.length === 0 && !result?.error && (
-          <div className="mt-4 text-center py-8 text-xs text-muted-foreground">
-            <Activity className="h-8 w-8 mx-auto mb-2 opacity-30" />
-            No connection entries found
-          </div>
+            {Object.keys(stateCounts).length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {Object.entries(stateCounts).map(([state, count]) => (
+                  <Badge key={state} variant="outline" className="text-[10px]">{state}: {count}</Badge>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2 mt-4">
+              <Button variant={viewTab === 'tcp' ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => setViewTab('tcp')}>TCP ({connections.length})</Button>
+              <Button variant={viewTab === 'udp' ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => setViewTab('udp')}>UDP ({udpConnections.length})</Button>
+            </div>
+
+            {shownRows.length > 0 ? (
+              <div className="mt-3">
+                <div className="rounded-lg border overflow-auto max-h-[500px]">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background z-10">
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="text-[10px]">Proto</TableHead>
+                        <TableHead className="text-[10px]">Local</TableHead>
+                        <TableHead className="text-[10px]">Remote</TableHead>
+                        <TableHead className="text-[10px]">State</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {shownRows.map((e, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="text-[11px] font-mono font-medium">{String(e.protocol)}</TableCell>
+                          <TableCell className="font-mono text-[11px]">{String(e.localAddress)}:{String(e.localPort)}</TableCell>
+                          <TableCell className="font-mono text-[11px]">{String(e.remoteAddress)}:{String(e.remotePort)}</TableCell>
+                          <TableCell>{getStateBadge(String(e.state))}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {displayRows.length > maxRows && (
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Showing {maxRows} of {displayRows.length} {viewTab} connections. Use filter to narrow down.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="mt-4 text-center py-6 text-xs text-muted-foreground">
+                <Activity className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                No {viewTab} connections found{search ? ` matching "${search}"` : ''}
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

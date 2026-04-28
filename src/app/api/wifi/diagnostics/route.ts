@@ -431,19 +431,36 @@ async function handlePacketCapture(
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Tool: SPEED TEST — downloads a known-size file, measures throughput
+// Tool: SPEED TEST — real upload + download measurement
 // ═══════════════════════════════════════════════════════════════════
 
-async function handleSpeedTest() {
-  const testUrls = [
-    'http://speedtest.tele2.net/1MB.zip',
-    'https://proof.ovh.net/files/1Mb.dat',
+function formatSpeed(bps: number) {
+  return {
+    bitsPerSecond: Math.round(bps),
+    kbps: Math.round(bps / 1000),
+    mbps: parseFloat((bps / 1_000_000).toFixed(2)),
+  };
+}
+
+async function measureDownload(): Promise<{
+  speed: ReturnType<typeof formatSpeed>;
+  totalBytes: number;
+  durationSeconds: number;
+  server: string;
+  error?: string;
+}> {
+  // Multiple files, increasing size for accuracy
+  const tests = [
+    { url: 'http://speedtest.tele2.net/1MB.zip', label: 'Tele2 (1MB)' },
+    { url: 'http://speedtest.tele2.net/5MB.zip', label: 'Tele2 (5MB)' },
+    { url: 'https://proof.ovh.net/files/1Mb.dat', label: 'OVH (1MB)' },
+    { url: 'https://proof.ovh.net/files/10Mb.dat', label: 'OVH (10MB)' },
   ];
 
-  for (const url of testUrls) {
+  for (const test of tests) {
     try {
       const start = Date.now();
-      const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+      const response = await fetch(test.url, { signal: AbortSignal.timeout(30_000) });
       if (!response.ok) continue;
 
       const reader = response.body?.getReader();
@@ -457,24 +474,90 @@ async function handleSpeedTest() {
       }
 
       const durationSec = (Date.now() - start) / 1000;
-      const bps = (totalBytes * 8) / durationSec;
+      if (durationSec < 0.5) continue; // skip if too fast, not accurate
 
-      return {
-        download: {
-          bitsPerSecond: Math.round(bps),
-          megabitsPerSecond: parseFloat((bps / 1_000_000).toFixed(2)),
-          totalBytes,
-          totalMB: parseFloat((totalBytes / 1_048_576).toFixed(2)),
-          durationSeconds: parseFloat(durationSec.toFixed(2)),
-        },
-        server: url,
-      };
+      const bps = (totalBytes * 8) / durationSec;
+      return { speed: formatSpeed(bps), totalBytes, durationSeconds: parseFloat(durationSec.toFixed(2)), server: test.label };
     } catch {
       continue;
     }
   }
 
-  return { download: null, error: 'All speed test servers are currently unavailable' };
+  return { speed: formatSpeed(0), totalBytes: 0, durationSeconds: 0, server: '', error: 'No download test servers responded' };
+}
+
+async function measureUpload(): Promise<{
+  speed: ReturnType<typeof formatSpeed>;
+  totalBytes: number;
+  durationSeconds: number;
+  server: string;
+  error?: string;
+}> {
+  // Upload: POST random data to httpbin.org — measures real upstream throughput
+  const uploadSize = 2 * 1024 * 1024; // 2 MB upload payload
+  const payload = Buffer.alloc(uploadSize, 'x');
+
+  const endpoints = [
+    { url: 'https://httpbin.org/post', label: 'httpbin.org' },
+    { url: 'https://eu.httpbin.org/post', label: 'eu.httpbin.org' },
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      const start = Date.now();
+      const response = await fetch(ep.url, {
+        method: 'POST',
+        body: payload,
+        signal: AbortSignal.timeout(30_000),
+        headers: { 'Content-Type': 'application/octet-stream' },
+      });
+
+      if (!response.ok) continue;
+
+      // Consume response body
+      await response.text();
+
+      const durationSec = (Date.now() - start) / 1000;
+      if (durationSec < 0.5) continue;
+
+      // Use only the upload time (total minus estimated server processing)
+      // Be conservative: subtract 0.3s for server processing overhead
+      const effectiveSec = Math.max(durationSec - 0.3, 0.5);
+      const bps = (uploadSize * 8) / effectiveSec;
+
+      return { speed: formatSpeed(bps), totalBytes: uploadSize, durationSeconds: parseFloat(durationSec.toFixed(2)), server: ep.label };
+    } catch {
+      continue;
+    }
+  }
+
+  return { speed: formatSpeed(0), totalBytes: 0, durationSeconds: 0, server: '', error: 'No upload test servers responded' };
+}
+
+async function handleSpeedTest() {
+  const [downloadResult, uploadResult] = await Promise.all([
+    measureDownload(),
+    measureUpload(),
+  ]);
+
+  return {
+    download: {
+      ...downloadResult.speed,
+      totalBytes: downloadResult.totalBytes,
+      totalMB: parseFloat((downloadResult.totalBytes / 1_048_576).toFixed(2)),
+      durationSeconds: downloadResult.durationSeconds,
+      server: downloadResult.server,
+      error: downloadResult.error,
+    },
+    upload: {
+      ...uploadResult.speed,
+      totalBytes: uploadResult.totalBytes,
+      totalMB: parseFloat((uploadResult.totalBytes / 1_048_576).toFixed(2)),
+      durationSeconds: uploadResult.durationSeconds,
+      server: uploadResult.server,
+      error: uploadResult.error,
+    },
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -512,34 +595,214 @@ async function handlePortCheck(host: string, port: number, timeoutSec: number) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Tool: CONNECTION TABLE — reads /proc/net/nf_conntrack (no shell)
+// Tool: CONNECTION TABLE — reads /proc/net/tcp + /proc/net/tcp6
+// (no root required, always available on Linux)
 // ═══════════════════════════════════════════════════════════════════
 
-async function handleConntrack(search?: string) {
-  // Try /proc/net/nf_conntrack first
-  try {
-    const content = await fs.promises.readFile('/proc/net/nf_conntrack', 'utf-8');
-    const lines = content.trim().split('\n');
-    const entries = search
-      ? lines.filter((l) => l.toLowerCase().includes(search.toLowerCase()))
-      : lines;
-    return { entries, total: entries.length, source: 'nf_conntrack' };
-  } catch {
-    // Fall back to conntrack CLI
-    const { stdout, code } = await execSafe('conntrack', ['-L'], 10_000);
-    if (code !== null && code !== 0) {
-      return {
-        entries: [],
-        total: 0,
-        error: 'Connection tracking table not available. nf_conntrack module may not be loaded.',
-      };
+const TCP_STATES: Record<string, string> = {
+  '01': 'ESTABLISHED',
+  '02': 'SYN_SENT',
+  '03': 'SYN_RECV',
+  '04': 'FIN_WAIT1',
+  '05': 'FIN_WAIT2',
+  '06': 'TIME_WAIT',
+  '07': 'CLOSE',
+  '08': 'CLOSE_WAIT',
+  '09': 'LAST_ACK',
+  '0A': 'LISTEN',
+  '0B': 'CLOSING',
+};
+
+function parseHexIp(hex: string, isV6: boolean): string {
+  if (isV6) {
+    // IPv6: 32 hex chars, reversed byte pairs
+    const padded = hex.padStart(32, '0');
+    const groups: string[] = [];
+    for (let i = 0; i < 32; i += 8) {
+      const chunk = padded.slice(i, i + 8);
+      // Reverse 4 byte-pairs
+      const p = [chunk.slice(6, 8), chunk.slice(4, 6), chunk.slice(2, 4), chunk.slice(0, 2)];
+      groups.push(p.join(''));
     }
-    const lines = stdout.trim().split('\n');
-    const entries = search
-      ? lines.filter((l) => l.toLowerCase().includes(search.toLowerCase()))
-      : lines;
-    return { entries, total: entries.length, source: 'conntrack' };
+    return groups.join(':').replace(/(^|:)0+(?=:|$)/g, '$1').replace(/::+/g, '::') || '::';
   }
+  // IPv4: 8 hex chars, reversed byte pairs
+  const padded = hex.padStart(8, '0');
+  const p1 = parseInt(padded.slice(6, 8), 16);
+  const p2 = parseInt(padded.slice(4, 6), 16);
+  const p3 = parseInt(padded.slice(2, 4), 16);
+  const p4 = parseInt(padded.slice(0, 2), 16);
+  return `${p4}.${p3}.${p2}.${p1}`;
+}
+
+function parseHexPort(hex: string): number {
+  return parseInt(hex, 16);
+}
+
+function parseTcpProcFile(content: string, isV6: boolean, search?: string) {
+  const lines = content.trim().split('\n');
+  const entries: Array<{
+    protocol: string;
+    localAddress: string;
+    localPort: number;
+    remoteAddress: string;
+    remotePort: number;
+    state: string;
+    stateCode: string;
+    uid: number;
+    inode: number;
+  }> = [];
+
+  // Skip header line
+  for (let i = 1; i < lines.length; i++) {
+    const parts = lines[i].trim().split(/\s+/);
+    if (parts.length < 10) continue;
+
+    const localAddr = parts[1];
+    const remoteAddr = parts[2];
+    const stateCode = parts[3].toUpperCase();
+    const uid = parseInt(parts[7], 10);
+    const inode = parseInt(parts[9], 10);
+
+    const [localHex, localPortHex] = localAddr.split(':');
+    const [remoteHex, remotePortHex] = remoteAddr.split(':');
+
+    const localAddress = parseHexIp(localHex || '0', isV6);
+    const localPort = parseHexPort(localPortHex || '0');
+    const remoteAddress = parseHexIp(remoteHex || '0', isV6);
+    const remotePort = parseHexPort(remotePortHex || '0');
+    const state = TCP_STATES[stateCode] || stateCode;
+
+    const entry = {
+      protocol: isV6 ? 'TCP6' : 'TCP4',
+      localAddress,
+      localPort,
+      remoteAddress,
+      remotePort,
+      state,
+      stateCode,
+      uid,
+      inode,
+    };
+
+    if (!search) {
+      entries.push(entry);
+    } else {
+      const s = search.toLowerCase();
+      if (
+        entry.localAddress.includes(s) ||
+        entry.remoteAddress.includes(s) ||
+        String(entry.localPort).includes(s) ||
+        String(entry.remotePort).includes(s) ||
+        entry.state.toLowerCase().includes(s)
+      ) {
+        entries.push(entry);
+      }
+    }
+  }
+
+  return entries;
+}
+
+async function handleConntrack(search?: string) {
+  const results: Array<ReturnType<typeof parseTcpProcFile>[number]> = [];
+  let source = 'proc';
+
+  // Read /proc/net/tcp (IPv4)
+  try {
+    const content = await fs.promises.readFile('/proc/net/tcp', 'utf-8');
+    results.push(...parseTcpProcFile(content, false, search));
+  } catch {
+    // Not available
+  }
+
+  // Read /proc/net/tcp6 (IPv6)
+  try {
+    const content = await fs.promises.readFile('/proc/net/tcp6', 'utf-8');
+    results.push(...parseTcpProcFile(content, true, search));
+  } catch {
+    // Not available
+  }
+
+  // Also read UDP
+  const udpResults: Array<{
+    protocol: string;
+    localAddress: string;
+    localPort: number;
+    remoteAddress: string;
+    remotePort: number;
+    state: string;
+    stateCode: string;
+  }> = [];
+
+  try {
+    const content = await fs.promises.readFile('/proc/net/udp', 'utf-8');
+    const lines = content.trim().split('\n');
+    for (let i = 1; i < lines.length; i++) {
+      const parts = lines[i].trim().split(/\s+/);
+      if (parts.length < 4) continue;
+      const [localHex, localPortHex] = (parts[1] || '').split(':');
+      const [remoteHex, remotePortHex] = (parts[2] || '').split(':');
+      const entry = {
+        protocol: 'UDP4',
+        localAddress: parseHexIp(localHex || '0', false),
+        localPort: parseHexPort(localPortHex || '0'),
+        remoteAddress: parseHexIp(remoteHex || '0', false),
+        remotePort: parseHexPort(remotePortHex || '0'),
+        state: parts[3] === '07' ? 'CLOSE' : 'ACTIVE',
+        stateCode: parts[3],
+      };
+      if (!search || JSON.stringify(entry).toLowerCase().includes(search.toLowerCase())) {
+        udpResults.push(entry);
+      }
+    }
+  } catch {
+    // Not available
+  }
+
+  try {
+    const content = await fs.promises.readFile('/proc/net/udp6', 'utf-8');
+    const lines = content.trim().split('\n');
+    for (let i = 1; i < lines.length; i++) {
+      const parts = lines[i].trim().split(/\s+/);
+      if (parts.length < 4) continue;
+      const [localHex, localPortHex] = (parts[1] || '').split(':');
+      const [remoteHex, remotePortHex] = (parts[2] || '').split(':');
+      const entry = {
+        protocol: 'UDP6',
+        localAddress: parseHexIp(localHex || '0', true),
+        localPort: parseHexPort(localPortHex || '0'),
+        remoteAddress: parseHexIp(remoteHex || '0', true),
+        remotePort: parseHexPort(remotePortHex || '0'),
+        state: parts[3] === '07' ? 'CLOSE' : 'ACTIVE',
+        stateCode: parts[3],
+      };
+      if (!search || JSON.stringify(entry).toLowerCase().includes(search.toLowerCase())) {
+        udpResults.push(entry);
+      }
+    }
+  } catch {
+    // Not available
+  }
+
+  // Summary stats
+  const stateCounts: Record<string, number> = {};
+  for (const e of results) {
+    stateCounts[e.state] = (stateCounts[e.state] || 0) + 1;
+  }
+  for (const e of udpResults) {
+    stateCounts[e.state] = (stateCounts[e.state] || 0) + 1;
+  }
+
+  return {
+    connections: results,
+    udpConnections: udpResults,
+    totalTcp: results.length,
+    totalUdp: udpResults.length,
+    total: results.length + udpResults.length,
+    stateCounts,
+    source,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════
