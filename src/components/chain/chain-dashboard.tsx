@@ -129,7 +129,7 @@ export default function ChainDashboard() {
         toast.error('Failed to fetch dashboard data');
       }
     } catch (error) {
-      console.error('Error fetching dashboard:', error);
+
       toast.error('Failed to load dashboard');
     } finally {
       setLoading(false);

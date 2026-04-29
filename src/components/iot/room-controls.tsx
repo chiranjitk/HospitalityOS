@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +15,8 @@ import { Label } from '@/components/ui/label';
 import {
   Thermometer, Lightbulb, Lock, Tv, Blinds, AirVent, Wind,
   Power, PowerOff, Sun, Moon, ChevronUp, ChevronDown,
-  Volume2, VolumeX, Wifi, WifiOff, RefreshCw, Loader2
+  Volume2, VolumeX, Wifi, WifiOff, RefreshCw, Loader2,
+  Battery, BatteryLow, BatteryMedium, BatteryWarning, Clock, Activity
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -29,6 +30,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
+import { formatDistanceToNow } from 'date-fns';
 
 interface Room {
   id: string;
@@ -49,9 +51,28 @@ interface Device {
   room?: { number: string; name?: string };
 }
 
+interface RealtimeDeviceState {
+  id: string;
+  name: string;
+  type: string;
+  isOnline: boolean;
+  lastReading: {
+    value: number;
+    unit: string;
+    type: string;
+    timestamp: string;
+  } | null;
+  batteryLevel: number | null;
+  lastHeartbeat: string | null;
+  room: { number: string; name: string | null } | null;
+  currentState: Record<string, unknown>;
+}
+
 interface RoomControlsProps {
   roomId?: string;
 }
+
+const REFRESH_INTERVAL_MS = 30000; // 30 seconds default
 
 export default function RoomControls({ roomId }: RoomControlsProps) {
   const t = useTranslations('iot');
@@ -63,15 +84,18 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
   const [unlockConfirmDeviceId, setUnlockConfirmDeviceId] = useState<string | null>(null);
   const sliderTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    fetchRoomsWithDevices();
-  }, []);
+  // Realtime polling state
+  const [realtimeStates, setRealtimeStates] = useState<Record<string, RealtimeDeviceState>>({});
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [refreshInterval, setRefreshInterval] = useState(REFRESH_INTERVAL_MS);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isAutoRefresh, setIsAutoRefresh] = useState(true);
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchRoomsWithDevices = async () => {
+  const fetchRoomsWithDevices = useCallback(async () => {
     try {
       setLoading(true);
       
-      // Fetch rooms
       const roomsRes = await fetch('/api/rooms');
       let roomsData: Room[] = [];
       if (roomsRes.ok) {
@@ -79,12 +103,10 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
         roomsData = data.rooms || [];
       }
 
-      // Fetch IoT devices with room info
       const devicesRes = await fetch('/api/iot/devices');
       if (devicesRes.ok) {
         const data = await devicesRes.json();
         
-        // Group devices by room
         const devicesByRoom: Record<string, Device[]> = {};
         data.devices.forEach((device: Device) => {
           const room = (device as any).room;
@@ -97,7 +119,6 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
           }
         });
 
-        // Attach devices to rooms
         roomsData = roomsData.map(room => ({
           ...room,
           iotDevices: devicesByRoom[room.number] || []
@@ -105,7 +126,6 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
 
         setRooms(roomsData);
         
-        // Select first room with devices or first room
         if (roomsData.length > 0) {
           const roomWithDevices = roomsData.find(r => r.iotDevices.length > 0);
           setSelectedRoom(roomWithDevices || roomsData[0]);
@@ -118,7 +138,60 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  const fetchRealtimeStates = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      const params = new URLSearchParams();
+      if (selectedRoom) {
+        params.set('roomId', selectedRoom.id);
+      }
+      
+      const response = await fetch(`/api/iot/devices/realtime?${params}`);
+      const data = await response.json();
+
+      if (data.success) {
+        const stateMap: Record<string, RealtimeDeviceState> = {};
+        data.devices.forEach((device: RealtimeDeviceState) => {
+          stateMap[device.id] = device;
+        });
+        setRealtimeStates(stateMap);
+        setLastUpdated(new Date());
+      }
+    } catch (error) {
+      console.error('Error fetching realtime states:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [selectedRoom]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchRoomsWithDevices();
+  }, [fetchRoomsWithDevices]);
+
+  // Fetch realtime states when room changes
+  useEffect(() => {
+    if (selectedRoom) {
+      fetchRealtimeStates();
+    }
+  }, [selectedRoom, fetchRealtimeStates]);
+
+  // Auto-refresh timer
+  useEffect(() => {
+    if (isAutoRefresh && refreshInterval > 0) {
+      refreshTimerRef.current = setInterval(() => {
+        fetchRealtimeStates();
+      }, refreshInterval);
+    }
+
+    return () => {
+      if (refreshTimerRef.current) {
+        clearInterval(refreshTimerRef.current);
+      }
+    };
+  }, [isAutoRefresh, refreshInterval, fetchRealtimeStates]);
 
   const debouncedSliderCommand = (deviceId: string, command: string, params: any = {}) => {
     if (sliderTimerRef.current) {
@@ -147,7 +220,6 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
       });
 
       if (response.ok) {
-        // Update local state
         setDevices(prev => prev.map(d => {
           if (d.id === deviceId) {
             let newState = { ...d.currentState };
@@ -206,7 +278,65 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
   const blinds = getDevicesByType('blind');
   const acs = getDevicesByType('ac');
 
-  // Control Panel Components
+  // Battery indicator component
+  const BatteryIndicator = ({ level }: { level: number | null }) => {
+    if (level === null) return null;
+    const percentage = Math.round(level);
+    const Icon = percentage > 60 ? Battery : percentage > 20 ? BatteryMedium : BatteryLow;
+    const colorClass = percentage > 60 ? 'text-emerald-500' : percentage > 20 ? 'text-amber-500' : 'text-red-500';
+
+    return (
+      <div className={`flex items-center gap-1 text-xs ${colorClass}`} title={`Battery: ${percentage}%`}>
+        <Icon className="h-3 w-3" />
+        <span>{percentage}%</span>
+      </div>
+    );
+  };
+
+  // Device status badge component
+  const DeviceStatusBadge = ({ deviceId }: { deviceId: string }) => {
+    const state = realtimeStates[deviceId];
+    if (!state) return null;
+
+    return (
+      <div className="flex items-center gap-2">
+        <Badge
+          variant="outline"
+          className={`text-xs ${
+            state.isOnline
+              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+              : 'bg-slate-100 text-slate-500 dark:bg-slate-900/30 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+          }`}
+        >
+          {state.isOnline ? (
+            <><Activity className="h-3 w-3 mr-1" /> Online</>
+          ) : (
+            <><WifiOff className="h-3 w-3 mr-1" /> Offline</>
+          )}
+        </Badge>
+        <BatteryIndicator level={state.batteryLevel} />
+      </div>
+    );
+  };
+
+  // Sensor reading display
+  const SensorReading = ({ deviceId }: { deviceId: string }) => {
+    const state = realtimeStates[deviceId];
+    if (!state || !state.lastReading) return null;
+
+    return (
+      <div className="mt-2 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1">
+          <Clock className="h-3 w-3" />
+          Last: {state.lastReading.value} {state.lastReading.unit} ({state.lastReading.type})
+        </span>
+        <span className="flex items-center gap-1 ml-2">
+          {formatDistanceToNow(new Date(state.lastReading.timestamp), { addSuffix: true })}
+        </span>
+      </div>
+    );
+  };
+
   const ThermostatControl = ({ device }: { device: Device }) => {
     const temp = device.currentState?.temperature || 22;
     const isOn = device.currentState?.isOn ?? true;
@@ -219,13 +349,16 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
               <Thermometer className="h-4 w-4" />
               {device.name}
             </CardTitle>
-            <Switch
-              checked={isOn}
-              onCheckedChange={(checked) => 
-                sendCommand(device.id, checked ? 'turn_on' : 'turn_off')
-              }
-              disabled={controlling === device.id}
-            />
+            <div className="flex items-center gap-2">
+              <DeviceStatusBadge deviceId={device.id} />
+              <Switch
+                checked={isOn}
+                onCheckedChange={(checked) => 
+                  sendCommand(device.id, checked ? 'turn_on' : 'turn_off')
+                }
+                disabled={controlling === device.id}
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -273,6 +406,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
               Auto
             </Button>
           </div>
+          <SensorReading deviceId={device.id} />
         </CardContent>
       </Card>
     );
@@ -290,13 +424,16 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
               <Lightbulb className="h-4 w-4" />
               {device.name}
             </CardTitle>
-            <Switch
-              checked={isOn}
-              onCheckedChange={(checked) => 
-                sendCommand(device.id, checked ? 'turn_on' : 'turn_off')
-              }
-              disabled={controlling === device.id}
-            />
+            <div className="flex items-center gap-2">
+              <DeviceStatusBadge deviceId={device.id} />
+              <Switch
+                checked={isOn}
+                onCheckedChange={(checked) => 
+                  sendCommand(device.id, checked ? 'turn_on' : 'turn_off')
+                }
+                disabled={controlling === device.id}
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -335,6 +472,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
               Night
             </Button>
           </div>
+          <SensorReading deviceId={device.id} />
         </CardContent>
       </Card>
     );
@@ -351,9 +489,12 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
               <Lock className="h-4 w-4" />
               {device.name}
             </CardTitle>
-            <Badge variant={isLocked ? 'default' : 'destructive'}>
-              {isLocked ? 'Locked' : 'Unlocked'}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <DeviceStatusBadge deviceId={device.id} />
+              <Badge variant={isLocked ? 'default' : 'destructive'}>
+                {isLocked ? 'Locked' : 'Unlocked'}
+              </Badge>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -365,6 +506,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
           >
             {isLocked ? 'Unlock Door' : 'Lock Door'}
           </Button>
+          <SensorReading deviceId={device.id} />
         </CardContent>
       </Card>
     );
@@ -383,13 +525,16 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
               <Tv className="h-4 w-4" />
               {device.name}
             </CardTitle>
-            <Switch
-              checked={isOn}
-              onCheckedChange={(checked) => 
-                sendCommand(device.id, checked ? 'turn_on' : 'turn_off')
-              }
-              disabled={controlling === device.id}
-            />
+            <div className="flex items-center gap-2">
+              <DeviceStatusBadge deviceId={device.id} />
+              <Switch
+                checked={isOn}
+                onCheckedChange={(checked) => 
+                  sendCommand(device.id, checked ? 'turn_on' : 'turn_off')
+                }
+                disabled={controlling === device.id}
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -420,6 +565,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
               {muted ? 'Unmute' : 'Mute'}
             </Button>
           </div>
+          <SensorReading deviceId={device.id} />
         </CardContent>
       </Card>
     );
@@ -437,9 +583,12 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
               <Blinds className="h-4 w-4" />
               {device.name}
             </CardTitle>
-            <Badge variant="outline">
-              {position}% Open
-            </Badge>
+            <div className="flex items-center gap-2">
+              <DeviceStatusBadge deviceId={device.id} />
+              <Badge variant="outline">
+                {position}% Open
+              </Badge>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -472,6 +621,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
               Close
             </Button>
           </div>
+          <SensorReading deviceId={device.id} />
         </CardContent>
       </Card>
     );
@@ -490,13 +640,16 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
               <AirVent className="h-4 w-4" />
               {device.name}
             </CardTitle>
-            <Switch
-              checked={isOn}
-              onCheckedChange={(checked) => 
-                sendCommand(device.id, checked ? 'turn_on' : 'turn_off')
-              }
-              disabled={controlling === device.id}
-            />
+            <div className="flex items-center gap-2">
+              <DeviceStatusBadge deviceId={device.id} />
+              <Switch
+                checked={isOn}
+                onCheckedChange={(checked) => 
+                  sendCommand(device.id, checked ? 'turn_on' : 'turn_off')
+                }
+                disabled={controlling === device.id}
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -538,6 +691,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
               ))}
             </div>
           </div>
+          <SensorReading deviceId={device.id} />
         </CardContent>
       </Card>
     );
@@ -571,7 +725,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
       {/* Room Selector */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
             <Label>Select Room:</Label>
             <Select 
               value={selectedRoom?.number || ''} 
@@ -597,6 +751,71 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
               <div className="ml-auto flex items-center gap-2">
                 <Badge variant="outline">Floor {selectedRoom.floor}</Badge>
                 <Badge variant="outline">{selectedRoom.roomType?.name || 'Standard'}</Badge>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Realtime Status Bar */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={isAutoRefresh}
+                  onCheckedChange={setIsAutoRefresh}
+                  id="auto-refresh"
+                />
+                <Label htmlFor="auto-refresh" className="text-sm">Auto-refresh</Label>
+              </div>
+              <Select
+                value={refreshInterval.toString()}
+                onValueChange={(v) => setRefreshInterval(parseInt(v))}
+                disabled={!isAutoRefresh}
+              >
+                <SelectTrigger className="w-28 h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10000">10s</SelectItem>
+                  <SelectItem value="30000">30s</SelectItem>
+                  <SelectItem value="60000">1 min</SelectItem>
+                  <SelectItem value="300000">5 min</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={fetchRealtimeStates}
+                disabled={refreshing}
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+            {lastUpdated && (
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Updated {formatDistanceToNow(lastUpdated, { addSuffix: true })}
+                </span>
+                <div className="flex items-center gap-3">
+                  <Badge variant="outline" className="text-emerald-600 dark:text-emerald-400">
+                    <Wifi className="h-3 w-3 mr-1" />
+                    {Object.values(realtimeStates).filter(d => d.isOnline).length} online
+                  </Badge>
+                  <Badge variant="outline" className="text-slate-500">
+                    <WifiOff className="h-3 w-3 mr-1" />
+                    {Object.values(realtimeStates).filter(d => !d.isOnline).length} offline
+                  </Badge>
+                  {Object.values(realtimeStates).filter(d => d.batteryLevel !== null && d.batteryLevel < 20).length > 0 && (
+                    <Badge variant="outline" className="text-red-500">
+                      <BatteryWarning className="h-3 w-3 mr-1" />
+                      {Object.values(realtimeStates).filter(d => d.batteryLevel !== null && d.batteryLevel < 20).length} low battery
+                    </Badge>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -634,10 +853,14 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
                     {device.type === 'sensor' && (
                       <Card>
                         <CardHeader className="pb-2">
-                          <CardTitle className="text-sm">{device.name}</CardTitle>
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-sm">{device.name}</CardTitle>
+                            <DeviceStatusBadge deviceId={device.id} />
+                          </div>
                         </CardHeader>
                         <CardContent>
                           <Badge variant="outline">Sensor - No Controls</Badge>
+                          <SensorReading deviceId={device.id} />
                         </CardContent>
                       </Card>
                     )}
@@ -748,6 +971,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
                   const thermoPromises = thermostats.map(d => executeCommand(d.id, 'set_temperature', { temperature: 22 }));
                   await Promise.allSettled([...lightPromises, ...thermoPromises]);
                   fetchRoomsWithDevices();
+                  fetchRealtimeStates();
                 }}
               >
                 <Sun className="h-4 w-4 mr-2" />
@@ -764,6 +988,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
                   blinds.forEach(d => promises.push(executeCommand(d.id, 'close', {})));
                   await Promise.allSettled(promises);
                   fetchRoomsWithDevices();
+                  fetchRealtimeStates();
                 }}
               >
                 <Moon className="h-4 w-4 mr-2" />
@@ -775,6 +1000,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
                   const promises = devices.map(d => executeCommand(d.id, 'turn_off'));
                   await Promise.allSettled(promises);
                   fetchRoomsWithDevices();
+                  fetchRealtimeStates();
                 }}
               >
                 <PowerOff className="h-4 w-4 mr-2" />

@@ -11,7 +11,7 @@ export default async function loadSection(section: string): Promise<{ default: R
     case 'staff-communication':
       return import('@/components/staff/internal-communication');
     case 'staff-performance':
-      return import('@/components/reports/staff-performance');
+      return import('@/components/staff/performance/performance-dashboard');
     case 'staff-skills':
       return import('@/components/staff/skills-management');
     default:

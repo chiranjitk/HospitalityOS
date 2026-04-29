@@ -71,7 +71,7 @@ export default function DeviceSessions() {
         toast.error('Failed to fetch sessions');
       }
     } catch (error) {
-      console.error('Error fetching sessions:', error);
+
       toast.error('Failed to fetch sessions');
     } finally {
       setIsLoading(false);
@@ -94,7 +94,7 @@ export default function DeviceSessions() {
         toast.error(data.error || 'Failed to revoke session');
       }
     } catch (error) {
-      console.error('Error revoking session:', error);
+
       toast.error('Failed to revoke session');
     } finally {
       setIsRevoking(false);
@@ -119,7 +119,7 @@ export default function DeviceSessions() {
         toast.error(data.error || 'Failed to revoke sessions');
       }
     } catch (error) {
-      console.error('Error revoking all sessions:', error);
+
       toast.error('Failed to revoke sessions');
     } finally {
       setIsRevoking(false);

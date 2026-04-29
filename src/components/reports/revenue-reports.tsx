@@ -1,7 +1,5 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-
 import React, { useState, useEffect } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
@@ -100,7 +98,6 @@ const chartColors = [
 ];
 
 export default function RevenueReports() {
-const t = useTranslations('reports');
   const { formatCurrency, currency } = useCurrency();
   const { formatDate: formatDateUtil } = useTimezone();
 
@@ -133,7 +130,7 @@ const t = useTranslations('reports');
           setData(result.data);
         }
       } catch (err) {
-        console.error('Failed to fetch revenue data:', err);
+
       } finally {
         setIsLoading(false);
       }
@@ -334,7 +331,7 @@ const t = useTranslations('reports');
                 className="text-xs"
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(v) => `$${v / 1000}k`}
+                tickFormatter={(v) => `${currency.symbol}${v / 1000}k`}
               />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Area
@@ -410,7 +407,7 @@ const t = useTranslations('reports');
               <ChartContainer config={chartConfig} className="h-[160px] sm:h-[250px] w-full">
                 <BarChart data={revenueByRoomType} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" horizontal vertical={false} />
-                  <XAxis type="number" className="text-xs" tickLine={false} axisLine={false} tickFormatter={(v) => `$${v / 1000}k`} />
+                  <XAxis type="number" className="text-xs" tickLine={false} axisLine={false} tickFormatter={(v) => `${currency.symbol}${v / 1000}k`} />
                   <YAxis
                     dataKey="roomTypeName"
                     type="category"

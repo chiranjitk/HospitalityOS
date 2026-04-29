@@ -100,7 +100,7 @@ export function TenantManagement() {
         setTenants(data.data.tenants);
       }
     } catch (error) {
-      console.error('Error fetching tenants:', error);
+
       toast.error('Failed to fetch tenants');
     } finally {
       setLoading(false);
@@ -138,7 +138,7 @@ export function TenantManagement() {
         throw new Error(data.error || 'Failed to save tenant');
       }
     } catch (error) {
-      console.error('Error saving tenant:', error);
+
       toast.error('Failed to save tenant');
     } finally {
       setSaving(false);
@@ -169,7 +169,7 @@ export function TenantManagement() {
         throw new Error(data.error || 'Failed to update status');
       }
     } catch (error) {
-      console.error('Error updating tenant status:', error);
+
       toast.error('Failed to update tenant status');
     }
   };
@@ -195,7 +195,7 @@ export function TenantManagement() {
         throw new Error(data.error || 'Failed to delete tenant');
       }
     } catch (error) {
-      console.error('Error deleting tenant:', error);
+
       toast.error('Failed to delete tenant');
     } finally {
       setDeleteTenantId(null);

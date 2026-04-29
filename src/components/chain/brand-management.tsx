@@ -133,7 +133,7 @@ export default function BrandManagement() {
         toast.error('Failed to fetch brands');
       }
     } catch (error) {
-      console.error('Error fetching brands:', error);
+
       toast.error('Failed to load brands');
     } finally {
       setLoading(false);
@@ -185,7 +185,7 @@ export default function BrandManagement() {
         toast.error(data.error?.message || 'Failed to create brand');
       }
     } catch (error) {
-      console.error('Error creating brand:', error);
+
       toast.error('Failed to create brand');
     } finally {
       setSaving(false);
@@ -226,7 +226,7 @@ export default function BrandManagement() {
         toast.error(data.error?.message || 'Failed to update brand');
       }
     } catch (error) {
-      console.error('Error updating brand:', error);
+
       toast.error('Failed to update brand');
     } finally {
       setSaving(false);
@@ -254,7 +254,7 @@ export default function BrandManagement() {
         toast.error(data.error?.message || 'Failed to delete brand');
       }
     } catch (error) {
-      console.error('Error deleting brand:', error);
+
       toast.error('Failed to delete brand');
     } finally {
       setSaving(false);

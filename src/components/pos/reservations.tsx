@@ -211,7 +211,7 @@ export default function Reservations() {
         setStats(statsData.data);
       }
     } catch (error) {
-      console.error('Error fetching reservations:', error);
+
       toast.error('Failed to fetch reservations');
     } finally {
       setLoading(false);
@@ -227,7 +227,7 @@ export default function Reservations() {
         setAvailableTables(data.data);
       }
     } catch (error) {
-      console.error('Error fetching tables:', error);
+
     }
   }, [propertyId]);
 
@@ -339,7 +339,7 @@ export default function Reservations() {
         toast.error(data.error?.message || (isEditing ? 'Failed to update reservation' : 'Failed to create reservation'));
       }
     } catch (error) {
-      console.error(isEditing ? 'Error updating reservation:' : 'Error creating reservation:', error);
+
       toast.error(isEditing ? 'Failed to update reservation' : 'Failed to create reservation');
     } finally {
       setCreating(false);
@@ -363,7 +363,7 @@ export default function Reservations() {
         toast.error(data.error?.message || 'Failed to update reservation');
       }
     } catch (error) {
-      console.error('Error updating reservation:', error);
+
       toast.error('Failed to update reservation');
     }
   };

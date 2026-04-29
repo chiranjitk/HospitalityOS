@@ -1,7 +1,5 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -104,8 +102,7 @@ const chartColors = [
 ];
 
 export default function GuestAnalyticsReports() {
-const t = useTranslations('reports');
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, currency } = useCurrency();
   const { formatDate } = useTimezone();
   const [data, setData] = useState<GuestAnalyticsReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -160,7 +157,7 @@ const t = useTranslations('reports');
           throw new Error('Failed to load analytics data');
         }
       } catch (error) {
-        console.error('Failed to fetch guest analytics reports:', error);
+
         toast.error('Failed to load guest analytics reports');
       } finally {
         setIsLoading(false);
@@ -231,8 +228,8 @@ const t = useTranslations('reports');
             [
               { key: 'segment', label: 'Segment' },
               { key: 'guests', label: 'Guests' },
-              { key: 'revenue', label: 'Revenue ($)' },
-              { key: 'avgSpend', label: 'Avg Spend ($)' },
+              { key: 'revenue', label: `Revenue (${currency.symbol})` },
+              { key: 'avgSpend', label: `Avg Spend (${currency.symbol})` },
               { key: 'percentage', label: 'Revenue Share (%)' },
             ]
           )}>
@@ -733,7 +730,7 @@ const t = useTranslations('reports');
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
                   <XAxis dataKey="month" tickFormatter={(v) => formatDate(new Date(v))} className="text-xs" tickLine={false} axisLine={false} />
-                  <YAxis className="text-xs" tickLine={false} axisLine={false} tickFormatter={(v) => `$${v / 1000}k`} />
+                  <YAxis className="text-xs" tickLine={false} axisLine={false} tickFormatter={(v) => `${currency.symbol}${v / 1000}k`} />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Area type="monotone" dataKey="revenue" stroke="#f59e0b" fill="url(#colorRevenue)" strokeWidth={2} />
                 </AreaChart>

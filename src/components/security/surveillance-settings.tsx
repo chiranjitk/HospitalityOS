@@ -30,36 +30,30 @@ import {
   Monitor,
   Info,
   RotateCcw,
+  CheckCircle2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SectionGuard } from '@/components/common/section-guard';
 
-// TODO: Move to database when SurveillanceSettings model is created
-const STORAGE_KEY = 'stay-suite-surveillance-settings';
-
 interface SurveillanceSettings {
-  // Stream Configuration
   stream: {
     mediaServerType: 'go2rtc' | 'mediamtx' | 'none';
     mediaServerUrl: string;
     hlsBaseUrl: string;
     rtspToHlsProxy: boolean;
   };
-  // Recording Settings
   recording: {
     retentionDays: number;
     maxStorageGB: number;
     quality: '1080p' | '720p' | '480p' | '360p';
     autoDeleteAfterRetention: boolean;
   };
-  // Alert Settings
   alerts: {
     notifications: boolean;
     sound: boolean;
-    autoAckLowAfter: number; // minutes, 0 = never
+    autoAckLowAfter: number;
     refreshInterval: '10s' | '30s' | '60s' | '5min';
   };
-  // Display Settings
   display: {
     gridLayout: '1x1' | '2x2' | '3x3';
     showCameraNames: boolean;
@@ -97,43 +91,72 @@ const DEFAULT_SETTINGS: SurveillanceSettings = {
   },
 };
 
-function loadSettings(): SurveillanceSettings {
-  if (typeof window === 'undefined') return DEFAULT_SETTINGS;
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return {
-        stream: { ...DEFAULT_SETTINGS.stream, ...parsed.stream },
-        recording: { ...DEFAULT_SETTINGS.recording, ...parsed.recording },
-        alerts: { ...DEFAULT_SETTINGS.alerts, ...parsed.alerts },
-        display: { ...DEFAULT_SETTINGS.display, ...parsed.display },
-      };
+// Map between configType keys and the SurveillanceSettings section names
+const CONFIG_TYPE_MAP = {
+  stream: 'streaming',
+  recording: 'recording',
+  alerts: 'alerts',
+  display: 'display',
+} as const;
+
+type SettingsSection = keyof SurveillanceSettings;
+
+async function fetchAllSettings(): Promise<SurveillanceSettings> {
+  const response = await fetch('/api/security/surveillance-config');
+  if (!response.ok) throw new Error('Failed to fetch settings');
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error?.message || 'Failed to fetch settings');
+
+  const merged: SurveillanceSettings = {
+    stream: { ...DEFAULT_SETTINGS.stream },
+    recording: { ...DEFAULT_SETTINGS.recording },
+    alerts: { ...DEFAULT_SETTINGS.alerts },
+    display: { ...DEFAULT_SETTINGS.display },
+  };
+
+  for (const config of result.data) {
+    const section = Object.entries(CONFIG_TYPE_MAP).find(
+      ([, apiType]) => apiType === config.configType
+    )?.[0] as SettingsSection | undefined;
+    if (section && config.settings) {
+      merged[section] = { ...DEFAULT_SETTINGS[section], ...config.settings };
     }
-  } catch {
-    // Ignore parse errors
   }
-  return DEFAULT_SETTINGS;
+
+  return merged;
 }
 
-function saveSettings(settings: SurveillanceSettings) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  } catch {
-    toast.error('Failed to save settings to local storage');
-  }
+async function saveSection(section: SettingsSection, settings: SurveillanceSettings[SettingsSection]): Promise<void> {
+  const configType = CONFIG_TYPE_MAP[section];
+  const response = await fetch('/api/security/surveillance-config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ configType, settings }),
+  });
+  if (!response.ok) throw new Error('Failed to save settings');
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error?.message || 'Failed to save settings');
 }
 
 export default function SurveillanceSettings() {
-  const [settings, setSettings] = useState<SurveillanceSettings>(() => loadSettings());
-  const [mounted, setMounted] = useState(false);
+  const [settings, setSettings] = useState<SurveillanceSettings>(DEFAULT_SETTINGS);
+  const [isLoading, setIsLoading] = useState(true);
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Mark as mounted after hydration (avoids hydration mismatch with localStorage)
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
-    setMounted(true);
+    const load = async () => {
+      try {
+        const data = await fetchAllSettings();
+        setSettings(data);
+      } catch (error) {
+        console.error('Failed to load surveillance settings:', error);
+        toast.error('Failed to load settings from server. Using defaults.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    load();
   }, []);
 
   const updateSettings = useCallback(
@@ -154,15 +177,20 @@ export default function SurveillanceSettings() {
     []
   );
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaving(true);
-    // Simulate a brief async save
-    setTimeout(() => {
-      saveSettings(settings);
+    try {
+      // Save each section independently
+      const sections: SettingsSection[] = ['stream', 'recording', 'alerts', 'display'];
+      await Promise.all(sections.map((section) => saveSection(section, settings[section])));
       setHasChanges(false);
-      setSaving(false);
       toast.success('Surveillance settings saved successfully');
-    }, 300);
+    } catch (error) {
+      console.error('Failed to save surveillance settings:', error);
+      toast.error('Failed to save some settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleReset = () => {
@@ -171,7 +199,7 @@ export default function SurveillanceSettings() {
     toast.info('Settings have been reset to defaults. Click Save to apply.');
   };
 
-  if (!mounted) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -207,8 +235,8 @@ export default function SurveillanceSettings() {
               className="shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200"
             >
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              <Save className="h-4 w-4 mr-2" />
-              Save Changes
+              {!saving && <Save className="h-4 w-4 mr-2" />}
+              {saving ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </div>
@@ -680,13 +708,12 @@ export default function SurveillanceSettings() {
           </CardContent>
         </Card>
 
-        {/* Info Banner */}
+        {/* Synced Info Banner */}
         <Alert>
-          <Info className="h-4 w-4" />
+          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
           <AlertDescription>
-            Settings are currently stored in your browser&apos;s local storage.{' '}
-            <strong>They are not synced across devices or browsers.</strong> A database
-            backend will be added in a future update to enable multi-device persistence.
+            Settings are synced to the database and shared across all devices and browsers
+            for your property.
           </AlertDescription>
         </Alert>
       </div>

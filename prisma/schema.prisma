@@ -181,6 +181,34 @@ model AuditLog {
   @@index([entityType, entityId])
 }
 
+model AiConversation {
+  id          String              @id @default(uuid()) @db.Uuid
+  tenantId    String              @db.Uuid
+  userId      String              @db.Uuid
+  title       String
+  messages    AiConversationMessage[]
+  createdAt   DateTime            @default(now()) @db.Timestamptz
+  updatedAt   DateTime            @updatedAt @db.Timestamptz
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model AiConversationMessage {
+  id             String          @id @default(uuid()) @db.Uuid
+  conversationId String          @db.Uuid
+  role           String
+  content        String
+  createdAt      DateTime        @default(now()) @db.Timestamptz
+  conversation   AiConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
 model AutomationExecutionLog {
   id            String         @id @default(uuid()) @db.Uuid
   ruleId        String         @db.Uuid
@@ -531,7 +559,9 @@ model Booking {
   auditLogs           BookingAuditLog[]
   folios              Folio[]
   guestStays          GuestStay[]
-  waitlist            WaitlistEntry?
+  waitlist               WaitlistEntry?
+  scheduledCharges        ScheduledCharge[]
+  cancellationPenalties   CancellationPenalty[]
 
   @@index([tenantId])
   @@index([propertyId])
@@ -716,6 +746,7 @@ model CancellationPolicy {
   sortOrder             Int      @default(0)
   createdAt             DateTime @default(now()) @db.Timestamptz
   updatedAt             DateTime @updatedAt @db.Timestamptz
+  cancellationPenalties   CancellationPenalty[]
   tenant                Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
@@ -1910,6 +1941,9 @@ model Folio {
   paymentSchedules  PaymentSchedule[]
   outgoingTransfers FolioTransfer[]   @relation("FolioOutgoingTransfers")
   incomingTransfers FolioTransfer[]   @relation("FolioIncomingTransfers")
+  paymentTokens           PaymentToken[]
+  scheduledCharges        ScheduledCharge[]
+  cancellationPenalties   CancellationPenalty[]
 
   @@index([tenantId])
   @@index([bookingId])
@@ -2107,6 +2141,7 @@ model Guest {
   sourceId            String?                   @db.Uuid
   emailOptIn          Boolean                   @default(false)
   smsOptIn            Boolean                   @default(false)
+  status              String                    @default("active") // active, merged, inactive
   kycStatus           String                    @default("pending")
   kycVerifiedAt       DateTime?                 @db.Timestamptz
   createdAt           DateTime                  @default(now()) @db.Timestamptz
@@ -3501,6 +3536,7 @@ model ParkingSlot {
   updatedAt   DateTime  @updatedAt @db.Timestamptz
   tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   vehicles    Vehicle[]
+  parkingPasses ParkingPass[]
 
   @@unique([tenantId, number])
   @@index([tenantId])
@@ -3977,6 +4013,12 @@ model Property {
   gateways               Gateway[]
   gatewayExplicitRoutes  GatewayExplicitRoute[]
   kioskSettings          KioskSettings?
+  paymentTokens          PaymentToken[]
+  scheduledCharges       ScheduledCharge[]
+  keyCards               KeyCard[]
+  surveillanceConfigs    SurveillanceConfig[]
+  fromTransfers          InventoryTransfer[]  @relation("FromProperty")
+  toTransfers            InventoryTransfer[]  @relation("ToProperty")
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -4641,6 +4683,7 @@ model Room {
   workOrders         WorkOrder[]
   maintenanceBlocks  MaintenanceBlock[]
   currentTask        Task?              @relation("RoomCurrentTask", fields: [currentTaskId], references: [id])
+  keyCards          KeyCard[]
 
   @@unique([propertyId, number])
   @@index([propertyId])
@@ -5355,14 +5398,17 @@ model StockItem {
   location           String?
   status             String              @default("active")
   lowStockAlert      Boolean             @default(true)
+  expiryDate         DateTime?           @db.Timestamptz
   createdAt          DateTime            @default(now()) @db.Timestamptz
   updatedAt          DateTime            @updatedAt @db.Timestamptz
   deletedAt          DateTime?           @db.Timestamptz
   purchaseOrderItems PurchaseOrderItem[]
   consumptionLogs    StockConsumption[]
+  transferItems      InventoryTransferItem[] @relation("StockItemTransfer")
   tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
+  @@index([expiryDate])
 }
 
 model Subscription {
@@ -5675,6 +5721,7 @@ model Tenant {
   radiusNAS                 RadiusNAS[]
   radiusServerConfigs       RadiusServerConfig[]
   amenities                 Amenity[]
+  aiConversations           AiConversation[]
   adCampaigns               AdCampaign[]
   googleHotelAdsConnections GoogleHotelAdsConnection[]
   metasearchConnections     MetasearchConnection[]
@@ -5782,6 +5829,15 @@ model Tenant {
   chatAttachments          ChatAttachment[]
   chatTransfers            ChatTransfer[]
   recipeIngredients         RecipeIngredient[]
+  paymentTokens             PaymentToken[]
+  scheduledCharges          ScheduledCharge[]
+  cancellationPenalties     CancellationPenalty[]
+  keyCards                   KeyCard[]
+  surveillanceConfigs        SurveillanceConfig[]
+  parkingPasses             ParkingPass[]
+  inventoryTransfers        InventoryTransfer[]
+  campaignAbTests           CampaignAbTest[]
+  competitorSyncLogs        CompetitorSyncLog[]
 }
 
 model Experience {
@@ -6043,6 +6099,7 @@ model User {
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
   fcmTokens               UserFcmToken[]
+  aiConversations         AiConversation[]
   staffSkills             StaffSkill[]
   channelMemberships      StaffChannelMember[]
   sentStaffMessages       StaffChatMessage[]
@@ -6116,6 +6173,7 @@ model Vehicle {
   updatedAt    DateTime     @updatedAt @db.Timestamptz
   slot         ParkingSlot? @relation(fields: [slotId], references: [id])
   guest        Guest?       @relation(fields: [guestId], references: [id])
+  parkingPasses ParkingPass[]
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
@@ -6873,4 +6931,284 @@ model OrderDiscount {
 
   @@index([tenantId])
   @@index([orderId])
+}
+
+/// PaymentToken - Tokenized payment cards for secure recurring billing
+model PaymentToken {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String?   @db.Uuid
+  guestId         String    @db.Uuid
+  folioId         String?   @db.Uuid
+  tokenType       String    // stripe_token, paypal_token, braintree_token
+  gatewayTokenId  String    // The gateway's token reference
+  cardType        String?   // credit, debit
+  cardLast4       String?
+  cardExpiryMonth Int?
+  cardExpiryYear  Int?
+  cardBrand       String?   // visa, mastercard, amex
+  isDefault       Boolean   @default(false)
+  status          String    @default("active") // active, expired, revoked
+  metadata        String?   // Additional gateway metadata as JSON string
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property        Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  folio           Folio?    @relation(fields: [folioId], references: [id])
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([guestId])
+  @@index([folioId])
+  @@index([status])
+}
+
+/// ScheduledCharge - Recurring automated charges (minibar, resort fees, etc.)
+model ScheduledCharge {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String    @db.Uuid
+  folioId         String    @db.Uuid
+  bookingId       String    @db.Uuid
+  chargeType      String    // room_charge, incidentals, minibar, resort_fee
+  description     String
+  category        String?
+  amount          Float     @default(0)
+  currency        String    @default("USD")
+  frequency       String    // daily, weekly, monthly, once
+  startDate       DateTime  @db.Timestamptz
+  endDate         DateTime? @db.Timestamptz
+  nextExecutionAt DateTime  @db.Timestamptz
+  lastExecutedAt  DateTime? @db.Timestamptz
+  isActive        Boolean   @default(true)
+  maxAmount       Float?    // Total cap for recurring charges
+  executedCount   Int       @default(0)
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+  folio           Folio     @relation(fields: [folioId], references: [id])
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([folioId])
+  @@index([bookingId])
+  @@index([isActive])
+  @@index([nextExecutionAt])
+}
+
+/// CancellationPenalty - Tracks applied cancellation penalties
+model CancellationPenalty {
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @db.Uuid
+  bookingId         String    @db.Uuid
+  folioId           String?   @db.Uuid
+  policyId          String    @db.Uuid
+  policyName        String
+  penaltyType       String    // percentage, fixed_nights, first_night, fixed
+  penaltyAmount     Float     @default(0)
+  originalAmount    Float     @default(0) // The booking total
+  penaltyPercent    Float?
+  penaltyNights     Int?
+  refundAmount      Float     @default(0)
+  reason            String?
+  exemptionType     String?   // loyalty_tier, segment, custom
+  exemptionDetails  String?
+  status            String    @default("applied") // applied, waived, appealed, refunded
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking           Booking            @relation(fields: [bookingId], references: [id])
+  folio             Folio?             @relation(fields: [folioId], references: [id])
+  cancellationPolicy CancellationPolicy @relation(fields: [policyId], references: [id])
+
+  @@index([tenantId])
+  @@index([bookingId])
+  @@index([folioId])
+  @@index([policyId])
+  @@index([status])
+}
+
+/// KeyCard - Lifecycle management for physical/digital key cards
+model KeyCard {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @db.Uuid
+  propertyId     String    @db.Uuid
+  roomId         String    @db.Uuid
+  guestId        String?   @db.Uuid
+  bookingId      String?   @db.Uuid
+  cardNumber     String    @unique
+  cardType       String    @default("physical") // physical, digital, mobile
+  issuerName     String?   // Staff who issued the card
+  status         String    @default("issued") // issued, active, deactivated, returned, lost
+  issuedAt       DateTime  @default(now()) @db.Timestamptz
+  activatedAt    DateTime? @db.Timestamptz
+  deactivatedAt  DateTime? @db.Timestamptz
+  returnedAt     DateTime? @db.Timestamptz
+  returnReason   String?
+  accessLevel    String    @default("standard") // standard, vip, master
+  validFrom      DateTime  @db.Timestamptz
+  validTo        DateTime? @db.Timestamptz
+  notes          String?
+  createdAt      DateTime  @default(now()) @db.Timestamptz
+  updatedAt      DateTime  @updatedAt @db.Timestamptz
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property       Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  room           Room      @relation(fields: [roomId], references: [id])
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([roomId])
+  @@index([guestId])
+  @@index([bookingId])
+  @@index([status])
+  @@index([cardNumber])
+  @@index([validFrom])
+  @@index([validTo])
+}
+
+/// SurveillanceConfig - Centralized surveillance settings (moved from localStorage to DB)
+model SurveillanceConfig {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  propertyId String   @db.Uuid
+  configType String   // streaming, recording, alerts, display
+  settings   String   // All settings stored as JSON string
+  updatedAt  DateTime @updatedAt @db.Timestamptz
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, propertyId, configType])
+  @@index([tenantId])
+  @@index([propertyId])
+}
+
+// ============================================================
+// NEW MODELS: Parking Pass, Inventory Transfer, A/B Test, CompetitorSync
+// ============================================================
+
+/// ParkingPass - Monthly/weekly parking passes
+model ParkingPass {
+  id             String       @id @default(uuid()) @db.Uuid
+  tenantId       String       @db.Uuid
+  propertyId     String       @db.Uuid
+  vehicleId      String?      @db.Uuid
+  slotId         String?      @db.Uuid
+  holderName     String
+  holderEmail    String?
+  holderPhone    String?
+  licensePlate   String
+  startDate      DateTime     @db.Timestamptz
+  endDate        DateTime     @db.Timestamptz
+  duration       String       @default("monthly") // weekly, monthly, quarterly, yearly
+  amount         Float        @default(0)
+  currency       String       @default("USD")
+  status         String       @default("active") // active, expired, suspended, cancelled
+  autoRenew      Boolean      @default(false)
+  paymentStatus  String       @default("paid") // paid, pending, failed
+  notes          String?
+  createdAt      DateTime     @default(now()) @db.Timestamptz
+  updatedAt      DateTime     @updatedAt @db.Timestamptz
+  vehicle        Vehicle?     @relation(fields: [vehicleId], references: [id])
+  slot           ParkingSlot? @relation(fields: [slotId], references: [id])
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([endDate])
+}
+
+/// InventoryTransfer - Inter-property inventory transfers
+model InventoryTransfer {
+  id               String       @id @default(uuid()) @db.Uuid
+  tenantId         String       @db.Uuid
+  fromPropertyId   String       @db.Uuid
+  toPropertyId     String       @db.Uuid
+  status           String       @default("requested") // requested, approved, in_transit, completed, rejected
+  requestedBy      String?      @db.Uuid
+  approvedBy       String?      @db.Uuid
+  completedBy      String?      @db.Uuid
+  reason           String?
+  notes            String?
+  approvedAt       DateTime?    @db.Timestamptz
+  completedAt      DateTime?    @db.Timestamptz
+  rejectedAt       DateTime?    @db.Timestamptz
+  rejectionReason  String?
+  createdAt        DateTime     @default(now()) @db.Timestamptz
+  updatedAt        DateTime     @updatedAt @db.Timestamptz
+  items            InventoryTransferItem[]
+  fromProperty     Property     @relation("FromProperty", fields: [fromPropertyId], references: [id], onDelete: Cascade)
+  toProperty       Property     @relation("ToProperty", fields: [toPropertyId], references: [id], onDelete: Cascade)
+  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([fromPropertyId])
+  @@index([toPropertyId])
+  @@index([status])
+}
+
+/// InventoryTransferItem - Individual items in a transfer
+model InventoryTransferItem {
+  id              String            @id @default(uuid()) @db.Uuid
+  transferId      String            @db.Uuid
+  stockItemId     String            @db.Uuid
+  stockItemName   String
+  quantity        Float
+  unit            String            @default("piece")
+  unitCost        Float             @default(0)
+  createdAt       DateTime          @default(now()) @db.Timestamptz
+  updatedAt       DateTime          @updatedAt @db.Timestamptz
+  transfer        InventoryTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  stockItem       StockItem?          @relation("StockItemTransfer", fields: [stockItemId], references: [id])
+
+  @@index([transferId])
+  @@index([stockItemId])
+}
+
+/// CampaignAbTest - A/B test for campaigns
+model CampaignAbTest {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @db.Uuid
+  campaignId       String    @db.Uuid
+  variantLabel     String    // A, B, C, etc.
+  variantName      String
+  subject          String?
+  content          String
+  splitPercentage  Float     @default(50)
+  sentCount        Int       @default(0)
+  openedCount      Int       @default(0)
+  clickedCount     Int       @default(0)
+  conversionCount  Int       @default(0)
+  isWinner         Boolean   @default(false)
+  declaredAt       DateTime? @db.Timestamptz
+  createdAt        DateTime  @default(now()) @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @db.Timestamptz
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, variantLabel])
+  @@index([tenantId])
+  @@index([campaignId])
+}
+
+/// CompetitorSyncLog - Sync history for competitor price collection
+model CompetitorSyncLog {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @db.Uuid
+  propertyId       String    @db.Uuid
+  competitorName   String
+  syncType         String    @default("manual") // manual, auto
+  status           String    @default("success") // success, failed, partial
+  pricesCollected  Int       @default(0)
+  errorMessage     String?
+  startedAt        DateTime  @db.Timestamptz
+  completedAt      DateTime? @db.Timestamptz
+  createdAt        DateTime  @default(now()) @db.Timestamptz
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([competitorName])
+  @@index([startedAt])
 }

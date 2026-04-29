@@ -301,7 +301,7 @@ const t = useTranslations('billing');
           }
         }
       } catch (error) {
-        console.error('Error fetching bookings:', error);
+
       }
     };
     fetchBookings();
@@ -322,7 +322,7 @@ const t = useTranslations('billing');
         setFolios(result.data);
       }
     } catch (error) {
-      console.error('Error fetching folios:', error);
+
       toast({
         title: 'Error',
         description: t('failedToFetch'),
@@ -352,7 +352,7 @@ const t = useTranslations('billing');
         setAuditEntries(result.data || []);
       }
     } catch (error) {
-      console.error('Error fetching audit trail:', error);
+
     } finally {
       setIsLoadingAudit(false);
     }
@@ -376,7 +376,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error fetching folio details:', error);
+
     }
   };
 
@@ -422,7 +422,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error creating folio:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to create folio',
@@ -496,7 +496,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error adding line item:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to add line item',
@@ -534,7 +534,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error removing line item:', error);
+
     }
   };
 
@@ -554,7 +554,7 @@ const t = useTranslations('billing');
           setSplitGuests(result.data);
         }
       })
-      .catch(console.error)
+
       .finally(() => setIsLoadingGuests(false));
   };
 
@@ -626,7 +626,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error splitting folio:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to split folio',
@@ -695,7 +695,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error closing folio:', error);
+
     }
   };
 
@@ -730,7 +730,7 @@ const t = useTranslations('billing');
           setAutoPostingStatus(result.data);
         }
       } catch (error) {
-        console.error('Error fetching auto-posting status:', error);
+
       }
     };
     fetchAutoPostingStatus();
@@ -783,7 +783,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error posting room charges:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to post room charges',
@@ -880,7 +880,7 @@ const t = useTranslations('billing');
               <div className="relative focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/30 rounded-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="t('searchFolios')"
+                  placeholder={t('searchFolios')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"

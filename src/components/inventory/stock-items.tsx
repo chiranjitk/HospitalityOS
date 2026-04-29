@@ -53,7 +53,9 @@ import {
   Loader2,
   Filter,
   ArrowUpDown,
-  Box
+  Box,
+  Clock,
+  CalendarClock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -78,6 +80,7 @@ interface StockItem {
   lowStockAlert: boolean;
   isLowStock: boolean;
   availableQuantity?: number | null;
+  expiryDate?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -113,6 +116,7 @@ export default function StockItems() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [expiryOnly, setExpiryOnly] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
@@ -311,6 +315,17 @@ export default function StockItems() {
     }
   };
 
+  const getExpiryStatus = (item: StockItem) => {
+    if (!item.expiryDate) return null;
+    const now = new Date();
+    const expiry = new Date(item.expiryDate);
+    const daysUntil = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysUntil <= 0) return { status: 'expired', days: daysUntil, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', badge: 'bg-red-500 text-white' };
+    if (daysUntil <= 7) return { status: 'expired', days: daysUntil, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', badge: 'bg-red-500 text-white' };
+    if (daysUntil <= 30) return { status: 'warning', days: daysUntil, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30', badge: 'bg-amber-500 text-white' };
+    return { status: 'fresh', days: daysUntil, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', badge: 'bg-emerald-500 text-white' };
+  };
+
   const getStockLevelColor = (item: StockItem) => {
     if (item.quantity <= item.minQuantity) return 'text-red-600 dark:text-red-400';
     if (item.quantity <= (item.reorderPoint || item.minQuantity * 1.5)) return 'text-amber-600 dark:text-amber-400';
@@ -409,11 +424,19 @@ export default function StockItems() {
             </Select>
             <Button
               variant={lowStockOnly ? 'default' : 'outline'}
-              onClick={() => setLowStockOnly(!lowStockOnly)}
+              onClick={() => { setLowStockOnly(!lowStockOnly); if (expiryOnly) setExpiryOnly(false); }}
               className={lowStockOnly ? 'bg-amber-500 hover:bg-amber-600' : ''}
             >
               <AlertTriangle className="h-4 w-4 mr-2" />
               Low Stock
+            </Button>
+            <Button
+              variant={expiryOnly ? 'default' : 'outline'}
+              onClick={() => { setExpiryOnly(!expiryOnly); if (lowStockOnly) setLowStockOnly(false); }}
+              className={expiryOnly ? 'bg-red-500 hover:bg-red-600' : ''}
+            >
+              <CalendarClock className="h-4 w-4 mr-2" />
+              Expiring Soon
             </Button>
             <Button onClick={() => handleOpenDialog()} className="bg-emerald-500 hover:bg-emerald-600">
               <Plus className="h-4 w-4 mr-2" />
@@ -450,6 +473,7 @@ export default function StockItems() {
                     <TableHead>Category</TableHead>
                     <TableHead>Stock Level</TableHead>
                     <TableHead>Unit Cost</TableHead>
+                    <TableHead>Expiry</TableHead>
                     <TableHead>Location</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -498,6 +522,19 @@ export default function StockItems() {
                         </div>
                       </TableCell>
                       <TableCell>{formatCurrency(item.unitCost)}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const expiry = getExpiryStatus(item);
+                          if (!expiry) return <span className="text-muted-foreground">-</span>;
+                          return (
+                            <div className="flex items-center gap-2">
+                              <Badge className={expiry.badge} style={{ fontSize: '10px', padding: '1px 6px' }}>
+                                {expiry.days <= 0 ? 'Expired' : `${expiry.days}d`}
+                              </Badge>
+                            </div>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell>{item.location || '-'}</TableCell>
                       <TableCell>
                         <Badge 

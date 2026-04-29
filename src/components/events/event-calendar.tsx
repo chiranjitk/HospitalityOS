@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,19 +19,55 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog';
-import { 
-  Loader2, 
-  ChevronLeft, 
-  ChevronRight, 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
   Calendar as CalendarIcon,
   Users,
   Clock,
   Building,
-  MapPin
+  MapPin,
+  AlertTriangle,
+  GripVertical,
+  CalendarDays,
+  CalendarRange,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday, parseISO, startOfWeek, endOfWeek, addDays } from 'date-fns';
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  isSameMonth,
+  isSameDay,
+  addMonths,
+  subMonths,
+  isToday,
+  parseISO,
+  startOfWeek,
+  endOfWeek,
+  addDays,
+  startOfDay,
+  endOfDay,
+  differenceInDays,
+  setHours,
+  setMinutes,
+  addWeeks,
+  subWeeks,
+} from 'date-fns';
 import { useTranslations } from 'next-intl';
 
 interface Property {
@@ -84,6 +120,15 @@ interface Event {
   } | null;
 }
 
+interface ConflictEvent {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  space: { id: string; name: string } | null;
+}
+
 interface Stats {
   total: number;
   inquiry: number;
@@ -94,6 +139,8 @@ interface Stats {
   upcoming: number;
   totalRevenue: number;
 }
+
+type ViewMode = 'month' | 'week' | 'day';
 
 export default function EventCalendar() {
   const t = useTranslations('events');
@@ -107,12 +154,23 @@ export default function EventCalendar() {
   });
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [propertyFilter, setPropertyFilter] = useState('all');
   const [spaceFilter, setSpaceFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  
+
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+  // Drag state
+  const [draggingEvent, setDraggingEvent] = useState<Event | null>(null);
+  const [dragOverDay, setDragOverDay] = useState<Date | null>(null);
+  const [conflicts, setConflicts] = useState<ConflictEvent[]>([]);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [pendingReschedule, setPendingReschedule] = useState<{ eventId: string; newStartDate: Date; newEndDate: Date } | null>(null);
+  const [isRescheduling, setIsRescheduling] = useState(false);
+
+  const dragOffsetRef = useRef<number>(0);
 
   useEffect(() => {
     fetchProperties();
@@ -166,7 +224,7 @@ export default function EventCalendar() {
 
       const response = await fetch(`/api/events?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch events');
-      
+
       const data = await response.json();
       setEvents(data.events || []);
       setStats(data.stats || {
@@ -177,6 +235,118 @@ export default function EventCalendar() {
       toast.error('Failed to load events');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkConflicts = async (eventSpaceId: string, startDate: Date, endDate: Date, excludeEventId?: string) => {
+    try {
+      const params = new URLSearchParams({
+        eventSpaceId,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      });
+      if (excludeEventId) params.append('excludeEventId', excludeEventId);
+
+      const response = await fetch(`/api/events/conflicts?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to check conflicts');
+
+      const data = await response.json();
+      return data.conflicts || [];
+    } catch (error) {
+      console.error('Error checking conflicts:', error);
+      return [];
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, event: Event) => {
+    setDraggingEvent(event);
+    const eventDuration = differenceInDays(parseISO(event.endDate), parseISO(event.startDate));
+    dragOffsetRef.current = eventDuration;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', event.id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, day: Date) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverDay(day);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverDay(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetDay: Date) => {
+    e.preventDefault();
+    setDragOverDay(null);
+
+    if (!draggingEvent) return;
+
+    const eventStart = parseISO(draggingEvent.startDate);
+    const eventDuration = differenceInDays(parseISO(draggingEvent.endDate), eventStart);
+
+    const newStartDate = setMinutes(setHours(targetDay, eventStart.getHours()), eventStart.getMinutes());
+    const newEndDate = addDays(newStartDate, eventDuration);
+
+    // Check for conflicts
+    if (draggingEvent.spaceId) {
+      const conflictList = await checkConflicts(
+        draggingEvent.spaceId,
+        newStartDate,
+        newEndDate,
+        draggingEvent.id
+      );
+
+      if (conflictList.length > 0) {
+        setConflicts(conflictList);
+        setPendingReschedule({
+          eventId: draggingEvent.id,
+          newStartDate,
+          newEndDate,
+        });
+        setShowConflictDialog(true);
+        setDraggingEvent(null);
+        return;
+      }
+    }
+
+    // No conflicts - proceed with reschedule
+    await performReschedule(draggingEvent.id, newStartDate, newEndDate);
+    setDraggingEvent(null);
+  };
+
+  const performReschedule = async (eventId: string, newStartDate: Date, newEndDate: Date) => {
+    setIsRescheduling(true);
+    try {
+      const response = await fetch('/api/events', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: eventId,
+          startDate: newStartDate.toISOString(),
+          endDate: newEndDate.toISOString(),
+        }),
+      });
+
+      if (response.ok) {
+        toast.success('Event rescheduled successfully');
+        fetchEvents();
+      } else {
+        toast.error('Failed to reschedule event');
+      }
+    } catch (error) {
+      console.error('Error rescheduling event:', error);
+      toast.error('Failed to reschedule event');
+    } finally {
+      setIsRescheduling(false);
+      setShowConflictDialog(false);
+      setPendingReschedule(null);
+    }
+  };
+
+  const handleForceReschedule = () => {
+    if (pendingReschedule) {
+      performReschedule(pendingReschedule.eventId, pendingReschedule.newStartDate, pendingReschedule.newEndDate);
     }
   };
 
@@ -210,41 +380,58 @@ export default function EventCalendar() {
     }
   };
 
-  // Generate calendar days
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
-  const calendarStart = startOfWeek(monthStart);
-  const calendarEnd = endOfWeek(monthEnd);
-  const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
-
-  // Get events for a specific day
-  const getEventsForDay = (day: Date) => {
+  const getEventsForDay = useCallback((day: Date) => {
     return events.filter(event => {
       const eventStart = parseISO(event.startDate);
       const eventEnd = parseISO(event.endDate);
       return day >= startOfDay(eventStart) && day <= endOfDay(eventEnd);
     });
-  };
+  }, [events]);
 
-  const startOfDay = (date: Date) => {
-    const d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    return d;
+  const goToPrevious = () => {
+    if (viewMode === 'month') setCurrentDate(subMonths(currentDate, 1));
+    else if (viewMode === 'week') setCurrentDate(subWeeks(currentDate, 1));
+    else setCurrentDate(addDays(currentDate, -1));
   };
-
-  const endOfDay = (date: Date) => {
-    const d = new Date(date);
-    d.setHours(23, 59, 59, 999);
-    return d;
+  const goToNext = () => {
+    if (viewMode === 'month') setCurrentDate(addMonths(currentDate, 1));
+    else if (viewMode === 'week') setCurrentDate(addWeeks(currentDate, 1));
+    else setCurrentDate(addDays(currentDate, 1));
   };
-
-  const goToPreviousMonth = () => setCurrentDate(subMonths(currentDate, 1));
-  const goToNextMonth = () => setCurrentDate(addMonths(currentDate, 1));
   const goToToday = () => setCurrentDate(new Date());
 
-  const filteredSpaces = propertyFilter === 'all' 
-    ? spaces 
+  const getHeaderText = () => {
+    if (viewMode === 'month') return format(currentDate, 'MMMM yyyy');
+    if (viewMode === 'week') {
+      const weekStart = startOfWeek(currentDate);
+      const weekEnd = endOfWeek(currentDate);
+      return `${format(weekStart, 'MMM d')} - ${format(weekEnd, 'MMM d, yyyy')}`;
+    }
+    return format(currentDate, 'EEEE, MMMM d, yyyy');
+  };
+
+  const filteredSpaces = propertyFilter === 'all'
+    ? spaces
     : spaces.filter(s => s.propertyId === propertyFilter);
+
+  // Generate calendar data based on view mode
+  let calendarDays: Date[] = [];
+  if (viewMode === 'month') {
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
+    const calendarStart = startOfWeek(monthStart);
+    const calendarEnd = endOfWeek(monthEnd);
+    calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+  } else if (viewMode === 'week') {
+    const weekStart = startOfWeek(currentDate);
+    const weekEnd = endOfWeek(currentDate);
+    calendarDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+  } else {
+    calendarDays = [currentDate];
+  }
+
+  // Hours for day view
+  const hours = Array.from({ length: 24 }, (_, i) => i);
 
   if (loading) {
     return (
@@ -261,6 +448,35 @@ export default function EventCalendar() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Event Calendar</h2>
           <p className="text-muted-foreground">View and manage events in calendar view</p>
+        </div>
+        <div className="flex gap-1 bg-muted rounded-lg p-1">
+          <Button
+            variant={viewMode === 'month' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('month')}
+            className="gap-1"
+          >
+            <CalendarDays className="h-4 w-4" />
+            <span className="hidden sm:inline">Month</span>
+          </Button>
+          <Button
+            variant={viewMode === 'week' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('week')}
+            className="gap-1"
+          >
+            <CalendarRange className="h-4 w-4" />
+            <span className="hidden sm:inline">Week</span>
+          </Button>
+          <Button
+            variant={viewMode === 'day' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('day')}
+            className="gap-1"
+          >
+            <CalendarIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Day</span>
+          </Button>
         </div>
       </div>
 
@@ -364,13 +580,13 @@ export default function EventCalendar() {
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={goToPreviousMonth}>
+              <Button variant="outline" size="icon" onClick={goToPrevious}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <CardTitle className="text-lg min-w-[180px] text-center">
-                {format(currentDate, 'MMMM yyyy')}
+                {getHeaderText()}
               </CardTitle>
-              <Button variant="outline" size="icon" onClick={goToNextMonth}>
+              <Button variant="outline" size="icon" onClick={goToNext}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -381,50 +597,107 @@ export default function EventCalendar() {
           </div>
         </CardHeader>
         <CardContent>
-          {/* Calendar Grid */}
-          <div className="grid grid-cols-7 gap-1">
-            {/* Weekday Headers */}
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
-                {day}
+          {/* Day View */}
+          {viewMode === 'day' ? (
+            <div className="space-y-1">
+              <div className="text-center font-medium text-muted-foreground mb-4">
+                {format(currentDate, 'EEEE, MMMM d, yyyy')}
               </div>
-            ))}
-
-            {/* Calendar Days */}
-            {calendarDays.map((day, i) => {
-              const dayEvents = getEventsForDay(day);
-              const isCurrentMonth = isSameMonth(day, currentDate);
-              
-              return (
-                <div
-                  key={i}
-                  className={`min-h-[100px] p-1 border rounded-md ${
-                    !isCurrentMonth ? 'bg-muted/30 text-muted-foreground' : ''
-                  } ${isToday(day) ? 'border-teal-500 border-2' : 'border-border'}`}
-                >
-                  <div className={`text-sm font-medium mb-1 ${isToday(day) ? 'text-teal-600 dark:text-teal-400' : ''}`}>
-                    {day.getDate()}
-                  </div>
-                  <div className="space-y-1">
-                    {dayEvents.slice(0, 3).map(event => (
-                      <div
-                        key={event.id}
-                        className={`text-xs px-1 py-0.5 rounded cursor-pointer truncate ${getStatusColor(event.status)}`}
-                        onClick={() => { setSelectedEvent(event); setIsDetailOpen(true); }}
-                      >
-                        {event.name}
+              <div className="max-h-[600px] overflow-y-auto">
+                {hours.map(hour => {
+                  const hourEvents = getEventsForDay(currentDate).filter(event => {
+                    const eventStart = parseISO(event.startDate);
+                    return eventStart.getHours() === hour;
+                  });
+                  return (
+                    <div
+                      key={hour}
+                      className={`flex border-b min-h-[60px] ${
+                        dragOverDay && isToday(currentDate) ? 'bg-teal-50/50 dark:bg-teal-950/20' : ''
+                      }`}
+                      onDragOver={(e) => handleDragOver(e, currentDate)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, currentDate)}
+                    >
+                      <div className="w-16 text-xs text-muted-foreground py-2 text-right pr-3 shrink-0">
+                        {hour.toString().padStart(2, '0')}:00
                       </div>
-                    ))}
-                    {dayEvents.length > 3 && (
-                      <div className="text-xs text-muted-foreground px-1">
-                        +{dayEvents.length - 3} more
+                      <div className="flex-1 py-1 flex flex-wrap gap-1">
+                        {hourEvents.map(event => (
+                          <div
+                            key={event.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, event)}
+                            className={`text-xs px-2 py-1 rounded cursor-pointer truncate max-w-full ${getStatusColor(event.status)}`}
+                            onClick={() => { setSelectedEvent(event); setIsDetailOpen(true); }}
+                          >
+                            <div className="flex items-center gap-1">
+                              <GripVertical className="h-3 w-3 opacity-50 shrink-0" />
+                              <span className="truncate">{event.name}</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* Month / Week Grid */
+            <div className={`grid grid-cols-7 gap-1 ${viewMode === 'week' ? 'min-h-[500px]' : ''}`}>
+              {/* Weekday Headers */}
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
+                  {day}
                 </div>
-              );
-            })}
-          </div>
+              ))}
+
+              {/* Calendar Days */}
+              {calendarDays.map((day, i) => {
+                const dayEvents = getEventsForDay(day);
+                const isCurrentMonth = viewMode === 'month' ? isSameMonth(day, currentDate) : true;
+                const isDragTarget = dragOverDay && isSameDay(day, dragOverDay);
+
+                return (
+                  <div
+                    key={i}
+                    className={`min-h-[100px] p-1 border rounded-md transition-colors ${
+                      !isCurrentMonth ? 'bg-muted/30 text-muted-foreground' : ''
+                    } ${isToday(day) ? 'border-teal-500 border-2' : 'border-border'} ${
+                      isDragTarget ? 'bg-teal-50 dark:bg-teal-950/30 ring-2 ring-teal-400' : ''
+                    }`}
+                    onDragOver={(e) => handleDragOver(e, day)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, day)}
+                  >
+                    <div className={`text-sm font-medium mb-1 ${isToday(day) ? 'text-teal-600 dark:text-teal-400' : ''}`}>
+                      {day.getDate()}
+                    </div>
+                    <div className="space-y-1">
+                      {dayEvents.slice(0, viewMode === 'week' ? 5 : 3).map(event => (
+                        <div
+                          key={event.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, event)}
+                          className={`text-xs px-1 py-0.5 rounded cursor-pointer truncate flex items-center gap-0.5 ${getStatusColor(event.status)}`}
+                          onClick={() => { setSelectedEvent(event); setIsDetailOpen(true); }}
+                        >
+                          <GripVertical className="h-2.5 w-2.5 opacity-40 shrink-0" />
+                          <span className="truncate">{event.name}</span>
+                        </div>
+                      ))}
+                      {(viewMode === 'week' ? dayEvents.length > 5 : dayEvents.length > 3) && (
+                        <div className="text-xs text-muted-foreground px-1">
+                          +{dayEvents.length - (viewMode === 'week' ? 5 : 3)} more
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -440,7 +713,7 @@ export default function EventCalendar() {
               Event details and information
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedEvent && (
             <div className="space-y-4">
               <div className="flex items-center gap-2">
@@ -467,7 +740,7 @@ export default function EventCalendar() {
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="h-4 w-4 text-muted-foreground" />
                     <span>
-                      {formatDateTime(parseISO(selectedEvent.startDate))} - 
+                      {formatDateTime(parseISO(selectedEvent.startDate))} -
                       {formatDateTime(parseISO(selectedEvent.endDate))}
                     </span>
                   </div>
@@ -532,6 +805,48 @@ export default function EventCalendar() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Conflict Warning Dialog */}
+      <AlertDialog open={showConflictDialog} onOpenChange={setShowConflictDialog}>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Scheduling Conflict Detected
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>The event conflicts with the following existing events:</p>
+                <div className="space-y-2">
+                  {conflicts.map(conflict => (
+                    <div key={conflict.id} className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
+                      <p className="font-medium text-sm">{conflict.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {conflict.space?.name || 'No space'} &bull;{' '}
+                        {formatDateTime(parseISO(conflict.startDate))} - {formatDateTime(parseISO(conflict.endDate))}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-sm">Do you want to proceed with the reschedule anyway?</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setShowConflictDialog(false); setPendingReschedule(null); }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleForceReschedule}
+              disabled={isRescheduling}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              {isRescheduling && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Reschedule Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

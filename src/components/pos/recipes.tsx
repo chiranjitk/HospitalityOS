@@ -65,7 +65,7 @@ const t = useTranslations('pos');
       const menuData = await menuRes.json();
       if (recipesData.success) setRecipes(recipesData.data);
       if (menuData.success) setMenuItems(menuData.data);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+    } catch { /* silently ignore */ } finally { setLoading(false); }
   }, [propertyId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);

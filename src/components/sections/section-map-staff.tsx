@@ -3,7 +3,7 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'staff-attendance': () => import('@/components/staff/attendance-tracking'),
   'staff-tasks': () => import('@/components/staff/task-assignment'),
   'staff-communication': () => import('@/components/staff/internal-communication'),
-  'staff-performance': () => import('@/components/reports/staff-performance'),
+  'staff-performance': () => import('@/components/staff/performance/performance-dashboard'),
   'staff-skills': () => import('@/components/staff/skills-management'),
 };
 

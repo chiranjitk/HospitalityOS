@@ -408,7 +408,7 @@ export function RolePermissions() {
         setMatrixPermissions(parsePermissions(nonAdmin.permissions));
       }
     } catch (error) {
-      console.error('Error fetching roles:', error);
+
       toast.error('Failed to load roles');
     } finally {
       setIsLoading(false);
@@ -444,7 +444,7 @@ export function RolePermissions() {
         setAuditLogs([]);
       }
     } catch (error) {
-      console.error('Error fetching audit logs:', error);
+
       setAuditLogs([]);
     } finally {
       setAuditLoading(false);
@@ -475,7 +475,7 @@ export function RolePermissions() {
         }
       }
     } catch (error) {
-      console.error('Error fetching tenants:', error);
+
     } finally {
       setTenantsLoading(false);
     }

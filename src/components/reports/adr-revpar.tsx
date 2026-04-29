@@ -1,7 +1,5 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +7,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   ChartConfig,
   ChartContainer,
@@ -34,11 +34,13 @@ import {
   BarChart3,
   Target,
   Calculator,
+  Settings2,
 } from 'lucide-react';
 import { subDays } from 'date-fns';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { exportToCSV } from '@/lib/export-utils';
+import { ReportExportButton } from '@/components/reports/report-export-button';
 
 interface ADRRevPARData {
   date: string;
@@ -48,6 +50,8 @@ interface ADRRevPARData {
   revenue: number;
   availableRooms: number;
   soldRooms: number;
+  goppar: number;
+  trevpar: number;
 }
 
 interface MetricCardProps {
@@ -59,7 +63,6 @@ interface MetricCardProps {
 }
 
 function MetricCard({ title, value, change, icon, colorClass }: MetricCardProps) {
-  const t = useTranslations('reports');
   const isPositive = change >= 0;
   return (
     <Card className={`border-0 shadow-sm ${colorClass}`}>
@@ -95,10 +98,18 @@ const chartConfig = {
     label: 'Occupancy %',
     color: '#06b6d4',
   },
+  goppar: {
+    label: 'GOPPAR',
+    color: '#8b5cf6',
+  },
+  trevpar: {
+    label: 'TrevPAR',
+    color: '#ec4899',
+  },
 } satisfies ChartConfig;
 
 export default function ADRRevPAR() {
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, currency } = useCurrency();
   const { formatDate: formatDateUtil } = useTimezone();
 
   function formatDate(dateStr: string) {
@@ -112,6 +123,8 @@ export default function ADRRevPAR() {
   const [dateRange, setDateRange] = useState('30');
   const [granularity, setGranularity] = useState('daily');
   const [prevPeriodData, setPrevPeriodData] = useState<ADRRevPARData[]>([]);
+  const [opExpenses, setOpExpenses] = useState('0');
+  const [showOpInput, setShowOpInput] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -127,6 +140,7 @@ export default function ADRRevPAR() {
           startDate: start.toISOString(),
           endDate: end.toISOString(),
           granularity,
+          operatingExpenses: opExpenses,
         });
         const revenueResponse = await fetch(`/api/reports/revenue?${revenueParams}`);
         const revenueResult = await revenueResponse.json();
@@ -145,6 +159,7 @@ export default function ADRRevPAR() {
           startDate: prevStart.toISOString(),
           endDate: prevEnd.toISOString(),
           granularity,
+          operatingExpenses: opExpenses,
         });
         const prevRevenueResponse = await fetch(`/api/reports/revenue?${prevRevenueParams}`);
         const prevRevenueResult = await prevRevenueResponse.json();
@@ -159,11 +174,14 @@ export default function ADRRevPAR() {
         const prevOccupancyResult = await prevOccupancyResponse.json();
 
         if (revenueResult.success && occupancyResult.success) {
+          const summary = revenueResult.data.summary || {};
+          const totalRooms = summary.totalRooms || 100;
+
           // Combine current period revenue and occupancy data
           const combinedData: ADRRevPARData[] = revenueResult.data.revenueData.map((rev: { date: string; revenue: number; bookings: number }) => {
             const occ = occupancyResult.data.occupancyData.find(
               (o: { date: string }) => o.date === rev.date
-            ) || { occupied: 0, total: 100, occupancy: 0 };
+            ) || { occupied: 0, total: totalRooms, occupancy: 0 };
 
             const soldRooms = occ.occupied;
             const availableRooms = occ.total;
@@ -175,6 +193,13 @@ export default function ADRRevPAR() {
             // RevPAR = Total Room Revenue / Total Available Rooms
             const revpar = availableRooms > 0 ? rev.revenue / availableRooms : 0;
 
+            // GOPPAR = Gross Operating Profit / Total Available Rooms
+            const dailyOpEx = parseFloat(opExpenses) / (revenueResult.data.revenueData.length || 1);
+            const goppar = availableRooms > 0 ? (rev.revenue - dailyOpEx) / availableRooms : 0;
+
+            // TrevPAR = Total Revenue / Total Available Rooms
+            const trevpar = availableRooms > 0 ? rev.revenue / availableRooms : 0;
+
             return {
               date: rev.date,
               adr: Math.round(adr * 100) / 100,
@@ -183,6 +208,8 @@ export default function ADRRevPAR() {
               revenue: rev.revenue,
               availableRooms,
               soldRooms,
+              goppar: Math.round(goppar * 100) / 100,
+              trevpar: Math.round(trevpar * 100) / 100,
             };
           });
 
@@ -191,10 +218,13 @@ export default function ADRRevPAR() {
 
         // Build previous period combined data for comparison
         if (prevRevenueResult.success && prevOccupancyResult.success) {
+          const prevSummary = prevRevenueResult.data.summary || {};
+          const prevTotalRooms = prevSummary.totalRooms || 100;
+
           const prevCombined: ADRRevPARData[] = prevRevenueResult.data.revenueData.map((rev: { date: string; revenue: number; bookings: number }) => {
             const occ = prevOccupancyResult.data.occupancyData.find(
               (o: { date: string }) => o.date === rev.date
-            ) || { occupied: 0, total: 100, occupancy: 0 };
+            ) || { occupied: 0, total: prevTotalRooms, occupancy: 0 };
 
             const soldRooms = occ.occupied;
             const availableRooms = occ.total;
@@ -202,6 +232,10 @@ export default function ADRRevPAR() {
 
             const adr = soldRooms > 0 ? rev.revenue / soldRooms : 0;
             const revpar = availableRooms > 0 ? rev.revenue / availableRooms : 0;
+
+            const dailyOpEx = parseFloat(opExpenses) / (prevRevenueResult.data.revenueData.length || 1);
+            const goppar = availableRooms > 0 ? (rev.revenue - dailyOpEx) / availableRooms : 0;
+            const trevpar = availableRooms > 0 ? rev.revenue / availableRooms : 0;
 
             return {
               date: rev.date,
@@ -211,19 +245,21 @@ export default function ADRRevPAR() {
               revenue: rev.revenue,
               availableRooms,
               soldRooms,
+              goppar: Math.round(goppar * 100) / 100,
+              trevpar: Math.round(trevpar * 100) / 100,
             };
           });
 
           setPrevPeriodData(prevCombined);
         }
       } catch (err) {
-        console.error('Failed to fetch ADR/RevPAR data:', err);
+
       } finally {
         setIsLoading(false);
       }
     };
     fetchData();
-  }, [dateRange, granularity]);
+  }, [dateRange, granularity, opExpenses]);
 
   if (isLoading) {
     return (
@@ -264,6 +300,12 @@ export default function ADRRevPAR() {
     ? data.reduce((sum, d) => sum + d.occupancy, 0) / data.length
     : 0;
   const totalRevenue = data.reduce((sum, d) => sum + d.revenue, 0);
+  const avgGOPPAR = data.length > 0
+    ? data.reduce((sum, d) => sum + d.goppar, 0) / data.length
+    : 0;
+  const avgTrevPAR = data.length > 0
+    ? data.reduce((sum, d) => sum + d.trevpar, 0) / data.length
+    : 0;
 
   // Calculate changes by comparing current period vs previous period
   const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
@@ -274,11 +316,27 @@ export default function ADRRevPAR() {
   const prevRevPAR = prevPeriodData.length > 0 ? avg(prevPeriodData.map(d => d.revpar)) : 0;
   const prevOccupancy = prevPeriodData.length > 0 ? avg(prevPeriodData.map(d => d.occupancy)) : 0;
   const prevRevenue = prevPeriodData.reduce((s, d) => s + d.revenue, 0);
+  const prevGOPPAR = prevPeriodData.length > 0 ? avg(prevPeriodData.map(d => d.goppar)) : 0;
+  const prevTrevPAR = prevPeriodData.length > 0 ? avg(prevPeriodData.map(d => d.trevpar)) : 0;
 
   const adrChange = calcChange(avgADR, prevADR);
   const revparChange = calcChange(avgRevPAR, prevRevPAR);
   const occupancyChange = calcChange(avgOccupancy, prevOccupancy);
   const revenueChange = calcChange(totalRevenue, prevRevenue);
+  const gopparChange = calcChange(avgGOPPAR, prevGOPPAR);
+  const trevparChange = calcChange(avgTrevPAR, prevTrevPAR);
+
+  const exportColumns = [
+    { key: 'date', label: 'Date' },
+    { key: 'adr', label: `ADR (${currency.code})` },
+    { key: 'revpar', label: `RevPAR (${currency.code})` },
+    { key: 'goppar', label: `GOPPAR (${currency.code})` },
+    { key: 'trevpar', label: `TrevPAR (${currency.code})` },
+    { key: 'occupancy', label: 'Occupancy (%)' },
+    { key: 'revenue', label: `Revenue (${currency.code})` },
+    { key: 'availableRooms', label: 'Available Rooms' },
+    { key: 'soldRooms', label: 'Sold Rooms' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -311,27 +369,44 @@ export default function ADRRevPAR() {
               <SelectItem value="monthly">Monthly</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => exportToCSV(
-            data as unknown as Record<string, unknown>[],
-            `adr-revpar-${dateRange}d`,
-            [
-              { key: 'date', label: 'Date' },
-              { key: 'adr', label: 'ADR ($)' },
-              { key: 'revpar', label: 'RevPAR ($)' },
-              { key: 'occupancy', label: 'Occupancy (%)' },
-              { key: 'revenue', label: 'Revenue ($)' },
-              { key: 'availableRooms', label: 'Available Rooms' },
-              { key: 'soldRooms', label: 'Sold Rooms' },
-            ]
-          )}>
-            <Download className="h-4 w-4" />
-            Export
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowOpInput(!showOpInput)}>
+            <Settings2 className="h-4 w-4" />
+            OpEx
           </Button>
+          <ReportExportButton
+            data={data as unknown as Record<string, unknown>[]}
+            filename={`adr-revpar-${dateRange}d`}
+            columns={exportColumns}
+            reportTitle="ADR & RevPAR Analytics"
+          />
         </div>
       </div>
 
+      {/* Operating Expenses Input */}
+      {showOpInput && (
+        <Card className="border-0 shadow-sm bg-muted/30">
+          <CardContent className="pt-6">
+            <div className="flex items-end gap-4">
+              <div className="flex-1 max-w-xs">
+                <Label className="text-sm">Total Operating Expenses ({currency.code})</Label>
+                <Input
+                  type="number"
+                  value={opExpenses}
+                  onChange={(e) => setOpExpenses(e.target.value)}
+                  placeholder="0.00"
+                  className="mt-1"
+                />
+              </div>
+              <p className="text-sm text-muted-foreground pb-2">
+                Enter total operating expenses for the period to calculate GOPPAR (Gross Operating Profit Per Available Room)
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Summary Cards */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <MetricCard
           title="Average Daily Rate (ADR)"
           value={formatCurrency(avgADR)}
@@ -347,6 +422,20 @@ export default function ADRRevPAR() {
           colorClass="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900"
         />
         <MetricCard
+          title="GOPPAR"
+          value={formatCurrency(avgGOPPAR)}
+          change={gopparChange}
+          icon={<BarChart3 className="h-6 w-6 text-violet-700 dark:text-violet-300" />}
+          colorClass="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900"
+        />
+        <MetricCard
+          title="TrevPAR"
+          value={formatCurrency(avgTrevPAR)}
+          change={trevparChange}
+          icon={<Calculator className="h-6 w-6 text-pink-700 dark:text-pink-300" />}
+          colorClass="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900"
+        />
+        <MetricCard
           title="Average Occupancy"
           value={`${avgOccupancy.toFixed(1)}%`}
           change={occupancyChange}
@@ -357,19 +446,19 @@ export default function ADRRevPAR() {
           title="Total Revenue"
           value={formatCurrency(totalRevenue)}
           change={revenueChange}
-          icon={<Calculator className="h-6 w-6 text-violet-700 dark:text-violet-300" />}
-          colorClass="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900"
+          icon={<Calculator className="h-6 w-6 text-teal-700 dark:text-teal-300" />}
+          colorClass="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900"
         />
       </div>
 
-      {/* ADR & RevPAR Trend Chart */}
+      {/* ADR & RevPAR & GOPPAR & TrevPAR Trend Chart */}
       <Card className="border-0 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-lg">ADR & RevPAR Trend</CardTitle>
-          <CardDescription>Key metrics over time</CardDescription>
+          <CardTitle className="text-lg">Revenue Performance Trend</CardTitle>
+          <CardDescription>ADR, RevPAR, GOPPAR & TrevPAR over time</CardDescription>
         </CardHeader>
         <CardContent>
-          <ChartContainer config={chartConfig} className="h-[300px] w-full">
+          <ChartContainer config={chartConfig} className="h-[350px] w-full">
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
               <XAxis
@@ -383,7 +472,7 @@ export default function ADRRevPAR() {
                 className="text-xs"
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(v) => `$${v}`}
+                tickFormatter={(v) => `${currency.symbol}${v}`}
               />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend />
@@ -398,6 +487,20 @@ export default function ADRRevPAR() {
                 type="monotone"
                 dataKey="revpar"
                 stroke="#f59e0b"
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="goppar"
+                stroke="#8b5cf6"
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="trevpar"
+                stroke="#ec4899"
                 strokeWidth={2}
                 dot={false}
               />
@@ -429,7 +532,7 @@ export default function ADRRevPAR() {
                   className="text-xs"
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(v) => `$${v}`}
+                  tickFormatter={(v) => `${currency.symbol}${v}`}
                 />
                 <YAxis
                   yAxisId="right"
@@ -456,39 +559,45 @@ export default function ADRRevPAR() {
             <CardDescription>Key metrics by period</CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Period</TableHead>
-                  <TableHead className="text-right">ADR</TableHead>
-                  <TableHead className="text-right">RevPAR</TableHead>
-                  <TableHead className="text-right">Occupancy</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.slice(-7).map((row) => (
-                  <TableRow key={row.date}>
-                    <TableCell className="font-medium">{formatDate(row.date)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(row.adr)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(row.revpar)}</TableCell>
-                    <TableCell className="text-right">
-                      <Badge
-                        variant="secondary"
-                        className={
-                          row.occupancy >= 90
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                            : row.occupancy >= 70
-                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                            : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                        }
-                      >
-                        {row.occupancy}%
-                      </Badge>
-                    </TableCell>
+            <div className="max-h-96 overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Period</TableHead>
+                    <TableHead className="text-right">ADR</TableHead>
+                    <TableHead className="text-right">RevPAR</TableHead>
+                    <TableHead className="text-right">GOPPAR</TableHead>
+                    <TableHead className="text-right">TrevPAR</TableHead>
+                    <TableHead className="text-right">Occ.</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {data.slice(-14).map((row) => (
+                    <TableRow key={row.date}>
+                      <TableCell className="font-medium">{formatDate(row.date)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.adr)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.revpar)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.goppar)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.trevpar)}</TableCell>
+                      <TableCell className="text-right">
+                        <Badge
+                          variant="secondary"
+                          className={
+                            row.occupancy >= 90
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                              : row.occupancy >= 70
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                              : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                          }
+                        >
+                          {row.occupancy}%
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -499,23 +608,41 @@ export default function ADRRevPAR() {
           <CardTitle className="text-lg">Understanding the Metrics</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
               <h4 className="font-semibold text-emerald-700 dark:text-emerald-300">Average Daily Rate (ADR)</h4>
               <p className="text-sm text-muted-foreground">
-                ADR = Room Revenue ÷ Number of Rooms Sold
+                ADR = Room Revenue / Number of Rooms Sold
               </p>
               <p className="text-sm text-muted-foreground">
-                Measures the average price at which rooms are sold. Higher ADR indicates stronger pricing power.
+                Measures the average price at which rooms are sold.
               </p>
             </div>
             <div className="space-y-2">
               <h4 className="font-semibold text-amber-700 dark:text-amber-300">Revenue Per Available Room (RevPAR)</h4>
               <p className="text-sm text-muted-foreground">
-                RevPAR = Room Revenue ÷ Total Available Rooms
+                RevPAR = Room Revenue / Total Available Rooms
               </p>
               <p className="text-sm text-muted-foreground">
-                Combines occupancy and ADR to show overall revenue efficiency. The gold standard for hotel performance.
+                Combines occupancy and ADR to show overall revenue efficiency.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <h4 className="font-semibold text-violet-700 dark:text-violet-300">GOPPAR</h4>
+              <p className="text-sm text-muted-foreground">
+                GOPPAR = Gross Operating Profit / Total Available Rooms
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Net of operating expenses. Measures true profitability per room.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <h4 className="font-semibold text-pink-700 dark:text-pink-300">TrevPAR</h4>
+              <p className="text-sm text-muted-foreground">
+                TrevPAR = Total Revenue / Total Available Rooms
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Includes all revenue streams (rooms, F&B, spa, etc.) per available room.
               </p>
             </div>
           </div>

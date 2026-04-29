@@ -1,7 +1,5 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -126,7 +124,7 @@ export default function StaffPerformance() {
           setError('Failed to load staff performance data');
         }
       } catch (err) {
-        console.error('Failed to fetch staff performance:', err);
+
         setError('Failed to load staff performance data');
       } finally {
         setIsLoading(false);

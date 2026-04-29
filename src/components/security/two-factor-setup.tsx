@@ -66,7 +66,7 @@ export default function TwoFactorSetup() {
         toast.error(data.error || 'Failed to fetch 2FA status');
       }
     } catch (error) {
-      console.error('Error fetching 2FA setup:', error);
+
       toast.error('Failed to fetch 2FA status');
     } finally {
       setIsLoading(false);
@@ -86,7 +86,7 @@ export default function TwoFactorSetup() {
         setStep('enabled');
       }
     } catch (error) {
-      console.error('Error starting 2FA setup:', error);
+
       toast.error('Failed to start 2FA setup');
     } finally {
       setIsLoading(false);
@@ -118,7 +118,7 @@ export default function TwoFactorSetup() {
         toast.error(data.error || 'Invalid verification code');
       }
     } catch (error) {
-      console.error('Error verifying code:', error);
+
       toast.error('Failed to verify code');
     } finally {
       setIsVerifying(false);
@@ -152,7 +152,7 @@ export default function TwoFactorSetup() {
         toast.error(data.error || 'Failed to disable 2FA');
       }
     } catch (error) {
-      console.error('Error disabling 2FA:', error);
+
       toast.error('Failed to disable 2FA');
     } finally {
       setIsDisabling(false);

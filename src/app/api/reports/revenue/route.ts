@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const granularity = searchParams.get('granularity') || 'daily'; // daily, weekly, monthly
+    const operatingExpenses = parseFloat(searchParams.get('operatingExpenses') || '0');
 
     // Default to last 30 days if no dates provided
     const end = endDate ? new Date(endDate) : new Date();
@@ -195,6 +196,24 @@ export async function GET(request: NextRequest) {
       ? ((totalRevenue - prevTotalRevenue) / prevTotalRevenue) * 100
       : 0;
 
+    // GOPPAR & TrevPAR calculations
+    const periodDays = revenueData.length || 1;
+    const totalRooms = await db.room.count({
+      where: {
+        propertyId: propertyId || undefined,
+        status: { not: 'maintenance' },
+      },
+    }) || 100;
+
+    const totalAvailableRoomDays = totalRooms * periodDays;
+    const grossOperatingProfit = totalRevenue - operatingExpenses;
+    const goppar = totalAvailableRoomDays > 0
+      ? Math.round((grossOperatingProfit / totalAvailableRoomDays) * 100) / 100
+      : 0;
+    const trevpar = totalAvailableRoomDays > 0
+      ? Math.round((totalRevenue / totalAvailableRoomDays) * 100) / 100
+      : 0;
+
     return NextResponse.json({
       success: true,
       data: {
@@ -205,6 +224,12 @@ export async function GET(request: NextRequest) {
           totalPayments: Math.round(totalPayments * 100) / 100,
           avgDailyRevenue: Math.round(avgDailyRevenue * 100) / 100,
           revenueChange: Math.round(revenueChange * 100) / 100,
+          goppar,
+          trevpar,
+          operatingExpenses,
+          grossOperatingProfit: Math.round(grossOperatingProfit * 100) / 100,
+          totalRooms,
+          totalAvailableRoomDays,
         },
         revenueBySource: revenueBySource.map(s => ({
           source: s.source,

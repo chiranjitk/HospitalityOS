@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import {
   Card,
   CardContent,
@@ -168,7 +169,7 @@ const t = useTranslations('billing');
 
   // ── Helpers ──
 
-  const currency = 'USD';
+  const { currency, formatCurrency } = useCurrency();
 
   const buildExceptions = useCallback((): PolicyException[] => {
     const exceptions: PolicyException[] = [];
@@ -205,7 +206,7 @@ const t = useTranslations('billing');
       case 'fixed_nights':
         return `${policy.penaltyNights} night${policy.penaltyNights !== 1 ? 's' : ''} charge`;
       case 'fixed':
-        return `${currency} ${policy.penaltyFixedAmount?.toFixed(2) ?? '0.00'}`;
+        return formatCurrency(policy.penaltyFixedAmount ?? 0);
       default:
         return 'Unknown';
     }
@@ -220,7 +221,7 @@ const t = useTranslations('billing');
       case 'fixed_nights':
         return `${policy.penaltyNights} Night${policy.penaltyNights !== 1 ? 's' : ''}`;
       case 'fixed':
-        return `${currency} ${policy.penaltyFixedAmount?.toFixed(2) ?? '0.00'}`;
+        return formatCurrency(policy.penaltyFixedAmount ?? 0);
       default:
         return '—';
     }
@@ -298,7 +299,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (err) {
-      console.error('Error fetching cancellation policies:', err);
+
       toast({
         title: 'Error',
         description: 'Failed to load cancellation policies',
@@ -507,7 +508,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (err) {
-      console.error(`Error ${isEditing ? 'updating' : 'creating'} policy:`, err);
+
       toast({
         title: 'Error',
         description: `Failed to ${isEditing ? 'update' : 'create'} cancellation policy`,
@@ -562,7 +563,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (err) {
-      console.error('Error deleting policy:', err);
+
       toast({
         title: 'Error',
         description: 'Failed to delete cancellation policy',
@@ -1104,7 +1105,7 @@ const t = useTranslations('billing');
                     onChange={(e) => setFormPenaltyFixedAmount(e.target.value)}
                     className="w-32"
                   />
-                  <span className="text-sm text-muted-foreground">{currency}</span>
+                  <span className="text-sm text-muted-foreground">{currency.code}</span>
                 </div>
               </div>
             )}

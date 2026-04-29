@@ -165,7 +165,7 @@ const t = useTranslations('pos');
         setStats(statsData.data);
       }
     } catch (error) {
-      console.error('Error fetching menu items:', error);
+
       toast.error('Failed to fetch menu items');
     } finally {
       setLoading(false);
@@ -182,7 +182,7 @@ const t = useTranslations('pos');
         setCategories(data.data);
       }
     } catch (error) {
-      console.error('Error fetching categories:', error);
+
       toast.error('Failed to fetch categories');
     }
   }, [propertyId]);
@@ -236,7 +236,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to create category');
       }
     } catch (error) {
-      console.error('Error creating category:', error);
+
       toast.error('Failed to create category');
     } finally {
       setSavingCategory(false);
@@ -272,7 +272,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to update category');
       }
     } catch (error) {
-      console.error('Error updating category:', error);
+
       toast.error('Failed to update category');
     } finally {
       setSavingCategory(false);
@@ -293,7 +293,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to delete category');
       }
     } catch (error) {
-      console.error('Error deleting category:', error);
+
       toast.error('Failed to delete category');
     } finally {
       setDeleteCategoryId(null);
@@ -375,7 +375,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to create menu item');
       }
     } catch (error) {
-      console.error('Error creating menu item:', error);
+
       toast.error('Failed to create menu item');
     } finally {
       setSaving(false);
@@ -419,7 +419,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to update menu item');
       }
     } catch (error) {
-      console.error('Error updating menu item:', error);
+
       toast.error('Failed to update menu item');
     } finally {
       setSaving(false);
@@ -446,7 +446,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to delete menu item');
       }
     } catch (error) {
-      console.error('Error deleting menu item:', error);
+
       toast.error('Failed to delete menu item');
     } finally {
       setDeleteItemId(null);
@@ -470,7 +470,7 @@ const t = useTranslations('pos');
         fetchMenuItems();
       }
     } catch (error) {
-      console.error('Error updating item:', error);
+
       toast.error('Failed to update item');
     }
   };

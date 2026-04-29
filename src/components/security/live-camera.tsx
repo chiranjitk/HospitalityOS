@@ -135,7 +135,7 @@ function CameraPlayer({ camera }: { camera: Camera }) {
         videoRef.current.addEventListener('error', handleError);
       }
     } catch (error) {
-      console.error('Error initializing video player:', error);
+
       setHasError(true);
       setIsLoading(false);
     }
@@ -320,7 +320,7 @@ export default function LiveCamera() {
         toast.error('Failed to fetch cameras');
       }
     } catch (error) {
-      console.error('Error fetching cameras:', error);
+
       toast.error('Failed to load camera data');
     } finally {
       setIsLoading(false);

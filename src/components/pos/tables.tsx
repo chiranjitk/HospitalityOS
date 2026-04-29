@@ -153,7 +153,7 @@ const t = useTranslations('pos');
         setStats(statsData.data);
       }
     } catch (error) {
-      console.error('Error fetching tables:', error);
+
       toast.error('Failed to fetch tables');
     } finally {
       setLoading(false);
@@ -207,7 +207,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to create table');
       }
     } catch (error) {
-      console.error('Error creating table:', error);
+
       toast.error('Failed to create table');
     } finally {
       setSaving(false);
@@ -246,7 +246,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to update table');
       }
     } catch (error) {
-      console.error('Error updating table:', error);
+
       toast.error('Failed to update table');
     } finally {
       setSaving(false);
@@ -273,7 +273,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to delete table');
       }
     } catch (error) {
-      console.error('Error deleting table:', error);
+
       toast.error('Failed to delete table');
     } finally {
       setDeleteTableId(null);
@@ -296,7 +296,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to update table');
       }
     } catch (error) {
-      console.error('Error updating table:', error);
+
       toast.error('Failed to update table');
     }
   };

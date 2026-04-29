@@ -401,7 +401,7 @@ export default function Payments() {
           }
         }
       } catch (error) {
-        console.error('Error fetching folios:', error);
+
       }
     };
     fetchFolios();
@@ -423,7 +423,7 @@ export default function Payments() {
         setSummary(result.summary);
       }
     } catch (error) {
-      console.error('Error fetching payments:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to fetch payments',
@@ -457,7 +457,7 @@ export default function Payments() {
         setFolios(result.data.filter((f: Folio) => f.balance > 0));
       }
     } catch (error) {
-      console.error('Error refreshing folios:', error);
+
     }
   };
 
@@ -493,7 +493,7 @@ export default function Payments() {
         setIsDetailOpen(true);
       }
     } catch (error) {
-      console.error('Error fetching payment details:', error);
+
     }
   };
 
@@ -541,7 +541,7 @@ export default function Payments() {
         toast({ title: 'Error', description: result.error?.message || t('failedToProcess'), variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error processing payment:', error);
+
       toast({ title: 'Error', description: t('failedToProcess'), variant: 'destructive' });
     } finally {
       setIsSaving(false);
@@ -644,7 +644,7 @@ export default function Payments() {
         refreshFolios();
       }
     } catch (error) {
-      console.error('Error processing split payment:', error);
+
       toast({ title: 'Error', description: 'Failed to process split payment', variant: 'destructive' });
     } finally {
       setIsSaving(false);
@@ -683,7 +683,7 @@ export default function Payments() {
         toast({ title: 'Error', description: result.error?.message || 'Failed to process refund', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error processing refund:', error);
+
       toast({ title: 'Error', description: 'Failed to process refund', variant: 'destructive' });
     } finally {
       setIsSaving(false);

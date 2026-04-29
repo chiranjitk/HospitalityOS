@@ -136,7 +136,7 @@ const t = useTranslations('pos');
         setTables(normalized);
       }
     } catch (error) {
-      console.error('Error fetching tables:', error);
+
       toast.error('Failed to fetch tables');
     } finally {
       setLoading(false);
@@ -243,7 +243,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to save layout');
       }
     } catch (error) {
-      console.error('Error saving layout:', error);
+
       toast.error('Failed to save layout');
     } finally {
       setSaving(false);
@@ -286,7 +286,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to add table');
       }
     } catch (error) {
-      console.error('Error adding table:', error);
+
       toast.error('Failed to add table');
     }
   };
@@ -338,7 +338,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to update table');
       }
     } catch (error) {
-      console.error('Error updating table:', error);
+
       toast.error('Failed to update table');
     }
   };

@@ -1,7 +1,5 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -90,7 +88,6 @@ const statusColors: Record<string, string> = {
 };
 
 export default function ScheduledReports() {
-const t = useTranslations('reports');
   const { formatDate, formatDateTime } = useTimezone();
   const [scheduledReports, setScheduledReports] = useState<ScheduledReport[]>([]);
   const [reportHistory, setReportHistory] = useState<ReportHistory[]>([]);
@@ -123,7 +120,7 @@ const t = useTranslations('reports');
           setError('Failed to load scheduled reports');
         }
       } catch (err) {
-        console.error('Failed to fetch scheduled reports:', err);
+
         setError('Failed to load scheduled reports');
       } finally {
         setIsLoading(false);
@@ -152,7 +149,7 @@ const t = useTranslations('reports');
         toast.error('Failed to update report status');
       }
     } catch (err) {
-      console.error('Failed to toggle report:', err);
+
       toast.error('Failed to update report status');
     }
   };
@@ -170,7 +167,7 @@ const t = useTranslations('reports');
         toast.error('Failed to delete report');
       }
     } catch (err) {
-      console.error('Failed to delete report:', err);
+
       toast.error('Failed to delete report');
     }
   };
@@ -197,7 +194,7 @@ const t = useTranslations('reports');
         toast.error(result.error?.message || 'Failed to generate report');
       }
     } catch (err) {
-      console.error('Failed to run report:', err);
+
       toast.error('Failed to generate report');
     }
   };
@@ -276,7 +273,7 @@ const t = useTranslations('reports');
         }
       }
     } catch (err) {
-      console.error('Failed to create report:', err);
+
       toast.error('Failed to create report');
     }
   };

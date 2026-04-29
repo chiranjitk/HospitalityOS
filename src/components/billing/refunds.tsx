@@ -164,7 +164,7 @@ const t = useTranslations('billing');
         setPayments(refundablePayments);
       }
     } catch (error) {
-      console.error('Error fetching payments:', error);
+
       toast({
         title: 'Error',
         description: t('failedToFetchRefunds'),
@@ -255,7 +255,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error processing refund:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to process refund',

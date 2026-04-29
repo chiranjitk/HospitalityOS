@@ -1,8 +1,7 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-
 import { useState } from 'react';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -17,7 +16,7 @@ interface OrderSplitProps {
 }
 
 export function OrderSplit({ order, onSplit }: OrderSplitProps) {
-  const t = useTranslations('pos');
+  const { formatCurrency } = useCurrency();
   const [splits, setSplits] = useState<number[][]>([order.items.map((_, i) => i)]);
   const [splitting, setSplitting] = useState(false);
 
@@ -88,7 +87,7 @@ export function OrderSplit({ order, onSplit }: OrderSplitProps) {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm">Split {splitIdx + 1}</CardTitle>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-sm">${getSplitTotal(splitIdx).toFixed(2)}</span>
+                  <span className="font-semibold text-sm">{formatCurrency(getSplitTotal(splitIdx))}</span>
                   {splits.length > 1 && (
                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeSplit(splitIdx)}><Minus className="h-3 w-3" /></Button>
                   )}
@@ -103,7 +102,7 @@ export function OrderSplit({ order, onSplit }: OrderSplitProps) {
                 return (
                   <div key={itemIdx} className="flex justify-between text-sm p-1 rounded bg-muted/30">
                     <span>{item.name} x{item.quantity}</span>
-                    <span>${(item.unitPrice * item.quantity).toFixed(2)}</span>
+                    <span>{formatCurrency(item.unitPrice * item.quantity)}</span>
                   </div>
                 );
               })}
@@ -121,7 +120,7 @@ export function OrderSplit({ order, onSplit }: OrderSplitProps) {
           <div key={idx} className="flex items-center justify-between p-2 rounded border">
             <div>
               <span className="text-sm font-medium">{item.name}</span>
-              <span className="text-xs text-muted-foreground ml-2">x{item.quantity} - ${(item.unitPrice * item.quantity).toFixed(2)}</span>
+              <span className="text-xs text-muted-foreground ml-2">x{item.quantity} - {formatCurrency(item.unitPrice * item.quantity)}</span>
             </div>
             <div className="flex gap-1">
               {splits.map((_, splitIdx) => (

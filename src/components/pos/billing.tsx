@@ -115,7 +115,7 @@ const t = useTranslations('pos');
         setOrders(data.data);
       }
     } catch (error) {
-      console.error('Error fetching orders:', error);
+
       toast.error('Failed to fetch orders');
     } finally {
       setLoading(false);
@@ -150,7 +150,7 @@ const t = useTranslations('pos');
         setRecentPayments(data.data);
       }
     } catch (error) {
-      console.error('Error fetching recent payments:', error);
+
     } finally {
       setLoadingRecent(false);
     }

@@ -153,7 +153,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
         setConnections(data.connections);
       }
     } catch (error) {
-      console.error('Error fetching SSO connections:', error);
+
       toast.error('Failed to fetch SSO connections');
     } finally {
       setIsLoading(false);
@@ -232,7 +232,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
         toast.error(data.error || 'Failed to create SSO connection');
       }
     } catch (error) {
-      console.error('Error creating SSO connection:', error);
+
       toast.error('Failed to create SSO connection');
     } finally {
       setIsSaving(false);
@@ -320,7 +320,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
         toast.error(data.error || 'Failed to update SSO connection');
       }
     } catch (error) {
-      console.error('Error updating SSO connection:', error);
+
       toast.error('Failed to update SSO connection');
     } finally {
       setIsSaving(false);
@@ -348,7 +348,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
         toast.error(data.error || 'Failed to delete SSO connection');
       }
     } catch (error) {
-      console.error('Error deleting SSO connection:', error);
+
       toast.error('Failed to delete SSO connection');
     } finally {
       setDeleteConnectionId(null);
@@ -379,7 +379,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
         toast.error(data.message || 'Connection test failed');
       }
     } catch (error) {
-      console.error('Error testing connection:', error);
+
       toast.error('Connection test failed');
     } finally {
       setTestingConnection(null);

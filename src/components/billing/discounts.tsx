@@ -156,7 +156,7 @@ const t = useTranslations('billing');
         setStats(result.stats);
       }
     } catch (error) {
-      console.error('Error fetching discounts:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to fetch discounts',
@@ -243,7 +243,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error creating discount:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to create discount',
@@ -306,7 +306,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error updating discount:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to update discount',
@@ -345,7 +345,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error deleting discount:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to delete discount',
@@ -379,7 +379,7 @@ const t = useTranslations('billing');
         fetchDiscounts();
       }
     } catch (error) {
-      console.error('Error toggling discount:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to update discount status',

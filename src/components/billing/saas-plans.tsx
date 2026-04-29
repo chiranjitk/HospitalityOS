@@ -133,7 +133,7 @@ const t = useTranslations('billing');
         // Non-critical — tenant list only needed for subscribe dialog
       }
     } catch (error) {
-      console.error('Error fetching plans:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to fetch plan data',
@@ -195,7 +195,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error updating plan:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to update plan',
@@ -254,7 +254,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error subscribing:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to update plan',

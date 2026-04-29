@@ -161,7 +161,7 @@ const t = useTranslations('billing');
         );
       }
     } catch (err) {
-      console.error('Error fetching plan options:', err);
+
       // Fallback to empty array — will show no plan options
       setPlanOptions([]);
     }
@@ -183,7 +183,7 @@ const t = useTranslations('billing');
         setStats(result.data.stats);
       }
     } catch (error) {
-      console.error('Error fetching tenants:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to fetch subscriptions',
@@ -238,7 +238,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error updating tenant:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to update subscription',
@@ -291,7 +291,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error updating plan:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to update plan',

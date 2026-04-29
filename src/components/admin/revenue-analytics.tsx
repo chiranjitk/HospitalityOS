@@ -39,7 +39,7 @@ export function RevenueAnalytics() {
         setRevenueData(data.data);
       }
     } catch {
-      console.error('Failed to fetch revenue data');
+      // Silently handle fetch error - UI shows loading state
     } finally {
       setLoading(false);
     }
@@ -116,7 +116,7 @@ export function RevenueAnalytics() {
               <TrendingUp className="h-4 w-4" />
               LTV:CAC Ratio
             </CardDescription>
-            <CardTitle className="text-2xl">{(revenueData.overview.ltv / revenueData.overview.cac).toFixed(1)}:1</CardTitle>
+            <CardTitle className="text-2xl">{revenueData.overview.cac === 0 ? 'N/A' : `${(revenueData.overview.ltv / revenueData.overview.cac).toFixed(1)}:1`}</CardTitle>
           </CardHeader>
         </Card>
       </div>

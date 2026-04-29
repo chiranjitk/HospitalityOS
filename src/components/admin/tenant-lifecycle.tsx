@@ -129,7 +129,7 @@ export function TenantLifecycle() {
         setTenants(processedTenants);
       }
     } catch (error) {
-      console.error('Error fetching tenants:', error);
+
       toast.error('Failed to fetch tenants');
     } finally {
       setLoading(false);
@@ -157,7 +157,7 @@ export function TenantLifecycle() {
         throw new Error(data.error || 'Failed to update status');
       }
     } catch (error) {
-      console.error('Error updating status:', error);
+
       toast.error('Failed to update tenant status');
     } finally {
       setSaving(false);
@@ -185,7 +185,7 @@ export function TenantLifecycle() {
         throw new Error(data.error || 'Failed to update plan');
       }
     } catch (error) {
-      console.error('Error updating plan:', error);
+
       toast.error('Failed to update tenant plan');
     } finally {
       setSaving(false);

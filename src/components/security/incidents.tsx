@@ -168,7 +168,7 @@ export default function Incidents() {
         });
       }
     } catch (error) {
-      console.error('Error fetching incidents:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to fetch incidents',
@@ -236,7 +236,7 @@ export default function Incidents() {
         });
       }
     } catch (error) {
-      console.error('Error creating incident:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to create incident',
@@ -277,7 +277,7 @@ export default function Incidents() {
         });
       }
     } catch (error) {
-      console.error('Error updating incident:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to update incident',

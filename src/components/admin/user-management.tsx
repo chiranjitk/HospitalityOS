@@ -168,7 +168,7 @@ export function UserManagement() {
       const data = await response.json();
       setUsers(data.users || data.data || []);
     } catch (error) {
-      console.error('Error fetching users:', error);
+
       toast.error('Failed to load users');
     } finally {
       setIsLoading(false);
@@ -182,7 +182,7 @@ export function UserManagement() {
       const data = await response.json();
       setRoles(data.roles || data.data || []);
     } catch (error) {
-      console.error('Error fetching roles:', error);
+
     }
   };
 
@@ -275,7 +275,7 @@ export function UserManagement() {
       resetForm();
       fetchUsers();
     } catch (error: any) {
-      console.error('Error creating user:', error);
+
       toast.error(error.message || 'Failed to create user');
     } finally {
       setIsSaving(false);
@@ -323,7 +323,7 @@ export function UserManagement() {
       resetForm();
       fetchUsers();
     } catch (error: any) {
-      console.error('Error updating user:', error);
+
       toast.error(error.message || 'Failed to update user');
     } finally {
       setIsSaving(false);
@@ -349,7 +349,7 @@ export function UserManagement() {
       setSelectedUser(null);
       fetchUsers();
     } catch (error: any) {
-      console.error('Error deleting user:', error);
+
       toast.error(error.message || 'Failed to delete user');
     } finally {
       setIsSaving(false);
@@ -385,7 +385,7 @@ export function UserManagement() {
       setSelectedUser(null);
       setFormData(prev => ({ ...prev, password: '' }));
     } catch (error: any) {
-      console.error('Error resetting password:', error);
+
       toast.error(error.message || 'Failed to reset password');
     } finally {
       setIsSaving(false);
@@ -406,7 +406,7 @@ export function UserManagement() {
       toast.success(`User ${newStatus === 'active' ? 'activated' : 'deactivated'}`);
       fetchUsers();
     } catch (error) {
-      console.error('Error toggling status:', error);
+
       toast.error('Failed to update user status');
     }
   };

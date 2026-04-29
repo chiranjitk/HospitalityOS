@@ -14,6 +14,9 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/guests/loyalty-management');
     case 'guests-profile':
       return import('@/components/guests/guest-profile').then(m => ({ default: m.GuestProfile }));
+    case 'guests-merge':
+    case 'guest-merge':
+      return import('@/components/guests/guest-merge');
     default:
       throw new Error(`Unknown guests section: ${section}`);
   }

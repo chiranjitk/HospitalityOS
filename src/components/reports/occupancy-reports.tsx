@@ -1,7 +1,5 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -147,7 +145,7 @@ export default function OccupancyReports() {
           setData(result.data);
         }
       } catch (err) {
-        console.error('Failed to fetch occupancy data:', err);
+
       } finally {
         setIsLoading(false);
       }

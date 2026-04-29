@@ -130,7 +130,7 @@ export default function CameraPlayback() {
           setCameras([]);
         }
       } catch (error) {
-        console.error('Error fetching cameras:', error);
+
         if (isMounted) {
           setCameras([]);
         }
@@ -193,7 +193,7 @@ export default function CameraPlayback() {
           setEvents([]);
         }
       } catch (error) {
-        console.error('Error fetching recordings:', error);
+
         if (isMounted) {
           setRecordings([]);
           setEvents([]);
@@ -283,7 +283,7 @@ export default function CameraPlayback() {
           });
           hls.on(Hls.Events.ERROR, (_event, data) => {
             if (data.fatal) {
-              console.error('HLS fatal error:', data);
+
               toast.error('Failed to load video stream');
             }
           });

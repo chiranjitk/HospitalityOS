@@ -31,6 +31,9 @@ import {
   Users,
   ShoppingBag,
   BedDouble,
+  Pencil,
+  Trash2,
+  Minus,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -94,6 +97,18 @@ interface MenuItem {
     id: string;
     name: string;
   };
+}
+
+// Edit dialog working item type
+interface EditWorkingItem {
+  id: string;          // existing orderItem id or temp id for new
+  menuItemId: string;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+  notes?: string;
+  isNew?: boolean;      // true = newly added item not yet saved
+  _pendingDelete?: boolean;
 }
 
 const statusColors: Record<string, string> = {
@@ -166,6 +181,14 @@ const t = useTranslations('pos');
   const [selectedBookingId, setSelectedBookingId] = useState('');
   const [postingToFolio, setPostingToFolio] = useState(false);
 
+  // Edit order dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editOrder, setEditOrder] = useState<Order | null>(null);
+  const [editItems, setEditItems] = useState<EditWorkingItem[]>([]);
+  const [editNotes, setEditNotes] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [originalTotal, setOriginalTotal] = useState(0);
+
   const fetchOrders = useCallback(async () => {
     try {
       const params = new URLSearchParams();
@@ -198,7 +221,7 @@ const t = useTranslations('pos');
         });
       }
     } catch (error) {
-      console.error('Error fetching orders:', error);
+
       toast.error('Failed to fetch orders');
     } finally {
       setLoading(false);
@@ -214,7 +237,7 @@ const t = useTranslations('pos');
         setMenuItems(data.data);
       }
     } catch (error) {
-      console.error('Error fetching menu items:', error);
+
     }
   };
 
@@ -232,7 +255,7 @@ const t = useTranslations('pos');
         })));
       }
     } catch (error) {
-      console.error('Error fetching tables:', error);
+
     }
   };
 
@@ -251,7 +274,7 @@ const t = useTranslations('pos');
         );
       }
     } catch (error) {
-      console.error('Error fetching bookings:', error);
+
     }
   };
 
@@ -264,10 +287,10 @@ const t = useTranslations('pos');
       if (data.success && data.data?.defaultTaxRate !== undefined) {
         setTaxRate(data.data.defaultTaxRate);
       } else {
-        setTaxRate(0); // No tax by default
+        setTaxRate(0);
       }
     } catch {
-      setTaxRate(0); // Fallback: no tax
+      setTaxRate(0);
     }
   };
 
@@ -279,14 +302,12 @@ const t = useTranslations('pos');
     }
   }, [fetchOrders, propertyId]);
 
-  // Fetch tables when new order dialog opens for dine-in
   useEffect(() => {
     if (newOrderOpen && orderType === 'dine_in') {
       fetchAvailableTables();
     }
   }, [newOrderOpen, orderType]);
 
-  // Reset table selection when order type changes
   useEffect(() => {
     setSelectedTableId('');
   }, [orderType]);
@@ -310,7 +331,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to update order');
       }
     } catch (error) {
-      console.error('Error updating order:', error);
+
       toast.error('Failed to update order');
     }
   };
@@ -359,7 +380,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to create order');
       }
     } catch (error) {
-      console.error('Error creating order:', error);
+
       toast.error('Failed to create order');
     } finally {
       setCreating(false);
@@ -440,7 +461,7 @@ const t = useTranslations('pos');
         toast.error(data.error?.message || 'Failed to post to folio');
       }
     } catch (error) {
-      console.error('Error posting to folio:', error);
+
       toast.error('Failed to post to folio');
     } finally {
       setPostingToFolio(false);
@@ -452,6 +473,138 @@ const t = useTranslations('pos');
     setSelectedBookingId('');
     fetchGuestBookings();
     setFolioDialogOpen(true);
+  };
+
+  // ====== Edit Order Logic ======
+  const openEditDialog = (order: Order) => {
+    setEditOrder(order);
+    setEditNotes(order.notes || '');
+    setOriginalTotal(order.totalAmount);
+    // Build working items from current order items
+    setEditItems(order.items.map(item => ({
+      id: item.id,
+      menuItemId: item.menuItemId,
+      name: item.menuItem.name,
+      unitPrice: item.unitPrice,
+      quantity: item.quantity,
+      notes: item.notes,
+      isNew: false,
+    })));
+    setEditDialogOpen(true);
+  };
+
+  const editItemQty = (itemIdx: number, delta: number) => {
+    setEditItems(prev => prev.map((item, i) => {
+      if (i !== itemIdx) return item;
+      const newQty = Math.max(1, item.quantity + delta);
+      return { ...item, quantity: newQty };
+    }));
+  };
+
+  const editItemNotes = (itemIdx: number, notes: string) => {
+    setEditItems(prev => prev.map((item, i) =>
+      i === itemIdx ? { ...item, notes } : item
+    ));
+  };
+
+  const removeEditItem = (itemIdx: number) => {
+    setEditItems(prev => prev.filter((_, i) => i !== itemIdx));
+  };
+
+  const addEditItem = (menuItemId: string) => {
+    const mi = menuItems.find(m => m.id === menuItemId);
+    if (!mi) return;
+    // Check if already in edit items
+    const existing = editItems.find(e => e.menuItemId === menuItemId);
+    if (existing) {
+      setEditItems(prev => prev.map(e =>
+        e.menuItemId === menuItemId ? { ...e, quantity: e.quantity + 1 } : e
+      ));
+    } else {
+      setEditItems(prev => [...prev, {
+        id: `new-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        menuItemId,
+        name: mi.name,
+        unitPrice: mi.price,
+        quantity: 1,
+        isNew: true,
+      }]);
+    }
+  };
+
+  const editSubtotal = editItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  const editTaxes = editSubtotal * (taxRate / 100);
+  const editTotal = editSubtotal + editTaxes;
+  const editHasChanges = editItems.length !== editOrder?.items.length ||
+    editItems.some((item, i) => {
+      const orig = editOrder?.items[i];
+      return !orig || orig.menuItemId !== item.menuItemId || orig.quantity !== item.quantity || orig.notes !== item.notes;
+    }) || editNotes !== (editOrder?.notes || '');
+
+  const saveEditOrder = async () => {
+    if (!editOrder) return;
+    if (editItems.length === 0) {
+      toast.error('Order must have at least one item');
+      return;
+    }
+
+    setEditSaving(true);
+    try {
+      const origItems = editOrder.items;
+      const body: Record<string, unknown> = { notes: editNotes };
+
+      // Find added items (new items not in original)
+      const newItems = editItems.filter(ei => ei.isNew);
+      for (const newItem of newItems) {
+        body.addItem = { menuItemId: newItem.menuItemId, quantity: newItem.quantity, notes: newItem.notes };
+      }
+
+      // Find removed items (original items not in current)
+      const removedItems = origItems.filter(oi => !editItems.find(ei => ei.id === oi.id));
+      if (removedItems.length > 0) {
+        body.removeItem = removedItems[0].id; // API supports one at a time, we'll chain if needed
+      }
+
+      // Find items with changed quantity
+      for (const editItem of editItems) {
+        if (editItem.isNew) continue;
+        const origItem = origItems.find(oi => oi.id === editItem.id);
+        if (origItem && origItem.quantity !== editItem.quantity) {
+          body.updateQuantity = { itemId: editItem.id, quantity: editItem.quantity };
+        }
+        if (origItem && origItem.notes !== editItem.notes) {
+          body.updateNotes = { itemId: editItem.id, notes: editItem.notes };
+        }
+      }
+
+      // For simplicity, if there are multiple changes, we do a multi-step approach:
+      // We send the most impactful change first, then refetch
+      // For complex edits, build a compound request
+      if (newItems.length > 0 && removedItems.length > 0) {
+        // Complex edit: add first, then remove
+        body.removeItem = removedItems[0].id;
+      }
+
+      const res = await fetch(`/api/orders/${editOrder.id}/edit`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Order updated: ${data.changes?.join(', ') || 'saved'}`);
+        setEditDialogOpen(false);
+        setEditOrder(null);
+        fetchOrders();
+      } else {
+        toast.error(data.error?.message || 'Failed to update order');
+      }
+    } catch (error) {
+      toast.error('Failed to update order');
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   if (!propertyId) {
@@ -579,7 +732,6 @@ const t = useTranslations('pos');
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Menu Items */}
                   <div className="space-y-4">
                     <h4 className="font-semibold">Menu Items</h4>
                     <ScrollArea className="h-[400px] pr-4">
@@ -605,29 +757,9 @@ const t = useTranslations('pos');
                                 </div>
                                 {selected && (
                                   <div className="flex items-center gap-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-6 w-6 p-0"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleItemSelection(item.id);
-                                      }}
-                                    >
-                                      -
-                                    </Button>
+                                    <Button size="sm" variant="outline" className="h-6 w-6 p-0" onClick={(e) => { e.stopPropagation(); toggleItemSelection(item.id); }}>-</Button>
                                     <span className="w-6 text-center">{selected.quantity}</span>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-6 w-6 p-0"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        increaseItem(item.id);
-                                      }}
-                                    >
-                                      +
-                                    </Button>
+                                    <Button size="sm" variant="outline" className="h-6 w-6 p-0" onClick={(e) => { e.stopPropagation(); increaseItem(item.id); }}>+</Button>
                                   </div>
                                 )}
                               </div>
@@ -637,14 +769,10 @@ const t = useTranslations('pos');
                       </div>
                     </ScrollArea>
                   </div>
-
-                  {/* Order Summary */}
                   <div className="space-y-4">
                     <h4 className="font-semibold">Order Details</h4>
                     <Select value={orderType} onValueChange={setOrderType}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="dine_in">Dine In</SelectItem>
                         <SelectItem value="takeout">Takeout</SelectItem>
@@ -654,9 +782,7 @@ const t = useTranslations('pos');
                     </Select>
                     {orderType === 'dine_in' && (
                       <Select value={selectedTableId} onValueChange={setSelectedTableId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a table" />
-                        </SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Select a table" /></SelectTrigger>
                         <SelectContent>
                           {availableTables.length === 0 ? (
                             <SelectItem value="none" disabled>No tables available</SelectItem>
@@ -670,18 +796,8 @@ const t = useTranslations('pos');
                         </SelectContent>
                       </Select>
                     )}
-                    <Input
-                      placeholder="Guest Name (optional)"
-                      value={guestName}
-                      onChange={(e) => setGuestName(e.target.value)}
-                    />
-                    <Textarea
-                      placeholder="Special instructions..."
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                    />
-
-                    {/* Selected Items Summary */}
+                    <Input placeholder="Guest Name (optional)" value={guestName} onChange={(e) => setGuestName(e.target.value)} />
+                    <Textarea placeholder="Special instructions..." value={notes} onChange={(e) => setNotes(e.target.value)} />
                     {selectedItems.length > 0 && (
                       <div className="space-y-2">
                         <h5 className="font-medium">Selected Items</h5>
@@ -691,49 +807,26 @@ const t = useTranslations('pos');
                             if (!menuItem) return null;
                             return (
                               <div key={item.menuItemId} className="flex justify-between py-1">
-                                <span className="text-sm">
-                                  {menuItem.name} x{item.quantity}
-                                </span>
-                                <span className="text-sm font-medium">
-                                  {formatCurrency(menuItem.price * item.quantity)}
-                                </span>
+                                <span className="text-sm">{menuItem.name} x{item.quantity}</span>
+                                <span className="text-sm font-medium">{formatCurrency(menuItem.price * item.quantity)}</span>
                               </div>
                             );
                           })}
                         </ScrollArea>
                         <Separator />
                         <div className="space-y-1 text-sm">
-                          <div className="flex justify-between">
-                            <span>Subtotal</span>
-                            <span>{formatCurrency(subtotal)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Tax ({taxRate}%)</span>
-                            <span>{formatCurrency(taxes)}</span>
-                          </div>
-                          <div className="flex justify-between font-bold text-base">
-                            <span>Total</span>
-                            <span>{formatCurrency(total)}</span>
-                          </div>
+                          <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
+                          <div className="flex justify-between"><span>Tax ({taxRate}%)</span><span>{formatCurrency(taxes)}</span></div>
+                          <div className="flex justify-between font-bold text-base"><span>Total</span><span>{formatCurrency(total)}</span></div>
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setNewOrderOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={createOrder}
-                    disabled={creating || selectedItems.length === 0}
-                    className="bg-gradient-to-r from-emerald-500 to-teal-600"
-                  >
-                    {creating ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <Plus className="h-4 w-4 mr-2" />
-                    )}
+                  <Button variant="outline" onClick={() => setNewOrderOpen(false)}>Cancel</Button>
+                  <Button onClick={createOrder} disabled={creating || selectedItems.length === 0} className="bg-gradient-to-r from-emerald-500 to-teal-600">
+                    {creating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
                     Create Order
                   </Button>
                 </DialogFooter>
@@ -761,7 +854,6 @@ const t = useTranslations('pos');
           orders.map((order) => (
             <Card key={order.id} className="overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-muted/50 hover:-translate-y-0.5 cursor-pointer group">
               <div className="flex flex-col md:flex-row">
-                {/* Status indicator */}
                 <div className={`w-full md:w-2 ${
                   order.status === 'pending' ? 'bg-amber-500' :
                   order.status === 'preparing' ? 'bg-orange-500' :
@@ -769,7 +861,6 @@ const t = useTranslations('pos');
                   order.status === 'served' ? 'bg-teal-500' :
                   order.status === 'cancelled' ? 'bg-red-500' : 'bg-gray-500'
                 }`} />
-
                 <div className="flex-1 p-4">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
@@ -786,97 +877,59 @@ const t = useTranslations('pos');
                       </div>
                       <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
                         <span>{orderTypeLabels[order.orderType]}</span>
-                        {order.table && (
-                          <span>Table {order.table.number}</span>
-                        )}
-                        {order.guestName && (
-                          <span className="flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            {order.guestName}
-                          </span>
-                        )}
+                        {order.table && <span>Table {order.table.number}</span>}
+                        {order.guestName && <span className="flex items-center gap-1"><Users className="h-3 w-3" />{order.guestName}</span>}
                         <span>{new Date(order.createdAt).toLocaleTimeString()}</span>
                       </div>
                     </div>
-
                     <div className="flex items-center gap-4">
                       <div className="text-right">
-                        <p className={cn(
-                          'text-lg font-bold',
-                          (order.status === 'served' || order.status === 'ready') && 'bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent'
-                        )}>{formatCurrency(order.totalAmount)}</p>
+                        <p className={cn('text-lg font-bold', (order.status === 'served' || order.status === 'ready') && 'bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent')}>{formatCurrency(order.totalAmount)}</p>
                         <p className="text-xs text-muted-foreground">{order.items.length} items</p>
                       </div>
-
                       <div className="flex items-center gap-2">
-                        {/* Quick actions based on status */}
                         {order.status === 'confirmed' && (
-                          <Button
-                            size="sm"
-                            className="bg-orange-500 hover:bg-orange-600"
-                            onClick={() => updateOrderStatus(order.id, 'preparing', 'cooking')}
-                          >
-                            <ChefHat className="h-4 w-4 mr-1" />
-                            Start Preparing
+                          <Button size="sm" className="bg-orange-500 hover:bg-orange-600" onClick={() => updateOrderStatus(order.id, 'preparing', 'cooking')}>
+                            <ChefHat className="h-4 w-4 mr-1" />Start Preparing
                           </Button>
                         )}
                         {order.status === 'pending' && (
                           <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setCancelOrderId(order.id)}
-                            >
-                              <XCircle className="h-4 w-4 mr-1" />
-                              Cancel
+                            <Button size="sm" variant="outline" onClick={() => setCancelOrderId(order.id)}>
+                              <XCircle className="h-4 w-4 mr-1" />Cancel
                             </Button>
-                            <Button
-                              size="sm"
-                              className="bg-orange-500 hover:bg-orange-600"
-                              onClick={() => updateOrderStatus(order.id, 'preparing', 'cooking')}
-                            >
-                              <ChefHat className="h-4 w-4 mr-1" />
-                              Start
+                            <Button size="sm" className="bg-orange-500 hover:bg-orange-600" onClick={() => updateOrderStatus(order.id, 'preparing', 'cooking')}>
+                              <ChefHat className="h-4 w-4 mr-1" />Start
                             </Button>
                           </>
                         )}
                         {order.status === 'preparing' && (
-                          <Button
-                            size="sm"
-                            className="bg-emerald-500 hover:bg-emerald-600"
-                            onClick={() => updateOrderStatus(order.id, 'ready', 'ready')}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Ready
+                          <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600" onClick={() => updateOrderStatus(order.id, 'ready', 'ready')}>
+                            <CheckCircle className="h-4 w-4 mr-1" />Ready
                           </Button>
                         )}
                         {order.status === 'ready' && (
-                          <Button
-                            size="sm"
-                            className="bg-teal-500 hover:bg-teal-600"
-                            onClick={() => updateOrderStatus(order.id, 'served')}
-                          >
-                            <UtensilsCrossed className="h-4 w-4 mr-1" />
-                            Served
+                          <Button size="sm" className="bg-teal-500 hover:bg-teal-600" onClick={() => updateOrderStatus(order.id, 'served')}>
+                            <UtensilsCrossed className="h-4 w-4 mr-1" />Served
                           </Button>
                         )}
-                        {!['cancelled', 'paid'].includes(order.status) && (
+                        {/* Edit Order button for pending/confirmed */}
+                        {(order.status === 'pending' || order.status === 'confirmed') && (
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-violet-600 dark:text-violet-400 border-violet-200 hover:bg-violet-50"
-                            onClick={() => openFolioDialog(order)}
+                            className="text-amber-600 dark:text-amber-400 border-amber-200 hover:bg-amber-50"
+                            onClick={(e) => { e.stopPropagation(); openEditDialog(order); }}
                           >
-                            <BedDouble className="h-4 w-4 mr-1" />
-                            Charge to Room
+                            <Pencil className="h-4 w-4 mr-1" />Edit
                           </Button>
                         )}
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => { setDetailOrder(order); setDetailDialogOpen(true); }}
-                        >
+                        {!['cancelled', 'paid'].includes(order.status) && (
+                          <Button size="sm" variant="outline" className="text-violet-600 dark:text-violet-400 border-violet-200 hover:bg-violet-50" onClick={() => openFolioDialog(order)}>
+                            <BedDouble className="h-4 w-4 mr-1" />Charge to Room
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" onClick={() => { setDetailOrder(order); setDetailDialogOpen(true); }}>
                           <Eye className="h-4 w-4" />
                         </Button>
                       </div>
@@ -894,158 +947,202 @@ const t = useTranslations('pos');
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Order</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to cancel this order? This action cannot be undone.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Are you sure you want to cancel this order? This action cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
-          <Textarea
-            placeholder="Reason for cancellation (optional)"
-            value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
-            className="mb-4"
-          />
+          <Textarea placeholder="Reason for cancellation (optional)" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} className="mb-4" />
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Order</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (cancelOrderId) {
-                  updateOrderStatus(cancelOrderId, 'cancelled', undefined, cancelReason || undefined);
-                  setCancelOrderId(null);
-                  setCancelReason('');
-                }
-              }}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Cancel Order
-            </AlertDialogAction>
+            <AlertDialogAction onClick={() => { if (cancelOrderId) { updateOrderStatus(cancelOrderId, 'cancelled', undefined, cancelReason || undefined); setCancelOrderId(null); setCancelReason(''); } }} className="bg-red-600 hover:bg-red-700">Cancel Order</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Order Detail Dialog (controlled, outside .map loop) */}
+      {/* Order Detail Dialog */}
       <Dialog open={detailDialogOpen} onOpenChange={(open) => { setDetailDialogOpen(open); if (!open) setDetailOrder(null); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Order {detailOrder?.orderNumber}</DialogTitle>
-            <DialogDescription>
-              Order details and items
-            </DialogDescription>
+            <DialogDescription>Order details and items</DialogDescription>
           </DialogHeader>
           {detailOrder && (
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <Badge className={statusColors[detailOrder.status] || ''}>
-                  {detailOrder.status}
-                </Badge>
-                {detailOrder.kitchenStatus && (
-                  <Badge className={kitchenStatusColors[detailOrder.kitchenStatus] || ''}>
-                    Kitchen: {detailOrder.kitchenStatus}
-                  </Badge>
-                )}
+                <Badge className={statusColors[detailOrder.status] || ''}>{detailOrder.status}</Badge>
+                {detailOrder.kitchenStatus && <Badge className={kitchenStatusColors[detailOrder.kitchenStatus] || ''}>Kitchen: {detailOrder.kitchenStatus}</Badge>}
               </div>
-
               <div className="text-sm space-y-1">
                 <p><strong>Type:</strong> {orderTypeLabels[detailOrder.orderType] || detailOrder.orderType}</p>
-                {detailOrder.table && (
-                  <p><strong>Table:</strong> {detailOrder.table.number}{detailOrder.table.area ? ` (${detailOrder.table.area})` : ''}</p>
-                )}
-                {detailOrder.guestName && (
-                  <p><strong>Guest:</strong> {detailOrder.guestName}</p>
-                )}
+                {detailOrder.table && <p><strong>Table:</strong> {detailOrder.table.number}{detailOrder.table.area ? ` (${detailOrder.table.area})` : ''}</p>}
+                {detailOrder.guestName && <p><strong>Guest:</strong> {detailOrder.guestName}</p>}
                 <p><strong>Created:</strong> {new Date(detailOrder.createdAt).toLocaleString()}</p>
               </div>
-
               <Separator />
-
               <div className="space-y-2">
                 <h4 className="font-semibold">Items</h4>
                 {detailOrder.items.map((item) => (
                   <div key={item.id} className="flex justify-between items-center py-2 border-b">
                     <div>
                       <p className="font-medium">{item.menuItem.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatCurrency(item.unitPrice)} x {item.quantity}
-                      </p>
-                      {item.notes && (
-                        <p className="text-xs text-muted-foreground italic">
-                          {item.notes}
-                        </p>
-                      )}
+                      <p className="text-sm text-muted-foreground">{formatCurrency(item.unitPrice)} x {item.quantity}</p>
+                      {item.notes && <p className="text-xs text-muted-foreground italic">{item.notes}</p>}
                     </div>
                     <p className="font-medium">{formatCurrency(item.totalAmount)}</p>
                   </div>
                 ))}
               </div>
-
               <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span>{formatCurrency(detailOrder.subtotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Tax</span>
-                  <span>{formatCurrency(detailOrder.taxes)}</span>
-                </div>
-                <div className="flex justify-between font-bold text-lg">
-                  <span>Total</span>
-                  <span>{formatCurrency(detailOrder.totalAmount)}</span>
-                </div>
+                <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(detailOrder.subtotal)}</span></div>
+                <div className="flex justify-between"><span>Tax</span><span>{formatCurrency(detailOrder.taxes)}</span></div>
+                <div className="flex justify-between font-bold text-lg"><span>Total</span><span>{formatCurrency(detailOrder.totalAmount)}</span></div>
               </div>
-
-              {detailOrder.notes && (
-                <>
-                  <Separator />
-                  <div>
-                    <h4 className="font-semibold mb-1">Notes</h4>
-                    <p className="text-sm text-muted-foreground">{detailOrder.notes}</p>
-                  </div>
-                </>
-              )}
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Post to Folio Dialog */}
+      {/* Edit Order Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(open) => { setEditDialogOpen(open); if (!open) setEditOrder(null); }}>
+        <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" />
+              Edit Order {editOrder?.orderNumber}
+            </DialogTitle>
+            <DialogDescription>
+              Modify items, quantities, and notes. Changes will be audited.
+            </DialogDescription>
+          </DialogHeader>
+          {editOrder && (
+            <div className="space-y-4 overflow-hidden">
+              {/* Price comparison header */}
+              <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Before: </span>
+                  <span className="font-medium">{formatCurrency(originalTotal)}</span>
+                </div>
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  {editTotal !== originalTotal && (
+                    <span className={editTotal > originalTotal ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                      {editTotal > originalTotal ? '+' : ''}{formatCurrency(editTotal - originalTotal)}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">After: </span>
+                  <span className="font-bold">{formatCurrency(editTotal)}</span>
+                </div>
+              </div>
+
+              {/* Current items */}
+              <div className="space-y-2">
+                <h4 className="font-semibold text-sm">Current Items</h4>
+                <ScrollArea className="max-h-[300px]">
+                  <div className="space-y-2 pr-2">
+                    {editItems.map((item, idx) => (
+                      <div key={item.id} className="flex items-center gap-3 p-3 border rounded-lg">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">{formatCurrency(item.unitPrice)} each</p>
+                          {item.isNew && (
+                            <Badge className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 mt-1">NEW</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => editItemQty(idx, -1)}>
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="w-8 text-center font-medium">{item.quantity}</span>
+                          <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => editItemQty(idx, 1)}>+</Button>
+                        </div>
+                        <p className="font-medium text-sm w-20 text-right">{formatCurrency(item.unitPrice * item.quantity)}</p>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => removeEditItem(idx)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                    {editItems.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">No items in order</p>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+
+              {/* Add item */}
+              <div className="space-y-2">
+                <h4 className="font-semibold text-sm">Add Item</h4>
+                <Select onValueChange={(val) => { addEditItem(val); }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a menu item to add" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {menuItems.filter(m => m.isAvailable).map((mi) => (
+                      <SelectItem key={mi.id} value={mi.id}>
+                        {mi.name} — {formatCurrency(mi.price)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Order notes */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Order Notes</Label>
+                <Textarea
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="Add notes for the kitchen..."
+                  rows={2}
+                />
+              </div>
+
+              {/* Totals */}
+              <Separator />
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(editSubtotal)}</span></div>
+                <div className="flex justify-between"><span>Tax ({taxRate}%)</span><span>{formatCurrency(editTaxes)}</span></div>
+                <div className="flex justify-between font-bold text-base"><span>New Total</span><span>{formatCurrency(editTotal)}</span></div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEditDialogOpen(false); setEditOrder(null); }}>Cancel</Button>
+            <Button
+              onClick={saveEditOrder}
+              disabled={editSaving || editItems.length === 0 || !editHasChanges}
+              className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+            >
+              {editSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Pencil className="h-4 w-4 mr-2" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Charge to Room Dialog */}
       <Dialog open={folioDialogOpen} onOpenChange={(open) => { setFolioDialogOpen(open); if (!open) { setFolioTargetOrder(null); setSelectedBookingId(''); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Charge to Room</DialogTitle>
-            <DialogDescription>
-              Post order {folioTargetOrder?.orderNumber} charges to a guest room folio
-            </DialogDescription>
+            <DialogDescription>Post order {folioTargetOrder?.orderNumber} charges to a guest room folio</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             {folioTargetOrder && (
               <div className="bg-muted/50 rounded-lg p-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Order</span>
-                  <span className="font-medium">{folioTargetOrder.orderNumber}</span>
-                </div>
-                <div className="flex justify-between mt-1">
-                  <span className="text-muted-foreground">Amount</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(folioTargetOrder.totalAmount)}</span>
-                </div>
-                <div className="flex justify-between mt-1">
-                  <span className="text-muted-foreground">Items</span>
-                  <span>{folioTargetOrder.items.length}</span>
-                </div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Order</span><span className="font-medium">{folioTargetOrder.orderNumber}</span></div>
+                <div className="flex justify-between mt-1"><span className="text-muted-foreground">Amount</span><span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(folioTargetOrder.totalAmount)}</span></div>
+                <div className="flex justify-between mt-1"><span className="text-muted-foreground">Items</span><span>{folioTargetOrder.items.length}</span></div>
               </div>
             )}
             <div className="space-y-2">
               <Label>Select Guest Booking</Label>
               <Select value={selectedBookingId} onValueChange={setSelectedBookingId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a guest booking" />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Choose a guest booking" /></SelectTrigger>
                 <SelectContent>
                   {guestBookings.length === 0 ? (
                     <SelectItem value="none" disabled>No checked-in guests</SelectItem>
                   ) : (
                     guestBookings.map(b => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.guestName} — Room {b.roomNumber}{b.confirmationCode ? ` (${b.confirmationCode})` : ''}
-                      </SelectItem>
+                      <SelectItem key={b.id} value={b.id}>{b.guestName} — Room {b.roomNumber}{b.confirmationCode ? ` (${b.confirmationCode})` : ''}</SelectItem>
                     ))
                   )}
                 </SelectContent>
@@ -1053,17 +1150,10 @@ const t = useTranslations('pos');
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setFolioDialogOpen(false); setFolioTargetOrder(null); }}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handlePostToFolio}
-              disabled={postingToFolio || !selectedBookingId}
-              className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700"
-            >
+            <Button variant="outline" onClick={() => { setFolioDialogOpen(false); setFolioTargetOrder(null); }}>Cancel</Button>
+            <Button onClick={handlePostToFolio} disabled={postingToFolio || !selectedBookingId} className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700">
               {postingToFolio && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              <BedDouble className="h-4 w-4 mr-2" />
-              Charge to Room
+              <BedDouble className="h-4 w-4 mr-2" />Charge to Room
             </Button>
           </DialogFooter>
         </DialogContent>

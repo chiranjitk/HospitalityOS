@@ -36,7 +36,7 @@ const t = useTranslations('pos');
           case 'tables': setTableStats(data.data); break;
         }
       }
-    } catch (e) { console.error(e); }
+    } catch { /* silently ignore */ }
   }, [propertyId]);
 
   useEffect(() => {

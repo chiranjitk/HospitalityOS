@@ -106,7 +106,7 @@ export default function SecurityOverview({ onNavigate }: SecurityOverviewProps) 
       if (!eventsResponse.ok) throw new Error('Request failed');
       eventsData = await eventsResponse.json();
     } catch (error) {
-      console.error('Error fetching security events:', error);
+      // Error handled silently — UI shows toast or error state
       failures.push('security events');
     }
 
@@ -121,7 +121,7 @@ export default function SecurityOverview({ onNavigate }: SecurityOverviewProps) 
       if (!sessionsResponse.ok) throw new Error('Request failed');
       sessionsData = await sessionsResponse.json();
     } catch (error) {
-      console.error('Error fetching sessions:', error);
+      // Error handled silently
       failures.push('active sessions');
     }
 

@@ -50,7 +50,7 @@ export function UsageTracking() {
         setError(data.error || 'Failed to load usage data');
       }
     } catch (err) {
-      console.error('Failed to fetch usage data:', err);
+
       setError('Network error while fetching usage data');
     } finally {
       setLoading(false);

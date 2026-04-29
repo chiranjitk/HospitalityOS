@@ -20,6 +20,9 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/frontdesk/kiosk-settings');
     case 'room-move':
       return import('@/components/frontdesk/room-move');
+    case 'frontdesk-key-cards':
+    case 'key-card-manager':
+      return import('@/components/frontdesk/key-card-manager');
     default:
       // Fallback to check-in for any unknown frontdesk section
       return import('@/components/frontdesk/check-in');

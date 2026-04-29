@@ -241,7 +241,7 @@ const t = useTranslations('billing');
         setStats(result.stats || null);
       }
     } catch (error) {
-      console.error('Error fetching invoices:', error);
+
       toast({ title: 'Error', description: 'Failed to fetch invoices', variant: 'destructive' });
     } finally {
       setIsLoading(false);
@@ -338,7 +338,7 @@ const t = useTranslations('billing');
         toast({ title: 'Error', description: result.error?.message || t('failedToProcess'), variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error creating invoice:', error);
+
       toast({ title: 'Error', description: t('failedToProcess'), variant: 'destructive' });
     } finally {
       setIsSaving(false);
@@ -374,7 +374,7 @@ const t = useTranslations('billing');
       URL.revokeObjectURL(url);
       toast({ title: 'Downloaded', description: `Invoice ${invoice.invoiceNumber} PDF downloaded` });
     } catch (error) {
-      console.error('PDF error:', error);
+
       toast({ title: 'Error', description: t('failedToGeneratePdf'), variant: 'destructive' });
     } finally {
       setActionLoading(null);

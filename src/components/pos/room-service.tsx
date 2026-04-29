@@ -102,7 +102,7 @@ const t = useTranslations('pos');
       const data = await res.json();
       if (data.success) setRooms(data.data);
     } catch {
-      console.error('Error fetching rooms');
+
     }
   }, [propertyId]);
 
@@ -113,7 +113,7 @@ const t = useTranslations('pos');
       const data = await res.json();
       if (data.success) setMenuItems(data.data);
     } catch {
-      console.error('Error fetching menu items');
+
     }
   }, [propertyId]);
 
@@ -124,7 +124,7 @@ const t = useTranslations('pos');
       const data = await res.json();
       if (data.success) setActiveOrders(data.data);
     } catch {
-      console.error('Error fetching orders');
+
     }
   }, [propertyId]);
 

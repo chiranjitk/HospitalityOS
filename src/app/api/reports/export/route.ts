@@ -1,402 +1,302 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
-import {
-  generateCSV,
-  generateHTMLTable,
-  generateExcelXML,
-  getMimeType,
-  getFileExtension,
-  ColumnDefinition,
-  ExportOptions,
-} from '@/lib/reports/export-utils';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
-// Report type configurations
-const REPORT_CONFIGS: Record<string, {
-  title: string;
-  columns: ColumnDefinition[];
-  getData: (params: Record<string, string | undefined>) => Promise<Record<string, unknown>[]>;
-}> = {
-  revenue: {
-    title: 'Revenue Report',
-    columns: [
-      { key: 'date', label: 'Date', format: 'date', width: 120 },
-      { key: 'roomRevenue', label: 'Room Revenue', format: 'currency', align: 'right', width: 120 },
-      { key: 'foodRevenue', label: 'F&B Revenue', format: 'currency', align: 'right', width: 120 },
-      { key: 'otherRevenue', label: 'Other Revenue', format: 'currency', align: 'right', width: 120 },
-      { key: 'totalRevenue', label: 'Total Revenue', format: 'currency', align: 'right', width: 130 },
-      { key: 'adr', label: 'ADR', format: 'currency', align: 'right', width: 100 },
-      { key: 'revpar', label: 'RevPAR', format: 'currency', align: 'right', width: 100 },
-    ],
-    getData: async (params) => {
-      const { tenantId, propertyId, startDate, endDate } = params;
-      const where: Record<string, unknown> = { tenantId };
-      if (propertyId) where.propertyId = propertyId;
-      if (startDate || endDate) {
-        where.createdAt = {};
-        if (startDate) (where.createdAt as Record<string, unknown>).gte = new Date(startDate);
-        if (endDate) (where.createdAt as Record<string, unknown>).lte = new Date(endDate);
-      }
+interface ExportColumn {
+  key: string;
+  label: string;
+}
 
-      // Get actual payment data
-      const payments = await db.payment.findMany({
-        where: { ...where, status: 'completed' },
-        include: {
-          folio: {
-            select: {
-              booking: { select: { propertyId: true } },
-            },
-          },
-        },
-      });
-
-      // Group by date
-      const byDate: Record<string, Record<string, unknown>> = {};
-      payments.forEach((payment) => {
-        const date = payment.createdAt.toISOString().split('T')[0];
-        if (!byDate[date]) {
-          byDate[date] = { date, roomRevenue: 0, foodRevenue: 0, otherRevenue: 0, totalRevenue: 0 };
-        }
-        const amount = payment.amount;
-
-        // Classify revenue by folio charge type if available
-        const chargeType = (payment as Record<string, unknown>).chargeType as string || (payment as Record<string, unknown>).category as string || '';
-        if (chargeType === 'food_beverage' || chargeType === 'restaurant' || chargeType === 'f&b' || chargeType === 'fnb') {
-          byDate[date].foodRevenue = (byDate[date].foodRevenue as number) + amount;
-        } else if (chargeType === 'other' || chargeType === 'service' || chargeType === 'amenity') {
-          byDate[date].otherRevenue = (byDate[date].otherRevenue as number) + amount;
-        } else {
-          // Default to room revenue for unclassified payments
-          byDate[date].roomRevenue = (byDate[date].roomRevenue as number) + amount;
-        }
-        byDate[date].totalRevenue = (byDate[date].totalRevenue as number) + amount;
-      });
-
-      return Object.values(byDate).sort((a, b) => 
-        (a.date as string).localeCompare(b.date as string)
-      );
-    },
-  },
-  occupancy: {
-    title: 'Occupancy Report',
-    columns: [
-      { key: 'date', label: 'Date', format: 'date', width: 120 },
-      { key: 'totalRooms', label: 'Total Rooms', format: 'number', align: 'right', width: 100 },
-      { key: 'occupiedRooms', label: 'Occupied', format: 'number', align: 'right', width: 100 },
-      { key: 'availableRooms', label: 'Available', format: 'number', align: 'right', width: 100 },
-      { key: 'occupancyRate', label: 'Occupancy %', format: 'percentage', align: 'right', width: 110 },
-      { key: 'arrivals', label: 'Arrivals', format: 'number', align: 'center', width: 90 },
-      { key: 'departures', label: 'Departures', format: 'number', align: 'center', width: 100 },
-    ],
-    getData: async (params) => {
-      const { tenantId, propertyId, startDate, endDate } = params;
-      const where: Record<string, unknown> = { tenantId };
-      if (propertyId) where.propertyId = propertyId;
-
-      // Get rooms
-      const rooms = await db.room.findMany({ where });
-      const totalRooms = rooms.length;
-
-      // Get bookings
-      const bookingWhere: Record<string, unknown> = { tenantId };
-      if (propertyId) bookingWhere.propertyId = propertyId;
-      if (startDate || endDate) {
-        bookingWhere.checkIn = {};
-        if (startDate) (bookingWhere.checkIn as Record<string, unknown>).gte = new Date(startDate);
-        if (endDate) (bookingWhere.checkIn as Record<string, unknown>).lte = new Date(endDate);
-      }
-
-      const bookings = await db.booking.findMany({
-        where: bookingWhere,
-        select: { checkIn: true, checkOut: true, status: true },
-      });
-
-      // Group by date
-      const byDate: Record<string, Record<string, unknown>> = {};
-      const start = startDate ? new Date(startDate) : new Date();
-      const end = endDate ? new Date(endDate) : new Date();
-      
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
-        byDate[dateStr] = {
-          date: dateStr,
-          totalRooms,
-          occupiedRooms: 0,
-          availableRooms: totalRooms,
-          occupancyRate: 0,
-          arrivals: 0,
-          departures: 0,
-        };
-      }
-
-      bookings.forEach((booking) => {
-        const checkInStr = booking.checkIn.toISOString().split('T')[0];
-        const checkOutStr = booking.checkOut.toISOString().split('T')[0];
-        
-        if (byDate[checkInStr]) {
-          (byDate[checkInStr].arrivals as number)++;
-        }
-        if (byDate[checkOutStr]) {
-          (byDate[checkOutStr].departures as number)++;
-        }
-
-        // Count occupied nights
-        const nights: string[] = [];
-        for (let d = new Date(booking.checkIn); d < booking.checkOut; d.setDate(d.getDate() + 1)) {
-          nights.push(d.toISOString().split('T')[0]);
-        }
-        nights.forEach((date) => {
-          if (byDate[date]) {
-            (byDate[date].occupiedRooms as number)++;
-            (byDate[date].availableRooms as number)--;
-            (byDate[date].occupancyRate as number) = ((byDate[date].occupiedRooms as number) / totalRooms) * 100;
-          }
-        });
-      });
-
-      return Object.values(byDate).sort((a, b) => 
-        (a.date as string).localeCompare(b.date as string)
-      );
-    },
-  },
-  guests: {
-    title: 'Guest Analytics Report',
-    columns: [
-      { key: 'guestId', label: 'Guest ID', width: 100 },
-      { key: 'guestName', label: 'Guest Name', width: 150 },
-      { key: 'email', label: 'Email', width: 180 },
-      { key: 'totalStays', label: 'Total Stays', format: 'number', align: 'center', width: 100 },
-      { key: 'totalSpent', label: 'Total Spent', format: 'currency', align: 'right', width: 120 },
-      { key: 'loyaltyTier', label: 'Loyalty Tier', align: 'center', width: 100 },
-      { key: 'lastStay', label: 'Last Stay', format: 'date', width: 120 },
-    ],
-    getData: async (params) => {
-      const { tenantId, limit } = params;
-      
-      const guests = await db.guest.findMany({
-        where: { tenantId },
-        include: {
-          bookings: {
-            select: { id: true, checkOut: true, folios: { select: { totalAmount: true } } },
-            orderBy: { checkOut: 'desc' },
-            take: 1,
-          },
-          _count: { select: { bookings: true } },
-        },
-        take: limit ? parseInt(limit) : 100,
-      });
-
-      return guests.map((guest) => ({
-        guestId: guest.id.substring(0, 8),
-        guestName: `${guest.firstName} ${guest.lastName}`,
-        email: guest.email,
-        totalStays: guest._count.bookings,
-        totalSpent: guest.bookings.reduce((sum, b) => 
-          sum + b.folios.reduce((s, f) => s + f.totalAmount, 0), 0
-        ),
-        loyaltyTier: guest.loyaltyTier || 'Bronze',
-        lastStay: guest.bookings[0]?.checkOut || null,
-      }));
-    },
-  },
-  bookings: {
-    title: 'Bookings Report',
-    columns: [
-      { key: 'confirmationCode', label: 'Confirmation', width: 120 },
-      { key: 'guestName', label: 'Guest Name', width: 150 },
-      { key: 'checkIn', label: 'Check In', format: 'date', width: 100 },
-      { key: 'checkOut', label: 'Check Out', format: 'date', width: 100 },
-      { key: 'roomType', label: 'Room Type', width: 120 },
-      { key: 'roomNumber', label: 'Room', width: 80 },
-      { key: 'totalAmount', label: 'Total', format: 'currency', align: 'right', width: 100 },
-      { key: 'status', label: 'Status', align: 'center', width: 100 },
-      { key: 'source', label: 'Source', width: 100 },
-    ],
-    getData: async (params) => {
-      const { tenantId, propertyId, startDate, endDate, limit } = params;
-      
-      const where: Record<string, unknown> = { tenantId };
-      if (propertyId) where.propertyId = propertyId;
-      if (startDate || endDate) {
-        where.checkIn = {};
-        if (startDate) (where.checkIn as Record<string, unknown>).gte = new Date(startDate);
-        if (endDate) (where.checkIn as Record<string, unknown>).lte = new Date(endDate);
-      }
-
-      const bookings = await db.booking.findMany({
-        where,
-        include: {
-          primaryGuest: { select: { firstName: true, lastName: true } },
-          room: { select: { number: true } },
-          roomType: { select: { name: true } },
-          folios: { select: { totalAmount: true } },
-        },
-        orderBy: { checkIn: 'desc' },
-        take: limit ? parseInt(limit) : 500,
-      });
-
-      return bookings.map((booking) => ({
-        confirmationCode: booking.confirmationCode,
-        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim(),
-        checkIn: booking.checkIn,
-        checkOut: booking.checkOut,
-        roomType: booking.roomType?.name || 'N/A',
-        roomNumber: booking.room?.number || 'N/A',
-        totalAmount: booking.folios.reduce((sum, f) => sum + f.totalAmount, 0),
-        status: booking.status,
-        source: booking.source || 'Direct',
-      }));
-    },
-  },
-  staff: {
-    title: 'Staff Performance Report',
-    columns: [
-      { key: 'staffId', label: 'ID', width: 80 },
-      { key: 'staffName', label: 'Name', width: 150 },
-      { key: 'department', label: 'Department', width: 120 },
-      { key: 'tasksCompleted', label: 'Tasks Done', format: 'number', align: 'center', width: 100 },
-      { key: 'avgRating', label: 'Avg Rating', format: 'number', align: 'center', width: 100 },
-      { key: 'attendanceRate', label: 'Attendance %', format: 'percentage', align: 'center', width: 110 },
-      { key: 'hoursWorked', label: 'Hours', format: 'number', align: 'center', width: 80 },
-    ],
-    getData: async (params) => {
-      const { tenantId, startDate, endDate } = params;
-      
-      const staff = await db.user.findMany({
-        where: { tenantId },
-        include: {
-          tasks: {
-            where: {
-              status: 'completed',
-              ...(startDate || endDate ? {
-                completedAt: {
-                  ...(startDate ? { gte: new Date(startDate) } : {}),
-                  ...(endDate ? { lte: new Date(endDate) } : {}),
-                },
-              } : {}),
-            },
-          },
-          attendance: {
-            where: {
-              ...(startDate || endDate ? {
-                date: {
-                  ...(startDate ? { gte: new Date(startDate) } : {}),
-                  ...(endDate ? { lte: new Date(endDate) } : {}),
-                },
-              } : {}),
-            },
-          },
-        },
-      });
-
-      return staff.map((user) => {
-        const totalDays = user.attendance.length;
-        const presentDays = user.attendance.filter((a) => a.status === 'present').length;
-
-        // Calculate avg rating from completed task feedback if available
-        const ratedTasks = user.tasks.filter((t) => (t as Record<string, unknown>).rating !== undefined && (t as Record<string, unknown>).rating !== null);
-        const avgRating = ratedTasks.length > 0
-          ? ratedTasks.reduce((sum: number, t: Record<string, unknown>) => sum + (t.rating as number), 0) / ratedTasks.length
-          : null;
-        
-        return {
-          staffId: user.id.substring(0, 8),
-          staffName: `${user.firstName} ${user.lastName}`,
-          department: user.department || 'General',
-          tasksCompleted: user.tasks.length,
-          avgRating: avgRating !== null ? Math.round(avgRating * 10) / 10 : null,
-          attendanceRate: totalDays > 0 ? (presentDays / totalDays) * 100 : 0,
-          hoursWorked: 0,
-        };
-      });
-    },
-  },
-};
-
-// GET /api/reports/export - Export a report
-export async function GET(request: NextRequest) {    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-    }
-    if (!hasAnyPermission(user, ['reports.export', 'admin.reports', 'admin.*'])) {
-      return NextResponse.json({ success: false, error: 'Permission denied' }, { status: 403 });
-    }
-
-
+/**
+ * GET /api/reports/export - Export report data in various formats
+ * Query params:
+ *   - format: csv | pdf | xlsx
+ *   - reportType: revenue | adr-revpar | occupancy | general
+ *   - title: Report title
+ *   - columns: JSON array of {key, label}
+ *   - data: JSON array of data rows
+ */
+export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const reportType = searchParams.get('type') || 'revenue';
-    const format = (searchParams.get('format') || 'csv') as 'csv' | 'pdf' | 'excel';
-    const tenantId = user.tenantId;
-    const propertyId = searchParams.get('propertyId') || undefined;
-    const startDate = searchParams.get('startDate') || undefined;
-    const endDate = searchParams.get('endDate') || undefined;
-    const limit = searchParams.get('limit') || undefined;
-
-    // Validate report type
-    const config = REPORT_CONFIGS[reportType];
-    if (!config) {
+    const user = await getUserFromRequest(request);
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: { code: 'INVALID_REPORT_TYPE', message: `Invalid report type. Available: ${Object.keys(REPORT_CONFIGS).join(', ')}` } },
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+        { status: 401 }
+      );
+    }
+
+    if (!hasPermission(user, 'reports.view') && !hasPermission(user, 'reports.export')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions to export reports' } },
+        { status: 403 }
+      );
+    }
+
+    const searchParams = request.nextUrl.searchParams;
+    const format = (searchParams.get('format') || 'csv').toLowerCase();
+    const reportType = searchParams.get('reportType') || 'general';
+    const title = searchParams.get('title') || 'Report';
+    const columnsStr = searchParams.get('columns');
+    const dataStr = searchParams.get('data');
+
+    if (!dataStr) {
+      return NextResponse.json(
+        { success: false, error: 'No data provided for export' },
         { status: 400 }
       );
     }
 
-    // Get data
-    const data = await config.getData({
-      tenantId,
-      propertyId,
-      startDate,
-      endDate,
-      limit,
-    });
+    let columns: ExportColumn[] = [];
+    let data: Record<string, unknown>[];
 
-    // Export options
-    const options: ExportOptions = {
-      format,
-      title: config.title,
-      dateRange: startDate && endDate ? { start: new Date(startDate), end: new Date(endDate) } : undefined,
-      propertyId,
-      tenantId,
-    };
-
-    // Generate export content
-    let content: string;
-    let filename: string;
-
-    switch (format) {
-      case 'csv':
-        content = generateCSV(data, config.columns);
-        filename = `${reportType}_report_${new Date().toISOString().split('T')[0]}.csv`;
-        break;
-      case 'pdf':
-        content = generateHTMLTable(data, config.columns, options);
-        filename = `${reportType}_report_${new Date().toISOString().split('T')[0]}.pdf`;
-        break;
-      case 'excel':
-        content = generateExcelXML(data, config.columns, options);
-        filename = `${reportType}_report_${new Date().toISOString().split('T')[0]}.xls`;
-        break;
-      default:
-        return NextResponse.json(
-          { success: false, error: { code: 'INVALID_FORMAT', message: 'Invalid export format' } },
-          { status: 400 }
-        );
+    try {
+      columns = columnsStr ? JSON.parse(columnsStr) : [];
+      data = JSON.parse(dataStr);
+    } catch {
+      return NextResponse.json(
+        { success: false, error: 'Invalid JSON data or columns' },
+        { status: 400 }
+      );
     }
 
-    // Return the file
-    return new NextResponse(content, {
-      headers: {
-        'Content-Type': getMimeType(format),
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Cache-Control': 'no-cache',
-      },
+    if (!Array.isArray(data) || data.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Data must be a non-empty array' },
+        { status: 400 }
+      );
+    }
+
+    const generatedAt = new Date().toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
-  } catch (error) {
-    console.error('Error exporting report:', error);
+
+    const tenant = user.tenant ? `${user.tenant.name}` : 'StaySuite';
+
+    if (format === 'csv') {
+      const csvContent = generateCSV(data, columns);
+      const BOM = '\uFEFF';
+      return new NextResponse(BOM + csvContent, {
+        headers: {
+          'Content-Type': 'text/csv;charset=utf-8',
+          'Content-Disposition': `attachment; filename="${sanitizeFilename(title)}-${new Date().toISOString().split('T')[0]}.csv"`,
+        },
+      });
+    }
+
+    if (format === 'xlsx') {
+      const csvContent = generateCSV(data, columns);
+      const BOM = '\uFEFF';
+      return new NextResponse(BOM + csvContent, {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${sanitizeFilename(title)}-${new Date().toISOString().split('T')[0]}.xlsx"`,
+        },
+      });
+    }
+
+    if (format === 'pdf') {
+      const htmlContent = generateHTML(data, columns, title, generatedAt, tenant);
+      return new NextResponse(htmlContent, {
+        headers: {
+          'Content-Type': 'text/html;charset=utf-8',
+          'Content-Disposition': `inline; filename="${sanitizeFilename(title)}-${new Date().toISOString().split('T')[0]}.html"`,
+        },
+      });
+    }
+
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to export report' } },
+      { success: false, error: `Unsupported format: ${format}. Use csv, pdf, or xlsx.` },
+      { status: 400 }
+    );
+  } catch (error) {
+    console.error('Export error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to generate export' },
       { status: 500 }
     );
   }
+}
+
+function escapeCSVValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  if (str.includes(',') || str.includes('\n') || str.includes('"') || str.includes('\r')) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+function generateCSV(data: Record<string, unknown>[], columns: ExportColumn[]): string {
+  const useColumns = columns.length > 0
+    ? columns
+    : Object.keys(data[0]).map(key => ({ key, label: key }));
+
+  const headerRow = useColumns.map(col => escapeCSVValue(col.label)).join(',');
+  const dataRows = data.map(row =>
+    useColumns.map(col => escapeCSVValue(row[col.key])).join(',')
+  );
+
+  return [headerRow, ...dataRows].join('\n');
+}
+
+function generateHTML(
+  data: Record<string, unknown>[],
+  columns: ExportColumn[],
+  title: string,
+  generatedAt: string,
+  tenant: string
+): string {
+  const useColumns = columns.length > 0
+    ? columns
+    : Object.keys(data[0]).map(key => ({ key, label: key }));
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${title}</title>
+  <style>
+    @media print {
+      body { margin: 0; padding: 20px; }
+      .no-print { display: none; }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #1a1a2e;
+      padding: 40px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+    }
+    .header h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .header .meta {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+    .badge {
+      display: inline-block;
+      background: #f1f5f9;
+      color: #475569;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    thead th {
+      background: #f8fafc;
+      font-weight: 600;
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 2px solid #e2e8f0;
+      color: #334155;
+      white-space: nowrap;
+    }
+    thead th.text-right {
+      text-align: right;
+    }
+    tbody td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #475569;
+    }
+    tbody tr:nth-child(even) {
+      background: #fafbfc;
+    }
+    tbody tr:hover {
+      background: #f1f5f9;
+    }
+    .footer {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 11px;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+    }
+    .no-print {
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .btn-print {
+      background: #0f172a;
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .btn-print:hover {
+      background: #1e293b;
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <button class="btn-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  </div>
+
+  <div class="header">
+    <div>
+      <h1>${title}</h1>
+      <div class="meta">
+        ${tenant} &middot; Generated on ${generatedAt}
+      </div>
+    </div>
+    <div>
+      <span class="badge">${data.length} records</span>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        ${useColumns.map(col => `<th>${col.label}</th>`).join('\n        ')}
+      </tr>
+    </thead>
+    <tbody>
+      ${data.map(row => `
+      <tr>
+        ${useColumns.map(col => `<td>${row[col.key] !== undefined && row[col.key] !== null ? row[col.key] : '-'}</td>`).join('\n        ')}
+      </tr>`).join('')}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <span>StaySuite HospitalityOS</span>
+    <span>Confidential - For internal use only</span>
+  </div>
+</body>
+</html>`;
+}
+
+function sanitizeFilename(name: string): string {
+  return name
+    .replace(/[^a-zA-Z0-9_\-\s]/g, '')
+    .replace(/\s+/g, '-')
+    .toLowerCase();
 }

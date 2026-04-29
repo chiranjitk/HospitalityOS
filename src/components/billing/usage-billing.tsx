@@ -164,7 +164,7 @@ const t = useTranslations('billing');
           setBillingData(billingResult.data);
         }
       } catch (billingErr) {
-        console.error('Error fetching billing data:', billingErr);
+
         toast({
           title: 'Billing Warning',
           description: 'Billing data could not be loaded from server',
@@ -172,7 +172,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-      console.error('Error fetching usage data:', error);
+
       toast({
         title: 'Error',
         description: 'Failed to fetch usage data',

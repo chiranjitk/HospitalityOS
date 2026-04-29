@@ -40,6 +40,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Settings,
+  Download,
+  Zap,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -56,6 +58,9 @@ interface Competitor {
   avgPrice: number;
   lastUpdated: string;
   url?: string;
+  autoCollect?: boolean;
+  priceHistory?: { date: string; price: number }[];
+  lastSyncAt?: string | null;
 }
 
 interface CompetitorPriceData {
@@ -105,6 +110,8 @@ const t = useTranslations('revenue');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newCompetitor, setNewCompetitor] = useState({ name: '', url: '', price: '' });
   const [isAdding, setIsAdding] = useState(false);
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [autoCollectMap, setAutoCollectMap] = useState<Record<string, boolean>>({});
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -182,6 +189,36 @@ const t = useTranslations('revenue');
     }
   };
 
+  const handleSyncAll = async () => {
+    setIsSyncingAll(true);
+    try {
+      const response = await fetch('/api/revenue/competitors/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ propertyId: data?.competitors[0]?.id ? undefined : undefined }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        toast.success(`Synced ${result.synced} competitors (${result.failed} failed)`);
+        fetchData();
+      } else {
+        toast.error(result.error || 'Sync failed');
+      }
+    } catch {
+      toast.error('Failed to sync competitors');
+    } finally {
+      setIsSyncingAll(false);
+    }
+  };
+
+  const toggleAutoCollect = (competitorName: string) => {
+    setAutoCollectMap(prev => ({
+      ...prev,
+      [competitorName]: !prev[competitorName],
+    }));
+  };
+
   if (isLoading || !data) {
     return (
       <div className="space-y-6">
@@ -241,6 +278,16 @@ const t = useTranslations('revenue');
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             Refresh
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 border-violet-300 text-violet-700 hover:bg-violet-50"
+            onClick={handleSyncAll}
+            disabled={isSyncingAll}
+          >
+            <Download className={`h-4 w-4 ${isSyncingAll ? 'animate-spin' : ''}`} />
+            Sync All
           </Button>
         </div>
       </div>
@@ -399,6 +446,7 @@ const t = useTranslations('revenue');
             <div className="space-y-3">
               {data.competitors.map((competitor) => {
                 const diff = ((data.ourPrice - competitor.avgPrice) / competitor.avgPrice) * 100;
+                const isAutoCollect = autoCollectMap[competitor.name] || false;
                 return (
                   <div
                     key={competitor.id}
@@ -421,16 +469,37 @@ const t = useTranslations('revenue');
                           >
                             {competitor.type}
                           </Badge>
+                          {isAutoCollect && (
+                            <Badge className="bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300 text-xs">
+                              <Zap className="h-3 w-3 mr-0.5" /> Auto
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground">
                           <span>Rating: {competitor.rating}</span>
                           <span>•</span>
                           <span>{competitor.distance}km away</span>
+                          {competitor.lastSyncAt && (
+                            <>
+                              <span>•</span>
+                              <span className="flex items-center gap-0.5">
+                                <Download className="h-3 w-3" />
+                                {format(new Date(competitor.lastSyncAt), 'MMM d, HH:mm')}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-4">
+                      <button
+                        className="flex items-center justify-center w-8 h-8 rounded-md border hover:bg-muted/50 transition-colors"
+                        onClick={() => toggleAutoCollect(competitor.name)}
+                        title={isAutoCollect ? 'Disable auto-collect' : 'Enable auto-collect'}
+                      >
+                        <Download className={`h-4 w-4 ${isAutoCollect ? 'text-violet-600' : 'text-muted-foreground'}`} />
+                      </button>
                       <div className="text-right">
                         <p className="font-bold">{formatCurrency(competitor.avgPrice)}</p>
                         <div className="flex items-center gap-1">

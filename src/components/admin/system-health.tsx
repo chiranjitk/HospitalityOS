@@ -46,7 +46,7 @@ export function SystemHealth() {
         setHealthData(data.data);
       }
     } catch {
-      console.error('Failed to fetch system health');
+
     } finally {
       setLoading(false);
       setRefreshing(false);

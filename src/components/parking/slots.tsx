@@ -47,6 +47,7 @@ import {
   Wrench,
   Clock,
   Star,
+  CreditCard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -73,6 +74,13 @@ interface ParkingSlot {
       firstName: string;
       lastName: string;
     };
+  }[];
+  activePasses?: {
+    id: string;
+    holderName: string;
+    licensePlate: string;
+    endDate: string;
+    status: string;
   }[];
 }
 
@@ -471,18 +479,24 @@ export default function ParkingSlots() {
                     <div
                       key={slot.id}
                       className={cn(
-                        'p-2 rounded-lg border-2 cursor-pointer transition-all hover:scale-105',
+                        'p-2 rounded-lg border-2 cursor-pointer transition-all hover:scale-105 relative',
                         getStatusColor(slot.status),
                         slot.status === 'available' && 'border-emerald-500/50',
                         slot.status === 'occupied' && 'border-red-500/50',
                         slot.status === 'reserved' && 'border-amber-500/50',
-                        slot.status === 'maintenance' && 'border-gray-500/50'
+                        slot.status === 'maintenance' && 'border-gray-500/50',
+                        slot.activePasses && slot.activePasses.length > 0 && 'ring-2 ring-violet-500'
                       )}
                       onClick={() => {
                         setSelectedSlot(slot);
                         setIsDetailOpen(true);
                       }}
                     >
+                      {slot.activePasses && slot.activePasses.length > 0 && (
+                        <div className="absolute -top-1 -right-1">
+                          <CreditCard className="h-4 w-4 text-violet-500" />
+                        </div>
+                      )}
                       <div className="text-white text-center">
                         <div className="flex justify-center mb-1">
                           {getSlotIcon(slot.type)}
@@ -490,6 +504,11 @@ export default function ParkingSlots() {
                         <p className="text-xs font-bold">{slot.number}</p>
                         {slot.hasCharging && (
                           <Zap className="h-3 w-3 mx-auto mt-1 text-yellow-300 dark:text-yellow-200" />
+                        )}
+                        {slot.activePasses && slot.activePasses.length > 0 && (
+                          <p className="text-[9px] mt-0.5 truncate px-0.5 bg-violet-600/80 rounded">
+                            {slot.activePasses[0].holderName}
+                          </p>
                         )}
                       </div>
                     </div>
