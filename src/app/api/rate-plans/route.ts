@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {    const user = await require
       name,
       code,
       description,
-      basePrice,
+      basePrice: _basePrice,
       currency = 'USD',
       mealPlan = 'room_only',
       minStay = 1,
@@ -172,6 +172,9 @@ export async function POST(request: NextRequest) {    const user = await require
       derivationType,
       derivationValue,
     } = body;
+
+    // Allow reassignment for auto-calculation from parent plan
+    let basePrice = _basePrice;
 
     // Validate required fields
     if (!roomTypeId) {
