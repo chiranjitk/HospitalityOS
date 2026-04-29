@@ -54,7 +54,7 @@ function generateIdempotencyKey(channel: string, eventId: string): string {
   return `${channel}:${eventId}`;
 }
 
-// POST /api/ota/webhooks - Handle OTA webhooks
+// POST /api/ota/webhooks - Handle OTA webhooks (unified endpoint)
 export async function POST(request: NextRequest) {
   try {
     const rawPayload = await request.text();
@@ -73,10 +73,10 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get('x-ota-signature') || 
                       request.headers.get('x-booking-signature') ||
                       request.headers.get('x-airbnb-signature') ||
-                      request.headers.get('x-expedia-signature') || '';
+                      request.headers.get('x-expedia-signature') ||
+                      request.headers.get('x-hub-signature-256')?.replace(/^sha256=/i, '') || '';
     const channel = payload.data.channel;
 
-    // Note: No tenantId filter - OTAs don't send tenant identifiers. The channel name is used to route.
     // Get channel connection to verify signature
     const connection = await db.channelConnection.findFirst({
       where: {
@@ -113,8 +113,6 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingLog) {
-      // Already processed, return success
-      // Parse bookingId from response payload
       let bookingId = 'unknown';
       try {
         const responseData = JSON.parse(existingLog.responsePayload || '{}');
@@ -134,28 +132,43 @@ export async function POST(request: NextRequest) {
     let booking;
     const tenantId = connection.tenantId;
 
-    switch (payload.event_type) {
-      case 'reservation_created':
-        booking = await handleReservationCreated(tenantId, connection, payload);
-        break;
-      case 'reservation_modified':
-        booking = await handleReservationModified(tenantId, connection, payload);
-        break;
-      case 'reservation_cancelled':
-        booking = await handleReservationCancelled(tenantId, connection, payload);
-        break;
-      default:
-        return NextResponse.json(
-          { error: 'Unknown event type' },
-          { status: 400 }
-        );
+    try {
+      switch (payload.event_type) {
+        case 'reservation_created':
+          booking = await handleReservationCreated(tenantId, connection, payload);
+          break;
+        case 'reservation_modified':
+          booking = await handleReservationModified(tenantId, connection, payload);
+          break;
+        case 'reservation_cancelled':
+          booking = await handleReservationCancelled(tenantId, connection, payload);
+          break;
+        default:
+          return NextResponse.json(
+            { error: 'Unknown event type' },
+            { status: 400 }
+          );
+      }
+    } catch (handlerError) {
+      // Push to dead letter queue on processing failure
+      await db.channelDeadLetterQueue.create({
+        data: {
+          tenantId,
+          propertyId: connection.propertyId || undefined,
+          channelCode: channel,
+          operation: 'webhook_unified',
+          payload: rawPayload,
+          error: handlerError instanceof Error ? handlerError.message : 'Unknown error',
+        },
+      });
+      throw handlerError;
     }
 
-    // Log sync
+    // Log sync with idempotency key
     await db.channelSyncLog.create({
       data: {
         connectionId: connection.id,
-        syncType: 'booking',
+        syncType: 'bookings',
         direction: 'inbound',
         status: 'success',
         correlationId: idempotencyKey,
@@ -194,15 +207,19 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// ============================================
+// RESERVATION HANDLERS
+// ============================================
+
 async function handleReservationCreated(
   tenantId: string,
-  connection: { id: string; channel: string; tenantId: string },
+  connection: { id: string; channel: string; tenantId: string; propertyId?: string | null },
   payload: OTAWebhookPayload
 ) {
   const { data } = payload;
 
   return await db.$transaction(async (tx) => {
-    // Find or create guest (email is not unique, so use findFirst)
+    // Find or create guest
     let guest = data.guest.email ? await tx.guest.findFirst({
       where: { email: data.guest.email, tenantId },
     }) : null;
@@ -216,8 +233,7 @@ async function handleReservationCreated(
           email: data.guest.email,
           phone: data.guest.phone,
           nationality: data.guest.country,
-          source: data.channel === 'booking_com' ? 'booking_com' : 
-                  data.channel === 'airbnb' ? 'airbnb' : 'expedia',
+          source: data.channel,
           kycStatus: 'pending',
         },
       });
@@ -236,15 +252,14 @@ async function handleReservationCreated(
       throw new Error('Room type mapping not found');
     }
 
-    // Find available room
+    // Validate dates
     const checkIn = new Date(data.check_in);
     const checkOut = new Date(data.check_out);
-
     if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
       throw new Error(`Invalid booking dates: check_in=${data.check_in}, check_out=${data.check_out}`);
     }
     if (checkIn >= checkOut) {
-      throw new Error(`Invalid booking: check_out must be after check_in`);
+      throw new Error('Invalid booking: check_out must be after check_in');
     }
 
     // Check for available rooms
@@ -253,12 +268,8 @@ async function handleReservationCreated(
         tenantId,
         roomTypeId: mapping.roomTypeId,
         status: { notIn: ['cancelled', 'no_show'] },
-        OR: [
-          {
-            checkIn: { lt: checkOut },
-            checkOut: { gt: checkIn },
-          },
-        ],
+        checkIn: { lt: checkOut },
+        checkOut: { gt: checkIn },
       },
       select: { roomId: true },
     });
@@ -273,19 +284,12 @@ async function handleReservationCreated(
       },
     });
 
-    if (!availableRoom) {
-      throw new Error('No available room for this booking');
-    }
+    // Calculate nights and room rate
+    const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+    const roomRate = data.total_amount / nights;
 
     // Generate confirmation code
     const confirmationCode = `OTA-${Date.now().toString(36).toUpperCase()}`;
-
-    // Calculate nights and room rate
-    const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-    if (nights <= 0) {
-      throw new Error(`Invalid booking dates: check_in and check_out must be different nights, got ${nights} nights`);
-    }
-    const roomRate = data.total_amount / nights;
 
     // Create booking
     const booking = await tx.booking.create({
@@ -294,7 +298,7 @@ async function handleReservationCreated(
         propertyId: mapping.roomType.propertyId,
         confirmationCode,
         primaryGuestId: guest.id,
-        roomId: availableRoom.id,
+        roomId: availableRoom?.id,
         roomTypeId: mapping.roomTypeId,
         checkIn,
         checkOut,
@@ -305,9 +309,9 @@ async function handleReservationCreated(
         fees: 0,
         totalAmount: data.total_amount,
         currency: data.currency || 'USD',
-        source: data.channel === 'booking_com' ? 'booking_com' : 
-                data.channel === 'airbnb' ? 'airbnb' : 'expedia',
+        source: data.channel,
         externalRef: data.reservation_id,
+        channelId: connection.id,
         status: 'confirmed',
         specialRequests: data.special_requests,
       },
@@ -324,7 +328,6 @@ async function handleReservationModified(
 ) {
   const { data } = payload;
 
-  // Find existing booking by OTA reservation ID
   const existingBooking = await db.booking.findFirst({
     where: {
       tenantId,
@@ -333,23 +336,27 @@ async function handleReservationModified(
   });
 
   if (!existingBooking) {
-    // If not found, create new reservation
     return handleReservationCreated(tenantId, connection, payload);
   }
 
-  // Update booking
-  const updatedBooking = await db.booking.update({
+  // Validate dates
+  const checkIn = new Date(data.check_in);
+  const checkOut = new Date(data.check_out);
+  if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime()) || checkIn >= checkOut) {
+    throw new Error(`Invalid booking dates: check_in=${data.check_in}, check_out=${data.check_out}`);
+  }
+
+  return await db.booking.update({
     where: { id: existingBooking.id },
     data: {
-      checkIn: new Date(data.check_in),
-      checkOut: new Date(data.check_out),
+      checkIn,
+      checkOut,
       adults: data.guests,
       totalAmount: data.total_amount,
       specialRequests: data.special_requests,
+      updatedAt: new Date(),
     },
   });
-
-  return updatedBooking;
 }
 
 async function handleReservationCancelled(
@@ -359,7 +366,6 @@ async function handleReservationCancelled(
 ) {
   const { data } = payload;
 
-  // Find existing booking
   const existingBooking = await db.booking.findFirst({
     where: {
       tenantId,
@@ -368,10 +374,10 @@ async function handleReservationCancelled(
   });
 
   if (!existingBooking) {
-    return { id: 'not_found', confirmationCode: 'N/A' };
+    return { id: 'not_found', confirmationCode: 'N/A' } as any;
   }
 
-  const booking = await db.booking.update({
+  return await db.booking.update({
     where: { id: existingBooking.id },
     data: {
       status: 'cancelled',
@@ -379,13 +385,10 @@ async function handleReservationCancelled(
       cancellationReason: 'Cancelled via OTA webhook',
     },
   });
-
-  return booking;
 }
 
 // GET /api/ota/webhooks - List recent webhook events (requires auth)
 export async function GET(request: NextRequest) {
-  // This endpoint requires authentication
   const token = request.cookies.get('session_token')?.value;
   
   if (!token) {
@@ -412,7 +415,7 @@ export async function GET(request: NextRequest) {
   const logs = await db.channelSyncLog.findMany({
     where: {
       connection: { tenantId },
-      syncType: 'booking',
+      syncType: 'bookings',
       direction: 'inbound',
     },
     include: {

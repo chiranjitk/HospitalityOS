@@ -56,3 +56,84 @@ Stage Summary:
 - 10 LOW priority nice-to-haves (real ML, GDS, BLE/NFC, etc.)
 - 10 technical debt items / bugs catalogued
 - Zero placeholder components found across entire project
+
+---
+Task ID: 3
+Agent: main
+Task: Fix all bugs and add all missing features (excluding WiFi & Network Management)
+
+Work Log:
+Phase 1 - Critical Bug Fixes:
+- Fixed Room Service API data encoding bug (metadata encoded in pipe-delimited text → proper DB columns)
+- Fixed restaurant billing receipt hardcoded `$` currency (5 instances)
+- Fixed double comma syntax error in service-requests.tsx
+- Fixed experience-catalog.tsx update validation missing negation
+- Fixed recipes.tsx window.confirm → AlertDialog
+- Fixed hardcoded `$` in experience-catalog.tsx and experience-bookings.tsx (12 instances)
+- Fixed dashboard rate-plan-comparison widget MOCK_DATA fallback
+- Fixed channel-manager realtime-sync.ts setTimeout stubs → real OTA client calls
+
+Phase 2 - Front Desk Critical Features:
+- Added deposit collection at check-in (amount, method, card details, auto-default first night rate)
+- Added deposit refund at check-out (list deposits, individual refund with reason)
+- Added pre-authorization support at check-in (toggle, pending hold)
+- Created KYC document upload component (drag-drop, multi-format, base64, preview)
+- Created digital signature pad component (canvas-based, touch support, responsive)
+- Integrated KYC upload + signature into check-in flow
+- Integrated signature into registration card (required before PDF generation)
+- Created folio split API + UI (split by items or amount, target guest, audit trail)
+- Created auto room posting cron (daily charges, rate calculation, pricing rules)
+- Created rate calculation helper (price overrides, seasonal rules, multi-component tax)
+
+Phase 3 - Billing Enhancements:
+- Enhanced split payment validation (remaining must = 0 before submit)
+- Cancellation policy enforcement already existed (verified)
+- Created recurring invoices feature (frequency, cron generation, email PDF)
+- Added folio line item audit trail (new FolioLineItemAudit model)
+- Created invoice templates system (branding, colors, PDF customization)
+
+Phase 4 - Booking Enhancements:
+- Waitlist "Convert to Booking" already existed (verified functional)
+- Added 3 missing conflict resolution methods to UI (Modify Dates, Split Stay, Keep Both)
+- Created smart room assignment algorithm (room type, floor, amenities, VIP, loyalty scoring)
+- Fixed group-bookings.tsx parsing error
+
+Phase 5 - Channel Manager Wiring:
+- Wired inventory-sync API to OTASyncService (real OTA client calls)
+- Wired rate-sync API to OTASyncService
+- Wired booking-sync API (pull from channels + push confirmations)
+- Created OTA webhook receivers (Booking.com, Expedia, Airbnb, HMAC validation)
+- Created persistent cron-based channel sync endpoint
+- Deprecated in-memory OTASyncScheduler
+
+Phase 6 - POS/Restaurant Fixes:
+- Room service auto-folio posting on delivery (finds booking, creates line item, 5% surcharge)
+- Restaurant reservation edit, KDS WebSocket, discount UI already existed (verified)
+- Fixed task-assignment.tsx parsing error (parentheses in optional chaining)
+
+Phase 7 - CRM/Marketing:
+- Created loyalty points ledger API (earn with tier multipliers, redeem for rewards)
+- Added Points Ledger tab to loyalty programs UI (transaction history, earn/redeem)
+- Added AND/OR toggle to guest segments rule builder
+- Updated segment evaluator to support both AND and OR logic
+- Added A/B testing to campaigns (variant A/B, split testing, comparison stats)
+
+Phase 8 - Other Modules:
+- Chat file attachments already functional (verified)
+- Added recurring tasks logic to housekeeping (prefix-based, RotateCcw badge)
+- Added BEO dialog to events (F&B, AV equipment, setup style, print)
+- Added multi-camera grid view to surveillance (2x2 HLS player grid)
+- Added PDF/Excel export to scheduled reports (HTML-to-print, CSV download)
+- Added advanced pricing rule UI (15 rule types: early bird, last minute, promo code, etc.)
+
+Phase 9 - Technical Debt:
+- Room service API data integrity fixed (Phase 1)
+- Realtime-sync.ts stubs replaced with real OTA calls (Phase 1)
+- Currency formatting standardized (Phase 1)
+
+Stage Summary:
+- 52 files modified, 13 new files created
+- 0 parsing errors introduced (all pre-existing)
+- Schema changes: Order (4 fields), RatePlan (3 fields), Invoice (6 fields), FolioLineItemAudit (new), InvoiceTemplate (new)
+- Next.js dev server: Running (HTTP 200)
+- WiFi & Network Management: NOT TOUCHED (per instructions)

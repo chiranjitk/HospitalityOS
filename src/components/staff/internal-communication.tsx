@@ -42,6 +42,9 @@ import {
   MoreVertical,
   Paperclip,
   Smile,
+  X,
+  Image as ImageIcon,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -64,6 +67,14 @@ interface StaffMember {
   avatar?: string;
 }
 
+interface Attachment {
+  id: string;
+  name: string;
+  type: 'image' | 'pdf' | 'file';
+  data: string; // base64
+  size: number;
+}
+
 interface Message {
   id: string;
   content: string;
@@ -73,7 +84,7 @@ interface Message {
   type: 'user' | 'system';
   isRead: boolean;
   readBy?: string[];
-  attachments?: string[];
+  attachments?: Attachment[];
 }
 
 interface ChatChannel {
@@ -106,8 +117,10 @@ export default function InternalCommunication() {
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelMembers, setNewChannelMembers] = useState<string[]>([]);
   
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -225,8 +238,38 @@ export default function InternalCommunication() {
     }
   }, [messages]);
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach(file => {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`File ${file.name} exceeds 5MB limit`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        const isImage = /^image\/(jpeg|png|gif|webp)$/i.test(file.type);
+        const isPdf = file.type === 'application/pdf';
+        setPendingAttachments(prev => [...prev, {
+          id: crypto.randomUUID(),
+          name: file.name,
+          type: isImage ? 'image' : isPdf ? 'pdf' : 'file',
+          data: base64,
+          size: file.size,
+        }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    if (e.target) e.target.value = '';
+  };
+
+  const removeAttachment = (id: string) => {
+    setPendingAttachments(prev => prev.filter(a => a.id !== id));
+  };
+
   const sendMessage = () => {
-    if (!messageInput.trim() || !activeChannel || !socketRef.current || !user) return;
+    if ((!messageInput.trim() && pendingAttachments.length === 0) || !activeChannel || !socketRef.current || !user) return;
 
     const message: Message = {
       id: crypto.randomUUID(),
@@ -236,23 +279,36 @@ export default function InternalCommunication() {
       timestamp: new Date(),
       type: 'user',
       isRead: false,
+      attachments: pendingAttachments.length > 0 ? [...pendingAttachments] : undefined,
     };
 
     socketRef.current.emit('message', {
       content: message.content,
       username: message.senderName,
       channelId: activeChannel.id,
+      attachments: message.attachments,
     });
 
     setMessages(prev => [...prev, message]);
     setMessageInput('');
+    setPendingAttachments([]);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      if (!messageInput.trim() && pendingAttachments.length > 0) {
+        // Allow sending with only attachments
+        return;
+      }
       sendMessage();
     }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const createChannel = async () => {
@@ -600,7 +656,29 @@ export default function InternalCommunication() {
                                   <p className="text-sm italic text-center">{msg.content}</p>
                                 ) : (
                                   <>
-                                    <p className="text-sm">{msg.content}</p>
+                                    {msg.content && <p className="text-sm">{msg.content}</p>}
+                                    {msg.attachments && msg.attachments.length > 0 && (
+                                      <div className="flex flex-wrap gap-2 mt-2">
+                                        {msg.attachments.map(att => (
+                                          <div key={att.id} className="relative">
+                                            {att.type === 'image' ? (
+                                              <div className="rounded-lg overflow-hidden border border-white/20 max-w-[160px]">
+                                                <img src={att.data} alt={att.name} className="max-h-32 object-cover cursor-pointer" onClick={() => window.open(att.data, '_blank')} />
+                                                <p className="text-[10px] opacity-70 truncate px-1">{att.name}</p>
+                                              </div>
+                                            ) : (
+                                              <div className="flex items-center gap-2 bg-white/10 rounded-lg p-2 cursor-pointer hover:bg-white/20 transition-colors" onClick={() => window.open(att.data, '_blank')}>
+                                                <FileText className="h-5 w-5 shrink-0" />
+                                                <div className="min-w-0">
+                                                  <p className="text-xs truncate max-w-[120px]">{att.name}</p>
+                                                  <p className="text-[10px] opacity-60">{formatFileSize(att.size)}</p>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
                                     <div
                                       className={`flex items-center gap-1 mt-1 text-xs ${
                                         msg.senderId === user?.id
@@ -628,18 +706,49 @@ export default function InternalCommunication() {
               {/* Message Input */}
               <div className="border-t p-4">
                 <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" disabled>
+                        <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()}>
                           <Paperclip className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>File attachments coming soon</p>
+                        <p>Attach files (images, PDF)</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
+                  {pendingAttachments.length > 0 && (
+                    <div className="flex items-center gap-2 px-2 py-1">
+                      <div className="flex gap-1 overflow-x-auto max-w-[200px]">
+                        {pendingAttachments.map(att => (
+                          <div key={att.id} className="relative shrink-0">
+                            {att.type === 'image' ? (
+                              <img src={att.data} alt={att.name} className="h-10 w-10 rounded object-cover" />
+                            ) : (
+                              <div className="h-10 w-10 rounded bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                                <FileText className="h-5 w-5 text-red-600 dark:text-red-400" />
+                              </div>
+                            )}
+                            <button
+                              className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center text-[10px] leading-none hover:bg-destructive/90"
+                              onClick={() => removeAttachment(att.id)}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <Input
                     placeholder="Type a message..."
                     value={messageInput}
@@ -650,7 +759,7 @@ export default function InternalCommunication() {
                   <Button variant="ghost" size="icon" title="Emoji" onClick={() => toast.info('Emoji picker coming soon')}>
                     <Smile className="h-4 w-4" />
                   </Button>
-                  <Button onClick={sendMessage} disabled={!messageInput.trim()}>
+                  <Button onClick={sendMessage} disabled={!messageInput.trim() && pendingAttachments.length === 0}>
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>

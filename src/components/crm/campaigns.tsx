@@ -59,6 +59,18 @@ interface Campaign {
   }>;
 }
 
+interface AbTestConfig {
+  isAbTest: boolean;
+  variants: {
+    a: { subject: string; content: string };
+    b: { subject: string; content: string };
+  };
+  variantStats?: {
+    a: { sentCount: number; openedCount: number; clickedCount: number };
+    b: { sentCount: number; openedCount: number; clickedCount: number };
+  };
+}
+
 interface CampaignStats {
   total: number;
   draft: number;
@@ -125,6 +137,9 @@ export default function Campaigns() {
     segmentIds: [] as string[],
     scheduledAt: '',
   });
+  const [abTestEnabled, setAbTestEnabled] = useState(false);
+  const [variantA, setVariantA] = useState({ subject: '', content: '' });
+  const [variantB, setVariantB] = useState({ subject: '', content: '' });
 
   useEffect(() => {
     fetchCampaigns();
@@ -178,6 +193,23 @@ export default function Campaigns() {
         segmentIds: campaign.segments.map(s => s.segment.id),
         scheduledAt: campaign.scheduledAt ? new Date(campaign.scheduledAt).toISOString().slice(0, 16) : '',
       });
+      // Parse A/B test config from description
+      try {
+        const abConfig = JSON.parse(campaign.description || '{}');
+        if (abConfig.isAbTest) {
+          setAbTestEnabled(true);
+          setVariantA(abConfig.variants?.a || { subject: campaign.subject || '', content: campaign.content });
+          setVariantB(abConfig.variants?.b || { subject: '', content: '' });
+        } else {
+          setAbTestEnabled(false);
+          setVariantA({ subject: campaign.subject || '', content: campaign.content });
+          setVariantB({ subject: '', content: '' });
+        }
+      } catch {
+        setAbTestEnabled(false);
+        setVariantA({ subject: campaign.subject || '', content: campaign.content });
+        setVariantB({ subject: '', content: '' });
+      }
     } else {
       setEditingCampaign(null);
       setFormData({
@@ -189,6 +221,9 @@ export default function Campaigns() {
         segmentIds: [],
         scheduledAt: '',
       });
+      setAbTestEnabled(false);
+      setVariantA({ subject: '', content: '' });
+      setVariantB({ subject: '', content: '' });
     }
     setDialogOpen(true);
   };
@@ -196,6 +231,9 @@ export default function Campaigns() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingCampaign(null);
+    setAbTestEnabled(false);
+    setVariantA({ subject: '', content: '' });
+    setVariantB({ subject: '', content: '' });
   };
 
   const handleSave = async () => {
@@ -204,12 +242,29 @@ export default function Campaigns() {
       return;
     }
 
+    // Build A/B test description if enabled
+    let saveDescription = formData.description;
+    if (abTestEnabled) {
+      if (!variantA.content || !variantB.content) {
+        toast.error('Both variant A and variant B content are required for A/B testing');
+        return;
+      }
+      saveDescription = JSON.stringify({
+        isAbTest: true,
+        variants: {
+          a: { subject: variantA.subject, content: variantA.content },
+          b: { subject: variantB.subject, content: variantB.content },
+        },
+        variantStats: null,
+      } as AbTestConfig);
+    }
+
     try {
       const url = '/api/campaigns';
       const method = editingCampaign ? 'PUT' : 'POST';
       const body = editingCampaign
-        ? { id: editingCampaign.id, ...formData }
-        : formData;
+        ? { id: editingCampaign.id, ...formData, description: saveDescription }
+        : { ...formData, description: saveDescription };
 
       const response = await fetch(url, {
         method,
@@ -230,6 +285,17 @@ export default function Campaigns() {
       console.error('Error saving campaign:', error);
       toast.error('Failed to save campaign');
     }
+  };
+
+  const parseAbConfig = (description: string | null): AbTestConfig | null => {
+    if (!description) return null;
+    try {
+      const parsed = JSON.parse(description);
+      if (parsed.isAbTest) return parsed as AbTestConfig;
+    } catch {
+      // Not JSON, plain description
+    }
+    return null;
   };
 
   const handleDelete = (id: string) => {
@@ -447,6 +513,12 @@ export default function Campaigns() {
                           <Badge className={cn(statusColors[campaign.status], 'shadow-sm')}>
                             {campaign.status}
                           </Badge>
+                          {parseAbConfig(campaign.description) && (
+                            <Badge className="bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300 shadow-sm">
+                              <BarChart3 className="h-3 w-3 mr-1" />
+                              A/B Test
+                            </Badge>
+                          )}
                         </div>
                         {campaign.subject && (
                           <p className="text-sm text-muted-foreground">{campaign.subject}</p>
@@ -594,6 +666,94 @@ export default function Campaigns() {
 
               <Separator />
 
+              {/* A/B Test Toggle */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <BarChart3 className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                    <div>
+                      <h4 className="font-medium">A/B Testing</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Create two variants to test different subject lines and content
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAbTestEnabled(!abTestEnabled)}
+                    className={cn(
+                      'relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0',
+                      abTestEnabled ? 'bg-emerald-600' : 'bg-gray-300 dark:bg-gray-600'
+                    )}
+                  >
+                    <span className={cn(
+                      'inline-block h-4 w-4 rounded-full bg-white transition-transform',
+                      abTestEnabled ? 'translate-x-6' : 'translate-x-1'
+                    )} />
+                  </button>
+                </div>
+
+                {abTestEnabled && (
+                  <div className="space-y-4">
+                    {/* Variant A */}
+                    <div className="p-4 border-2 border-emerald-200 dark:border-emerald-800 rounded-lg space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-emerald-600 text-white">Variant A</Badge>
+                        <span className="text-sm text-muted-foreground">Control group (50%)</span>
+                      </div>
+                      {formData.type === 'email' && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Subject Line</label>
+                          <Input
+                            value={variantA.subject}
+                            onChange={(e) => setVariantA(v => ({ ...v, subject: e.target.value }))}
+                            placeholder="Subject line for variant A"
+                          />
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Content</label>
+                        <Textarea
+                          value={variantA.content}
+                          onChange={(e) => setVariantA(v => ({ ...v, content: e.target.value }))}
+                          placeholder="Content for variant A..."
+                          rows={4}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Variant B */}
+                    <div className="p-4 border-2 border-violet-200 dark:border-violet-800 rounded-lg space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-violet-600 text-white">Variant B</Badge>
+                        <span className="text-sm text-muted-foreground">Test group (50%)</span>
+                      </div>
+                      {formData.type === 'email' && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Subject Line</label>
+                          <Input
+                            value={variantB.subject}
+                            onChange={(e) => setVariantB(v => ({ ...v, subject: e.target.value }))}
+                            placeholder="Subject line for variant B"
+                          />
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Content</label>
+                        <Textarea
+                          value={variantB.content}
+                          onChange={(e) => setVariantB(v => ({ ...v, content: e.target.value }))}
+                          placeholder="Content for variant B..."
+                          rows={4}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
               {/* Content */}
               <div className="space-y-4">
                 {formData.type === 'email' && (
@@ -704,8 +864,87 @@ export default function Campaigns() {
             </DialogDescription>
           </DialogHeader>
 
-          {viewingCampaign && (
+          {viewingCampaign && (() => {
+            const abConfig = parseAbConfig(viewingCampaign.description);
+            return (
             <div className="space-y-6">
+              {/* A/B Test Variant Comparison */}
+              {abConfig && viewingCampaign.status === 'sent' && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                    <h4 className="font-semibold">A/B Test Results</h4>
+                    <Badge className="bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300">A/B Test</Badge>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Variant A Stats */}
+                    <Card className="border-2 border-emerald-200 dark:border-emerald-800">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-emerald-600 text-white">Variant A</Badge>
+                          <CardDescription>Control Group</CardDescription>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {abConfig.variants.a.subject && (
+                          <p className="text-sm font-medium mb-2 truncate">Subject: {abConfig.variants.a.subject}</p>
+                        )}
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="p-2 bg-muted rounded">
+                            <p className="text-lg font-bold">{Math.round(viewingCampaign.sentCount / 2)}</p>
+                            <p className="text-xs text-muted-foreground">Sent</p>
+                          </div>
+                          <div className="p-2 bg-emerald-50 dark:bg-emerald-950 rounded">
+                            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{viewingCampaign.openRate}%</p>
+                            <p className="text-xs text-muted-foreground">Opens</p>
+                          </div>
+                          <div className="p-2 bg-cyan-50 dark:bg-cyan-950 rounded">
+                            <p className="text-lg font-bold text-cyan-600 dark:text-cyan-400">{viewingCampaign.clickRate}%</p>
+                            <p className="text-xs text-muted-foreground">Clicks</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Variant B Stats */}
+                    <Card className="border-2 border-violet-200 dark:border-violet-800">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-violet-600 text-white">Variant B</Badge>
+                          <CardDescription>Test Group</CardDescription>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {abConfig.variants.b.subject && (
+                          <p className="text-sm font-medium mb-2 truncate">Subject: {abConfig.variants.b.subject}</p>
+                        )}
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="p-2 bg-muted rounded">
+                            <p className="text-lg font-bold">{Math.round(viewingCampaign.sentCount / 2)}</p>
+                            <p className="text-xs text-muted-foreground">Sent</p>
+                          </div>
+                          <div className="p-2 bg-emerald-50 dark:bg-emerald-950 rounded">
+                            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                              {Math.max(0, viewingCampaign.openRate - 3)}%
+                            </p>
+                            <p className="text-xs text-muted-foreground">Opens</p>
+                          </div>
+                          <div className="p-2 bg-cyan-50 dark:bg-cyan-950 rounded">
+                            <p className="text-lg font-bold text-cyan-600 dark:text-cyan-400">
+                              {Math.max(0, viewingCampaign.clickRate - 1)}%
+                            </p>
+                            <p className="text-xs text-muted-foreground">Clicks</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2 italic">
+                          Variant metrics are simulated. Connect analytics for real data.
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              )}
+
               {/* Stats Grid */}
               {viewingCampaign.status === 'sent' && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
@@ -759,7 +998,8 @@ export default function Campaigns() {
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

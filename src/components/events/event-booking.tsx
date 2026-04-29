@@ -41,6 +41,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Loader2, 
   Plus, 
@@ -52,7 +53,9 @@ import {
   DollarSign,
   Building,
   CheckCircle,
-  XCircle
+  XCircle,
+  FileText,
+  Printer
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -144,8 +147,20 @@ export default function EventBooking() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isBEOOpen, setIsBEOOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [saving, setSaving] = useState(false);
+  const [beoData, setBeoData] = useState<{
+    fnbRequirements: string;
+    avEquipment: string[];
+    setupStyle: string;
+    specialInstructions: string;
+  }>({
+    fnbRequirements: '',
+    avEquipment: [],
+    setupStyle: '',
+    specialInstructions: '',
+  });
 
   const [formData, setFormData] = useState({
     propertyId: '',
@@ -690,6 +705,9 @@ export default function EventBooking() {
                       <Button variant="ghost" size="sm" onClick={() => openEditDialog(event)}>
                         <Edit className="h-4 w-4" />
                       </Button>
+                      <Button variant="ghost" size="sm" onClick={() => { setSelectedEvent(event); setIsBEOOpen(true); setBeoData({ fnbRequirements: '', avEquipment: [], setupStyle: '', specialInstructions: '' }); }} title="BEO">
+                        <FileText className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="sm" onClick={() => { setSelectedEvent(event); setIsDeleteOpen(true); }}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -1205,6 +1223,84 @@ export default function EventBooking() {
             <Button onClick={handleEdit} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* BEO Dialog */}
+      <Dialog open={isBEOOpen} onOpenChange={setIsBEOOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Banquet Event Order</DialogTitle>
+            <DialogDescription>
+              {selectedEvent?.name} — {selectedEvent ? format(new Date(selectedEvent.startDate), 'MMM d, yyyy') : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label>F&amp;B Requirements</Label>
+              <Textarea
+                placeholder="e.g. Coffee break for 50, buffet lunch..."
+                value={beoData.fnbRequirements}
+                onChange={(e) => setBeoData(prev => ({ ...prev, fnbRequirements: e.target.value }))}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>AV Equipment</Label>
+              <div className="flex flex-wrap gap-4">
+                {['Projector', 'Microphone', 'Speakers', 'Screen', 'Whiteboard'].map((item) => (
+                  <label key={item} className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={beoData.avEquipment.includes(item)}
+                      onCheckedChange={(checked) => {
+                        setBeoData(prev => ({
+                          ...prev,
+                          avEquipment: checked
+                            ? [...prev.avEquipment, item]
+                            : prev.avEquipment.filter((e: string) => e !== item),
+                        }));
+                      }}
+                    />
+                    <span className="text-sm">{item}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Setup Style</Label>
+              <Select
+                value={beoData.setupStyle}
+                onValueChange={(v) => setBeoData(prev => ({ ...prev, setupStyle: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select setup style" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="theater">Theater</SelectItem>
+                  <SelectItem value="banquet">Banquet</SelectItem>
+                  <SelectItem value="classroom">Classroom</SelectItem>
+                  <SelectItem value="cocktail">Cocktail</SelectItem>
+                  <SelectItem value="boardroom">Boardroom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Special Instructions</Label>
+              <Textarea
+                placeholder="Any additional instructions..."
+                value={beoData.specialInstructions}
+                onChange={(e) => setBeoData(prev => ({ ...prev, specialInstructions: e.target.value }))}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBEOOpen(false)}>Cancel</Button>
+            <Button onClick={() => window.print()}>
+              <Printer className="h-4 w-4 mr-2" />
+              Print BEO
             </Button>
           </DialogFooter>
         </DialogContent>

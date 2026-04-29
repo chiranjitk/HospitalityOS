@@ -3,40 +3,101 @@ import crypto from 'crypto';
 import { db } from '@/lib/db';
 import { OTAClientFactory } from '@/lib/ota';
 
+// ============================================
+// CHANNEL-SPECIFIC EVENT TYPE MAPPING
+// ============================================
+
+// Map various OTA-specific event headers/payload fields to normalized event types
+function resolveEventType(channel: string, body: Record<string, unknown>, headers: Record<string, string>): string {
+  // Check explicit event type headers per channel
+  const headerMap: Record<string, string[]> = {
+    booking_com: ['x-booking-event', 'x-bcom-event'],
+    expedia: ['x-expedia-event', 'x-epc-event'],
+    airbnb: ['x-airbnb-event', 'x-anb-event'],
+  };
+
+  for (const headerKey of headerMap[channel] || []) {
+    const val = headers[headerKey] || headers[headerKey.toLowerCase()];
+    if (val) return val.toLowerCase();
+  }
+
+  // Fallback to payload fields
+  const payloadType = (body.event_type || body.eventType || body.type || body.action || '') as string;
+  if (payloadType) return payloadType.toLowerCase().replace(/\./g, '_');
+
+  // Heuristic: detect from payload content
+  if (body.reservation || body.reservation_id || body.booking_id || body.bookingId) {
+    const status = (body.status || body.reservation_status || '').toString().toLowerCase();
+    if (status.includes('cancel')) return 'booking_cancelled';
+    if (status.includes('modif') || status.includes('change')) return 'booking_modified';
+    return 'booking_created';
+  }
+
+  return 'unknown';
+}
+
+// Normalize event type to one of our known types
+function normalizeEventType(raw: string): string {
+  const mapping: Record<string, string> = {
+    // Booking.com
+    'reservation_created': 'booking_created',
+    'reservation_modified': 'booking_modified',
+    'reservation_cancelled': 'booking_cancelled',
+    'booking_created': 'booking_created',
+    'booking_modified': 'booking_modified',
+    'booking_cancelled': 'booking_cancelled',
+    'no_show': 'booking_no_show',
+    'booking_no_show': 'booking_no_show',
+    'new_reservation': 'booking_created',
+    'modify_reservation': 'booking_modified',
+    'cancel_reservation': 'booking_cancelled',
+    // Expedia
+    'itinerary_create': 'booking_created',
+    'itinerary_modify': 'booking_modified',
+    'itinerary_cancel': 'booking_cancelled',
+    // Airbnb
+    'reservation_created': 'booking_created',
+    'reservation_updated': 'booking_modified',
+    'reservation_canceled': 'booking_cancelled',
+    'reservation_accepted': 'booking_created',
+    'reservation_declined': 'booking_cancelled',
+    // Generic
+    'create': 'booking_created',
+    'modify': 'booking_modified',
+    'cancel': 'booking_cancelled',
+  };
+  return mapping[raw] || raw;
+}
+
+// ============================================
+// MAIN HANDLER
+// ============================================
+
 // POST /api/ota/webhooks/[channel] - Handle OTA webhooks
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ channel: string }> }
 ) {
+  const { channel } = await params;
+  const rawBody = await request.text();
+  let body: Record<string, unknown>;
   try {
-    const { channel } = await params;
-    const rawBody = await request.text();
-    let body: Record<string, unknown>;
-    try {
-      body = JSON.parse(rawBody);
-    } catch {
-      return NextResponse.json(
-        { success: false, error: 'Invalid JSON body' },
-        { status: 400 }
-      );
-    }
-    const headers = Object.fromEntries(request.headers.entries());
+    body = JSON.parse(rawBody);
+  } catch {
+    return NextResponse.json(
+      { success: false, error: 'Invalid JSON body' },
+      { status: 400 }
+    );
+  }
+  const headers = Object.fromEntries(request.headers.entries());
 
-    // Bug Fix #9: Verify HMAC signature from the X-Signature header.
-    // In production, unsigned requests are rejected. In development mode,
-    // a warning is logged but the request is still processed.
-    const signature = headers['x-signature'] || headers['X-Signature'] || '';
-
-    // Note: No tenantId filter - OTAs don't send tenant identifiers. The channel name is used to route.
-    // Get connections for this channel to retrieve the apiSecret for verification
+  try {
+    // Find active connections for this channel
     const connections = await db.channelConnection.findMany({
-      where: {
-        channel,
-        status: 'active',
-      },
+      where: { channel, status: 'active' },
     });
 
-    // If multiple connections exist for this channel, try to narrow down by propertyId from payload
+    // If multiple connections exist, narrow by propertyId from payload
     if (connections.length > 1) {
       const payloadPropertyId = (body.propertyId || body.property_id || body.hotelId) as string | undefined;
       if (payloadPropertyId) {
@@ -55,44 +116,10 @@ export async function POST(
       );
     }
 
-    // Attempt HMAC-SHA256 verification against each connection's apiSecret
-    if (signature) {
-      let signatureValid = false;
-      for (const conn of connections) {
-        if (conn.apiSecret) {
-          const expectedSig = crypto
-            .createHmac('sha256', conn.apiSecret)
-            .update(rawBody)
-            .digest('hex');
-          try {
-            if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) continue;
-          } catch {
-            continue;
-          }
-          signatureValid = true;
-          break;
-        }
-      }
-      if (!signatureValid) {
-        console.warn(`[Webhook] Invalid signature for channel ${channel}`);
-        return NextResponse.json(
-          { success: false, error: 'Invalid signature' },
-          { status: 401 }
-        );
-      }
-    } else if (process.env.NODE_ENV === 'production') {
-      // In production, require a signature
-      console.warn(`[Webhook] Missing signature for channel ${channel} in production mode`);
-      return NextResponse.json(
-        { success: false, error: 'Missing required X-Signature header' },
-        { status: 401 }
-      );
-    } else {
-      // In development mode, allow unsigned requests but log a warning
-      console.warn(`[Webhook] Unsigned request for channel ${channel} (dev mode - allowing)`);
-    }
+    // ---- HMAC-SHA256 Signature Verification ----
+    await verifyWebhookSignature(channel, rawBody, headers, connections);
 
-    // Get the appropriate client
+    // Get the appropriate OTA client for event parsing
     const client = OTAClientFactory.createClient(channel);
     if (!client) {
       return NextResponse.json(
@@ -101,55 +128,47 @@ export async function POST(
       );
     }
 
-    // Process the webhook
+    // Process webhook via the OTA client (normalizes payload per channel)
     const result = await client.processWebhook(body, headers);
 
-    // Handle different webhook event types
+    // Determine the normalized event type
+    const rawEventType = resolveEventType(channel, body, headers);
+    const eventType = normalizeEventType(rawEventType);
+
+    // Log the incoming webhook
+    await logWebhookEvent(connections[0], channel, rawBody, headers, eventType, result);
+
+    // Handle the event
     if (result.success && result.data) {
       const eventData = result.data as Record<string, unknown>;
-
-      switch (result.eventType) {
-        case 'booking.created':
-        case 'reservation.created':
-          await handleBookingCreated(channel, eventData);
-          break;
-        
-        case 'booking.modified':
-        case 'reservation.modified':
-          await handleBookingModified(channel, eventData);
-          break;
-        
-        case 'booking.cancelled':
-        case 'reservation.cancelled':
-          await handleBookingCancelled(channel, eventData);
-          break;
-        
-        case 'booking.no_show':
-          await handleBookingNoShow(channel, eventData);
-          break;
-      }
-
-      // Log the webhook
-      await db.channelSyncLog.create({
-        data: {
-          connectionId: connections[0].id,
-          syncType: 'booking',
-          direction: 'inbound',
-          status: 'success',
-          requestPayload: JSON.stringify({
-            'content-type': headers['content-type'],
-            'x-signature': headers['x-signature'] ? '***' : undefined,
-            'user-agent': headers['user-agent'],
-          }),
-          responsePayload: JSON.stringify(body),
-          correlationId: `webhook-${crypto.randomUUID().replace(/-/g, '').substring(0, 12)}-${Date.now()}`,
-        },
-      });
+      await routeWebhookEvent(channel, eventType, eventData, connections);
     }
 
     return NextResponse.json(result.response);
   } catch (error) {
-    console.error('Webhook processing error:', error);
+    console.error(`[Webhook:${channel}] Processing error:`, error);
+
+    // Push to dead letter queue for retry
+    try {
+      const connection = await db.channelConnection.findFirst({
+        where: { channel, status: 'active' },
+      });
+      if (connection) {
+        await db.channelDeadLetterQueue.create({
+          data: {
+            tenantId: connection.tenantId,
+            propertyId: connection.propertyId || undefined,
+            channelCode: channel,
+            operation: 'webhook',
+            payload: rawBody,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+        });
+      }
+    } catch (dlqError) {
+      console.error(`[Webhook:${channel}] Failed to push to dead letter queue:`, dlqError);
+    }
+
     return NextResponse.json(
       { success: false, error: 'Webhook processing failed' },
       { status: 500 }
@@ -171,7 +190,6 @@ export async function GET(
   const challenge = searchParams.get('hub.challenge');
   
   if (mode === 'subscribe' && token && challenge) {
-    // Verify the token matches our expected token
     const expectedToken = process.env[`${channel.toUpperCase()}_VERIFY_TOKEN`];
     if (expectedToken) {
       try {
@@ -192,19 +210,146 @@ export async function GET(
   });
 }
 
-// Webhook event handlers
-async function handleBookingCreated(channel: string, eventData: Record<string, unknown>): Promise<void> {
-  // TODO: Add tenantId filter when multi-tenant webhook routing is implemented
-  const connection = await db.channelConnection.findFirst({
-    where: { channel, status: 'active' },
+// ============================================
+// SIGNATURE VERIFICATION
+// ============================================
+
+async function verifyWebhookSignature(
+  channel: string,
+  rawBody: string,
+  headers: Record<string, string>,
+  connections: { id: string; apiSecret?: string | null }[]
+): Promise<void> {
+  // Collect possible signature headers per channel
+  const sigHeaders = [
+    'x-signature',
+    'x-ota-signature',
+    `x-${channel}-signature`,
+    'x-hub-signature-256',
+    'x-webhook-signature',
+  ];
+
+  let signature = '';
+  for (const h of sigHeaders) {
+    const val = headers[h] || headers[h.toUpperCase()];
+    if (val) {
+      // Strip "sha256=" prefix if present (common in hub signatures)
+      signature = val.replace(/^sha256=/i, '');
+      break;
+    }
+  }
+
+  if (signature) {
+    let signatureValid = false;
+    for (const conn of connections) {
+      if (!conn.apiSecret) continue;
+      const expectedSig = crypto
+        .createHmac('sha256', conn.apiSecret)
+        .update(rawBody)
+        .digest('hex');
+      try {
+        if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) continue;
+      } catch {
+        continue;
+      }
+      signatureValid = true;
+      break;
+    }
+    if (!signatureValid) {
+      console.warn(`[Webhook] Invalid signature for channel ${channel}`);
+      throw new WebhookAuthError('Invalid signature');
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    console.warn(`[Webhook] Missing signature for channel ${channel} in production mode`);
+    throw new WebhookAuthError('Missing required signature header');
+  } else {
+    console.warn(`[Webhook] Unsigned request for channel ${channel} (dev mode - allowing)`);
+  }
+}
+
+class WebhookAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WebhookAuthError';
+  }
+}
+
+// ============================================
+// WEBHOOK LOGGING
+// ============================================
+
+async function logWebhookEvent(
+  connection: { id: string },
+  channel: string,
+  rawBody: string,
+  headers: Record<string, string>,
+  eventType: string,
+  result: { success: boolean }
+) {
+  await db.channelSyncLog.create({
+    data: {
+      connectionId: connection.id,
+      syncType: 'bookings',
+      direction: 'inbound',
+      status: result.success ? 'success' : 'failed',
+      requestPayload: JSON.stringify({
+        contentType: headers['content-type'],
+        userAgent: headers['user-agent'],
+        signaturePresent: !!(headers['x-signature'] || headers['x-ota-signature'] || headers['x-hub-signature-256']),
+      }),
+      responsePayload: rawBody.length > 10000 ? rawBody.substring(0, 10000) + '...[truncated]' : rawBody,
+      correlationId: `webhook-${channel}-${crypto.randomUUID().replace(/-/g, '').substring(0, 12)}-${Date.now()}`,
+    },
   });
+}
 
-  if (!connection) return;
+// ============================================
+// EVENT ROUTING
+// ============================================
 
-  const reservationId = eventData.reservationId as string || eventData.bookingId as string;
-  const guestData = eventData.guest as Record<string, unknown> | undefined;
+async function routeWebhookEvent(
+  channel: string,
+  eventType: string,
+  eventData: Record<string, unknown>,
+  connections: { id: string; tenantId: string; propertyId?: string | null }[]
+): Promise<void> {
+  // Try to process for all matching connections
+  for (const connection of connections) {
+    try {
+      switch (eventType) {
+        case 'booking_created':
+          await handleBookingCreated(channel, connection, eventData);
+          break;
+        case 'booking_modified':
+          await handleBookingModified(channel, connection, eventData);
+          break;
+        case 'booking_cancelled':
+          await handleBookingCancelled(channel, connection, eventData);
+          break;
+        case 'booking_no_show':
+          await handleBookingNoShow(channel, connection, eventData);
+          break;
+        default:
+          console.log(`[Webhook:${channel}] Unhandled event type: ${eventType}`);
+      }
+    } catch (handlerError) {
+      console.error(`[Webhook:${channel}] Handler error for ${eventType} on connection ${connection.id}:`, handlerError);
+    }
+  }
+}
 
-  // Check for existing booking
+// ============================================
+// BOOKING EVENT HANDLERS
+// ============================================
+
+async function handleBookingCreated(channel: string, connection: { id: string; tenantId: string; propertyId?: string | null }, eventData: Record<string, unknown>): Promise<void> {
+  const reservationId = extractReservationId(eventData);
+  if (!reservationId) {
+    console.error(`[Webhook:${channel}] No reservation ID in booking.created event`);
+    return;
+  }
+
+  // Check for existing booking (idempotency)
   const existingBooking = await db.booking.findFirst({
     where: {
       tenantId: connection.tenantId,
@@ -214,45 +359,53 @@ async function handleBookingCreated(channel: string, eventData: Record<string, u
 
   if (existingBooking) return;
 
+  // Extract guest data from event
+  const guestData = extractGuestData(eventData);
+  const dates = extractDates(eventData);
+  const pricing = extractPricing(eventData);
+  const guests = extractGuestCounts(eventData);
+  const room = extractRoomData(eventData);
+
+  // Validate dates
+  if (!dates.checkIn || !dates.checkOut) {
+    console.error(`[Webhook:${channel}] Missing dates for booking ${reservationId}`);
+    return;
+  }
+  const checkIn = new Date(dates.checkIn);
+  const checkOut = new Date(dates.checkOut);
+  if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime()) || checkIn >= checkOut) {
+    console.error(`[Webhook:${channel}] Invalid dates for booking ${reservationId}: checkIn=${dates.checkIn}, checkOut=${dates.checkOut}`);
+    return;
+  }
+
   // Find or create guest
   let guestId: string | null = null;
-  if (guestData?.email) {
+  if (guestData.email) {
     let guest = await db.guest.findFirst({
-      where: {
-        tenantId: connection.tenantId,
-        email: guestData.email as string,
-      },
+      where: { tenantId: connection.tenantId, email: guestData.email },
     });
 
     if (!guest) {
       guest = await db.guest.create({
         data: {
           tenantId: connection.tenantId,
-          firstName: (guestData.firstName as string) || 'Unknown',
-          lastName: (guestData.lastName as string) || 'Guest',
-          email: guestData.email as string,
-          phone: guestData.phone as string | undefined,
-          nationality: guestData.country as string | undefined,
+          firstName: guestData.firstName || 'Unknown',
+          lastName: guestData.lastName || 'Guest',
+          email: guestData.email,
+          phone: guestData.phone,
+          nationality: guestData.country,
           source: channel,
+          kycStatus: 'pending',
         },
       });
     }
     guestId = guest.id;
   }
 
-  // Bug Fix #10: Actually create a booking record after guest creation.
-  // Previously the function only created a guest and returned without
-  // creating a booking, causing all incoming webhook bookings to be lost.
   if (!guestId) {
-    console.error(`[Webhook] Cannot create booking ${reservationId}: no guest email provided`);
+    console.error(`[Webhook:${channel}] Cannot create booking ${reservationId}: no guest email`);
     return;
   }
-
-  // Extract dates and pricing from the event payload
-  const dates = eventData.dates as Record<string, string> | undefined;
-  const pricing = eventData.pricing as Record<string, number> | undefined;
-  const guests = eventData.guests as Record<string, number> | undefined;
-  const room = eventData.room as Record<string, string> | undefined;
 
   // Look up room type mapping
   const mapping = await db.channelMapping.findFirst({
@@ -265,94 +418,118 @@ async function handleBookingCreated(channel: string, eventData: Record<string, u
     },
   });
 
-  // Extract dates for validation
-  const checkIn = dates?.checkIn ? new Date(dates.checkIn) : undefined;
-  const checkOut = dates?.checkOut ? new Date(dates.checkOut) : undefined;
+  // Find available room
+  let roomId: string | undefined;
+  if (mapping?.roomTypeId) {
+    const bookedRoomIds = await db.booking.findMany({
+      where: {
+        tenantId: connection.tenantId,
+        roomTypeId: mapping.roomTypeId,
+        status: { notIn: ['cancelled', 'no_show'] },
+        checkIn: { lt: checkOut },
+        checkOut: { gt: checkIn },
+      },
+      select: { roomId: true },
+    });
 
-  if (!checkIn || !checkOut || isNaN(checkIn.getTime()) || isNaN(checkOut.getTime()) || checkIn >= checkOut) {
-    console.error(`[Webhook] Invalid dates for booking ${reservationId}: checkIn=${dates?.checkIn}, checkOut=${dates?.checkOut}`);
-    return;
+    const bookedIds = bookedRoomIds.map(b => b.roomId).filter((id): id is string => id !== null);
+
+    const availableRoom = await db.room.findFirst({
+      where: {
+        roomTypeId: mapping.roomTypeId,
+        id: { notIn: bookedIds },
+        status: 'available',
+      },
+    });
+
+    if (availableRoom) {
+      roomId = availableRoom.id;
+    }
   }
+
+  const confirmationCode = `OTA-${Date.now().toString(36).toUpperCase()}`;
+  const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+  const roomRate = pricing.totalAmount > 0 ? Math.round(pricing.totalAmount / nights * 100) / 100 : 0;
 
   await db.booking.create({
     data: {
       tenantId: connection.tenantId,
       propertyId: mapping?.connection.propertyId || connection.propertyId || '',
-      confirmationCode: `OTA-${Date.now().toString(36).toUpperCase()}`,
+      confirmationCode,
       externalRef: reservationId,
       primaryGuestId: guestId,
+      roomId,
       roomTypeId: mapping?.roomTypeId || '',
-      checkIn: dates?.checkIn ? new Date(dates.checkIn) : undefined,
-      checkOut: dates?.checkOut ? new Date(dates.checkOut) : undefined,
-      adults: guests?.adults || 1,
-      children: guests?.children || 0,
-      roomRate: pricing?.roomRate || pricing?.totalAmount || 0,
-      taxes: pricing?.taxes || 0,
-      fees: pricing?.fees || 0,
-      discount: pricing?.discount || 0,
-      totalAmount: pricing?.totalAmount || 0,
-      currency: (pricing?.currency as string) || (eventData.currency as string) || 'USD',
+      checkIn,
+      checkOut,
+      adults: guests.adults,
+      children: guests.children,
+      roomRate,
+      taxes: pricing.taxes,
+      fees: pricing.fees,
+      discount: pricing.discount,
+      totalAmount: pricing.totalAmount,
+      currency: pricing.currency || 'USD',
       source: channel,
       channelId: connection.id,
       status: 'confirmed',
       specialRequests: eventData.specialRequests as string | undefined,
+      notes: eventData.notes as string | undefined,
     },
   });
+
+  console.log(`[Webhook:${channel}] Created booking ${confirmationCode} for reservation ${reservationId}`);
 }
 
-async function handleBookingModified(channel: string, eventData: Record<string, unknown>): Promise<void> {
-  // TODO: Add tenantId filter when multi-tenant webhook routing is implemented
-  const connection = await db.channelConnection.findFirst({
-    where: { channel, status: 'active' },
-  });
-
-  if (!connection) return;
-
-  const reservationId = eventData.reservationId as string || eventData.bookingId as string;
+async function handleBookingModified(channel: string, connection: { id: string; tenantId: string }, eventData: Record<string, unknown>): Promise<void> {
+  const reservationId = extractReservationId(eventData);
+  if (!reservationId) return;
 
   const booking = await db.booking.findFirst({
-    where: {
-      tenantId: connection.tenantId,
-      externalRef: reservationId,
-    },
+    where: { tenantId: connection.tenantId, externalRef: reservationId },
   });
 
   if (!booking) {
-    await handleBookingCreated(channel, eventData);
+    // Treat as new booking if we don't have it yet
+    await handleBookingCreated(channel, connection, eventData);
     return;
   }
 
-  // Update booking
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
-  
-  if (eventData.checkIn) updateData.checkIn = new Date(eventData.checkIn as string);
-  if (eventData.checkOut) updateData.checkOut = new Date(eventData.checkOut as string);
-  
-  const guests = eventData.guests as Record<string, number> | undefined;
-  if (guests?.adults) updateData.adults = guests.adults;
-  if (guests?.children) updateData.children = guests.children;
+  const dates = extractDates(eventData);
+  const guests = extractGuestCounts(eventData);
+  const pricing = extractPricing(eventData);
+
+  if (dates.checkIn) {
+    const d = new Date(dates.checkIn);
+    if (!isNaN(d.getTime())) updateData.checkIn = d;
+  }
+  if (dates.checkOut) {
+    const d = new Date(dates.checkOut);
+    if (!isNaN(d.getTime())) updateData.checkOut = d;
+  }
+  if (guests.adults > 0) updateData.adults = guests.adults;
+  if (guests.children > 0) updateData.children = guests.children;
+  if (pricing.totalAmount > 0) updateData.totalAmount = pricing.totalAmount;
+  if (pricing.roomRate > 0) updateData.roomRate = pricing.roomRate;
+
+  if (eventData.specialRequests) updateData.specialRequests = eventData.specialRequests;
+  if (eventData.notes) updateData.notes = eventData.notes;
 
   await db.booking.update({
     where: { id: booking.id },
     data: updateData,
   });
+
+  console.log(`[Webhook:${channel}] Updated booking ${booking.confirmationCode} for reservation ${reservationId}`);
 }
 
-async function handleBookingCancelled(channel: string, eventData: Record<string, unknown>): Promise<void> {
-  // TODO: Add tenantId filter when multi-tenant webhook routing is implemented
-  const connection = await db.channelConnection.findFirst({
-    where: { channel, status: 'active' },
-  });
-
-  if (!connection) return;
-
-  const reservationId = eventData.reservationId as string || eventData.bookingId as string;
+async function handleBookingCancelled(channel: string, connection: { id: string; tenantId: string }, eventData: Record<string, unknown>): Promise<void> {
+  const reservationId = extractReservationId(eventData);
+  if (!reservationId) return;
 
   const booking = await db.booking.findFirst({
-    where: {
-      tenantId: connection.tenantId,
-      externalRef: reservationId,
-    },
+    where: { tenantId: connection.tenantId, externalRef: reservationId },
   });
 
   if (!booking) return;
@@ -366,23 +543,16 @@ async function handleBookingCancelled(channel: string, eventData: Record<string,
       updatedAt: new Date(),
     },
   });
+
+  console.log(`[Webhook:${channel}] Cancelled booking ${booking.confirmationCode} for reservation ${reservationId}`);
 }
 
-async function handleBookingNoShow(channel: string, eventData: Record<string, unknown>): Promise<void> {
-  // TODO: Add tenantId filter when multi-tenant webhook routing is implemented
-  const connection = await db.channelConnection.findFirst({
-    where: { channel, status: 'active' },
-  });
-
-  if (!connection) return;
-
-  const reservationId = eventData.reservationId as string || eventData.bookingId as string;
+async function handleBookingNoShow(channel: string, connection: { id: string; tenantId: string }, eventData: Record<string, unknown>): Promise<void> {
+  const reservationId = extractReservationId(eventData);
+  if (!reservationId) return;
 
   const booking = await db.booking.findFirst({
-    where: {
-      tenantId: connection.tenantId,
-      externalRef: reservationId,
-    },
+    where: { tenantId: connection.tenantId, externalRef: reservationId },
   });
 
   if (!booking) return;
@@ -394,4 +564,62 @@ async function handleBookingNoShow(channel: string, eventData: Record<string, un
       updatedAt: new Date(),
     },
   });
+
+  console.log(`[Webhook:${channel}] Marked booking ${booking.confirmationCode} as no-show for reservation ${reservationId}`);
+}
+
+// ============================================
+// DATA EXTRACTION HELPERS
+// ============================================
+
+function extractReservationId(data: Record<string, unknown>): string | null {
+  return (data.reservationId || data.reservation_id || data.bookingId || data.booking_id || data.id || data.externalBookingId || null) as string | null;
+}
+
+function extractGuestData(data: Record<string, unknown>): { firstName: string; lastName: string; email?: string; phone?: string; country?: string } {
+  const guest = (data.guest || data.guest_data || data.customer || data.customer_data || {}) as Record<string, unknown>;
+  return {
+    firstName: (guest.firstName || guest.first_name || guest.guest_first_name || '') as string,
+    lastName: (guest.lastName || guest.last_name || guest.guest_last_name || '') as string,
+    email: (guest.email || guest.guest_email || data.email || null) as string | undefined,
+    phone: (guest.phone || guest.guest_phone || data.phone || null) as string | undefined,
+    country: (guest.country || guest.guest_country || guest.nationality || null) as string | undefined,
+  };
+}
+
+function extractDates(data: Record<string, unknown>): { checkIn?: string; checkOut?: string } {
+  const dates = (data.dates || data.dates_data || {}) as Record<string, unknown>;
+  return {
+    checkIn: (dates.checkIn || dates.check_in || dates.checkin_date || data.check_in || data.startDate || null) as string | undefined,
+    checkOut: (dates.checkOut || dates.check_out || dates.checkout_date || data.check_out || data.endDate || null) as string | undefined,
+  };
+}
+
+function extractPricing(data: Record<string, unknown>): { roomRate: number; taxes: number; fees: number; discount: number; totalAmount: number; currency: string } {
+  const pricing = (data.pricing || data.pricing_data || data.rate || {}) as Record<string, unknown>;
+  const totalAmount = (pricing.totalAmount || pricing.total_amount || pricing.total_price || data.total_amount || data.totalAmount || 0) as number;
+  return {
+    roomRate: (pricing.roomRate || pricing.room_rate || pricing.nightly_rate || data.roomRate || 0) as number,
+    taxes: (pricing.taxes || pricing.tax || 0) as number,
+    fees: (pricing.fees || pricing.fee || 0) as number,
+    discount: (pricing.discount || 0) as number,
+    totalAmount,
+    currency: (pricing.currency || data.currency || 'USD') as string,
+  };
+}
+
+function extractGuestCounts(data: Record<string, unknown>): { adults: number; children: number } {
+  const guests = (data.guests || data.guests_data || data.occupancy || {}) as Record<string, unknown>;
+  return {
+    adults: (guests.adults || guests.num_adults || guests.adult_count || data.guests || data.adults || 1) as number,
+    children: (guests.children || guests.num_children || guests.child_count || data.children || 0) as number,
+  };
+}
+
+function extractRoomData(data: Record<string, unknown>): { externalRoomId?: string; roomTypeId?: string } {
+  const room = (data.room || data.room_data || data.room_type || {}) as Record<string, unknown>;
+  return {
+    externalRoomId: (room.externalRoomId || room.room_id || room.room_type_id || room.id || null) as string | undefined,
+    roomTypeId: (room.roomTypeId || room.internal_room_type_id || null) as string | undefined,
+  };
 }

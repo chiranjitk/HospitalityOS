@@ -98,7 +98,7 @@ const statuses = [
   { value: 'pending', label: 'Pending', color: 'bg-gray-500' },
   { value: 'assigned', label: 'Assigned', color: 'bg-cyan-500' },
   { value: 'in_progress', label: 'In Progress', color: 'bg-amber-500' },
-  { value: 'completed', label: 'Completed', color: 'bg-emerald-500' },,
+  { value: 'completed', label: 'Completed', color: 'bg-emerald-500' },
   { value: 'cancelled', label: 'Cancelled', color: 'bg-red-500' },
 ];
 

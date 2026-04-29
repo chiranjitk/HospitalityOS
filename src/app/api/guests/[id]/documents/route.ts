@@ -66,7 +66,7 @@ export async function POST(
     }
 
     // Validate document type
-    const allowedDocTypes = ['passport', 'national_id', 'drivers_license', 'visa', 'residence_permit', 'other'];
+    const allowedDocTypes = ['passport', 'national_id', 'drivers_license', 'visa', 'residence_permit', 'signature', 'other'];
     if (!allowedDocTypes.includes(type)) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid document type. Must be one of: ${allowedDocTypes.join(', ')}` } },

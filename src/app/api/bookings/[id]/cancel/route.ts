@@ -1,0 +1,340 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { applyCancellationPenalty, evaluateCancellationPolicy } from '@/lib/cancellation-policy-engine';
+import { logBooking } from '@/lib/audit';
+import { notifyBookingCancelled } from '@/lib/notify';
+import type { CancellationResult } from '@/lib/cancellation-policy-engine';
+
+// POST /api/bookings/[id]/cancel — Cancel a booking with full policy enforcement
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+    }
+    if (!hasAnyPermission(user, ['bookings.manage', 'admin.bookings', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: 'Permission denied' }, { status: 403 });
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+    const { reason } = body;
+
+    // 1. Find the booking
+    const booking = await db.booking.findUnique({
+      where: { id, deletedAt: null },
+      include: {
+        primaryGuest: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            loyaltyTier: true,
+          },
+        },
+        room: {
+          select: { id: true, number: true, status: true },
+        },
+        roomType: {
+          select: { id: true, name: true },
+        },
+        folios: {
+          select: { id: true, totalAmount: true, paidAmount: true, balance: true },
+        },
+      },
+    });
+
+    if (!booking) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Booking not found' } },
+        { status: 404 }
+      );
+    }
+
+    if (booking.tenantId !== user.tenantId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Not found' } },
+        { status: 404 }
+      );
+    }
+
+    // 2. Validate status transition
+    if (booking.status === 'cancelled') {
+      return NextResponse.json(
+        { success: false, error: { code: 'ALREADY_CANCELLED', message: 'Booking is already cancelled' } },
+        { status: 400 }
+      );
+    }
+
+    if (booking.status === 'checked_out') {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_STATUS', message: 'Cannot cancel a checked-out booking' } },
+        { status: 400 }
+      );
+    }
+
+    const validCancelFrom = ['draft', 'confirmed', 'no_show'];
+    if (!validCancelFrom.includes(booking.status)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'INVALID_STATUS_TRANSITION',
+            message: `Cannot cancel booking with status: ${booking.status}`,
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    // 3. Evaluate cancellation policy
+    let evaluation: CancellationResult;
+    try {
+      evaluation = await evaluateCancellationPolicy({
+        bookingId: booking.id,
+        tenantId: booking.tenantId,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to evaluate cancellation policy';
+      return NextResponse.json(
+        { success: false, error: { code: 'POLICY_EVALUATION_ERROR', message: msg } },
+        { status: 500 }
+      );
+    }
+
+    // 4. Calculate refund amount
+    const folio = booking.folios?.[0];
+    const totalPaid = folio?.paidAmount || 0;
+    const penaltyAmount = evaluation.penaltyAmount;
+    const refundAmount = Math.max(0, totalPaid - penaltyAmount);
+
+    // 5. Apply penalty and cancel in a transaction
+    let penaltyResult;
+    try {
+      penaltyResult = await applyCancellationPenalty({
+        bookingId: booking.id,
+        tenantId: booking.tenantId,
+        performedBy: user.id,
+        reason: reason || undefined,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to apply cancellation penalty';
+      console.error('Cancellation penalty application failed:', err);
+
+      // Still try to cancel the booking even if penalty fails
+      try {
+        await db.booking.update({
+          where: { id: booking.id },
+          data: {
+            status: 'cancelled',
+            cancelledAt: new Date(),
+            cancelledBy: user.id,
+            cancellationReason: reason || 'Cancelled (penalty application failed)',
+          },
+        });
+
+        // Release room
+        if (booking.roomId) {
+          await db.room.update({
+            where: { id: booking.roomId },
+            data: { status: 'available' },
+          });
+        }
+
+        return NextResponse.json({
+          success: true,
+          cancelled: true,
+          penalty: 0,
+          policy: evaluation.policy.name,
+          refunded: totalPaid,
+          warning: 'Booking cancelled but penalty could not be applied: ' + msg,
+        });
+      } catch (fallbackErr) {
+        console.error('Fallback cancellation also failed:', fallbackErr);
+        return NextResponse.json(
+          { success: false, error: { code: 'CANCELLATION_FAILED', message: 'Failed to cancel booking' } },
+          { status: 500 }
+        );
+      }
+    }
+
+    // 6. Log to audit trail
+    try {
+      await logBooking(request, 'cancel', booking.id, {
+        status: booking.status,
+        confirmationCode: booking.confirmationCode,
+        roomId: booking.roomId,
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        totalAmount: booking.totalAmount,
+      }, {
+        confirmationCode: booking.confirmationCode,
+        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim(),
+        status: 'cancelled',
+        roomNumber: booking.room?.number,
+      }, { tenantId: user.tenantId, userId: user.id });
+    } catch (auditError) {
+      console.error('Audit log failed (non-blocking):', auditError);
+    }
+
+    // 7. Send cancellation notification
+    try {
+      notifyBookingCancelled({
+        tenantId: booking.tenantId,
+        userId: user.id,
+        confirmationCode: booking.confirmationCode,
+        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
+        reason,
+      });
+    } catch (notifyError) {
+      console.error('Cancellation notification failed (non-blocking):', notifyError);
+    }
+
+    // 8. Return comprehensive result
+    return NextResponse.json({
+      success: true,
+      data: {
+        cancelled: true,
+        bookingId: booking.id,
+        confirmationCode: booking.confirmationCode,
+        policy: {
+          id: evaluation.policy.id,
+          name: evaluation.policy.name,
+          description: evaluation.policy.description,
+        },
+        evaluation: {
+          isWithinFreeWindow: evaluation.isWithinFreeWindow,
+          hoursUntilCheckIn: evaluation.hoursUntilCheckIn,
+          penaltyType: evaluation.penaltyType,
+          isExempt: evaluation.isExempt,
+          exemptReason: evaluation.exemptReason,
+        },
+        penalty: {
+          amount: penaltyAmount,
+          currency: booking.currency || 'USD',
+          applied: penaltyResult.penaltyApplied,
+          folioId: penaltyResult.folioId,
+          lineItemId: penaltyResult.lineItemId,
+        },
+        financials: {
+          totalPaid,
+          penaltyDeducted: penaltyAmount,
+          refundAmount,
+          remainingBalance: Math.max(0, (folio?.balance || 0) + penaltyAmount),
+        },
+        cancelledAt: new Date().toISOString(),
+        cancelledBy: user.id,
+      },
+    });
+  } catch (error) {
+    console.error('Error cancelling booking:', error);
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to cancel booking' } },
+      { status: 500 }
+    );
+  }
+}
+
+// GET /api/bookings/[id]/cancel — Preview cancellation policy before cancelling
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+    }
+    if (!hasAnyPermission(user, ['bookings.manage', 'admin.bookings', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: 'Permission denied' }, { status: 403 });
+    }
+
+    const { id } = await params;
+
+    const booking = await db.booking.findUnique({
+      where: { id, deletedAt: null },
+      include: {
+        folios: {
+          select: { id: true, totalAmount: true, paidAmount: true, balance: true },
+        },
+      },
+    });
+
+    if (!booking) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Booking not found' } },
+        { status: 404 }
+      );
+    }
+
+    if (booking.tenantId !== user.tenantId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Not found' } },
+        { status: 404 }
+      );
+    }
+
+    // Evaluate policy for preview
+    let evaluation: CancellationResult;
+    try {
+      evaluation = await evaluateCancellationPolicy({
+        bookingId: booking.id,
+        tenantId: booking.tenantId,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to evaluate policy';
+      return NextResponse.json(
+        { success: false, error: { code: 'POLICY_EVALUATION_ERROR', message: msg } },
+        { status: 500 }
+      );
+    }
+
+    const folio = booking.folios?.[0];
+    const totalPaid = folio?.paidAmount || 0;
+    const penaltyAmount = evaluation.penaltyAmount;
+    const refundAmount = Math.max(0, totalPaid - penaltyAmount);
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        bookingId: booking.id,
+        confirmationCode: booking.confirmationCode,
+        currentStatus: booking.status,
+        canCancel: !['cancelled', 'checked_out'].includes(booking.status),
+        policy: {
+          id: evaluation.policy.id,
+          name: evaluation.policy.name,
+          description: evaluation.policy.description,
+          freeCancelHoursBefore: evaluation.policy.freeCancelHoursBefore,
+        },
+        evaluation: {
+          isWithinFreeWindow: evaluation.isWithinFreeWindow,
+          hoursUntilCheckIn: evaluation.hoursUntilCheckIn,
+          penaltyType: evaluation.penaltyType,
+          isExempt: evaluation.isExempt,
+          exemptReason: evaluation.exemptReason,
+        },
+        preview: {
+          totalPaid,
+          penaltyAmount,
+          refundAmount,
+          currency: booking.currency || 'USD',
+        },
+        checkIn: booking.checkIn.toISOString(),
+        checkOut: booking.checkOut.toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('Error previewing cancellation:', error);
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to preview cancellation' } },
+      { status: 500 }
+    );
+  }
+}

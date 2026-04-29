@@ -22,6 +22,7 @@ import {
   CheckCircle, Clock, Users, DollarSign, XCircle, Filter,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -89,6 +90,7 @@ const defaultForm = {
 
 export default function ExperienceBookings() {
   const { toast } = useToast();
+  const { formatCurrency } = useCurrency();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -367,7 +369,7 @@ export default function ExperienceBookings() {
             </div>
             <div>
               <div className="text-2xl font-bold">
-                ${(summary?.revenue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                {formatCurrency(summary?.revenue ?? 0)}
               </div>
               <div className="text-xs text-muted-foreground">Revenue</div>
             </div>
@@ -505,7 +507,7 @@ export default function ExperienceBookings() {
                           {b.numberOfGuests}
                         </span>
                         <span className="font-medium text-foreground">
-                          ${b.totalPrice.toFixed(2)}
+                          {formatCurrency(b.totalPrice)}
                         </span>
                       </div>
                       <div className="flex gap-2">
@@ -600,7 +602,7 @@ export default function ExperienceBookings() {
                             <TableCell>{getStatusBadge(b.status)}</TableCell>
                             <TableCell className="text-right">
                               <span className="font-medium">
-                                ${b.totalPrice.toFixed(2)}
+                                {formatCurrency(b.totalPrice)}
                               </span>
                             </TableCell>
                             <TableCell className="text-right">
@@ -669,7 +671,7 @@ export default function ExperienceBookings() {
                 <SelectContent>
                   {experiences.map((e) => (
                     <SelectItem key={e.id} value={e.id}>
-                      {e.name} (${e.basePrice}/guest)
+                      {e.name} ({formatCurrency(e.basePrice)}/guest)
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -762,16 +764,14 @@ export default function ExperienceBookings() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Estimated Total</span>
                   <span className="font-semibold">
-                    $
-                    {(
+                    {formatCurrency(
                       (experiences.find((e) => e.id === formData.experienceId)?.basePrice || 0) *
                       formData.numberOfGuests
-                    ).toFixed(2)}
+                    )}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {formData.numberOfGuests} guest{formData.numberOfGuests > 1 ? 's' : ''} &times; $
-                  {experiences.find((e) => e.id === formData.experienceId)?.basePrice.toFixed(2) || '0.00'}/guest
+                  {formData.numberOfGuests} guest{formData.numberOfGuests > 1 ? 's' : ''} &times; {formatCurrency(experiences.find((e) => e.id === formData.experienceId)?.basePrice || 0)}/guest
                 </p>
               </div>
             )}
@@ -831,7 +831,7 @@ export default function ExperienceBookings() {
                 </div>
                 <div>
                   <span className="text-muted-foreground">Amount</span>
-                  <p className="font-medium">${selectedBooking.totalPrice.toFixed(2)}</p>
+                  <p className="font-medium">{formatCurrency(selectedBooking.totalPrice)}</p>
                 </div>
               </div>
 

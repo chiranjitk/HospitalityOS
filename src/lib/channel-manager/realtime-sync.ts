@@ -4,6 +4,8 @@
  */
 
 import { db } from '@/lib/db';
+import { OTAClientFactory } from '@/lib/ota/client-factory';
+import { OTACredentials } from '@/lib/ota/types';
 
 // ============================================
 // SYNC TYPE MAPPING
@@ -260,24 +262,61 @@ async function syncInventory(
   message: SyncMessage
 ): Promise<SyncResult> {
   const data = message.data;
-  const endpoint = getChannelEndpoint(channelCode, 'inventory');
+  const dates = (data.dates as string[]) || [];
+  const availability = data.availability as number;
 
   console.log(`Syncing inventory to ${channelCode}:`, {
-    endpoint,
     propertyId: message.propertyId,
     roomTypeId: message.roomTypeId,
-    dates: data.dates,
-    availability: data.availability,
+    dates,
+    availability,
   });
 
-  // Simulate API call
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  try {
+    const client = await OTAClientFactory.getAuthenticatedClient(
+      channelCode,
+      credentials as OTACredentials
+    );
+    if (!client) {
+      return {
+        channelCode,
+        success: false,
+        error: `Failed to create or authenticate OTA client for ${channelCode}`,
+      };
+    }
 
-  return {
-    channelCode,
-    success: true,
-    message: `Inventory updated for ${(data.dates as string[])?.length || 0} dates`,
-  };
+    const updates = dates.map((date) => ({
+      roomTypeId: message.roomTypeId || '',
+      externalRoomId: message.roomTypeId || '',
+      date,
+      availableRooms: availability,
+      totalRooms: availability,
+    }));
+
+    const response = await client.updateInventory(updates);
+
+    if (response.success) {
+      return {
+        channelCode,
+        success: true,
+        message: `Inventory updated for ${dates.length} dates`,
+        syncId: response.correlationId,
+      };
+    }
+
+    return {
+      channelCode,
+      success: false,
+      error: response.errors?.map((e) => e.message).join(', ') || 'Inventory sync failed',
+      syncId: response.correlationId,
+    };
+  } catch (error) {
+    return {
+      channelCode,
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error during inventory sync',
+    };
+  }
 }
 
 /**
@@ -289,22 +328,64 @@ async function syncRates(
   message: SyncMessage
 ): Promise<SyncResult> {
   const data = message.data;
-  const endpoint = getChannelEndpoint(channelCode, 'rates');
+  const dates = (data.dates as string[]) || [];
+  const rate = data.rate as number;
+  const currency = (data.currency as string) || 'USD';
 
   console.log(`Syncing rates to ${channelCode}:`, {
-    endpoint,
     propertyId: message.propertyId,
     roomTypeId: message.roomTypeId,
-    rate: data.rate,
+    rate,
+    dates,
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  try {
+    const client = await OTAClientFactory.getAuthenticatedClient(
+      channelCode,
+      credentials as OTACredentials
+    );
+    if (!client) {
+      return {
+        channelCode,
+        success: false,
+        error: `Failed to create or authenticate OTA client for ${channelCode}`,
+      };
+    }
 
-  return {
-    channelCode,
-    success: true,
-    message: `Rate updated to ${data.rate}`,
-  };
+    const updates = dates.map((date) => ({
+      roomTypeId: message.roomTypeId || '',
+      ratePlanId: (data.ratePlanId as string) || '',
+      externalRoomId: message.roomTypeId || '',
+      externalRatePlanId: (data.externalRatePlanId as string) || '',
+      date,
+      baseRate: rate,
+      currency,
+    }));
+
+    const response = await client.updateRates(updates);
+
+    if (response.success) {
+      return {
+        channelCode,
+        success: true,
+        message: `Rate updated to ${rate} for ${dates.length} dates`,
+        syncId: response.correlationId,
+      };
+    }
+
+    return {
+      channelCode,
+      success: false,
+      error: response.errors?.map((e) => e.message).join(', ') || 'Rate sync failed',
+      syncId: response.correlationId,
+    };
+  } catch (error) {
+    return {
+      channelCode,
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error during rate sync',
+    };
+  }
 }
 
 /**
@@ -316,44 +397,62 @@ async function syncRestrictions(
   message: SyncMessage
 ): Promise<SyncResult> {
   const data = message.data;
+  const dates = (data.dates as string[]) || [];
+  const restrictions = data.restrictions as Record<string, unknown> | undefined;
 
   console.log(`Syncing restrictions to ${channelCode}:`, {
     propertyId: message.propertyId,
-    restrictions: data.restrictions,
+    restrictions,
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  try {
+    const client = await OTAClientFactory.getAuthenticatedClient(
+      channelCode,
+      credentials as OTACredentials
+    );
+    if (!client) {
+      return {
+        channelCode,
+        success: false,
+        error: `Failed to create or authenticate OTA client for ${channelCode}`,
+      };
+    }
 
-  return {
-    channelCode,
-    success: true,
-    message: 'Restrictions updated',
-  };
-}
+    const updates = dates.map((date) => ({
+      roomTypeId: message.roomTypeId || '',
+      externalRoomId: message.roomTypeId || '',
+      date,
+      closedToArrival: (restrictions?.closedToArrival as boolean) || false,
+      closedToDeparture: (restrictions?.closedToDeparture as boolean) || false,
+      closed: (restrictions?.closed as boolean) || false,
+      minStayThrough: (restrictions?.minStay as number) || 1,
+      maxStayThrough: (restrictions?.maxStay as number) || 99,
+    }));
 
-/**
- * Get channel API endpoint
- */
-function getChannelEndpoint(channelCode: string, type: string): string {
-  const endpoints: Record<string, Record<string, string>> = {
-    booking: {
-      inventory: 'https://supply-xml.booking.com/hotels/ota/OTA_HotelInvNotif',
-      rates: 'https://supply-xml.booking.com/hotels/ota/OTA_HotelRateNotif',
-      bookings: 'https://supply-xml.booking.com/hotels/ota/OTA_ResRetrieve',
-    },
-    expedia: {
-      inventory: 'https://api.expediapartnersolutions.com/hotels/v1/inventory',
-      rates: 'https://api.expediapartnersolutions.com/hotels/v1/rates',
-      bookings: 'https://api.expediapartnersolutions.com/hotels/v1/bookings',
-    },
-    airbnb: {
-      inventory: 'https://api.airbnb.com/v2/listings/inventory',
-      rates: 'https://api.airbnb.com/v2/listings/pricing',
-      bookings: 'https://api.airbnb.com/v2/reservations',
-    },
-  };
+    const response = await client.updateRestrictions(updates);
 
-  return endpoints[channelCode]?.[type] || '';
+    if (response.success) {
+      return {
+        channelCode,
+        success: true,
+        message: `Restrictions updated for ${dates.length} dates`,
+        syncId: response.correlationId,
+      };
+    }
+
+    return {
+      channelCode,
+      success: false,
+      error: response.errors?.map((e) => e.message).join(', ') || 'Restrictions sync failed',
+      syncId: response.correlationId,
+    };
+  } catch (error) {
+    return {
+      channelCode,
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error during restrictions sync',
+    };
+  }
 }
 
 /**

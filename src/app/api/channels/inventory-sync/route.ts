@@ -1,6 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { OTASyncService } from '@/lib/ota/sync-service';
+import { OTAClientFactory } from '@/lib/ota/client-factory';
+import { OTAInventoryUpdate } from '@/lib/ota/types';
+
+// Helper: build inventory update payloads for a given property and its room types
+async function buildInventoryUpdates(
+  tenantId: string,
+  propertyId: string
+): Promise<OTAInventoryUpdate[]> {
+  // Get room types with their rooms for this property
+  const roomTypes = await db.roomType.findMany({
+    where: { propertyId, deletedAt: null },
+    include: {
+      rooms: {
+        select: { id: true, status: true },
+      },
+    },
+  });
+
+  // Build availability for the next 30 days
+  const today = new Date();
+  const updates: OTAInventoryUpdate[] = [];
+
+  for (const roomType of roomTypes) {
+    const totalRooms = roomType.rooms.length;
+    const availableRooms = roomType.rooms.filter(r => r.status === 'available').length;
+
+    for (let d = 0; d < 30; d++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() + d);
+      const dateStr = date.toISOString().split('T')[0];
+
+      updates.push({
+        roomTypeId: roomType.id,
+        externalRoomId: '', // will be mapped by the sync service using channel mappings
+        date: dateStr,
+        availableRooms,
+        totalRooms,
+      });
+    }
+  }
+
+  return updates;
+}
 
 // GET /api/channels/inventory-sync - Get inventory sync status
 export async function GET(request: NextRequest) {
@@ -154,35 +198,82 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { action, channelName } = body;
+    const { action, channelName, propertyId } = body;
 
     if (action === 'syncAll') {
-      // Get all connections for the tenant
+      // Get all active connections for the tenant
       const connections = await db.channelConnection.findMany({
         where: { tenantId: user.tenantId, status: 'active' },
       });
 
-      // Create sync log entries
-      for (const connection of connections) {
-        await db.channelSyncLog.create({
-          data: {
-            connectionId: connection.id,
-            syncType: 'inventory',
-            direction: 'outbound',
-            status: 'success',
-          },
-        });
-
-        // Update connection last sync time
-        await db.channelConnection.update({
-          where: { id: connection.id },
-          data: { lastSyncAt: new Date() },
+      if (connections.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: 'No active channel connections to sync',
+          results: [],
         });
       }
 
+      // Get all properties for this tenant
+      const properties = await db.property.findMany({
+        where: { tenantId: user.tenantId, deletedAt: null },
+        select: { id: true },
+      });
+
+      if (properties.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: 'No properties found',
+          results: [],
+        });
+      }
+
+      // Build inventory updates per property and sync to each channel
+      const results: Array<{
+        connectionId: string;
+        channelName: string;
+        status: 'success' | 'failed' | 'partial';
+        recordsProcessed: number;
+        error?: string;
+      }> = [];
+
+      for (const connection of connections) {
+        if (!connection.propertyId) {
+          // Find a property for this connection if not explicitly set
+          const prop = properties[0];
+          if (!prop) continue;
+          connection.propertyId = prop.id;
+        }
+
+        try {
+          const updates = await buildInventoryUpdates(user.tenantId, connection.propertyId);
+          await OTASyncService.syncInventoryToChannel(connection.id, updates);
+
+          results.push({
+            connectionId: connection.id,
+            channelName: connection.displayName || connection.channel,
+            status: 'success',
+            recordsProcessed: updates.length,
+          });
+        } catch (error) {
+          console.error(`Inventory sync failed for ${connection.channel}:`, error);
+          results.push({
+            connectionId: connection.id,
+            channelName: connection.displayName || connection.channel,
+            status: 'failed',
+            recordsProcessed: 0,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      const succeeded = results.filter(r => r.status === 'success').length;
+      const failed = results.filter(r => r.status === 'failed').length;
+
       return NextResponse.json({
-        success: true,
-        message: `Synced inventory to ${connections.length} channels`,
+        success: failed === 0,
+        message: `Synced inventory to ${succeeded} of ${connections.length} channels (${failed} failed)`,
+        results,
       });
     }
 
@@ -199,26 +290,43 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Create sync log entry
-      await db.channelSyncLog.create({
-        data: {
-          connectionId: connection.id,
-          syncType: 'inventory',
-          direction: 'outbound',
-          status: 'success',
-        },
-      });
+      // Use provided propertyId or fall back to connection.propertyId
+      const targetPropertyId = propertyId || connection.propertyId;
+      if (!targetPropertyId) {
+        return NextResponse.json(
+          { success: false, error: { code: 'MISSING_PROPERTY', message: 'No property associated with this channel connection' } },
+          { status: 400 }
+        );
+      }
 
-      // Update connection last sync time
-      await db.channelConnection.update({
-        where: { id: connection.id },
-        data: { lastSyncAt: new Date() },
-      });
+      try {
+        const updates = await buildInventoryUpdates(user.tenantId, targetPropertyId);
+        await OTASyncService.syncInventoryToChannel(connection.id, updates);
 
-      return NextResponse.json({
-        success: true,
-        message: `Synced inventory to ${channelName}`,
-      });
+        return NextResponse.json({
+          success: true,
+          message: `Synced inventory to ${channelName} (${updates.length} records)`,
+          data: {
+            connectionId: connection.id,
+            channelName,
+            propertyId: targetPropertyId,
+            recordsProcessed: updates.length,
+          },
+        });
+      } catch (error) {
+        console.error(`Inventory sync failed for ${channelName}:`, error);
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'SYNC_FAILED',
+              message: `Failed to sync inventory to ${channelName}`,
+              details: error instanceof Error ? error.message : 'Unknown error',
+            },
+          },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json(

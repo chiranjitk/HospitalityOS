@@ -2554,30 +2554,77 @@ model InventoryLock {
 }
 
 model Invoice {
-  id              String    @id @default(uuid()) @db.Uuid
-  tenantId        String    @db.Uuid
-  invoiceNumber   String    @unique
-  folioId         String?   @db.Uuid
-  customerName    String
-  customerEmail   String?
-  customerAddress String?
-  customerPhone   String?
-  subtotal        Float
-  taxes           Float     @default(0)
-  discount        Float     @default(0)
-  totalAmount     Float
-  currency        String    @default("USD")
-  issuedAt        DateTime  @default(now()) @db.Timestamptz
-  dueAt           DateTime? @db.Timestamptz
-  paidAt          DateTime? @db.Timestamptz
-  status          String    @default("draft")
-  pdfUrl          String?
-  notes           String?
-  lineItems       String    @default("[]") // JSON: [{description, quantity, unitPrice, totalAmount, taxRate, taxAmount}]
-  createdAt       DateTime  @default(now()) @db.Timestamptz
-  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @db.Uuid
+  invoiceNumber     String    @unique
+  folioId           String?   @db.Uuid
+  customerName      String
+  customerEmail     String?
+  customerAddress   String?
+  customerPhone     String?
+  subtotal          Float
+  taxes             Float     @default(0)
+  discount          Float     @default(0)
+  totalAmount       Float
+  currency          String    @default("USD")
+  issuedAt          DateTime  @default(now()) @db.Timestamptz
+  dueAt             DateTime? @db.Timestamptz
+  paidAt            DateTime? @db.Timestamptz
+  status            String    @default("draft")
+  pdfUrl            String?
+  notes             String?
+  lineItems         String    @default("[]") // JSON: [{description, quantity, unitPrice, totalAmount, taxRate, taxAmount}]
+  templateId        String?   @db.Uuid
+  // Recurring invoice fields
+  isRecurring       Boolean   @default(false)
+  recurringFrequency String?  // monthly, quarterly, annually
+  recurringNextDate DateTime? @db.Timestamptz
+  recurringEndDate  DateTime? @db.Timestamptz
+  parentInvoiceId   String?   @db.Uuid
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+
+  template          InvoiceTemplate?  @relation(fields: [templateId], references: [id])
 
   @@index([tenantId])
+  @@index([isRecurring, recurringNextDate])
+}
+
+model InvoiceTemplate {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  logoUrl     String?
+  primaryColor String  @default("#10b981")
+  footerText  String?
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  invoices    Invoice[]
+
+  @@index([tenantId])
+}
+
+model FolioLineItemAudit {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  folioId     String    @db.Uuid
+  lineItemId  String?   @db.Uuid
+  action      String    // created, deleted
+  description String
+  category    String?
+  amount      Float?
+  quantity    Int?
+  userId      String?   @db.Uuid
+  userName    String?
+  source      String    @default("frontdesk") // frontdesk, pos, room_service, system
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+
+  @@index([tenantId])
+  @@index([folioId])
+  @@index([lineItemId])
+  @@index([createdAt])
 }
 
 model IoTCommand {
@@ -3378,6 +3425,10 @@ model Order {
   kitchenCompletedAt  DateTime?        @db.Timestamptz
   folioId             String?          @db.Uuid
   addToFolio          Boolean          @default(false)
+  roomNumber          String?
+  orderCategory       String?
+  priority            String           @default("normal")
+  estimatedDelivery   Int?
   notes               String?
   specialInstructions String?
   confirmedAt         DateTime?        @db.Timestamptz
@@ -3394,6 +3445,7 @@ model Order {
   @@index([tenantId])
   @@index([propertyId])
   @@index([status])
+  @@index([roomNumber])
 }
 
 model OrderCategory {
@@ -4346,9 +4398,15 @@ model RatePlan {
   promoStart         DateTime?        @db.Timestamptz
   promoEnd           DateTime?        @db.Timestamptz
   status             String           @default("active")
+  // Derivation chain fields
+  derivedFromId      String?          @db.Uuid
+  derivationType     String?                           // 'percentage' | 'fixed'
+  derivationValue    Float?                             // e.g. -15 for -15%, or -20 for -$20
   createdAt          DateTime         @default(now()) @db.Timestamptz
   updatedAt          DateTime         @updatedAt @db.Timestamptz
   deletedAt          DateTime?        @db.Timestamptz
+  derivedFrom        RatePlan?        @relation("DerivedRatePlan", fields: [derivedFromId], references: [id])
+  derivedPlans       RatePlan[]       @relation("DerivedRatePlan")
   channelMappings    ChannelMapping[]
   priceOverrides     PriceOverride[]
   roomType           RoomType         @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
@@ -4358,6 +4416,7 @@ model RatePlan {
   @@unique([tenantId, roomTypeId, code])
   @@index([tenantId])
   @@index([roomTypeId])
+  @@index([derivedFromId])
 }
 
 model Reconciliation {

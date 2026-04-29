@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Switch } from '@/components/ui/switch';
 import {
   Brush,
   Plus,
@@ -49,6 +50,7 @@ import {
   Pencil,
   Trash2,
   Play,
+  RotateCcw,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -175,7 +177,11 @@ export default function TasksList() {
     scheduledAt: '',
     estimatedDuration: '',
     notes: '',
+    isRecurring: false,
+    recurringFrequency: 'daily',
+    recurringEndDate: '',
   });
+  const [recurringFilter, setRecurringFilter] = useState<string>('all');
 
   // Fetch initial data
   useEffect(() => {
@@ -231,6 +237,7 @@ export default function TasksList() {
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (typeFilter !== 'all') params.append('type', typeFilter);
       if (priorityFilter !== 'all') params.append('priority', priorityFilter);
+      if (recurringFilter !== 'all') params.append('recurring', recurringFilter);
 
       const response = await fetch(`/api/tasks?${params.toString()}`);
       const result = await response.json();
@@ -249,7 +256,7 @@ export default function TasksList() {
     } finally {
       setIsLoading(false);
     }
-  }, [searchQuery, statusFilter, typeFilter, priorityFilter, toast]);
+  }, [searchQuery, statusFilter, typeFilter, priorityFilter, recurringFilter, toast]);
 
   // Debounced search
   useEffect(() => {
@@ -274,11 +281,17 @@ export default function TasksList() {
 
     setIsSaving(true);
     try {
+      let description = formData.description;
+      if (formData.isRecurring) {
+        const recurringTag = `[RECURRING:${formData.recurringFrequency}:${formData.recurringEndDate || 'none'}]`;
+        description = description ? `${recurringTag} ${description}` : recurringTag;
+      }
       const response = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          description,
           estimatedDuration: formData.estimatedDuration ? parseInt(formData.estimatedDuration) : null,
           scheduledAt: formData.scheduledAt || null,
         }),
@@ -452,10 +465,14 @@ export default function TasksList() {
       scheduledAt: '',
       estimatedDuration: '',
       notes: '',
+      isRecurring: false,
+      recurringFrequency: 'daily',
+      recurringEndDate: '',
     });
   };
 
   const openEditDialog = (task: Task) => {
+    const taskRec = task as Record<string, unknown>;
     setSelectedTask(task);
     setFormData({
       propertyId: task.propertyId || '',
@@ -469,6 +486,9 @@ export default function TasksList() {
       scheduledAt: task.scheduledAt ? format(new Date(task.scheduledAt), "yyyy-MM-dd'T'HH:mm") : '',
       estimatedDuration: task.estimatedDuration?.toString() || '',
       notes: task.notes || '',
+      isRecurring: !!taskRec.isRecurring,
+      recurringFrequency: (taskRec.recurringFrequency as string) || 'daily',
+      recurringEndDate: (taskRec.recurringEndDate as string) || '',
     });
     setIsEditOpen(true);
   };
@@ -635,6 +655,16 @@ export default function TasksList() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={recurringFilter} onValueChange={setRecurringFilter}>
+              <SelectTrigger className="w-full sm:w-36">
+                <SelectValue placeholder="Recurrence" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Tasks</SelectItem>
+                <SelectItem value="recurring">Recurring</SelectItem>
+                <SelectItem value="one-time">One-Time</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -680,7 +710,15 @@ export default function TasksList() {
                     )}>
                       <TableCell>
                         <div>
-                          <p className="font-medium text-sm">{task.title}</p>
+                          <p className="font-medium text-sm flex items-center gap-1.5">
+                            {(task as Record<string, unknown>).isRecurring || task.description?.startsWith('[RECURRING') ? (
+                              <span className="inline-flex items-center gap-1 text-xs text-primary bg-primary/10 rounded px-1.5 py-0.5">
+                                <RotateCcw className="h-3 w-3" />
+                                {(task as Record<string, unknown>).recurringFrequency as string || 'recurring'}
+                              </span>
+                            ) : null}
+                            {task.title}
+                          </p>
                           {task.description && (
                             <p className="text-xs text-muted-foreground truncate max-w-[200px]">
                               {task.description}
@@ -987,6 +1025,44 @@ export default function TasksList() {
               />
             </div>
             <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-1.5"><RotateCcw className="h-4 w-4" /> Recurring Task</Label>
+                <Switch
+                  checked={formData.isRecurring}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isRecurring: checked }))}
+                />
+              </div>
+              {formData.isRecurring && (
+                <div className="grid grid-cols-2 gap-4 pl-6">
+                  <div className="space-y-2">
+                    <Label>Frequency</Label>
+                    <Select
+                      value={formData.recurringFrequency}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, recurringFrequency: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                        <SelectItem value="custom">Custom</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Date (optional)</Label>
+                    <Input
+                      type="date"
+                      value={formData.recurringEndDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, recurringEndDate: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="notes">Notes</Label>
               <Textarea
                 id="notes"
@@ -1175,6 +1251,44 @@ export default function TasksList() {
                 value={formData.scheduledAt}
                 onChange={(e) => setFormData(prev => ({ ...prev, scheduledAt: e.target.value }))}
               />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-1.5"><RotateCcw className="h-4 w-4" /> Recurring Task</Label>
+                <Switch
+                  checked={formData.isRecurring}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isRecurring: checked }))}
+                />
+              </div>
+              {formData.isRecurring && (
+                <div className="grid grid-cols-2 gap-4 pl-6">
+                  <div className="space-y-2">
+                    <Label>Frequency</Label>
+                    <Select
+                      value={formData.recurringFrequency}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, recurringFrequency: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                        <SelectItem value="custom">Custom</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Date (optional)</Label>
+                    <Input
+                      type="date"
+                      value={formData.recurringEndDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, recurringEndDate: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-notes">Notes</Label>

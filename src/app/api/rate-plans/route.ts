@@ -59,8 +59,16 @@ export async function GET(request: NextRequest) {    const user = await requireP
             },
           },
         },
+        derivedFrom: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            basePrice: true,
+          },
+        },
         _count: {
-          select: { priceOverrides: true, channelMappings: true },
+          select: { priceOverrides: true, channelMappings: true, derivedPlans: true },
         },
       },
       orderBy: [
@@ -160,6 +168,9 @@ export async function POST(request: NextRequest) {    const user = await require
       promoStart,
       promoEnd,
       status = 'active',
+      derivedFromId,
+      derivationType,
+      derivationValue,
     } = body;
 
     // Validate required fields
@@ -235,6 +246,37 @@ export async function POST(request: NextRequest) {    const user = await require
       );
     }
 
+    // Validate derivation fields
+    if (derivedFromId) {
+      const parentPlan = await db.ratePlan.findFirst({
+        where: { id: derivedFromId, tenantId: user.tenantId, deletedAt: null },
+      });
+      if (!parentPlan) {
+        return NextResponse.json(
+          { success: false, error: { code: 'INVALID_DERIVATION', message: 'Derived-from rate plan not found' } },
+          { status: 400 }
+        );
+      }
+      if (!derivationType || !['percentage', 'fixed'].includes(derivationType)) {
+        return NextResponse.json(
+          { success: false, error: { code: 'INVALID_DERIVATION', message: 'Derivation type must be "percentage" or "fixed"' } },
+          { status: 400 }
+        );
+      }
+      if (derivationValue === undefined || derivationValue === null) {
+        return NextResponse.json(
+          { success: false, error: { code: 'INVALID_DERIVATION', message: 'Derivation value is required when deriving from a plan' } },
+          { status: 400 }
+        );
+      }
+      // Auto-calculate basePrice from parent plan
+      if (derivationType === 'percentage') {
+        basePrice = Math.max(0, parentPlan.basePrice * (1 + derivationValue / 100));
+      } else {
+        basePrice = Math.max(0, parentPlan.basePrice + derivationValue);
+      }
+    }
+
     const ratePlan = await db.ratePlan.create({
       data: {
         tenantId: user.tenantId,
@@ -258,6 +300,9 @@ export async function POST(request: NextRequest) {    const user = await require
         promoStart: promoStart ? new Date(promoStart) : null,
         promoEnd: promoEnd ? new Date(promoEnd) : null,
         status,
+        derivedFromId: derivedFromId || null,
+        derivationType: derivationType || null,
+        derivationValue: derivationValue !== undefined ? derivationValue : null,
       },
       include: {
         roomType: {

@@ -58,6 +58,10 @@ import {
   Trash2,
   Mail,
   Phone,
+  ArrowRightLeft,
+  BedDouble,
+  DollarSign,
+  AlertCircle,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -140,9 +144,23 @@ export default function Waitlist() {
   // Dialog states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isConvertOpen, setIsConvertOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<WaitlistEntry | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [createTab, setCreateTab] = useState<'existing' | 'new'>('existing');
+
+  // Convert to booking state
+  const [convertRooms, setConvertRooms] = useState<Array<{ id: string; number: string; roomType: { name: string }; floor: number }>>([]);
+  const [convertSelectedRoom, setConvertSelectedRoom] = useState<string>('');
+  const [convertRatePlan, setConvertRatePlan] = useState<string>('standard');
+  const [isLoadingConvertRooms, setIsLoadingConvertRooms] = useState(false);
+  const [ratePlans] = useState([
+    { id: 'standard', name: 'Standard Rate', description: 'Regular rack rate' },
+    { id: 'corporate', name: 'Corporate Rate', description: 'Corporate discounted rate' },
+    { id: 'government', name: 'Government Rate', description: 'Government/military rate' },
+    { id: 'promo', name: 'Promotional Rate', description: 'Special promotion rate' },
+    { id: 'group', name: 'Group Rate', description: 'Group booking rate' },
+  ]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -481,6 +499,123 @@ export default function Waitlist() {
     }
   };
 
+  // Open convert to booking dialog
+  const openConvertDialog = async (entry: WaitlistEntry) => {
+    setSelectedEntry(entry);
+    setConvertSelectedRoom('');
+    setConvertRatePlan('standard');
+    setIsConvertOpen(true);
+    setIsLoadingConvertRooms(true);
+    try {
+      const response = await fetch(
+        `/api/rooms/available?propertyId=${entry.property.id}&checkIn=${entry.checkIn}&checkOut=${entry.checkOut}`
+      );
+      if (!response.ok) throw new Error('Failed to fetch rooms');
+      const result = await response.json();
+      if (result.success) {
+        setConvertRooms(result.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching available rooms for conversion:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch available rooms',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingConvertRooms(false);
+    }
+  };
+
+  // Handle convert to booking
+  const handleConvertToBooking = async () => {
+    if (!selectedEntry || !convertSelectedRoom) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please select a room to book',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Create the booking
+      const bookingResponse = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          propertyId: selectedEntry.property.id,
+          guestId: selectedEntry.guest.id,
+          roomTypeId: selectedEntry.roomType.id,
+          roomId: convertSelectedRoom,
+          checkIn: new Date(selectedEntry.checkIn).toISOString(),
+          checkOut: new Date(selectedEntry.checkOut).toISOString(),
+          adults: selectedEntry.adults,
+          children: selectedEntry.children,
+          source: 'walk_in',
+          ratePlan: convertRatePlan,
+          notes: `Converted from waitlist entry. ${selectedEntry.notes || ''}`,
+        }),
+      });
+
+      if (!bookingResponse.ok) {
+        const errorText = await bookingResponse.text().catch(() => 'Unknown error');
+        throw new Error(`Booking API error ${bookingResponse.status}: ${errorText}`);
+      }
+      const bookingResult = await bookingResponse.json();
+
+      if (!bookingResult.success) {
+        toast({
+          title: 'Error',
+          description: bookingResult.error?.message || 'Failed to create booking',
+          variant: 'destructive',
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      // Update waitlist status to converted
+      const waitlistResponse = await fetch('/api/waitlist', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedEntry.id, status: 'converted' }),
+      });
+
+      if (waitlistResponse.ok) {
+        const waitlistResult = await waitlistResponse.json();
+        if (waitlistResult.success) {
+          toast({
+            title: 'Booking Created!',
+            description: `Successfully converted waitlist entry to booking ${bookingResult.data?.confirmationCode || ''}`,
+          });
+          setIsConvertOpen(false);
+          setSelectedEntry(null);
+          fetchEntries();
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      toast({
+        title: 'Partial Success',
+        description: 'Booking created but waitlist status update failed',
+      });
+      setIsConvertOpen(false);
+      setSelectedEntry(null);
+      fetchEntries();
+    } catch (error) {
+      console.error('Error converting to booking:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to convert to booking',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       propertyId: properties[0]?.id || '',
@@ -652,6 +787,11 @@ export default function Waitlist() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    {(entry.status === 'waiting' || entry.status === 'notified') && (
+                      <DropdownMenuItem onClick={() => openConvertDialog(entry)} className="text-emerald-600 dark:text-emerald-400 font-medium">
+                        <ArrowRightLeft className="h-4 w-4 mr-2" /> Convert to Booking
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={() => updateStatus(entry.id, 'notified')} disabled={entry.status !== 'waiting'}>
                       <Bell className="h-4 w-4 mr-2" /> Notify
                     </DropdownMenuItem>
@@ -798,6 +938,15 @@ export default function Waitlist() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              {(entry.status === 'waiting' || entry.status === 'notified') && (
+                                <DropdownMenuItem
+                                  onClick={() => openConvertDialog(entry)}
+                                  className="text-emerald-600 dark:text-emerald-400 font-medium"
+                                >
+                                  <ArrowRightLeft className="h-4 w-4 mr-2" />
+                                  Convert to Booking
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem
                                 onClick={() => updateStatus(entry.id, 'notified')}
                                 disabled={entry.status !== 'waiting'}
@@ -1033,6 +1182,140 @@ export default function Waitlist() {
             <Button onClick={handleCreate} disabled={isSaving}>
               {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Add to Waitlist
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Convert to Booking Dialog */}
+      <Dialog open={isConvertOpen} onOpenChange={setIsConvertOpen}>
+        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90dvh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5 text-emerald-500" />
+              Convert to Booking
+            </DialogTitle>
+            <DialogDescription>
+              Create a booking for {selectedEntry?.guest.firstName} {selectedEntry?.guest.lastName} from the waitlist
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedEntry && (
+            <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-2 -mr-2">
+              {/* Pre-filled Guest Info */}
+              <Card className="p-4 bg-muted/50">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Guest</span>
+                    <p className="font-medium">{selectedEntry.guest.firstName} {selectedEntry.guest.lastName}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Property</span>
+                    <p className="font-medium">{selectedEntry.property.name}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Room Type</span>
+                    <p className="font-medium">{selectedEntry.roomType.name}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Guests</span>
+                    <p className="font-medium">{selectedEntry.adults} adult{selectedEntry.adults > 1 ? 's' : ''}{selectedEntry.children > 0 ? `, ${selectedEntry.children} child${selectedEntry.children > 1 ? 'ren' : ''}` : ''}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Dates</span>
+                    <p className="font-medium">
+                      <Calendar className="h-3 w-3 inline mr-1" />
+                      {format(new Date(selectedEntry.checkIn), 'MMM d, yyyy')} - {format(new Date(selectedEntry.checkOut), 'MMM d, yyyy')}
+                      <span className="text-muted-foreground ml-2">
+                        ({differenceInDays(new Date(selectedEntry.checkOut), new Date(selectedEntry.checkIn))} nights)
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </Card>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <BedDouble className="h-4 w-4" />
+                  Select Room *
+                </Label>
+                {isLoadingConvertRooms ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : convertRooms.length === 0 ? (
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-700 dark:text-amber-300">
+                    <AlertCircle className="h-4 w-4" />
+                    <span className="text-sm">No available rooms for the selected dates</span>
+                  </div>
+                ) : (
+                  <ScrollArea className="h-40">
+                    <div className="grid grid-cols-3 gap-2 pr-2">
+                      {convertRooms.map(room => (
+                        <button
+                          key={room.id}
+                          type="button"
+                          onClick={() => setConvertSelectedRoom(room.id)}
+                          className={cn(
+                            'p-3 rounded-lg border-2 text-center transition-all',
+                            convertSelectedRoom === room.id
+                              ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30'
+                              : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                          )}
+                        >
+                          <div className="text-lg font-bold">{room.number}</div>
+                          <div className="text-[10px] text-muted-foreground">Floor {room.floor}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">{room.roomType?.name}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </div>
+
+              {/* Rate Plan Selector */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Rate Plan
+                </Label>
+                <Select value={convertRatePlan} onValueChange={setConvertRatePlan}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select rate plan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ratePlans.map(rp => (
+                      <SelectItem key={rp.id} value={rp.id}>
+                        <div>
+                          <div className="font-medium">{rp.name}</div>
+                          <div className="text-xs text-muted-foreground">{rp.description}</div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedEntry.notes && (
+                <div className="space-y-2">
+                  <Label>Notes</Label>
+                  <div className="text-sm text-muted-foreground p-2 bg-muted rounded-md">{selectedEntry.notes}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsConvertOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConvertToBooking}
+              disabled={isSaving || !convertSelectedRoom}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+              Create Booking
             </Button>
           </DialogFooter>
         </DialogContent>

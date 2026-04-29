@@ -41,6 +41,8 @@ import {
   Clock,
   Coffee,
   Utensils,
+  GitBranch,
+  ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -78,6 +80,16 @@ interface RatePlan {
   status: string;
   roomType?: RoomType;
   overridesCount?: number;
+  // Derivation fields
+  derivedFromId?: string | null;
+  derivationType?: 'percentage' | 'fixed' | null;
+  derivationValue?: number | null;
+  derivedFrom?: {
+    id: string;
+    name: string;
+    code: string;
+    basePrice: number;
+  } | null;
 }
 
 const mealPlans = [
@@ -126,6 +138,10 @@ export function RatePlansManager() {
     maxStay: '',
     cancellationPolicy: 'moderate',
     status: 'active',
+    // Derivation fields
+    derivedFromId: '',
+    derivationType: 'percentage' as 'percentage' | 'fixed',
+    derivationValue: '',
   });
 
   // Fetch properties
@@ -248,15 +264,24 @@ export function RatePlansManager() {
 
     setIsSaving(true);
     try {
+      const payload: Record<string, unknown> = {
+        ...formData,
+        basePrice: parseFloat(formData.basePrice) || 0,
+        maxStay: formData.maxStay ? parseInt(formData.maxStay) : null,
+        cancellationHours: cancellationPolicies.find(p => p.value === formData.cancellationPolicy)?.hours,
+      };
+
+      // Include derivation fields if deriving from another plan
+      if (formData.derivedFromId) {
+        payload.derivedFromId = formData.derivedFromId;
+        payload.derivationType = formData.derivationType;
+        payload.derivationValue = parseFloat(formData.derivationValue) || 0;
+      }
+
       const response = await fetch('/api/rate-plans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          basePrice: parseFloat(formData.basePrice),
-          maxStay: formData.maxStay ? parseInt(formData.maxStay) : null,
-          cancellationHours: cancellationPolicies.find(p => p.value === formData.cancellationPolicy)?.hours,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -395,6 +420,10 @@ export function RatePlansManager() {
       maxStay: plan.maxStay?.toString() || '',
       cancellationPolicy: plan.cancellationPolicy || 'moderate',
       status: plan.status,
+      // Derivation fields (read-only in edit)
+      derivedFromId: plan.derivedFromId || '',
+      derivationType: (plan.derivationType as 'percentage' | 'fixed') || 'percentage',
+      derivationValue: plan.derivationValue?.toString() || '',
     });
     setIsEditOpen(true);
   };
@@ -416,6 +445,10 @@ export function RatePlansManager() {
       maxStay: '',
       cancellationPolicy: 'moderate',
       status: 'active',
+      // Derivation fields
+      derivedFromId: '',
+      derivationType: 'percentage',
+      derivationValue: '',
     });
   };
 
@@ -437,6 +470,33 @@ export function RatePlansManager() {
     const plan = ratePlans.find(p => p.roomTypeId === roomTypeId);
     return plan?.roomType?.name || roomTypes.find(rt => rt.id === roomTypeId)?.name || 'Unknown';
   };
+
+  const getDerivationLabel = (plan: RatePlan): string | null => {
+    if (!plan.derivedFrom || !plan.derivationType || plan.derivationValue == null) return null;
+    const sign = plan.derivationValue < 0 ? '-' : '+';
+    const absVal = Math.abs(plan.derivationValue);
+    if (plan.derivationType === 'percentage') {
+      return `${plan.name} = ${plan.derivedFrom.name} ${sign}${absVal}%`;
+    }
+    return `${plan.name} = ${plan.derivedFrom.name} ${sign}${absVal}`;
+  };
+
+  // Filter rate plans for derivation dropdown: only show plans for the selected room type
+  const derivationCandidates = formData.roomTypeId
+    ? ratePlans.filter(p => p.roomTypeId === formData.roomTypeId && p.status === 'active' && !p.derivedFromId)
+    : [];
+
+  // Computed derived base price preview
+  const derivedBasePreview = (() => {
+    if (!formData.derivedFromId || !formData.derivationValue) return null;
+    const parent = ratePlans.find(p => p.id === formData.derivedFromId);
+    if (!parent) return null;
+    const val = parseFloat(formData.derivationValue) || 0;
+    if (formData.derivationType === 'percentage') {
+      return Math.max(0, parent.basePrice * (1 + val / 100));
+    }
+    return Math.max(0, parent.basePrice + val);
+  })();
 
   // Stats
   const stats = {
@@ -558,6 +618,12 @@ export function RatePlansManager() {
                       <div>
                         <p className="font-medium">{plan.name}</p>
                         <p className="text-xs text-muted-foreground">{plan.code}</p>
+                        {getDerivationLabel(plan) && (
+                          <div className="flex items-center gap-1 mt-0.5 text-xs text-violet-600 dark:text-violet-400">
+                            <GitBranch className="h-3 w-3" />
+                            <span>{getDerivationLabel(plan)}</span>
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -565,7 +631,14 @@ export function RatePlansManager() {
                     </TableCell>
                     <TableCell>{getMealPlanLabel(plan.mealPlan)}</TableCell>
                     <TableCell>
-                      <span className="font-medium">{formatCurrency(plan.basePrice)}</span>
+                      <div>
+                        <span className="font-medium">{formatCurrency(plan.basePrice)}</span>
+                        {plan.derivedFrom && (
+                          <p className="text-xs text-muted-foreground">
+                            from {formatCurrency(plan.derivedFrom.basePrice)}
+                          </p>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>{plan.minStay} night{plan.minStay > 1 ? 's' : ''}</TableCell>
                     <TableCell className="text-sm">{getCancellationLabel(plan.cancellationPolicy)}</TableCell>
@@ -616,7 +689,10 @@ export function RatePlansManager() {
             formData={formData}
             setFormData={setFormData}
             roomTypes={roomTypes}
+            ratePlans={ratePlans}
             onNameChange={handleNameChange}
+            derivedBasePreview={derivedBasePreview}
+            derivationCandidates={derivationCandidates}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
@@ -643,8 +719,11 @@ export function RatePlansManager() {
             formData={formData}
             setFormData={setFormData}
             roomTypes={roomTypes}
+            ratePlans={ratePlans}
             onNameChange={handleNameChange}
             isEdit
+            derivedBasePreview={derivedBasePreview}
+            derivationCandidates={derivationCandidates}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditOpen(false)}>
@@ -694,26 +773,120 @@ interface RatePlanFormData {
   maxStay: string;
   cancellationPolicy: string;
   status: string;
+  // Derivation fields
+  derivedFromId: string;
+  derivationType: 'percentage' | 'fixed';
+  derivationValue: string;
 }
 
 interface RatePlanFormProps {
   formData: RatePlanFormData;
   setFormData: React.Dispatch<React.SetStateAction<RatePlanFormData>>;
   roomTypes: RoomType[];
+  ratePlans: RatePlan[];
   onNameChange: (name: string) => void;
   isEdit?: boolean;
+  derivedBasePreview?: number | null;
+  derivationCandidates: RatePlan[];
 }
 
-function RatePlanForm({ formData, setFormData, roomTypes, onNameChange, isEdit }: RatePlanFormProps) {
+function RatePlanForm({ formData, setFormData, roomTypes, ratePlans, onNameChange, isEdit, derivedBasePreview, derivationCandidates }: RatePlanFormProps) {
   const { formatCurrency } = useCurrency();
+  const isDerived = !!formData.derivedFromId;
+
+  const handleDerivedFromChange = (value: string) => {
+    if (value === 'none') {
+      setFormData(prev => ({ ...prev, derivedFromId: '', derivationValue: '', basePrice: '' }));
+    } else {
+      setFormData(prev => ({ ...prev, derivedFromId: value }));
+    }
+  };
+
   return (
     <div className="grid gap-4 py-4">
+      {/* Derivation Section (create only) */}
+      {!isEdit && (
+        <div className={cn(
+          'rounded-lg border p-4 space-y-3',
+          isDerived && 'border-violet-300 bg-violet-50/50 dark:border-violet-800 dark:bg-violet-950/30'
+        )}>
+          <div className="flex items-center gap-2 font-medium text-sm">
+            <GitBranch className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+            Derive from Existing Plan (Optional)
+          </div>
+          <div className="space-y-2">
+            <Select
+              value={formData.derivedFromId || 'none'}
+              onValueChange={handleDerivedFromChange}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="None (standalone plan)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None (standalone plan)</SelectItem>
+                {derivationCandidates.map(rp => (
+                  <SelectItem key={rp.id} value={rp.id}>
+                    {rp.name} ({formatCurrency(rp.basePrice)})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {isDerived && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Adjustment Type</Label>
+                  <Select
+                    value={formData.derivationType}
+                    onValueChange={(v) => setFormData(prev => ({ ...prev, derivationType: v as 'percentage' | 'fixed' }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="percentage">Percentage (%)</SelectItem>
+                      <SelectItem value="fixed">Fixed Amount</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Adjustment Value</Label>
+                  <div className="relative">
+                    {formData.derivationType === 'percentage' ? (
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                    ) : (
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    )}
+                    <Input
+                      type="number"
+                      className={formData.derivationType === 'percentage' ? 'pl-7' : 'pl-9'}
+                      value={formData.derivationValue}
+                      onChange={(e) => setFormData(prev => ({ ...prev, derivationValue: e.target.value }))}
+                      placeholder={formData.derivationType === 'percentage' ? '-15' : '-20'}
+                      step="0.01"
+                    />
+                  </div>
+                </div>
+              </div>
+              {derivedBasePreview !== null && (
+                <div className="flex items-center gap-2 text-sm bg-background rounded-md px-3 py-2 border">
+                  <ArrowRight className="h-4 w-4 text-violet-500" />
+                  <span className="text-muted-foreground">Calculated base price:</span>
+                  <span className="font-semibold">{formatCurrency(derivedBasePreview)}</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {/* Room Type Selection */}
       <div className="space-y-2">
         <Label htmlFor="roomTypeId">Room Type *</Label>
         <Select
           value={formData.roomTypeId as string}
-          onValueChange={(value) => setFormData(prev => ({ ...prev, roomTypeId: value }))}
+          onValueChange={(value) => setFormData(prev => ({ ...prev, roomTypeId: value, derivedFromId: '' }))}
           disabled={isEdit}
         >
           <SelectTrigger>
@@ -767,7 +940,12 @@ function RatePlanForm({ formData, setFormData, roomTypes, onNameChange, isEdit }
       {/* Base Price and Meal Plan */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="basePrice">Base Price *</Label>
+          <Label htmlFor="basePrice">
+            Base Price *
+            {isEdit && formData.derivedFromId && (
+              <span className="text-xs text-violet-600 dark:text-violet-400 ml-2">(auto-derived)</span>
+            )}
+          </Label>
           <div className="relative">
             <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -775,12 +953,23 @@ function RatePlanForm({ formData, setFormData, roomTypes, onNameChange, isEdit }
               type="number"
               className="pl-9"
               min={0}
-              value={formData.basePrice as string}
+              value={isDerived && !isEdit && derivedBasePreview !== null ? derivedBasePreview.toFixed(2) : (formData.basePrice as string)}
               onChange={(e) => setFormData(prev => ({ ...prev, basePrice: e.target.value }))}
               placeholder="199.00"
               step="0.01"
+              disabled={isDerived && !isEdit}
             />
           </div>
+          {isDerived && !isEdit && derivedBasePreview !== null && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Auto-calculated from parent plan
+            </p>
+          )}
+          {isEdit && formData.derivedFromId && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Derived from: {ratePlans.find(rp => rp.id === formData.derivedFromId)?.name || 'Unknown'}
+            </p>
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="mealPlan">Meal Plan</Label>

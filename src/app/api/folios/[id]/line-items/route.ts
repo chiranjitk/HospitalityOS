@@ -113,7 +113,10 @@ export async function POST(
     const totalAmount = qty * price;
     const taxAmount = totalAmount * (tax / 100);
 
-    // Create line item and update folio totals
+    // Determine source
+    const source = (body as Record<string, unknown>).source as string || 'frontdesk';
+
+    // Create line item, update folio totals, and add audit trail
     const result = await db.$transaction(async (tx) => {
       const lineItem = await tx.folioLineItem.create({
         data: {
@@ -140,6 +143,23 @@ export async function POST(
           taxes: { increment: taxAmount },
           totalAmount: { increment: totalAmount + taxAmount },
           balance: { increment: totalAmount + taxAmount },
+        },
+      });
+
+      // Create audit trail entry
+      await tx.folioLineItemAudit.create({
+        data: {
+          tenantId: tenantId as string,
+          folioId: id,
+          lineItemId: lineItem.id,
+          action: 'created',
+          description,
+          category,
+          amount: totalAmount + taxAmount,
+          quantity: qty,
+          userId: user.id,
+          userName: user.name || user.email || null,
+          source,
         },
       });
 
@@ -217,8 +237,28 @@ export async function DELETE(
       );
     }
 
-    // Delete line item and update folio totals
+    // Determine source from request body or default
+    const source = request.headers.get('x-source') || 'frontdesk';
+
+    // Delete line item, update folio totals, and add audit trail
     const result = await db.$transaction(async (tx) => {
+      // Create audit trail entry before deletion
+      await tx.folioLineItemAudit.create({
+        data: {
+          tenantId: tenantId as string,
+          folioId: id,
+          lineItemId: lineItem.id,
+          action: 'deleted',
+          description: lineItem.description,
+          category: lineItem.category,
+          amount: lineItem.totalAmount + lineItem.taxAmount,
+          quantity: lineItem.quantity,
+          userId: user.id,
+          userName: user.name || user.email || null,
+          source,
+        },
+      });
+
       await tx.folioLineItem.delete({
         where: { id: lineItemId },
       });

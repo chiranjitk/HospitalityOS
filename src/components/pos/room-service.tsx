@@ -48,7 +48,7 @@ interface RoomServiceOrder {
   priority: string;
   orderCategory: string;
   totalAmount: number;
-  estimatedDelivery: string;
+  estimatedDelivery: number;
   createdAt: string;
 }
 

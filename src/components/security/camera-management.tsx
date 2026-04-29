@@ -67,6 +67,7 @@ import {
   XCircle,
   Info,
   VideoOff,
+  LayoutGrid,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -297,6 +298,10 @@ export default function CameraManagement() {
   const [testStreamOpen, setTestStreamOpen] = useState(false);
   const [testStreamCamera, setTestStreamCamera] = useState<Camera | null>(null);
   const [testStreamStatus, setTestStreamStatus] = useState<'loading' | 'success' | 'fail'>('loading');
+
+  // --- Grid View Dialog ---
+  const [gridViewOpen, setGridViewOpen] = useState(false);
+  const [gridCameras, setGridCameras] = useState<(string | null)[]>([null, null, null, null]);
 
   // ============================================================
   // Data fetching
@@ -609,10 +614,16 @@ export default function CameraManagement() {
               Manage surveillance cameras, groups, and stream configurations
             </p>
           </div>
-          <Button onClick={fetchData} disabled={isLoading} variant="outline" size="sm">
-            <RefreshCw className={cn('h-4 w-4 mr-2', isLoading && 'animate-spin')} />
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => { setGridCameras([null, null, null, null]); setGridViewOpen(true); }}>
+              <LayoutGrid className="h-4 w-4 mr-2" />
+              Grid View
+            </Button>
+            <Button onClick={fetchData} disabled={isLoading} variant="outline" size="sm">
+              <RefreshCw className={cn('h-4 w-4 mr-2', isLoading && 'animate-spin')} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {/* ===== Stats Cards ===== */}
@@ -1261,6 +1272,79 @@ export default function CameraManagement() {
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setTestStreamOpen(false)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        {/* ============================================================ */}
+        {/* Grid View Dialog                                               */}
+        {/* ============================================================ */}
+        <Dialog open={gridViewOpen} onOpenChange={setGridViewOpen}>
+          <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <LayoutGrid className="h-5 w-5" />
+                Camera Grid View
+              </DialogTitle>
+              <DialogDescription>
+                Monitor up to 4 camera streams simultaneously.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid grid-cols-2 gap-3">
+              {gridCameras.map((camId, idx) => {
+                const selectedCamera = camId ? cameras.find(c => c.id === camId) : null;
+                const onlineCameras = cameras.filter(c => c.status === 'online' && c.streamUrl);
+                return (
+                  <div key={idx} className="relative bg-black rounded-lg overflow-hidden min-h-[200px]">
+                    {/* Camera selector dropdown */}
+                    <div className="absolute top-2 left-2 right-2 z-10">
+                      <Select
+                        value={camId || '__none__'}
+                        onValueChange={v => setGridCameras(prev => {
+                          const next = [...prev];
+                          next[idx] = v === '__none__' ? null : v;
+                          return next;
+                        })}
+                      >
+                        <SelectTrigger className="h-7 text-xs bg-black/70 text-white border-white/20 backdrop-blur-sm">
+                          <SelectValue placeholder="Select camera" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No camera</SelectItem>
+                          {onlineCameras.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Video player */}
+                    {selectedCamera?.streamUrl ? (
+                      <StreamTestPlayer
+                        streamUrl={selectedCamera.streamUrl}
+                        onStatus={() => {}}
+                      />
+                    ) : (
+                      <div className="aspect-video flex items-center justify-center">
+                        <VideoOff className="h-8 w-8 text-white/30" />
+                      </div>
+                    )}
+
+                    {/* Camera name overlay */}
+                    {selectedCamera && (
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-1.5">
+                        <span className="text-xs text-white font-medium truncate block">
+                          {selectedCamera.name}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setGridViewOpen(false)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -19,6 +19,8 @@ export async function GET(
     }
 
     const { id } = await params;
+    const searchParams = request.nextUrl.searchParams;
+    const templateId = searchParams.get('templateId');
 
     // Try to find an Invoice record first
     const invoice = await db.invoice.findFirst({
@@ -36,10 +38,19 @@ export async function GET(
         property = folio?.booking?.property || null;
       }
 
+      // Fetch template if specified
+      let template: { primaryColor: string; logoUrl?: string | null; footerText?: string | null } | null = null;
+      if (templateId) {
+        template = await db.invoiceTemplate.findFirst({
+          where: { id: templateId, tenantId: user.tenantId },
+          select: { primaryColor: true, logoUrl: true, footerText: true },
+        });
+      }
+
       let lineItems: Array<{ description: string; quantity: number; unitPrice: number; totalAmount: number; taxRate: number; taxAmount: number }> = [];
       try { lineItems = JSON.parse(invoice.lineItems || '[]'); } catch { /* empty */ }
 
-      const pdfBuffer = buildInvoicePdf(invoice, lineItems, tenant, property);
+      const pdfBuffer = buildInvoicePdf(invoice, lineItems, tenant, property, template);
       return new NextResponse(pdfBuffer, {
         headers: {
           'Content-Type': 'application/pdf',
@@ -85,8 +96,14 @@ function buildInvoicePdf(
   invoice: { invoiceNumber: string; customerName: string; customerEmail?: string | null; customerAddress?: string | null; customerPhone?: string | null; subtotal: number; taxes: number; discount: number; totalAmount: number; currency: string; issuedAt?: Date | null; dueAt?: Date | null; paidAt?: Date | null; status: string; notes?: string | null },
   lineItems: Array<{ description: string; quantity: number; unitPrice: number; totalAmount: number; taxRate: number; taxAmount: number }>,
   tenant: { name?: string; address?: string | null; city?: string | null; country?: string | null; phone?: string | null; email?: string } | null,
-  property: { name: string; address: string; city?: string | null; state?: string | null; country: string; postalCode?: string | null; phone?: string | null; email?: string | null; taxId?: string | null } | null
+  property: { name: string; address: string; city?: string | null; state?: string | null; country: string; postalCode?: string | null; phone?: string | null; email?: string | null; taxId?: string | null } | null,
+  template: { primaryColor: string; logoUrl?: string | null; footerText?: string | null } | null = null
 ): Buffer {
+  // Parse template primary color to RGB
+  const hexColor = template?.primaryColor || '#10b981';
+  const primaryR = parseInt(hexColor.slice(1, 3), 16);
+  const primaryG = parseInt(hexColor.slice(3, 5), 16);
+  const primaryB = parseInt(hexColor.slice(5, 7), 16);
   const doc = new jsPDF() as jsPDF & { lastAutoTable: { finalY: number } };
   const companyName = property?.name || tenant?.name || 'StaySuite Hotel';
   const companyAddr = property ? [property.address, property.city, property.state, property.country, property.postalCode].filter(Boolean).join(', ') : tenant ? [tenant.address, tenant.city, tenant.country].filter(Boolean).join(', ') : '';
@@ -95,7 +112,7 @@ function buildInvoicePdf(
 
   // Header
   doc.setFontSize(28);
-  doc.setTextColor(16, 185, 129);
+  doc.setTextColor(primaryR, primaryG, primaryB);
   doc.text('INVOICE', 105, 22, { align: 'center' });
 
   // Company info
@@ -174,7 +191,7 @@ function buildInvoicePdf(
     head: [['Description', 'Qty', 'Unit Price', 'Tax', 'Total']],
     body: tableData,
     theme: 'striped',
-    headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+    headStyles: { fillColor: [primaryR, primaryG, primaryB], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
     styles: { fontSize: 8, cellPadding: 3 },
     columnStyles: {
       0: { cellWidth: 75 },
@@ -205,7 +222,7 @@ function buildInvoicePdf(
   }
 
   const totalY = invoice.discount > 0 ? fy + 18 : fy + 12;
-  doc.setDrawColor(16, 185, 129);
+  doc.setDrawColor(primaryR, primaryG, primaryB);
   doc.setLineWidth(0.5);
   doc.line(tx, totalY - 2, tx + 60, totalY - 2);
   doc.setLineWidth(0.2);
@@ -214,7 +231,7 @@ function buildInvoicePdf(
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 30, 30);
   doc.text('Total:', tx, totalY + 4);
-  doc.setTextColor(16, 185, 129);
+  doc.setTextColor(primaryR, primaryG, primaryB);
   doc.text(`${invoice.currency} ${invoice.totalAmount.toFixed(2)}`, tx + 55, totalY + 4, { align: 'right' });
 
   if (invoice.paidAt) {
@@ -240,7 +257,8 @@ function buildInvoicePdf(
   doc.setFontSize(8);
   doc.setTextColor(160, 160, 160);
   doc.setFont('helvetica', 'normal');
-  doc.text('Thank you for your business.', 105, footerY + 3, { align: 'center' });
+  const footerMessage = template?.footerText || 'Thank you for your business.';
+  doc.text(footerMessage, 105, footerY + 3, { align: 'center' });
   doc.text(`Generated on ${new Date().toLocaleString()}`, 105, footerY + 8, { align: 'center' });
 
   return Buffer.from(doc.output('arraybuffer'));
@@ -337,7 +355,7 @@ function buildLegacyFolioPdf(folio: {
     head: [['Description', 'Qty', 'Unit Price', 'Total']],
     body: tableData,
     theme: 'striped',
-    headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold' },
+    headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold' }, // Legacy folio uses fixed emerald
     styles: { fontSize: 9 },
     columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 20, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
   });

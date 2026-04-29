@@ -3,8 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -32,10 +35,13 @@ import {
   XCircle,
   CheckCircle,
   CalendarX,
+  CalendarRange,
+  GitBranch,
+  ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, isAfter, isBefore } from 'date-fns';
 import { useTranslations } from 'next-intl';
 
 interface Booking {
@@ -133,6 +139,14 @@ export default function Conflicts() {
   const [targetRoomId, setTargetRoomId] = useState<string | undefined>(undefined);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Additional resolution state
+  const [modifyCheckIn, setModifyCheckIn] = useState<string>('');
+  const [modifyCheckOut, setModifyCheckOut] = useState<string>('');
+  const [splitDate, setSplitDate] = useState<string>('');
+  const [splitRoomId, setSplitRoomId] = useState<string>('');
+  const [keepReason, setKeepReason] = useState<string>('');
+  const [dateError, setDateError] = useState<string>('');
+
   // Fetch properties
   useEffect(() => {
     const controller = new AbortController();
@@ -228,6 +242,52 @@ export default function Conflicts() {
     return () => controller.abort();
   }, [isResolveOpen, propertyFilter]);
 
+  // Validate resolution-specific inputs
+  const validateResolution = (): boolean => {
+    setDateError('');
+
+    if (resolution === 'modify_dates') {
+      if (!modifyCheckIn || !modifyCheckOut) {
+        setDateError('Both check-in and check-out dates are required');
+        return false;
+      }
+      const ci = new Date(modifyCheckIn);
+      const co = new Date(modifyCheckOut);
+      if (ci >= co) {
+        setDateError('Check-out must be after check-in');
+        return false;
+      }
+    }
+
+    if (resolution === 'split_stay') {
+      if (!splitDate) {
+        setDateError('Split date is required');
+        return false;
+      }
+      // Validate split date is between booking dates
+      if (selectedType === 'conflict') {
+        const conflict = selectedConflict as Conflict;
+        const bookings = conflict.bookings;
+        if (bookings.length > 0) {
+          const sd = new Date(splitDate);
+          const earliest = new Date(Math.min(...bookings.map(b => new Date(b.checkIn).getTime())));
+          const latest = new Date(Math.max(...bookings.map(b => new Date(b.checkOut).getTime())));
+          if (isBefore(sd, earliest) || !isBefore(sd, latest)) {
+            setDateError('Split date must be between the booking check-in and check-out dates');
+            return false;
+          }
+        }
+      }
+    }
+
+    if (resolution === 'keep_both' && !keepReason.trim()) {
+      setDateError('Please provide a reason for keeping both bookings');
+      return false;
+    }
+
+    return true;
+  };
+
   // Resolve conflict
   const handleResolve = async () => {
     if (!selectedConflict || !resolution) {
@@ -248,21 +308,44 @@ export default function Conflicts() {
       return;
     }
 
+    if (!validateResolution()) {
+      return;
+    }
+
     setIsSaving(true);
     try {
       const bookingIds = selectedType === 'conflict'
         ? (selectedConflict as Conflict).bookings.map(b => b.id)
         : (selectedConflict as Overbooking).bookings.map(b => b.id);
 
+      const conflictId = selectedType === 'conflict'
+        ? (selectedConflict as Conflict).roomNumber || `conflict_${Date.now()}`
+        : `overbooking_${(selectedConflict as Overbooking).roomTypeId}_${Date.now()}`;
+
+      const body: Record<string, unknown> = {
+        conflictId,
+        conflictType: selectedType,
+        bookingIds,
+        resolution,
+      };
+
+      if (resolution === 'move_room') body.targetRoomId = targetRoomId;
+      if (resolution === 'modify_dates') {
+        body.newCheckIn = modifyCheckIn;
+        body.newCheckOut = modifyCheckOut;
+      }
+      if (resolution === 'split_stay') {
+        body.splitDate = splitDate;
+        if (splitRoomId) body.targetRoomId = splitRoomId;
+      }
+      if (resolution === 'keep_both') {
+        body.cancellationReason = keepReason;
+      }
+
       const response = await fetch('/api/bookings/conflicts', {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          conflictType: selectedType,
-          bookingIds,
-          resolution,
-          targetRoomId: resolution === 'move_room' ? targetRoomId : undefined,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -305,6 +388,12 @@ export default function Conflicts() {
     setSelectedType(type);
     setResolution('');
     setTargetRoomId('');
+    setModifyCheckIn('');
+    setModifyCheckOut('');
+    setSplitDate('');
+    setSplitRoomId('');
+    setKeepReason('');
+    setDateError('');
     setIsResolveOpen(true);
   };
 
@@ -568,7 +657,7 @@ export default function Conflicts() {
 
       {/* Resolve Dialog */}
       <Dialog open={isResolveOpen} onOpenChange={setIsResolveOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[85dvh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Resolve Conflict</DialogTitle>
             <DialogDescription>
@@ -576,11 +665,27 @@ export default function Conflicts() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          {/* Conflict summary */}
+          {selectedConflict && selectedType === 'conflict' && (
+            <div className="flex flex-wrap gap-2 p-2 bg-muted/50 rounded-md text-xs">
+              {(selectedConflict as Conflict).bookings.map(b => (
+                <Badge key={b.id} variant="outline" className="gap-1">
+                  <Avatar className="h-4 w-4">
+                    <AvatarFallback className="text-[8px]">
+                      {getInitials(b.primaryGuest.firstName, b.primaryGuest.lastName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  {b.confirmationCode}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-4 py-2 flex-1 overflow-y-auto">
             {/* Resolution Options */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Resolution Method</label>
-              <Select value={resolution} onValueChange={setResolution}>
+              <Label>Resolution Method</Label>
+              <Select value={resolution} onValueChange={(val) => { setResolution(val); setDateError(''); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select resolution" />
                 </SelectTrigger>
@@ -597,14 +702,39 @@ export default function Conflicts() {
                       Cancel Conflicting Booking
                     </div>
                   </SelectItem>
+                  <SelectItem value="modify_dates">
+                    <div className="flex items-center gap-2">
+                      <CalendarRange className="h-4 w-4" />
+                      Modify Dates
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="split_stay">
+                    <div className="flex items-center gap-2">
+                      <GitBranch className="h-4 w-4" />
+                      Split Stay
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="keep_both">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4" />
+                      Keep Both (Acknowledge Overbooking)
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Room Selection */}
+            {/* Validation error */}
+            {dateError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md">
+                <p className="text-sm text-red-500 dark:text-red-400">{dateError}</p>
+              </div>
+            )}
+
+            {/* Move Room */}
             {resolution === 'move_room' && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Target Room</label>
+                <Label>Target Room</Label>
                 <Select value={targetRoomId} onValueChange={setTargetRoomId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select available room" />
@@ -622,15 +752,123 @@ export default function Conflicts() {
                     )}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  The most recent conflicting booking will be moved to the selected room.
+                </p>
               </div>
             )}
 
-            {/* Warning */}
+            {/* Cancel */}
             {resolution === 'cancel' && (
               <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md">
                 <p className="text-sm text-red-500 dark:text-red-400">
                   Warning: This will cancel the most recent conflicting booking. This action cannot be undone.
                 </p>
+              </div>
+            )}
+
+            {/* Modify Dates */}
+            {resolution === 'modify_dates' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-md">
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    The conflicting booking will have its dates adjusted. This may affect pricing.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="modifyCheckIn">New Check-in</Label>
+                    <Input
+                      id="modifyCheckIn"
+                      type="date"
+                      value={modifyCheckIn}
+                      onChange={(e) => setModifyCheckIn(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="modifyCheckOut">New Check-out</Label>
+                    <Input
+                      id="modifyCheckOut"
+                      type="date"
+                      value={modifyCheckOut}
+                      onChange={(e) => setModifyCheckOut(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {modifyCheckIn && modifyCheckOut && (
+                  <p className="text-xs text-muted-foreground">
+                    New stay: {modifyCheckIn} to {modifyCheckOut} (
+                    {(() => { try { return Math.ceil((new Date(modifyCheckOut).getTime() - new Date(modifyCheckIn).getTime()) / (1000 * 60 * 60 * 24)); } catch { return 0; } })()} nights)
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Split Stay */}
+            {resolution === 'split_stay' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-md">
+                  <p className="text-sm text-violet-700 dark:text-violet-300">
+                    The booking will be split into two separate bookings at the chosen date. The first part stays in the current room; the second can be moved to a different room.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="splitDate">Split Date</Label>
+                  <Input
+                    id="splitDate"
+                    type="date"
+                    value={splitDate}
+                    onChange={(e) => setSplitDate(e.target.value)}
+                  />
+                  {selectedType === 'conflict' && (selectedConflict as Conflict).bookings.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Original stay: {format(new Date((selectedConflict as Conflict).bookings[0].checkIn), 'MMM d')} - {format(new Date((selectedConflict as Conflict).bookings[0].checkOut), 'MMM d')}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Room for Second Stay (optional)</Label>
+                  <Select value={splitRoomId} onValueChange={setSplitRoomId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Same room (auto-assign if unavailable)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="same">Keep same room</SelectItem>
+                      {availableRooms.map(room => (
+                        <SelectItem key={room.id} value={room.id}>
+                          Room {room.number}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {splitDate && selectedType === 'conflict' && (selectedConflict as Conflict).bookings.length > 0 && (
+                  <div className="text-xs text-muted-foreground space-y-1 bg-muted/50 p-2 rounded-md">
+                    <p><strong>Part 1:</strong> {format(new Date((selectedConflict as Conflict).bookings[0].checkIn), 'MMM d')} → {format(new Date(splitDate), 'MMM d')}</p>
+                    <p><strong>Part 2:</strong> {format(new Date(splitDate), 'MMM d')} → {format(new Date((selectedConflict as Conflict).bookings[0].checkOut), 'MMM d')}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Keep Both */}
+            {resolution === 'keep_both' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-md">
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    This acknowledges the overbooking as intentional. Both bookings will remain active. Please provide a reason for the record.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="keepReason">Reason for Overbooking *</Label>
+                  <Textarea
+                    id="keepReason"
+                    placeholder="e.g., Group block allows overbooking, maintenance on adjacent room, VIP upgrade..."
+                    value={keepReason}
+                    onChange={(e) => setKeepReason(e.target.value)}
+                    rows={3}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -639,7 +877,7 @@ export default function Conflicts() {
             <Button variant="outline" onClick={() => setIsResolveOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleResolve} disabled={isSaving || !resolution}>
+            <Button onClick={handleResolve} disabled={isSaving || !resolution || !!dateError}>
               {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Apply Resolution
             </Button>

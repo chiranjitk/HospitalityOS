@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Separator } from '@/components/ui/separator';
 import {
   FileText,
   Search,
@@ -39,6 +40,7 @@ import {
   Mail,
   Car,
 } from 'lucide-react';
+import { SignaturePad } from '@/components/frontdesk/signature-pad';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useTimezone } from '@/contexts/TimezoneContext';
@@ -131,6 +133,7 @@ export default function RegistrationCard() {
   const [vehiclePlate, setVehiclePlate] = useState<string>('');
   const [companions, setCompanions] = useState<Companion[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [signatureData, setSignatureData] = useState<string | null>(null);
 
   // Search bookings
   const searchBookings = async () => {
@@ -180,6 +183,7 @@ export default function RegistrationCard() {
     setVehiclePlate('');
     setCompanions([]);
     setTermsAccepted(false);
+    setSignatureData(null);
 
     // Check for existing registration card
     try {
@@ -192,6 +196,9 @@ export default function RegistrationCard() {
         setVehiclePlate(result.data.vehiclePlate || '');
         setCompanions(JSON.parse(result.data.companions || '[]'));
         setTermsAccepted(result.data.termsAccepted);
+        if (result.data.signature) {
+          setSignatureData(result.data.signature);
+        }
       }
     } catch (err) {
       if (err?.name === 'AbortError') return;
@@ -225,6 +232,11 @@ export default function RegistrationCard() {
       return;
     }
 
+    if (!signatureData) {
+      toast({ title: 'Signature Required', description: 'Please provide the guest signature to generate the registration card', variant: 'destructive' });
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const response = await fetch('/api/folio/registration-card', {
@@ -235,6 +247,7 @@ export default function RegistrationCard() {
           purpose: purpose || null,
           vehiclePlate: vehiclePlate || null,
           companions: companions.filter(c => c.name.trim()),
+          signature: signatureData,
         }),
       });
 
@@ -604,10 +617,19 @@ export default function RegistrationCard() {
                   </Label>
                 </div>
 
+                <Separator className="my-2" />
+
+                <SignaturePad
+                  value={signatureData}
+                  onChange={setSignatureData}
+                  label="Guest Signature (Required)"
+                  required
+                />
+
                 <Button
                   className="w-full"
                   onClick={generateCard}
-                  disabled={isGenerating || !termsAccepted}
+                  disabled={isGenerating || !termsAccepted || !signatureData}
                 >
                   {isGenerating ? (
                     <>

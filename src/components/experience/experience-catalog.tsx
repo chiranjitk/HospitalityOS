@@ -60,6 +60,7 @@ import {
   List,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -196,6 +197,7 @@ function formatDuration(minutes: number): string {
 
 export default function ExperienceCatalog() {
   const { toast } = useToast();
+  const { formatCurrency } = useCurrency();
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [pagination, setPagination] = useState<Pagination | null>(null);
@@ -339,7 +341,7 @@ export default function ExperienceCatalog() {
 
   const handleUpdate = async () => {
     if (!selectedExperience?.id) return;
-    if (formData.name.trim()) {
+    if (!formData.name.trim()) {
       toast({
         title: 'Validation Error',
         description: 'Name is required',
@@ -501,7 +503,7 @@ export default function ExperienceCatalog() {
           </div>
           <div>
             <div className="text-2xl font-bold">
-              ${stats?.totalRevenue != null ? stats.totalRevenue.toFixed(0) : <Skeleton className="h-7 w-12 inline-block" />}
+              {stats?.totalRevenue != null ? formatCurrency(stats.totalRevenue) : <Skeleton className="h-7 w-12 inline-block" />}
             </div>
             <div className="text-xs text-muted-foreground">Total Revenue</div>
           </div>
@@ -794,7 +796,7 @@ export default function ExperienceCatalog() {
 
                     <div className="flex items-center justify-between pt-1">
                       <div>
-                        <span className="font-semibold text-lg">${exp.basePrice.toFixed(2)}</span>
+                        <span className="font-semibold text-lg">{formatCurrency(exp.basePrice)}</span>
                         <span className="text-xs text-muted-foreground ml-1">/ person</span>
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -897,7 +899,7 @@ export default function ExperienceCatalog() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <span className="font-medium">${exp.basePrice.toFixed(2)}</span>
+                            <span className="font-medium">{formatCurrency(exp.basePrice)}</span>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
@@ -984,8 +986,7 @@ export default function ExperienceCatalog() {
                         {formatDuration(exp.duration)}
                       </Badge>
                       <Badge variant="outline" className="text-xs gap-1">
-                        <DollarSign className="h-3 w-3" />
-                        {exp.basePrice.toFixed(2)}
+                        {formatCurrency(exp.basePrice)}
                       </Badge>
                       <Badge variant="outline" className="text-xs gap-1">
                         <Star className="h-3 w-3 text-amber-500 fill-amber-500" />

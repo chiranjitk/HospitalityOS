@@ -15,6 +15,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { Plus, Loader2, ChefHat, Search, Trash2, Eye, Edit, X } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { usePropertyId } from '@/hooks/use-property';
 import { cn } from '@/lib/utils';
 
@@ -39,6 +49,8 @@ const t = useTranslations('pos');
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [viewingRecipe, setViewingRecipe] = useState<Recipe | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const [form, setForm] = useState({ menuItemId: '', instructions: '', prepTime: 0, cookTime: 0, yield: 1, ingredients: [{ name: '', quantity: 0, unit: 'g', costPerUnit: 0, sortOrder: 0 }] });
 
@@ -95,9 +107,14 @@ const t = useTranslations('pos');
     } catch { toast.error('Failed'); } finally { setSaving(false); }
   };
 
-  const deleteRecipe = async (id: string) => {
-    if (!confirm('Delete this recipe?')) return;
-    try { const res = await fetch(`/api/recipes?id=${id}`, { method: 'DELETE' }); const data = await res.json(); if (data.success) { toast.success('Recipe deleted'); fetchData(); } else toast.error('Failed'); } catch { toast.error('Failed'); }
+  const confirmDeleteRecipe = (id: string) => {
+    setPendingDeleteId(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const deleteRecipe = async () => {
+    if (!pendingDeleteId) return;
+    try { const res = await fetch(`/api/recipes?id=${pendingDeleteId}`, { method: 'DELETE' }); const data = await res.json(); if (data.success) { toast.success('Recipe deleted'); fetchData(); } else toast.error('Failed'); } catch { toast.error('Failed'); } finally { setDeleteDialogOpen(false); setPendingDeleteId(null); }
   };
 
   const categories = [...new Set(menuItems.map(m => m.category?.name).filter(Boolean))];
@@ -146,7 +163,7 @@ const t = useTranslations('pos');
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" onClick={() => { setViewingRecipe(r); setDetailOpen(true); }}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Edit className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="text-red-500" onClick={() => deleteRecipe(r.id)}><Trash2 className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className="text-red-500" onClick={() => confirmDeleteRecipe(r.id)}><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 </div>
               </Card>
@@ -220,6 +237,27 @@ const t = useTranslations('pos');
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Recipe</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this recipe? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteRecipe}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -82,10 +82,14 @@ export class SegmentEvaluator {
       throw new Error(`Segment not found: ${segmentId}`);
     }
 
-    // Parse rules
+    // Parse rules - support both 'rules'/'conditions' and 'operator'/'logic' keys
     let rules: SegmentDefinition;
     try {
-      rules = JSON.parse(segment.rules);
+      const parsed = JSON.parse(segment.rules);
+      rules = {
+        operator: parsed.operator || parsed.logic || 'and',
+        rules: parsed.rules || parsed.conditions || [],
+      };
     } catch {
       throw new Error(`Invalid segment rules format for segment: ${segmentId}`);
     }
@@ -165,7 +169,8 @@ export class SegmentEvaluator {
       }
     }
 
-    if (definition.operator === 'and') {
+    const operator = definition.operator || 'and';
+    if (operator === 'and') {
       return {
         tenantId,
         AND: conditions,

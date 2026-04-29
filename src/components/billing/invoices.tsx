@@ -43,6 +43,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Switch } from '@/components/ui/switch';
 import {
   FileText,
   Search,
@@ -67,6 +68,8 @@ import {
   TrendingUp,
   Receipt,
   FileMinus,
+  Repeat,
+  Palette,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -80,6 +83,15 @@ interface LineItem {
   totalAmount: number;
   taxRate: number;
   taxAmount: number;
+}
+
+interface InvoiceTemplateData {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  primaryColor: string;
+  logoUrl?: string | null;
+  footerText?: string | null;
 }
 
 interface InvoiceData {
@@ -102,6 +114,11 @@ interface InvoiceData {
   notes?: string | null;
   lineItems: LineItem[];
   folioId?: string | null;
+ templateId?: string | null;
+ isRecurring?: boolean;
+  recurringFrequency?: string | null;
+  recurringNextDate?: string | null;
+  recurringEndDate?: string | null;
   createdAt: string;
 }
 
@@ -169,6 +186,16 @@ const t = useTranslations('billing');
   const [isSaving, setIsSaving] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // Recurring state
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringFrequency, setRecurringFrequency] = useState('monthly');
+  const [recurringNextDate, setRecurringNextDate] = useState('');
+  const [recurringEndDate, setRecurringEndDate] = useState('');
+
+  // Template state
+  const [templates, setTemplates] = useState<InvoiceTemplateData[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('default');
+
   // Create form
   const [formData, setFormData] = useState({
     customerName: '',
@@ -181,6 +208,23 @@ const t = useTranslations('billing');
     status: 'draft',
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([newBlankLineItem()]);
+
+  // Fetch invoice templates
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const response = await fetch('/api/invoice-templates');
+      const result = await response.json();
+      if (result.success) {
+        setTemplates(result.data || []);
+        const defaultTpl = result.data?.find((t: InvoiceTemplateData) => t.isDefault);
+        if (defaultTpl) setSelectedTemplateId(defaultTpl.id);
+      }
+    } catch { /* silent */ }
+  }, [setSelectedTemplateId]);
+
+  useEffect(() => {
+    fetchTemplates();
+  }, [fetchTemplates]);
 
   // --- Fetch ---
   const fetchInvoices = useCallback(async () => {
@@ -268,6 +312,11 @@ const t = useTranslations('billing');
           subtotal,
           taxes,
           totalAmount,
+          templateId: selectedTemplateId !== 'default' ? selectedTemplateId : undefined,
+          isRecurring,
+          recurringFrequency: isRecurring ? recurringFrequency : undefined,
+          recurringNextDate: isRecurring ? (recurringNextDate || undefined) : undefined,
+          recurringEndDate: isRecurring ? (recurringEndDate || undefined) : undefined,
           lineItems: validItems.map(i => ({
             description: i.description,
             quantity: i.quantity,
@@ -299,13 +348,20 @@ const t = useTranslations('billing');
   const resetForm = () => {
     setFormData({ customerName: '', customerEmail: '', customerAddress: '', customerPhone: '', currency: 'USD', dueDate: '', notes: '', status: 'draft' });
     setLineItems([newBlankLineItem()]);
+    setIsRecurring(false);
+    setRecurringFrequency('monthly');
+    setRecurringNextDate('');
+    setRecurringEndDate('');
+    setSelectedTemplateId('default');
   };
 
   // --- Actions ---
-  const downloadPDF = async (invoice: InvoiceData) => {
+  const downloadPDF = async (invoice: InvoiceData, templateId?: string) => {
     setActionLoading(`pdf-${invoice.id}`);
     try {
-      const response = await fetch(`/api/invoices/${invoice.id}/pdf`);
+      const params = new URLSearchParams();
+      if (templateId && templateId !== 'default') params.set('templateId', templateId);
+      const response = await fetch(`/api/invoices/${invoice.id}/pdf?${params}`);
       if (!response.ok) throw new Error('PDF generation failed');
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -856,6 +912,72 @@ const t = useTranslations('billing');
                 </div>
               </div>
             </Card>
+
+            {/* Template Selection */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                <Palette className="h-3.5 w-3.5" />
+                Invoice Template
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Template</Label>
+                  <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Default Template" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Default Template</SelectItem>
+                      {templates.map(tpl => (
+                        <SelectItem key={tpl.id} value={tpl.id}>
+                          <span className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: tpl.primaryColor }} />
+                            {tpl.name}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* Recurring Invoice Settings */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                  <Repeat className="h-3.5 w-3.5" />
+                  Recurring Invoice
+                </h4>
+                <Switch checked={isRecurring} onCheckedChange={setIsRecurring} />
+              </div>
+              {isRecurring && (
+                <Card className="p-4 border-dashed bg-muted/20">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>Frequency</Label>
+                      <Select value={recurringFrequency} onValueChange={setRecurringFrequency}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="monthly">Monthly</SelectItem>
+                          <SelectItem value="quarterly">Quarterly</SelectItem>
+                          <SelectItem value="annually">Annually</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="nextDate">Next Generation *</Label>
+                      <Input id="nextDate" type="date" value={recurringNextDate} onChange={(e) => setRecurringNextDate(e.target.value)} className="h-9" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="endDate">End Date (optional)</Label>
+                      <Input id="endDate" type="date" value={recurringEndDate} onChange={(e) => setRecurringEndDate(e.target.value)} className="h-9" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    A new invoice will be generated automatically on the next date, then repeated based on frequency until the end date (if set).
+                  </p>
+                </Card>
+              )}
+            </div>
 
             {/* Invoice Settings */}
             <div className="space-y-3">

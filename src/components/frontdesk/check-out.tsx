@@ -43,6 +43,8 @@ import {
   Receipt,
   DollarSign,
   AlertCircle,
+  RotateCcw,
+  ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -66,6 +68,19 @@ interface Guest {
   loyaltyTier: string;
 }
 
+interface FolioPayment {
+  id: string;
+  amount: number;
+  method: string;
+  status: string;
+  createdAt: string;
+  reference?: string;
+  cardType?: string;
+  cardLast4?: string;
+  refundAmount?: number;
+  refundReason?: string;
+}
+
 interface Folio {
   id: string;
   folioNumber: string;
@@ -85,13 +100,7 @@ interface Folio {
     totalAmount: number;
     serviceDate: string;
   }[];
-  payments: {
-    id: string;
-    amount: number;
-    method: string;
-    status: string;
-    createdAt: string;
-  }[];
+  payments: FolioPayment[];
 }
 
 interface Booking {
@@ -113,6 +122,18 @@ interface Booking {
   folios?: Folio[];
 }
 
+interface DepositPayment {
+  id: string;
+  amount: number;
+  method: string;
+  cardType?: string;
+  cardLast4?: string;
+  reference?: string;
+  createdAt: string;
+  refundAmount: number;
+  status: string;
+}
+
 const paymentMethods = [
   { value: 'card', label: 'Credit/Debit Card' },
   { value: 'cash', label: 'Cash' },
@@ -121,10 +142,16 @@ const paymentMethods = [
   { value: 'check', label: 'Check' },
 ];
 
+const refundReasons = [
+  { value: 'check_out_complete', label: 'Check-out complete' },
+  { value: 'early_departure', label: 'Early departure' },
+  { value: 'guest_request', label: 'Guest request' },
+];
+
 export default function CheckOut() {
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
-  const { formatDate } = useTimezone();
+  const { formatDate, formatDateTime } = useTimezone();
   const { user } = useAuth();
   const t = useTranslations('frontdesk');
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -141,6 +168,13 @@ export default function CheckOut() {
   const [paymentAmount, setPaymentAmount] = useState<string>('');
   const [paymentReference, setPaymentReference] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+
+  // Deposit refund state
+  const [depositPayments, setDepositPayments] = useState<DepositPayment[]>([]);
+  const [isRefundingDeposit, setIsRefundingDeposit] = useState(false);
+  const [refundReason, setRefundReason] = useState<string>('check_out_complete');
+  const [selectedDepositId, setSelectedDepositId] = useState<string | null>(null);
+  const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false);
 
   // Fetch today's departures
   const fetchDepartures = async (signal?: AbortSignal) => {
@@ -215,10 +249,57 @@ export default function CheckOut() {
     }
   };
 
+  // Fetch deposit payments for the booking's folio
+  const fetchDepositPayments = async (folioId: string) => {
+    try {
+      const response = await fetch(`/api/payments?folioId=${folioId}`);
+      if (!response.ok) {
+        return;
+      }
+      const result = await response.json();
+      if (result.success) {
+        // Filter for deposit and pre-auth type payments
+        const deposits = result.data.filter(
+          (p: FolioPayment) =>
+            (p.reference?.includes('Check-in Deposit') || p.reference?.includes('Pre-Authorization')) &&
+            p.status === 'completed'
+        );
+        setDepositPayments(
+          deposits.map((p: FolioPayment) => ({
+            id: p.id,
+            amount: p.amount,
+            method: p.method,
+            cardType: p.cardType,
+            cardLast4: p.cardLast4,
+            reference: p.reference,
+            createdAt: p.createdAt,
+            refundAmount: p.refundAmount || 0,
+            status: p.status,
+          }))
+        );
+      }
+    } catch {
+      // Silently fail - deposits are non-critical
+    }
+  };
+
   // Open check-out dialog
   const openCheckOut = async (booking: Booking) => {
+    setDepositPayments([]);
     await fetchBookingDetails(booking.id);
     setIsCheckOutOpen(true);
+
+    // Fetch deposit payments after booking details are loaded
+    // Use a small timeout to let the folio state settle
+    setTimeout(async () => {
+      const detailResponse = await fetch(`/api/bookings/${booking.id}`);
+      if (detailResponse.ok) {
+        const detailResult = await detailResponse.json();
+        if (detailResult.success && detailResult.data.folios?.length > 0) {
+          await fetchDepositPayments(detailResult.data.folios[0].id);
+        }
+      }
+    }, 100);
   };
 
   // Process payment
@@ -284,6 +365,75 @@ export default function CheckOut() {
     }
   };
 
+  // Open refund dialog
+  const openRefundDialog = (deposit: DepositPayment) => {
+    setSelectedDepositId(deposit.id);
+    setRefundReason('check_out_complete');
+    setIsRefundDialogOpen(true);
+  };
+
+  // Process deposit refund
+  const processDepositRefund = async () => {
+    if (!selectedDepositId) return;
+
+    setIsRefundingDeposit(true);
+    try {
+      const response = await fetch(`/api/payments/${selectedDepositId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          refundAmount: depositPayments.find(d => d.id === selectedDepositId)?.amount || 0,
+          refundReason: refundReasons.find(r => r.value === refundReason)?.label || 'Deposit refund',
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
+      const result = await response.json();
+
+      if (result.success) {
+        const deposit = depositPayments.find(d => d.id === selectedDepositId);
+        toast({
+          title: 'Deposit Refunded',
+          description: `Refund of ${formatCurrency(deposit?.amount || 0)} processed successfully`,
+        });
+
+        // Update local state
+        setDepositPayments(prev =>
+          prev.map(d =>
+            d.id === selectedDepositId
+              ? { ...d, refundAmount: d.amount, status: 'refunded' }
+              : d
+          )
+        );
+
+        // Refresh booking details
+        if (selectedBooking) {
+          await fetchBookingDetails(selectedBooking.id);
+        }
+
+        setIsRefundDialogOpen(false);
+      } else {
+        toast({
+          title: 'Refund Failed',
+          description: result.error?.message || 'Failed to process refund',
+          variant: 'destructive',
+        });
+      }
+    } catch (err: unknown) {
+      if ((err as Error)?.name === 'AbortError') return;
+      toast({
+        title: 'Error',
+        description: 'Failed to process deposit refund',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRefundingDeposit(false);
+    }
+  };
+
   // Process check-out
   const processCheckOut = async () => {
     if (!selectedBooking) return;
@@ -333,6 +483,18 @@ export default function CheckOut() {
           successMessage += `. ${additionalActions.join(', ')}.`;
         }
 
+        // Include deposit refund info in message
+        const unrefundedDeposits = depositPayments.filter(
+          d => d.refundAmount < d.amount
+        );
+        if (unrefundedDeposits.length > 0) {
+          const totalUnrefunded = unrefundedDeposits.reduce(
+            (sum, d) => sum + (d.amount - d.refundAmount),
+            0
+          );
+          successMessage += ` Note: ${formatCurrency(totalUnrefunded)} in deposits not refunded.`;
+        }
+
         toast({
           title: 'Check-out Successful',
           description: successMessage,
@@ -372,6 +534,17 @@ export default function CheckOut() {
     return colors[tier] || colors.bronze;
   };
 
+  const getMethodLabel = (method: string) => {
+    const map: Record<string, string> = {
+      card: 'Credit/Debit Card',
+      cash: 'Cash',
+      bank_transfer: 'Bank Transfer',
+      wallet: 'Digital Wallet',
+      check: 'Check',
+    };
+    return map[method] || method;
+  };
+
   // Stats
   const stats = {
     total: bookings.length,
@@ -379,6 +552,11 @@ export default function CheckOut() {
     withBalance: bookings.filter(b => b.folios?.[0]?.balance ?? 0 > 0).length,
     vip: bookings.filter(b => b.primaryGuest.isVip).length,
   };
+
+  // Calculate total refundable deposits
+  const totalRefundableDeposits = depositPayments
+    .filter(d => d.refundAmount < d.amount)
+    .reduce((sum, d) => sum + (d.amount - d.refundAmount), 0);
 
   return (
     <div className="space-y-6">
@@ -683,6 +861,107 @@ export default function CheckOut() {
                 </Card>
               )}
 
+              {/* Deposit Refund Section */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <RotateCcw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                    Deposit Refund
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {depositPayments.length === 0 ? (
+                    <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                      <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">No deposits collected for this booking</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Summary */}
+                      {totalRefundableDeposits > 0 && (
+                        <div className="flex items-center justify-between p-3 bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800 rounded-lg">
+                          <span className="text-sm text-teal-700 dark:text-teal-300">Total Refundable</span>
+                          <span className="font-bold text-teal-700 dark:text-teal-300">{formatCurrency(totalRefundableDeposits)}</span>
+                        </div>
+                      )}
+
+                      {/* Deposit List */}
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {depositPayments.map(deposit => {
+                          const isRefunded = deposit.refundAmount >= deposit.amount;
+                          const isPreAuth = deposit.reference?.includes('Pre-Authorization');
+                          const refundableAmount = deposit.amount - deposit.refundAmount;
+
+                          return (
+                            <div
+                              key={deposit.id}
+                              className={cn(
+                                "flex items-center justify-between p-3 rounded-lg border transition-colors",
+                                isRefunded
+                                  ? "bg-muted/50 border-muted opacity-60"
+                                  : "bg-white dark:bg-background border-border"
+                              )}
+                            >
+                              <div className="space-y-1 flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium">
+                                    {formatCurrency(deposit.amount)}
+                                  </span>
+                                  {isPreAuth && (
+                                    <Badge variant="outline" className="text-xs py-0 border-violet-200 dark:border-violet-800 text-violet-700 dark:text-violet-300">
+                                      <ShieldCheck className="h-3 w-3 mr-1" />
+                                      Pre-Auth
+                                    </Badge>
+                                  )}
+                                  {isRefunded && (
+                                    <Badge variant="secondary" className="text-xs py-0">
+                                      Refunded
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground space-y-0.5">
+                                  <div>
+                                    {getMethodLabel(deposit.method)}
+                                    {deposit.cardLast4 && ` (${deposit.cardType || 'Card'} ****${deposit.cardLast4})`}
+                                  </div>
+                                  <div>Collected: {formatDateTime(deposit.createdAt)}</div>
+                                  {isRefunded && (
+                                    <div className="text-emerald-600 dark:text-emerald-400">
+                                      Refunded: {formatCurrency(deposit.refundAmount)}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              {!isRefunded && refundableAmount > 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openRefundDialog(deposit)}
+                                  className="shrink-0 ml-2 text-teal-700 border-teal-200 hover:bg-teal-50 dark:text-teal-300 dark:border-teal-800 dark:hover:bg-teal-950/30"
+                                >
+                                  <RotateCcw className="h-3 w-3 mr-1" />
+                                  Refund
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Info note */}
+                      {totalRefundableDeposits > 0 && (
+                        <div className="flex items-start gap-2 p-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                          <p className="text-xs text-amber-700 dark:text-amber-300">
+                            Outstanding deposits of {formatCurrency(totalRefundableDeposits)} have not been refunded. You can refund deposits before or after check-out.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Notes */}
               <div className="space-y-2">
                 <Label>Check-out Notes</Label>
@@ -795,6 +1074,101 @@ export default function CheckOut() {
                 <CreditCard className="h-4 w-4 mr-2" />
               )}
               Record Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deposit Refund Dialog */}
+      <Dialog open={isRefundDialogOpen} onOpenChange={setIsRefundDialogOpen}>
+        <DialogContent className="w-[95vw] sm:max-w-md max-h-[90dvh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+              Refund Deposit
+            </DialogTitle>
+            <DialogDescription>
+              Process a refund for the collected deposit
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedDepositId && (
+            <div className="space-y-4">
+              {/* Deposit Info */}
+              {(() => {
+                const deposit = depositPayments.find(d => d.id === selectedDepositId);
+                if (!deposit) return null;
+                const refundableAmount = deposit.amount - deposit.refundAmount;
+                return (
+                  <>
+                    <div className="p-4 bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800 rounded-lg space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Original Amount</span>
+                        <span className="font-medium">{formatCurrency(deposit.amount)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Previously Refunded</span>
+                        <span className="font-medium">{formatCurrency(deposit.refundAmount)}</span>
+                      </div>
+                      <Separator />
+                      <div className="flex justify-between text-sm font-medium">
+                        <span>Refund Amount</span>
+                        <span className="text-teal-700 dark:text-teal-300">{formatCurrency(refundableAmount)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>Payment Method</span>
+                        <span>{getMethodLabel(deposit.method)}</span>
+                      </div>
+                      {deposit.cardLast4 && (
+                        <div className="flex justify-between text-sm text-muted-foreground">
+                          <span>Card</span>
+                          <span>{deposit.cardType || 'Card'} ****{deposit.cardLast4}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Refund Reason */}
+                    <div className="space-y-2">
+                      <Label>Refund Reason</Label>
+                      <Select value={refundReason} onValueChange={setRefundReason}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {refundReasons.map(reason => (
+                            <SelectItem key={reason.value} value={reason.value}>
+                              {reason.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRefundDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={processDepositRefund}
+              disabled={isRefundingDeposit}
+              className="bg-teal-600 hover:bg-teal-700"
+            >
+              {isRefundingDeposit ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Confirm Refund
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

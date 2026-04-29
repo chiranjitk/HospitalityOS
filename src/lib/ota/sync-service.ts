@@ -634,16 +634,45 @@ export class OTASyncService {
 }
 
 // ============================================
-// SCHEDULED SYNC JOBS
+// SCHEDULED SYNC JOBS (DEPRECATED)
+// ============================================
+//
+// The OTASyncScheduler uses in-memory setInterval which does NOT survive
+// server restarts. It has been replaced by the persistent cron-based
+// approach at /api/cron/channel-sync.
+//
+// To set up automated syncing:
+// 1. Configure an external cron scheduler (cron-job.org, Vercel Cron, etc.)
+//    to POST to /api/cron/channel-sync every 15 minutes
+// 2. Set the CRON_SECRET env var and pass it as Bearer token
+//
+// This class is kept for backward compatibility only.
+// Prefer using the cron endpoint for all new integrations.
 // ============================================
 
+/** @deprecated Use the cron endpoint at /api/cron/channel-sync instead */
 export class OTASyncScheduler {
   private static intervals: Map<string, NodeJS.Timeout> = new Map();
+  private static _deprecationWarned = false;
+
+  private static warnDeprecated(): void {
+    if (!this._deprecationWarned) {
+      console.warn(
+        '[OTASyncScheduler] DEPRECATED: In-memory scheduler will not survive restarts. ' +
+        'Use the cron endpoint at /api/cron/channel-sync instead. ' +
+        'Configure an external cron to POST /api/cron/channel-sync every 15 minutes.'
+      );
+      this._deprecationWarned = true;
+    }
+  }
 
   /**
-   * Start scheduled sync for a connection
+   * Start scheduled sync for a connection.
+   * @deprecated Use the cron endpoint at /api/cron/channel-sync instead.
    */
   static startScheduledSync(connectionId: string, intervalMinutes: number): void {
+    this.warnDeprecated();
+
     // Stop existing if any
     this.stopScheduledSync(connectionId);
 
@@ -664,7 +693,8 @@ export class OTASyncScheduler {
   }
 
   /**
-   * Stop scheduled sync for a connection
+   * Stop scheduled sync for a connection.
+   * @deprecated Use the cron endpoint at /api/cron/channel-sync instead.
    */
   static stopScheduledSync(connectionId: string): void {
     const interval = this.intervals.get(connectionId);
@@ -675,7 +705,8 @@ export class OTASyncScheduler {
   }
 
   /**
-   * Stop all scheduled syncs
+   * Stop all scheduled syncs.
+   * @deprecated Use the cron endpoint at /api/cron/channel-sync instead.
    */
   static stopAll(): void {
     for (const [id] of this.intervals) {

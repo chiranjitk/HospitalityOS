@@ -1,6 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { OTASyncService } from '@/lib/ota/sync-service';
+import { OTARateUpdate } from '@/lib/ota/types';
+
+// Helper: build rate update payloads for a given property and its rate plans
+async function buildRateUpdates(
+  tenantId: string,
+  propertyId: string
+): Promise<OTARateUpdate[]> {
+  // Get rate plans with their room types for this property
+  const ratePlans = await db.ratePlan.findMany({
+    where: {
+      roomType: { propertyId, deletedAt: null },
+      deletedAt: null,
+    },
+    include: {
+      roomType: {
+        select: { id: true, name: true },
+      },
+    },
+  });
+
+  // Build rates for the next 30 days
+  const today = new Date();
+  const updates: OTARateUpdate[] = [];
+
+  for (const ratePlan of ratePlans) {
+    for (let d = 0; d < 30; d++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() + d);
+      const dateStr = date.toISOString().split('T')[0];
+
+      // Check for price override
+      const priceOverride = await db.priceOverride.findFirst({
+        where: {
+          ratePlanId: ratePlan.id,
+          date: new Date(dateStr + 'T00:00:00.000Z'),
+        },
+      });
+
+      const basePrice = priceOverride?.price ?? ratePlan.basePrice;
+
+      updates.push({
+        roomTypeId: ratePlan.roomTypeId,
+        ratePlanId: ratePlan.id,
+        externalRoomId: '', // will be mapped by the sync service using channel mappings
+        externalRatePlanId: '', // will be mapped by the sync service using channel mappings
+        date: dateStr,
+        baseRate: basePrice,
+        currency: ratePlan.currency || 'USD',
+      });
+    }
+  }
+
+  return updates;
+}
 
 // GET /api/channels/rate-sync - Get rate sync status
 export async function GET(request: NextRequest) {
@@ -54,7 +109,7 @@ export async function GET(request: NextRequest) {
     const syncLogs = await db.channelSyncLog.findMany({
       where: {
         connection: { tenantId },
-        syncType: 'rate',
+        syncType: 'rates',
       },
       orderBy: { createdAt: 'desc' },
       take: 50,
@@ -93,14 +148,10 @@ export async function GET(request: NextRequest) {
         const lastSyncLog = syncLogs.find(l => l.connectionId === connection.id);
         const mapping = mappings.find(m => m.connectionId === connection.id && m.roomTypeId === ratePlan.roomTypeId);
 
-        // Bug Fix #11: Use nullish coalescing (??) instead of logical OR (||).
-        // A price of 0 is a valid value that || would incorrectly skip.
         const priceOverride = priceOverrides.find(po => po.ratePlanId === ratePlan.id);
         const basePrice = priceOverride?.price ?? ratePlan.basePrice;
 
         // Channel price comes from the mapping or sync log data
-        // If we have a sync log with response data, use that
-        // Otherwise, assume rates are synced (channelPrice = basePrice)
         let channelPrice = basePrice;
         let priceDiff = 0;
 
@@ -129,7 +180,6 @@ export async function GET(request: NextRequest) {
         }
 
         rateData.push({
-          // Use '::' as a safer composite delimiter (UUIDs contain '-')
           id: `${connection.id}::${ratePlan.id}`,
           connectionId: connection.id,
           channelName: connection.displayName || connection.channel,
@@ -139,7 +189,7 @@ export async function GET(request: NextRequest) {
           basePrice,
           channelPrice,
           priceDiff,
-          currency: 'USD',
+          currency: ratePlan.currency || 'USD',
           lastSync: lastSyncLog?.createdAt || null,
           status,
           autoAdjust: connection.autoSync,
@@ -195,21 +245,141 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { action, id, channelPrice } = body;
+    const { action, id, channelPrice, propertyId, channelName } = body;
 
+    // ---- Action: syncAll ----
+    if (action === 'syncAll') {
+      const connections = await db.channelConnection.findMany({
+        where: { tenantId: user.tenantId, status: 'active' },
+      });
+
+      if (connections.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: 'No active channel connections to sync rates',
+          results: [],
+        });
+      }
+
+      const properties = await db.property.findMany({
+        where: { tenantId: user.tenantId, deletedAt: null },
+        select: { id: true },
+      });
+
+      if (properties.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: 'No properties found',
+          results: [],
+        });
+      }
+
+      const results: Array<{
+        connectionId: string;
+        channelName: string;
+        status: 'success' | 'failed' | 'partial';
+        recordsProcessed: number;
+        error?: string;
+      }> = [];
+
+      for (const connection of connections) {
+        const targetPropertyId = connection.propertyId || properties[0]?.id;
+        if (!targetPropertyId) continue;
+
+        try {
+          const updates = await buildRateUpdates(user.tenantId, targetPropertyId);
+          await OTASyncService.syncRatesToChannel(connection.id, updates);
+
+          results.push({
+            connectionId: connection.id,
+            channelName: connection.displayName || connection.channel,
+            status: 'success',
+            recordsProcessed: updates.length,
+          });
+        } catch (error) {
+          console.error(`Rate sync failed for ${connection.channel}:`, error);
+          results.push({
+            connectionId: connection.id,
+            channelName: connection.displayName || connection.channel,
+            status: 'failed',
+            recordsProcessed: 0,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      const succeeded = results.filter(r => r.status === 'success').length;
+      const failed = results.filter(r => r.status === 'failed').length;
+
+      return NextResponse.json({
+        success: failed === 0,
+        message: `Synced rates to ${succeeded} of ${connections.length} channels (${failed} failed)`,
+        results,
+      });
+    }
+
+    // ---- Action: syncChannel ----
+    if (action === 'syncChannel' && channelName) {
+      const connection = await db.channelConnection.findFirst({
+        where: { tenantId: user.tenantId, channel: channelName, status: 'active' },
+      });
+
+      if (!connection) {
+        return NextResponse.json(
+          { success: false, error: { code: 'NOT_FOUND', message: 'Channel connection not found' } },
+          { status: 404 }
+        );
+      }
+
+      const targetPropertyId = propertyId || connection.propertyId;
+      if (!targetPropertyId) {
+        return NextResponse.json(
+          { success: false, error: { code: 'MISSING_PROPERTY', message: 'No property associated with this channel connection' } },
+          { status: 400 }
+        );
+      }
+
+      try {
+        const updates = await buildRateUpdates(user.tenantId, targetPropertyId);
+        await OTASyncService.syncRatesToChannel(connection.id, updates);
+
+        return NextResponse.json({
+          success: true,
+          message: `Synced rates to ${channelName} (${updates.length} records)`,
+          data: {
+            connectionId: connection.id,
+            channelName,
+            propertyId: targetPropertyId,
+            recordsProcessed: updates.length,
+          },
+        });
+      } catch (error) {
+        console.error(`Rate sync failed for ${channelName}:`, error);
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'SYNC_FAILED',
+              message: `Failed to sync rates to ${channelName}`,
+              details: error instanceof Error ? error.message : 'Unknown error',
+            },
+          },
+          { status: 500 }
+        );
+      }
+    }
+
+    // ---- Action: updatePrice (single rate override) ----
     if (action === 'updatePrice' && id && channelPrice !== undefined) {
       // Parse connectionId and ratePlanId from composite id
-      // Format: connectionId::ratePlanId (uses '::' delimiter since UUIDs contain '-')
-      // Fallback: if only one part after '::', try '-' split as legacy support
       let connectionId: string | undefined;
       let ratePlanId: string | undefined;
 
       if (id.includes('::')) {
         const parts = id.split('::');
         connectionId = parts[0];
-        ratePlanId = parts.slice(1).join('::'); // ratePlanId might contain '::' in theory
+        ratePlanId = parts.slice(1).join('::');
       } else {
-        // Legacy fallback for old '-' format - less reliable with UUIDs
         const parts = id.split('-');
         if (parts.length >= 2) {
           connectionId = parts[0];
@@ -236,11 +406,36 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Attempt to sync the single price update via OTA client
+      try {
+        const ratePlan = await db.ratePlan.findFirst({
+          where: { id: ratePlanId, roomType: { property: { tenantId: user.tenantId } } },
+        });
+
+        if (ratePlan) {
+          const today = new Date().toISOString().split('T')[0];
+          const update: OTARateUpdate = {
+            roomTypeId: ratePlan.roomTypeId,
+            ratePlanId: ratePlan.id,
+            externalRoomId: '',
+            externalRatePlanId: '',
+            date: today,
+            baseRate: channelPrice,
+            currency: ratePlan.currency || 'USD',
+          };
+
+          await OTASyncService.syncRatesToChannel(connection.id, [update]);
+        }
+      } catch (error) {
+        console.error(`Rate push failed for connection ${connectionId}:`, error);
+        // Don't fail the entire request - still log locally
+      }
+
       // Create a sync log entry for the rate update
       await db.channelSyncLog.create({
         data: {
           connectionId,
-          syncType: 'rate',
+          syncType: 'rates',
           direction: 'outbound',
           status: 'success',
           requestPayload: JSON.stringify({ ratePlanId, channelPrice }),

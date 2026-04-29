@@ -64,6 +64,9 @@ import {
   Clock,
   XCircle,
   Bed,
+  Unlock,
+  ShieldCheck,
+  Timer,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -195,6 +198,11 @@ export default function GroupBookings() {
     depositPaid: false,
     status: 'inquiry',
     notes: '',
+    // Block settings
+    blockRoomCount: 0,
+    blockCutOffDate: '',
+    blockRoomTypeId: '',
+    blockStatus: 'active',
   });
 
   // Room booking state
@@ -636,6 +644,10 @@ export default function GroupBookings() {
       depositPaid: false,
       status: 'inquiry',
       notes: '',
+      blockRoomCount: 0,
+      blockCutOffDate: '',
+      blockRoomTypeId: '',
+      blockStatus: 'active',
     });
     setSelectedRooms([]);
   };
@@ -657,6 +669,10 @@ export default function GroupBookings() {
       depositPaid: group.depositPaid,
       status: group.status,
       notes: group.notes || '',
+      blockRoomCount: (group as any).blockRoomCount || 0,
+      blockCutOffDate: (group as any).blockCutOffDate ? format(new Date((group as any).blockCutOffDate), 'yyyy-MM-dd') : '',
+      blockRoomTypeId: (group as any).blockRoomTypeId || '',
+      blockStatus: (group as any).blockStatus || 'active',
     });
     setIsEditOpen(true);
   };
@@ -693,8 +709,47 @@ export default function GroupBookings() {
     );
   };
 
+  // Release blocked rooms
+  const handleReleaseRooms = async (group: GroupBooking) => {
+    setIsSaving(true);
+    try {
+      const response = await fetch('/api/group-bookings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: group.id,
+          blockStatus: 'released',
+        }),
+      });
+      if (!response.ok) throw new Error('Failed to release rooms');
+      const result = await response.json();
+      if (result.success) {
+        toast({ title: 'Rooms Released', description: 'Unbooked rooms in the block have been released back to available inventory' });
+        fetchGroups();
+      } else {
+        toast({ title: 'Error', description: result.error?.message || 'Failed to release rooms', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Error', description: 'Failed to release rooms', variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const getRoomTypeById = (roomTypeId: string) => {
     return roomTypes.find(rt => rt.id === roomTypeId);
+  };
+
+  // Check if cut-off date is reached for a group
+  const isCutOffReached = (group: GroupBooking) => {
+    const cutOff = (group as any).blockCutOffDate;
+    if (!cutOff) return false;
+    return new Date(cutOff) <= new Date();
+  };
+
+  const getBlockRemaining = (group: GroupBooking) => {
+    const blocked = (group as any).blockRoomCount || group.totalRooms;
+    return blocked - group.bookedRooms;
   };
 
   return (
@@ -834,6 +889,39 @@ export default function GroupBookings() {
                 </div>
                 <Progress value={roomProgress} className="h-2 [&>div]:bg-gradient-to-r [&>div]:from-emerald-500 [&>div]:to-teal-500" />
               </div>
+              {/* Block Progress for Mobile */}
+              {Number((group as any).blockRoomCount) > 0 && (
+                <div className="p-2 rounded-lg bg-muted/50 border">
+                  <div className="flex items-center gap-1.5 text-xs font-medium mb-1">
+                    <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                    Room Block: {group.bookedRooms}/{(group as any).blockRoomCount} rooms booked
+                  </div>
+                  {(group as any).blockCutOffDate && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Timer className="h-3 w-3" />
+                      {getBlockRemaining(group)} remaining until {format(new Date((group as any).blockCutOffDate), 'MMM d, yyyy')}
+                      {isCutOffReached(group) && (
+                        <Badge variant="outline" className="text-xs ml-1 text-amber-600 border-amber-500">Cut-off reached</Badge>
+                      )}
+                    </div>
+                  )}
+                  {(group as any).blockStatus === 'active' && isCutOffReached(group) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-2 w-full text-amber-600 border-amber-400 hover:bg-amber-50"
+                      onClick={() => handleReleaseRooms(group)}
+                      disabled={isSaving}
+                    >
+                      <Unlock className="h-3 w-3 mr-1" />
+                      Release Rooms
+                    </Button>
+                  )}
+                  {(group as any).blockStatus === 'released' && (
+                    <Badge variant="secondary" className="text-xs mt-1">Block Released</Badge>
+                  )}
+                </div>
+              )}
               <div className="flex items-center justify-end">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -954,11 +1042,41 @@ export default function GroupBookings() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="w-24">
+                          <div className="w-32">
                             <div className="flex justify-between text-xs mb-1">
                               <span>{group.bookedRooms}/{group.totalRooms}</span>
+                              {(group as any).blockRoomCount > 0 && (group as any).blockStatus === 'released' && (
+                                <Badge variant="secondary" className="text-[10px] px-1">Released</Badge>
+                              )}
                             </div>
                             <Progress value={roomProgress} className="h-2 [&>div]:bg-gradient-to-r [&>div]:from-emerald-500 [&>div]:to-teal-500" />
+                            {(group as any).blockRoomCount > 0 && (
+                              <div className="mt-1 space-y-0.5">
+                                <div className="text-[10px] text-muted-foreground">
+                                  <ShieldCheck className="h-2.5 w-2.5 inline mr-0.5" />
+                                  Block: {group.bookedRooms}/{(group as any).blockRoomCount} booked, {getBlockRemaining(group)} remaining
+                                </div>
+                                {(group as any).blockCutOffDate && (
+                                  <div className="text-[10px] text-muted-foreground">
+                                    <Timer className="h-2.5 w-2.5 inline mr-0.5" />
+                                    Until {format(new Date((group as any).blockCutOffDate), 'MMM d')}
+                                    {isCutOffReached(group) && <span className="text-amber-600 ml-1">(reached)</span>}
+                                  </div>
+                                )}
+                                {(group as any).blockStatus === 'active' && isCutOffReached(group) && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-6 text-[10px] px-2 mt-1 text-amber-600 border-amber-400"
+                                    onClick={() => handleReleaseRooms(group)}
+                                    disabled={isSaving}
+                                  >
+                                    <Unlock className="h-2.5 w-2.5 mr-0.5" />
+                                    Release
+                                  </Button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -1393,9 +1511,10 @@ interface GroupBookingFormProps {
   formData: GroupBookingFormData;
   setFormData: React.Dispatch<React.SetStateAction<GroupBookingFormData>>;
   properties: Property[];
+  roomTypes: RoomType[];
 }
 
-function GroupBookingForm({ formData, setFormData, properties }: GroupBookingFormProps) {
+function GroupBookingForm({ formData, setFormData, properties, roomTypes }: GroupBookingFormProps) {
   return (
     <div className="grid gap-4 py-4">
       <div className="grid grid-cols-2 gap-4">

@@ -608,23 +608,56 @@ const t = useTranslations('reports');
                         </TableCell>
                         <TableCell>{item.size || '-'}</TableCell>
                         <TableCell className="text-right">
-                          {item.downloadUrl && (
-                            <Button variant="ghost" size="sm" className="gap-2" onClick={() => {
-                              exportToCSV(
-                                [{ reportName: item.reportName, generatedAt: item.generatedAt, status: item.status, size: item.size || 'N/A' }],
-                                `report-${item.reportId}-${new Date(item.generatedAt).toISOString().slice(0, 10)}`,
-                                [
-                                  { key: 'reportName', label: 'Report' },
-                                  { key: 'generatedAt', label: 'Generated At' },
-                                  { key: 'status', label: 'Status' },
-                                  { key: 'size', label: 'Size' },
-                                ]
-                              );
-                            }}>
-                              <Download className="h-4 w-4" />
-                              Download
-                            </Button>
-                          )}
+                          {item.downloadUrl && (() => {
+                            const format = scheduledReports.find(r => r.id === item.reportId)?.format || 'csv';
+                            const reportData = [{ reportName: item.reportName, generatedAt: item.generatedAt, status: item.status, size: item.size || 'N/A' }];
+                            const columns = [
+                              { key: 'reportName', label: 'Report' },
+                              { key: 'generatedAt', label: 'Generated At' },
+                              { key: 'status', label: 'Status' },
+                              { key: 'size', label: 'Size' },
+                            ];
+                            return (
+                              <Button variant="ghost" size="sm" className="gap-2" onClick={() => {
+                                if (format === 'csv') {
+                                  exportToCSV(
+                                    reportData,
+                                    `report-${item.reportId}-${new Date(item.generatedAt).toISOString().slice(0, 10)}`,
+                                    columns,
+                                  );
+                                } else if (format === 'pdf') {
+                                  const tableRows = reportData.map(row =>
+                                    '<tr>' + columns.map(col => `<td>${row[col.key as keyof typeof row] ?? ''}</td>`).join('') + '</tr>'
+                                  ).join('');
+                                  const tableHeader = '<tr>' + columns.map(col => `<th>${col.label}</th>`).join('') + '</tr>';
+                                  const html = `<html><head><title>Report</title><style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px}th{background:#f5f5f5}</style></head><body><h2>${item.reportName}</h2><table>${tableHeader}${tableRows}</table></body></html>`;
+                                  const win = window.open('', '_blank');
+                                  if (win) {
+                                    win.document.write(html);
+                                    win.document.close();
+                                    win.print();
+                                  }
+                                } else if (format === 'excel') {
+                                  const headerRow = columns.map(col => col.label).join(',');
+                                  const dataRows = reportData.map(row => columns.map(col => `"${(row[col.key as keyof typeof row] ?? '').toString().replace(/"/g, '""')}"`).join(','));
+                                  const csvContent = [headerRow, ...dataRows].join('\n');
+                                  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+                                  const link = document.createElement('a');
+                                  const url = URL.createObjectURL(blob);
+                                  link.setAttribute('href', url);
+                                  link.setAttribute('download', `report-${item.reportId}-${new Date(item.generatedAt).toISOString().slice(0, 10)}.csv`);
+                                  link.style.display = 'none';
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  document.body.removeChild(link);
+                                  URL.revokeObjectURL(url);
+                                }
+                              }}>
+                                <Download className="h-4 w-4" />
+                                Download
+                              </Button>
+                            );
+                          })()}
                         </TableCell>
                       </TableRow>
                     ))}

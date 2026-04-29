@@ -29,7 +29,9 @@ import {
   Wallet,
   X,
   History,
+  Tag,
 } from 'lucide-react';
+import { OrderDiscount } from '@/components/pos/order-discounts';
 import { format } from 'date-fns';
 import { usePropertyId } from '@/hooks/use-property';
 
@@ -56,6 +58,7 @@ interface Order {
   subtotal: number;
   taxes: number;
   totalAmount: number;
+  discount: number;
   guestName?: string;
   notes?: string;
   createdAt: string;
@@ -167,8 +170,9 @@ const t = useTranslations('pos');
   }, [fetchRecentPayments, propertyId, activeTab]);
 
   const tip = parseFloat(tipAmount) || 0;
+  const discountAmount = selectedOrder?.discount || 0;
   const currentTotal = selectedOrder
-    ? selectedOrder.totalAmount + tip
+    ? selectedOrder.totalAmount + tip - discountAmount
     : 0;
   // Correct split-bill: first N-1 people pay floor share, last person pays the remainder
   // This ensures splitAmount * splitCount === currentTotal (no rounding drift)
@@ -250,14 +254,15 @@ const t = useTranslations('pos');
         </div>
         <div class="divider"></div>
         <div class="items">
-          ${selectedOrder.items.map(item => `<div class="item"><span>${item.menuItem.name} x${item.quantity}</span><span>$${(item.totalAmount).toFixed(2)}</span></div>`).join('')}
+          ${selectedOrder.items.map(item => `<div class="item"><span>${item.menuItem.name} x${item.quantity}</span><span>${formatCurrency(item.totalAmount)}</span></div>`).join('')}
         </div>
         <div class="divider"></div>
         <div class="totals">
-          <p><span>Subtotal</span><span>$${selectedOrder.subtotal.toFixed(2)}</span></p>
-          <p><span>Tax</span><span>$${selectedOrder.taxes.toFixed(2)}</span></p>
-          ${tip > 0 ? `<p><span>Tip</span><span>$${tip.toFixed(2)}</span></p>` : ''}
-          <p class="total"><span>TOTAL</span><span>$${currentTotal.toFixed(2)}</span></p>
+          <p><span>Subtotal</span><span>${formatCurrency(selectedOrder.subtotal)}</span></p>
+          <p><span>Tax</span><span>${formatCurrency(selectedOrder.taxes)}</span></p>
+          ${discountAmount > 0 ? `<p><span>Discount</span><span>-${formatCurrency(discountAmount)}</span></p>` : ''}
+          ${tip > 0 ? `<p><span>Tip</span><span>${formatCurrency(tip)}</span></p>` : ''}
+          <p class="total"><span>TOTAL</span><span>${formatCurrency(currentTotal)}</span></p>
         </div>
         <div class="footer">
           <p>Thank you for dining with us!</p>
@@ -508,6 +513,33 @@ const t = useTranslations('pos');
 
                 <Separator />
 
+                {/* Discount */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Discounts</span>
+                  <OrderDiscount
+                    order={{
+                      id: selectedOrder.id,
+                      orderNumber: selectedOrder.orderNumber,
+                      subtotal: selectedOrder.subtotal,
+                      taxes: selectedOrder.taxes,
+                      totalAmount: selectedOrder.totalAmount,
+                      discount: selectedOrder.discount,
+                    }}
+                    onApply={() => {
+                      fetchOrders();
+                      // Re-fetch to get the updated discount
+                      fetch(`/api/orders/${selectedOrder.id}?propertyId=${propertyId}`)
+                        .then(r => r.json())
+                        .then(data => {
+                          if (data.success && data.data) {
+                            setSelectedOrder(data.data);
+                          }
+                        })
+                        .catch(() => {});
+                    }}
+                  />
+                </div>
+
                 {/* Totals */}
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
@@ -518,6 +550,15 @@ const t = useTranslations('pos');
                     <span className="text-muted-foreground">Tax ({taxRate}%)</span>
                     <span>{formatCurrency(selectedOrder.taxes)}</span>
                   </div>
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <Tag className="h-3 w-3" />
+                        Discount
+                      </span>
+                      <span className="text-amber-600 dark:text-amber-400">-{formatCurrency(discountAmount)}</span>
+                    </div>
+                  )}
                   {tip > 0 && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Tip</span>

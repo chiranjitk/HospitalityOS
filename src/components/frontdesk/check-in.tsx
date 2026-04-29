@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -28,8 +30,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  LogIn, 
+import {
+  LogIn,
   Search,
   Users,
   Crown,
@@ -42,6 +44,10 @@ import {
   AlertCircle,
   Wifi,
   Copy,
+  ShieldCheck,
+  CreditCard,
+  Banknote,
+  Wallet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -71,6 +77,12 @@ interface Guest {
   loyaltyTier: string;
 }
 
+interface Folio {
+  id: string;
+  folioNumber: string;
+  status: string;
+}
+
 interface Booking {
   id: string;
   confirmationCode: string;
@@ -87,7 +99,23 @@ interface Booking {
   room?: { id: string; number: string; floor: number };
   roomType: { id: string; name: string; code: string; basePrice: number };
   property: { id: string; name: string; checkInTime: string };
+  folios?: Folio[];
 }
+
+const depositPaymentMethods = [
+  { value: 'card', label: 'Credit/Debit Card' },
+  { value: 'cash', label: 'Cash' },
+  { value: 'bank_transfer', label: 'Bank Transfer' },
+  { value: 'wallet', label: 'Digital Wallet' },
+];
+
+const cardTypes = [
+  { value: 'visa', label: 'Visa' },
+  { value: 'mastercard', label: 'Mastercard' },
+  { value: 'amex', label: 'American Express' },
+  { value: 'discover', label: 'Discover' },
+  { value: 'other', label: 'Other' },
+];
 
 export default function CheckIn() {
   const { toast } = useToast();
@@ -101,7 +129,7 @@ export default function CheckIn() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  
+
   // WiFi credentials state
   const [wifiCredentials, setWifiCredentials] = useState<{
     username: string;
@@ -109,7 +137,7 @@ export default function CheckIn() {
     validUntil: string;
   } | null>(null);
   const [showWifiDialog, setShowWifiDialog] = useState(false);
-  
+
   // Check-in form state
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
@@ -117,6 +145,21 @@ export default function CheckIn() {
   const [idNumber, setIdNumber] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [lateCheckOut, setLateCheckOut] = useState<boolean>(false);
+
+  // Deposit collection state
+  const [depositAmount, setDepositAmount] = useState<string>('');
+  const [depositMethod, setDepositMethod] = useState<string>('card');
+  const [depositCardType, setDepositCardType] = useState<string>('visa');
+  const [depositCardLast4, setDepositCardLast4] = useState<string>('');
+  const [depositExpiry, setDepositExpiry] = useState<string>('');
+  const [depositReference, setDepositReference] = useState<string>('');
+
+  // Pre-Authorization state
+  const [preAuthEnabled, setPreAuthEnabled] = useState<boolean>(false);
+  const [preAuthAmount, setPreAuthAmount] = useState<string>('');
+
+  // Folio ID for payment creation
+  const [bookingFolioId, setBookingFolioId] = useState<string | null>(null);
 
   // Fetch today's arrivals
   const fetchArrivals = async (signal?: AbortSignal) => {
@@ -182,14 +225,47 @@ export default function CheckIn() {
     }
   };
 
+  // Fetch booking details with folios for deposit payment creation
+  const fetchBookingDetailsForFolio = async (bookingId: string): Promise<string | null> => {
+    try {
+      const response = await fetch(`/api/bookings/${bookingId}`);
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
+      const result = await response.json();
+      if (result.success && result.data.folios && result.data.folios.length > 0) {
+        return result.data.folios[0].id;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   // Open check-in dialog
-  const openCheckIn = (booking: Booking) => {
+  const openCheckIn = async (booking: Booking) => {
     setSelectedBooking(booking);
     setNotes('');
     setIdNumber('');
     setIdType('passport');
     setLateCheckOut(false);
-    
+
+    // Reset deposit state
+    const firstNightRate = booking.roomType.basePrice;
+    setDepositAmount(firstNightRate.toString());
+    setDepositMethod('card');
+    setDepositCardType('visa');
+    setDepositCardLast4('');
+    setDepositExpiry('');
+    setDepositReference('');
+
+    // Reset pre-auth state
+    setPreAuthEnabled(false);
+    setPreAuthAmount(firstNightRate.toString());
+
+    setBookingFolioId(null);
+
     // If room already assigned, use it
     if (booking.room) {
       setSelectedRoomId(booking.room.id);
@@ -198,14 +274,62 @@ export default function CheckIn() {
       // Fetch available rooms for this room type
       fetchAvailableRooms(booking.roomType.id, booking.property.id);
     }
-    
+
+    // Fetch folio ID for payment creation
+    const folioId = await fetchBookingDetailsForFolio(booking.id);
+    setBookingFolioId(folioId);
+
     setIsCheckInOpen(true);
+  };
+
+  // Create deposit payment
+  const createDepositPayment = async (folioId: string, amount: number, isPreAuth: boolean): Promise<boolean> => {
+    try {
+      const paymentData: Record<string, unknown> = {
+        folioId,
+        guestId: selectedBooking?.primaryGuest.id,
+        amount,
+        currency: selectedBooking?.currency || 'USD',
+        method: depositMethod,
+        reference: isPreAuth ? 'Pre-Authorization Hold' : 'Check-in Deposit',
+        status: isPreAuth ? 'pending' : 'completed',
+      };
+
+      if (depositMethod === 'card' && depositCardLast4) {
+        paymentData.cardType = depositCardType;
+        paymentData.cardLast4 = depositCardLast4;
+        if (depositExpiry) {
+          paymentData.cardExpiry = depositExpiry;
+        }
+      }
+
+      if (depositReference) {
+        paymentData.reference = isPreAuth
+          ? `Pre-Authorization: ${depositReference}`
+          : `Deposit: ${depositReference}`;
+      }
+
+      const response = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(paymentData),
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
+      const result = await response.json();
+      return result.success === true;
+    } catch {
+      return false;
+    }
   };
 
   // Process check-in
   const processCheckIn = async () => {
     if (!selectedBooking) return;
-    
+
     if (!selectedRoomId && !selectedBooking.room) {
       toast({
         title: 'Validation Error',
@@ -215,8 +339,51 @@ export default function CheckIn() {
       return;
     }
 
+    // Validate deposit amount if entered
+    const depositParsed = parseFloat(depositAmount);
+    if (depositAmount && (isNaN(depositParsed) || depositParsed <= 0)) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please enter a valid deposit amount',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate card details if card payment method selected and deposit is being collected
+    if (depositMethod === 'card' && depositParsed > 0) {
+      if (!depositCardLast4 || depositCardLast4.length < 4) {
+        toast({
+          title: 'Validation Error',
+          description: 'Please enter the last 4 digits of the card',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (!depositExpiry) {
+        toast({
+          title: 'Validation Error',
+          description: 'Please enter the card expiry date',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    // Validate pre-auth amount if enabled
+    const preAuthParsed = parseFloat(preAuthAmount);
+    if (preAuthEnabled && (isNaN(preAuthParsed) || preAuthParsed <= 0)) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please enter a valid pre-authorization amount',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsProcessing(true);
     try {
+      // Step 1: Update booking status
       const response = await fetch(`/api/bookings/${selectedBooking.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -236,6 +403,41 @@ export default function CheckIn() {
       const result = await response.json();
 
       if (result.success) {
+        // Step 2: Create deposit payment if amount > 0 and folio exists
+        const folioId = bookingFolioId || await fetchBookingDetailsForFolio(selectedBooking.id);
+        if (folioId && depositParsed > 0) {
+          const depositSuccess = await createDepositPayment(folioId, depositParsed, false);
+          if (depositSuccess) {
+            toast({
+              title: 'Deposit Recorded',
+              description: `Deposit of ${formatCurrency(depositParsed)} has been recorded on the folio.`,
+            });
+          } else {
+            toast({
+              title: 'Deposit Warning',
+              description: 'Check-in succeeded but deposit payment could not be recorded. Please add it manually.',
+              variant: 'destructive',
+            });
+          }
+        }
+
+        // Step 3: Create pre-auth payment if enabled
+        if (folioId && preAuthEnabled && preAuthParsed > 0) {
+          const preAuthSuccess = await createDepositPayment(folioId, preAuthParsed, true);
+          if (preAuthSuccess) {
+            toast({
+              title: 'Pre-Authorization Created',
+              description: `Pre-authorization hold of ${formatCurrency(preAuthParsed)} has been recorded.`,
+            });
+          } else {
+            toast({
+              title: 'Pre-Authorization Warning',
+              description: 'Pre-authorization could not be recorded. Please add it manually.',
+              variant: 'destructive',
+            });
+          }
+        }
+
         // Handle WiFi credentials from response
         if (result.wifi?.credentials) {
           setWifiCredentials({
@@ -250,7 +452,7 @@ export default function CheckIn() {
           title: 'Check-in Successful',
           description: `Guest checked in to Room ${result.data.room?.number || 'assigned'}. WiFi credentials ready.`,
         });
-        
+
         setIsCheckInOpen(false);
         fetchArrivals();
       } else {
@@ -272,7 +474,7 @@ export default function CheckIn() {
     }
   };
 
-  // Copy to clipboard helper (fallback for non-HTTPS contexts where navigator.clipboard is undefined)
+  // Copy to clipboard helper
   const copyToClipboard = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text).catch(() => {});
@@ -413,7 +615,7 @@ export default function CheckIn() {
             {bookings.map((booking) => {
               const nights = differenceInDays(new Date(booking.checkOut), new Date(booking.checkIn));
               const isCheckedIn = booking.status === 'checked_in';
-              
+
               return (
                 <Card key={booking.id} className={cn(
                   "transition-all",
@@ -426,7 +628,7 @@ export default function CheckIn() {
                         <Avatar className="h-12 w-12">
                           <AvatarFallback className={cn(
                             "text-sm font-medium",
-                            booking.primaryGuest.isVip 
+                            booking.primaryGuest.isVip
                               ? "bg-gradient-to-br from-amber-400 to-amber-600 text-white"
                               : "bg-gradient-to-br from-primary/80 to-primary text-primary-foreground"
                           )}>
@@ -620,6 +822,186 @@ export default function CheckIn() {
                 </Label>
               </div>
 
+              {/* Pre-Authorization Toggle */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                    <Label htmlFor="preAuth" className="text-sm font-medium">
+                      Pre-Authorization
+                    </Label>
+                  </div>
+                  <Switch
+                    id="preAuth"
+                    checked={preAuthEnabled}
+                    onCheckedChange={(checked) => {
+                      setPreAuthEnabled(checked);
+                      if (checked && !preAuthAmount) {
+                        setPreAuthAmount(selectedBooking.roomType.basePrice.toString());
+                      }
+                    }}
+                  />
+                </div>
+                {preAuthEnabled && (
+                  <div className="p-3 bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800 rounded-lg space-y-3">
+                    <p className="text-xs text-violet-700 dark:text-violet-300">
+                      A hold will be placed on the guest&apos;s payment method for incidental charges. The hold amount will be released at check-out.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Hold Amount</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                            {selectedBooking.currency}
+                          </span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={preAuthAmount}
+                            onChange={(e) => setPreAuthAmount(e.target.value)}
+                            className="pl-14"
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-end">
+                        <Badge variant="outline" className="w-full justify-center py-2 border-violet-200 dark:border-violet-800 text-violet-700 dark:text-violet-300">
+                          <Clock className="h-3 w-3 mr-1" />
+                          Pending Hold
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Deposit Collection */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                  <Label className="text-sm font-medium">Deposit Collection</Label>
+                </div>
+                <div className="p-4 bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800 rounded-lg space-y-3">
+                  {/* Deposit Amount */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Deposit Amount</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        {selectedBooking.currency}
+                      </span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={depositAmount}
+                        onChange={(e) => setDepositAmount(e.target.value)}
+                        className="pl-14"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Default: first night&apos;s room rate ({formatCurrency(selectedBooking.roomType.basePrice)})
+                    </p>
+                  </div>
+
+                  {/* Payment Method */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Payment Method</Label>
+                    <Select value={depositMethod} onValueChange={setDepositMethod}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {depositPaymentMethods.map(method => (
+                          <SelectItem key={method.value} value={method.value}>
+                            <span className="flex items-center gap-2">
+                              {method.value === 'card' && <CreditCard className="h-3 w-3" />}
+                              {method.value === 'cash' && <Banknote className="h-3 w-3" />}
+                              {method.value === 'bank_transfer' && <Building2 className="h-3 w-3" />}
+                              {method.value === 'wallet' && <Wallet className="h-3 w-3" />}
+                              {method.label}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Card Details (only shown when card is selected) */}
+                  {depositMethod === 'card' && (
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium text-muted-foreground">Card Details</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Card Type</Label>
+                          <Select value={depositCardType} onValueChange={setDepositCardType}>
+                            <SelectTrigger className="h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {cardTypes.map(card => (
+                                <SelectItem key={card.value} value={card.value}>
+                                  {card.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Last 4 Digits</Label>
+                          <Input
+                            placeholder="0000"
+                            maxLength={4}
+                            value={depositCardLast4}
+                            onChange={(e) => setDepositCardLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                            className="h-9"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Expiry (MM/YY)</Label>
+                        <Input
+                          placeholder="MM/YY"
+                          maxLength={5}
+                          value={depositExpiry}
+                          onChange={(e) => {
+                            let val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                            if (val.length >= 3) {
+                              val = val.slice(0, 2) + '/' + val.slice(2);
+                            }
+                            setDepositExpiry(val);
+                          }}
+                          className="h-9 w-32"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Reference Number */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Reference Number (Optional)</Label>
+                    <Input
+                      placeholder="Transaction ID, receipt number..."
+                      value={depositReference}
+                      onChange={(e) => setDepositReference(e.target.value)}
+                      className="h-9"
+                    />
+                  </div>
+
+                  {parseFloat(depositAmount) > 0 && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <CheckCircle2 className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                      <span className="text-xs text-teal-700 dark:text-teal-300">
+                        Deposit of {formatCurrency(parseFloat(depositAmount) || 0)} will be recorded on the folio at check-in
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Notes */}
               <div className="space-y-2">
                 <Label>Notes</Label>
@@ -637,8 +1019,8 @@ export default function CheckIn() {
             <Button variant="outline" onClick={() => setIsCheckInOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              onClick={processCheckIn} 
+            <Button
+              onClick={processCheckIn}
               disabled={isProcessing || (!selectedBooking?.room && !selectedRoomId)}
               className="bg-emerald-600 hover:bg-emerald-700"
             >

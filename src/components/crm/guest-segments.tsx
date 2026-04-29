@@ -25,6 +25,7 @@ import {
   User, Mail, Star, DollarSign, Calendar, Building
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
 
 interface Segment {
@@ -112,6 +113,7 @@ export default function GuestSegments() {
     description: '',
   });
   const [conditions, setConditions] = useState<RuleCondition[]>([]);
+  const [ruleLogic, setRuleLogic] = useState<'and' | 'or'>('and');
 
   useEffect(() => {
     fetchSegments();
@@ -147,14 +149,17 @@ export default function GuestSegments() {
       });
       try {
         const parsedRules = JSON.parse(segment.rules);
-        setConditions(parsedRules.conditions || []);
+        setConditions(parsedRules.conditions || parsedRules.rules || []);
+        setRuleLogic(parsedRules.logic || parsedRules.operator || 'and');
       } catch {
         setConditions([]);
+        setRuleLogic('and');
       }
     } else {
       setEditingSegment(null);
       setFormData({ name: '', description: '' });
       setConditions([]);
+      setRuleLogic('and');
     }
     setDialogOpen(true);
   };
@@ -164,6 +169,7 @@ export default function GuestSegments() {
     setEditingSegment(null);
     setFormData({ name: '', description: '' });
     setConditions([]);
+    setRuleLogic('and');
   };
 
   const handleSave = async () => {
@@ -175,7 +181,7 @@ export default function GuestSegments() {
     try {
       const rules = JSON.stringify({
         conditions,
-        logic: 'and',
+        logic: ruleLogic,
       });
 
       const url = '/api/segments';
@@ -509,7 +515,9 @@ export default function GuestSegments() {
                   <div>
                     <h4 className="font-medium">Segmentation Rules</h4>
                     <p className="text-sm text-muted-foreground">
-                      Guests must match all conditions to be included
+                      {ruleLogic === 'and'
+                        ? 'Guests must match ALL conditions to be included'
+                        : 'Guests will match if ANY condition is met'}
                     </p>
                   </div>
                   <Button variant="outline" size="sm" onClick={addCondition}>
@@ -517,6 +525,47 @@ export default function GuestSegments() {
                     Add Condition
                   </Button>
                 </div>
+
+                {/* AND/OR Toggle */}
+                {conditions.length > 1 && (
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    <span className="text-sm font-medium">Match Logic:</span>
+                    <div className="flex items-center gap-1 bg-background rounded-lg border p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setRuleLogic('and')}
+                        className={cn(
+                          'px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
+                          ruleLogic === 'and'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        ALL (AND)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRuleLogic('or')}
+                        className={cn(
+                          'px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
+                          ruleLogic === 'or'
+                            ? 'bg-amber-500 text-white shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        ANY (OR)
+                      </button>
+                    </div>
+                    <Badge variant="outline" className={cn(
+                      'text-xs',
+                      ruleLogic === 'and'
+                        ? 'border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300'
+                        : 'border-amber-200 text-amber-700 dark:border-amber-800 dark:text-amber-300'
+                    )}>
+                      {ruleLogic === 'and' ? 'Narrow match' : 'Broad match'}
+                    </Badge>
+                  </div>
+                )}
 
                 {conditions.length === 0 ? (
                   <div className="text-center py-6 text-muted-foreground border-2 border-dashed rounded-lg">

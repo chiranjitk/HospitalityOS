@@ -25,8 +25,8 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Key, 
+import {
+  Key,
   RefreshCw,
   Search,
   Users,
@@ -37,6 +37,10 @@ import {
   ArrowRight,
   Clock,
   Sparkles,
+  Check,
+  X,
+  Zap,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -111,9 +115,20 @@ export default function RoomAssignment() {
   const [searchQuery, setSearchQuery] = useState('');
   const [propertyFilter, setPropertyFilter] = useState<string>('all');
   const [roomTypeFilter, setRoomTypeFilter] = useState<string>('all');
-  
+
   // View states
   const [activeTab, setActiveTab] = useState<string>('unassigned');
+
+  // Smart assign states
+  const [isSmartAssignOpen, setIsSmartAssignOpen] = useState(false);
+  const [isComputingSuggestions, setIsComputingSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<Array<{
+    booking: Booking;
+    room: Room;
+    score: number;
+    reasons: string[];
+    accepted: boolean;
+  }>>([]);
 
   // Fetch properties
   useEffect(() => {
@@ -259,6 +274,231 @@ export default function RoomAssignment() {
     }
   };
 
+  // Smart Assign algorithm
+  const computeSmartAssignments = () => {
+    if (unassignedBookings.length === 0) {
+      toast({
+        title: 'No Unassigned Bookings',
+        description: 'There are no bookings needing room assignment',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsComputingSuggestions(true);
+    // Simulate brief computation for UX
+    setTimeout(() => {
+      const computedSuggestions: Array<{
+        booking: Booking;
+        room: Room;
+        score: number;
+        reasons: string[];
+        accepted: false;
+      }> = [];
+
+      const assignedRoomIds = new Set<string>();
+
+      // Sort bookings by priority: arriving today > VIP > check-in date
+      const sortedBookings = [...unassignedBookings].sort((a, b) => {
+    const aArrivingToday = new Date(a.checkIn).toDateString() === new Date().toDateString() ? 0 : 1;
+    const bArrivingToday = new Date(b.checkIn).toDateString() === new Date().toDateString() ? 0 : 1;
+    if (aArrivingToday !== bArrivingToday) return aArrivingToday - bArrivingToday;
+    const aVip = a.primaryGuest.isVip ? 0 : 1;
+    const bVip = b.primaryGuest.isVip ? 0 : 1;
+    if (aVip !== bVip) return aVip - bVip;
+    return new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime();
+      });
+
+      // Group bookings by property to prefer same-floor assignments
+      const bookingsByProperty = new Map<string, Booking[]>();
+      for (const b of sortedBookings) {
+        const propId = b.property.id;
+        if (!bookingsByProperty.has(propId)) bookingsByProperty.set(propId, []);
+        bookingsByProperty.get(propId)!.push(b);
+      }
+
+      // Track floor usage per property for group preference
+      const floorUsage = new Map<string, Map<number, number>>();
+
+      for (const [propId, propertyBookings] of bookingsByProperty) {
+        if (!floorUsage.has(propId)) floorUsage.set(propId, new Map());
+        const propFloorUsage = floorUsage.get(propId)!;
+
+        for (const booking of propertyBookings) {
+          const compatibleRooms = availableRooms.filter(r =>
+            r.roomType.id === booking.roomType.id &&
+            r.property.id === booking.property.id &&
+            !assignedRoomIds.has(r.id)
+          );
+
+          if (compatibleRooms.length === 0) continue;
+
+          // Score each compatible room
+          let bestRoom = compatibleRooms[0];
+          let bestScore = -1;
+          let bestReasons: string[] = [];
+
+          for (const room of compatibleRooms) {
+            let score = 0;
+            const reasons: string[] = [];
+
+            // Room type match (essential, but give points for confirmation)
+            score += 40;
+            reasons.push('Room type match');
+
+            // Prefer same floor as other already-suggested bookings (group preference)
+            const currentFloorCount = propFloorUsage.get(room.floor) || 0;
+            if (currentFloorCount > 0) {
+              score += 20;
+              reasons.push(`${currentFloorCount} other booking(s) on floor ${room.floor}`);
+            }
+
+            // VIP guest gets premium features
+            if (booking.primaryGuest.isVip) {
+              if (room.hasSeaView) { score += 15; reasons.push('Sea view (VIP)'); }
+              if (room.hasMountainView) { score += 10; reasons.push('Mountain view (VIP)'); }
+              if (room.hasBalcony) { score += 10; reasons.push('Balcony (VIP)'); }
+              // Higher floor preference for VIP
+              if (room.floor >= 3) { score += 5; reasons.push('Premium floor'); }
+            }
+
+            // Accessibility for guests who need it
+            if (booking.specialRequests?.toLowerCase().includes('accessib') && room.isAccessible) {
+              score += 30;
+              reasons.push('Accessible room');
+            }
+
+            // Loyalty tier bonus
+            if (booking.primaryGuest.loyaltyTier === 'platinum') {
+              if (room.hasSeaView) { score += 8; reasons.push('Sea view (Platinum)'); }
+              if (room.floor >= 2) { score += 3; reasons.push('Higher floor (Platinum)'); }
+            } else if (booking.primaryGuest.loyaltyTier === 'gold') {
+              if (room.hasSeaView) { score += 5; reasons.push('Sea view (Gold)'); }
+            }
+
+            // Lower floor for families with children
+            if (booking.children > 0 && room.floor <= 2) {
+              score += 5;
+              reasons.push('Lower floor (family)');
+            }
+
+            // Non-smoking by default preference
+            if (!room.isSmoking) { score += 3; reasons.push('Non-smoking'); }
+
+            if (score > bestScore) {
+              bestScore = score;
+              bestRoom = room;
+              bestReasons = reasons;
+            }
+          }
+
+          computedSuggestions.push({
+            booking,
+            room: bestRoom,
+            score: bestScore,
+            reasons: bestReasons,
+            accepted: false,
+          });
+
+          assignedRoomIds.add(bestRoom.id);
+          propFloorUsage.set(bestRoom.floor, (propFloorUsage.get(bestRoom.floor) || 0) + 1);
+        }
+      }
+
+      setSuggestions(computedSuggestions);
+      setIsComputingSuggestions(false);
+
+      if (computedSuggestions.length === 0) {
+        toast({
+          title: 'No Suggestions',
+          description: 'Could not find compatible rooms for any booking',
+          variant: 'destructive',
+        });
+      } else {
+        setIsSmartAssignOpen(true);
+      }
+    }, 400);
+  };
+
+  // Accept a single suggestion
+  const acceptSuggestion = async (idx: number) => {
+    const suggestion = suggestions[idx];
+    if (!suggestion) return;
+
+    setSuggestions(prev => prev.map((s, i) => i === idx ? { ...s, accepted: true } : s));
+
+    try {
+      const response = await fetch(`/api/bookings/${suggestion.booking.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: suggestion.room.id }),
+      });
+
+      if (!response.ok) throw new Error('Failed to assign room');
+      const result = await response.json();
+
+      if (!result.success) {
+        toast({ title: 'Error', description: result.error?.message || 'Failed to assign room', variant: 'destructive' });
+        setSuggestions(prev => prev.map((s, i) => i === idx ? { ...s, accepted: false } : s));
+        return;
+      }
+
+      toast({
+        title: 'Room Assigned',
+        description: `Room ${suggestion.room.number} assigned to ${suggestion.booking.confirmationCode}`,
+      });
+      fetchUnassignedBookings();
+      fetchAvailableRooms();
+    } catch {
+      toast({ title: 'Error', description: 'Failed to assign room', variant: 'destructive' });
+      setSuggestions(prev => prev.map((s, i) => i === idx ? { ...s, accepted: false } : s));
+    }
+  };
+
+  // Skip a suggestion
+  const skipSuggestion = (idx: number) => {
+    setSuggestions(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  // Accept all suggestions at once
+  const acceptAllSuggestions = async () => {
+    const pending = suggestions.filter(s => !s.accepted);
+    if (pending.length === 0) return;
+
+    setIsProcessing(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const suggestion of pending) {
+      try {
+        const response = await fetch(`/api/bookings/${suggestion.booking.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomId: suggestion.room.id }),
+        });
+
+        if (!response.ok) { failCount++; continue; }
+        const result = await response.json();
+        if (!result.success) { failCount++; continue; }
+        successCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setIsProcessing(false);
+    toast({
+      title: 'Batch Assignment Complete',
+      description: `${successCount} room(s) assigned successfully${failCount > 0 ? `, ${failCount} failed` : ''}`,
+      variant: failCount > 0 ? 'destructive' : undefined,
+    });
+
+    setIsSmartAssignOpen(false);
+    setSuggestions([]);
+    fetchUnassignedBookings();
+    fetchAvailableRooms();
+  };
+
   // Quick assign (drag-drop alternative)
   const quickAssign = async (booking: Booking, room: Room) => {
     setIsProcessing(true);
@@ -352,6 +592,14 @@ export default function RoomAssignment() {
           <Button variant="outline" onClick={() => { fetchUnassignedBookings(); fetchAvailableRooms(); }}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
+          </Button>
+          <Button onClick={computeSmartAssignments} disabled={isComputingSuggestions || unassignedBookings.length === 0} className="bg-violet-600 hover:bg-violet-700 text-white">
+            {isComputingSuggestions ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Zap className="h-4 w-4 mr-2" />
+            )}
+            Smart Assign
           </Button>
         </div>
       </div>
@@ -711,6 +959,144 @@ export default function RoomAssignment() {
               Assign Room
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Smart Assign Dialog */}
+      <Dialog open={isSmartAssignOpen} onOpenChange={(open) => { if (!open) { setIsSmartAssignOpen(false); setSuggestions([]); } }}>
+        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[85dvh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-violet-500" />
+              Smart Assignment Suggestions
+            </DialogTitle>
+            <DialogDescription>
+              AI-suggested room assignments based on guest profile, room type, floor proximity, and amenities.
+            </DialogDescription>
+          </DialogHeader>
+
+          {suggestions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <CheckCircle2 className="h-12 w-12 mb-4 text-emerald-500 dark:text-emerald-400" />
+              <p>All suggestions processed</p>
+            </div>
+          ) : (
+            <>
+              <ScrollArea className="flex-1 h-[400px]">
+                <div className="space-y-3 pr-2">
+                  {suggestions.map((suggestion, idx) => (
+                    <Card key={`${suggestion.booking.id}-${idx}`} className={cn(
+                      'p-4 transition-all',
+                      suggestion.accepted && 'opacity-60 border-emerald-300 dark:border-emerald-700'
+                    )}>
+                      <div className="flex flex-col sm:flex-row gap-4">
+                        {/* Booking info */}
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Avatar className="h-7 w-7">
+                              <AvatarFallback className={cn(
+                                'text-[10px] font-medium',
+                                suggestion.booking.primaryGuest.isVip
+                                  ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white'
+                                  : 'bg-gradient-to-br from-primary/80 to-primary text-primary-foreground'
+                              )}>
+                                {getInitials(suggestion.booking.primaryGuest.firstName, suggestion.booking.primaryGuest.lastName)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <p className="text-sm font-medium">
+                              {suggestion.booking.primaryGuest.firstName} {suggestion.booking.primaryGuest.lastName}
+                            </p>
+                            {suggestion.booking.primaryGuest.isVip && <Crown className="h-3 w-3 text-amber-500" />}
+                            <Badge variant="outline" className={cn('text-xs', getLoyaltyColor(suggestion.booking.primaryGuest.loyaltyTier))}>
+                              {suggestion.booking.primaryGuest.loyaltyTier}
+                            </Badge>
+                            {suggestion.accepted && (
+                              <Badge className="bg-emerald-500 text-white text-[10px]">
+                                <Check className="h-3 w-3 mr-1" /> Assigned
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground space-y-0.5">
+                            <span className="font-mono">{suggestion.booking.confirmationCode}</span>
+                            <span className="mx-1">·</span>
+                            <span>{suggestion.booking.roomType.name}</span>
+                            <span className="mx-1">·</span>
+                            <span>{format(new Date(suggestion.booking.checkIn), 'MMM d')} - {format(new Date(suggestion.booking.checkOut), 'MMM d')}</span>
+                          </div>
+                        </div>
+
+                        {/* Arrow */}
+                        <ArrowRight className="h-4 w-4 text-muted-foreground hidden sm:block self-center" />
+
+                        {/* Room suggestion */}
+                        <div className="sm:w-44 shrink-0">
+                          <div className="flex items-center gap-2 p-2 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 rounded-lg">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-violet-600 text-white font-bold text-sm">
+                              {suggestion.room.number}
+                            </div>
+                            <div className="text-xs">
+                              <p className="font-medium">Floor {suggestion.room.floor}</p>
+                              <p className="text-muted-foreground">{suggestion.room.roomType.code}</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {suggestion.reasons.slice(0, 3).map((reason, i) => (
+                              <Badge key={i} variant="secondary" className="text-[10px] px-1.5 py-0">
+                                {reason}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex sm:flex-col gap-1.5 self-center">
+                          {!suggestion.accepted ? (
+                            <>
+                              <Button
+                                size="sm"
+                                className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                onClick={() => acceptSuggestion(idx)}
+                              >
+                                <Check className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-muted-foreground"
+                                onClick={() => skipSuggestion(idx)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </>
+                          ) : (
+                            <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
+
+              <DialogFooter className="mt-2">
+                <Button variant="outline" onClick={() => { setIsSmartAssignOpen(false); setSuggestions([]); }}>
+                  Close
+                </Button>
+                <Button
+                  onClick={acceptAllSuggestions}
+                  disabled={isProcessing || suggestions.every(s => s.accepted)}
+                  className="bg-violet-600 hover:bg-violet-700 text-white"
+                >
+                  {isProcessing ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Zap className="h-4 w-4 mr-2" />
+                  )}
+                  Accept All ({suggestions.filter(s => !s.accepted).length})
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

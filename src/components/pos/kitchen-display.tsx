@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { usePropertyId } from '@/hooks/use-property';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
+import { io, Socket } from 'socket.io-client';
 import { 
   Loader2, 
   ChefHat, 
@@ -20,6 +21,8 @@ import {
   RefreshCw,
   X,
   Flame,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 
 interface OrderItem {
@@ -96,6 +99,9 @@ const t = useTranslations('pos');
   const { propertyId } = usePropertyId();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const socketRef = useRef<Socket | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [stats, setStats] = useState({
     pending: 0,
     cooking: 0,
@@ -152,11 +158,61 @@ const t = useTranslations('pos');
     }
   }, [propertyId]);
 
+  // WebSocket connection for real-time updates
+  useEffect(() => {
+    if (!propertyId) return;
+
+    const socket = io('/?XTransformPort=3003', {
+      path: '/',
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      setSocketConnected(true);
+      socket.emit('kitchen:subscribe', { propertyId });
+    });
+
+    socket.on('disconnect', () => {
+      setSocketConnected(false);
+    });
+
+    socket.on('connect_error', () => {
+      setSocketConnected(false);
+    });
+
+    // Listen for kitchen order events
+    socket.on('kitchen:order', () => {
+      fetchOrders();
+    });
+
+    // Also listen for order events on the tenant channel
+    socket.on('order:created', () => {
+      fetchOrders();
+    });
+
+    socket.on('order:updated', () => {
+      fetchOrders();
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [propertyId]);
+
+  // Polling as fallback (always runs, but WebSocket will trigger faster updates)
   useEffect(() => {
     fetchOrders();
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchOrders, 30000);
-    return () => clearInterval(interval);
+    pollingRef.current = setInterval(fetchOrders, 30000);
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
   }, [fetchOrders]);
 
   const updateKitchenStatus = async (orderId: string, kitchenStatus: string) => {
@@ -261,9 +317,21 @@ const t = useTranslations('pos');
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Timer className="h-4 w-4" />
-            Auto-refresh: 30s
+          <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${
+              socketConnected
+                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
+                : 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-400'
+            }`}>
+              {socketConnected
+                ? <><Wifi className="h-3 w-3" /><span>Live</span></>
+                : <><WifiOff className="h-3 w-3" /><span>Reconnecting</span></>
+              }
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Timer className="h-4 w-4" />
+              Auto-refresh: 30s
+            </div>
           </div>
         </div>
       </div>

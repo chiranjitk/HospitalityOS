@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,12 +18,22 @@ import {
   Search,
   Loader2,
   RefreshCw,
+  X,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUIStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, formatDistanceToNow } from 'date-fns';
+
+interface Attachment {
+  id: string;
+  name: string;
+  type: 'image' | 'pdf' | 'file';
+  data: string;
+  size: number;
+}
 
 interface ChatMessage {
   id: string;
@@ -94,6 +104,8 @@ export default function GuestChat() {
     open: 0,
     totalUnread: 0,
   });
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch conversations
   const fetchConversations = useCallback(async () => {
@@ -159,12 +171,58 @@ export default function GuestChat() {
     }
   }, [selectedConversation, fetchMessages]);
 
+  // Handle file attachments
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach(file => {
+      if (file.size > 5 * 1024 * 1024) {
+        toast({ title: 'File too large', description: `${file.name} exceeds 5MB limit`, variant: 'destructive' });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        const isImage = /^image\/(jpeg|png|gif|webp)$/i.test(file.type);
+        const isPdf = file.type === 'application/pdf';
+        setPendingAttachments(prev => [...prev, {
+          id: crypto.randomUUID(),
+          name: file.name,
+          type: isImage ? 'image' : isPdf ? 'pdf' : 'file',
+          data: base64,
+          size: file.size,
+        }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    if (e.target) e.target.value = '';
+  };
+
+  const removeAttachment = (id: string) => {
+    setPendingAttachments(prev => prev.filter(a => a.id !== id));
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   // Send message
   const handleSendMessage = async () => {
-    if (!messageInput.trim() || !selectedConversation) return;
+    if ((!messageInput.trim() && pendingAttachments.length === 0) || !selectedConversation) return;
 
     setIsSending(true);
     try {
+      const payload: Record<string, unknown> = {
+        content: messageInput || '[Attachment]',
+        senderType: 'staff',
+        messageType: 'text',
+      };
+      if (pendingAttachments.length > 0) {
+        payload.attachments = pendingAttachments;
+      }
+
       const response = await fetch(`/api/chat-conversations/${selectedConversation.id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -180,6 +238,7 @@ export default function GuestChat() {
       if (result.success) {
         setMessages((prev) => [...prev, result.data]);
         setMessageInput('');
+        setPendingAttachments([]);
         // Update conversation's last message
         setConversations((prev) =>
           prev.map((c) =>
@@ -456,6 +515,25 @@ export default function GuestChat() {
                             </p>
                           )}
                           <p>{message.content}</p>
+                          {(message as Record<string, unknown>).attachments && Array.isArray((message as Record<string, unknown>).attachments) && (message as Record<string, unknown>).attachments!.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {((message as Record<string, unknown>).attachments! as Array<Record<string, unknown>>).map((att: Record<string, unknown>, i: number) => (
+                                <div key={i} className="relative">
+                                  {att.type === 'image' ? (
+                                    <img src={att.data as string} alt={att.name as string} className="max-h-32 rounded-lg object-cover cursor-pointer" onClick={() => window.open(att.data as string, '_blank')} />
+                                  ) : (
+                                    <div className="flex items-center gap-2 bg-muted rounded-lg p-2 cursor-pointer hover:bg-muted/80" onClick={() => window.open(att.data as string, '_blank')}>
+                                      <FileText className="h-5 w-5 text-red-500 shrink-0" />
+                                      <div className="min-w-0">
+                                        <p className="text-xs truncate max-w-[120px]">{att.name as string}</p>
+                                        <p className="text-[10px] text-muted-foreground">{formatFileSize(att.size as number)}</p>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                           <p className={cn(
                             'text-xs mt-1',
                             message.senderType === 'guest' ? 'text-muted-foreground' : 'text-white/70'
@@ -472,20 +550,38 @@ export default function GuestChat() {
               {/* Message Input */}
               <div className="p-4 border-t">
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" title="Attach file" onClick={() => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.accept = 'image/*,.pdf,.doc,.docx';
-                    input.onchange = (e) => {
-                      const file = (e.target as HTMLInputElement).files?.[0];
-                      if (file) {
-                        toast({ title: 'File selected', description: `${file.name} — attachment support coming soon` });
-                      }
-                    };
-                    input.click();
-                  }}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                  <Button variant="ghost" size="icon" title="Attach file" onClick={() => fileInputRef.current?.click()}>
                     <Paperclip className="h-4 w-4" />
                   </Button>
+                  {pendingAttachments.length > 0 && (
+                    <div className="flex items-center gap-1 overflow-x-auto max-w-[180px]">
+                      {pendingAttachments.map(att => (
+                        <div key={att.id} className="relative shrink-0">
+                          {att.type === 'image' ? (
+                            <img src={att.data} alt={att.name} className="h-8 w-8 rounded object-cover" />
+                          ) : (
+                            <div className="h-8 w-8 rounded bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                              <FileText className="h-4 w-4 text-red-500" />
+                            </div>
+                          )}
+                          <button
+                            className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center text-[8px]"
+                            onClick={() => removeAttachment(att.id)}
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <Input
                     placeholder="Type a message..."
                     value={messageInput}
@@ -493,7 +589,7 @@ export default function GuestChat() {
                     onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                     className="flex-1"
                   />
-                  <Button onClick={handleSendMessage} disabled={isSending || !messageInput.trim()}>
+                  <Button onClick={handleSendMessage} disabled={isSending || (!messageInput.trim() && pendingAttachments.length === 0)}>
                     {isSending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (

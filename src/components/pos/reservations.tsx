@@ -38,6 +38,7 @@ import {
   LayoutGrid,
   Phone,
   Filter,
+  Edit,
 } from 'lucide-react';
 
 interface TableInfo {
@@ -158,6 +159,7 @@ export default function Reservations() {
   // Create/Edit dialog
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [formData, setFormData] = useState({
     guestName: '',
     guestPhone: '',
@@ -237,6 +239,29 @@ export default function Reservations() {
     if (createOpen) fetchAvailableTables();
   }, [createOpen, fetchAvailableTables]);
 
+  const openEditDialog = (reservation: Reservation) => {
+    setEditingReservation(reservation);
+    setFormData({
+      guestName: reservation.guestName,
+      guestPhone: reservation.guestPhone,
+      guestEmail: reservation.guestEmail || '',
+      reservationDate: new Date(reservation.date).toISOString().split('T')[0],
+      reservationTime: reservation.time,
+      partySize: String(reservation.partySize),
+      tableId: reservation.tableId || '',
+      specialRequests: reservation.specialRequests || '',
+      occasion: reservation.occasion || '',
+      notes: reservation.notes || '',
+    });
+    setCreateOpen(true);
+  };
+
+  const closeDialog = () => {
+    setCreateOpen(false);
+    setEditingReservation(null);
+    resetForm();
+  };
+
   const resetForm = () => {
     setFormData({
       guestName: '',
@@ -252,7 +277,7 @@ export default function Reservations() {
     });
   };
 
-  // Create reservation
+  // Create or Update reservation
   const handleCreate = async () => {
     if (!formData.guestName.trim()) {
       toast.error('Guest name is required');
@@ -275,10 +300,11 @@ export default function Reservations() {
       return;
     }
 
+    const isEditing = !!editingReservation;
+
     setCreating(true);
     try {
       const body: Record<string, unknown> = {
-        propertyId,
         guestName: formData.guestName,
         guestPhone: formData.guestPhone,
         partySize: parseInt(formData.partySize, 10),
@@ -289,27 +315,32 @@ export default function Reservations() {
         notes: formData.notes || undefined,
       };
 
+      if (isEditing) {
+        body.id = editingReservation.id;
+      } else {
+        body.propertyId = propertyId;
+      }
+
       if (formData.guestEmail) body.guestEmail = formData.guestEmail;
-      if (formData.tableId) body.tableId = formData.tableId;
+      if (formData.tableId && formData.tableId !== 'none') body.tableId = formData.tableId;
 
       const res = await fetch('/api/reservations', {
-        method: 'POST',
+        method: isEditing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
       const data = await res.json();
       if (data.success) {
-        toast.success('Reservation created successfully');
-        setCreateOpen(false);
-        resetForm();
+        toast.success(isEditing ? 'Reservation updated successfully' : 'Reservation created successfully');
+        closeDialog();
         fetchReservations();
       } else {
-        toast.error(data.error?.message || 'Failed to create reservation');
+        toast.error(data.error?.message || (isEditing ? 'Failed to update reservation' : 'Failed to create reservation'));
       }
     } catch (error) {
-      console.error('Error creating reservation:', error);
-      toast.error('Failed to create reservation');
+      console.error(isEditing ? 'Error updating reservation:' : 'Error creating reservation:', error);
+      toast.error(isEditing ? 'Failed to update reservation' : 'Failed to create reservation');
     } finally {
       setCreating(false);
     }
@@ -360,6 +391,7 @@ export default function Reservations() {
 
   // Walk-in quick add
   const handleWalkIn = () => {
+    setEditingReservation(null);
     resetForm();
     setFormData(prev => ({
       ...prev,
@@ -475,15 +507,15 @@ export default function Reservations() {
                 <Phone className="h-4 w-4 mr-1" />
                 Walk-in
               </Button>
-              <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) resetForm(); }}>
+              <Dialog open={createOpen} onOpenChange={(open) => { if (!open) closeDialog(); else if (!editingReservation) { resetForm(); } }}>
                 <Button className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700">
                   <Plus className="h-4 w-4 mr-2" />
                   New Reservation
                 </Button>
                 <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle>New Reservation</DialogTitle>
-                    <DialogDescription>Create a new restaurant reservation</DialogDescription>
+                    <DialogTitle>{editingReservation ? 'Edit Reservation' : 'New Reservation'}</DialogTitle>
+                    <DialogDescription>{editingReservation ? 'Update reservation details' : 'Create a new restaurant reservation'}</DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -601,14 +633,14 @@ export default function Reservations() {
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => { setCreateOpen(false); resetForm(); }}>Cancel</Button>
+                    <Button variant="outline" onClick={closeDialog}>Cancel</Button>
                     <Button
                       onClick={handleCreate}
                       disabled={creating}
                       className="bg-gradient-to-r from-emerald-500 to-teal-600"
                     >
                       {creating && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                      Create Reservation
+                      {editingReservation ? 'Save Changes' : 'Create Reservation'}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -754,6 +786,17 @@ export default function Reservations() {
 
                           {/* Actions */}
                           <div className="flex items-center gap-1">
+                            {(reservation.status === 'pending' || reservation.status === 'confirmed') && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                onClick={() => openEditDialog(reservation)}
+                              >
+                                <Edit className="h-3 w-3 mr-1" />
+                                <span className="hidden lg:inline">Edit</span>
+                              </Button>
+                            )}
                             {transitions.map((t) => (
                               <Button
                                 key={t.toStatus}
@@ -883,8 +926,19 @@ export default function Reservations() {
                                     {sc.label}
                                   </Badge>
                                 </div>
-                                {transitions.length > 0 && (
+                                {(transitions.length > 0 || (r.status === 'pending' || r.status === 'confirmed')) && (
                                   <div className="flex gap-1 mt-2 pt-2 border-t border-muted">
+                                    {(r.status === 'pending' || r.status === 'confirmed') && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-2 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                        onClick={() => openEditDialog(r)}
+                                      >
+                                        <Edit className="h-3 w-3 mr-1" />
+                                        Edit
+                                      </Button>
+                                    )}
                                     {transitions.map(t => (
                                       <Button
                                         key={t.toStatus}

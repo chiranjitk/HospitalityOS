@@ -38,8 +38,12 @@ import {
   Wheat,
   DollarSign,
   Clock,
-  Star
+  Star,
+  ImagePlus,
+  Layers,
+  ListChecks,
 } from 'lucide-react';
+import MenuImageUpload from '@/components/pos/menu-image-upload';
 
 interface Category {
   id: string;
@@ -129,6 +133,12 @@ const t = useTranslations('pos');
     kitchenStation: '',
     status: 'active',
   });
+
+  // Dialog tab state
+  const [dialogTab, setDialogTab] = useState<'basic' | 'modifiers' | 'variants'>('basic');
+  const [imageUrl, setImageUrl] = useState('');
+  const [itemModifiers, setItemModifiers] = useState<Array<{ id: string; name: string; selectionType: string; optionsCount: number }>>([]);
+  const [itemVariants, setItemVariants] = useState<Array<{ id: string; name: string; price: number; isDefault: boolean; isAvailable: boolean }>>([]);
 
   const fetchMenuItems = useCallback(async () => {
     if (!propertyId) return;
@@ -465,8 +475,39 @@ const t = useTranslations('pos');
     }
   };
 
+  const fetchItemModifiers = async (menuItemId: string) => {
+    if (!propertyId) return;
+    try {
+      const res = await fetch(`/api/menu-modifiers?propertyId=${propertyId}`);
+      const data = await res.json();
+      if (data.success) {
+        const groups = data.data.filter((g: { items: Array<{ id: string }> }) =>
+          g.items.some((i: { id: string }) => i.id === menuItemId)
+        );
+        setItemModifiers(groups.map((g: { id: string; name: string; selectionType: string; options: unknown[] }) => ({
+          id: g.id, name: g.name, selectionType: g.selectionType, optionsCount: (g.options as unknown[]).length,
+        })));
+      }
+    } catch { /* silent */ }
+  };
+
+  const fetchItemVariants = async (menuItemId: string) => {
+    if (!propertyId) return;
+    try {
+      const res = await fetch(`/api/menu-variants?propertyId=${propertyId}&menuItemId=${menuItemId}`);
+      const data = await res.json();
+      if (data.success) {
+        setItemVariants(data.data.map((v: { id: string; name: string; price: number; isDefault: boolean; isAvailable: boolean }) => ({
+          id: v.id, name: v.name, price: v.price, isDefault: v.isDefault, isAvailable: v.isAvailable,
+        })));
+      }
+    } catch { /* silent */ }
+  };
+
   const openEditDialog = (item: MenuItem) => {
     setEditItem(item);
+    setDialogTab('basic');
+    setImageUrl(item.imageUrl || '');
     setFormData({
       name: item.name,
       description: item.description || '',
@@ -480,6 +521,8 @@ const t = useTranslations('pos');
       kitchenStation: item.kitchenStation || '',
       status: item.status,
     });
+    fetchItemModifiers(item.id);
+    fetchItemVariants(item.id);
   };
 
   if (!propertyId) {
@@ -584,172 +627,292 @@ const t = useTranslations('pos');
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
-            <Dialog open={addItemOpen} onOpenChange={setAddItemOpen}>
+            <Dialog open={addItemOpen} onOpenChange={(open) => { if (!open) { setAddItemOpen(false); resetForm(); setImageUrl(''); setDialogTab('basic'); setItemModifiers([]); setItemVariants([]); } }}>
               <DialogTrigger asChild>
-                <Button className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700" onClick={resetForm}>
+                <Button className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700" onClick={() => { resetForm(); setImageUrl(''); setDialogTab('basic'); setItemModifiers([]); setItemVariants([]); }}>
                   <Plus className="h-4 w-4 mr-2" />
                   Add Item
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-lg">
+              <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>Add Menu Item</DialogTitle>
+                  <DialogTitle>{editItem ? 'Edit Menu Item' : 'Add Menu Item'}</DialogTitle>
                   <DialogDescription>
-                    Add a new item to the menu
+                    {editItem ? 'Update menu item details' : 'Add a new item to the menu'}
                   </DialogDescription>
                 </DialogHeader>
+
+                {/* Tabs */}
+                <div className="flex border-b mb-4">
+                  {(['basic', 'modifiers', 'variants'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setDialogTab(tab)}
+                      className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                        dialogTab === tab
+                          ? 'border-emerald-500 text-emerald-600'
+                          : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/50'
+                      }`}
+                    >
+                      {tab === 'basic' && 'Basic Info'}
+                      {tab === 'modifiers' && 'Modifiers'}
+                      {tab === 'variants' && 'Variants'}
+                    </button>
+                  ))}
+                </div>
+
                 <ScrollArea className="max-h-[60vh]">
                   <div className="grid gap-4 py-4 pr-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Name *</Label>
-                      <Input
-                        id="name"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        placeholder="Item name"
+
+                {/* Basic Info Tab */}
+                {dialogTab === 'basic' && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Name *</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Item name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Item description"
+                    rows={2}
+                  />
+                </div>
+                {/* Image Upload */}
+                <MenuImageUpload
+                  currentImageUrl={editItem?.imageUrl || imageUrl}
+                  onImageUploaded={(url) => setImageUrl(url)}
+                  onImageRemoved={() => setImageUrl('')}
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="price">Price *</Label>
+                    <Input
+                      id="price"
+                      type="number"
+                      step="0.01"
+                      value={formData.price}
+                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Category *</Label>
+                    <Select
+                      value={formData.categoryId}
+                      onValueChange={(v) => setFormData({ ...formData, categoryId: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map(cat => (
+                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="prepTime">Prep Time (min)</Label>
+                    <Input
+                      id="prepTime"
+                      type="number"
+                      value={formData.preparationTime}
+                      onChange={(e) => setFormData({ ...formData, preparationTime: e.target.value })}
+                      placeholder="15"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="station">Kitchen Station</Label>
+                    <Select
+                      value={formData.kitchenStation}
+                      onValueChange={(v) => setFormData({ ...formData, kitchenStation: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select station" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="grill">Grill</SelectItem>
+                        <SelectItem value="sauté">Sauté</SelectItem>
+                        <SelectItem value="fryer">Fryer</SelectItem>
+                        <SelectItem value="salad">Salad Bar</SelectItem>
+                        <SelectItem value="dessert">Dessert</SelectItem>
+                        <SelectItem value="bar">Bar</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Separator />
+                <div className="space-y-3">
+                  <Label>Dietary Options</Label>
+                  <div className="flex flex-wrap gap-4">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={formData.isVegetarian}
+                        onCheckedChange={(v) => setFormData({ ...formData, isVegetarian: v })}
                       />
+                      <Label className="flex items-center gap-1">
+                        <Leaf className="h-4 w-4 text-green-500 dark:text-green-400" />
+                        Vegetarian
+                      </Label>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="description">Description</Label>
-                      <Textarea
-                        id="description"
-                        value={formData.description}
-                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        placeholder="Item description"
-                        rows={2}
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={formData.isVegan}
+                        onCheckedChange={(v) => setFormData({ ...formData, isVegan: v })}
                       />
+                      <Label className="flex items-center gap-1">
+                        <Leaf className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        Vegan
+                      </Label>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="price">Price *</Label>
-                        <Input
-                          id="price"
-                          type="number"
-                          step="0.01"
-                          value={formData.price}
-                          onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                          placeholder="0.00"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="category">Category *</Label>
-                        <Select
-                          value={formData.categoryId}
-                          onValueChange={(v) => setFormData({ ...formData, categoryId: v })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select category" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.map(cat => (
-                              <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={formData.isGlutenFree}
+                        onCheckedChange={(v) => setFormData({ ...formData, isGlutenFree: v })}
+                      />
+                      <Label className="flex items-center gap-1">
+                        <Wheat className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                        Gluten Free
+                      </Label>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="prepTime">Prep Time (min)</Label>
-                        <Input
-                          id="prepTime"
-                          type="number"
-                          value={formData.preparationTime}
-                          onChange={(e) => setFormData({ ...formData, preparationTime: e.target.value })}
-                          placeholder="15"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="station">Kitchen Station</Label>
-                        <Select
-                          value={formData.kitchenStation}
-                          onValueChange={(v) => setFormData({ ...formData, kitchenStation: v })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select station" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="grill">Grill</SelectItem>
-                            <SelectItem value="sauté">Sauté</SelectItem>
-                            <SelectItem value="fryer">Fryer</SelectItem>
-                            <SelectItem value="salad">Salad Bar</SelectItem>
-                            <SelectItem value="dessert">Dessert</SelectItem>
-                            <SelectItem value="bar">Bar</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                  </div>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={formData.isAvailable}
+                      onCheckedChange={(v) => setFormData({ ...formData, isAvailable: v })}
+                    />
+                    <Label>Available for ordering</Label>
+                  </div>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(v) => setFormData({ ...formData, status: v })}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+
+                {/* Modifiers Tab */}
+                {dialogTab === 'modifiers' && (
+              <>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <ListChecks className="h-5 w-5 text-emerald-600" />
+                    <div>
+                      <h4 className="font-semibold">Modifiers for this Item</h4>
+                      <p className="text-xs text-muted-foreground">Modifier groups applied to this menu item. Manage all groups in the dedicated Modifiers page.</p>
                     </div>
-                    <Separator />
+                  </div>
+                  {itemModifiers.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <ListChecks className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No modifiers configured for this item</p>
+                      <p className="text-xs mt-1">Save the item first, then add modifiers from the Modifiers page.</p>
+                    </div>
+                  ) : (
                     <div className="space-y-3">
-                      <Label>Dietary Options</Label>
-                      <div className="flex flex-wrap gap-4">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={formData.isVegetarian}
-                            onCheckedChange={(v) => setFormData({ ...formData, isVegetarian: v })}
-                          />
-                          <Label className="flex items-center gap-1">
-                            <Leaf className="h-4 w-4 text-green-500 dark:text-green-400" />
-                            Vegetarian
-                          </Label>
+                      {itemModifiers.map((mod) => (
+                        <div key={mod.id} className="flex items-center justify-between p-3 rounded-lg border">
+                          <div>
+                            <p className="font-medium text-sm">{mod.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {mod.selectionType === 'required' ? 'Required' : 'Optional'} · {mod.optionsCount} options
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-xs">{mod.selectionType}</Badge>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={formData.isVegan}
-                            onCheckedChange={(v) => setFormData({ ...formData, isVegan: v })}
-                          />
-                          <Label className="flex items-center gap-1">
-                            <Leaf className="h-4 w-4 text-green-600 dark:text-green-400" />
-                            Vegan
-                          </Label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={formData.isGlutenFree}
-                            onCheckedChange={(v) => setFormData({ ...formData, isGlutenFree: v })}
-                          />
-                          <Label className="flex items-center gap-1">
-                            <Wheat className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-                            Gluten Free
-                          </Label>
-                        </div>
-                      </div>
+                      ))}
                     </div>
-                    <Separator />
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={formData.isAvailable}
-                          onCheckedChange={(v) => setFormData({ ...formData, isAvailable: v })}
-                        />
-                        <Label>Available for ordering</Label>
-                      </div>
-                      <Select
-                        value={formData.status}
-                        onValueChange={(v) => setFormData({ ...formData, status: v })}
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="inactive">Inactive</SelectItem>
-                        </SelectContent>
-                      </Select>
+                  )}
+                  {!editItem && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
+                      <ImagePlus className="h-4 w-4" />
+                      <span>Save the item first, then assign modifiers.</span>
                     </div>
+                  )}
+                </div>
+              </>
+            )}
+
+                {/* Variants Tab */}
+                {dialogTab === 'variants' && (
+              <>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Layers className="h-5 w-5 text-emerald-600" />
+                    <div>
+                      <h4 className="font-semibold">Size Variants</h4>
+                      <p className="text-xs text-muted-foreground">Size options with different prices for this menu item.</p>
+                    </div>
+                  </div>
+                  {itemVariants.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Layers className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No variants configured for this item</p>
+                      <p className="text-xs mt-1">Save the item first, then add variants from the Variants page.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {itemVariants.map((v) => (
+                        <div key={v.id} className="flex items-center justify-between p-3 rounded-lg border">
+                          <div>
+                            <p className="font-medium text-sm">{v.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {v.isDefault ? 'Default variant' : 'Custom'} · {v.isAvailable ? 'Available' : 'Unavailable'}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold text-sm">{formatCurrency(v.price)}</p>
+                            {v.isDefault && <Badge className="text-xs bg-amber-100 text-amber-700 mt-1">Default</Badge>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!editItem && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
+                      <ImagePlus className="h-4 w-4" />
+                      <span>Save the item first, then add variants.</span>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
                   </div>
                 </ScrollArea>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setAddItemOpen(false)}>
+                  <Button variant="outline" onClick={() => { setAddItemOpen(false); resetForm(); setImageUrl(''); setDialogTab('basic'); setItemModifiers([]); setItemVariants([]); }}>
                     Cancel
                   </Button>
                   <Button
-                    onClick={handleAddItem}
+                    onClick={editItem ? handleEditItem : handleAddItem}
                     disabled={saving}
                     className="bg-gradient-to-r from-emerald-500 to-teal-600"
                   >
                     {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                    Add Item
+                    {editItem ? 'Save Changes' : 'Add Item'}
                   </Button>
                 </DialogFooter>
               </DialogContent>

@@ -14,6 +14,8 @@ import {
   Check,
   CheckCheck,
   Headphones,
+  X,
+  FileText,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -49,6 +51,50 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [newMessage, setNewMessage] = useState('');
+  const [pendingAttachments, setPendingAttachments] = useState<Array<{
+    id: string;
+    name: string;
+    type: 'image' | 'pdf' | 'file';
+    data: string;
+    size: number;
+  }>>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach(file => {
+      if (file.size > 5 * 1024 * 1024) {
+        toast({ title: 'File too large', description: `${file.name} exceeds 5MB limit`, variant: 'destructive' });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        const isImage = /^image\/(jpeg|png|gif|webp)$/i.test(file.type);
+        const isPdf = file.type === 'application/pdf';
+        setPendingAttachments(prev => [...prev, {
+          id: crypto.randomUUID(),
+          name: file.name,
+          type: isImage ? 'image' : isPdf ? 'pdf' : 'file',
+          data: base64,
+          size: file.size,
+        }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    if (e.target) e.target.value = '';
+  };
+
+  const removeAttachment = (id: string) => {
+    setPendingAttachments(prev => prev.filter(a => a.id !== id));
+  };
 
   // Fetch messages
   const fetchMessages = async () => {
@@ -282,13 +328,43 @@ export default function ChatPage() {
       {/* Input Area */}
       <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+            multiple
+            className="hidden"
+            onChange={handleFileSelect}
+          />
           <Button
             variant="ghost"
             size="icon"
             className="shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={() => fileInputRef.current?.click()}
           >
             <Paperclip className="h-5 w-5" />
           </Button>
+          {pendingAttachments.length > 0 && (
+            <div className="flex items-center gap-1 overflow-x-auto max-w-[160px]">
+              {pendingAttachments.map(att => (
+                <div key={att.id} className="relative shrink-0">
+                  {att.type === 'image' ? (
+                    <img src={att.data} alt={att.name} className="h-8 w-8 rounded object-cover" />
+                  ) : (
+                    <div className="h-8 w-8 rounded bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                      <FileText className="h-4 w-4 text-red-500" />
+                    </div>
+                  )}
+                  <button
+                    className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-red-500 text-white rounded-full flex items-center justify-center text-[8px]"
+                    onClick={() => removeAttachment(att.id)}
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <Input
             ref={inputRef}
             placeholder="Type a message..."

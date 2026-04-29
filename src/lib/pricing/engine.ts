@@ -550,6 +550,212 @@ export async function getActivePricingRules(propertyId: string, tenantId: string
   }) as Promise<PricingRule[]>;
 }
 
+// ============================================================
+// Per-Night Rate Variation
+// ============================================================
+
+export interface PriceOverride {
+  date: Date;
+  price: number;
+  reason?: string;
+}
+
+export interface PerNightRate {
+  date: Date;
+  dayOfWeek: number; // 0=Sun, 6=Sat
+  baseRate: number;
+  adjustedRate: number;
+  ruleApplied: string | null;
+  source: 'base' | 'override' | 'weekend' | 'seasonal' | 'occupancy' | 'early_bird' | 'last_minute' | 'long_stay' | 'advance_booking';
+}
+
+/**
+ * Calculate per-night rates for a stay, checking overrides, day-of-week,
+ * seasonal, and occupancy adjustments on each individual night.
+ */
+export async function calculatePerNightRates(
+  checkIn: Date,
+  checkOut: Date,
+  roomRate: number,
+  pricingRules: PricingRule[],
+  priceOverrides?: PriceOverride[],
+  occupancy?: { adults: number; children: number },
+): Promise<PerNightRate[]> {
+  const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+  const now = new Date();
+  const totalNights = nights;
+
+  // Build a date-keyed lookup for overrides
+  const overrideMap = new Map<string, PriceOverride>();
+  if (priceOverrides) {
+    for (const po of priceOverrides) {
+      const key = new Date(po.date).toISOString().slice(0, 10);
+      overrideMap.set(key, po);
+    }
+  }
+
+  const perNightRates: PerNightRate[] = [];
+
+  for (let i = 0; i < nights; i++) {
+    const nightDate = new Date(checkIn);
+    nightDate.setDate(nightDate.getDate() + i);
+    const dateKey = nightDate.toISOString().slice(0, 10);
+    const dayOfWeek = nightDate.getDay();
+
+    let adjustedRate = roomRate;
+    let ruleApplied: string | null = null;
+    let source: PerNightRate['source'] = 'base';
+
+    // 1. Check for price override on this specific date
+    const override = overrideMap.get(dateKey);
+    if (override) {
+      adjustedRate = override.price;
+      ruleApplied = `Override: ${override.reason || 'Manual override'}`;
+      source = 'override';
+      perNightRates.push({ date: nightDate, dayOfWeek, baseRate: roomRate, adjustedRate, ruleApplied, source });
+      continue; // Override takes precedence
+    }
+
+    // Sort applicable rules by priority (higher first)
+    const sortedRules = [...pricingRules].sort((a, b) => b.priority - a.priority);
+
+    // 2. Check each rule for applicability on this specific night
+    for (const rule of sortedRules) {
+      if (!rule.isActive) continue;
+
+      // Check effective date range
+      if (rule.effectiveFrom && nightDate < new Date(rule.effectiveFrom)) continue;
+      if (rule.effectiveTo && nightDate > new Date(rule.effectiveTo)) continue;
+
+      let conditions: PricingRuleCondition = {};
+      if (rule.conditions) {
+        try {
+          conditions = JSON.parse(rule.conditions);
+        } catch {
+          // Skip unparseable conditions
+        }
+      }
+
+      // --- Apply rule types that are per-night aware ---
+
+      // Weekend rules
+      if (rule.type === 'weekend') {
+        if (dayOfWeek === 5 || dayOfWeek === 6) { // Fri or Sat
+          const amount = adjustedRate * (Math.abs(rule.value) / 100);
+          if (rule.value < 0) {
+            adjustedRate = Math.max(0, adjustedRate - amount);
+            ruleApplied = `${rule.name}: -${Math.abs(rule.value)}% weekend`;
+          } else {
+            adjustedRate = adjustedRate + amount;
+            ruleApplied = `${rule.name}: +${rule.value}% weekend`;
+          }
+          source = 'weekend';
+        }
+        continue;
+      }
+
+      // Seasonal rules - check if night falls within seasonal range
+      if (rule.type === 'seasonal') {
+        if (rule.effectiveFrom && rule.effectiveTo) {
+          const effFrom = new Date(rule.effectiveFrom);
+          const effTo = new Date(rule.effectiveTo);
+          if (nightDate >= effFrom && nightDate <= effTo) {
+            if (rule.valueType === 'percentage') {
+              const amount = adjustedRate * (rule.value / 100);
+              adjustedRate = adjustedRate + amount;
+              ruleApplied = `${rule.name}: seasonal +${rule.value}%`;
+            } else {
+              const amount = rule.value - adjustedRate;
+              adjustedRate = rule.value;
+              ruleApplied = `${rule.name}: seasonal flat ${rule.value}`;
+            }
+            source = 'seasonal';
+          }
+        }
+        continue;
+      }
+
+      // Occupancy rules
+      if (rule.type === 'occupancy' && occupancy) {
+        const totalGuests = occupancy.adults + (occupancy.children || 0);
+        const threshold = conditions.minOccupancy || 2;
+        if (totalGuests > threshold) {
+          const surcharge = rule.value * (totalGuests - threshold);
+          adjustedRate = adjustedRate + surcharge;
+          ruleApplied = `${rule.name}: +${rule.value} × ${totalGuests - threshold} extra guest(s)`;
+          source = 'occupancy';
+        }
+        continue;
+      }
+
+      // Early bird rules - based on advance booking days
+      if (rule.type === 'early_bird') {
+        const advanceDays = Math.ceil((nightDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        const threshold = conditions.advanceBookingDaysMin || 7;
+        if (advanceDays >= threshold) {
+          const amount = adjustedRate * (rule.value / 100);
+          adjustedRate = Math.max(0, adjustedRate - amount);
+          ruleApplied = `${rule.name}: -${rule.value}% early bird`;
+          source = 'early_bird';
+        }
+        continue;
+      }
+
+      // Last minute rules
+      if (rule.type === 'last_minute') {
+        const advanceDays = Math.ceil((nightDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        const maxWindow = conditions.advanceBookingDaysMax || 3;
+        if (advanceDays >= 0 && advanceDays <= maxWindow) {
+          const amount = adjustedRate * (Math.abs(rule.value) / 100);
+          if (rule.value > 0) {
+            // Positive value = markup
+            adjustedRate = adjustedRate + amount;
+            ruleApplied = `${rule.name}: +${rule.value}% last minute markup`;
+          } else {
+            adjustedRate = Math.max(0, adjustedRate - amount);
+            ruleApplied = `${rule.name}: -${Math.abs(rule.value)}% last minute discount`;
+          }
+          source = 'last_minute';
+        }
+        continue;
+      }
+
+      // Long stay discount - applies if total nights >= min
+      if (rule.type === 'long_stay') {
+        const minNights = conditions.minNights || 7;
+        if (totalNights >= minNights) {
+          const amount = adjustedRate * (rule.value / 100);
+          adjustedRate = Math.max(0, adjustedRate - amount);
+          ruleApplied = `${rule.name}: -${rule.value}% long stay`;
+          source = 'long_stay';
+        }
+        continue;
+      }
+
+      // Advance booking rules
+      if (rule.type === 'advance_booking') {
+        const advanceDays = Math.ceil((nightDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        const minAdv = conditions.advanceBookingDaysMin;
+        const maxAdv = conditions.advanceBookingDaysMax;
+        if (
+          (minAdv !== undefined && advanceDays >= minAdv) &&
+          (maxAdv === undefined || advanceDays <= maxAdv)
+        ) {
+          const amount = adjustedRate * (rule.value / 100);
+          adjustedRate = Math.max(0, adjustedRate - amount);
+          ruleApplied = `${rule.name}: -${rule.value}% advance booking`;
+          source = 'advance_booking';
+        }
+        continue;
+      }
+    }
+
+    perNightRates.push({ date: nightDate, dayOfWeek, baseRate: roomRate, adjustedRate, ruleApplied, source });
+  }
+
+  return perNightRates;
+}
+
 /**
  * Preview pricing for a potential booking
  */

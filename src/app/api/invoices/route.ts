@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { folioId, customerName, customerEmail, customerAddress, customerPhone, subtotal, taxes, discount, totalAmount, currency, dueAt, notes, lineItems, status } = body;
+    const { folioId, customerName, customerEmail, customerAddress, customerPhone, subtotal, taxes, discount, totalAmount, currency, dueAt, notes, lineItems, status, templateId, isRecurring, recurringFrequency, recurringNextDate, recurringEndDate } = body;
 
     // If folioId provided, create from folio
     if (folioId) {
@@ -244,6 +244,11 @@ export async function POST(request: NextRequest) {
         status: status || 'draft',
         notes: notes || null,
         lineItems: JSON.stringify(lineItems),
+        templateId: templateId || null,
+        isRecurring: isRecurring || false,
+        recurringFrequency: recurringFrequency || null,
+        recurringNextDate: recurringNextDate ? new Date(recurringNextDate) : null,
+        recurringEndDate: recurringEndDate ? new Date(recurringEndDate) : null,
       },
     });
 
