@@ -429,7 +429,14 @@ export default function LoginPage() {
           ═══════════════════════════════════════════ */}
 
       {/* Animated mesh gradient background */}
-      <div className="hidden lg:block lg:w-[45%] xl:w-[40%] relative">
+      <div className="w-full lg:w-[45%] xl:w-[40%] relative flex-1 min-h-screen lg:min-h-0">
+        {/* Mobile-only gradient background */}
+        <div
+          className="absolute inset-0 lg:hidden"
+          style={{
+            background: 'linear-gradient(160deg, #f8fafc, #ede9fe 40%, #fdf2f8 70%, #f8fafc)',
+          }}
+        />
         {/* Mesh gradient base layer */}
         <div
           className="absolute inset-0"
@@ -557,8 +564,8 @@ export default function LoginPage() {
           }}
         />
 
-        <div className="relative z-10 flex items-center justify-center min-h-screen p-6 sm:p-8">
-          <div className="w-full max-w-[360px]">
+        <div className="relative z-10 flex flex-col items-center justify-center min-h-screen lg:min-h-screen p-4 sm:p-6 lg:p-8 py-8 lg:py-0 pb-[env(safe-area-inset-bottom)]">
+          <div className="w-full max-w-[400px] lg:max-w-[360px]">
 
             {/* Mobile Logo */}
             <motion.div
@@ -598,7 +605,7 @@ export default function LoginPage() {
               {/* Inner glass highlight */}
               <div className="absolute inset-0 bg-gradient-to-b from-white/[0.08] to-transparent dark:from-white/[0.03] pointer-events-none" />
 
-              <div className="p-6 sm:p-8 relative">
+              <div className="p-5 sm:p-6 lg:p-8 relative">
 
                 {/* Header */}
                 <div className="mb-7">
@@ -995,6 +1002,11 @@ export default function LoginPage() {
                 </button>
               </p>
             </motion.div>
+
+            {/* Mobile footer */}
+            <div className="lg:hidden text-center text-xs text-muted-foreground/60 pt-4 mt-4 border-t border-border/50">
+              <p>&copy; 2026 Cryptsk Pvt Ltd</p>
+            </div>
           </div>
         </div>
       </div>
