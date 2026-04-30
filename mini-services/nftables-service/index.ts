@@ -477,25 +477,32 @@ app.get('/api/status', (c) => {
     ruleCount = countRules();
   }
 
-  // GUI chain info: check if gui_custom_rules chain exists
-  let guiChainExists = false;
+  // GUI chain info: check if production GUI chains exist
+  let firewallchainsExists = false;
+  let firewallchainsdnExists = false;
+  let frchainspreExists = false;
+  let frchainspostExists = false;
   let guiRulesCount = 0;
   let portForwardsCount = 0;
   let rateLimitsCount = 0;
   let quickBlocksCount = 0;
 
   if (staysuiteExists) {
-    const guiChainResult = execNft(`nft list chain ip ${TABLE_NAME} gui_custom_rules 2>/dev/null`);
-    if (guiChainResult.success) {
-      guiChainExists = true;
-      // Count rules in gui_custom_rules (lines with handle or action verbs)
-      const guiLines = guiChainResult.output.split('\n');
-      for (const line of guiLines) {
-        const trimmed = line.trim();
-        if (trimmed.match(/\b(accept|drop|reject|log)\b/) && !trimmed.startsWith('#') && !trimmed.startsWith('type') && !trimmed.startsWith('policy')) {
-          guiRulesCount++;
-        }
-      }
+    const fcResult = execNft(`nft list chain ip ${TABLE_NAME} firewallchains 2>/dev/null`);
+    if (fcResult.success) {
+      firewallchainsExists = true;
+    }
+    const fcdnResult = execNft(`nft list chain ip ${TABLE_NAME} firewallchainsdn 2>/dev/null`);
+    if (fcdnResult.success) {
+      firewallchainsdnExists = true;
+    }
+    const fcpResult = execNft(`nft list chain ip ${TABLE_NAME} frchainspre 2>/dev/null`);
+    if (fcpResult.success) {
+      frchainspreExists = true;
+    }
+    const fcpostResult = execNft(`nft list chain ip ${TABLE_NAME} frchainspost 2>/dev/null`);
+    if (fcpostResult.success) {
+      frchainspostExists = true;
     }
   }
 
@@ -530,7 +537,14 @@ app.get('/api/status', (c) => {
     portForwardsCount,
     rateLimitsCount,
     quickBlocksCount,
-    guiChainExists,
+    guiChains: {
+      firewallchains: firewallchainsExists,
+      firewallchainsdn: firewallchainsdnExists,
+      firewallchains_conn: false,
+      firewallchainsdn_conn: false,
+      frchainspre: frchainspreExists,
+      frchainspost: frchainspostExists,
+    },
   });
 });
 
@@ -1823,6 +1837,20 @@ table ip ${TABLE_NAME} {
     meta mark 20000 dnat to :${opts.captivePortalHttps}
   }
 
+  # ----------------------------------------------------------------
+  # NAT: GUI port forwarding chain (matches production frchainspre)
+  # ----------------------------------------------------------------
+  chain frchainspre {
+    # GUI DNAT/port-forwarding rules from Firewall & Bandwidth → Port Forwarding tab
+  }
+
+  # ----------------------------------------------------------------
+  # NAT: GUI postrouting chain (matches production frchainspost)
+  # ----------------------------------------------------------------
+  chain frchainspost {
+    # GUI SNAT/masquerade rules from Firewall & Bandwidth → Port Forwarding tab
+  }
+
 `;
 
   // ==========================================================================
@@ -1873,14 +1901,29 @@ table ip ${TABLE_NAME} {
   // GUI-managed chains (populated by GUI CRUD, DO NOT edit manually)
   // ==========================================================================
   conf += `  # ─── GUI-managed chains (populated by GUI CRUD, DO NOT edit manually) ───
-  chain gui_custom_rules {
-    type filter hook forward priority 5; policy accept;
-    # Rules added/removed ONLY from GUI firewall management page
+  # These match production staysuite-nftables.service chain names exactly.
+  # firewallchains / firewallchainsdn: mangle filter rules (uplink/downlink)
+  # firewallchains_conn / firewallchainsdn_conn: mangle conntrack rules
+  # frchainspre / frchainspost: NAT prerouting/postrouting rules (port forwarding)
+
+  chain firewallchains {
+    # GUI firewall filter rules — uplink traffic (mangle prerouting)
+    # Populated ONLY from StaySuite GUI → Firewall & Bandwidth page → Rules tab
   }
 
-  chain gui_nat_rules {
-    type nat hook prerouting priority -50; policy accept;
-    # Port forwarding (DNAT) rules from GUI
+  chain firewallchainsdn {
+    # GUI firewall filter rules — downlink traffic (mangle postrouting)
+    # Populated ONLY from StaySuite GUI → Firewall & Bandwidth page → Rules tab
+  }
+
+  chain firewallchains_conn {
+    # GUI conntrack rules — uplink traffic
+    # Used for connection tracking state marks
+  }
+
+  chain firewallchainsdn_conn {
+    # GUI conntrack rules — downlink traffic
+    # Used for connection tracking state marks
   }
 
 `;
@@ -2016,14 +2059,20 @@ app.post('/api/default-chains', async (c) => {
 
     // =========================================================================
     // Boot Restore: Re-apply all persisted GUI rules
+    // Routes each rule to its production chain:
+    //   firewallchains  = mangle prerouting uplink filter
+    //   firewallchainsdn = mangle postrouting downlink filter
+    //   frchainspre      = nat prerouting (port forwarding DNAT)
+    //   frchainspost     = nat postrouting (SNAT/masquerade)
     // =========================================================================
     let guiRulesRestored = 0;
 
-    // Restore GUI filter rules
+    // Restore GUI filter rules — route by rule.chain field
     const guiRules = readGuiRules();
     for (const rule of guiRules) {
       if (!rule.enabled) continue;
-      const parts: string[] = [`nft add rule ip ${TABLE_NAME} gui_custom_rules`];
+      const targetChain = rule.chain || 'firewallchains';
+      const parts: string[] = [`nft add rule ip ${TABLE_NAME} ${targetChain}`];
       if (rule.sourceIp) parts.push(`ip saddr ${rule.sourceIp}`);
       if (rule.destIp) parts.push(`ip daddr ${rule.destIp}`);
       if (rule.protocol !== 'all') {
@@ -2037,22 +2086,22 @@ app.post('/api/default-chains', async (c) => {
 
       const result = execNft(parts.join(' '));
       if (result.success) {
-        rule.handle = getRuleHandle('gui_custom_rules');
+        rule.handle = getRuleHandle(targetChain);
         guiRulesRestored++;
       } else {
-        log.warn('Failed to restore GUI rule', { id: rule.id, error: result.error });
+        log.warn('Failed to restore GUI rule', { id: rule.id, chain: targetChain, error: result.error });
       }
     }
     writeGuiRules(guiRules);
 
-    // Restore port forwards
+    // Restore port forwards — target frchainspre (NAT prerouting)
     const portForwards = readPortForwards();
     for (const pf of portForwards) {
       if (!pf.enabled) continue;
       const protocols = pf.protocol === 'both' ? ['tcp', 'udp'] : [pf.protocol];
       let pfRestored = false;
       for (const proto of protocols) {
-        const pfParts: string[] = [`nft add rule ip ${TABLE_NAME} gui_nat_rules`];
+        const pfParts: string[] = [`nft add rule ip ${TABLE_NAME} frchainspre`];
         pfParts.push(`${proto} dport ${pf.externalPort}`);
         if (pf.sourceIp) pfParts.push(`ip saddr ${pf.sourceIp}`);
         pfParts.push(`dnat to ${pf.internalIp}:${pf.internalPort}`);
@@ -2062,42 +2111,42 @@ app.post('/api/default-chains', async (c) => {
         if (result.success) pfRestored = true;
       }
       if (pfRestored) {
-        pf.handle = getRuleHandle('gui_nat_rules');
+        pf.handle = getRuleHandle('frchainspre');
         guiRulesRestored++;
       }
     }
     writePortForwards(portForwards);
 
-    // Restore rate limits
+    // Restore rate limits — download to firewallchains, upload to firewallchainsdn
     const rateLimits = readRateLimits();
     for (const rl of rateLimits) {
       if (!rl.enabled) continue;
 
-      const dlParts: string[] = [`nft add rule ip ${TABLE_NAME} gui_custom_rules`];
+      const dlParts: string[] = [`nft add rule ip ${TABLE_NAME} firewallchains`];
       if (rl.protocol !== 'all') dlParts.push(`${rl.protocol} protocol ${rl.protocol}`);
       dlParts.push(`ip daddr ${rl.targetIp}`);
       dlParts.push(`limit rate over ${rl.downloadRate} drop`);
       dlParts.push(`comment "rl-dl:${rl.name.replace(/"/g, '\\"')}"`);
       const dlResult = execNft(dlParts.join(' '));
       if (dlResult.success) {
-        rl.downloadHandle = getRuleHandle('gui_custom_rules');
+        rl.downloadHandle = getRuleHandle('firewallchains');
       }
 
-      const ulParts: string[] = [`nft add rule ip ${TABLE_NAME} gui_custom_rules`];
+      const ulParts: string[] = [`nft add rule ip ${TABLE_NAME} firewallchainsdn`];
       if (rl.protocol !== 'all') ulParts.push(`${rl.protocol} protocol ${rl.protocol}`);
       ulParts.push(`ip saddr ${rl.targetIp}`);
       ulParts.push(`limit rate over ${rl.uploadRate} drop`);
       ulParts.push(`comment "rl-ul:${rl.name.replace(/"/g, '\\"')}"`);
       const ulResult = execNft(ulParts.join(' '));
       if (ulResult.success) {
-        rl.uploadHandle = getRuleHandle('gui_custom_rules');
+        rl.uploadHandle = getRuleHandle('firewallchainsdn');
       }
 
       if (dlResult.success || ulResult.success) guiRulesRestored++;
     }
     writeRateLimits(rateLimits);
 
-    // Restore quick blocks
+    // Restore quick blocks — IP/subnet to firewallchains, MAC to mac_blacklist set
     const quickBlocks = readQuickBlocks();
     for (const block of quickBlocks) {
       if (block.type === 'mac') {
@@ -2105,10 +2154,10 @@ app.post('/api/default-chains', async (c) => {
         if (result.success) guiRulesRestored++;
       } else {
         const matchExpr = `ip saddr ${block.value}`;
-        const cmd = `nft add rule ip ${TABLE_NAME} gui_custom_rules ${matchExpr} drop comment "quick-block:${block.reason.replace(/"/g, '\\"').substring(0, 50)}"`;
+        const cmd = `nft add rule ip ${TABLE_NAME} firewallchains ${matchExpr} drop comment "quick-block:${block.reason.replace(/"/g, '\\"').substring(0, 50)}"`;
         const result = execNft(cmd);
         if (result.success) {
-          block.handle = getRuleHandle('gui_custom_rules');
+          block.handle = getRuleHandle('firewallchains');
           guiRulesRestored++;
         }
       }
@@ -2349,7 +2398,7 @@ app.delete('/api/default-chains/mac-blacklist', async (c) => {
 interface GuiRule {
   id: string;
   name: string;
-  chain: string;            // "gui_custom_rules"
+  chain: string;            // "firewallchains" | "firewallchainsdn" | "frchainspre" | "frchainspost"
   protocol: string;         // tcp, udp, icmp, all
   sourceIp: string;         // IP or CIDR, empty = any
   destIp: string;           // IP or CIDR, empty = any
@@ -2525,6 +2574,7 @@ app.post('/api/gui-rules', async (c) => {
     const body = await c.req.json();
     const {
       name = '',
+      chain = 'firewallchains',
       protocol = 'tcp',
       sourceIp = '',
       destIp = '',
@@ -2534,6 +2584,10 @@ app.post('/api/gui-rules', async (c) => {
       priority = 100,
       enabled = true,
     } = body;
+
+    // Validate chain is a known GUI chain
+    const validChains = ['firewallchains', 'firewallchainsdn', 'frchainspre', 'frchainspost', 'firewallchains_conn', 'firewallchainsdn_conn'];
+    const targetChain = validChains.includes(chain) ? chain : 'firewallchains';
 
     if (!name.trim()) {
       return c.json({ success: false, error: 'Rule name is required' }, 400);
@@ -2563,8 +2617,8 @@ app.post('/api/gui-rules', async (c) => {
       return c.json({ success: false, error: 'StaySuite table does not exist. Apply default chains first.' }, 404);
     }
 
-    // Build nft command
-    const parts: string[] = [`nft add rule ip ${TABLE_NAME} gui_custom_rules`];
+    // Build nft command — route to the correct production chain
+    const parts: string[] = [`nft add rule ip ${TABLE_NAME} ${targetChain}`];
 
     if (sourceIp.trim()) parts.push(`ip saddr ${sourceIp.trim()}`);
     if (destIp.trim()) parts.push(`ip daddr ${destIp.trim()}`);
@@ -2590,13 +2644,13 @@ app.post('/api/gui-rules', async (c) => {
         log.error('Failed to add GUI rule', { command: cmd, error: result.error });
         return c.json({ success: false, error: 'Failed to add nft rule', nftError: result.error }, 500);
       }
-      handle = getRuleHandle('gui_custom_rules');
+      handle = getRuleHandle(targetChain);
     }
 
     const rule: GuiRule = {
       id: crypto.randomUUID(),
       name: name.trim(),
-      chain: 'gui_custom_rules',
+      chain: targetChain,
       protocol,
       sourceIp: sourceIp.trim(),
       destIp: destIp.trim(),
@@ -2653,7 +2707,7 @@ app.put('/api/gui-rules/:id', async (c) => {
 
     // Delete old nft rule if it was enabled and had a handle
     if (existing.enabled && existing.handle > 0) {
-      execNft(`nft delete rule ip ${TABLE_NAME} gui_custom_rules handle ${existing.handle}`);
+      execNft(`nft delete rule ip ${TABLE_NAME} firewallchains handle ${existing.handle}`);
     }
 
     // Apply updated values
@@ -2673,7 +2727,7 @@ app.put('/api/gui-rules/:id', async (c) => {
 
     // Re-add rule to nft if enabled
     if (updated.enabled) {
-      const parts: string[] = [`nft add rule ip ${TABLE_NAME} gui_custom_rules`];
+      const parts: string[] = [`nft add rule ip ${TABLE_NAME} firewallchains`];
       if (updated.sourceIp) parts.push(`ip saddr ${updated.sourceIp}`);
       if (updated.destIp) parts.push(`ip daddr ${updated.destIp}`);
       if (updated.protocol !== 'all') {
@@ -2693,7 +2747,7 @@ app.put('/api/gui-rules/:id', async (c) => {
         log.error('Failed to re-add updated GUI rule', { command: cmd, error: result.error });
         return c.json({ success: false, error: 'Failed to re-add nft rule', nftError: result.error }, 500);
       }
-      updated.handle = getRuleHandle('gui_custom_rules');
+      updated.handle = getRuleHandle('firewallchains');
     }
 
     rules[idx] = updated;
@@ -2721,7 +2775,7 @@ app.delete('/api/gui-rules/:id', (c) => {
 
     // Delete from nft if enabled with valid handle
     if (rule.enabled && rule.handle > 0) {
-      const result = execNft(`nft delete rule ip ${TABLE_NAME} gui_custom_rules handle ${rule.handle}`);
+      const result = execNft(`nft delete rule ip ${TABLE_NAME} firewallchains handle ${rule.handle}`);
       if (!result.success) {
         log.warn('Failed to delete nft rule during GUI rule removal', { id, handle: rule.handle, error: result.error });
       }
@@ -2759,7 +2813,7 @@ app.patch('/api/gui-rules/:id/toggle', async (c) => {
 
     if (enabled && !rule.enabled) {
       // Enable: re-add rule to nft
-      const parts: string[] = [`nft add rule ip ${TABLE_NAME} gui_custom_rules`];
+      const parts: string[] = [`nft add rule ip ${TABLE_NAME} firewallchains`];
       if (rule.sourceIp) parts.push(`ip saddr ${rule.sourceIp}`);
       if (rule.destIp) parts.push(`ip daddr ${rule.destIp}`);
       if (rule.protocol !== 'all') {
@@ -2779,12 +2833,12 @@ app.patch('/api/gui-rules/:id/toggle', async (c) => {
         log.error('Failed to enable GUI rule', { command: cmd, error: result.error });
         return c.json({ success: false, error: 'Failed to add nft rule', nftError: result.error }, 500);
       }
-      rule.handle = getRuleHandle('gui_custom_rules');
+      rule.handle = getRuleHandle('firewallchains');
       rule.enabled = true;
     } else if (!enabled && rule.enabled) {
       // Disable: delete from nft
       if (rule.handle > 0) {
-        execNft(`nft delete rule ip ${TABLE_NAME} gui_custom_rules handle ${rule.handle}`);
+        execNft(`nft delete rule ip ${TABLE_NAME} firewallchains handle ${rule.handle}`);
       }
       rule.handle = -1;
       rule.enabled = false;
@@ -2842,29 +2896,7 @@ app.post('/api/port-forwards', async (c) => {
       return c.json({ success: false, error: 'Invalid source IP/CIDR format' }, 400);
     }
 
-    if (!staysuiteTableExists()) {
-      return c.json({ success: false, error: 'StaySuite table does not exist. Apply default chains first.' }, 404);
-    }
-
-    let handle = -1;
-    if (enabled) {
-      const protocols = protocol === 'both' ? ['tcp', 'udp'] : [protocol];
-      for (const proto of protocols) {
-        const parts: string[] = [`nft add rule ip ${TABLE_NAME} gui_nat_rules`];
-        parts.push(`${proto} dport ${externalPort}`);
-        if (sourceIp.trim()) parts.push(`ip saddr ${sourceIp.trim()}`);
-        parts.push(`dnat to ${internalIp}:${internalPort}`);
-        parts.push(`comment "${name.trim().replace(/"/g, '\\"')}"`);
-
-        const result = execNft(parts.join(' '));
-        if (!result.success) {
-          log.error('Failed to add port forward rule', { proto, error: result.error });
-          return c.json({ success: false, error: `Failed to add DNAT rule for ${proto}`, nftError: result.error }, 500);
-        }
-      }
-      handle = getRuleHandle('gui_nat_rules');
-    }
-
+    // Persist to JSON first (always succeeds, even without nftables)
     const pf: PortForward = {
       id: crypto.randomUUID(),
       name: name.trim(),
@@ -2874,13 +2906,32 @@ app.post('/api/port-forwards', async (c) => {
       internalPort,
       sourceIp: sourceIp.trim(),
       enabled,
-      handle,
+      handle: 0,
       createdAt: new Date().toISOString(),
     };
 
     const rules = readPortForwards();
     rules.push(pf);
     writePortForwards(rules);
+
+    // Apply to nftables if available
+    if (enabled && staysuiteTableExists()) {
+      const protocols = protocol === 'both' ? ['tcp', 'udp'] : [protocol];
+      for (const proto of protocols) {
+        const parts: string[] = [`nft add rule ip ${TABLE_NAME} frchainspre`];
+        parts.push(`${proto} dport ${externalPort}`);
+        if (sourceIp.trim()) parts.push(`ip saddr ${sourceIp.trim()}`);
+        parts.push(`dnat to ${internalIp}:${internalPort}`);
+        parts.push(`comment "${name.trim().replace(/"/g, '\\"')}"`);
+
+        const result = execNft(parts.join(' '));
+        if (result.success) {
+          pf.handle = getRuleHandle('frchainspre');
+        } else {
+          log.warn('Failed to apply port forward to nftables (persistence OK)', { proto, error: result.error });
+        }
+      }
+    }
 
     log.info('Port forward added', { id: pf.id, name: pf.name, handle });
     return c.json({ success: true, data: pf });
@@ -2923,7 +2974,7 @@ app.put('/api/port-forwards/:id', async (c) => {
     // Delete old nft rules
     if (existing.enabled && existing.handle > 0) {
       // For "both" protocol, we need to delete multiple rules; best effort
-      execNft(`nft delete rule ip ${TABLE_NAME} gui_nat_rules handle ${existing.handle}`);
+      execNft(`nft delete rule ip ${TABLE_NAME} frchainspre handle ${existing.handle}`);
     }
 
     const updated: PortForward = {
@@ -2941,7 +2992,7 @@ app.put('/api/port-forwards/:id', async (c) => {
     if (updated.enabled) {
       const protocols = updated.protocol === 'both' ? ['tcp', 'udp'] : [updated.protocol];
       for (const proto of protocols) {
-        const parts: string[] = [`nft add rule ip ${TABLE_NAME} gui_nat_rules`];
+        const parts: string[] = [`nft add rule ip ${TABLE_NAME} frchainspre`];
         parts.push(`${proto} dport ${updated.externalPort}`);
         if (updated.sourceIp) parts.push(`ip saddr ${updated.sourceIp}`);
         parts.push(`dnat to ${updated.internalIp}:${updated.internalPort}`);
@@ -2952,7 +3003,7 @@ app.put('/api/port-forwards/:id', async (c) => {
           return c.json({ success: false, error: `Failed to re-add DNAT rule for ${proto}`, nftError: result.error }, 500);
         }
       }
-      updated.handle = getRuleHandle('gui_nat_rules');
+      updated.handle = getRuleHandle('frchainspre');
     }
 
     rules[idx] = updated;
@@ -2978,7 +3029,7 @@ app.delete('/api/port-forwards/:id', (c) => {
 
     const pf = rules[idx];
     if (pf.enabled && pf.handle > 0) {
-      execNft(`nft delete rule ip ${TABLE_NAME} gui_nat_rules handle ${pf.handle}`);
+      execNft(`nft delete rule ip ${TABLE_NAME} frchainspre handle ${pf.handle}`);
     }
 
     rules.splice(idx, 1);
@@ -3014,7 +3065,7 @@ app.patch('/api/port-forwards/:id/toggle', async (c) => {
     if (enabled && !pf.enabled) {
       const protocols = pf.protocol === 'both' ? ['tcp', 'udp'] : [pf.protocol];
       for (const proto of protocols) {
-        const parts: string[] = [`nft add rule ip ${TABLE_NAME} gui_nat_rules`];
+        const parts: string[] = [`nft add rule ip ${TABLE_NAME} frchainspre`];
         parts.push(`${proto} dport ${pf.externalPort}`);
         if (pf.sourceIp) parts.push(`ip saddr ${pf.sourceIp}`);
         parts.push(`dnat to ${pf.internalIp}:${pf.internalPort}`);
@@ -3025,11 +3076,11 @@ app.patch('/api/port-forwards/:id/toggle', async (c) => {
           return c.json({ success: false, error: `Failed to add DNAT rule for ${proto}`, nftError: result.error }, 500);
         }
       }
-      pf.handle = getRuleHandle('gui_nat_rules');
+      pf.handle = getRuleHandle('frchainspre');
       pf.enabled = true;
     } else if (!enabled && pf.enabled) {
       if (pf.handle > 0) {
-        execNft(`nft delete rule ip ${TABLE_NAME} gui_nat_rules handle ${pf.handle}`);
+        execNft(`nft delete rule ip ${TABLE_NAME} frchainspre handle ${pf.handle}`);
       }
       pf.handle = -1;
       pf.enabled = false;
@@ -3089,7 +3140,7 @@ app.post('/api/rate-limits', async (c) => {
 
     if (enabled) {
       // Download rule: limit rate over for traffic destined to target
-      const dlParts: string[] = [`nft add rule ip ${TABLE_NAME} gui_custom_rules`];
+      const dlParts: string[] = [`nft add rule ip ${TABLE_NAME} firewallchains`];
       if (protocol !== 'all') dlParts.push(`${protocol} protocol ${protocol}`);
       dlParts.push(`ip daddr ${targetIp}`);
       dlParts.push(`limit rate over ${downloadRate} drop`);
@@ -3099,10 +3150,10 @@ app.post('/api/rate-limits', async (c) => {
       if (!dlResult.success) {
         return c.json({ success: false, error: 'Failed to add download rate limit', nftError: dlResult.error }, 500);
       }
-      downloadHandle = getRuleHandle('gui_custom_rules');
+      downloadHandle = getRuleHandle('firewallchains');
 
       // Upload rule: limit rate over for traffic from target
-      const ulParts: string[] = [`nft add rule ip ${TABLE_NAME} gui_custom_rules`];
+      const ulParts: string[] = [`nft add rule ip ${TABLE_NAME} firewallchains`];
       if (protocol !== 'all') ulParts.push(`${protocol} protocol ${protocol}`);
       ulParts.push(`ip saddr ${targetIp}`);
       ulParts.push(`limit rate over ${uploadRate} drop`);
@@ -3112,11 +3163,11 @@ app.post('/api/rate-limits', async (c) => {
       if (!ulResult.success) {
         // Rollback download rule
         if (downloadHandle > 0) {
-          execNft(`nft delete rule ip ${TABLE_NAME} gui_custom_rules handle ${downloadHandle}`);
+          execNft(`nft delete rule ip ${TABLE_NAME} firewallchains handle ${downloadHandle}`);
         }
         return c.json({ success: false, error: 'Failed to add upload rate limit', nftError: ulResult.error }, 500);
       }
-      uploadHandle = getRuleHandle('gui_custom_rules');
+      uploadHandle = getRuleHandle('firewallchains');
     }
 
     const rl: RateLimit = {
@@ -3170,8 +3221,8 @@ app.put('/api/rate-limits/:id', async (c) => {
 
     // Delete old rules from nft
     if (existing.enabled) {
-      if (existing.downloadHandle > 0) execNft(`nft delete rule ip ${TABLE_NAME} gui_custom_rules handle ${existing.downloadHandle}`);
-      if (existing.uploadHandle > 0) execNft(`nft delete rule ip ${TABLE_NAME} gui_custom_rules handle ${existing.uploadHandle}`);
+      if (existing.downloadHandle > 0) execNft(`nft delete rule ip ${TABLE_NAME} firewallchains handle ${existing.downloadHandle}`);
+      if (existing.uploadHandle > 0) execNft(`nft delete rule ip ${TABLE_NAME} firewallchains handle ${existing.uploadHandle}`);
     }
 
     const updated: RateLimit = {
@@ -3187,21 +3238,21 @@ app.put('/api/rate-limits/:id', async (c) => {
     };
 
     if (updated.enabled) {
-      const dlParts: string[] = [`nft add rule ip ${TABLE_NAME} gui_custom_rules`];
+      const dlParts: string[] = [`nft add rule ip ${TABLE_NAME} firewallchains`];
       if (updated.protocol !== 'all') dlParts.push(`${updated.protocol} protocol ${updated.protocol}`);
       dlParts.push(`ip daddr ${updated.targetIp}`);
       dlParts.push(`limit rate over ${updated.downloadRate} drop`);
       dlParts.push(`comment "rl-dl:${updated.name.replace(/"/g, '\\"')}"`);
       const dlResult = execNft(dlParts.join(' '));
-      if (dlResult.success) updated.downloadHandle = getRuleHandle('gui_custom_rules');
+      if (dlResult.success) updated.downloadHandle = getRuleHandle('firewallchains');
 
-      const ulParts: string[] = [`nft add rule ip ${TABLE_NAME} gui_custom_rules`];
+      const ulParts: string[] = [`nft add rule ip ${TABLE_NAME} firewallchains`];
       if (updated.protocol !== 'all') ulParts.push(`${updated.protocol} protocol ${updated.protocol}`);
       ulParts.push(`ip saddr ${updated.targetIp}`);
       ulParts.push(`limit rate over ${updated.uploadRate} drop`);
       ulParts.push(`comment "rl-ul:${updated.name.replace(/"/g, '\\"')}"`);
       const ulResult = execNft(ulParts.join(' '));
-      if (ulResult.success) updated.uploadHandle = getRuleHandle('gui_custom_rules');
+      if (ulResult.success) updated.uploadHandle = getRuleHandle('firewallchains');
     }
 
     rules[idx] = updated;
@@ -3227,8 +3278,8 @@ app.delete('/api/rate-limits/:id', (c) => {
 
     const rl = rules[idx];
     if (rl.enabled) {
-      if (rl.downloadHandle > 0) execNft(`nft delete rule ip ${TABLE_NAME} gui_custom_rules handle ${rl.downloadHandle}`);
-      if (rl.uploadHandle > 0) execNft(`nft delete rule ip ${TABLE_NAME} gui_custom_rules handle ${rl.uploadHandle}`);
+      if (rl.downloadHandle > 0) execNft(`nft delete rule ip ${TABLE_NAME} firewallchains handle ${rl.downloadHandle}`);
+      if (rl.uploadHandle > 0) execNft(`nft delete rule ip ${TABLE_NAME} firewallchains handle ${rl.uploadHandle}`);
     }
 
     rules.splice(idx, 1);
@@ -3263,27 +3314,27 @@ app.patch('/api/rate-limits/:id/toggle', async (c) => {
 
     if (enabled && !rl.enabled) {
       // Add download rule
-      const dlParts: string[] = [`nft add rule ip ${TABLE_NAME} gui_custom_rules`];
+      const dlParts: string[] = [`nft add rule ip ${TABLE_NAME} firewallchains`];
       if (rl.protocol !== 'all') dlParts.push(`${rl.protocol} protocol ${rl.protocol}`);
       dlParts.push(`ip daddr ${rl.targetIp}`);
       dlParts.push(`limit rate over ${rl.downloadRate} drop`);
       dlParts.push(`comment "rl-dl:${rl.name.replace(/"/g, '\\"')}"`);
       const dlResult = execNft(dlParts.join(' '));
-      if (dlResult.success) rl.downloadHandle = getRuleHandle('gui_custom_rules');
+      if (dlResult.success) rl.downloadHandle = getRuleHandle('firewallchains');
 
       // Add upload rule
-      const ulParts: string[] = [`nft add rule ip ${TABLE_NAME} gui_custom_rules`];
+      const ulParts: string[] = [`nft add rule ip ${TABLE_NAME} firewallchains`];
       if (rl.protocol !== 'all') ulParts.push(`${rl.protocol} protocol ${rl.protocol}`);
       ulParts.push(`ip saddr ${rl.targetIp}`);
       ulParts.push(`limit rate over ${rl.uploadRate} drop`);
       ulParts.push(`comment "rl-ul:${rl.name.replace(/"/g, '\\"')}"`);
       const ulResult = execNft(ulParts.join(' '));
-      if (ulResult.success) rl.uploadHandle = getRuleHandle('gui_custom_rules');
+      if (ulResult.success) rl.uploadHandle = getRuleHandle('firewallchains');
 
       rl.enabled = true;
     } else if (!enabled && rl.enabled) {
-      if (rl.downloadHandle > 0) execNft(`nft delete rule ip ${TABLE_NAME} gui_custom_rules handle ${rl.downloadHandle}`);
-      if (rl.uploadHandle > 0) execNft(`nft delete rule ip ${TABLE_NAME} gui_custom_rules handle ${rl.uploadHandle}`);
+      if (rl.downloadHandle > 0) execNft(`nft delete rule ip ${TABLE_NAME} firewallchains handle ${rl.downloadHandle}`);
+      if (rl.uploadHandle > 0) execNft(`nft delete rule ip ${TABLE_NAME} firewallchains handle ${rl.uploadHandle}`);
       rl.downloadHandle = -1;
       rl.uploadHandle = -1;
       rl.enabled = false;
@@ -3334,43 +3385,42 @@ app.post('/api/quick-blocks', async (c) => {
       return c.json({ success: false, error: 'Invalid MAC address format' }, 400);
     }
 
-    if (!staysuiteTableExists()) {
-      return c.json({ success: false, error: 'StaySuite table does not exist. Apply default chains first.' }, 404);
-    }
-
-    let handle = -1;
-
-    if (type === 'mac') {
-      // Add to mac_blacklist set
-      const result = execNft(`nft add element ip ${TABLE_NAME} mac_blacklist { ${trimmedValue} }`);
-      if (!result.success) {
-        return c.json({ success: false, error: 'Failed to add MAC to blacklist set', nftError: result.error }, 500);
-      }
-      // MAC blocks don't have a handle (they're set elements)
-      handle = 0;
-    } else {
-      // Add drop rule to gui_custom_rules
-      const matchExpr = type === 'subnet' ? `ip saddr ${trimmedValue}` : `ip saddr ${trimmedValue}`;
-      const cmd = `nft add rule ip ${TABLE_NAME} gui_custom_rules ${matchExpr} drop comment "quick-block:${reason.replace(/"/g, '\\"').substring(0, 50)}"`;
-      const result = execNft(cmd);
-      if (!result.success) {
-        return c.json({ success: false, error: 'Failed to add drop rule', nftError: result.error }, 500);
-      }
-      handle = getRuleHandle('gui_custom_rules');
-    }
-
+    // Persist to JSON first (always succeeds, even without nftables)
     const block: QuickBlock = {
       id: crypto.randomUUID(),
       type,
       value: trimmedValue,
       reason: reason.trim(),
       blockedAt: new Date().toISOString(),
-      handle,
+      handle: 0,
     };
 
     const blocks = readQuickBlocks();
     blocks.push(block);
     writeQuickBlocks(blocks);
+
+    // Apply to nftables if available
+    if (staysuiteTableExists()) {
+      if (type === 'mac') {
+        const result = execNft(`nft add element ip ${TABLE_NAME} mac_blacklist { ${trimmedValue} }`);
+        if (result.success) {
+          block.handle = 0;
+        } else {
+          log.warn('Failed to apply MAC block to nftables (persistence OK)', { value: trimmedValue, error: result.error });
+        }
+      } else {
+        const matchExpr = type === 'subnet' ? `ip saddr ${trimmedValue}` : `ip saddr ${trimmedValue}`;
+        const cmd = `nft add rule ip ${TABLE_NAME} firewallchains ${matchExpr} drop comment "quick-block:${reason.replace(/"/g, '\\"').substring(0, 50)}"`;
+        const result = execNft(cmd);
+        if (result.success) {
+          block.handle = getRuleHandle('firewallchains');
+        } else {
+          log.warn('Failed to apply IP block to nftables (persistence OK)', { value: trimmedValue, error: result.error });
+        }
+      }
+    } else {
+      log.info('Quick block persisted (nftables not available)', { type, value });
+    }
 
     log.info('Quick block added', { id: block.id, type, value });
     return c.json({ success: true, data: block });
@@ -3395,7 +3445,7 @@ app.delete('/api/quick-blocks/:id', (c) => {
     if (block.type === 'mac') {
       execNft(`nft delete element ip ${TABLE_NAME} mac_blacklist { ${block.value} }`);
     } else if (block.handle > 0) {
-      execNft(`nft delete rule ip ${TABLE_NAME} gui_custom_rules handle ${block.handle}`);
+      execNft(`nft delete rule ip ${TABLE_NAME} firewallchains handle ${block.handle}`);
     }
 
     blocks.splice(idx, 1);
