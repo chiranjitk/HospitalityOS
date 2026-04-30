@@ -311,3 +311,26 @@ Stage Summary:
 - CoA Audit tab: now reads from RadiusCoaLog (5 test entries visible)
 - freeradius-service: all 4 CoA audit endpoints rewritten for RadiusCoaLog
 - coa-audit.tsx: fully rewritten with new fields, triggeredBy badges, RADIUS attributes display
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Create zero-touch Rocky 10 production deployment script
+
+Work Log:
+- Audited ALL existing deployment scripts, mini-services, PM2 configs, SQL files, FreeRADIUS configs
+- Read complete-database.sql (859 lines), ecosystem.config.js/cjs, freeradius-config-patches/setup-production.sh
+- Identified 6 mini-services: availability (3002), realtime (3003), freeradius (3010), dhcp (3011), dns (3012), nftables (3013)
+- Created production-install/deploy-rocky10-postgresql.sh (904 lines, 17 steps)
+- Used quoted heredoc + placeholder pattern for ecosystem.config.js generation (avoids JS template literal escaping issues)
+- Used bash parameter expansion for password injection (avoids sed special char corruption)
+- Verified Prisma schema has @@map for all FreeRADIUS tables (lowercase names)
+- Verified complete-database.sql CREATE TABLE IF NOT EXISTS is safe after prisma db push
+- Committed and pushed to GitHub
+
+Stage Summary:
+- production-install/deploy-rocky10-postgresql.sh: 17-step zero-touch deployment
+- Flow: OS check → PostgreSQL → Database → FreeRADIUS → Node/Bun → Clone → .env → Deps → Prisma → complete-database.sql → Seed → Build → PM2 → CoA patches → Cron → Summary
+- PM2 ecosystem: 7 services (Next.js + 6 mini-services), bun interpreter, start-nextjs.sh wrapper
+- Auto-tunes PostgreSQL shared_buffers based on detected RAM (512MB/1GB/2GB)
+- Git push: deb2f57..a261a7f
