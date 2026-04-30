@@ -139,27 +139,37 @@ if [ -f "$SQL_MOD" ]; then
     # Backup
     cp "$SQL_MOD" "${SQL_MOD}.bak.$(date +%Y%m%d%H%M%S)"
 
-    # Apply settings using sed — set individual fields, not a full connection string
-    sed -i "s/^dialect.*=.*/dialect = \"postgresql\"/" "$SQL_MOD"
-    sed -i "s/^driver.*=.*/driver = \"rlm_sql_postgresql\"/" "$SQL_MOD"
-    sed -i "s|^# *radius_db.*=.*|radius_db = \"$FR_DB_NAME\"|" "$SQL_MOD"
-    sed -i "s/^radius_db.*=.*/radius_db = \"$FR_DB_NAME\"/" "$SQL_MOD"
-    sed -i "s/^read_clients.*=.*/read_clients = yes/" "$SQL_MOD"
-    sed -i "s/^# *client_table.*/client_table = \"nas\"/" "$SQL_MOD"
+    # In FreeRADIUS 3.x, sql/postgresql fields may be indented inside
+    # a 'postgresql { }' sub-block. Our sed patterns must handle leading whitespace.
+    # Also, the file may have multiple sections — we only want to change the first
+    # occurrence of each field (the one inside the postgresql/sql block).
 
-    # Set server, port, login, password within the sql {} block
-    # Handle both commented and uncommented forms
-    sed -i "s/^# *server.*=.*/server = \"$FR_DB_HOST\"/" "$SQL_MOD"
-    sed -i "s/^server\s*=.*/server = \"$FR_DB_HOST\"/" "$SQL_MOD"
-    sed -i "s/^# *port.*=.*/port = $FR_DB_PORT/" "$SQL_MOD"
-    sed -i "s/^port\s*=.*/port = $FR_DB_PORT/" "$SQL_MOD"
-    sed -i "s/^# *login.*=.*/login = \"$FR_DB_USER\"/" "$SQL_MOD"
-    sed -i "s/^login\s*=.*/login = \"$FR_DB_USER\"/" "$SQL_MOD"
-    sed -i "s/^# *password.*=.*/password = \"$FR_DB_PASS\"/" "$SQL_MOD"
-    sed -i "s/^password\s*=.*/password = \"$FR_DB_PASS\"/" "$SQL_MOD"
+    sed -i "s/^[[:space:]]*dialect.*=.*/dialect = \"postgresql\"/" "$SQL_MOD"
+    sed -i "s/^[[:space:]]*driver.*=.*/driver = \"rlm_sql_postgresql\"/" "$SQL_MOD"
+    sed -i "s/^[[:space:]]*radius_db.*=.*/radius_db = \"$FR_DB_NAME\"/" "$SQL_MOD"
+    sed -i "s/^[[:space:]]*read_clients.*=.*/read_clients = yes/" "$SQL_MOD"
+    sed -i "s/^[[:space:]]*# *client_table.*/client_table = \"nas\"/" "$SQL_MOD"
+
+    # server, port, login, password — handle both commented and indented forms
+    sed -i "s/^[[:space:]]*# *server.*=.*/server = \"$FR_DB_HOST\"/" "$SQL_MOD"
+    sed -i "0,/^[[:space:]]*server\s*=/ s|^\([[:space:]]*server\s*=\).*|\1 \"$FR_DB_HOST\"|" "$SQL_MOD"
+    sed -i "s/^[[:space:]]*# *port.*=.*/port = $FR_DB_PORT/" "$SQL_MOD"
+    sed -i "0,/^[[:space:]]*port\s*=/ s|^\([[:space:]]*port\s*=\).*|\1 $FR_DB_PORT|" "$SQL_MOD"
+    sed -i "s/^[[:space:]]*# *login.*=.*/login = \"$FR_DB_USER\"/" "$SQL_MOD"
+    sed -i "0,/^[[:space:]]*login\s*=/ s|^\([[:space:]]*login\s*=\).*|\1 \"$FR_DB_USER\"|" "$SQL_MOD"
+    sed -i "s/^[[:space:]]*# *password.*=.*/password = \"$FR_DB_PASS\"/" "$SQL_MOD"
+    sed -i "0,/^[[:space:]]*password\s*=/ s|^\([[:space:]]*password\s*=\).*|\1 \"$FR_DB_PASS\"|" "$SQL_MOD"
 
     # Remove debug logfile if present
-    sed -i '/^logfile.*=.*sql_debug/d' "$SQL_MOD"
+    sed -i '/^[[:space:]]*logfile.*=.*sql_debug/d' "$SQL_MOD"
+
+    # Verify the critical fields were actually set
+    if grep -qP "login\s*=\s*\"postgres\"" "$SQL_MOD"; then
+        # Fallback: use a more aggressive perl-based replacement if sed didn't work
+        perl -pi -e "s{(login\s*=\s*)\"[^\"]*\"}{\1\"$FR_DB_USER\"} if !$seen{$1}++" "$SQL_MOD"
+        perl -pi -e "s{(password\s*=\s*)\"[^\"]*\"}{\1\"$FR_DB_PASS\"} if !$seen{$1}++" "$SQL_MOD"
+        perl -pi -e "s{(server\s*=\s*)\"[^\"]*\"}{\1\"$FR_DB_HOST\"} if !$seen{$1}++" "$SQL_MOD"
+    fi
 
     # Make sure mods-enabled/sql is a symlink to the configured module
     if [ ! -L "$RADDB/mods-enabled/sql" ] && [ -f "$RADDB/mods-enabled/sql" ]; then
