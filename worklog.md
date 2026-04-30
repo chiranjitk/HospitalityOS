@@ -241,3 +241,34 @@ Stage Summary:
 - setup-production.sh handles: module enable/disable, SQL config, CoA enable, post-auth patches, clients.conf, systemd enable, config verify
 - Production path: `sudo bash freeradius-config-patches/setup-production.sh` after `dnf install freeradius`
 - 6 steps automated: modules → SQL → CoA → patches → attr filter → clients.conf + verify
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Real production CoA test in sandbox - full RADIUS protocol flow
+
+Work Log:
+- Created RadiusCoaLog and CoaSessionDetail tables with proper schema (quoted camelCase columns)
+- Added 127.0.0.1 as NAS client in nas table with secret testing123 (loopback CoA test)
+- Created test RADIUS user (test.coa.user / TestCoa@2024) in radcheck + radreply
+- Fixed fn_check_login_limit: changed return type from (boolean,int,int) tuple to integer (prevented auth for non-WiFiUser users)
+- Added post-auth SQL query for radpostauth logging (was missing - auth results not being logged)
+- Fixed radpostauth INSERT: quoted camelCase columns (nasIpAddress, clientipaddress) for PostgreSQL compatibility
+- Fixed executeRadclient: added sandbox-aware radclient path detection and LD_LIBRARY_PATH for shared libs
+- Fixed all SQL queries in freeradius-service to use quoted camelCase column names for PostgreSQL
+- Ran real RADIUS authentication: radtest → FreeRADIUS (port 1812) → PostgreSQL → Access-Accept
+- Ran real CoA bandwidth change: radclient → FreeRADIUS (port 3799) → CoA-ACK
+- Ran real Disconnect: radclient → FreeRADIUS (port 3799) → Disconnect-ACK
+- Tested via freeradius-service API: /api/coa/bandwidth, /api/coa/disconnect, /api/coa/logs
+- All 3 CoA operations logged to RadiusCoaLog with full details
+- Inserted 3 radacct sessions (2 active, 1 completed) for GUI tab testing
+
+Stage Summary:
+- Real RADIUS auth: radtest test.coa.user → Access-Accept (with Session-Timeout, WISPr attributes)
+- Real auth logging: radpostauth table populated with Accept/Reject entries
+- Real CoA bandwidth: 3 successful CoA-ACK responses from FreeRADIUS
+- Real CoA disconnect: 1 successful Disconnect-ACK response from FreeRADIUS
+- Real DB logging: 3 entries in RadiusCoaLog (2 bandwidth, 1 disconnect)
+- Active sessions: 2 in radacct (test.coa.user, guest.amit.mukherjee)
+- Completed session: 1 in radacct (guest.sneha.gupta, 1024 MB download)
+- Bugs fixed: fn_check_login_limit return type, missing post-auth query, camelCase SQL columns

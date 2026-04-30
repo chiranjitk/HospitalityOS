@@ -3389,25 +3389,34 @@ async function executeRadclient(
     const safeSecret = String(sharedSecret).replace(/[^a-zA-Z0-9_.@!#$%^&*()-]/g, '');
     const escaped = attributes.replace(/'/g, "'\\''");
 
-    // Check radclient availability before attempting execution
+    // Locate radclient: sandbox path or system PATH
+    const RADCLIENT_PATH = process.env.RADCLIENT_PATH ||
+      (fsSync.existsSync('/home/z/my-project/freeradius-install/bin/radclient')
+        ? '/home/z/my-project/freeradius-install/bin/radclient'
+        : 'radclient');
+    const LD_LIBRARY_PATH = process.env.LD_LIBRARY_PATH ||
+      (fsSync.existsSync('/home/z/my-project/freeradius-install/lib')
+        ? '/home/z/my-project/freeradius-install/lib' : '');
+
+    // Check radclient availability
     let radclientAvailable = false;
     try {
-      const { stdout: whichOutput } = await execAsync('which radclient 2>/dev/null && radclient -v 2>&1 | head -1 || echo "not_found"', { timeout: 3000 });
-      radclientAvailable = whichOutput.trim() !== 'not_found' && whichOutput.trim().length > 0;
+      const { stdout: testOutput } = await execAsync(`test -x '${RADCLIENT_PATH}' && echo 'found' || echo 'not_found'`, { timeout: 3000, env: { ...process.env, LD_LIBRARY_PATH } });
+      radclientAvailable = testOutput.trim() === 'found';
     } catch {
       radclientAvailable = false;
     }
 
     if (!radclientAvailable) {
-      const errMsg = 'radclient is not installed on this system. CoA/Disconnect requires the FreeRADIUS client tools (freeradius-utils package on Debian/Ubuntu, freeradius on RHEL/CentOS). In production, ensure radclient is installed and accessible in PATH.';
-      log.warn('radclient not found — CoA/Disconnect will fail', { nasIp: safeNasIp, command: safeCommand });
+      const errMsg = `radclient not found at ${RADCLIENT_PATH}. CoA/Disconnect requires FreeRADIUS client tools.`;
+      log.warn('radclient not found — CoA/Disconnect will fail', { radclientPath: RADCLIENT_PATH, nasIp: safeNasIp, command: safeCommand });
       return { success: false, output: '', error: errMsg };
     }
 
-    const cmd = `echo '${escaped}' | radclient -x ${safeNasIp}:${safePort} ${safeCommand} ${safeSecret} 2>&1`;
-    log.info(`Executing radclient: cmd=${safeCommand} nas=${safeNasIp}:${safePort}`);
+    const cmd = `echo '${escaped}' | '${RADCLIENT_PATH}' -x -t 3 -r 1 ${safeNasIp}:${safePort} ${safeCommand} ${safeSecret} 2>&1`;
+    log.info(`Executing radclient: cmd=${safeCommand} nas=${safeNasIp}:${safePort}`, { radclientPath: RADCLIENT_PATH });
 
-    const { stdout } = await execAsync(cmd, { timeout: 10000 });
+    const { stdout } = await execAsync(cmd, { timeout: 10000, env: { ...process.env, LD_LIBRARY_PATH } });
     const success = stdout.toLowerCase().includes('coa-ack') ||
                     stdout.toLowerCase().includes('disconnect-ack') ||
                     stdout.toLowerCase().includes('received');
@@ -3435,7 +3444,7 @@ async function logCoaAction(params: {
 }): void {
   try {
     db.query(
-      `INSERT INTO "RadiusCoaLog" (id, propertyId, action, username, sessionId, nasIpAddress, sharedSecret, attributes, result, responseCode, errorMessage, triggeredBy, triggeredById, timestamp)
+      `INSERT INTO "RadiusCoaLog" (id, "propertyId", action, username, "sessionId", "nasIpAddress", "sharedSecret", attributes, result, "responseCode", "errorMessage", "triggeredBy", "triggeredById", timestamp)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       generateId('coa'),
@@ -6266,7 +6275,7 @@ async function enforceBandwidthSchedules(
         if (scheduleAction === 'limit' && (downloadMbps > 0 || uploadMbps > 0)) {
           // Check if we already enforced this schedule recently (within 2 min) to avoid duplicate CoA
           const recentCoa = await db.query(
-            "SELECT id FROM \"RadiusCoaLog\" WHERE username = ? AND action = 'bw-schedule' AND triggeredById = ? AND result = 'success' AND timestamp > datetime('now', '-2 minutes') LIMIT 1"
+            "SELECT id FROM \"RadiusCoaLog\" WHERE username = ? AND action = 'bw-schedule' AND \"triggeredById\" = ? AND result = 'success' AND timestamp > datetime('now', '-2 minutes') LIMIT 1"
           ).get(sessionUsername, scheduleId) as { id: string } | undefined;
 
           if (!recentCoa) {
@@ -6289,7 +6298,7 @@ async function enforceBandwidthSchedules(
           const nas = await lookupNAS(sessionNasIp);
           if (nas) {
             const recentCoa = await db.query(
-              "SELECT id FROM \"RadiusCoaLog\" WHERE username = ? AND action = 'bw-schedule' AND triggeredById = ? AND timestamp > datetime('now', '-2 minutes') LIMIT 1"
+              "SELECT id FROM \"RadiusCoaLog\" WHERE username = ? AND action = 'bw-schedule' AND \"triggeredById\" = ? AND timestamp > datetime('now', '-2 minutes') LIMIT 1"
             ).get(sessionUsername, scheduleId) as { id: string } | undefined;
 
             if (!recentCoa) {
@@ -6313,7 +6322,7 @@ async function enforceBandwidthSchedules(
         // Schedule is NOT active — check if it was recently active and revert
         // Look for a recent successful CoA from this schedule
         const recentApplyCoa = await db.query(
-          "SELECT id, timestamp FROM \"RadiusCoaLog\" WHERE username = ? AND action = 'bw-schedule' AND triggeredById = ? AND result = 'success' ORDER BY timestamp DESC LIMIT 1"
+          "SELECT id, timestamp FROM \"RadiusCoaLog\" WHERE username = ? AND action = 'bw-schedule' AND \"triggeredById\" = ? AND result = 'success' ORDER BY timestamp DESC LIMIT 1"
         ).get(sessionUsername, scheduleId) as { id: string; timestamp: string } | undefined;
 
         if (recentApplyCoa) {
@@ -6327,7 +6336,7 @@ async function enforceBandwidthSchedules(
           if (timeSinceCoA <= 300) {
             // Check if we already reverted recently
             const recentRevert = await db.query(
-              "SELECT id FROM \"RadiusCoaLog\" WHERE username = ? AND action = 'bw-schedule-revert' AND triggeredById = ? AND result = 'success' AND timestamp > datetime('now', '-2 minutes') LIMIT 1"
+              "SELECT id FROM \"RadiusCoaLog\" WHERE username = ? AND action = 'bw-schedule-revert' AND \"triggeredById\" = ? AND result = 'success' AND timestamp > datetime('now', '-2 minutes') LIMIT 1"
             ).get(sessionUsername, scheduleId) as { id: string } | undefined;
 
             if (!recentRevert) {
@@ -6643,17 +6652,17 @@ app.get('/api/coa-audit', async (c) => {
     let sql = 'SELECT * FROM "CoaSessionDetail" WHERE 1=1';
     const params: unknown[] = [];
 
-    if (propertyId) { sql += ' AND propertyId = ?'; params.push(propertyId); }
+    if (propertyId) { sql += ' AND "propertyId" = ?'; params.push(propertyId); }
     if (username) { sql += ' AND username LIKE ?'; params.push(`%${username}%`); }
-    if (coaType) { sql += ' AND coaType = ?'; params.push(coaType); }
+    if (coaType) { sql += ' AND "coaType" = ?'; params.push(coaType); }
     if (result) { sql += ' AND result = ?'; params.push(result); }
-    if (startDate) { sql += ' AND createdAt >= ?'; params.push(startDate); }
-    if (endDate) { sql += ' AND createdAt <= ?'; params.push(endDate + 'T23:59:59'); }
+    if (startDate) { sql += ' AND "createdAt" >= ?'; params.push(startDate); }
+    if (endDate) { sql += ' AND "createdAt" <= ?'; params.push(endDate + 'T23:59:59'); }
 
     const countRow = db.query(sql.replace('SELECT *', 'SELECT COUNT(*) as cnt')).get(...params) as { cnt: number } | undefined;
     const total = countRow?.cnt || 0;
 
-    sql += ' ORDER BY createdAt DESC LIMIT ? OFFSET ?';
+    sql += ' ORDER BY "createdAt" DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
     const rows = await db.query(sql).all(...params) as Record<string, unknown>[];
 
@@ -6672,10 +6681,10 @@ app.post('/api/coa-audit', async (c) => {
 
     const id = generateId('coa');
     db.query(
-      `INSERT INTO "CoaSessionDetail" (id, tenantId, propertyId, sessionId, username, userId, coaType, policyName, bandwidthPercent,
-        triggeredBy, nasIpAddress, actualSessionTime, effectiveSessionTime,
-        actualDownloadBytes, actualUploadBytes, effectiveDownloadBytes, effectiveUploadBytes,
-        result, errorMessage, createdAt)
+      `INSERT INTO "CoaSessionDetail" (id, "tenantId", "propertyId", "sessionId", username, "userId", "coaType", "policyName", "bandwidthPercent",
+        "triggeredBy", "nasIpAddress", "actualSessionTime", "effectiveSessionTime",
+        "actualDownloadBytes", "actualUploadBytes", "effectiveDownloadBytes", "effectiveUploadBytes",
+        result, "errorMessage", "createdAt")
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NOW())`
     ).run(
       id, tenantId || 'tenant-1', propertyId || 'property-1', sessionId || '', username || '', userId || null,
@@ -6702,7 +6711,7 @@ app.put('/api/coa-audit/:id', async (c) => {
     const updates: string[] = [];
     const params: unknown[] = [];
     if (body.result !== undefined) { updates.push('result = ?'); params.push(body.result); }
-    if (body.errorMessage !== undefined) { updates.push('errorMessage = ?'); params.push(body.errorMessage); }
+    if (body.errorMessage !== undefined) { updates.push('"errorMessage" = ?'); params.push(body.errorMessage); }
     if (updates.length === 0) return c.json({ success: false, error: 'No fields to update' }, 400);
 
     params.push(id);
@@ -6717,7 +6726,7 @@ app.put('/api/coa-audit/:id', async (c) => {
 app.get('/api/coa-audit/stats', async (c) => {
   try {
     const propertyId = c.req.query('propertyId') || '';
-    const whereClause = propertyId ? ' WHERE propertyId = ?' : '';
+    const whereClause = propertyId ? ' WHERE "propertyId" = ?' : '';
     const params = propertyId ? [propertyId] : [];
     const andClause = propertyId ? ' AND' : ' WHERE';
 
@@ -6727,7 +6736,7 @@ app.get('/api/coa-audit/stats', async (c) => {
     const pending = (await db.query(`SELECT COUNT(*) as c FROM "CoaSessionDetail"${whereClause}${andClause} result = 'pending'`).get(...(params as unknown[])) as { c: number } | undefined)?.c || 0;
 
     const byType = await db.query(
-      `SELECT coaType, result, COUNT(*) as cnt FROM "CoaSessionDetail"${whereClause} GROUP BY coaType, result ORDER BY cnt DESC`
+      `SELECT "coaType", result, COUNT(*) as cnt FROM "CoaSessionDetail"${whereClause} GROUP BY "coaType", result ORDER BY cnt DESC`
     ).all(...(params as unknown[])) as Array<{ coaType: string; result: string; cnt: number }>;
 
     return c.json({
@@ -6888,9 +6897,9 @@ app.post('/api/fap-policies/enforce-all', async (c) => {
       if (usedMb >= limitMb && policy.switchOverBwPolicyId) {
         // Log CoA action
         db.query(
-          `INSERT INTO "CoaSessionDetail" (id, tenantId, propertyId, sessionId, username, userId, coaType, policyName,
-            triggeredBy, nasIpAddress, actualSessionTime, actualDownloadBytes, actualUploadBytes,
-            result, createdAt)
+          `INSERT INTO "CoaSessionDetail" (id, "tenantId", "propertyId", "sessionId", username, "userId", "coaType", "policyName",
+            "triggeredBy", "nasIpAddress", "actualSessionTime", "actualDownloadBytes", "actualUploadBytes",
+            result, "createdAt")
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'fap-enforcer', ?, ?, ?, ?, ?, ?, 'success', NOW())`
         ).run(
           generateId('coa'), await resolveTenantId(session.tenantId as string), session.propertyId, session.acctSessionId,
@@ -7397,7 +7406,7 @@ setInterval(async () => {
       if (usedMb >= limitMb && policy.switchOverBwPolicyId) {
         // Check if we already throttled this session recently (avoid duplicate CoA)
         const recentCoa = await db.query(
-          `SELECT id FROM "CoaSessionDetail" WHERE username = ? AND coaType = 'fap-throttle' AND result = 'success' AND createdAt > NOW() - INTERVAL '5 minutes' LIMIT 1`
+          `SELECT id FROM "CoaSessionDetail" WHERE username = ? AND "coaType" = 'fap-throttle' AND result = 'success' AND "createdAt" > NOW() - INTERVAL '5 minutes' LIMIT 1`
         ).get(session.username) as { id: string } | undefined;
 
         if (!recentCoa) {
@@ -7410,9 +7419,9 @@ setInterval(async () => {
 
           // Log the CoA action
           db.query(
-            `INSERT INTO "CoaSessionDetail" (id, tenantId, propertyId, sessionId, username, userId, coaType, policyName,
-              triggeredBy, nasIpAddress, actualSessionTime, actualDownloadBytes, actualUploadBytes,
-              result, errorMessage, createdAt)
+            `INSERT INTO "CoaSessionDetail" (id, "tenantId", "propertyId", "sessionId", username, "userId", "coaType", "policyName",
+              "triggeredBy", "nasIpAddress", "actualSessionTime", "actualDownloadBytes", "actualUploadBytes",
+              result, "errorMessage", "createdAt")
              VALUES (?, ?, ?, ?, ?, ?, 'fap-throttle', ?, 'fap-enforcer', ?, ?, ?, ?, 'success', NULL, NOW())`
           ).run(
             generateId('coa'), await resolveTenantId(session.tenantId as string), session.propertyId, session.acctSessionId,
@@ -7443,7 +7452,7 @@ setInterval(async () => {
             }
             executeRadclient(nas.ip, nas.coaPort, 'coa', nas.secret, attrs).then(async (radResult) => {
               if (!radResult.success) {
-                await db.query(`UPDATE "CoaSessionDetail" SET result = 'failed', errorMessage = ? WHERE id = (SELECT id FROM "CoaSessionDetail" WHERE username = ? AND coaType = 'fap-throttle' ORDER BY createdAt DESC LIMIT 1)`)
+                await db.query(`UPDATE "CoaSessionDetail" SET result = 'failed', "errorMessage" = ? WHERE id = (SELECT id FROM "CoaSessionDetail" WHERE username = ? AND "coaType" = 'fap-throttle' ORDER BY "createdAt" DESC LIMIT 1)`)
                   .run(radResult.error?.substring(0, 500), session.username);
               }
             }).catch(() => {});
