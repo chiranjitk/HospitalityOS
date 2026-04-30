@@ -72,6 +72,7 @@ import {
   Zap,
   ArrowUp,
   ArrowDown,
+  ArrowRight,
   Search,
   Filter,
   RefreshCw,
@@ -87,7 +88,15 @@ import {
   Calendar,
   BarChart3,
   GitBranch,
+  Copy,
+  Check,
+  Info,
+  ChevronDown,
+  ChevronRight,
+  Play,
+  Trash,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // ─── Lazy-loaded tab components ─────────────────────────────────────
 
@@ -258,12 +267,16 @@ function ChainBadge({ chain }: { chain: string }) {
     firewallchainsdn: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700',
     frchainspre: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-700',
     frchainspost: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-orange-200 dark:border-orange-700',
+    firewallchains_conn: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700',
+    firewallchainsdn_conn: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700',
   };
   const labels: Record<string, string> = {
     firewallchains: 'Uplink',
     firewallchainsdn: 'Downlink',
     frchainspre: 'NAT Pre',
     frchainspost: 'NAT Post',
+    firewallchains_conn: 'Uplink CT',
+    firewallchainsdn_conn: 'Downlink CT',
   };
   return (
     <Tooltip>
@@ -301,6 +314,8 @@ const CHAIN_OPTIONS = [
     chains: [
       { value: 'firewallchains', label: 'Uplink Filter', description: 'mangle prerouting — filter outbound guest traffic' },
       { value: 'firewallchainsdn', label: 'Downlink Filter', description: 'mangle postrouting — filter inbound guest traffic' },
+      { value: 'firewallchains_conn', label: 'Uplink Conntrack', description: 'mangle prerouting — stateful uplink connection marking' },
+      { value: 'firewallchainsdn_conn', label: 'Downlink Conntrack', description: 'mangle postrouting — stateful downlink connection marking' },
     ],
   },
   {
@@ -2309,470 +2324,682 @@ const CHAIN_DATA: ChainInfo[] = [
 const SYSTEM_CHAIN_COUNT = CHAIN_DATA.filter((c) => c.status === 'System').length;
 const GUI_CHAIN_COUNT = CHAIN_DATA.filter((c) => c.status === 'GUI').length;
 
+// ─── Chain Architecture Tab Types ────────────────────────────────────
+
+interface ChainArchFlowItem {
+  type: 'set_jump' | 'gui_chain' | 'system_chain';
+  set?: string;
+  chain?: string;
+  description: string;
+  managed?: boolean;
+}
+
+interface ChainArchHook {
+  priority: string;
+  flow: ChainArchFlowItem[];
+}
+
+interface ChainArchTable {
+  hooks: Record<string, ChainArchHook>;
+  guiChains: string[];
+}
+
+interface ChainArchData {
+  tables: Record<string, ChainArchTable>;
+  securityHooks: { chain: string; table: string; priority: number; description: string }[];
+  sets: { name: string; type: string; flags?: string; description: string }[];
+  systemChains: Record<string, string[]>;
+}
+
+interface ChainStatusData {
+  guiChains: Record<string, { exists: boolean; table: string; ruleCount: number }>;
+  ruleCounts: { guiRules: number; enabledGuiRules: number; portForwards: number; rateLimits: number };
+  appliedConfig: boolean;
+  mode: string;
+}
+
+// ─── Chain Architecture Tab ──────────────────────────────────────────
+
 function ChainArchitectureTab() {
-  const TABLE_COLORS: Record<string, { bg: string; border: string; text: string; badge: string }> = {
-    mangle: {
-      bg: 'bg-teal-50 dark:bg-teal-950/40',
-      border: 'border-teal-200 dark:border-teal-800',
-      text: 'text-teal-700 dark:text-teal-300',
-      badge: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 border-teal-200 dark:border-teal-700',
-    },
-    nat: {
-      bg: 'bg-cyan-50 dark:bg-cyan-950/40',
-      border: 'border-cyan-200 dark:border-cyan-800',
-      text: 'text-cyan-700 dark:text-cyan-300',
-      badge: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700',
-    },
-    filter: {
-      bg: 'bg-amber-50 dark:bg-amber-950/40',
-      border: 'border-amber-200 dark:border-amber-800',
-      text: 'text-amber-700 dark:text-amber-300',
-      badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-700',
-    },
-    security: {
-      bg: 'bg-rose-50 dark:bg-rose-950/40',
-      border: 'border-rose-200 dark:border-rose-800',
-      text: 'text-rose-700 dark:text-rose-300',
-      badge: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 border-rose-200 dark:border-rose-700',
-    },
+  const { toast } = useToast();
+  const [archData, setArchData] = useState<ChainArchData | null>(null);
+  const [statusData, setStatusData] = useState<ChainStatusData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [configPreview, setConfigPreview] = useState<string | null>(null);
+  const [showConfig, setShowConfig] = useState(false);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [flushing, setFlushing] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    mangle: true,
+    nat: true,
+    security: true,
+    sets: true,
+  });
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [archRes, statusRes] = await Promise.all([
+        apiFetch<ChainArchData>(`${API_BASE}/chain-architecture`),
+        apiFetch<ChainStatusData>(`${API_BASE}/status`),
+      ]);
+      if (archRes.success && archRes.data) setArchData(archRes.data);
+      if (statusRes.success && statusRes.data) setStatusData(statusRes.data);
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load chain architecture', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const toggleSection = (key: string) => {
+    setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const tables = ['mangle', 'nat', 'filter', 'security'] as const;
+  const fetchConfigPreview = async () => {
+    try {
+      setConfigLoading(true);
+      const res = await apiFetch<{ config: string }>(`${API_BASE}/config/preview`);
+      if (res.success && res.data) {
+        setConfigPreview(res.data.config);
+        setShowConfig(true);
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to fetch config preview', variant: 'destructive' });
+    } finally {
+      setConfigLoading(false);
+    }
+  };
+
+  const copyConfig = async () => {
+    if (!configPreview) return;
+    try {
+      await navigator.clipboard.writeText(configPreview);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({ title: 'Copied', description: 'Config copied to clipboard' });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to copy', variant: 'destructive' });
+    }
+  };
+
+  const applyConfig = async () => {
+    try {
+      setApplying(true);
+      await apiFetch(`${API_BASE}/apply`, { method: 'POST' });
+      toast({ title: 'Configuration Applied', description: 'nftables rules have been reloaded.' });
+      await fetchData();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to apply configuration';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const flushGuiChains = async () => {
+    try {
+      setFlushing(true);
+      await apiFetch(`${API_BASE}/flush-gui`, { method: 'POST' });
+      toast({ title: 'GUI Chains Flushed', description: 'All GUI-managed chains have been flushed.' });
+      await fetchData();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to flush GUI chains';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    } finally {
+      setFlushing(false);
+    }
+  };
+
+  const getRuleCount = (chainName: string): number => {
+    if (!statusData?.guiChains) return 0;
+    return statusData.guiChains[chainName]?.ruleCount ?? 0;
+  };
+
+  // ── Loading Skeleton ──
+  if (loading || !archData) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-10 w-10 rounded-xl" />
+          <div className="space-y-1.5">
+            <Skeleton className="h-5 w-56" />
+            <Skeleton className="h-3.5 w-80" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-lg" />
+          ))}
+        </div>
+        <Skeleton className="h-64 rounded-lg" />
+        <Skeleton className="h-48 rounded-lg" />
+        <Skeleton className="h-40 rounded-lg" />
+      </div>
+    );
+  }
+
+  const totalGuiRules = statusData?.ruleCounts?.guiRules ?? 0;
+  const totalGuiChains = Object.keys(archData.tables).reduce(
+    (sum, t) => sum + archData.tables[t].guiChains.length, 0
+  ) + archData.securityHooks.length;
+  const totalSets = archData.sets.length;
 
   return (
     <div className="space-y-6">
-      {/* Section Header */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white">
-          <GitBranch className="h-5 w-5" />
+      {/* ── Section Header ── */}
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg shadow-teal-500/20">
+            <GitBranch className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold tracking-tight">nftables Chain Architecture</h3>
+            <p className="text-sm text-muted-foreground">
+              Production chain flow &middot; <span className="font-mono text-xs">{statusData?.mode ?? 'simulation'} mode</span>
+            </p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-lg font-semibold tracking-tight">nftables Chain Architecture</h3>
-          <p className="text-sm text-muted-foreground">
-            Visual overview of the production <span className="font-mono text-xs">staysuite-nftables.service</span> chain separation
-          </p>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={fetchData} className="text-xs">
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh
+          </Button>
+          <Button variant="outline" size="sm" onClick={flushGuiChains} disabled={flushing} className="text-xs text-destructive hover:text-destructive">
+            {flushing ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Trash className="h-3.5 w-3.5 mr-1.5" />}
+            Flush GUI
+          </Button>
+          <Button size="sm" onClick={applyConfig} disabled={applying} className="text-xs bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white shadow-sm">
+            {applying ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Play className="h-3.5 w-3.5 mr-1.5" />}
+            Apply Config
+          </Button>
         </div>
-      </div>
+      </motion.div>
 
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-card/80 backdrop-blur-sm border-border/60 hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-muted">
-                <Lock className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{SYSTEM_CHAIN_COUNT}</p>
-                <p className="text-xs text-muted-foreground">System Chains</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-card/80 backdrop-blur-sm border-border/60 hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-teal-50 dark:bg-teal-950/40">
-                <Unlock className="h-5 w-5 text-teal-600 dark:text-teal-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">{GUI_CHAIN_COUNT}</p>
-                <p className="text-xs text-muted-foreground">GUI Chains</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-card/80 backdrop-blur-sm border-border/60 hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/40">
-                <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{CHAIN_DATA.length}</p>
-                <p className="text-xs text-muted-foreground">Total Chains</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-card/80 backdrop-blur-sm border-border/60 hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/40">
-                <Server className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">Active</p>
-                <p className="text-xs text-muted-foreground">nftables Service</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── Visual Chain Flow Diagram ── */}
-      <Card className="bg-card/80 backdrop-blur-sm border-border/60">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base tracking-tight flex items-center gap-2">
-            <Network className="h-4 w-4 text-teal-500" />
-            Packet Flow Diagram
-          </CardTitle>
-          <CardDescription className="text-xs">
-            How packets traverse the nftables chain hierarchy.{' '}
-            <span className="inline-flex items-center gap-1">
-              <span className="inline-block w-3 h-0.5 rounded bg-teal-500" /> GUI chains
-            </span>
-            {' · '}
-            <span className="inline-flex items-center gap-1">
-              <span className="inline-block w-3 h-0.5 rounded bg-muted-foreground/40" /> System chains
-            </span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Ingress Flow */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-              <ArrowDown className="h-3 w-3" />
-              Ingress Path (incoming packets)
-            </p>
-            <div className="space-y-3">
-              {/* mangle prerouting */}
-              <div className="relative flex flex-wrap items-center gap-2">
-                <FlowArrow />
-                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
-                  Packet In
-                </div>
-                <FlowArrow />
-                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', TABLE_COLORS.mangle.bg, TABLE_COLORS.mangle.border, TABLE_COLORS.mangle.text)}>
-                  mangle:prerouting
-                </div>
-                <FlowArrow />
-                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
-                  core rules
-                </div>
-                <FlowArrow type="gui" />
-                <ChainPill name="firewallchains" table="mangle" isGui />
-                <FlowArrow />
-                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
-                  open
-                </div>
-                <FlowArrow />
-                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
-                  accountingup
-                </div>
-              </div>
-
-              {/* nat prerouting */}
-              <div className="relative flex flex-wrap items-center gap-2">
-                <FlowArrow />
-                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', TABLE_COLORS.nat.bg, TABLE_COLORS.nat.border, TABLE_COLORS.nat.text)}>
-                  nat:prerouting
-                </div>
-                <FlowArrow />
-                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
-                  open
-                </div>
-                <FlowArrow type="gui" />
-                <ChainPill name="frchainspre" table="nat" isGui />
-              </div>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-border" />
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/50 text-xs text-muted-foreground font-medium">
-              <Server className="h-3 w-3" />
-              Routing Decision
-            </div>
-            <div className="flex-1 h-px bg-border" />
-          </div>
-
-          {/* Egress Flow */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-              <ArrowUp className="h-3 w-3" />
-              Egress Path (outgoing packets)
-            </p>
-            <div className="space-y-3">
-              {/* mangle postrouting */}
-              <div className="relative flex flex-wrap items-center gap-2">
-                <FlowArrow />
-                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', TABLE_COLORS.mangle.bg, TABLE_COLORS.mangle.border, TABLE_COLORS.mangle.text)}>
-                  mangle:postrouting
-                </div>
-                <FlowArrow />
-                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
-                  core rules
-                </div>
-                <FlowArrow type="gui" />
-                <ChainPill name="firewallchainsdn" table="mangle" isGui />
-                <FlowArrow />
-                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
-                  accountingdn
-                </div>
-              </div>
-
-              {/* nat postrouting */}
-              <div className="relative flex flex-wrap items-center gap-2">
-                <FlowArrow />
-                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', TABLE_COLORS.nat.bg, TABLE_COLORS.nat.border, TABLE_COLORS.nat.text)}>
-                  nat:postrouting
-                </div>
-                <FlowArrow type="gui" />
-                <ChainPill name="frchainspost" table="nat" isGui />
-              </div>
-
-              {/* security hooks */}
-              <div className="relative flex flex-wrap items-center gap-2">
-                <FlowArrow />
-                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', TABLE_COLORS.security.bg, TABLE_COLORS.security.border, TABLE_COLORS.security.text)}>
-                  security hooks
-                </div>
-                <FlowArrow />
-                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
-                  syn_flood → invalid → port_scan → ssh → dns → icmp
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Conntrack sidebar */}
-          <div className="mt-2 rounded-lg border border-dashed border-teal-300 dark:border-teal-700 bg-teal-50/50 dark:bg-teal-950/20 p-3">
-            <p className="text-xs font-semibold text-teal-700 dark:text-teal-300 mb-2 flex items-center gap-1.5">
-              <GitBranch className="h-3 w-3" />
-              GUI Conntrack Chains (stateful filtering)
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <ChainPill name="firewallchains_conn" table="mangle" isGui />
-              <span className="text-xs text-muted-foreground self-center">Uplink stateful</span>
-              <ChainPill name="firewallchainsdn_conn" table="mangle" isGui />
-              <span className="text-xs text-muted-foreground self-center">Downlink stateful</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── Table Group Cards ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {tables.map((table) => {
-          const tableChains = CHAIN_DATA.filter((c) => c.table === table);
-          const colors = TABLE_COLORS[table];
-          const guiChains = tableChains.filter((c) => c.status === 'GUI');
-          const sysChains = tableChains.filter((c) => c.status === 'System');
-          return (
-            <Card key={table} className={cn('bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden')}>
-              <div className={cn('h-1', {
-                'bg-gradient-to-r from-teal-500 to-teal-400': table === 'mangle',
-                'bg-gradient-to-r from-cyan-500 to-cyan-400': table === 'nat',
-                'bg-gradient-to-r from-amber-500 to-amber-400': table === 'filter',
-                'bg-gradient-to-r from-rose-500 to-rose-400': table === 'security',
-              })} />
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm tracking-tight flex items-center gap-2">
-                  <span className={cn('font-mono px-2 py-0.5 rounded text-xs font-bold', colors.badge)}>
-                    inet {table}
-                  </span>
-                  <Badge variant="outline" className="text-[10px] font-medium">
-                    {tableChains.length} chains
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0 space-y-3">
-                {guiChains.length > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] font-semibold text-teal-600 dark:text-teal-400 uppercase tracking-wider flex items-center gap-1">
-                      <Unlock className="h-2.5 w-2.5" /> GUI Chains
-                    </p>
-                    {guiChains.map((chain) => (
-                      <div
-                        key={chain.name}
-                        className={cn(
-                          'flex items-center justify-between px-3 py-2 rounded-md text-xs border-l-4 transition-colors hover:bg-muted/30',
-                          'bg-teal-50/50 dark:bg-teal-950/20 border-l-teal-500'
-                        )}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-semibold text-teal-700 dark:text-teal-300">{chain.name}</span>
-                          <Badge variant="outline" className="text-[10px] border-teal-200 dark:border-teal-700 text-teal-600 dark:text-teal-400">
-                            {chain.direction}
-                          </Badge>
-                        </div>
-                        <span className="text-[11px] text-muted-foreground truncate max-w-[200px]">{chain.description}</span>
-                      </div>
-                    ))}
+        {[
+          { label: 'GUI Chains', value: Object.values(archData.tables).reduce((s, t) => s + t.guiChains.length, 0), icon: Unlock, color: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-50 dark:bg-teal-950/40' },
+          { label: 'GUI Rules', value: totalGuiRules, icon: ShieldCheck, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40' },
+          { label: 'Security Hooks', value: archData.securityHooks.length, icon: ShieldAlert, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/40' },
+          { label: 'nftables Sets', value: totalSets, icon: Server, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-950/40' },
+        ].map((card, i) => (
+          <motion.div
+            key={card.label}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.06 }}
+          >
+            <Card className="bg-card/80 backdrop-blur-sm border-border/60 hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className={cn('flex items-center justify-center w-10 h-10 rounded-lg', card.bg)}>
+                    <card.icon className={cn('h-5 w-5', card.color)} />
                   </div>
-                )}
-                {sysChains.length > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                      <Lock className="h-2.5 w-2.5" /> System Chains
-                    </p>
-                    {sysChains.map((chain) => (
-                      <div
-                        key={chain.name}
-                        className={cn(
-                          'flex items-center justify-between px-3 py-2 rounded-md text-xs border-l-4 transition-colors hover:bg-muted/30',
-                          'bg-muted/30 border-l-muted-foreground/30'
-                        )}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-medium text-muted-foreground">{chain.name}</span>
-                          {chain.type === 'Base Hook' && (
-                            <Badge variant="outline" className="text-[10px] border-muted">
-                              hook
-                            </Badge>
-                          )}
-                          {chain.priority !== undefined && (
-                            <Badge variant="outline" className="text-[10px] text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-700">
-                              pri {chain.priority}
-                            </Badge>
-                          )}
-                        </div>
-                        <span className="text-[11px] text-muted-foreground/70 truncate max-w-[180px]">{chain.description}</span>
-                      </div>
-                    ))}
+                  <div>
+                    <p className={cn('text-2xl font-bold', card.color)}>{card.value}</p>
+                    <p className="text-xs text-muted-foreground">{card.label}</p>
                   </div>
-                )}
+                </div>
               </CardContent>
             </Card>
-          );
-        })}
+          </motion.div>
+        ))}
       </div>
 
-      {/* ── Chain Details Table ── */}
-      <Card className="bg-card/80 backdrop-blur-sm border-border/60">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base tracking-tight flex items-center gap-2">
-            <GitBranch className="h-4 w-4 text-teal-500" />
-            Chain Details
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Complete list of all chains created by <span className="font-mono">staysuite-nftables.service</span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="max-h-96 overflow-y-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[180px]">Chain Name</TableHead>
-                  <TableHead>Table</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Direction</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="hidden md:table-cell">Description</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {CHAIN_DATA.map((chain) => {
-                  const colors = TABLE_COLORS[chain.table];
-                  const isGui = chain.status === 'GUI';
-                  return (
-                    <TableRow key={`${chain.table}-${chain.name}`} className={cn(isGui && 'bg-teal-50/30 dark:bg-teal-950/10')}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {isGui ? (
-                            <Unlock className="h-3.5 w-3.5 text-teal-500" />
-                          ) : (
-                            <Lock className="h-3.5 w-3.5 text-muted-foreground/50" />
-                          )}
-                          <span className={cn('font-mono text-sm font-medium', isGui ? 'text-teal-700 dark:text-teal-300' : 'text-muted-foreground')}>
-                            {chain.name}
-                          </span>
+      {/* ════════════════════════════════════════════════════════════ */}
+      {/* ── inet mangle Table ── */}
+      {/* ════════════════════════════════════════════════════════════ */}
+      {archData.tables['inet mangle'] && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+          <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-teal-500 to-emerald-400" />
+            <CardHeader className="pb-2">
+              <button
+                onClick={() => toggleSection('mangle')}
+                className="flex items-center justify-between w-full text-left"
+              >
+                <CardTitle className="text-sm tracking-tight flex items-center gap-2">
+                  <span className="font-mono px-2 py-0.5 rounded text-xs font-bold bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 border border-teal-200 dark:border-teal-700">
+                    inet mangle
+                  </span>
+                  <Badge variant="outline" className="text-[10px] font-medium">
+                    {archData.tables['inet mangle'].guiChains.length} GUI chains
+                  </Badge>
+                </CardTitle>
+                {expandedSections.mangle ? (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
+            </CardHeader>
+            <AnimatePresence>
+              {expandedSections.mangle && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <CardContent className="pt-0 pb-4 space-y-5">
+                    {/* prerouting hook */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-teal-500" />
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">prerouting hook</span>
+                        <Badge variant="outline" className="text-[10px] font-mono">priority: mangle</Badge>
+                      </div>
+                      <div className="space-y-1.5 ml-3">
+                        {archData.tables['inet mangle'].hooks.prerouting?.flow.map((item, idx) => (
+                          <ChainFlowItem key={idx} item={item} ruleCount={item.type === 'gui_chain' ? getRuleCount(item.chain ?? '') : undefined} />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* postrouting hook */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">postrouting hook</span>
+                        <Badge variant="outline" className="text-[10px] font-mono">priority: mangle</Badge>
+                      </div>
+                      <div className="space-y-1.5 ml-3">
+                        {archData.tables['inet mangle'].hooks.postrouting?.flow.map((item, idx) => (
+                          <ChainFlowItem key={idx} item={item} ruleCount={item.type === 'gui_chain' ? getRuleCount(item.chain ?? '') : undefined} />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Regular GUI chains (conn chains) */}
+                    {archData.tables['inet mangle'].guiChains.filter((c) => c.includes('_conn')).length > 0 && (
+                      <div className="mt-2 rounded-lg border border-dashed border-teal-300 dark:border-teal-700 bg-teal-50/50 dark:bg-teal-950/20 p-3">
+                        <p className="text-xs font-semibold text-teal-700 dark:text-teal-300 mb-2 flex items-center gap-1.5">
+                          <GitBranch className="h-3 w-3" />
+                          Regular Chains (GUI conntrack)
+                        </p>
+                        <div className="space-y-1.5">
+                          {archData.tables['inet mangle'].guiChains.filter((c) => c.includes('_conn')).map((chainName) => (
+                            <div key={chainName} className="flex items-center justify-between px-3 py-1.5 rounded-md bg-teal-100/50 dark:bg-teal-900/20">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-cyan-500" />
+                                <span className="font-mono text-xs font-semibold text-teal-700 dark:text-teal-300">{chainName}</span>
+                                <Badge variant="outline" className="text-[10px] bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700">
+                                  GUI
+                                </Badge>
+                              </div>
+                              <span className="text-xs text-muted-foreground">{getRuleCount(chainName)} rules</span>
+                            </div>
+                          ))}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={cn('text-xs font-mono', colors.badge)}>
-                          {chain.table}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            'text-xs font-medium',
-                            chain.type === 'Base Hook'
-                              ? 'bg-muted text-muted-foreground border-muted'
-                              : chain.type === 'GUI Custom'
-                                ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 border-teal-200 dark:border-teal-700'
-                                : 'bg-muted/50 text-muted-foreground border-muted'
-                          )}
+                      </div>
+                    )}
+                  </CardContent>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════ */}
+      {/* ── inet nat Table ── */}
+      {/* ════════════════════════════════════════════════════════════ */}
+      {archData.tables['inet nat'] && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }}>
+          <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-cyan-500 to-blue-400" />
+            <CardHeader className="pb-2">
+              <button
+                onClick={() => toggleSection('nat')}
+                className="flex items-center justify-between w-full text-left"
+              >
+                <CardTitle className="text-sm tracking-tight flex items-center gap-2">
+                  <span className="font-mono px-2 py-0.5 rounded text-xs font-bold bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-700">
+                    inet nat
+                  </span>
+                  <Badge variant="outline" className="text-[10px] font-medium">
+                    {archData.tables['inet nat'].guiChains.length} GUI chains
+                  </Badge>
+                </CardTitle>
+                {expandedSections.nat ? (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
+            </CardHeader>
+            <AnimatePresence>
+              {expandedSections.nat && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <CardContent className="pt-0 pb-4 space-y-5">
+                    {/* prerouting */}
+                    {archData.tables['inet nat'].hooks.prerouting && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">prerouting</span>
+                          <Badge variant="outline" className="text-[10px] font-mono">priority: dstnat</Badge>
+                        </div>
+                        <div className="space-y-1.5 ml-3">
+                          {archData.tables['inet nat'].hooks.prerouting.flow.map((item, idx) => (
+                            <ChainFlowItem key={idx} item={item} ruleCount={item.type === 'gui_chain' ? getRuleCount(item.chain ?? '') : undefined} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* postrouting */}
+                    {archData.tables['inet nat'].hooks.postrouting && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">postrouting</span>
+                          <Badge variant="outline" className="text-[10px] font-mono">priority: srcnat</Badge>
+                        </div>
+                        <div className="space-y-1.5 ml-3">
+                          {archData.tables['inet nat'].hooks.postrouting.flow.map((item, idx) => (
+                            <ChainFlowItem key={idx} item={item} ruleCount={item.type === 'gui_chain' ? getRuleCount(item.chain ?? '') : undefined} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════ */}
+      {/* ── inet security ── */}
+      {/* ════════════════════════════════════════════════════════════ */}
+      {archData.securityHooks.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
+          <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-amber-500 to-rose-500" />
+            <CardHeader className="pb-2">
+              <button
+                onClick={() => toggleSection('security')}
+                className="flex items-center justify-between w-full text-left"
+              >
+                <CardTitle className="text-sm tracking-tight flex items-center gap-2">
+                  <span className="font-mono px-2 py-0.5 rounded text-xs font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 border border-rose-200 dark:border-rose-700">
+                    inet security
+                  </span>
+                  <Badge variant="outline" className="text-[10px] font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-700">
+                    Not GUI-managed
+                  </Badge>
+                </CardTitle>
+                {expandedSections.security ? (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
+            </CardHeader>
+            <AnimatePresence>
+              {expandedSections.security && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <CardContent className="pt-0 pb-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {archData.securityHooks.map((hook) => (
+                        <div
+                          key={hook.chain}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30 border border-border/60 hover:bg-muted/50 transition-colors"
                         >
-                          {chain.type}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {chain.direction}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {isGui ? (
-                          <Badge className="bg-teal-600 text-white text-xs border-0 hover:bg-teal-600">
-                            GUI
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs">
-                            System
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <span className="text-xs text-muted-foreground">{chain.description}</span>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                          <div className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-semibold truncate">{hook.chain}</span>
+                              <Badge variant="outline" className="text-[10px] shrink-0 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-700">
+                                {hook.priority}
+                              </Badge>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground truncate">{hook.description}</p>
+                          </div>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-3 w-3 text-muted-foreground/50 shrink-0 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="text-xs max-w-xs">
+                              <p className="font-mono">{hook.chain} ({hook.priority})</p>
+                              <p className="text-muted-foreground">{hook.description}</p>
+                              <p className="text-muted-foreground mt-1">Security chains are system-managed and cannot be edited from the GUI.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════ */}
+      {/* ── nftables Sets ── */}
+      {/* ════════════════════════════════════════════════════════════ */}
+      {archData.sets.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.33 }}>
+          <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-violet-500 to-purple-400" />
+            <CardHeader className="pb-2">
+              <button
+                onClick={() => toggleSection('sets')}
+                className="flex items-center justify-between w-full text-left"
+              >
+                <CardTitle className="text-sm tracking-tight flex items-center gap-2">
+                  <Server className="h-4 w-4 text-violet-500" />
+                  nftables Sets
+                  <Badge variant="outline" className="text-[10px] font-medium">
+                    {archData.sets.length} sets
+                  </Badge>
+                </CardTitle>
+                {expandedSections.sets ? (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
+            </CardHeader>
+            <AnimatePresence>
+              {expandedSections.sets && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <CardContent className="pt-0 pb-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {archData.sets.map((set) => (
+                        <div
+                          key={set.name}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/20 border border-border/60 hover:bg-muted/40 transition-colors"
+                        >
+                          <div className="w-2 h-2 rounded-full bg-violet-500 shrink-0" />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-mono text-xs font-semibold">{set.name}</span>
+                              <Badge variant="outline" className="text-[10px] font-mono">
+                                {set.type}
+                              </Badge>
+                              {set.flags && (
+                                <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border-purple-200 dark:border-purple-700">
+                                  {set.flags}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">{set.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════ */}
+      {/* ── Config Preview ── */}
+      {/* ════════════════════════════════════════════════════════════ */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}>
+        <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm tracking-tight flex items-center gap-2">
+                <Eye className="h-4 w-4 text-teal-500" />
+                Generated nftables Configuration
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={fetchConfigPreview} disabled={configLoading} className="text-xs">
+                  {configLoading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Eye className="h-3.5 w-3.5 mr-1.5" />}
+                  {showConfig ? 'Refresh Preview' : 'View Config Preview'}
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <AnimatePresence>
+            {showConfig && configPreview && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
+                <CardContent className="pt-0 pb-4">
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] text-muted-foreground">
+                        Generated at: {new Date().toLocaleTimeString()} &middot; {statusData?.mode ?? 'simulation'} mode
+                      </span>
+                      <Button variant="ghost" size="sm" onClick={copyConfig} className="h-7 text-xs">
+                        {copied ? <Check className="h-3 w-3 mr-1 text-emerald-500" /> : <Copy className="h-3 w-3 mr-1" />}
+                        {copied ? 'Copied!' : 'Copy'}
+                      </Button>
+                    </div>
+                    <pre className="bg-zinc-950 dark:bg-zinc-900 text-zinc-200 rounded-lg p-4 overflow-x-auto text-[11px] font-mono leading-relaxed border border-zinc-800 max-h-96 scrollbar-thin">
+                      <code>{configPreview}</code>
+                    </pre>
+                  </div>
+                </CardContent>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Card>
+      </motion.div>
+
+      {/* ── Legend ── */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.45 }}
+        className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground px-1"
+      >
+        <span className="font-medium text-foreground/70">Legend:</span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-teal-500" /> GUI Chain
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-muted-foreground/40" /> System Chain
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-violet-500" /> nftables Set
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-rose-500" /> Security Hook
+        </span>
+      </motion.div>
     </div>
   );
 }
 
-// ── Flow Diagram Sub-components ──
+// ── Chain Architecture Sub-components ───────────────────────────────
 
-function FlowArrow({ type }: { type?: 'gui' | 'system' }) {
-  return (
-    <svg width="24" height="16" viewBox="0 0 24 16" className="shrink-0">
-      <line
-        x1="0" y1="8" x2="18" y2="8"
-        stroke={type === 'gui' ? '#14b8a6' : 'currentColor'}
-        strokeWidth="1.5"
-        strokeDasharray={type === 'gui' ? 'none' : '3 2'}
-        className={type !== 'gui' ? 'text-muted-foreground/40' : ''}
-      />
-      <polygon
-        points="18,4 24,8 18,12"
-        fill={type === 'gui' ? '#14b8a6' : 'currentColor'}
-        className={type !== 'gui' ? 'text-muted-foreground/40' : ''}
-      />
-    </svg>
-  );
-}
+function ChainFlowItem({ item, ruleCount }: { item: ChainArchFlowItem; ruleCount?: number }) {
+  const isGui = item.type === 'gui_chain';
+  const isSet = item.type === 'set_jump';
 
-function ChainPill({ name, table, isGui }: { name: string; table: string; isGui: boolean }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div
-          className={cn(
-            'px-2.5 py-1 rounded-md text-xs font-mono font-semibold border cursor-default transition-colors',
-            isGui
-              ? 'border-l-4 border-l-teal-500 bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-200 border border-teal-300 dark:border-teal-700 hover:bg-teal-200 dark:hover:bg-teal-900/60'
-              : 'border-l-4 border-l-muted bg-muted/50 text-muted-foreground'
-          )}
-        >
-          <span className="opacity-60 text-[10px]">{table}:</span>{name}
-        </div>
-      </TooltipTrigger>
-      <TooltipContent className="text-xs">
-        <p className="font-mono font-semibold">{table}:{name}</p>
-        <p className="text-muted-foreground">{isGui ? 'GUI-managed chain' : 'System-managed chain'}</p>
-      </TooltipContent>
-    </Tooltip>
+    <div
+      className={cn(
+        'flex items-center gap-2.5 px-3 py-1.5 rounded-md border transition-colors',
+        isGui
+          ? 'border-l-4 border-l-teal-500 bg-teal-50/80 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 hover:bg-teal-100/80 dark:hover:bg-teal-950/50'
+          : isSet
+            ? 'border-l-4 border-l-violet-400 bg-violet-50/60 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800'
+            : 'bg-muted/30 border border-border/60 hover:bg-muted/50'
+      )}
+    >
+      <ArrowRight className={cn('h-3 w-3 shrink-0', isGui ? 'text-teal-500' : isSet ? 'text-violet-400' : 'text-muted-foreground/40')} />
+
+      {isSet && (
+        <Badge variant="outline" className="text-[10px] font-mono bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 border-violet-200 dark:border-violet-700 shrink-0">
+          set
+        </Badge>
+      )}
+
+      <span className={cn(
+        'font-mono text-xs font-medium truncate',
+        isGui ? 'text-teal-700 dark:text-teal-300' : isSet ? 'text-violet-700 dark:text-violet-300' : 'text-muted-foreground'
+      )}>
+        {isSet ? item.set : item.chain}
+      </span>
+
+      {isGui && (
+        <Badge className="text-[10px] bg-teal-600 text-white border-0 hover:bg-teal-600 shrink-0">
+          GUI
+        </Badge>
+      )}
+
+      <span className="text-[11px] text-muted-foreground truncate ml-auto">{item.description}</span>
+
+      {isGui && ruleCount !== undefined && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center gap-1 shrink-0">
+              <div className={cn('w-1.5 h-1.5 rounded-full', ruleCount > 0 ? 'bg-emerald-500' : 'bg-muted-foreground/30')} />
+              <span className={cn('text-[11px] font-mono font-semibold', ruleCount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
+                {ruleCount}
+              </span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent className="text-xs">
+            {ruleCount} rule{ruleCount !== 1 ? 's' : ''} in this chain
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </div>
   );
 }
