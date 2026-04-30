@@ -523,9 +523,8 @@ async function createRADIUSUser(user: RADIUSUser): void {
 
   // Default validUntil to 24 hours from now (NOT now — that would expire immediately).
   // The PMS provisioning-service sets a proper checkout-based validUntil.
-  // CRITICAL: validUntil must be stored as millisecond integer (NOT ISO string)
-  // for correct comparison in the auto-expiry timer (Date.now() vs numeric).
-  const validUntil = user.validUntil || String(Date.now() + 24 * 60 * 60 * 1000);
+  // NOTE: PostgreSQL stores this as Timestamptz — must use ISO string, NOT millisecond integer.
+  const validUntil = user.validUntil || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
   // Default tenantId and propertyId for manual user creation from GUI.
   // PMS provisioning-service always passes these explicitly.
@@ -572,9 +571,8 @@ async function updateRADIUSUser(id: string, updates: Partial<RADIUSUser>): RADIU
   await db.query('DELETE FROM radusergroup WHERE username = ?').run(username);
 
   // Update WiFiUser row (cannot use INSERT OR IGNORE — it won't update existing rows)
-  // CRITICAL: validUntil must be stored as millisecond integer (NOT ISO string)
-  // for correct comparison in the auto-expiry timer (Date.now() vs numeric).
-  const validUntil = updated.validUntil || String(Date.now() + 24 * 60 * 60 * 1000);
+  // NOTE: PostgreSQL stores this as Timestamptz — must use ISO string, NOT millisecond integer.
+  const validUntil = updated.validUntil || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const now = new Date().toISOString();
   await db.query(`UPDATE "WiFiUser" SET password = ?, status = ?, validUntil = ?, radiusSynced = 1, updatedAt = ?, userType = ?
     WHERE id = ?`).run(
@@ -2249,7 +2247,7 @@ app.post('/api/provision', async (c) => {
       password,
       group: group || 'standard-guests',
       attributes,
-      validUntil: validUntil ? String(new Date(validUntil).getTime()) : undefined,
+      validUntil: validUntil ? new Date(validUntil).toISOString() : undefined,
       guestId: guestId || undefined,
       bookingId: bookingId || undefined,
       createdAt: now,
@@ -4311,7 +4309,7 @@ app.post('/api/event-users/bulk', async (c) => {
 
     const now = new Date().toISOString();
     const validFrom = now;
-    const validUntil = String(Date.now() + (parseInt(String(validHours), 10) || 24) * 3600 * 1000);
+    const validUntil = new Date(Date.now() + (parseInt(String(validHours), 10) || 24) * 3600 * 1000).toISOString();
     const createdUsers: Array<{ id: string; username: string; password: string }> = [];
 
     // Generate a short event code from eventId (last 6 chars)
@@ -4458,7 +4456,7 @@ app.post('/api/event-users/attendee', async (c) => {
 
     const now = new Date().toISOString();
     const validFrom = now;
-    const validUntil = String(Date.now() + effectiveValidHours * 3600 * 1000);
+    const validUntil = new Date(Date.now() + effectiveValidHours * 3600 * 1000).toISOString();
 
     db.query(
       `INSERT INTO "RadiusEventUser" (id, propertyId, eventId, eventName, username, password, planId, bandwidthDown, bandwidthUp, dataLimitMb, validFrom, validUntil, maxSessions, status, firstUsedAt, createdAt, updatedAt)
@@ -5230,16 +5228,11 @@ app.get('/api/user-usage/:username', async (c) => {
 // because their WiFiUser.validUntil is still in the future.
 setInterval(async () => {
   try {
-    // CRITICAL: validUntil is stored as millisecond integer (Prisma DateTime → SQLite integer),
-    // NOT as ISO string. Using new Date().toISOString() would cause string comparison
-    // ("1777263123615" < "2026-04-22T...") which always evaluates TRUE → every user expired!
-    const nowMs = Date.now();
-    const nowISO = new Date().toISOString();
-
-    // Mark expired users in WiFiUser (preserves audit trail)
+    // PostgreSQL: validUntil is Timestamptz. Use NOW() for comparison.
+    // Explictly quote all camelCase columns (validUntil, updatedAt) for PostgreSQL.
     const result = await db.query(
-      "UPDATE \"WiFiUser\" SET status = 'expired', updatedAt = ? WHERE status = 'active' AND validUntil IS NOT NULL AND validUntil < ?"
-    ).run(nowISO, nowMs);
+      'UPDATE "WiFiUser" SET status = \'expired\', "updatedAt" = NOW() WHERE status = \'active\' AND "validUntil" IS NOT NULL AND "validUntil" < NOW()'
+    );
 
     if (result.rowCount > 0) {
       log.info(`Auto-expired ${result.rowCount} WiFi users — deleting RADIUS credentials`);
@@ -5793,11 +5786,12 @@ app.post('/api/guest-wifi-link', async (c) => {
 
     const now = new Date().toISOString();
     const wifiId = generateId('wfu');
+    const defaultValidUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     db.query(
       `INSERT INTO "WiFiUser" (id, tenantId, propertyId, username, password, guestId, bookingId, planId, status, validFrom, validUntil, radiusSynced, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, null, ?, 'active', ?, ?, 0, ?, ?)`
-    ).run(wifiId, guestTenantId, guestPropertyId, username, password, guestId, planId || null, now, now, now, now);
+    ).run(wifiId, guestTenantId, guestPropertyId, username, password, guestId, planId || null, now, defaultValidUntil, now, now);
 
     // Create RADIUS credentials
     const user: RADIUSUser = {

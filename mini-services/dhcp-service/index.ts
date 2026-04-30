@@ -21,6 +21,7 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import pg from 'pg';
+import dns from 'dns';
 import { createLogger } from '../shared/logger';
 
 const app = new Hono();
@@ -98,7 +99,6 @@ const DHCP_OPTION_NAME_MAP: Record<string, string> = {
   'dns server': 'dns-server',
   'ntp server': 'ntp-server',
   'ntp-servers': 'ntp-server',
-  'ntp server': 'ntp-server',
   'router': 'router',
   'gateway': 'router',
   'default gateway': 'router',
@@ -148,23 +148,51 @@ const IP_ONLY_OPTIONS = new Set([
   'time-server', 'name-server', 'smtp-server', 'pop3-server',
   'nntp-server', 'www-server', 'finger-server', 'irc-server',
   'netbios-ns', 'netbios-dd', 'netbios-nb', 'dhcp-server',
+  'dns-server', 'dns', 'router', 'gateway',
 ]);
 
+// DNS resolution cache (avoid repeated lookups on every config generation)
+const dnsCache = new Map<string, { ip: string; ts: number }>();
+const DNS_CACHE_TTL = 300000; // 5 minutes
+
 /**
- * Resolve hostname to IPv4 address using system DNS.
- * Returns the IP string on success, or the original value on failure.
+ * Resolve hostname to IPv4 address.
+ * Uses Node.js dns.lookupSync (primary) with getent (fallback).
+ * Results are cached for 5 minutes to avoid repeated lookups.
  */
 function resolveHostname(hostname: string): string {
   if (isIPv4(hostname)) return hostname;
+
+  // Check cache
+  const cached = dnsCache.get(hostname);
+  if (cached && Date.now() - cached.ts < DNS_CACHE_TTL) {
+    return cached.ip;
+  }
+
+  // Method 1: Node.js dns.lookupSync (most reliable)
+  try {
+    const result = dns.lookupSync(hostname, { family: 4 });
+    if (result && result.address && isIPv4(result.address)) {
+      dnsCache.set(hostname, { ip: result.address, ts: Date.now() });
+      log.info(`Resolved ${hostname} → ${result.address}`);
+      return result.address;
+    }
+  } catch (e) {
+    log.debug(`dns.lookupSync failed for ${hostname}: ${e}`);
+  }
+
+  // Method 2: getent ahosts (Linux fallback)
   try {
     const result = safeExec(`getent ahosts -4 ${hostname} 2>/dev/null | head -1`);
     const ip = result.trim().split(/\s+/)[0];
     if (ip && isIPv4(ip)) {
-      log.info(`Resolved ${hostname} → ${ip}`);
+      dnsCache.set(hostname, { ip, ts: Date.now() });
+      log.info(`Resolved ${hostname} → ${ip} (via getent)`);
       return ip;
     }
   } catch {}
-  log.warn(`Could not resolve hostname "${hostname}" — keeping as-is`);
+
+  log.warn(`Could not resolve hostname "${hostname}" — keeping as-is (dnsmasq may reject this)`);
   return hostname;
 }
 
@@ -554,15 +582,19 @@ async function generateConfig(): Promise<{ success: boolean; message: string; li
         const leaseDisplay = leaseSecondsToDisplay(sub.leaseTime || 3600);
         config += `dhcp-range=${sub.poolStart},${sub.poolEnd},${netmask},${leaseDisplay}\n`;
 
-        // Gateway (router option)
+        // Gateway (router option) — resolve hostnames to IPs
         if (sub.gateway) {
-          config += `dhcp-option=option:router,${sub.gateway}\n`;
+          const gatewayIp = resolveHostname(sub.gateway.trim());
+          config += `dhcp-option=option:router,${gatewayIp}\n`;
         }
 
-        // DNS servers
+        // DNS servers — resolve hostnames to IPs (dnsmasq requires IPs)
         const dns = parseDnsList(sub.dnsServers);
         if (dns.length > 0) {
-          config += `dhcp-option=option:dns-server,${dns.join(',')}\n`;
+          const resolvedDns = dns.map((s: string) => resolveHostname(s.trim())).filter(Boolean);
+          if (resolvedDns.length > 0) {
+            config += `dhcp-option=option:dns-server,${resolvedDns.join(',')}\n`;
+          }
         }
 
         // Domain name
