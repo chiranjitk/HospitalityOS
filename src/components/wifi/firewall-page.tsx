@@ -86,6 +86,7 @@ import {
   LayoutGrid,
   Calendar,
   BarChart3,
+  GitBranch,
 } from 'lucide-react';
 
 // ─── Lazy-loaded tab components ─────────────────────────────────────
@@ -251,6 +252,36 @@ function CategoryBadge({ category }: { category: string }) {
   );
 }
 
+function ChainBadge({ chain }: { chain: string }) {
+  const colors: Record<string, string> = {
+    firewallchains: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300 border-teal-200 dark:border-teal-700',
+    firewallchainsdn: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700',
+    frchainspre: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-700',
+    frchainspost: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-orange-200 dark:border-orange-700',
+  };
+  const labels: Record<string, string> = {
+    firewallchains: 'Uplink',
+    firewallchainsdn: 'Downlink',
+    frchainspre: 'NAT Pre',
+    frchainspost: 'NAT Post',
+  };
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge variant="outline" className={cn('text-xs font-semibold cursor-default', colors[chain] || '')}>
+          {labels[chain] || chain}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p className="font-mono text-xs">{chain}</p>
+        <p className="text-xs text-muted-foreground">
+          {CHAIN_OPTIONS.flatMap((g) => g.chains).find((c) => c.value === chain)?.description}
+        </p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 const RATE_PRESETS = [
   { label: '512 Kbps', value: '512kbit' },
   { label: '1 Mbps', value: '1mbit' },
@@ -263,6 +294,23 @@ const RATE_PRESETS = [
 ];
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+const CHAIN_OPTIONS = [
+  {
+    group: 'inet mangle',
+    chains: [
+      { value: 'firewallchains', label: 'Uplink Filter', description: 'mangle prerouting — filter outbound guest traffic' },
+      { value: 'firewallchainsdn', label: 'Downlink Filter', description: 'mangle postrouting — filter inbound guest traffic' },
+    ],
+  },
+  {
+    group: 'inet nat',
+    chains: [
+      { value: 'frchainspre', label: 'NAT Prerouting', description: 'nat prerouting — DNAT / Port Forward rules' },
+      { value: 'frchainspost', label: 'NAT Postrouting', description: 'nat postrouting — SNAT / Masquerade rules' },
+    ],
+  },
+] as const;
 
 // ─── Main Firewall Page ─────────────────────────────────────────────
 
@@ -279,6 +327,7 @@ export default function FirewallPage() {
     { id: 'bw-scheduler', label: 'BW Scheduler', icon: Calendar },
     { id: 'bw-policies', label: 'BW Policies', icon: BarChart3 },
     { id: 'web-categories', label: 'Web Categories', icon: ShieldAlert },
+    { id: 'chain-architecture', label: 'Chain Architecture', icon: GitBranch },
   ];
 
   return (
@@ -328,6 +377,7 @@ export default function FirewallPage() {
       {activeTab === 'bw-scheduler' && <BandwidthScheduler />}
       {activeTab === 'bw-policies' && <BwPolicyDetails />}
       {activeTab === 'web-categories' && <WebCategories />}
+      {activeTab === 'chain-architecture' && <ChainArchitectureTab />}
     </div>
   );
 }
@@ -342,10 +392,11 @@ function RulesTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<GuiRule | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [filters, setFilters] = useState({ protocol: 'all', action: 'all' });
+  const [filters, setFilters] = useState({ protocol: 'all', action: 'all', chain: 'all' });
 
   const [form, setForm] = useState({
     name: '',
+    chain: 'firewallchains',
     protocol: 'tcp',
     sourceIp: '',
     destIp: '',
@@ -379,7 +430,7 @@ function RulesTab() {
 
   const openAdd = () => {
     setEditingRule(null);
-    setForm({ name: '', protocol: 'tcp', sourceIp: '', destIp: '', destPort: '', action: 'accept', comment: '', enabled: true });
+    setForm({ name: '', chain: 'firewallchains', protocol: 'tcp', sourceIp: '', destIp: '', destPort: '', action: 'accept', comment: '', enabled: true });
     setDialogOpen(true);
   };
 
@@ -387,6 +438,7 @@ function RulesTab() {
     setEditingRule(r);
     setForm({
       name: r.name,
+      chain: r.chain || 'firewallchains',
       protocol: r.protocol,
       sourceIp: r.sourceIp || '',
       destIp: r.destIp || '',
@@ -487,6 +539,7 @@ function RulesTab() {
   };
 
   const filteredRules = rules
+    .filter((r) => filters.chain === 'all' || r.chain === filters.chain)
     .filter((r) => filters.protocol === 'all' || r.protocol === filters.protocol)
     .filter((r) => filters.action === 'all' || r.action === filters.action)
     .sort((a, b) => a.priority - b.priority);
@@ -520,6 +573,24 @@ function RulesTab() {
             <SelectItem value="all">All</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={filters.chain} onValueChange={(v) => setFilters((p) => ({ ...p, chain: v }))}>
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder="Chain" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Chains</SelectItem>
+            {CHAIN_OPTIONS.map((group) => (
+              <SelectItem key={group.group} value={group.chains.map((c) => c.value).join(',')} disabled className="pointer-events-none text-muted-foreground font-semibold text-xs">
+                {group.group}
+              </SelectItem>
+            ))}
+            {CHAIN_OPTIONS.flatMap((g) => g.chains).map((chain) => (
+              <SelectItem key={chain.value} value={chain.value} className="pl-6">
+                {chain.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={filters.action} onValueChange={(v) => setFilters((p) => ({ ...p, action: v }))}>
           <SelectTrigger className="w-32">
             <SelectValue placeholder="Action" />
@@ -549,11 +620,11 @@ function RulesTab() {
           icon={ShieldCheck}
           title="No firewall rules"
           description={
-            filters.protocol !== 'all' || filters.action !== 'all'
+            filters.protocol !== 'all' || filters.action !== 'all' || filters.chain !== 'all'
               ? 'No rules match the current filters. Try adjusting your filters.'
               : 'Create your first firewall rule to control network traffic.'
           }
-          action={filters.protocol === 'all' && filters.action === 'all' ? { label: 'Add Rule', onClick: openAdd } : undefined}
+          action={filters.protocol === 'all' && filters.action === 'all' && filters.chain === 'all' ? { label: 'Add Rule', onClick: openAdd } : undefined}
         />
       ) : (
         <Card>
@@ -563,6 +634,7 @@ function RulesTab() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-16">Pri</TableHead>
+                    <TableHead className="w-28">Chain</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Protocol</TableHead>
                     <TableHead>Source</TableHead>
@@ -606,6 +678,9 @@ function RulesTab() {
                           </Tooltip>
                           <span className="ml-1 font-mono text-xs font-bold">{rule.priority}</span>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <ChainBadge chain={rule.chain} />
                       </TableCell>
                       <TableCell>
                         <div>
@@ -680,6 +755,32 @@ function RulesTab() {
                 onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
                 placeholder="e.g. Allow PMS Access"
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Target Chain *</Label>
+              <Select value={form.chain} onValueChange={(v) => setForm((p) => ({ ...p, chain: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select chain" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CHAIN_OPTIONS.map((group) => (
+                    <SelectItem key={group.group} value={group.chains.map((c) => c.value).join(',')} disabled className="pointer-events-none text-muted-foreground font-semibold text-xs">
+                      {group.group}
+                    </SelectItem>
+                  ))}
+                  {CHAIN_OPTIONS.flatMap((g) => g.chains).map((chain) => (
+                    <SelectItem key={chain.value} value={chain.value} className="pl-6">
+                      <div className="flex flex-col">
+                        <span>{chain.label}</span>
+                        <span className="text-xs text-muted-foreground font-normal">{chain.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                The nftables chain where this rule will be inserted. Each chain serves a different purpose in the packet processing pipeline.
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -2149,5 +2250,529 @@ function PresetsTab() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// ─── Tab: Chain Architecture ─────────────────────────────────────────
+
+// Static chain architecture data from production nftables service
+interface ChainInfo {
+  name: string;
+  table: string;
+  type: 'Base Hook' | 'Regular' | 'GUI Custom';
+  direction: 'Ingress' | 'Egress' | 'Both' | 'N/A';
+  status: 'System' | 'GUI';
+  description: string;
+  priority?: number;
+}
+
+const CHAIN_DATA: ChainInfo[] = [
+  // ── inet mangle ──
+  { name: 'prerouting', table: 'mangle', type: 'Base Hook', direction: 'Ingress', status: 'System', description: 'Packet mangling before routing decision' },
+  { name: 'postrouting', table: 'mangle', type: 'Base Hook', direction: 'Egress', status: 'System', description: 'Packet mangling after routing decision' },
+  { name: 'open', table: 'mangle', type: 'Regular', direction: 'Both', status: 'System', description: 'Mark packets for authenticated/open access' },
+  { name: 'accountingup', table: 'mangle', type: 'Regular', direction: 'Egress', status: 'System', description: 'Per-IP upload traffic accounting counter' },
+  { name: 'accountingdn', table: 'mangle', type: 'Regular', direction: 'Ingress', status: 'System', description: 'Per-IP download traffic accounting counter' },
+  { name: 'acctup', table: 'mangle', type: 'Regular', direction: 'Egress', status: 'System', description: 'Aggregated upload accounting' },
+  { name: 'acctdn', table: 'mangle', type: 'Regular', direction: 'Ingress', status: 'System', description: 'Aggregated download accounting' },
+  { name: 'gwacctup', table: 'mangle', type: 'Regular', direction: 'Egress', status: 'System', description: 'Gateway upload accounting' },
+  { name: 'gwacctdn', table: 'mangle', type: 'Regular', direction: 'Ingress', status: 'System', description: 'Gateway download accounting' },
+  { name: 'poolacctup', table: 'mangle', type: 'Regular', direction: 'Egress', status: 'System', description: 'Pool-based upload accounting' },
+  { name: 'poolacctdn', table: 'mangle', type: 'Regular', direction: 'Ingress', status: 'System', description: 'Pool-based download accounting' },
+  { name: 'firewallchains', table: 'mangle', type: 'GUI Custom', direction: 'Egress', status: 'GUI', description: 'GUI uplink filter rules (ingress mangle)' },
+  { name: 'firewallchainsdn', table: 'mangle', type: 'GUI Custom', direction: 'Ingress', status: 'GUI', description: 'GUI downlink filter rules (egress mangle)' },
+  { name: 'firewallchains_conn', table: 'mangle', type: 'GUI Custom', direction: 'Egress', status: 'GUI', description: 'GUI conntrack uplink (stateful filtering)' },
+  { name: 'firewallchainsdn_conn', table: 'mangle', type: 'GUI Custom', direction: 'Ingress', status: 'GUI', description: 'GUI conntrack downlink (stateful filtering)' },
+
+  // ── inet nat ──
+  { name: 'prerouting', table: 'nat', type: 'Base Hook', direction: 'Ingress', status: 'System', description: 'NAT prerouting — DNAT before routing' },
+  { name: 'postrouting', table: 'nat', type: 'Base Hook', direction: 'Egress', status: 'System', description: 'NAT postrouting — SNAT/Masquerade after routing' },
+  { name: 'open', table: 'nat', type: 'Regular', direction: 'Both', status: 'System', description: 'NAT bypass for authenticated traffic' },
+  { name: 'proxy', table: 'nat', type: 'Regular', direction: 'Both', status: 'System', description: 'Transparent proxy redirect rules' },
+  { name: 'frchainspre', table: 'nat', type: 'GUI Custom', direction: 'Ingress', status: 'GUI', description: 'GUI NAT prerouting rules (port forwarding, DNAT)' },
+  { name: 'frchainspost', table: 'nat', type: 'GUI Custom', direction: 'Egress', status: 'GUI', description: 'GUI NAT postrouting rules (SNAT, masquerade)' },
+
+  // ── inet filter ──
+  { name: 'input', table: 'filter', type: 'Base Hook', direction: 'Ingress', status: 'System', description: 'Filter packets destined for the local system' },
+  { name: 'drop_log', table: 'filter', type: 'Regular', direction: 'Ingress', status: 'System', description: 'Log and drop rejected packets' },
+  { name: 'intranetuploadaccounting', table: 'filter', type: 'Regular', direction: 'Egress', status: 'System', description: 'Intranet upload traffic filter/accounting' },
+
+  // ── inet security ──
+  { name: 'syn_flood', table: 'security', type: 'Regular', direction: 'Ingress', status: 'System', description: 'SYN flood protection (priority -300)', priority: -300 },
+  { name: 'invalid_packets', table: 'security', type: 'Regular', direction: 'Both', status: 'System', description: 'Drop invalid/malformed packets (priority -299)', priority: -299 },
+  { name: 'port_scan', table: 'security', type: 'Regular', direction: 'Ingress', status: 'System', description: 'Port scan detection & blocking (priority -160)', priority: -160 },
+  { name: 'ssh_protection', table: 'security', type: 'Regular', direction: 'Ingress', status: 'System', description: 'SSH brute-force protection (priority -155)', priority: -155 },
+  { name: 'dns_protection', table: 'security', type: 'Regular', direction: 'Ingress', status: 'System', description: 'DNS amplification protection (priority -150)', priority: -150 },
+  { name: 'icmp_limit', table: 'security', type: 'Regular', direction: 'Ingress', status: 'System', description: 'ICMP rate limiting (priority -140)', priority: -140 },
+];
+
+const SYSTEM_CHAIN_COUNT = CHAIN_DATA.filter((c) => c.status === 'System').length;
+const GUI_CHAIN_COUNT = CHAIN_DATA.filter((c) => c.status === 'GUI').length;
+
+function ChainArchitectureTab() {
+  const TABLE_COLORS: Record<string, { bg: string; border: string; text: string; badge: string }> = {
+    mangle: {
+      bg: 'bg-teal-50 dark:bg-teal-950/40',
+      border: 'border-teal-200 dark:border-teal-800',
+      text: 'text-teal-700 dark:text-teal-300',
+      badge: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 border-teal-200 dark:border-teal-700',
+    },
+    nat: {
+      bg: 'bg-cyan-50 dark:bg-cyan-950/40',
+      border: 'border-cyan-200 dark:border-cyan-800',
+      text: 'text-cyan-700 dark:text-cyan-300',
+      badge: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700',
+    },
+    filter: {
+      bg: 'bg-amber-50 dark:bg-amber-950/40',
+      border: 'border-amber-200 dark:border-amber-800',
+      text: 'text-amber-700 dark:text-amber-300',
+      badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-700',
+    },
+    security: {
+      bg: 'bg-rose-50 dark:bg-rose-950/40',
+      border: 'border-rose-200 dark:border-rose-800',
+      text: 'text-rose-700 dark:text-rose-300',
+      badge: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 border-rose-200 dark:border-rose-700',
+    },
+  };
+
+  const tables = ['mangle', 'nat', 'filter', 'security'] as const;
+
+  return (
+    <div className="space-y-6">
+      {/* Section Header */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white">
+          <GitBranch className="h-5 w-5" />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold tracking-tight">nftables Chain Architecture</h3>
+          <p className="text-sm text-muted-foreground">
+            Visual overview of the production <span className="font-mono text-xs">staysuite-nftables.service</span> chain separation
+          </p>
+        </div>
+      </div>
+
+      {/* ── Summary Cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-card/80 backdrop-blur-sm border-border/60 hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-muted">
+                <Lock className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{SYSTEM_CHAIN_COUNT}</p>
+                <p className="text-xs text-muted-foreground">System Chains</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/80 backdrop-blur-sm border-border/60 hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-teal-50 dark:bg-teal-950/40">
+                <Unlock className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">{GUI_CHAIN_COUNT}</p>
+                <p className="text-xs text-muted-foreground">GUI Chains</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/80 backdrop-blur-sm border-border/60 hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/40">
+                <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{CHAIN_DATA.length}</p>
+                <p className="text-xs text-muted-foreground">Total Chains</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/80 backdrop-blur-sm border-border/60 hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/40">
+                <Server className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">Active</p>
+                <p className="text-xs text-muted-foreground">nftables Service</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Visual Chain Flow Diagram ── */}
+      <Card className="bg-card/80 backdrop-blur-sm border-border/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base tracking-tight flex items-center gap-2">
+            <Network className="h-4 w-4 text-teal-500" />
+            Packet Flow Diagram
+          </CardTitle>
+          <CardDescription className="text-xs">
+            How packets traverse the nftables chain hierarchy.{' '}
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-3 h-0.5 rounded bg-teal-500" /> GUI chains
+            </span>
+            {' · '}
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-3 h-0.5 rounded bg-muted-foreground/40" /> System chains
+            </span>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Ingress Flow */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+              <ArrowDown className="h-3 w-3" />
+              Ingress Path (incoming packets)
+            </p>
+            <div className="space-y-3">
+              {/* mangle prerouting */}
+              <div className="relative flex flex-wrap items-center gap-2">
+                <FlowArrow />
+                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
+                  Packet In
+                </div>
+                <FlowArrow />
+                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', TABLE_COLORS.mangle.bg, TABLE_COLORS.mangle.border, TABLE_COLORS.mangle.text)}>
+                  mangle:prerouting
+                </div>
+                <FlowArrow />
+                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
+                  core rules
+                </div>
+                <FlowArrow type="gui" />
+                <ChainPill name="firewallchains" table="mangle" isGui />
+                <FlowArrow />
+                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
+                  open
+                </div>
+                <FlowArrow />
+                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
+                  accountingup
+                </div>
+              </div>
+
+              {/* nat prerouting */}
+              <div className="relative flex flex-wrap items-center gap-2">
+                <FlowArrow />
+                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', TABLE_COLORS.nat.bg, TABLE_COLORS.nat.border, TABLE_COLORS.nat.text)}>
+                  nat:prerouting
+                </div>
+                <FlowArrow />
+                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
+                  open
+                </div>
+                <FlowArrow type="gui" />
+                <ChainPill name="frchainspre" table="nat" isGui />
+              </div>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-border" />
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/50 text-xs text-muted-foreground font-medium">
+              <Server className="h-3 w-3" />
+              Routing Decision
+            </div>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          {/* Egress Flow */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+              <ArrowUp className="h-3 w-3" />
+              Egress Path (outgoing packets)
+            </p>
+            <div className="space-y-3">
+              {/* mangle postrouting */}
+              <div className="relative flex flex-wrap items-center gap-2">
+                <FlowArrow />
+                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', TABLE_COLORS.mangle.bg, TABLE_COLORS.mangle.border, TABLE_COLORS.mangle.text)}>
+                  mangle:postrouting
+                </div>
+                <FlowArrow />
+                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
+                  core rules
+                </div>
+                <FlowArrow type="gui" />
+                <ChainPill name="firewallchainsdn" table="mangle" isGui />
+                <FlowArrow />
+                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
+                  accountingdn
+                </div>
+              </div>
+
+              {/* nat postrouting */}
+              <div className="relative flex flex-wrap items-center gap-2">
+                <FlowArrow />
+                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', TABLE_COLORS.nat.bg, TABLE_COLORS.nat.border, TABLE_COLORS.nat.text)}>
+                  nat:postrouting
+                </div>
+                <FlowArrow type="gui" />
+                <ChainPill name="frchainspost" table="nat" isGui />
+              </div>
+
+              {/* security hooks */}
+              <div className="relative flex flex-wrap items-center gap-2">
+                <FlowArrow />
+                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', TABLE_COLORS.security.bg, TABLE_COLORS.security.border, TABLE_COLORS.security.text)}>
+                  security hooks
+                </div>
+                <FlowArrow />
+                <div className={cn('px-3 py-1.5 rounded-md text-xs font-mono font-medium border', 'bg-muted/50 border-muted text-muted-foreground')}>
+                  syn_flood → invalid → port_scan → ssh → dns → icmp
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Conntrack sidebar */}
+          <div className="mt-2 rounded-lg border border-dashed border-teal-300 dark:border-teal-700 bg-teal-50/50 dark:bg-teal-950/20 p-3">
+            <p className="text-xs font-semibold text-teal-700 dark:text-teal-300 mb-2 flex items-center gap-1.5">
+              <GitBranch className="h-3 w-3" />
+              GUI Conntrack Chains (stateful filtering)
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <ChainPill name="firewallchains_conn" table="mangle" isGui />
+              <span className="text-xs text-muted-foreground self-center">Uplink stateful</span>
+              <ChainPill name="firewallchainsdn_conn" table="mangle" isGui />
+              <span className="text-xs text-muted-foreground self-center">Downlink stateful</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Table Group Cards ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {tables.map((table) => {
+          const tableChains = CHAIN_DATA.filter((c) => c.table === table);
+          const colors = TABLE_COLORS[table];
+          const guiChains = tableChains.filter((c) => c.status === 'GUI');
+          const sysChains = tableChains.filter((c) => c.status === 'System');
+          return (
+            <Card key={table} className={cn('bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden')}>
+              <div className={cn('h-1', {
+                'bg-gradient-to-r from-teal-500 to-teal-400': table === 'mangle',
+                'bg-gradient-to-r from-cyan-500 to-cyan-400': table === 'nat',
+                'bg-gradient-to-r from-amber-500 to-amber-400': table === 'filter',
+                'bg-gradient-to-r from-rose-500 to-rose-400': table === 'security',
+              })} />
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm tracking-tight flex items-center gap-2">
+                  <span className={cn('font-mono px-2 py-0.5 rounded text-xs font-bold', colors.badge)}>
+                    inet {table}
+                  </span>
+                  <Badge variant="outline" className="text-[10px] font-medium">
+                    {tableChains.length} chains
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-3">
+                {guiChains.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold text-teal-600 dark:text-teal-400 uppercase tracking-wider flex items-center gap-1">
+                      <Unlock className="h-2.5 w-2.5" /> GUI Chains
+                    </p>
+                    {guiChains.map((chain) => (
+                      <div
+                        key={chain.name}
+                        className={cn(
+                          'flex items-center justify-between px-3 py-2 rounded-md text-xs border-l-4 transition-colors hover:bg-muted/30',
+                          'bg-teal-50/50 dark:bg-teal-950/20 border-l-teal-500'
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-semibold text-teal-700 dark:text-teal-300">{chain.name}</span>
+                          <Badge variant="outline" className="text-[10px] border-teal-200 dark:border-teal-700 text-teal-600 dark:text-teal-400">
+                            {chain.direction}
+                          </Badge>
+                        </div>
+                        <span className="text-[11px] text-muted-foreground truncate max-w-[200px]">{chain.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {sysChains.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                      <Lock className="h-2.5 w-2.5" /> System Chains
+                    </p>
+                    {sysChains.map((chain) => (
+                      <div
+                        key={chain.name}
+                        className={cn(
+                          'flex items-center justify-between px-3 py-2 rounded-md text-xs border-l-4 transition-colors hover:bg-muted/30',
+                          'bg-muted/30 border-l-muted-foreground/30'
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-medium text-muted-foreground">{chain.name}</span>
+                          {chain.type === 'Base Hook' && (
+                            <Badge variant="outline" className="text-[10px] border-muted">
+                              hook
+                            </Badge>
+                          )}
+                          {chain.priority !== undefined && (
+                            <Badge variant="outline" className="text-[10px] text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-700">
+                              pri {chain.priority}
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-muted-foreground/70 truncate max-w-[180px]">{chain.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* ── Chain Details Table ── */}
+      <Card className="bg-card/80 backdrop-blur-sm border-border/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base tracking-tight flex items-center gap-2">
+            <GitBranch className="h-4 w-4 text-teal-500" />
+            Chain Details
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Complete list of all chains created by <span className="font-mono">staysuite-nftables.service</span>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="max-h-96 overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-[180px]">Chain Name</TableHead>
+                  <TableHead>Table</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Direction</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="hidden md:table-cell">Description</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {CHAIN_DATA.map((chain) => {
+                  const colors = TABLE_COLORS[chain.table];
+                  const isGui = chain.status === 'GUI';
+                  return (
+                    <TableRow key={`${chain.table}-${chain.name}`} className={cn(isGui && 'bg-teal-50/30 dark:bg-teal-950/10')}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {isGui ? (
+                            <Unlock className="h-3.5 w-3.5 text-teal-500" />
+                          ) : (
+                            <Lock className="h-3.5 w-3.5 text-muted-foreground/50" />
+                          )}
+                          <span className={cn('font-mono text-sm font-medium', isGui ? 'text-teal-700 dark:text-teal-300' : 'text-muted-foreground')}>
+                            {chain.name}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={cn('text-xs font-mono', colors.badge)}>
+                          {chain.table}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'text-xs font-medium',
+                            chain.type === 'Base Hook'
+                              ? 'bg-muted text-muted-foreground border-muted'
+                              : chain.type === 'GUI Custom'
+                                ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 border-teal-200 dark:border-teal-700'
+                                : 'bg-muted/50 text-muted-foreground border-muted'
+                          )}
+                        >
+                          {chain.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {chain.direction}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {isGui ? (
+                          <Badge className="bg-teal-600 text-white text-xs border-0 hover:bg-teal-600">
+                            GUI
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">
+                            System
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <span className="text-xs text-muted-foreground">{chain.description}</span>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ── Flow Diagram Sub-components ──
+
+function FlowArrow({ type }: { type?: 'gui' | 'system' }) {
+  return (
+    <svg width="24" height="16" viewBox="0 0 24 16" className="shrink-0">
+      <line
+        x1="0" y1="8" x2="18" y2="8"
+        stroke={type === 'gui' ? '#14b8a6' : 'currentColor'}
+        strokeWidth="1.5"
+        strokeDasharray={type === 'gui' ? 'none' : '3 2'}
+        className={type !== 'gui' ? 'text-muted-foreground/40' : ''}
+      />
+      <polygon
+        points="18,4 24,8 18,12"
+        fill={type === 'gui' ? '#14b8a6' : 'currentColor'}
+        className={type !== 'gui' ? 'text-muted-foreground/40' : ''}
+      />
+    </svg>
+  );
+}
+
+function ChainPill({ name, table, isGui }: { name: string; table: string; isGui: boolean }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
+          className={cn(
+            'px-2.5 py-1 rounded-md text-xs font-mono font-semibold border cursor-default transition-colors',
+            isGui
+              ? 'border-l-4 border-l-teal-500 bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-200 border border-teal-300 dark:border-teal-700 hover:bg-teal-200 dark:hover:bg-teal-900/60'
+              : 'border-l-4 border-l-muted bg-muted/50 text-muted-foreground'
+          )}
+        >
+          <span className="opacity-60 text-[10px]">{table}:</span>{name}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent className="text-xs">
+        <p className="font-mono font-semibold">{table}:{name}</p>
+        <p className="text-muted-foreground">{isGui ? 'GUI-managed chain' : 'System-managed chain'}</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }
