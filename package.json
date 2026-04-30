@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "NEXT_DISABLE_TURBOPACK=1 next dev -p 3000",
     "build": "NODE_OPTIONS='--max-old-space-size=4096' next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
+    "postinstall": "node scripts/fix-turbopack-native-modules.js",
     "start": "NODE_ENV=production bun .next/standalone/server.js",
     "lint": "eslint .",
     "db:push": "prisma db push",
