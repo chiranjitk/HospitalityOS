@@ -12,7 +12,9 @@
 
 set -e
 
-APP_DIR="/home/z/my-project/StaySuite-HospitalityOS"
+# Determine project root from script location
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CRON_TAG="# STAYSUITE-RRD-COLLECTOR"
 SCRIPT_NAME="staysuite-rrd-cron"
 
@@ -25,26 +27,13 @@ install_cron() {
         exit 1
     fi
 
-    if ! command -v npx &>/dev/null; then
-        echo "ERROR: npx not found. Install Node.js first."
+    if ! command -v bun &>/dev/null && ! command -v npx &>/dev/null; then
+        echo "ERROR: bun or npx not found. Install Bun or Node.js first."
         exit 1
-    fi
-
-    if ! command -v tsx &>/dev/null && ! npx tsx --version &>/dev/null; then
-        echo "INFO: Installing tsx..."
-        cd "$APP_DIR" && npm install -g tsx 2>/dev/null || npm install tsx --save-dev
     fi
 
     # Ensure directories exist
     mkdir -p "$APP_DIR/logs" "$APP_DIR/data/rrd/state"
-
-    # Create log rotation script
-    cat > "$APP_DIR/scripts/rrd-cron-runner.sh" << 'RUNNER'
-#!/bin/bash
-# RRD collector cron runner — called by crontab
-cd /home/z/my-project/StaySuite-HospitalityOS
-exec npx tsx src/lib/rrd/collector-cron.ts >> logs/rrd-cron.log 2>&1
-RUNNER
     chmod +x "$APP_DIR/scripts/rrd-cron-runner.sh"
 
     # Remove existing StaySuite cron entries
@@ -67,7 +56,7 @@ RUNNER
     echo "Current crontab:"
     crontab -l | grep "$CRON_TAG" -A1 | sed 's/^/  /'
     echo ""
-    echo "To test manually:  cd $APP_DIR && npx tsx src/lib/rrd/collector-cron.ts"
+    echo "To test manually:  cd $APP_DIR && bun run src/lib/rrd/collector-cron.ts"
     echo "To remove:         sudo bash $APP_DIR/scripts/setup-rrd-cron.sh --remove"
 }
 

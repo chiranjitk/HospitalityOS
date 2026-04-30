@@ -45,6 +45,9 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
+        RRD_BIN_PATH: `${APP_DIR}/rrdtool/bin/rrdtool`,
+        RRD_LIB_PATH: `${APP_DIR}/rrdtool/lib`,
+        RRD_DATA_PATH: `${APP_DIR}/data/rrd`,
       },
       max_memory_restart: '2G',
       error_file: `${LOG_DIR}/next-error.log`,

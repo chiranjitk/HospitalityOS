@@ -17,14 +17,33 @@ import path from 'path';
 
 const execFileAsync = promisify(execFile);
 
-// Detect project root (nearest parent containing package.json)
-function findProjectRoot(startDir: string = __dirname): string {
-  let dir = startDir;
-  while (dir !== path.dirname(dir)) {
-    if (fs.existsSync(path.join(dir, 'package.json'))) return dir;
-    dir = path.dirname(dir);
+// Detect project root — use process.cwd() first (set by PM2 / shell),
+// fall back to __dirname only as last resort.
+//
+// In Next.js standalone mode (output: 'standalone'), __dirname gets compiled
+// to the source path which does NOT exist on production (e.g. /ROOT/src/lib/rrd/).
+// process.cwd() is always the actual working directory set by PM2's cwd or cd.
+function findProjectRoot(startDir?: string): string {
+  // Priority: env var > process.cwd() > __dirname
+  const candidates = [
+    process.env.PROJECT_ROOT,
+    process.cwd(),
+    process.env.PWD,
+    startDir,
+    __dirname,
+  ].filter(Boolean) as string[];
+
+  for (const dir of candidates) {
+    let current = dir;
+    while (current !== path.dirname(current)) {
+      if (fs.existsSync(path.join(current, 'package.json'))) {
+        return current;
+      }
+      current = path.dirname(current);
+    }
   }
-  return startDir;
+  // Last resort — return cwd
+  return process.cwd();
 }
 
 const PROJECT_ROOT = findProjectRoot();
@@ -40,6 +59,12 @@ const RRD_ENV = {
   ...process.env,
   LD_LIBRARY_PATH: process.env.RRD_LIB_PATH || path.join(PROJECT_ROOT, 'rrdtool', 'lib'),
 };
+
+// Log resolved paths at module load for debugging
+console.log(`[RRD] Project root: ${PROJECT_ROOT}`);
+console.log(`[RRD] rrdtool binary: ${RRD_BIN}`);
+console.log(`[RRD] RRD data path: ${RRD_BASE}`);
+console.log(`[RRD] LD_LIBRARY_PATH: ${RRD_ENV.LD_LIBRARY_PATH}`);
 
 // Default step (60 seconds)
 const DEFAULT_STEP = 60;

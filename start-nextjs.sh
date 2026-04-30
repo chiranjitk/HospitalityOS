@@ -29,12 +29,20 @@ set -e
 # Force listen address to all IPv4 interfaces
 export HOSTNAME='0.0.0.0'
 
-# Determine the directory where this script lives
+# Determine the directory where this script lives (project root)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # The standalone server must be run from the project root (DEPLOY_DIR)
 # because it uses relative paths for .next/standalone/ assets
 cd "$SCRIPT_DIR"
+
+# RRD paths — must be set explicitly because __dirname is unreliable
+# in Next.js standalone compiled code (gets compiled to source path
+# which doesn't exist on production servers).
+export RRD_BIN_PATH="${SCRIPT_DIR}/rrdtool/bin/rrdtool"
+export RRD_LIB_PATH="${SCRIPT_DIR}/rrdtool/lib"
+export RRD_DATA_PATH="${SCRIPT_DIR}/data/rrd"
+export LD_LIBRARY_PATH="${RRD_LIB_PATH}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 # exec replaces this bash process with node — PM2 keeps tracking the same PID
 exec node .next/standalone/server.js "$@"
