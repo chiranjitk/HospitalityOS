@@ -89,6 +89,59 @@ function safeExec(cmd: string, timeout = 5000): string {
   try { return execSync(cmd, { encoding: 'utf-8', timeout }); } catch { return ''; }
 }
 
+// Common human-readable DHCP option names → dnsmasq standard option names
+const DHCP_OPTION_NAME_MAP: Record<string, string> = {
+  'domain name': 'domain-name',
+  'domain-name': 'domain-name',
+  'dns servers': 'dns-server',
+  'dns-server': 'dns-server',
+  'dns server': 'dns-server',
+  'ntp server': 'ntp-server',
+  'ntp-servers': 'ntp-server',
+  'ntp server': 'ntp-server',
+  'router': 'router',
+  'gateway': 'router',
+  'default gateway': 'router',
+  'subnet mask': 'subnet-mask',
+  'broadcast address': 'broadcast-address',
+  'broadcast': 'broadcast-address',
+  'mtu': 'mtu',
+  'wins server': 'netbios-ns',
+  'wins': 'netbios-ns',
+  'netbios name server': 'netbios-ns',
+  'netbios-ns': 'netbios-ns',
+  'wpad url': 'wpad',
+  'wpad': 'wpad',
+  'tftp server': 'tftp-server',
+  'tftp-server': 'tftp-server',
+  'tftp': 'tftp-server',
+  'boot file': 'bootfile',
+  'bootfile-name': 'bootfile',
+  'bootfile': 'bootfile',
+  'root path': 'root-path',
+  'lease time': 'lease-time',
+};
+
+/**
+ * Sanitize a DHCP option name for dnsmasq.
+ * 1. Check known-name mapping (e.g. "Domain Name" → "domain-name")
+ * 2. Otherwise: lowercase, strip non-alphanumeric chars except hyphen, collapse multiple hyphens
+ */
+function sanitizeDhcpOptionName(name: string): string {
+  const key = name.toLowerCase().trim();
+  if (DHCP_OPTION_NAME_MAP[key]) return DHCP_OPTION_NAME_MAP[key];
+  // Fallback: lowercase + replace spaces/spécial chars with single hyphen
+  return key.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+/**
+ * Sanitize a DHCP option value: trim whitespace around commas.
+ * e.g. "8.8.8.8, 1.1.1.1" → "8.8.8.8,1.1.1.1"
+ */
+function sanitizeDhcpOptionValue(value: string): string {
+  return value.split(',').map((s: string) => s.trim()).join(',');
+}
+
 function parseDnsList(val: unknown): string[] {
   if (typeof val === 'string') {
     try { const arr = JSON.parse(val); return Array.isArray(arr) ? arr : []; }
@@ -480,7 +533,11 @@ async function generateConfig(): Promise<{ success: boolean; message: string; li
         // Per-subnet custom DHCP options
         const subnetOpts = dhcpOptions.filter((o: any) => o.subnetId === sub.id);
         for (const opt of subnetOpts) {
-          config += `dhcp-option=option:${opt.name},${opt.value}\n`;
+          const optName = sanitizeDhcpOptionName(opt.name || '');
+          const optVal = sanitizeDhcpOptionValue(opt.value || '');
+          if (optName && optVal) {
+            config += `dhcp-option=option:${optName},${optVal}\n`;
+          }
         }
 
         config += `\n`;
@@ -495,10 +552,16 @@ async function generateConfig(): Promise<{ success: boolean; message: string; li
       config += `# ─────────────────────────────────────────────\n\n`;
 
       for (const opt of globalOpts) {
+        const optName = sanitizeDhcpOptionName(opt.name || '');
+        const optVal = sanitizeDhcpOptionValue(opt.value || '');
         config += `# ID: ${opt.id}`;
         if (opt.description) config += ` | ${opt.description}`;
         config += `\n`;
-        config += `dhcp-option=option:${opt.name},${opt.value}\n`;
+        if (optName && optVal) {
+          config += `dhcp-option=option:${optName},${optVal}\n`;
+        } else {
+          config += `# SKIPPED: invalid option name or value (name=\"${opt.name}\", value=\"${opt.value}\")\n`;
+        }
       }
       config += `\n`;
     }
