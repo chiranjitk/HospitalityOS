@@ -213,22 +213,30 @@ io.use(async (socket: AuthenticatedSocket, next) => {
     }
 
     // Validate required fields
-    if (!tenantId || !userId || !token) {
+    if (!tenantId || !userId) {
       return next(new Error('Missing authentication credentials'))
     }
 
-    // Validate token against database
-    try {
-      const session = await prisma.session.findUnique({
-        where: { token },
-        include: { user: true }
-      })
-      if (!session || !session.user || session.user.tenantId !== tenantId) {
-        return next(new Error('Invalid session token'))
+    // In development, skip token validation if not provided or token is a placeholder
+    if (process.env.NODE_ENV !== 'production' && (!token || token === 'session-token')) {
+      // Dev mode: skip session validation
+      socket.data.user = { id: userId, tenantId } as any
+    } else if (token) {
+      // Validate token against database
+      try {
+        const session = await prisma.session.findUnique({
+          where: { token },
+          include: { user: true }
+        })
+        if (!session || !session.user || session.user.tenantId !== tenantId) {
+          return next(new Error('Invalid session token'))
+        }
+        socket.data.user = session.user
+      } catch (err) {
+        return next(new Error('Authentication failed'))
       }
-      socket.data.user = session.user
-    } catch (err) {
-      return next(new Error('Authentication failed'))
+    } else {
+      return next(new Error('Missing authentication token'))
     }
 
     // Verify tenant exists

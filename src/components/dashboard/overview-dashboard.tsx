@@ -59,6 +59,7 @@ import { GuestCommunicationWidget } from './widgets/guest-communication';
 import StaffPerformanceWidget from './widgets/staff-performance';
 import ChannelPerformanceWidget from './widgets/channel-performance';
 import { QuickNotesWidget } from './widgets/quick-notes';
+import { SystemHealthStatusWidget } from './widgets/system-health-widget';
 
 const OccupancyHeatmap = React.lazy(() => import('./occupancy-heatmap').then(m => ({ default: m.OccupancyHeatmap })));
 
@@ -189,6 +190,8 @@ function GreetingCard({ occupancy = 0, arrivals = 0, alertsCount = 0 }: {
         "bg-card"
       )}>
         <div className={cn("absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r", gradient)} />
+        {/* Animated gradient border-bottom glow */}
+        <div className="absolute bottom-0 left-0 right-0 h-[2px] animate-[gradientSlide_4s_ease-in-out_infinite bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
 
         <CardContent className="p-4 sm:p-5 relative z-10">
           <div className="flex items-center justify-between gap-4">
@@ -562,6 +565,10 @@ export default function OverviewDashboard() {
           from { opacity: 0; transform: translateY(12px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes gradientSlide {
+          0%, 100% { opacity: 0.3; transform: translateX(-30%); }
+          50% { opacity: 1; transform: translateX(30%); }
+        }
       `}</style>
 
       <div className="space-y-5 relative">
@@ -612,6 +619,9 @@ export default function OverviewDashboard() {
             <ShiftSummaryWidget />
             <OperationsBoardWidget />
             <QuickNotesWidget />
+          </div>
+          <div className="mt-5">
+            <SystemHealthStatusWidget />
           </div>
         </div>
 

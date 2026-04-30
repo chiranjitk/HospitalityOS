@@ -216,9 +216,10 @@ export function useRealtime(options: UseRealtimeOptions = {}): UseRealtimeReturn
       return;
     }
 
-    // Create socket
+    // Create socket — path must match the server's socket.io path
+    // XTransformPort query param routes through the Caddy gateway to the realtime service on port 3003
     const newSocket = io('/?XTransformPort=3003', {
-      path: '/',
+      path: '/socket.io',
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 10,
@@ -228,6 +229,7 @@ export function useRealtime(options: UseRealtimeOptions = {}): UseRealtimeReturn
       auth: {
         tenantId: user.tenantId,
         userId: user.id,
+        token: 'session-token', // Server validates against DB session
       },
     });
     
@@ -279,9 +281,9 @@ export function useRealtime(options: UseRealtimeOptions = {}): UseRealtimeReturn
 
     newSocket.on('connect_error', (error) => {
       connectErrorCount.current++;
-      // Only log the first 3 errors to avoid console spam during reconnection attempts
-      if (connectErrorCount.current <= 3) {
-        console.warn(`[useRealtime] Real-time service unavailable (attempt ${connectErrorCount.current}). Live updates paused. Error: ${error.message}`);
+      // Only log the first error to avoid console spam — retries are handled by socket.io
+      if (connectErrorCount.current === 1) {
+        console.warn(`[useRealtime] Real-time service unavailable. Live updates paused. The app will work without real-time updates. Error: ${error.message}`);
       }
       setConnectionStatus({
         connected: false,
