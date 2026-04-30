@@ -550,8 +550,9 @@ RADIUS_TEST=$(radiusd -XC 2>&1) || {
   error "FreeRADIUS config check FAILED:"; echo "$RADIUS_TEST"; die "Fix errors above."
 }
 systemctl enable radiusd
+systemctl reset-failed radiusd 2>/dev/null || true
 systemctl restart radiusd
-sleep 1
+sleep 2
 systemctl is-active --quiet radiusd || die "FreeRADIUS failed to start! Check: journalctl -u radiusd -n 30"
 success "FreeRADIUS installed, configured, and running"
 
@@ -882,11 +883,26 @@ fi
 # Restart FreeRADIUS with final config
 info "Testing FreeRADIUS configuration..."
 RADIUS_TEST2=$(radiusd -XC 2>&1) && {
+  sleep 1
+  systemctl reset-failed radiusd 2>/dev/null || true
   systemctl restart radiusd
-  success "FreeRADIUS restarted with CoA + post-auth config"
+  sleep 1
+  if systemctl is-active --quiet radiusd; then
+    success "FreeRADIUS restarted with CoA + post-auth config"
+  else
+    warn "FreeRADIUS restart failed — trying stop/start..."
+    systemctl stop radiusd 2>/dev/null || true
+    sleep 2
+    systemctl start radiusd
+    sleep 1
+    systemctl is-active --quiet radiusd \
+      && success "FreeRADIUS started with CoA + post-auth config" \
+      || warn "FreeRADIUS not running — run: systemctl start radiusd"
+  fi
 } || {
   warn "FreeRADIUS config check issues (non-fatal):"
   echo "$RADIUS_TEST2" | tail -10
+  systemctl reset-failed radiusd 2>/dev/null || true
   systemctl restart radiusd 2>/dev/null || true
   if systemctl is-active --quiet radiusd 2>/dev/null; then
     success "FreeRADIUS restarted (running with warnings)"
