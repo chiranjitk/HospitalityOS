@@ -338,6 +338,15 @@ EOF
 chown postgres:postgres "${PG_DATA}/pg_hba.conf"
 chmod 640 "${PG_DATA}/pg_hba.conf"
 systemctl reload "postgresql-${PG_MAJOR}" 2>/dev/null || systemctl restart "postgresql-${PG_MAJOR}"
+
+# Re-hash both user passwords with md5 to match pg_hba.conf
+# On re-runs, previous passwords may be scram-sha-256 (PG17 default) which fails with md5 auth
+sudo -u postgres psql <<EOSQL
+SET password_encryption = 'md5';
+ALTER ROLE staysuite WITH PASSWORD '${DB_PASSWORD}';
+ALTER ROLE radius WITH PASSWORD '${DB_PASSWORD}';
+EOSQL
+
 success "Database 'staysuite' + users 'staysuite'/'radius' created"
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -380,7 +389,7 @@ FR_SQL_CONF=$(cat <<'EOCONF'
 sql {
   driver = "rlm_sql_postgresql"
   dialect = "postgresql"
-  server = "localhost"
+  server = "127.0.0.1"
   port = 5432
   login = "radius"
   password = "__DBPASS__"

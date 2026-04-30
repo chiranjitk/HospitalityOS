@@ -51,7 +51,7 @@ else
 fi
 
 # Database config
-FR_DB_HOST="${FR_DB_HOST:-localhost}"
+FR_DB_HOST="${FR_DB_HOST:-127.0.0.1}"
 FR_DB_PORT="${FR_DB_PORT:-5432}"
 FR_DB_NAME="${FR_DB_NAME:-staysuite}"
 FR_DB_USER="${FR_DB_USER:-staysuite}"
