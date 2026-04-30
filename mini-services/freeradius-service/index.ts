@@ -6635,7 +6635,10 @@ app.post('/api/live-sessions/end-local', async (c) => {
 });
 
 // ============================================================================
-// 2. CoaSessionDetail — CoA audit trail (Accsium tblcoawiseusersession)
+// 2. RadiusCoaLog — CoA Audit Trail
+//    Queries RadiusCoaLog (real CoA operation log) with field mapping
+//    for the frontend CoA Audit tab.
+//    Field mapping: action→coaType, nasIpAddress→nasIp, timestamp→timestamp
 // ============================================================================
 
 app.get('/api/coa-audit', async (c) => {
@@ -6649,22 +6652,42 @@ app.get('/api/coa-audit', async (c) => {
     const limit = Math.min(parseInt(c.req.query('limit') || '50', 10) || 50, 500);
     const offset = parseInt(c.req.query('offset') || '0', 10) || 0;
 
-    let sql = 'SELECT * FROM "CoaSessionDetail" WHERE 1=1';
+    let where = 'WHERE 1=1';
     const params: unknown[] = [];
 
-    if (propertyId) { sql += ' AND "propertyId" = ?'; params.push(propertyId); }
-    if (username) { sql += ' AND username LIKE ?'; params.push(`%${username}%`); }
-    if (coaType) { sql += ' AND "coaType" = ?'; params.push(coaType); }
-    if (result) { sql += ' AND result = ?'; params.push(result); }
-    if (startDate) { sql += ' AND "createdAt" >= ?'; params.push(startDate); }
-    if (endDate) { sql += ' AND "createdAt" <= ?'; params.push(endDate + 'T23:59:59'); }
+    if (propertyId) { where += ' AND cl."propertyId" = ?'; params.push(propertyId); }
+    if (username) { where += ' AND cl.username LIKE ?'; params.push(`%${username}%`); }
+    if (coaType) { where += ' AND cl.action = ?'; params.push(coaType); }
+    if (result) { where += ' AND cl.result = ?'; params.push(result); }
+    if (startDate) { where += ' AND cl.timestamp >= ?'; params.push(startDate); }
+    if (endDate) { where += ' AND cl.timestamp <= ?'; params.push(endDate + 'T23:59:59'); }
 
-    const countRow = db.query(sql.replace('SELECT *', 'SELECT COUNT(*) as cnt')).get(...params) as { cnt: number } | undefined;
+    // Count query
+    const countSQL = `SELECT COUNT(*) as cnt FROM "RadiusCoaLog" cl ${where}`;
+    const countRow = (await pool.query(convertPlaceholders(countSQL), params)).rows[0] as { cnt: number } | undefined;
     const total = countRow?.cnt || 0;
 
-    sql += ' ORDER BY "createdAt" DESC LIMIT ? OFFSET ?';
+    // Data query with field mapping for frontend compatibility
+    const dataSQL = `SELECT
+        cl.id::text AS id,
+        cl.timestamp::text AS timestamp,
+        cl.username,
+        cl.action AS "coaType",
+        NULL AS "policyName",
+        cl.result,
+        cl."errorMessage",
+        cl."nasIpAddress" AS "nasIp",
+        cl."triggeredBy",
+        cl."responseCode",
+        cl.attributes,
+        COALESCE(p.name, '') AS "propertyName"
+      FROM "RadiusCoaLog" cl
+      LEFT JOIN "Property" p ON cl."propertyId" = p.id
+      ${where}
+      ORDER BY cl.timestamp DESC
+      LIMIT ? OFFSET ?`;
     params.push(limit, offset);
-    const rows = await db.query(sql).all(...params) as Record<string, unknown>[];
+    const rows = (await pool.query(convertPlaceholders(dataSQL), params)).rows as Record<string, unknown>[];
 
     return c.json({ success: true, data: rows, total, limit, offset });
   } catch (error) {
@@ -6675,26 +6698,22 @@ app.get('/api/coa-audit', async (c) => {
 app.post('/api/coa-audit', async (c) => {
   try {
     const body = await c.req.json();
-    const { tenantId, propertyId, sessionId, username, userId, coaType, policyName, bandwidthPercent,
-      triggeredBy, nasIpAddress, actualSessionTime, effectiveSessionTime,
-      actualDownloadBytes, actualUploadBytes, effectiveDownloadBytes, effectiveUploadBytes } = body;
+    const { propertyId, username, action, sessionId, nasIpAddress, sharedSecret,
+      attributes, result, responseCode, errorMessage, triggeredBy, triggeredById } = body;
 
     const id = generateId('coa');
-    db.query(
-      `INSERT INTO "CoaSessionDetail" (id, "tenantId", "propertyId", "sessionId", username, "userId", "coaType", "policyName", "bandwidthPercent",
-        "triggeredBy", "nasIpAddress", "actualSessionTime", "effectiveSessionTime",
-        "actualDownloadBytes", "actualUploadBytes", "effectiveDownloadBytes", "effectiveUploadBytes",
-        result, "errorMessage", "createdAt")
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NOW())`
-    ).run(
-      id, tenantId || 'tenant-1', propertyId || 'property-1', sessionId || '', username || '', userId || null,
-      coaType || 'bw-change', policyName || null, bandwidthPercent ?? null,
-      triggeredBy || 'system', nasIpAddress || null,
-      actualSessionTime || 0, effectiveSessionTime || 0,
-      actualDownloadBytes || 0, actualUploadBytes || 0, effectiveDownloadBytes || 0, effectiveUploadBytes || 0
-    );
+    await pool.query(convertPlaceholders(
+      `INSERT INTO "RadiusCoaLog" (id, "propertyId", action, username, "sessionId", "nasIpAddress",
+        "sharedSecret", attributes, result, "responseCode", "errorMessage", "triggeredBy", "triggeredById", timestamp)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`
+    ), [
+      id, propertyId || null, action || 'bandwidth', username || '', sessionId || null,
+      nasIpAddress || null, sharedSecret || null, attributes || null,
+      result || 'pending', responseCode || null, errorMessage || null,
+      triggeredBy || 'api', triggeredById || null
+    ]);
 
-    return c.json({ success: true, data: { id, coaType, result: 'pending' }, message: 'CoA audit entry created' });
+    return c.json({ success: true, data: { id, action, result: result || 'pending' }, message: 'CoA audit entry created' });
   } catch (error) {
     return c.json({ success: false, error: String(error) }, 500);
   }
@@ -6705,7 +6724,9 @@ app.put('/api/coa-audit/:id', async (c) => {
     const id = c.req.param('id');
     const body = await c.req.json();
 
-    const existing = await db.query('SELECT * FROM "CoaSessionDetail" WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    const existing = (await pool.query(
+      'SELECT id FROM "RadiusCoaLog" WHERE id = $1::uuid', [id]
+    )).rows[0];
     if (!existing) return c.json({ success: false, error: 'CoA audit entry not found' }, 404);
 
     const updates: string[] = [];
@@ -6715,7 +6736,9 @@ app.put('/api/coa-audit/:id', async (c) => {
     if (updates.length === 0) return c.json({ success: false, error: 'No fields to update' }, 400);
 
     params.push(id);
-    await db.query(`UPDATE "CoaSessionDetail" SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    await pool.query(convertPlaceholders(
+      `UPDATE "RadiusCoaLog" SET ${updates.join(', ')} WHERE id = ?::uuid`
+    ), params);
 
     return c.json({ success: true, message: 'CoA audit entry updated' });
   } catch (error) {
@@ -6726,21 +6749,36 @@ app.put('/api/coa-audit/:id', async (c) => {
 app.get('/api/coa-audit/stats', async (c) => {
   try {
     const propertyId = c.req.query('propertyId') || '';
-    const whereClause = propertyId ? ' WHERE "propertyId" = ?' : '';
+    const whereClause = propertyId ? ' WHERE "propertyId" = $1' : '';
     const params = propertyId ? [propertyId] : [];
     const andClause = propertyId ? ' AND' : ' WHERE';
 
-    const total = (await db.query(`SELECT COUNT(*) as c FROM "CoaSessionDetail"${whereClause}`).get(...(params as unknown[])) as { c: number } | undefined)?.c || 0;
-    const success = (await db.query(`SELECT COUNT(*) as c FROM "CoaSessionDetail"${whereClause}${andClause} result = 'success'`).get(...(params as unknown[])) as { c: number } | undefined)?.c || 0;
-    const failed = (await db.query(`SELECT COUNT(*) as c FROM "CoaSessionDetail"${whereClause}${andClause} result = 'failed'`).get(...(params as unknown[])) as { c: number } | undefined)?.c || 0;
-    const pending = (await db.query(`SELECT COUNT(*) as c FROM "CoaSessionDetail"${whereClause}${andClause} result = 'pending'`).get(...(params as unknown[])) as { c: number } | undefined)?.c || 0;
+    const total = parseInt((await pool.query(
+      `SELECT COUNT(*)::text as c FROM "RadiusCoaLog"${whereClause}`, params
+    )).rows[0]?.c || '0', 10);
+    const success = parseInt((await pool.query(
+      `SELECT COUNT(*)::text as c FROM "RadiusCoaLog"${whereClause}${andClause} result = 'success'`, params
+    )).rows[0]?.c || '0', 10);
+    const failed = parseInt((await pool.query(
+      `SELECT COUNT(*)::text as c FROM "RadiusCoaLog"${whereClause}${andClause} result = 'failed'`, params
+    )).rows[0]?.c || '0', 10);
 
-    const byType = await db.query(
-      `SELECT "coaType", result, COUNT(*) as cnt FROM "CoaSessionDetail"${whereClause} GROUP BY "coaType", result ORDER BY cnt DESC`
-    ).all(...(params as unknown[])) as Array<{ coaType: string; result: string; cnt: number }>;
+    const byTypeRows = (await pool.query(
+      `SELECT action AS "coaType", result, COUNT(*)::text as count FROM "RadiusCoaLog"${whereClause} GROUP BY action, result ORDER BY COUNT(*) DESC`,
+      params
+    )).rows as Array<{ coaType: string; result: string; count: string }>;
+
+    const byType = byTypeRows.map(r => ({ ...r, count: parseInt(r.count, 10) }));
 
     return c.json({
-      success: true, data: { total, success, failed, pending, successRate: total > 0 ? ((success / total) * 100).toFixed(1) : '0', byType },
+      success: true,
+      data: {
+        totalToday: total,
+        successCount: success,
+        failedCount: failed,
+        successRate: total > 0 ? parseFloat(((success / total) * 100).toFixed(1)) : 0,
+        byType,
+      },
     });
   } catch (error) {
     return c.json({ success: false, error: String(error) }, 500);

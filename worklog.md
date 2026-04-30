@@ -272,3 +272,42 @@ Stage Summary:
 - Active sessions: 2 in radacct (test.coa.user, guest.amit.mukherjee)
 - Completed session: 1 in radacct (guest.sneha.gupta, 1024 MB download)
 - Bugs fixed: fn_check_login_limit return type, missing post-auth query, camelCase SQL columns
+
+---
+Task ID: 4-a
+Agent: Main Agent
+Task: Sync complete-database.sql with schema fixes + Fix CoA Audit tab
+
+Work Log:
+- Identified schema drift: fn_check_login_limit in DB returns integer, but complete-database.sql had TABLE return
+- Updated complete-database.sql: fn_check_login_limit now returns integer (scalar, not TABLE) — FreeRADIUS SQL module needs this
+- Added bug fix notes [11] and [12] to complete-database.sql header
+- Added PRISMA-MANAGED TABLES section to header (RadiusCoaLog, CoaSessionDetail, RadPostAuth)
+- Added clientipaddress to Prisma schema (RadPostAuth model) — prevents prisma db push from dropping it
+- Dropped manually-created RadiusCoaLog (text types) and CoaSessionDetail (text types)
+- Ran prisma db push to recreate both tables with proper UUID types + foreign keys + indexes
+- Inserted 5 test CoA entries into RadiusCoaLog (3 bandwidth, 2 disconnect, 1 failed)
+- Diagnosed CoA Audit tab showing nothing: was querying CoaSessionDetail (empty table) instead of RadiusCoaLog (has data)
+- Rewrote freeradius-service CoA audit endpoints:
+  - GET /api/coa-audit → now queries RadiusCoaLog with field mapping (action→coaType, nasIpAddress→nasIp)
+  - GET /api/coa-audit/stats → queries RadiusCoaLog, returns totalToday/successCount/failedCount/successRate
+  - POST /api/coa-audit → inserts into RadiusCoaLog
+  - PUT /api/coa-audit/:id → updates RadiusCoaLog
+  - Stats now parse PostgreSQL BIGINT to proper integers
+- Rewrote CoA Audit frontend component (coa-audit.tsx):
+  - Updated CoaAuditEntry interface to match RadiusCoaLog fields
+  - Added triggeredBy badges (api/manual/system/auto/data_cap/checkout) with icons
+  - Added propertyName display under username
+  - Added responseCode display under result badge
+  - Expanded view shows RADIUS attributes parsed from JSON, error details, response code
+  - Removed old before/after counters (not applicable to RadiusCoaLog)
+  - Fixed React lint: removed setState-in-effect pattern, used refreshKey + inline effect
+  - Removed unused imports (useToast, useCallback)
+- All lint errors resolved, all services running
+
+Stage Summary:
+- complete-database.sql: synced with DB (fn_check_login_limit integer return, bug notes [11][12])
+- Prisma schema: clientipaddress added to RadPostAuth model
+- CoA Audit tab: now reads from RadiusCoaLog (5 test entries visible)
+- freeradius-service: all 4 CoA audit endpoints rewritten for RadiusCoaLog
+- coa-audit.tsx: fully rewritten with new fields, triggeredBy badges, RADIUS attributes display

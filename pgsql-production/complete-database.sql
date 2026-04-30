@@ -24,6 +24,10 @@
 -- RULE: This file is STRUCTURE ONLY -- no seed data.
 --       All demo data lives in prisma/seed.ts and prisma/wifi-seed.ts.
 --
+-- PRISMA-MANAGED TABLES (NOT in this file, created by `prisma db push`):
+--   RadiusCoaLog, CoaSessionDetail, RadPostAuth (incl. clientipaddress),
+--   RadiusEvent, RadiusEventUser, and all other Prisma models.
+--
 -- BUGS FIXED (audit history):
 --   [1] v_session_history missed app-created sessions -> LATERAL join fix
 --   [2] fup_switch_log & data_usage_by_period tables were missing -> added
@@ -34,9 +38,15 @@
 --   [7] v_user_usage had upload/download SWAPPED (totalBytesIn mapped as download)
 --       Fixed: totalBytesOut -> total_download_bytes (Out=NAS->user=Download)
 --       Fixed: totalBytesIn  -> total_upload_bytes   (In=user->NAS=Upload)
---   [8] radpostauth.clientipaddress column missing -> added
+--   [8] radpostauth.clientipaddress column missing -> added (now in Prisma schema)
 --   [9] FairAccessPolicy missing throttleDownKbps/throttleUpKbps -> added
 --   [10] Booking API SOLD_OUT check blocked walk-in with specific roomId -> added !roomId guard
+--   [11] fn_check_login_limit returned TABLE (3 cols) -> changed to integer (single val)
+--       FreeRADIUS SQL module needs scalar return, not set-returning function
+--       Returns: 0 = login allowed, 1 = limit exceeded
+--   [12] RadiusCoaLog + CoaSessionDetail added to Prisma schema (CoA audit)
+--       RadiusCoaLog: real CoA operation log (bandwidth, disconnect actions)
+--       CoaSessionDetail: detailed before/after per-session CoA audit
 -- ============================================================================
 
 SET client_encoding = 'UTF8';
@@ -109,6 +119,11 @@ CREATE INDEX IF NOT EXISTS idx_fup_switch_log_created_at ON fup_switch_log(creat
 
 -- ============================================================================
 -- SECTION 3: Ensure Prisma-added columns exist on FreeRADIUS tables
+-- ============================================================================
+-- NOTE: RadPostAuth columns (nasIpAddress, propertyId, clientipaddress, class)
+-- are now defined in Prisma schema (prisma/schema.prisma model RadPostAuth).
+-- They are created by `prisma db push`. This section kept as safety net
+-- for direct-SQL deployments that skip Prisma.
 -- ============================================================================
 DO $$
 BEGIN
@@ -689,8 +704,10 @@ END; $function$
 ;
 
 -- fn_check_login_limit
+-- Returns integer: 0 = login allowed, 1 = limit exceeded
+-- Uses scalar return (not TABLE) because FreeRADIUS SQL module expects single value.
 CREATE OR REPLACE FUNCTION public.fn_check_login_limit(p_username text)
- RETURNS TABLE(exceeded boolean, current_count integer, max_allowed integer)
+ RETURNS integer
  LANGUAGE plpgsql
  STABLE
 AS $function$
@@ -699,10 +716,10 @@ BEGIN
   SELECT COALESCE(wu."maxSessions", wp."maxDevices", 0) INTO v_max_sessions
   FROM "WiFiUser" wu LEFT JOIN "WiFiPlan" wp ON wu."planId" = wp.id
   WHERE wu.username = p_username AND wu.status = 'active' LIMIT 1;
-  IF v_max_sessions IS NULL OR v_max_sessions = 0 THEN RETURN QUERY SELECT false, 0, 0; RETURN; END IF;
+  IF v_max_sessions IS NULL OR v_max_sessions = 0 THEN RETURN 0; END IF;
   SELECT COUNT(*) INTO v_current_count FROM radacct WHERE username = p_username AND acctstoptime IS NULL;
-  IF v_current_count >= v_max_sessions THEN RETURN QUERY SELECT true, v_current_count, v_max_sessions; RETURN; END IF;
-  RETURN QUERY SELECT false, v_current_count, v_max_sessions; RETURN;
+  IF v_current_count >= v_max_sessions THEN RETURN 1; END IF;
+  RETURN 0;
 END; $function$
 ;
 

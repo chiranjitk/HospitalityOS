@@ -4,14 +4,13 @@
  * CoA Audit Component
  *
  * CoA (Change of Authorization) audit trail viewer.
- * Shows timestamp, username, CoA type, policy name, result, before/after counters.
- * Supports date range, username, CoA type, and result filters.
- * Expandable rows for full details (bandwidth percent, error message).
+ * Shows timestamp, username, action type, result, NAS IP, triggered by.
+ * Expandable rows for full details (RADIUS attributes, error message, response code).
  *
- * Data source: /api/wifi/radius?action=coa-audit-list, coa-audit-stats
+ * Data source: RadiusCoaLog table via /api/wifi/radius?action=coa-audit-list, coa-audit-stats
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,12 +47,13 @@ import {
   Activity,
   Clock,
   ChevronDown,
-  ArrowDownToLine,
-  ArrowUpFromLine,
+  Zap,
+  Server,
+  User,
   AlertTriangle,
   Filter,
+  FileText,
 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
@@ -62,20 +62,15 @@ interface CoaAuditEntry {
   id: string;
   timestamp: string;
   username: string;
-  coaType: string;
+  coaType: string;       // maps from RadiusCoaLog.action (bandwidth, disconnect)
   policyName?: string;
-  result: 'success' | 'failed';
+  result: 'success' | 'failed' | 'timeout' | 'pending';
   errorMessage?: string;
-  bandwidthPercent?: number;
-  beforeSessionTime?: number;
-  afterSessionTime?: number;
-  beforeDownload?: number;
-  afterDownload?: number;
-  beforeUpload?: number;
-  afterUpload?: number;
-  nasIp?: string;
-  oldChangeId?: string;
-  newChangeId?: string;
+  nasIp?: string;        // maps from nasIpAddress
+  triggeredBy?: string;  // api, manual, system, auto, data_cap, checkout
+  responseCode?: string; // CoA-ACK, Disconnect-ACK, CoA-NAK
+  attributes?: string;   // JSON: RADIUS CoA attributes sent
+  propertyName?: string;
 }
 
 interface CoaAuditStats {
@@ -83,24 +78,41 @@ interface CoaAuditStats {
   successCount: number;
   failedCount: number;
   successRate: number;
-  byType: { type: string; count: number }[];
+  byType: { type: string; coaType: string; count: number }[];
 }
 
 // ─── CoA Type Colors ────────────────────────────────────────────────────────────
 
 const COA_TYPE_COLORS: Record<string, string> = {
-  'bandwidth-change': 'bg-cyan-500',
-  'policy-update': 'bg-violet-500',
-  'session-disconnect': 'bg-red-500',
-  'data-limit': 'bg-amber-500',
-  'time-limit': 'bg-emerald-500',
-  'fap-trigger': 'bg-orange-500',
+  'bandwidth': 'bg-cyan-500',
+  'disconnect': 'bg-red-500',
+  'data_cap_disconnect': 'bg-amber-500',
+  'session_timeout': 'bg-emerald-500',
+  'bandwidth_change': 'bg-violet-500',
+  'policy_update': 'bg-teal-500',
+};
+
+const COA_TYPE_LABELS: Record<string, string> = {
+  'bandwidth': 'Bandwidth Change',
+  'disconnect': 'Disconnect',
+  'data_cap_disconnect': 'Data Cap Disconnect',
+  'session_timeout': 'Session Timeout',
+  'bandwidth_change': 'Bandwidth Change',
+  'policy_update': 'Policy Update',
+};
+
+const TRIGGER_BADGE: Record<string, { color: string; icon: typeof Zap }> = {
+  'api': { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', icon: Zap },
+  'manual': { color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400', icon: User },
+  'system': { color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300', icon: Server },
+  'auto': { color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', icon: Activity },
+  'data_cap': { color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', icon: AlertTriangle },
+  'checkout': { color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', icon: FileText },
 };
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 
 export default function CoaAudit() {
-  const { toast } = useToast();
   const [entries, setEntries] = useState<CoaAuditEntry[]>([]);
   const [stats, setStats] = useState<CoaAuditStats>({
     totalToday: 0,
@@ -116,64 +128,75 @@ export default function CoaAudit() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // ─── Fetch ──────────────────────────────────────────────────────────────────
+  // ─── Fetch (for Refresh button) ───────────────────────────────────────────
 
-  const fetchAudit = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (searchQuery) params.append('username', searchQuery);
-      if (coaTypeFilter !== 'all') params.append('coaType', coaTypeFilter);
-      if (resultFilter !== 'all') params.append('result', resultFilter);
-      if (startDate) params.append('startDate', startDate);
-      if (endDate) params.append('endDate', endDate);
-
-      const [listRes, statsRes] = await Promise.all([
-        fetch(`/api/wifi/radius?action=coa-audit-list&${params.toString()}`),
-        fetch('/api/wifi/radius?action=coa-audit-stats'),
-      ]);
-      const listData = await listRes.json();
-      const statsData = await statsRes.json();
-
-      if (listData.success && listData.data) {
-        setEntries(Array.isArray(listData.data) ? listData.data : []);
-      } else {
-        setEntries([]);
-      }
-
-      if (statsData.success && statsData.data) {
-        setStats(statsData.data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch CoA audit:', error);
-      setEntries([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [searchQuery, coaTypeFilter, resultFilter, startDate, endDate]);
-
-  useEffect(() => {
-    fetchAudit();
-  }, [fetchAudit]);
-
-  // ─── Helpers ──────────────────────────────────────────────────────────────
-
-  const formatBytes = (bytes: number): string => {
-    if (!bytes || bytes <= 0) return '0 B';
-    if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(2)} GB`;
-    if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`;
-    if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${bytes} B`;
+  const handleRefresh = () => {
+    setRefreshKey(k => k + 1);
   };
 
-  const formatDuration = (seconds: number): string => {
-    if (!seconds || seconds <= 0) return '0s';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    if (minutes > 0) return `${minutes}m`;
-    return `${seconds % 60}s`;
+  // ─── Fetch (auto on filter/search change) ────────────────────────────────
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (searchQuery) params.append('username', searchQuery);
+        if (coaTypeFilter !== 'all') params.append('coaType', coaTypeFilter);
+        if (resultFilter !== 'all') params.append('result', resultFilter);
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+
+        const [listRes, statsRes] = await Promise.all([
+          fetch(`/api/wifi/radius?action=coa-audit-list&${params.toString()}`),
+          fetch('/api/wifi/radius?action=coa-audit-stats'),
+        ]);
+        if (cancelled) return;
+        const listData = await listRes.json();
+        const statsData = await statsRes.json();
+
+        if (listData.success && listData.data) {
+          setEntries(Array.isArray(listData.data) ? listData.data : []);
+        } else {
+          setEntries([]);
+        }
+        if (statsData.success && statsData.data) {
+          setStats(statsData.data);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setEntries([]);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [searchQuery, coaTypeFilter, resultFilter, startDate, endDate, refreshKey]);
+
+  const parseAttributes = (attrStr: string): Record<string, string> | null => {
+    if (!attrStr) return null;
+    try {
+      if (attrStr.startsWith('{')) return JSON.parse(attrStr);
+      // Parse radclient-style attributes
+      const attrs: Record<string, string> = {};
+      attrStr.split('\n').forEach(line => {
+        const match = line.match(/^(.+?)\s*=\s*"?(.*?)"?\s*$/);
+        if (match) attrs[match[1].trim()] = match[2].trim();
+      });
+      return Object.keys(attrs).length > 0 ? attrs : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const formatTimestamp = (ts: string) => {
+    if (!ts) return '—';
+    const date = new Date(ts);
+    return date.toLocaleString();
   };
 
   const getResultBadge = (result: string) => {
@@ -185,10 +208,25 @@ export default function CoaAudit() {
         </Badge>
       );
     }
+    if (result === 'failed') {
+      return (
+        <Badge className="bg-red-500 hover:bg-red-600 text-white border-0">
+          <XCircle className="h-3 w-3 mr-1" />
+          Failed
+        </Badge>
+      );
+    }
+    if (result === 'timeout') {
+      return (
+        <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0">
+          <AlertTriangle className="h-3 w-3 mr-1" />
+          Timeout
+        </Badge>
+      );
+    }
     return (
-      <Badge className="bg-red-500 hover:bg-red-600 text-white border-0">
-        <XCircle className="h-3 w-3 mr-1" />
-        Failed
+      <Badge className="bg-gray-400 hover:bg-gray-500 text-white border-0">
+        Pending
       </Badge>
     );
   };
@@ -196,7 +234,7 @@ export default function CoaAudit() {
   const getCoaTypeBadge = (type: string) => {
     if (!type) return <span className="text-muted-foreground text-xs">N/A</span>;
     const color = COA_TYPE_COLORS[type] || 'bg-gray-500';
-    const label = type.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const label = COA_TYPE_LABELS[type] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     return (
       <Badge className={`${color} hover:${color} text-white border-0 text-xs`}>
         {label}
@@ -204,10 +242,16 @@ export default function CoaAudit() {
     );
   };
 
-  const formatTimestamp = (ts: string) => {
-    if (!ts) return '—';
-    const date = new Date(ts);
-    return date.toLocaleString();
+  const getTriggerBadge = (trigger: string) => {
+    if (!trigger) return null;
+    const config = TRIGGER_BADGE[trigger] || TRIGGER_BADGE['system'];
+    const Icon = config.icon;
+    return (
+      <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium', config.color)}>
+        <Icon className="h-3 w-3" />
+        {trigger}
+      </span>
+    );
   };
 
   // Unique CoA types for filter
@@ -225,11 +269,11 @@ export default function CoaAudit() {
             CoA Audit Trail
           </h2>
           <p className="text-sm text-muted-foreground">
-            Change of Authorization audit log with before/after counters
+            Change of Authorization log — bandwidth changes, session disconnects, and policy enforcement
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={fetchAudit}>
+          <Button variant="outline" size="sm" onClick={handleRefresh}>
             <RefreshCw className={cn('h-4 w-4 mr-2', isLoading && 'animate-spin')} />
             Refresh
           </Button>
@@ -245,7 +289,7 @@ export default function CoaAudit() {
             </div>
             <div>
               <div className="text-2xl font-bold tabular-nums">{stats.totalToday}</div>
-              <div className="text-xs text-muted-foreground">Total CoA Today</div>
+              <div className="text-xs text-muted-foreground">Total CoA Operations</div>
             </div>
           </div>
         </Card>
@@ -293,8 +337,8 @@ export default function CoaAudit() {
               <p className="text-sm font-medium">Breakdown by Type</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {stats.byType.map(item => (
-                <Badge key={item.type} variant="outline" className="text-xs">
+              {stats.byType.map((item, idx) => (
+                <Badge key={`${item.coaType || item.type}-${item.result}-${idx}`} variant="outline" className="text-xs">
                   {getCoaTypeBadge(item.coaType || item.type)}
                   <span className="ml-1 font-medium">{item.count}</span>
                 </Badge>
@@ -327,7 +371,7 @@ export default function CoaAudit() {
                 <SelectItem value="all">All Types</SelectItem>
                 {coaTypes.map(type => (
                   <SelectItem key={type} value={type}>
-                    {type.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                    {COA_TYPE_LABELS[type] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -340,6 +384,7 @@ export default function CoaAudit() {
                 <SelectItem value="all">All Results</SelectItem>
                 <SelectItem value="success">Success</SelectItem>
                 <SelectItem value="failed">Failed</SelectItem>
+                <SelectItem value="timeout">Timeout</SelectItem>
               </SelectContent>
             </Select>
             <div className="flex gap-2">
@@ -376,7 +421,7 @@ export default function CoaAudit() {
               </div>
               <h3 className="text-sm font-medium text-muted-foreground">No CoA audit entries</h3>
               <p className="text-xs text-muted-foreground/60 mt-1">
-                CoA audit entries will appear when bandwidth or policy changes are triggered
+                CoA audit entries will appear when bandwidth changes or session disconnects are triggered
               </p>
             </div>
           ) : (
@@ -387,110 +432,134 @@ export default function CoaAudit() {
                     <TableHead className="w-8" />
                     <TableHead>Timestamp</TableHead>
                     <TableHead>Username</TableHead>
-                    <TableHead>CoA Type</TableHead>
-                    <TableHead>Policy</TableHead>
+                    <TableHead>Action</TableHead>
                     <TableHead>Result</TableHead>
-                    <TableHead>NAS</TableHead>
+                    <TableHead>NAS IP</TableHead>
+                    <TableHead>Triggered By</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {entries.map((entry) => (
-                    <Collapsible
-                      key={entry.id}
-                      open={expandedRow === entry.id}
-                      onOpenChange={(open) => setExpandedRow(open ? entry.id : null)}
-                    >
-                      <TableRow className={cn(
-                        entry.result === 'failed' && 'bg-red-50/30 dark:bg-red-950/10',
-                        'cursor-pointer'
-                      )}>
-                        <TableCell>
-                          <CollapsibleTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                              <ChevronDown className={cn(
-                                'h-4 w-4 transition-transform',
-                                expandedRow === entry.id && 'rotate-180'
-                              )} />
-                            </Button>
-                          </CollapsibleTrigger>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            <span>{formatTimestamp(entry.timestamp)}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <p className="font-medium text-sm">{entry.username}</p>
-                        </TableCell>
-                        <TableCell>{getCoaTypeBadge(entry.coaType)}</TableCell>
-                        <TableCell>
-                          <p className="text-sm text-muted-foreground">{entry.policyName || '—'}</p>
-                        </TableCell>
-                        <TableCell>{getResultBadge(entry.result)}</TableCell>
-                        <TableCell>
-                          <p className="text-sm font-mono text-muted-foreground">{entry.nasIp || '—'}</p>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell colSpan={7} className="p-0">
-                          <CollapsibleContent>
-                            <div className="bg-muted/30 px-6 py-4">
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                {/* BW Percent */}
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Bandwidth %</p>
-                                  <p className="text-sm font-medium">{entry.bandwidthPercent != null ? `${entry.bandwidthPercent}%` : '—'}</p>
-                                </div>
-                                {/* Change IDs */}
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Change ID</p>
-                                  <p className="text-xs font-mono">{entry.oldChangeId || '—'} → {entry.newChangeId || '—'}</p>
-                                </div>
-                                {/* Session Time */}
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Session Time</p>
-                                  <p className="text-xs">
-                                    {formatDuration(entry.beforeSessionTime || 0)} → {formatDuration(entry.afterSessionTime || 0)}
-                                  </p>
-                                </div>
-                                {/* Error */}
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Error</p>
-                                  {entry.errorMessage ? (
-                                    <div className="flex items-center gap-1">
-                                      <AlertTriangle className="h-3 w-3 text-red-500 dark:text-red-400" />
-                                      <p className="text-xs text-red-600 dark:text-red-400">{entry.errorMessage}</p>
+                  {entries.map((entry) => {
+                    const parsedAttrs = parseAttributes(entry.attributes || '');
+                    return (
+                      <Collapsible
+                        key={entry.id}
+                        open={expandedRow === entry.id}
+                        onOpenChange={(open) => setExpandedRow(open ? entry.id : null)}
+                      >
+                        <TableRow className={cn(
+                          entry.result === 'failed' && 'bg-red-50/30 dark:bg-red-950/10',
+                          entry.result === 'timeout' && 'bg-amber-50/30 dark:bg-amber-950/10',
+                          'cursor-pointer'
+                        )}>
+                          <TableCell>
+                            <CollapsibleTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                <ChevronDown className={cn(
+                                  'h-4 w-4 transition-transform',
+                                  expandedRow === entry.id && 'rotate-180'
+                                )} />
+                              </Button>
+                            </CollapsibleTrigger>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              <span>{formatTimestamp(entry.timestamp)}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <p className="font-medium text-sm">{entry.username}</p>
+                            {entry.propertyName && (
+                              <p className="text-xs text-muted-foreground">{entry.propertyName}</p>
+                            )}
+                          </TableCell>
+                          <TableCell>{getCoaTypeBadge(entry.coaType)}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              {getResultBadge(entry.result)}
+                              {entry.responseCode && (
+                                <span className="text-[10px] font-mono text-muted-foreground">{entry.responseCode}</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <p className="text-sm font-mono text-muted-foreground">{entry.nasIp || '—'}</p>
+                          </TableCell>
+                          <TableCell>{getTriggerBadge(entry.triggeredBy || 'system')}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell colSpan={7} className="p-0">
+                            <CollapsibleContent>
+                              <div className="bg-muted/30 px-6 py-4">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                  {/* Error Message */}
+                                  <div className="col-span-2 sm:col-span-3">
+                                    <p className="text-xs text-muted-foreground mb-1">Error Details</p>
+                                    {entry.errorMessage ? (
+                                      <div className="flex items-center gap-1">
+                                        <AlertTriangle className="h-3 w-3 text-red-500 dark:text-red-400" />
+                                        <p className="text-sm text-red-600 dark:text-red-400">{entry.errorMessage}</p>
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs text-muted-foreground">No errors</p>
+                                    )}
+                                  </div>
+
+                                  {/* Session ID */}
+                                  {entry.policyName && (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">Policy</p>
+                                      <p className="text-sm font-medium">{entry.policyName}</p>
                                     </div>
-                                  ) : (
-                                    <p className="text-xs">—</p>
                                   )}
-                                </div>
-                                {/* Download before/after */}
-                                <div>
-                                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                    <ArrowDownToLine className="h-3 w-3" /> Download
-                                  </p>
-                                  <p className="text-xs">
-                                    {formatBytes(entry.beforeDownload || 0)} → {formatBytes(entry.afterDownload || 0)}
-                                  </p>
-                                </div>
-                                {/* Upload before/after */}
-                                <div>
-                                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                    <ArrowUpFromLine className="h-3 w-3" /> Upload
-                                  </p>
-                                  <p className="text-xs">
-                                    {formatBytes(entry.beforeUpload || 0)} → {formatBytes(entry.afterUpload || 0)}
-                                  </p>
+
+                                  {/* Response Code */}
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Response Code</p>
+                                    <p className="text-sm font-mono">{entry.responseCode || '—'}</p>
+                                  </div>
+
+                                  {/* Triggered By */}
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Triggered By</p>
+                                    <p className="text-sm">{entry.triggeredBy || '—'}</p>
+                                  </div>
+
+                                  {/* RADIUS Attributes */}
+                                  <div className="col-span-2 sm:col-span-3">
+                                    <p className="text-xs text-muted-foreground mb-1">RADIUS Attributes Sent</p>
+                                    {parsedAttrs ? (
+                                      <div className="bg-background rounded-md border p-2">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                                          {Object.entries(parsedAttrs).map(([key, value]) => (
+                                            <div key={key} className="text-xs">
+                                              <span className="font-mono text-cyan-600 dark:text-cyan-400">{key}</span>
+                                              <span className="text-muted-foreground mx-1">=</span>
+                                              <span className="font-mono">{value}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs text-muted-foreground">No attributes recorded</p>
+                                    )}
+                                  </div>
+
+                                  {/* Entry ID */}
+                                  <div className="col-span-2 sm:col-span-3">
+                                    <p className="text-[10px] font-mono text-muted-foreground/50">
+                                      ID: {entry.id}
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </CollapsibleContent>
-                        </TableCell>
-                      </TableRow>
-                    </Collapsible>
-                  ))}
+                            </CollapsibleContent>
+                          </TableCell>
+                        </TableRow>
+                      </Collapsible>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </ScrollArea>
@@ -500,5 +569,3 @@ export default function CoaAudit() {
     </div>
   );
 }
-
-

@@ -4366,6 +4366,7 @@ model RadPostAuth {
   authdate         DateTime @default(now()) @db.Timestamptz
   propertyId       String?  @db.Uuid
   nasIpAddress     String?
+  clientipaddress  String?  @map("clientipaddress")
   radiusClass      String?  @map("class")
 
   @@map("radpostauth")
