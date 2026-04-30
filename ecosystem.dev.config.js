@@ -127,5 +127,21 @@ module.exports = {
       max_restarts: 10,
       restart_delay: 3000,
     },
+    {
+      name: 'captive-redirect',
+      script: 'index.ts',
+      interpreter: BUN_PATH,
+      interpreter_args: '--hot',
+      cwd: `${APP_DIR}/mini-services/captive-redirect`,
+      env: {
+        NODE_ENV: 'development',
+        PORT: 8888,
+        PORTAL_PORT: 3000,
+      },
+      error_file: `${LOG_DIR}/captive-redirect-error.log`,
+      out_file: `${LOG_DIR}/captive-redirect-out.log`,
+      max_restarts: 10,
+      restart_delay: 3000,
+    },
   ],
 };

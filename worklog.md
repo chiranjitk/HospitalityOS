@@ -334,3 +334,29 @@ Stage Summary:
 - PM2 ecosystem: 7 services (Next.js + 6 mini-services), bun interpreter, start-nextjs.sh wrapper
 - Auto-tunes PostgreSQL shared_buffers based on detected RAM (512MB/1GB/2GB)
 - Git push: deb2f57..a261a7f
+
+---
+Task ID: 1
+Agent: Main
+Task: Fix middleware.ts build error, add captive-redirect to PM2, build full multi-method captive portal
+
+Work Log:
+- Fixed Next.js 16 build error: `src/middleware.ts` was re-exporting `config` from `./proxy` which Next.js 16 doesn't allow
+- Deleted `src/middleware.ts` (re-export file), renamed `src/proxy.ts` → `src/middleware.ts` (direct export)
+- Added `captive-redirect` mini-service to both `ecosystem.config.js` (production) and `ecosystem.dev.config.js` (development)
+- Created public guest portal config API: `/api/v1/wifi/portal/route.ts` — GET endpoint returns zone design settings, auth method, bandwidth
+- Created public guest auth API: `/api/v1/wifi/auth/route.ts` — POST endpoint supporting 5 auth methods: voucher, room_number, pms_credentials, sms_otp, open_access
+- Rewrote guest captive portal page (`src/app/connect/wifi-connect-portal.tsx`) from voucher-only to full multi-method (1507 lines):
+  - Dynamic design from portal config (5 layouts: centered, split_left, split_right, card, full_bleed)
+  - 5 auth forms: VoucherForm, RoomNumberForm, PmsCredentialsForm, SmsOtpForm (2-step with countdown), OpenAccessForm
+  - Content blocks: hotel info, amenities, social media links, live clock, promotions, terms checkbox
+  - Graceful degradation: falls back to voucher-only form if portal config not found
+  - Zone-based routing via `?zone=<slug>` URL param, QR code pre-fill via `?code=<voucher>`
+  - Success screen with session details (duration, bandwidth, auth method)
+
+Stage Summary:
+- Build error fixed: no more "re-exported config" error
+- Captive redirect service added to PM2 ecosystem configs
+- Full captive portal E2E ready: redirect service → zone config API → multi-method auth API → designed guest portal page
+- Admin portal page (portal-page.tsx) already had full implementation with 5 tabs: Portal Instances, Portal Designer, Voucher Designer, Print Cards, Walled Garden
+- All 96 WiFi API routes verified, all 17 portal API routes confirmed working
