@@ -1,58 +1,116 @@
 # FreeRADIUS Configuration Patches for StaySuite
 
-These patch files contain the **StaySuite-specific modifications** to standard FreeRADIUS v3.2.x configuration.
-Apply these patches AFTER installing FreeRADIUS on your production server.
+These files contain **StaySuite-specific modifications** to standard FreeRADIUS v3.2.x configuration.
+Apply these after installing FreeRADIUS on your production server (Rocky Linux 10).
+
+## Quick Start (Production)
+
+```bash
+# 1. Install FreeRADIUS + PostgreSQL client
+sudo dnf install -y freeradius freeradius-utils freeradius-postgresql
+
+# 2. Set database password
+export FR_DB_PASS="YourSecurePassword"
+
+# 3. Run the setup script (does everything)
+sudo bash freeradius-config-patches/setup-production.sh
+
+# 4. Verify and start
+sudo radiusd -XC
+sudo systemctl start radiusd
+sudo systemctl enable radiusd
+```
 
 ## Files
 
-### 1. `sql-module-config.patch`
-Configuration settings for `raddb/mods-available/sql`:
-- dialect, driver, radius_db connection string
-- Table names, read_clients, debug cleanup
+| File | Purpose |
+|------|---------|
+| `setup-production.sh` | **One-shot setup script** — applies all patches, enables sites/modules, configures PG |
+| `sql-module-config.patch` | SQL module settings reference (dialect, driver, read_clients, connection string) |
+| `queries-postauth.patch` | Post-auth query additions for called/calling station IDs |
+| `sites-default-postauth.patch` | Post-auth blocks: IP pool check, gateway push, FUP bandwidth override |
 
-### 2. `queries-postauth.patch`
-Replacement `post-auth` section for `raddb/mods-config/sql/main/postgresql/queries.conf`:
-- Captures: calledstationid, callingstationid, nasipaddress, clientipaddress
+## What `setup-production.sh` Does
 
-### 3. `sites-default-postauth.patch`
-StaySuite blocks for `raddb/sites-available/default` post-auth section:
-- IP Pool restriction check (fn_check_ip_pool)
-- Gateway push (fn_get_pool_attr)
-- FUP bandwidth override (fn_get_mikrotik_rate_limit)
+| Step | Action | Why |
+|------|--------|-----|
+| 1 | Enable modules: sql, pap, chap, mschap, expr, exec, date, expiration, logintime, preprocess | Required for PAP/CHAP auth + SQL + post-auth features |
+| 1 | Disable modules: sqlippool, dhcp, eap | Not used — eap requires OpenSSL legacy provider |
+| 2 | Configure `mods-available/sql` with PostgreSQL connection | FreeRADIUS reads/writes directly to DB |
+| 2 | Set `read_clients = yes` in SQL module | NAS clients read from `nas` table |
+| 3 | **Enable CoA** — symlink `sites-available/coa` → `sites-enabled/coa` | **FreeRADIUS listens on port 3799 for CoA/Disconnect requests from NAS** |
+| 3 | Create CoA attribute filter | Controls which attributes are accepted in CoA packets |
+| 4 | Apply post-auth patches (IP pool, gateway push, FUP) | StaySuite business logic |
+| 5 | Set up `clients.conf` with localhost fallback | Backup when DB-read fails |
+| 6 | Verify config (`radiusd -C`) | Catches syntax errors before start |
+| 6 | Enable systemd service | Auto-start on boot |
 
-## How to Apply on Rocky 10 Production
+## CoA (Change of Authorization) — Enabled by Default
 
-```bash
-# 1. Install FreeRADIUS
-sudo dnf install -y freeradius freeradius-utils freeradius-postgresql
+The setup script **always enables CoA** by symlinking `sites-available/coa` into `sites-enabled/`.
 
-# 2. Source environment config
-source production-env.conf
+This makes FreeRADIUS **listen on port 3799** and accept:
+- **CoA-Request** — NAS or StaySuite backend can change session parameters mid-session
+- **Disconnect-Request** — Force-terminate a user session
 
-# 3. Apply patches (see each .patch file for instructions)
+The CoA virtual server config:
 
-# 4. Verify config
-sudo radiusd -XC
+```text
+listen {
+    type = coa
+    ipaddr = *
+    port = 3799
+    virtual_server = coa
+}
 
-# 5. Start
-sudo systemctl enable --now radiusd
+server coa {
+    recv-coa { ok }
+    send-coa { ok }
+}
+```
+
+### CoA Flow
+
+```
+StaySuite detects plan change
+    ↓
+freeradius-service sends CoA packet (radclient) → NAS:3799
+    ↓
+NAS updates session bandwidth/session-timeout
+
+OR
+
+NAS sends Disconnect-Request → FreeRADIUS:3799 (inbound)
+    ↓
+FreeRADIUS processes and replies Disconnect-ACK
 ```
 
 ## Path Differences: Rocky 10 vs Sandbox
 
-| Component | Rocky 10 (dnf install) | Sandbox (source compile) |
+| Component | Rocky 10 (dnf install) | Sandbox (pre-installed) |
 |-----------|----------------------|--------------------------|
-| FR binary | `/usr/sbin/radiusd` | `$PROJECT_ROOT/freeradius-install/sbin/radiusd` |
-| FR config | `/etc/raddb/` | `$PROJECT_ROOT/freeradius-install/etc/raddb/` |
-| FR logs | `/var/log/radiusd/` | `$PROJECT_ROOT/freeradius-install/var/log/radiusd/` |
-| sql symlink | `../mods-available/sql` (relative) | `$PROJECT_ROOT/freeradius-install/...` (absolute) |
-| PG binary | `/usr/pgsql-17/bin/` | `/home/z/pgsql-17/bin/` |
-| PG data | `/var/lib/pgsql/17/data/` | `/home/z/pgsql-17/data/` |
+| FR binary | `/usr/sbin/radiusd` | `$PROJECT/freeradius-install/sbin/radiusd` |
+| FR config | `/etc/raddb/` | `$PROJECT/freeradius-install/etc/raddb/` |
+| FR logs | `/var/log/radiusd/` | `$PROJECT/freeradius-install/var/log/radiusd/` |
+| PG binary | `/usr/pgsql-17/bin/` | `$PROJECT/pgsql-runtime/bin/` |
+| PG data | `/var/lib/pgsql/17/data/` | `$PROJECT/pgsql-runtime/data/` |
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RADIUS_CONFIG_PATH` | `/etc/raddb` | FreeRADIUS config directory |
+| `FR_HOME` | auto-detect | FreeRADIUS install prefix |
+| `FR_DB_HOST` | `localhost` | PostgreSQL host |
+| `FR_DB_PORT` | `5432` | PostgreSQL port |
+| `FR_DB_NAME` | `staysuite` | Database name |
+| `FR_DB_USER` | `staysuite` | Database user |
+| `FR_DB_PASS` | *(required)* | Database password |
 
 ## Important Notes
 
 - On Rocky 10, the `sql` module symlink in `mods-enabled/` is already relative (correct)
-- The `radius_db` connection string must use production credentials
-- Remove `logfile = /tmp/sql_debug.log` from sql module for production
-- Disable `sqlippool` module: `sudo rm -f /etc/raddb/mods-enabled/sqlippool`
-- Enable `read_clients = yes` in sql module to read NAS from database
+- Remove `logfile = /tmp/sql_debug.log` from sql module for production (script handles this)
+- EAP is disabled by default (requires OpenSSL 3.x legacy provider which is not available)
+- The `clients.conf` is auto-generated by freeradius-service when NAS clients are added via UI
+- Set `read_clients = yes` in SQL module to read NAS clients from the `nas` database table

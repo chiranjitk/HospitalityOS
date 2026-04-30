@@ -225,3 +225,19 @@ Stage Summary:
 - All 5 fixes + production path abstraction complete
 - Production paths: Rocky 10 dnf → `/etc/raddb/`, `/usr/sbin/radiusd`, `/var/lib/pgsql/`
 - Sandbox paths: `freeradius-install/`, auto-detected via existsSync
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Enable CoA on FreeRADIUS + create production setup script
+
+Work Log:
+- Enabled CoA: symlinked sites-available/coa → sites-enabled/coa (port 3799 now active)
+- Created freeradius-config-patches/setup-production.sh — one-shot production setup script
+- Updated freeradius-config-patches/README.md with complete documentation
+
+Stage Summary:
+- CoA is now ENABLED in sandbox (sites-enabled/coa symlink created)
+- setup-production.sh handles: module enable/disable, SQL config, CoA enable, post-auth patches, clients.conf, systemd enable, config verify
+- Production path: `sudo bash freeradius-config-patches/setup-production.sh` after `dnf install freeradius`
+- 6 steps automated: modules → SQL → CoA → patches → attr filter → clients.conf + verify
