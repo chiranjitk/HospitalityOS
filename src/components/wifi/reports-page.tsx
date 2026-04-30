@@ -73,6 +73,7 @@ import {
   CheckCircle2,
   XCircle,
   Server,
+  Ticket,
   Cpu,
   Database,
   HardDrive,
@@ -195,7 +196,7 @@ function CircularGauge({ value, label, color, size = 120 }: { value: number; lab
 
 // ==================== TAB TYPES ====================
 
-type TabId = 'bandwidth' | 'user-bw' | 'web-surfing' | 'nat-logs' | 'syslog' | 'sys-health' | 'coa-audit' | 'user-status-history';
+type TabId = 'bandwidth' | 'user-bw' | 'web-surfing' | 'nat-logs' | 'voucher' | 'sys-health' | 'coa-audit' | 'user-status-history';
 
 function SortIcon({ col, isActive }: { col: string; isActive: boolean }) {
   return <ArrowUpDown className={cn('h-3 w-3 ml-1 inline', isActive ? 'opacity-100' : 'opacity-30')} />;
@@ -206,7 +207,7 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'user-bw', label: 'User Bandwidth', icon: Users },
   { id: 'web-surfing', label: 'Web Surfing', icon: Globe },
   { id: 'nat-logs', label: 'NAT Logs', icon: Shield },
-  { id: 'syslog', label: 'Syslog Config', icon: Server },
+  { id: 'voucher', label: 'Voucher Report', icon: Ticket },
   { id: 'sys-health', label: 'System Health', icon: Activity },
   { id: 'coa-audit', label: 'CoA Audit', icon: FileCheck },
   { id: 'user-status-history', label: 'User History', icon: History },
@@ -249,7 +250,7 @@ export default function ReportsPage() {
           {activeTab === 'user-bw' && <UserBandwidthTab />}
           {activeTab === 'web-surfing' && <WebSurfingTab />}
           {activeTab === 'nat-logs' && <NATLogsTab />}
-          {activeTab === 'syslog' && <SyslogConfigTab />}
+          {activeTab === 'voucher' && <VoucherReportTab />}
           {activeTab === 'sys-health' && <SystemHealthTab />}
           {activeTab === 'coa-audit' && (
             <Suspense fallback={<LoadingSpinner message="Loading CoA Audit..." />}>
@@ -1352,341 +1353,297 @@ function NATLogsTab() {
   );
 }
 
-// ==================== TAB 5: SYSLOG CONFIG ====================
+// ==================== TAB 5: VOUCHER REPORT ====================
 
-interface SyslogServer {
+interface VoucherRow {
   id: string;
-  name: string;
-  host: string;
-  port: number;
-  protocol: string;
-  format: string;
-  facility: string;
-  severity: string;
-  categories: string[];
+  code: string;
+  planName: string;
+  guestName: string | null;
   status: string;
-  tlsVerify: boolean;
+  isUsed: boolean;
+  validFrom: string;
+  validUntil: string;
+  usedAt: string | null;
+  issuedTo: string | null;
+  issuedAt: string | null;
+  notes: string | null;
+  propertyName: string;
+  createdAt: string;
 }
 
-function SyslogConfigTab() {
-  const [servers, setServers] = useState<SyslogServer[]>([]);
-  const [syslogEntries, setSyslogEntries] = useState<string[]>([]);
-  const [moduleEnabled, setModuleEnabled] = useState(false);
-  const [isAddOpen, setIsAddOpen] = useState(false);
-  const [editServer, setEditServer] = useState<SyslogServer | null>(null);
-  const [saving, setSaving] = useState(false);
+interface VoucherSummary {
+  total: number;
+  active: number;
+  used: number;
+  expired: number;
+  revoked: number;
+  redemptionRate: number;
+  expiringSoon: number;
+}
+
+interface PlanBreakdown {
+  planId: string;
+  planName: string;
+  total: number;
+  used: number;
+  active: number;
+  expired: number;
+  redemptionRate: number;
+}
+
+const statusColors: Record<string, string> = {
+  active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  used: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+  expired: 'bg-gray-100 text-gray-600 dark:bg-gray-800/40 dark:text-gray-400',
+  revoked: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+};
+
+function VoucherReportTab() {
+  const [vouchers, setVouchers] = useState<VoucherRow[]>([]);
+  const [summary, setSummary] = useState<VoucherSummary | null>(null);
+  const [planBreakdown, setPlanBreakdown] = useState<PlanBreakdown[]>([]);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [formData, setFormData] = useState({
-    name: '',
-    protocol: 'udp',
-    host: '',
-    port: 514,
-    format: 'RFC5424',
-    facility: 'local0',
-    severity: 'info',
-    categories: ['auth'] as string[],
-    tlsVerify: false,
-  });
   const { toast } = useToast();
 
-  const fetchSyslogServers = useCallback(async () => {
+  const fetchVouchers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/wifi/reports/syslog');
+      const params = new URLSearchParams();
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (searchQuery) params.set('search', searchQuery);
+      const res = await fetch(`/api/wifi/reports/voucher?${params.toString()}`);
       const result = await res.json();
       if (result.success) {
-        setServers(result.data?.servers || []);
-        setSyslogEntries(result.data?.entries || []);
+        setSummary(result.data?.summary || null);
+        setPlanBreakdown(result.data?.planBreakdown || []);
+        setVouchers(result.data?.vouchers || []);
       } else {
-        toast({ title: 'Error', description: typeof result.error === 'string' ? result.error : result.error?.message || 'Failed to fetch syslog config', variant: 'destructive' });
+        toast({ title: 'Error', description: typeof result.error === 'string' ? result.error : result.error?.message || 'Failed to fetch voucher report', variant: 'destructive' });
       }
     } catch (e) {
       console.error(e);
-      toast({ title: 'Error', description: 'Failed to fetch syslog config', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Failed to fetch voucher report', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [statusFilter, searchQuery, toast]);
 
   useEffect(() => {
-    fetchSyslogServers();
-  }, [fetchSyslogServers]);
+    fetchVouchers();
+  }, [fetchVouchers]);
 
-  const categoryOptions = ['auth', 'firewall', 'dhcp', 'radius', 'dns', 'system', 'portal'];
+  const handleExportCSV = useCallback(() => {
+    const headers = 'Code,Plan,Guest,Status,Used,Valid From,Valid Until,Used At,Issued To,Issued At,Notes';
+    const rows = vouchers.map(v => [
+      v.code, v.planName, v.guestName || '', v.status, v.isUsed ? 'Yes' : 'No',
+      v.validFrom, v.validUntil, v.usedAt || '', v.issuedTo || '', v.issuedAt || '', v.notes || '',
+    ].map(f => `"${f}"`).join(','));
+    const csv = [headers, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `voucher-report-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: 'Exported', description: 'Voucher report CSV downloaded' });
+  }, [vouchers, toast]);
 
-  const handleSave = async () => {
-    if (!formData.name || !formData.host) return;
-    setSaving(true);
-    try {
-      const isNew = !editServer;
-      const url = isNew ? '/api/wifi/reports/syslog' : `/api/wifi/reports/syslog/${editServer.id}`;
-      const res = await fetch(url, {
-        method: isNew ? 'POST' : 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      const result = await res.json();
-      if (result.success) {
-        toast({ title: isNew ? 'Server added' : 'Server updated', description: `${formData.name} has been ${isNew ? 'added' : 'updated'}.` });
-        setIsAddOpen(false);
-        setEditServer(null);
-        resetForm();
-        fetchSyslogServers();
-      } else {
-        toast({ title: 'Error', description: typeof result.error === 'string' ? result.error : result.error?.message || 'Failed to save server', variant: 'destructive' });
-      }
-    } catch (e) {
-      console.error(e);
-      toast({ title: 'Error', description: 'Failed to save server', variant: 'destructive' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      const res = await fetch(`/api/wifi/reports/syslog/${id}`, { method: 'DELETE' });
-      const result = await res.json();
-      if (result.success) {
-        toast({ title: 'Server deleted', description: 'Syslog server has been removed.' });
-        fetchSyslogServers();
-      } else {
-        toast({ title: 'Error', description: typeof result.error === 'string' ? result.error : result.error?.message || 'Failed to delete server', variant: 'destructive' });
-      }
-    } catch (e) {
-      console.error(e);
-      toast({ title: 'Error', description: 'Failed to delete server', variant: 'destructive' });
-    }
-  };
-
-  const handleTest = (serverId: string) => {
-    setServers(servers.map(s => s.id === serverId ? { ...s, status: 'connected' } : s));
-  };
-
-  const openEdit = (server: SyslogServer) => {
-    setEditServer(server);
-    setFormData({
-      name: server.name,
-      protocol: server.protocol,
-      host: server.host,
-      port: server.port,
-      format: server.format,
-      facility: server.facility,
-      severity: server.severity,
-      categories: [...server.categories],
-      tlsVerify: server.tlsVerify,
-    });
-    setIsAddOpen(true);
-  };
-
-  const resetForm = () => {
-    setFormData({ name: '', protocol: 'udp', host: '', port: 514, format: 'RFC5424', facility: 'local0', severity: 'info', categories: ['auth'], tlsVerify: false });
-    setEditServer(null);
-  };
-
-  const toggleCategory = (cat: string) => {
-    setFormData(prev => ({
-      ...prev,
-      categories: prev.categories.includes(cat) ? prev.categories.filter(c => c !== cat) : [...prev.categories, cat],
-    }));
-  };
-
-  const protoColors: Record<string, string> = { udp: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300', tcp: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300', tls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' };
-
-  if (loading) return <LoadingSpinner message="Loading syslog configuration..." />;
+  if (loading) return <LoadingSpinner message="Loading voucher report..." />;
 
   return (
     <div className="space-y-4">
-      {/* Module Status */}
+      {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={cn('p-2 rounded-lg', moduleEnabled ? 'bg-emerald-500/10' : 'bg-gray-500/10')}>
-                <Radio className={cn('h-5 w-5', moduleEnabled ? 'text-emerald-500 dark:text-emerald-400' : 'text-gray-400')} />
-              </div>
-              <div>
-                <p className="font-semibold">Syslog Forwarding</p>
-                <p className="text-sm text-muted-foreground">Forward gateway logs to external collectors</p>
-              </div>
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            <div className="flex items-center gap-2">
+              <Ticket className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Status:</span>
             </div>
-            <div className="flex items-center gap-3">
-              <Badge variant={moduleEnabled ? 'default' : 'outline'} className={cn(moduleEnabled && 'bg-emerald-600')}>
-                {moduleEnabled ? 'Enabled' : 'Disabled'}
-              </Badge>
-              <Switch checked={moduleEnabled} onCheckedChange={setModuleEnabled} />
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { value: 'all', label: 'All' },
+                { value: 'active', label: 'Active' },
+                { value: 'used', label: 'Used' },
+                { value: 'expired', label: 'Expired' },
+                { value: 'revoked', label: 'Revoked' },
+              ].map((s) => (
+                <Button key={s.value} variant={statusFilter === s.value ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter(s.value)}>
+                  {s.label}
+                  {summary && s.value !== 'all' && (
+                    <span className="ml-1.5 text-xs opacity-70">{summary[s.value as keyof VoucherSummary] as number || 0}</span>
+                  )}
+                </Button>
+              ))}
+            </div>
+            <div className="hidden sm:block w-px h-6 bg-border" />
+            <div className="relative flex-1 min-w-48">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by code or issued to..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleExportCSV}>
+                <FileDown className="h-3.5 w-3.5 mr-1.5" /> CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={fetchVouchers}>
+                <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Server List */}
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">Configured Servers</h3>
-        <Button size="sm" onClick={() => { resetForm(); setIsAddOpen(true); }}>
-          <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Server
-        </Button>
-      </div>
+      {/* Summary Cards */}
+      {summary && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <SummaryCard icon={Ticket} label="Total Vouchers" value={summary.total.toString()} color="teal" />
+          <SummaryCard icon={CheckCircle2} label="Active" value={summary.active.toString()} color="emerald" />
+          <SummaryCard icon={Wifi} label="Used (Redeemed)" value={summary.used.toString()} color="teal" />
+          <SummaryCard icon={AlertTriangle} label="Redemption Rate" value={`${summary.redemptionRate.toFixed(0)}%`} color="amber" />
+          <SummaryCard icon={Clock} label="Expiring Soon" value={summary.expiringSoon.toString()} color={summary.expiringSoon > 0 ? 'red' : 'emerald'} />
+        </div>
+      )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {servers.map((server) => (
-          <Card key={server.id} className="p-4">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className={cn('w-2 h-2 rounded-full', server.status === 'connected' ? 'bg-emerald-500' : 'bg-gray-400')} />
-                <h4 className="font-medium text-sm">{server.name}</h4>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(server)}>
-                  <Settings className="h-3.5 w-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 dark:text-red-400 hover:text-red-600" onClick={() => handleDelete(server.id)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+      {/* Plan Breakdown */}
+      {planBreakdown.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" /> Plan Adoption
+            </CardTitle>
+            <CardDescription>Voucher usage breakdown by WiFi plan</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {planBreakdown.map((plan) => (
+                <div key={plan.planId} className="rounded-lg border p-3 space-y-2">
+                  <p className="text-sm font-medium truncate">{plan.planName}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{plan.total} voucher{plan.total !== 1 ? 's' : ''}</span>
+                    <Badge className={cn('text-xs', statusColors[plan.active > 0 ? 'active' : 'expired'])}>
+                      {plan.active} active
+                    </Badge>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Redeemed</span>
+                      <span>{plan.redemptionRate.toFixed(0)}%</span>
+                    </div>
+                    <div className="flex h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-teal-400 to-emerald-400 transition-all rounded-full"
+                        style={{ width: `${plan.redemptionRate}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 text-xs">
+                    <span className="text-emerald-600 dark:text-emerald-400">{plan.used} used</span>
+                    <span className="text-gray-500">{plan.expired} expired</span>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <Server className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="font-mono text-muted-foreground">{server.host}:{server.port}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge className={cn('text-xs', protoColors[server.protocol])}>{server.protocol.toUpperCase()}</Badge>
-                <Badge variant="outline" className="text-xs">{server.format}</Badge>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {server.categories.map(cat => (
-                  <Badge key={cat} variant="secondary" className="text-xs">{cat}</Badge>
-                ))}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Facility: {server.facility} | Severity: {server.severity}
-                {server.tlsVerify && ' | TLS Verify ✓'}
-              </div>
-            </div>
-            <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => handleTest(server.id)}>
-              <Zap className="h-3 w-3 mr-1.5" /> Test Connection
-            </Button>
-          </Card>
-        ))}
-      </div>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Log Preview */}
+      {/* Voucher Table */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2"><FileText className="h-4 w-4" /> Log Preview (last 5 entries)</CardTitle>
-          <CardDescription>Showing log format as it would be sent to the configured server</CardDescription>
+          <CardTitle className="text-base">Voucher Details</CardTitle>
+          <CardDescription>
+            {vouchers.length} voucher{vouchers.length !== 1 ? 's' : ''} found
+            {statusFilter !== 'all' && ` (filtered: ${statusFilter})`}
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-lg bg-gray-950 p-4 font-mono text-xs text-green-400 dark:text-green-300 space-y-1 max-h-40 overflow-y-auto">
-            {syslogEntries.map((entry, i) => (
-              <p key={i}>{entry}</p>
-            ))}
-          </div>
+        <CardContent className="p-0">
+          <ScrollArea className="max-h-96">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Plan</TableHead>
+                  <TableHead>Guest / Issued To</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Validity</TableHead>
+                  <TableHead>Used At</TableHead>
+                  <TableHead>Issued</TableHead>
+                  <TableHead className="text-right">Property</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {vouchers.map((v) => (
+                  <TableRow key={v.id} className="hover:bg-muted/30">
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Ticket className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="font-mono font-medium text-sm">{v.code}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => {
+                            navigator.clipboard.writeText(v.code);
+                            toast({ title: 'Copied', description: `Voucher code ${v.code} copied to clipboard` });
+                          }}
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell><Badge variant="outline" className="text-xs">{v.planName}</Badge></TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        {v.guestName ? (
+                          <span className="font-medium">{v.guestName}</span>
+                        ) : v.issuedTo ? (
+                          <span>{v.issuedTo}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={cn('text-xs', statusColors[v.status] || '')}>
+                        {v.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      <div>{new Date(v.validFrom).toLocaleDateString()}</div>
+                      <div>→ {new Date(v.validUntil).toLocaleDateString()}</div>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {v.usedAt ? new Date(v.usedAt).toLocaleString() : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {v.issuedAt ? new Date(v.issuedAt).toLocaleDateString() : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="text-right text-xs text-muted-foreground truncate max-w-32">{v.propertyName}</TableCell>
+                  </TableRow>
+                ))}
+                {vouchers.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                      {searchQuery || statusFilter !== 'all'
+                        ? 'No vouchers match your filters.'
+                        : 'No vouchers found. Create vouchers from the WiFi Management section.'}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </ScrollArea>
         </CardContent>
       </Card>
-
-      {/* Add/Edit Dialog */}
-      <Dialog open={isAddOpen} onOpenChange={(open) => { if (!open) { setIsAddOpen(false); resetForm(); } }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editServer ? 'Edit Syslog Server' : 'Add Syslog Server'}</DialogTitle>
-            <DialogDescription>Configure an external syslog collector for log forwarding</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 space-y-2">
-                <Label>Name</Label>
-                <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="SIEM Collector" />
-              </div>
-              <div className="space-y-2">
-                <Label>Protocol</Label>
-                <Select value={formData.protocol} onValueChange={(v) => setFormData({ ...formData, protocol: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="udp">UDP</SelectItem>
-                    <SelectItem value="tcp">TCP</SelectItem>
-                    <SelectItem value="tls">TLS</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Port</Label>
-                <Input type="number" value={formData.port} onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) || 514 })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Host</Label>
-                <Input value={formData.host} onChange={(e) => setFormData({ ...formData, host: e.target.value })} placeholder="10.10.1.50" />
-              </div>
-              <div className="space-y-2">
-                <Label>Format</Label>
-                <Select value={formData.format} onValueChange={(v) => setFormData({ ...formData, format: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="RFC5424">RFC5424</SelectItem>
-                    <SelectItem value="RFC3164">RFC3164</SelectItem>
-                    <SelectItem value="JSON">JSON</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Facility</Label>
-                <Select value={formData.facility} onValueChange={(v) => setFormData({ ...formData, facility: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {['local0', 'local1', 'local2', 'daemon', 'auth', 'syslog'].map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Severity</Label>
-                <Select value={formData.severity} onValueChange={(v) => setFormData({ ...formData, severity: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {['debug', 'info', 'notice', 'warning', 'error'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-2">
-              <Label>Log Categories</Label>
-              <div className="flex flex-wrap gap-2">
-                {categoryOptions.map(cat => (
-                  <button
-                    key={cat}
-                    onClick={() => toggleCategory(cat)}
-                    className={cn(
-                      'px-3 py-1.5 rounded-full text-xs font-medium transition-all border',
-                      formData.categories.includes(cat)
-                        ? 'bg-teal-100 text-teal-700 border-teal-300 dark:bg-teal-900/40 dark:text-teal-300 dark:border-teal-700'
-                        : 'bg-background text-muted-foreground border-border hover:border-muted-foreground'
-                    )}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {formData.protocol === 'tls' && (
-              <div className="flex items-center gap-2">
-                <Switch checked={formData.tlsVerify} onCheckedChange={(v) => setFormData({ ...formData, tlsVerify: v })} id="tls-verify" />
-                <Label htmlFor="tls-verify">Verify TLS Certificate</Label>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setIsAddOpen(false); resetForm(); }}>Cancel</Button>
-            <Button onClick={handleSave} disabled={!formData.name || !formData.host || saving}>
-              {saving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-              {editServer ? 'Update' : 'Add'} Server
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
