@@ -840,6 +840,14 @@ module.exports = {
       max_restarts: 10, restart_delay: 3000,
     },
     {
+      name: 'dhcp-service',
+      script: 'index.ts',
+      interpreter: BUN_PATH,
+      cwd: `${APP_DIR}/mini-services/dhcp-service`,
+      env: { NODE_ENV: 'production', PORT: 3011, DATABASE_URL: DB_URL },
+      max_restarts: 10, restart_delay: 3000,
+    },
+    {
       name: 'dns-service',
       script: 'index.ts',
       interpreter: BUN_PATH,
@@ -999,7 +1007,7 @@ done
 echo ""
 
 echo -e "${BOLD}  PM2 SERVICES${NC}"
-for svc_name in staysuite-nextjs availability-service realtime-service freeradius-service dns-service nftables-service captive-redirect; do
+for svc_name in staysuite-nextjs availability-service realtime-service freeradius-service dhcp-service dns-service nftables-service captive-redirect; do
   SVC_PID=$(pm2 pid "$svc_name" 2>/dev/null)
   ICON="FAIL"; [[ -n "$SVC_PID" ]] && ICON=" OK "
   echo "    [${ICON}] ${svc_name}"
@@ -1011,6 +1019,7 @@ echo "    3000  Next.js Application"
 echo "    3002  Availability Service"
 echo "    3003  Realtime Service (WebSocket)"
 echo "    3010  FreeRADIUS Management Service"
+echo "    3011  DHCP Service (dnsmasq)"
 echo "    3012  DNS Service"
 echo "    3013  nftables Service"
 echo "    8888  Captive Portal Redirect (HTTP 302)"

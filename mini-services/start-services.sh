@@ -215,6 +215,16 @@ start_service \
     || STARTUP_ERRORS=$((STARTUP_ERRORS + 1))
 
 # ---------------------------------------------------------------------------
+# Start DHCP Service (dnsmasq backend, port 3011)
+# ---------------------------------------------------------------------------
+start_service \
+    "dhcp-service" \
+    "$PROJECT_DIR/dhcp-service" \
+    "index.ts" \
+    3011 \
+    || STARTUP_ERRORS=$((STARTUP_ERRORS + 1))
+
+# ---------------------------------------------------------------------------
 # Startup Summary
 # ---------------------------------------------------------------------------
 echo ""
@@ -225,6 +235,7 @@ if [[ $STARTUP_ERRORS -eq 0 ]]; then
     echo "  - Realtime Service:      http://localhost:3003"
     echo "  - Availability Service:  http://localhost:3002"
     echo "  - FreeRADIUS Service:    http://localhost:3010"
+    echo "  - DHCP Service:          http://localhost:3011"
     echo ""
     log_info "Logs:     ${LOG_DIR}/"
     log_info "PIDs:     ${PID_FILE}"

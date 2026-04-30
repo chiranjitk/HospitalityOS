@@ -67,6 +67,21 @@ module.exports = {
       restart_delay: 3000,
     },
     {
+      name: 'dhcp-service',
+      script: 'index.ts',
+      interpreter: BUN_PATH,
+      interpreter_args: '--hot',
+      cwd: `${APP_DIR}/mini-services/dhcp-service`,
+      env: {
+        NODE_ENV: 'development',
+        PORT: 3011,
+      },
+      error_file: `${LOG_DIR}/dhcp-service-error.log`,
+      out_file: `${LOG_DIR}/dhcp-service-out.log`,
+      max_restarts: 10,
+      restart_delay: 3000,
+    },
+    {
       name: 'dns-service',
       script: 'index.ts',
       interpreter: BUN_PATH,
