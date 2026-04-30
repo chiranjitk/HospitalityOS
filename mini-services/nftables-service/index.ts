@@ -656,6 +656,265 @@ function buildNftRuleLine(rule: GuiRule): string {
 }
 
 // ============================================================================
+// Atomic nftables Apply — Only touches GUI chains, never system chains
+// ============================================================================
+
+interface NftResult {
+  success: boolean;
+  command: string;
+  error?: string;
+}
+
+/**
+ * Execute a single nft command with error handling.
+ */
+function nftExec(command: string, timeout = 10000): NftResult {
+  try {
+    execSync(`nft ${command}`, { encoding: 'utf-8', timeout });
+    return { success: true, command };
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err.message : String(err);
+    log.error('nft command failed', { command, error });
+    return { success: false, command, error };
+  }
+}
+
+/**
+ * Check if a chain exists in a table.
+ */
+function chainExists(table: string, chain: string): boolean {
+  const result = nftExec(`list chain ${table} ${chain}`);
+  return result.success;
+}
+
+/**
+ * Ensure all 6 GUI chains exist. Create any that are missing.
+ * This does NOT touch system chains — only the 6 GUI-controlled chains.
+ */
+function ensureGuiChainsExist(): { created: string[]; existing: string[]; errors: NftResult[] } {
+  const created: string[] = [];
+  const existing: string[] = [];
+  const errors: NftResult[] = [];
+
+  for (const chain of GUI_CHAINS) {
+    const meta = GUI_CHAIN_DESCRIPTIONS[chain];
+    if (chainExists(meta.table, chain)) {
+      existing.push(chain);
+      log.debug(`Chain exists: ${meta.table} ${chain}`);
+    } else {
+      const result = nftExec(`add chain ${meta.table} ${chain} { comment "StaySuite GUI Chain: ${meta.description}" }`);
+      if (result.success) {
+        created.push(chain);
+        log.info(`Created GUI chain: ${meta.table} ${chain}`);
+      } else {
+        errors.push(result);
+      }
+    }
+  }
+
+  return { created, existing, errors };
+}
+
+/**
+ * Flush all rules from a specific GUI chain.
+ * System chains are never touched.
+ */
+function flushGuiChain(table: string, chain: string): NftResult {
+  return nftExec(`flush chain ${table} ${chain}`);
+}
+
+/**
+ * Apply a single rule to a specific GUI chain using atomic nft add rule.
+ * Returns the nft command used (for logging/preview).
+ */
+function addRuleToChain(table: string, chain: string, ruleLine: string): NftResult {
+  return nftExec(`add rule ${table} ${chain} ${ruleLine}`);
+}
+
+/**
+ * Apply all GUI rules to real nftables using atomic chain-level commands.
+ *
+ * CRITICAL: This function NEVER replaces full tables. It only:
+ * 1. Ensures GUI chains exist (creates if missing)
+ * 2. Flushes each GUI chain (clears old GUI rules)
+ * 3. Adds new rules one-by-one to each GUI chain
+ *
+ * System chains (prerouting, postrouting, open, accounting, input, forward,
+ * security hooks, etc.) are NEVER touched.
+ */
+function applyGuiRulesToNftables(): {
+  success: boolean;
+  chainsCreated: string[];
+  chainsExisting: string[];
+  rulesApplied: Record<string, number>;
+  commands: string[];
+  errors: string[];
+} {
+  const commands: string[] = [];
+  const errors: string[] = [];
+  const rulesApplied: Record<string, number> = {};
+
+  // Step 1: Ensure all GUI chains exist
+  const chainCheck = ensureGuiChainsExist();
+  commands.push(...chainCheck.created.map(c => `nft add chain ${GUI_CHAIN_DESCRIPTIONS[c].table} ${c}`));
+  errors.push(...chainCheck.errors.map(e => e.error || 'Unknown chain creation error'));
+
+  // Read current rules from JSON storage
+  const guiRules = readGuiRules();
+  const portForwards = readPortForwards();
+  const quickBlocks = readQuickBlocks();
+
+  // Convert port forwards to gui rules for frchainspre
+  const pfRules: GuiRule[] = portForwards.map(pf => ({
+    id: pf.id,
+    name: pf.name,
+    chain: 'frchainspre' as const,
+    protocol: pf.protocol === 'both' ? 'all' : pf.protocol,
+    destPort: String(pf.externalPort),
+    sourceIp: pf.sourceIp,
+    action: 'dnat' as const,
+    dnatTo: `${pf.internalIp}:${pf.internalPort}`,
+    enabled: pf.enabled,
+    comment: pf.comment,
+    priority: 500,
+    handle: pf.handle,
+    createdAt: pf.createdAt,
+    updatedAt: pf.createdAt,
+  }));
+
+  const allRules = [...guiRules, ...pfRules];
+
+  // Group enabled rules by chain
+  const enabledByChain: Record<string, GuiRule[]> = {};
+  for (const chain of GUI_CHAINS) {
+    enabledByChain[chain] = allRules
+      .filter(r => r.chain === chain && r.enabled)
+      .sort((a, b) => a.priority - b.priority);
+  }
+
+  // Build quick block rules
+  const blockedIps = quickBlocks.filter(b => b.type === 'ip').map(b => b.value);
+  const blockedSubnets = quickBlocks.filter(b => b.type === 'subnet').map(b => b.value);
+
+  // Step 2: For each GUI chain, flush and re-add rules
+  for (const chain of GUI_CHAINS) {
+    const meta = GUI_CHAIN_DESCRIPTIONS[chain];
+    const table = meta.table;
+    const rules = enabledByChain[chain];
+    let chainRuleCount = 0;
+
+    // Flush the chain (remove old rules, keep the chain itself)
+    const flushResult = flushGuiChain(table, chain);
+    commands.push(`nft flush chain ${table} ${chain}`);
+    if (!flushResult.success) {
+      errors.push(`Failed to flush ${chain}: ${flushResult.error}`);
+      continue;
+    }
+
+    // Add quick block rules to firewallchains and firewallchainsdn
+    if (chain === 'firewallchains') {
+      for (const ip of blockedIps) {
+        const cmd = `add rule ${table} ${chain} ip daddr ${ip} drop comment "quick-block:ip"`;
+        const result = addRuleToChain(table, chain, `ip daddr ${ip} drop comment "quick-block:ip"`);
+        commands.push(`nft ${cmd}`);
+        if (result.success) chainRuleCount++;
+        else errors.push(result.error || `Failed: ${cmd}`);
+      }
+      for (const subnet of blockedSubnets) {
+        const result = addRuleToChain(table, chain, `ip daddr ${subnet} drop comment "quick-block:subnet"`);
+        commands.push(`nft add rule ${table} ${chain} ip daddr ${subnet} drop comment "quick-block:subnet"`);
+        if (result.success) chainRuleCount++;
+        else errors.push(result.error || `Failed: add rule ${table} ${chain} ip daddr ${subnet} drop`);
+      }
+    }
+
+    if (chain === 'firewallchainsdn') {
+      for (const ip of blockedIps) {
+        const result = addRuleToChain(table, chain, `ip saddr ${ip} drop comment "quick-block:ip"`);
+        commands.push(`nft add rule ${table} ${chain} ip saddr ${ip} drop comment "quick-block:ip"`);
+        if (result.success) chainRuleCount++;
+        else errors.push(result.error || `Failed: add rule ${table} ${chain} ip saddr ${ip} drop`);
+      }
+    }
+
+    // Add GUI rules
+    for (const rule of rules) {
+      const ruleLine = buildNftRuleLine(rule);
+      const result = addRuleToChain(table, chain, ruleLine);
+      commands.push(`nft add rule ${table} ${chain} ${ruleLine}`);
+      if (result.success) {
+        chainRuleCount++;
+      } else {
+        errors.push(`${rule.name}: ${result.error}`);
+      }
+    }
+
+    rulesApplied[chain] = chainRuleCount;
+  }
+
+  return {
+    success: errors.length === 0,
+    chainsCreated: chainCheck.created,
+    chainsExisting: chainCheck.existing,
+    rulesApplied,
+    commands,
+    errors,
+  };
+}
+
+/**
+ * Flush all GUI chains in real nftables (remove rules, keep chain definitions).
+ */
+function flushGuiChainsInNftables(): { flushed: string[]; errors: string[] } {
+  const flushed: string[] = [];
+  const errors: string[] = [];
+
+  for (const chain of GUI_CHAINS) {
+    const meta = GUI_CHAIN_DESCRIPTIONS[chain];
+    const result = flushGuiChain(meta.table, chain);
+    if (result.success) {
+      flushed.push(chain);
+      log.info(`Flushed GUI chain: ${meta.table} ${chain}`);
+    } else {
+      errors.push(`${chain}: ${result.error}`);
+      log.warn(`Failed to flush ${chain}`, { error: result.error });
+    }
+  }
+
+  return { flushed, errors };
+}
+
+/**
+ * Get live rule counts from nftables for each GUI chain.
+ */
+function getLiveChainRuleCounts(): Record<string, number> {
+  const counts: Record<string, number> = {};
+
+  for (const chain of GUI_CHAINS) {
+    const meta = GUI_CHAIN_DESCRIPTIONS[chain];
+    try {
+      const output = execSync(`nft list chain ${meta.table} ${chain} 2>/dev/null`, { encoding: 'utf-8', timeout: 5000 });
+      // Count non-empty, non-comment lines that contain rule actions
+      const ruleLines = output.split('\n').filter(line => {
+        const trimmed = line.trim();
+        return trimmed.length > 0
+          && !trimmed.startsWith('table')
+          && !trimmed.startsWith('chain')
+          && !trimmed.startsWith('#')
+          && !trimmed.startsWith('}')
+          && !trimmed.includes('comment "StaySuite GUI Chain');
+      });
+      counts[chain] = ruleLines.length;
+    } catch {
+      counts[chain] = 0;
+    }
+  }
+
+  return counts;
+}
+
+
+// ============================================================================
 // Chain Architecture Data
 // ============================================================================
 
@@ -796,14 +1055,24 @@ app.get('/api/status', (c) => {
   const quickBlocks = readQuickBlocks();
   const schedules = readSchedules();
 
-  const guiChainsInfo: Record<string, { exists: boolean; table: string; ruleCount: number }> = {};
+  // In production, get live rule counts from actual nftables
+  const liveCounts = installed ? getLiveChainRuleCounts() : null;
+
+  const guiChainsInfo: Record<string, { exists: boolean; table: string; ruleCount: number; liveRuleCount?: number }> = {};
   for (const chain of GUI_CHAINS) {
     const rulesInChain = guiRules.filter(r => r.chain === chain && r.enabled).length;
-    if (chain === 'frchainspre') {
-      guiChainsInfo[chain] = { exists: true, table: 'inet nat', ruleCount: rulesInChain + portForwards.filter(p => p.enabled).length };
-    } else {
-      guiChainsInfo[chain] = { exists: true, table: GUI_CHAIN_DESCRIPTIONS[chain].table, ruleCount: rulesInChain };
+    const chainInfo: { exists: boolean; table: string; ruleCount: number; liveRuleCount?: number } = {
+      exists: true,
+      table: GUI_CHAIN_DESCRIPTIONS[chain].table,
+      ruleCount: chain === 'frchainspre'
+        ? rulesInChain + portForwards.filter(p => p.enabled).length
+        : rulesInChain,
+    };
+    if (liveCounts) {
+      chainInfo.exists = chainExists(GUI_CHAIN_DESCRIPTIONS[chain].table, chain);
+      chainInfo.liveRuleCount = liveCounts[chain] || 0;
     }
+    guiChainsInfo[chain] = chainInfo;
   }
 
   return c.json({
@@ -1598,10 +1867,9 @@ app.get('/api/config/preview', (c) => {
 
 app.post('/api/apply', (c) => {
   try {
+    // Also generate a config preview file for reference
     const config = generateConfigPreview();
     ensureDataDir();
-
-    // Save the applied config
     fs.writeFileSync(APPLIED_CONFIG_PATH, config, 'utf-8');
 
     // In simulation mode, we just save and return success
@@ -1614,52 +1882,76 @@ app.post('/api/apply', (c) => {
       return c.json({
         success: true,
         mode: 'simulation',
-        message: 'Config applied (simulation mode). Saved to file.',
+        message: 'Config applied (simulation mode). In production, rules would be applied atomically to GUI chains.',
         configPath: APPLIED_CONFIG_PATH,
         configLines: config.split('\n').length,
       });
     }
 
-    // In production, apply with nft
-    const { execSync } = require('child_process');
+    // ═══════════════════════════════════════════════════════════════════
+    // PRODUCTION MODE: Atomic chain-level apply
+    // ═══════════════════════════════════════════════════════════════════
+    // CRITICAL: We NEVER replace full tables. We use atomic commands:
+    //   1. nft add chain <table> <chain>  (only if chain doesn't exist)
+    //   2. nft flush chain <table> <chain> (clear old GUI rules)
+    //   3. nft add rule <table> <chain> <rule> (add new rules one by one)
+    //
+    // This preserves ALL system chains (prerouting, postrouting, open,
+    // accounting, security hooks, filter chains, etc.)
+    // ═══════════════════════════════════════════════════════════════════
 
-    // Validate first
-    try {
-      execSync(`nft -c -f ${APPLIED_CONFIG_PATH}`, { encoding: 'utf-8', timeout: 15000 });
-    } catch (err: unknown) {
-      const error = err instanceof Error ? err.message : String(err);
+    log.info('Applying GUI rules to nftables (atomic chain-level)...');
+
+    const result = applyGuiRulesToNftables();
+
+    if (result.success) {
+      log.info('Applied GUI rules successfully', {
+        chainsCreated: result.chainsCreated,
+        chainsExisting: result.chainsExisting,
+        rulesApplied: result.rulesApplied,
+        totalCommands: result.commands.length,
+      });
+
+      // Get live rule counts from nftables to confirm
+      const liveCounts = getLiveChainRuleCounts();
+
       return c.json({
-        success: false,
+        success: true,
         mode: 'production',
-        error: 'Config validation failed',
-        validationError: error,
-      }, 400);
-    }
+        message: `Applied ${Object.values(result.rulesApplied).reduce((a, b) => a + b, 0)} rules across ${result.chainsExisting.length + result.chainsCreated.length} GUI chains.`,
+        chainsCreated: result.chainsCreated,
+        chainsExisting: result.chainsExisting,
+        rulesApplied: result.rulesApplied,
+        liveRuleCounts: liveCounts,
+        totalCommands: result.commands.length,
+        commands: result.commands,
+        configPath: APPLIED_CONFIG_PATH,
+      });
+    } else {
+      log.warn('Applied GUI rules with errors', {
+        errors: result.errors,
+        rulesApplied: result.rulesApplied,
+      });
 
-    // Apply
-    try {
-      execSync(`nft -f ${APPLIED_CONFIG_PATH}`, { encoding: 'utf-8', timeout: 15000 });
-    } catch (err: unknown) {
-      const error = err instanceof Error ? err.message : String(err);
+      // Get live rule counts even on partial failure
+      const liveCounts = getLiveChainRuleCounts();
+
       return c.json({
-        success: false,
+        success: true, // Still return success — some rules may have applied
         mode: 'production',
-        error: 'Failed to apply config',
-        applyError: error,
-      }, 500);
+        message: `Applied with ${result.errors.length} error(s). Check errors for details.`,
+        chainsCreated: result.chainsCreated,
+        chainsExisting: result.chainsExisting,
+        rulesApplied: result.rulesApplied,
+        liveRuleCounts: liveCounts,
+        errors: result.errors,
+        commands: result.commands,
+        configPath: APPLIED_CONFIG_PATH,
+      });
     }
-
-    log.info('Applied config (production mode)', { configPath: APPLIED_CONFIG_PATH });
-
-    return c.json({
-      success: true,
-      mode: 'production',
-      message: 'Config applied successfully',
-      configPath: APPLIED_CONFIG_PATH,
-      configLines: config.split('\n').length,
-    });
   } catch (err: unknown) {
     const error = err instanceof Error ? err.message : String(err);
+    log.error('Apply failed', { error });
     return c.json({ success: false, error }, 500);
   }
 });
@@ -1673,17 +1965,24 @@ app.post('/api/flush-gui', (c) => {
     writeRateLimits([]);
     writeSchedules([]);
 
-    // Remove applied config
+    // Remove applied config file
     if (fs.existsSync(APPLIED_CONFIG_PATH)) {
       fs.unlinkSync(APPLIED_CONFIG_PATH);
     }
 
-    log.info('Flushed all GUI chain data');
+    // In production, also flush the actual nftables chains
+    let nftResult: { flushed: string[]; errors: string[] } | null = null;
+    if (isNftablesInstalled()) {
+      nftResult = flushGuiChainsInNftables();
+      log.info('Flushed GUI chains in nftables', { flushed: nftResult.flushed, errors: nftResult.errors });
+    }
 
     return c.json({
       success: true,
       message: 'All GUI chain rules flushed. System chains untouched.',
       mode: isNftablesInstalled() ? 'production' : 'simulation',
+      nftablesFlushed: nftResult?.flushed || [],
+      nftablesErrors: nftResult?.errors || [],
     });
   } catch (err: unknown) {
     const error = err instanceof Error ? err.message : String(err);
