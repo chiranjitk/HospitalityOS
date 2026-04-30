@@ -1735,11 +1735,11 @@ for svc in "postgresql-${PG_MAJOR}" radiusd; do
   [[ "$STATUS" == "active" ]] && STATUS_ICON="✅"
   echo "   ${STATUS_ICON} ${svc}: ${STATUS}"
 done
-for svc_name in staysuite availability-service realtime-service freeradius-service dhcp-service dns-service nftables-service; do
-  SVC_STATUS=$(pm2 is-running "$svc_name" 2>/dev/null && echo "running" || echo "stopped")
+for svc_name in staysuite-nextjs availability-service realtime-service freeradius-service dhcp-service dns-service nftables-service captive-redirect; do
+  SVC_PID=$(pm2 pid "$svc_name" 2>/dev/null)
   SVC_ICON="❌"
-  [[ "$SVC_STATUS" == "running" ]] && SVC_ICON="✅"
-  echo "   ${SVC_ICON} ${svc_name} (PM2): ${SVC_STATUS}"
+  [[ -n "$SVC_PID" ]] && SVC_ICON="✅"
+  echo "   ${SVC_ICON} ${svc_name} (PM2)"
 done
 echo ""
 

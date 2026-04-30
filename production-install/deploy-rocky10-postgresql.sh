@@ -914,8 +914,8 @@ echo ""
 
 echo -e "${BOLD}  PM2 SERVICES${NC}"
 for svc_name in staysuite-nextjs availability-service realtime-service freeradius-service dhcp-service dns-service nftables-service captive-redirect; do
-  SVC_STATUS=$(pm2 is-running "$svc_name" 2>/dev/null && echo "running" || echo "stopped")
-  ICON="FAIL"; [[ "$SVC_STATUS" == "running" ]] && ICON=" OK "
+  SVC_PID=$(pm2 pid "$svc_name" 2>/dev/null)
+  ICON="FAIL"; [[ -n "$SVC_PID" ]] && ICON=" OK "
   echo "    [${ICON}] ${svc_name}"
 done
 echo ""
