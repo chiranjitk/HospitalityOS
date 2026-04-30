@@ -233,8 +233,8 @@ else
 fi
 
 # Force TCP listen on explicit IPs (avoid 'localhost' DNS ambiguity on some systems)
-sed -i "s/^#\?listen_addresses\s*=.*/listen_addresses = '127.0.0.1,::1'/" "$PG_CONF"
-grep -q "^listen_addresses" "$PG_CONF" || echo "listen_addresses = '127.0.0.1,::1'" >> "$PG_CONF"
+sed -i "s/^#\?listen_addresses\s*=.*/listen_addresses = '127.0.0.1'/" "$PG_CONF"
+grep -q "^listen_addresses" "$PG_CONF" || echo "listen_addresses = '127.0.0.1'" >> "$PG_CONF"
 sed -i "s/^#\?port\s*=.*/port = 5432/" "$PG_CONF"
 grep -q "^port" "$PG_CONF" || echo "port = 5432" >> "$PG_CONF"
 
@@ -346,14 +346,10 @@ echo "$PSQL_SQL" | sudo -u postgres psql || die "Failed to create database."
 # pg_hba.conf — trust all connections (no password needed)
 cat > "${PG_DATA}/pg_hba.conf" <<'EOF'
 # StaySuite pg_hba.conf
-type  database  user  address         method
-local   all       all                    trust
-host    all       all   127.0.0.1/32    trust
-host    all       all   ::1/128         trust
-host    all       all   0.0.0.0/0       trust
-host    all       all   ::/0            trust
-host    replication  all  127.0.0.1/32    trust
-host    replication  all  ::1/128         trust
+local   all             all                                     trust
+host    all             all             127.0.0.1/32            trust
+host    all             all             0.0.0.0/0               trust
+host    replication     all             127.0.0.1/32            trust
 EOF
 chown postgres:postgres "${PG_DATA}/pg_hba.conf"
 chmod 640 "${PG_DATA}/pg_hba.conf"
@@ -649,14 +645,10 @@ export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysu
 # Ensure pg_hba.conf is trust (something may have changed it since Step 4)
 cat > "${PG_DATA}/pg_hba.conf" <<'EOF'
 # StaySuite pg_hba.conf
-type  database  user  address         method
-local   all       all                    trust
-host    all       all   127.0.0.1/32    trust
-host    all       all   ::1/128         trust
-host    all       all   0.0.0.0/0       trust
-host    all       all   ::/0            trust
-host    replication  all  127.0.0.1/32    trust
-host    replication  all  ::1/128         trust
+local   all             all                                     trust
+host    all             all             127.0.0.1/32            trust
+host    all             all             0.0.0.0/0               trust
+host    replication     all             127.0.0.1/32            trust
 EOF
 chown postgres:postgres "${PG_DATA}/pg_hba.conf"
 restart_pg
