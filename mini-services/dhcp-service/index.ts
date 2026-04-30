@@ -62,9 +62,9 @@ try { fs.mkdirSync(DNSMASQ_CONF_DIR, { recursive: true }); } catch {}
 
 const pool = new pg.Pool({
   connectionString: DATABASE_URL,
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 30000,
+  max: 3,
+  idleTimeoutMillis: 60000,
+  connectionTimeoutMillis: 60000,
   application_name: 'dhcp-service',
 });
 

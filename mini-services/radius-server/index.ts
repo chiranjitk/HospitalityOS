@@ -45,9 +45,9 @@ const CONFIG = {
 // ── Database Compatibility Layer — mimics bun:sqlite API using pg ──
 const pool = new Pool({
   connectionString: CONFIG.databaseUrl,
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 30000,
+  max: 3,
+  idleTimeoutMillis: 60000,
+  connectionTimeoutMillis: 60000,
   application_name: 'radius-server',
 });
 

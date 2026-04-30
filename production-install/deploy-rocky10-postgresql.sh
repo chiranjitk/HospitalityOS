@@ -271,7 +271,7 @@ maintenance_work_mem = 256MB
 checkpoint_completion_target = 0.9
 wal_buffers = 16MB
 work_mem = 8MB
-max_connections = 200
+max_connections = 500
 log_min_duration_statement = 500
 log_line_prefix = '%t [%p]: db=%d,user=%u,app=%a,client=%h '
 # End StaySuite Tuning
@@ -642,7 +642,7 @@ cat > "${APP_DIR}/.env" <<EOENV
 # StaySuite HospitalityOS — Production Environment
 # Generated: $(date -Iseconds)
 
-DATABASE_URL=postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=20&pool_timeout=30
+DATABASE_URL=postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=50&pool_timeout=120
 RADIUS_DB_URL=postgresql://radius:${DB_PASSWORD}@127.0.0.1:5432/staysuite
 NODE_ENV=production
 PORT=3000
@@ -675,7 +675,7 @@ success "All dependencies installed"
 step 10 "Prisma" "Pushing schema (~231 PMS tables)"
 
 cd "$APP_DIR"
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=30"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=50&pool_timeout=120"
 
 # Ensure pg_hba.conf is trust (something may have changed it since Step 4)
 cat > "${PG_DATA}/pg_hba.conf" <<'EOF'
@@ -744,7 +744,7 @@ success "All permissions re-granted"
 step 12 "Seed" "Inserting demo data"
 
 cd "$APP_DIR"
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=20&pool_timeout=30"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=50&pool_timeout=120"
 
 if [[ -f "prisma/seed.ts" ]]; then
   info "Running seed script..."
@@ -764,7 +764,7 @@ step 13 "Build" "Building Next.js application (standalone)"
 
 cd "$APP_DIR"
 export NODE_OPTIONS='--max-old-space-size=8192'
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=20&pool_timeout=30"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=50&pool_timeout=120"
 
 info "Building Next.js (this may take a few minutes)..."
 bun run build 2>&1 | tail -10
@@ -799,7 +799,7 @@ cat > "${APP_DIR}/ecosystem.config.js" <<'JSEOF'
 const BUN_PATH = '__BUN_PATH__';
 const APP_DIR  = '__APP_DIR__';
 
-const DB_URL = 'postgresql://staysuite:__DBPASS__@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=20&pool_timeout=30';
+const DB_URL = 'postgresql://staysuite:__DBPASS__@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=50&pool_timeout=120';
 
 module.exports = {
   apps: [
@@ -837,14 +837,6 @@ module.exports = {
       interpreter: BUN_PATH,
       cwd: `${APP_DIR}/mini-services/freeradius-service`,
       env: { NODE_ENV: 'production', PORT: 3010, DATABASE_URL: DB_URL },
-      max_restarts: 10, restart_delay: 3000,
-    },
-    {
-      name: 'dhcp-service',
-      script: 'index.ts',
-      interpreter: BUN_PATH,
-      cwd: `${APP_DIR}/mini-services/dhcp-service`,
-      env: { NODE_ENV: 'production', PORT: 3011, DATABASE_URL: DB_URL },
       max_restarts: 10, restart_delay: 3000,
     },
     {
@@ -1007,7 +999,7 @@ done
 echo ""
 
 echo -e "${BOLD}  PM2 SERVICES${NC}"
-for svc_name in staysuite-nextjs availability-service realtime-service freeradius-service dhcp-service dns-service nftables-service captive-redirect; do
+for svc_name in staysuite-nextjs availability-service realtime-service freeradius-service dns-service nftables-service captive-redirect; do
   SVC_PID=$(pm2 pid "$svc_name" 2>/dev/null)
   ICON="FAIL"; [[ -n "$SVC_PID" ]] && ICON=" OK "
   echo "    [${ICON}] ${svc_name}"
@@ -1019,7 +1011,6 @@ echo "    3000  Next.js Application"
 echo "    3002  Availability Service"
 echo "    3003  Realtime Service (WebSocket)"
 echo "    3010  FreeRADIUS Management Service"
-echo "    3011  DHCP Service (dnsmasq)"
 echo "    3012  DNS Service"
 echo "    3013  nftables Service"
 echo "    8888  Captive Portal Redirect (HTTP 302)"
