@@ -137,3 +137,46 @@ Stage Summary:
 - Schema changes: Order (4 fields), RatePlan (3 fields), Invoice (6 fields), FolioLineItemAudit (new), InvoiceTemplate (new)
 - Next.js dev server: Running (HTTP 200)
 - WiFi & Network Management: NOT TOUCHED (per instructions)
+
+---
+Task ID: 4
+Agent: main
+Task: Fresh sandbox setup - PostgreSQL, FreeRADIUS, PM2, full service stack
+
+Work Log:
+- Cloned repo from GitHub (handled existing /upload bind mount via git init + fetch)
+- Installed dependencies: bun install (1198 packages), npm install -g pm2
+- PostgreSQL 17 setup:
+  - Initialized data directory from bundled binaries (pgsql-runtime/bin/initdb)
+  - Started PostgreSQL via pg_ctl
+  - Created postgres superuser with password 'postgres'
+  - Created staysuite database
+  - Created citext extension
+  - Ran prisma db push (272 tables created)
+  - Loaded complete-database.sql (helper tables, 6 views, 8 functions)
+  - Generated Prisma client
+- FreeRADIUS 3.2.7:
+  - Compiled libtalloc 2.4.2 from source (no apt access in sandbox)
+  - Compiled FreeRADIUS 3.2.7 from source to freeradius/ (OpenSSL 3.5 TLS incompatibility)
+  - Applied patches to freeradius/ (SQL module, post-auth blocks, query patches)
+  - Discovered freeradius-install/ (pre-installed, already had patches applied)
+  - Used freeradius-install/ as active FR (compatible with system OpenSSL 3.5)
+  - Fixed SQL module connection: user=postgres password=postgres
+  - Generated self-signed TLS certs (4096-bit)
+  - Config check: "Configuration appears to be OK"
+- PM2 + Services:
+  - Updated ecosystem.config.cjs (freeradius-install paths, correct LD_LIBRARY_PATH)
+  - Started FreeRADIUS via PM2 (listening UDP 1812, 1813, 18120)
+  - Started Next.js via PM2 (HTTP 200 confirmed on port 3000)
+  - pm2 save for persistence
+- Git: Committed and pushed 2 local config files (ecosystem.config.cjs, sql module)
+
+Stage Summary:
+- PostgreSQL 17: Running on port 5432, 272 tables, 6 views, 8 functions
+- FreeRADIUS 3.2.7: Running on UDP 1812 (auth), 1813 (acct), 18120 (control)
+- Next.js 16: Running on port 3000, HTTP 200
+- PM2: 2 processes online (staysuite-freeradius, staysuite-nextjs)
+- DATABASE_URL: postgresql://postgres:postgres@localhost:5432/staysuite
+- FreeRADIUS binary: /home/z/my-project/freeradius-install/sbin/radiusd
+- Note: freeradius/ has compiled-from-source FR but has OpenSSL 3.5 TLS incompatibility
+- Committed and pushed to GitHub successfully
