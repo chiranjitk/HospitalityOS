@@ -91,3 +91,4 @@ freeradius/
 
 # E2E test files
 src/lib/wifi/services/test-e2e-credentials.ts
+worklog.md
