@@ -27,7 +27,7 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: false,
   allowedDevOrigins: (() => {
-    const origins = ['*.space.z.ai', '10.121.18.163', 'staysuite.accsium.com'];
+    const origins = ['*.space.z.ai', '*.space-z.ai', '10.121.18.163', 'staysuite.accsium.com'];
     // Allow the APP_URL / server IP dynamically so PM2 dev works on any host
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || '';
     try {

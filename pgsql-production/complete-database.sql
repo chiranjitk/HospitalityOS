@@ -127,23 +127,26 @@ CREATE INDEX IF NOT EXISTS idx_fup_switch_log_created_at ON fup_switch_log(creat
 -- ============================================================================
 DO $$
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'radpostauth' AND column_name = 'nasIpAddress'
-    ) THEN
-        ALTER TABLE radpostauth ADD COLUMN "nasIpAddress" text;
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'radpostauth' AND column_name = 'propertyId'
-    ) THEN
-        ALTER TABLE radpostauth ADD COLUMN "propertyId" uuid;
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'radpostauth' AND column_name = 'clientipaddress'
-    ) THEN
-        ALTER TABLE radpostauth ADD COLUMN "clientipaddress" text;
+    -- Only attempt ALTER TABLE if the table exists
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'radpostauth') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'radpostauth' AND column_name = 'nasIpAddress'
+        ) THEN
+            ALTER TABLE radpostauth ADD COLUMN "nasIpAddress" text;
+        END IF;
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'radpostauth' AND column_name = 'propertyId'
+        ) THEN
+            ALTER TABLE radpostauth ADD COLUMN "propertyId" uuid;
+        END IF;
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'radpostauth' AND column_name = 'clientipaddress'
+        ) THEN
+            ALTER TABLE radpostauth ADD COLUMN "clientipaddress" text;
+        END IF;
     END IF;
 END $$;
 
@@ -153,17 +156,19 @@ END $$;
 DO $$
 BEGIN
     -- FairAccessPolicy: throttle columns (added for FUP switch-over bandwidth)
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'FairAccessPolicy' AND column_name = 'throttleDownKbps'
-    ) THEN
-        ALTER TABLE "FairAccessPolicy" ADD COLUMN "throttleDownKbps" integer DEFAULT 256;
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'FairAccessPolicy' AND column_name = 'throttleUpKbps'
-    ) THEN
-        ALTER TABLE "FairAccessPolicy" ADD COLUMN "throttleUpKbps" integer DEFAULT 128;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'FairAccessPolicy') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'FairAccessPolicy' AND column_name = 'throttleDownKbps'
+        ) THEN
+            ALTER TABLE "FairAccessPolicy" ADD COLUMN "throttleDownKbps" integer DEFAULT 256;
+        END IF;
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'FairAccessPolicy' AND column_name = 'throttleUpKbps'
+        ) THEN
+            ALTER TABLE "FairAccessPolicy" ADD COLUMN "throttleUpKbps" integer DEFAULT 128;
+        END IF;
     END IF;
 END $$;
 
