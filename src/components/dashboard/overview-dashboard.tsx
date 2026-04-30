@@ -62,6 +62,7 @@ import ChannelPerformanceWidget from './widgets/channel-performance';
 import { QuickNotesWidget } from './widgets/quick-notes';
 import { SystemHealthStatusWidget } from './widgets/system-health-widget';
 import { WiFiLiveStatsWidget } from './widgets/wifi-live-stats-widget';
+import { WeatherWidget } from './widgets/weather-widget';
 
 const OccupancyHeatmap = React.lazy(() => import('./occupancy-heatmap').then(m => ({ default: m.OccupancyHeatmap })));
 
@@ -627,9 +628,10 @@ export default function OverviewDashboard() {
         {/* ── Network & Connectivity ── */}
         <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
           <SectionLabel icon={Wifi} title={t('networkConnectivity')} />
-          <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
+          <div className="grid gap-5 grid-cols-1 lg:grid-cols-3">
             <WiFiLiveStatsWidget />
             <SystemHealthStatusWidget />
+            <WeatherWidget />
           </div>
         </div>
 

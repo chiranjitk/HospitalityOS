@@ -68,8 +68,6 @@ const KOLKATA_WEATHER: WeatherData = {
     { day: 'Mon', high: 33, low: 26, condition: 'sunny' },
     { day: 'Tue', high: 31, low: 25, condition: 'partly_cloudy' },
     { day: 'Wed', high: 29, low: 24, condition: 'rain' },
-    { day: 'Thu', high: 30, low: 25, condition: 'partly_cloudy' },
-    { day: 'Fri', high: 34, low: 27, condition: 'sunny' },
   ],
 };
 
@@ -312,9 +310,9 @@ export function WeatherWidget() {
             </div>
           </div>
 
-          {/* 5-Day Forecast */}
+          {/* 3-Day Forecast */}
           <div className="pt-3 border-t border-border/40">
-            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider mb-2.5">5-Day Forecast</p>
+            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider mb-2.5">3-Day Forecast</p>
             <div className="flex justify-between gap-1">
               {weather.forecast.map((day, i) => {
                 const ForecastIcon = getSmallForecastIcon(day.condition, false);
@@ -337,6 +335,11 @@ export function WeatherWidget() {
                 );
               })}
             </div>
+          </div>
+
+          {/* Demo Data Footer */}
+          <div className="pt-2 mt-2 border-t border-border/30">
+            <p className="text-[9px] text-muted-foreground/40 text-center font-medium tracking-wide uppercase">Powered by Demo Data</p>
           </div>
         </CardContent>
       </Card>
