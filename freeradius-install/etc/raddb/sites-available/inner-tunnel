@@ -46,6 +46,7 @@ listen {
 #  Make *sure* that 'preprocess' comes before any realm if you
 #  need to setup hints for the remote radius server
 authorize {
+	sql
         #
         #  Take a User-Name, and perform some checks on it, for spaces and other
         #  invalid characters.  If the User-Name appears invalid, reject the
@@ -289,6 +290,7 @@ authenticate {
 #  or rlm_sql module can handle this.
 #  The rlm_sql module is *much* faster
 session {
+	sql
 #       radutmp
 
         #
@@ -311,6 +313,7 @@ session {
 #  the ONLY safe way is to set "use_tunneled_reply = yes", and
 #  then update the inner-tunnel reply.
 post-auth {
+	sql
         #  If you want privacy to remain, see the
         #  Chargeable-User-Identity attribute from RFC 4372.
         #  If you want to use it just uncomment the line below.

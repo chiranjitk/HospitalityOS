@@ -47,7 +47,7 @@ const RADIUS_CONFIG_PATH = process.env.RADIUS_CONFIG_PATH ||
 const RADIUS_CLIENTS_PATH = path.join(RADIUS_CONFIG_PATH, 'clients.conf');
 
 // Database connection (sandbox uses local PG, production uses system PG)
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://z@localhost:5432/staysuite';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/staysuite';
 
 const pool = new pg.Pool({
   connectionString: DATABASE_URL,
@@ -301,28 +301,28 @@ let serviceStatus: 'running' | 'stopped' | 'unknown' = 'unknown';
 // ============================================================================
 
 function rowToNASClient(row: Record<string, unknown>): NASClient {
-  // nas table uses FreeRADIUS native column names
+  // nas table uses FreeRADIUS native column names (no createdAt, coaEnabled etc.)
   return {
     id: String(row.id),
-    name: row.name as string,
+    name: (row.description || row.shortname || row.nasname) as string,
     ipAddress: row.nasname as string,
     sharedSecret: row.secret as string,
     shortname: (row.shortname as string) || undefined,
-    type: row.type as string,
+    type: (row.type as string) || 'other',
     ports: {
-      auth: row.authPort as number,
-      acct: (row.acctPort as number) || 1813,
-      coa: row.coaPort as number,
+      auth: 1812,
+      acct: 1813,
+      coa: 3799,
     },
-    coaEnabled: row.coaEnabled === 1 || row.coaEnabled === true,
-    createdAt: row.createdAt as string,
-    updatedAt: row.updatedAt as string,
+    coaEnabled: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 }
 
 async function getAllNASClients(): NASClient[] {
   // Use native nas table (FreeRADIUS schema)
-  const rows = await db.query('SELECT * FROM nas ORDER BY createdAt DESC').all() as Record<string, unknown>[];
+  const rows = await db.query('SELECT id, nasname, shortname, type, ports, secret, server, community, description FROM nas ORDER BY id DESC').all() as Record<string, unknown>[];
   return rows.map(rowToNASClient);
 }
 
@@ -779,8 +779,75 @@ async function resolveTenantId(tenantId?: string): string {
 /**
  * StaySuite managed section markers for clients.conf
  */
-const STAYSUITE_CLIENT_BEGIN = '# >>>>>> StaySuite managed NAS clients - DO NOT EDIT BETWEEN MARKERS <<<<<<';
-const STAYSUITE_CLIENT_END = '# >>>>>> End StaySuite managed NAS clients <<<<<<';
+/**
+ * Detect if we're running in the sandbox (not a Rocky 10 production system).
+ * In sandbox: no 'radiusd' OS user, no systemctl, PM2 manages everything.
+ * In production: radiusd user exists, systemctl restart radiusd works.
+ */
+const IS_PRODUCTION = fsSync.existsSync('/usr/sbin/radiusd') || fsSync.existsSync('/etc/raddb');
+
+/**
+ * Sandbox-safe file write + chown.
+ * In sandbox: just writes the file (no radiusd user).
+ * In production: writes + chown radiusd:radiusd + chmod 640.
+ */
+async function writeRadiusFile(filePath: string, content: string): Promise<void> {
+  await fs.writeFile(filePath, content, 'utf-8');
+  if (IS_PRODUCTION) {
+    try {
+      execFileSync('/bin/sh', ['-c',
+        `chown radiusd:radiusd "${filePath}" && chmod 640 "${filePath}"`
+      ]);
+    } catch (err) {
+      log.warn(`chown/chmod failed for ${filePath} (continuing anyway)`, { error: String(err) });
+    }
+  }
+}
+
+/**
+ * Sandbox-safe FreeRADIUS reload.
+ * In sandbox: sends SIGHUP to the PM2-managed radiusd process.
+ * In production: uses systemctl restart radiusd.
+ */
+async function reloadRadius(): Promise<boolean> {
+  if (IS_PRODUCTION) {
+    const commands = [
+      'systemctl restart radiusd',
+      'systemctl restart radiusd.service',
+      '/usr/bin/systemctl restart radiusd',
+      'sudo systemctl restart radiusd',
+    ];
+    for (const cmd of commands) {
+      try {
+        await execAsync(`${cmd} 2>&1`, { timeout: 10000 });
+        log.info(`RADIUS server RESTARTED via: ${cmd}`);
+        return true;
+      } catch { /* try next */ }
+    }
+  }
+  // Sandbox: find and HUP the radiusd process
+  try {
+    const { stdout } = await execAsync("pgrep -f 'radiusd.*-d' | head -1");
+    const pid = stdout.trim();
+    if (pid) {
+      process.kill(Number(pid), 'SIGHUP');
+      log.info(`RADIUS server SIGHUP sent to PID ${pid}`);
+      return true;
+    }
+  } catch { /* pgrep failed, try direct path */ }
+  // Last resort: try the compiled binary
+  try {
+    const { stdout } = await execAsync("pgrep -x radiusd | head -1");
+    const pid = stdout.trim();
+    if (pid) {
+      process.kill(Number(pid), 'SIGHUP');
+      log.info(`RADIUS server SIGHUP sent to PID ${pid} (via pgrep -x)`);
+      return true;
+    }
+  } catch { /* ignore */ }
+  log.warn('Could not reload RADIUS server (this is OK in sandbox — restart manually if needed)');
+  return false;
+}
 
 /**
  * Write all NAS clients to RADIUS clients.conf
@@ -843,21 +910,11 @@ async function writeAllNASClientsToConf(): Promise<boolean> {
       newContent = existingContent + (existingContent.length > 0 ? '\n' : '') + managedSection + '\n';
     }
 
-    // Write clients.conf using base64+shell to ensure radiusd can read it
-    try {
-      const b64 = Buffer.from(newContent).toString('base64');
-      execFileSync('/bin/sh', ['-c',
-        `printf '%s' "${b64}" | base64 -d > "${RADIUS_CLIENTS_PATH}" && `
-        + `chown radiusd:radiusd "${RADIUS_CLIENTS_PATH}" && `
-        + `chmod 640 "${RADIUS_CLIENTS_PATH}"`
-      ]);
-    } catch (teeErr) {
-      log.error('Failed to write clients.conf via base64+shell, falling back to fs.writeFile', { error: String(teeErr) });
-      await fs.writeFile(RADIUS_CLIENTS_PATH, newContent, 'utf-8');
-    }
+    // Write clients.conf (sandbox-safe: no chown/chmod needed, read_clients=yes uses SQL)
+    await writeRadiusFile(RADIUS_CLIENTS_PATH, newContent);
     log.info('Wrote NAS clients to clients.conf', { count: clients.length, path: RADIUS_CLIENTS_PATH });
 
-    // Trigger RADIUS reload
+    // Trigger RADIUS reload (sandbox-safe: SIGHUP instead of systemctl)
     await reloadRadius();
 
     return true;
@@ -867,54 +924,7 @@ async function writeAllNASClientsToConf(): Promise<boolean> {
   }
 }
 
-
-/**
- * Reload RADIUS server via systemctl (Rocky Linux 10: radiusd)
- */
-async function reloadRadius(): Promise<boolean> {
-  // NOTE: Use 'restart' instead of 'reload' (HUP).
-  // SIGHUP does NOT reinitialize the SQL module or its PostgreSQL connection.
-  // When we change /etc/raddb/mods-available/sql (busy_timeout, pool, queries),
-  // a full restart is required for rlm_sql_sqlite to pick up the new settings.
-  // Without restart, busy_timeout stays at default (200ms).
-  //
-  // Try multiple approaches because PM2 may run as root or non-root,
-  // and 'sudo' may or may not be available.
-
-  const commands = [
-    'systemctl restart radiusd',        // Running as root, no sudo needed
-    'systemctl restart radiusd.service', // Explicit service name
-    '/usr/bin/systemctl restart radiusd', // Full path
-    'sudo systemctl restart radiusd',     // Non-root with sudo
-    '/usr/sbin/radiusd -Cxf /etc/raddb/radiusd.conf &', // Direct restart
-  ];
-
-  for (const cmd of commands) {
-    try {
-      await execAsync(`${cmd} 2>&1`, { timeout: 10000 });
-      log.info(`RADIUS server RESTARTED via: ${cmd}`);
-      return true;
-    } catch (err) {
-      // Try next approach
-    }
-  }
-
-  // Last resort: kill and let systemd restart it
-  try {
-    const { stdout: pid } = await execAsync('cat /var/run/radiusd/radiusd.pid 2>/dev/null');
-    if (pid.trim()) {
-      await execAsync(`kill ${pid.trim()} 2>/dev/null`);
-      log.info(`RADIUS server killed (PID ${pid.trim()}) — systemd should auto-restart`);
-      return true;
-    }
-  } catch {
-    // Ignore
-  }
-
-  log.error('ALL attempts to restart RADIUS server FAILED — busy_timeout config will NOT take effect until manual restart');
-  log.error('Run manually: systemctl restart radiusd');
-  return false;
-}
+// (reloadRadius is defined above with sandbox-safe implementation)
 
 // ============================================================================
 // Vendor-Aware RADIUS Attribute Generation
@@ -2245,10 +2255,19 @@ app.delete('/api/provision/:username', async (c) => {
 app.get('/api/config/sql-mod', async (c) => {
   const sqlModConfig = `sql {
     driver = "rlm_sql_postgresql"
-    postgresql {
-        connect_string = "${DATABASE_URL}"
-            }
     dialect = "postgresql"
+
+    server = "localhost"
+    port = 5432
+    login = "postgres"
+    password = "postgres"
+    radius_db = "staysuite"
+
+    # Read NAS clients from SQL (nas table)
+    read_clients = yes
+    client_table = "nas"
+
+    sql_user_name = "%{User-Name}"
 
     # PostgreSQL handles concurrent connections natively
     pool {
@@ -2395,10 +2414,17 @@ async function setupFreeRadiusSQL(): Promise<{ success: boolean; error?: string;
 
 sql {
     driver = "rlm_sql_postgresql"
-    postgresql {
-        connect_string = "${DATABASE_URL}"
-            }
     dialect = "postgresql"
+
+    server = "localhost"
+    port = 5432
+    login = "postgres"
+    password = "postgres"
+    radius_db = "staysuite"
+
+    # Read NAS clients from SQL (nas table)
+    read_clients = yes
+    client_table = "nas"
 
     # Map the incoming User-Name to SQL-User-Name for use in queries
     # Without this, %{SQL-User-Name} expands to empty string!
@@ -2454,23 +2480,12 @@ sql {
 }
 `;
 
-    // Write sql module config using base64+shell (same pattern as clients.conf)
+    // Write sql module config (sandbox-safe)
     try {
-      const b64 = Buffer.from(sqlConfig).toString('base64');
-      execFileSync('/bin/sh', ['-c',
-        `printf '%s' "${b64}" | base64 -d > "${sqlModPath}" && `
-        + `chown radiusd:radiusd "${sqlModPath}" && `
-        + `chmod 640 "${sqlModPath}"`
-      ]);
+      await writeRadiusFile(sqlModPath, sqlConfig);
       details.push(`Wrote sql module config to ${sqlModPath}`);
     } catch (writeErr) {
-      // Fallback: try fs.writeFile
-      try {
-        await fs.writeFile(sqlModPath, sqlConfig, 'utf-8');
-        details.push(`Wrote sql module config (fallback) to ${sqlModPath}`);
-      } catch (fallbackErr) {
-        details.push(`WARNING: Could not write sql module config: ${String(fallbackErr)}`);
-      }
+      details.push(`WARNING: Could not write sql module config: ${String(writeErr)}`);
     }
 
     // Step 3: Enable the sql module
@@ -2560,13 +2575,8 @@ sql {
         details.push('Added sql to session section');
       }
 
-      // Write back using base64+shell
-      const b64 = Buffer.from(sitesContent).toString('base64');
-      execFileSync('/bin/sh', ['-c',
-        `printf '%s' "${b64}" | base64 -d > "${sitesDefaultPath}" && `
-        + `chown radiusd:radiusd "${sitesDefaultPath}" && `
-        + `chmod 640 "${sitesDefaultPath}"`
-      ]);
+      // Write back (sandbox-safe)
+      await writeRadiusFile(sitesDefaultPath, sitesContent);
       details.push('Updated sites-available/default with sql module');
     } catch (sitesErr) {
       details.push(`WARNING: Could not update sites config: ${String(sitesErr)}`);
@@ -2605,12 +2615,7 @@ sql {
           'session {\n\tsql'
         );
 
-        const b64 = Buffer.from(innerContent).toString('base64');
-        execFileSync('/bin/sh', ['-c',
-          `printf '%s' "${b64}" | base64 -d > "${innerTunnelPath}" && `
-          + `chown radiusd:radiusd "${innerTunnelPath}" && `
-          + `chmod 640 "${innerTunnelPath}"`
-        ]);
+        await writeRadiusFile(innerTunnelPath, innerContent);
         details.push('Updated inner-tunnel with sql module');
       }
     } catch {

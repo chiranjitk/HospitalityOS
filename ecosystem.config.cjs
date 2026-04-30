@@ -13,6 +13,19 @@ module.exports = {
       },
     },
     {
+      name: 'staysuite-freeradius-service',
+      script: 'bun',
+      args: 'run --hot /home/z/my-project/mini-services/freeradius-service/index.ts',
+      cwd: '/home/z/my-project/mini-services/freeradius-service',
+      watch: false,
+      autorestart: true,
+      env: {
+        DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/staysuite',
+        PORT: 3010,
+        NODE_ENV: 'development',
+      },
+    },
+    {
       name: 'staysuite-nextjs',
       script: 'bun',
       args: 'run dev',
