@@ -54,6 +54,24 @@ error()   { echo -e "${RED}  XX ${NC}$*"; }
 step()    { echo -e "\n${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"; echo -e "${BOLD}${CYAN}  STEP $1/$STEPS │ $2${NC}"; echo -e "${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"; }
 die()     { error "$@"; exit 1; }
 
+# ── PostgreSQL restart helper (avoids systemd rate-limit) ─────────────────────
+restart_pg() {
+  # Reset systemd's failed state so we don't hit "Start request repeated too quickly"
+  systemctl reset-failed "postgresql-${PG_MAJOR}" 2>/dev/null || true
+  systemctl restart "postgresql-${PG_MAJOR}"
+  sleep 2
+  if ! systemctl is-active --quiet "postgresql-${PG_MAJOR}"; then
+    error "PostgreSQL ${PG_MAJOR} failed to start! Showing log:"
+    PG_LOG="${PG_DATA}/log"
+    if [[ -d "$PG_LOG" ]]; then
+      cat "$(ls -t "$PG_LOG"/*.log 2>/dev/null | head -1)" 2>/dev/null | tail -30
+    else
+      journalctl -u "postgresql-${PG_MAJOR}" -n 30 --no-pager 2>&1
+    fi
+    die "Fix the error above and re-run the script."
+  fi
+}
+
 banner() {
   clear
   echo -e "${BOLD}${CYAN}"
@@ -237,9 +255,11 @@ PGTUNE
 
 # Start (or restart if already running — needed to pick up listen_addresses)
 info "Starting PostgreSQL ${PG_MAJOR}..."
-systemctl restart "postgresql-${PG_MAJOR}" || {
+systemctl reset-failed "postgresql-${PG_MAJOR}" 2>/dev/null || true
+systemctl start "postgresql-${PG_MAJOR}" || {
   error "PostgreSQL failed to start!"
-  journalctl -u "postgresql-${PG_MAJOR}" -n 15 --no-pager 2>&1
+  PG_LOG="${PG_DATA}/log"
+  [[ -d "$PG_LOG" ]] && cat "$(ls -t "$PG_LOG"/*.log 2>/dev/null | head -1)" | tail -30
   die "Check logs above."
 }
 sleep 2
@@ -337,9 +357,7 @@ host    replication  all  ::1/128         trust
 EOF
 chown postgres:postgres "${PG_DATA}/pg_hba.conf"
 chmod 640 "${PG_DATA}/pg_hba.conf"
-systemctl restart "postgresql-${PG_MAJOR}"
-sleep 2
-systemctl is-active --quiet "postgresql-${PG_MAJOR}" || die "PostgreSQL failed to restart after pg_hba.conf change"
+restart_pg
 success "Database 'staysuite' + users 'staysuite'/'radius' created"
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -641,8 +659,7 @@ host    replication  all  127.0.0.1/32    trust
 host    replication  all  ::1/128         trust
 EOF
 chown postgres:postgres "${PG_DATA}/pg_hba.conf"
-systemctl restart "postgresql-${PG_MAJOR}" 2>/dev/null
-sleep 2
+restart_pg
 
 # Verify TCP connectivity
 for i in $(seq 1 10); do
