@@ -199,3 +199,29 @@ Stage Summary:
 - Platform admin: platform@staysuite.com / admin123
 - Tenant 2 admin: admin@oceanview.com / admin123
 - Full demo data seeded: rooms, bookings, guests, WiFi, RADIUS, network, billing, etc.
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix 5 AAA Configuration page bugs + production path abstraction
+
+Work Log:
+- Created `src/lib/wifi/paths.ts` — path config abstraction for sandbox vs Rocky 10 production (env-var based, auto-detect)
+- Fixed #3: NAS GET `/api/wifi/nas` now filters by `propertyId` when provided (multi-property support)
+- Fixed #4: NAS PUT now syncs native `nas` table (update by old IP → new IP); NAS DELETE now removes from native `nas` table
+- Fixed #7: `/api/wifi/radius-server` POST now includes `interimUpdateInterval` in upsert (was in Prisma model but not saved)
+- Fixed #1: Server Config section now loads from `GET /api/wifi/radius-server` on mount, has "Save Server Config" button that POSTs
+- Fixed #2: Renamed "Sync DB → RADIUS" button to "Refresh Counts" with accurate description + auto-reloads status
+- Fixed #5: Moved `interimUpdateInterval` from Accounting tab (ghost field, never persisted) to Server Config section (correct model)
+- Fixed: Property change now calls `fetchData()` to reload NAS/config for new property
+- Added `savingServerConfig` state + `handleSaveServerConfig` handler
+- Updated `RadiusServerConfig` interface to include all model fields
+- Updated `freeradius-service/index.ts` to use env-var-based path detection with sandbox/production auto-switch
+- All lint errors in modified files resolved
+
+Stage Summary:
+- Files modified: `src/app/api/wifi/nas/route.ts`, `src/app/api/wifi/radius-server/route.ts`, `src/components/wifi/aaa-config.tsx`, `mini-services/freeradius-service/index.ts`
+- Files created: `src/lib/wifi/paths.ts`
+- All 5 fixes + production path abstraction complete
+- Production paths: Rocky 10 dnf → `/etc/raddb/`, `/usr/sbin/radiusd`, `/var/lib/pgsql/`
+- Sandbox paths: `freeradius-install/`, auto-detected via existsSync

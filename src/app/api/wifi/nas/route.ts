@@ -2,20 +2,32 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
 
-// GET /api/wifi/nas - List all NAS clients from PostgreSQL
+// GET /api/wifi/nas - List all NAS clients from PostgreSQL, filtered by property
 export async function GET(request: NextRequest) {
   const context = await requirePermission(request, 'wifi.manage');
   if (context instanceof NextResponse) return context;
 
   try {
-    const nasList = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(`
+    const propertyId = request.nextUrl.searchParams.get('propertyId');
+
+    let query = `
       SELECT id, "tenantId", "propertyId", name, shortname, "ipAddress", type,
              secret, "coaEnabled", "coaPort", "authPort", "acctPort", status,
              "createdAt", "updatedAt"
       FROM "RadiusNAS"
       WHERE "tenantId" = $1::uuid
-      ORDER BY "createdAt" DESC
-    `, context.tenantId);
+    `;
+    const params: unknown[] = [context.tenantId];
+
+    // Fix #3: Filter by propertyId when provided (multi-property support)
+    if (propertyId) {
+      query += ` AND "propertyId" = $2::uuid`;
+      params.push(propertyId);
+    }
+
+    query += ` ORDER BY "createdAt" DESC`;
+
+    const nasList = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(query, ...params);
 
     const data = nasList.map((n) => ({
       id: String(n.id),
@@ -82,7 +94,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT /api/wifi/nas - Update NAS
+// PUT /api/wifi/nas - Update NAS in both RadiusNAS and native nas table
 export async function PUT(request: NextRequest) {
   const context = await requirePermission(request, 'wifi.manage');
   if (context instanceof NextResponse) return context;
@@ -91,6 +103,16 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { id, name, shortname, ipAddress, type, secret, sharedSecret, coaEnabled, coaPort, authPort, acctPort } = body;
     if (!id) return NextResponse.json({ success: false, error: 'NAS id is required' }, { status: 400 });
+
+    // Fix #4: Fetch current NAS to get the old IP for native nas table update
+    const currentNas = await db.$queryRawUnsafe<Array<{ ipAddress: string }>>(
+      `SELECT "ipAddress" FROM "RadiusNAS" WHERE id = $1::uuid AND "tenantId" = $2::uuid`,
+      id, context.tenantId
+    );
+    if (!currentNas || currentNas.length === 0) {
+      return NextResponse.json({ success: false, error: 'NAS client not found' }, { status: 404 });
+    }
+    const oldIpAddress = currentNas[0].ipAddress;
 
     const updates: string[] = [];
     const params: unknown[] = [];
@@ -109,6 +131,23 @@ export async function PUT(request: NextRequest) {
       await db.$executeRawUnsafe(`UPDATE "RadiusNAS" SET ${updates.join(', ')}, "updatedAt" = NOW() WHERE id = $${params.length}::uuid AND "tenantId" = $${params.length + 1}::uuid`, ...params, context.tenantId);
     }
 
+    // Fix #4: Sync native FreeRADIUS nas table
+    try {
+      await db.$executeRawUnsafe(`
+        UPDATE nas
+        SET nasname = $1, shortname = $2, type = $3, secret = $4
+        WHERE nasname = $5
+      `,
+        ipAddress || oldIpAddress,
+        shortname || name?.replace(/\s+/g, '_').toLowerCase().slice(0, 32),
+        type || 'other',
+        sharedSecret || secret || 'changeme',
+        oldIpAddress
+      );
+    } catch (nasErr) {
+      console.warn('[NAS] Native nas table update warning:', nasErr);
+    }
+
     return NextResponse.json({ success: true, message: 'NAS updated' });
   } catch (error) {
     console.error('Error updating NAS client:', error);
@@ -116,7 +155,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE /api/wifi/nas - Delete NAS
+// DELETE /api/wifi/nas - Delete NAS from both RadiusNAS and native nas table
 export async function DELETE(request: NextRequest) {
   const context = await requirePermission(request, 'wifi.manage');
   if (context instanceof NextResponse) return context;
@@ -125,8 +164,23 @@ export async function DELETE(request: NextRequest) {
     const id = request.nextUrl.searchParams.get('id');
     if (!id) return NextResponse.json({ success: false, error: 'NAS id is required' }, { status: 400 });
 
+    // Fix #4: Fetch IP before deleting so we can clean up native nas table
+    const nasRecord = await db.$queryRawUnsafe<Array<{ ipAddress: string }>>(
+      `SELECT "ipAddress" FROM "RadiusNAS" WHERE id = $1::uuid AND "tenantId" = $2::uuid`,
+      id, context.tenantId
+    );
+
     // Delete from Prisma RadiusNAS
     await db.$executeRawUnsafe(`DELETE FROM "RadiusNAS" WHERE id = $1::uuid AND "tenantId" = $2::uuid`, id, context.tenantId);
+
+    // Fix #4: Also delete from native FreeRADIUS nas table
+    if (nasRecord && nasRecord.length > 0) {
+      try {
+        await db.$executeRawUnsafe(`DELETE FROM nas WHERE nasname = $1`, nasRecord[0].ipAddress);
+      } catch (nasErr) {
+        console.warn('[NAS] Native nas table delete warning:', nasErr);
+      }
+    }
 
     return NextResponse.json({ success: true, message: 'NAS deleted' });
   } catch (error) {

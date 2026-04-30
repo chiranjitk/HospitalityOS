@@ -170,6 +170,7 @@ interface WifiPlan {
 
 interface RadiusServerConfig {
   serverIp: string;
+  serverHostname?: string;
   authPort: number;
   acctPort: number;
   coaPort: number;
@@ -177,6 +178,12 @@ interface RadiusServerConfig {
   bindAddress: string;
   logLevel: string;
   logDestination: string;
+  interimUpdateInterval: number;
+  cleanupSessions: boolean;
+  sessionCleanupInterval: number;
+  logAuth: boolean;
+  logAuthBadpass: boolean;
+  logAuthGoodpass: boolean;
 }
 
 // NAS Device Types — comprehensive FreeRADIUS vendor list
@@ -581,7 +588,14 @@ export default function AAAConfig() {
     bindAddress: '0.0.0.0',
     logLevel: 'info',
     logDestination: 'files',
+    interimUpdateInterval: 60,
+    cleanupSessions: true,
+    sessionCleanupInterval: 3600,
+    logAuth: true,
+    logAuthBadpass: false,
+    logAuthGoodpass: false,
   });
+  const [savingServerConfig, setSavingServerConfig] = useState(false);
 
   // Fetch active WiFi plans AND all property AAA configs (for summary)
   const fetchPropertySummary = async (props: any[], plans: WifiPlan[]) => {
@@ -654,6 +668,17 @@ export default function AAAConfig() {
         console.error('Failed to fetch NAS clients:', e);
       }
 
+      // Fetch Server Config from RadiusServerConfig (Fix #1: was hardcoded, now persisted)
+      try {
+        const scRes = await fetch(`/api/wifi/radius-server?propertyId=${propertyId}`);
+        const scData = await scRes.json();
+        if (scData.success && scData.data) {
+          setServerConfig(scData.data);
+        }
+      } catch (e) {
+        console.error('Failed to fetch server config:', e);
+      }
+
       // Fetch AAA config
       const aaaRes = await fetch(`/api/wifi/aaa?propertyId=${propertyId}`);
       const aaaData = await aaaRes.json();
@@ -679,6 +704,30 @@ export default function AAAConfig() {
     // Reset config to defaults while loading
     setAaaConfig(prev => ({ ...prev, defaultPlanId: undefined, propertyId: newPropertyId }));
     setNasClients([]);
+    // Re-fetch data for the new property (Fix: was missing — NAS/filter/state didn't reload)
+    fetchData();
+  };
+
+  // Save Server Configuration (Fix #1: now persists to RadiusServerConfig)
+  const handleSaveServerConfig = async () => {
+    setSavingServerConfig(true);
+    try {
+      const res = await fetch('/api/wifi/radius-server', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ propertyId, ...serverConfig }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Success', description: 'Server configuration saved successfully' });
+      } else {
+        toast({ title: 'Error', description: data.error || 'Failed to save server config', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to save server configuration', variant: 'destructive' });
+    } finally {
+      setSavingServerConfig(false);
+    }
   };
 
   // Fetch initial data — wait until propertyId is available
@@ -1130,21 +1179,23 @@ export default function AAAConfig() {
                       });
                       const data = await res.json();
                       toast({
-                        title: data.success ? 'Sync Complete' : 'Sync Failed',
+                        title: data.success ? 'Counts Refreshed' : 'Refresh Failed',
                         description: data.success 
-                          ? `Synced ${data.data?.clients?.count || 0} NAS clients, ${data.data?.users?.count || 0} users to RADIUS server`
+                          ? `${data.data?.clients?.count || 0} NAS clients, ${data.data?.users?.count || 0} users in RADIUS database`
                           : data.error || 'Unknown error',
                         variant: data.success ? 'default' : 'destructive',
                       });
+                      // Refresh status banner counts
+                      fetchData();
                     } catch (e) {
-                      toast({ title: 'Error', description: 'Sync failed', variant: 'destructive' });
+                      toast({ title: 'Error', description: 'Refresh failed', variant: 'destructive' });
                     }
                   }}
                   variant="outline"
                   className="w-full"
                 >
                   <Activity className="h-4 w-4 mr-2" />
-                  Sync DB → RADIUS
+                  Refresh Counts
                 </Button>
               </div>
             </CardContent>
@@ -1172,7 +1223,7 @@ export default function AAAConfig() {
                   <Input
                     type="number"
                     value={serverConfig.authPort}
-                    onChange={(e) => setServerConfig(prev => ({ ...prev, authPort: parseInt(e.target.value) }))}
+                    onChange={(e) => setServerConfig(prev => ({ ...prev, authPort: parseInt(e.target.value) || 1812 }))}
                     placeholder="1812"
                   />
                 </div>
@@ -1181,7 +1232,7 @@ export default function AAAConfig() {
                   <Input
                     type="number"
                     value={serverConfig.acctPort}
-                    onChange={(e) => setServerConfig(prev => ({ ...prev, acctPort: parseInt(e.target.value) }))}
+                    onChange={(e) => setServerConfig(prev => ({ ...prev, acctPort: parseInt(e.target.value) || 1813 }))}
                     placeholder="1813"
                   />
                 </div>
@@ -1190,25 +1241,68 @@ export default function AAAConfig() {
                   <Input
                     type="number"
                     value={serverConfig.coaPort}
-                    onChange={(e) => setServerConfig(prev => ({ ...prev, coaPort: parseInt(e.target.value) }))}
+                    onChange={(e) => setServerConfig(prev => ({ ...prev, coaPort: parseInt(e.target.value) || 3799 }))}
                     placeholder="3799"
                   />
                 </div>
               </div>
-              
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                <div className="space-y-2">
+                  <Label>Interim-Update Interval (seconds)</Label>
+                  <Input
+                    type="number"
+                    value={serverConfig.interimUpdateInterval}
+                    onChange={(e) => setServerConfig(prev => ({ ...prev, interimUpdateInterval: parseInt(e.target.value) || 60 }))}
+                    placeholder="60"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    How often the NAS sends accounting updates (Acct-Interim-Interval)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Log Level</Label>
+                  <Select
+                    value={serverConfig.logLevel}
+                    onValueChange={(value) => setServerConfig(prev => ({ ...prev, logLevel: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LOG_LEVELS.map((level) => (
+                        <SelectItem key={level.value} value={level.value}>
+                          {level.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-4 border-t">
                 <div className="flex items-center gap-2">
                   <Activity className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">Test connection to RADIUS server</span>
                 </div>
-                <Button onClick={handleTestConnection} disabled={testing} variant="outline" className="w-full sm:w-auto">
-                  {testing ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <TestTube className="h-4 w-4 mr-2" />
-                  )}
-                  Test Connection
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button onClick={handleTestConnection} disabled={testing} variant="outline">
+                    {testing ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <TestTube className="h-4 w-4 mr-2" />
+                    )}
+                    Test Connection
+                  </Button>
+                  <Button onClick={handleSaveServerConfig} disabled={savingServerConfig}>
+                    {savingServerConfig ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Settings className="h-4 w-4 mr-2" />
+                    )}
+                    Save Server Config
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -1819,19 +1913,6 @@ export default function AAAConfig() {
                 />
                 <p className="text-sm text-muted-foreground">
                   How often session data is synced from the RADIUS server
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Interim-Update Interval (seconds)</Label>
-                <Input
-                  type="number"
-                  value={aaaConfig.interimUpdateInterval}
-                  onChange={(e) => setAaaConfig(prev => ({ ...prev, interimUpdateInterval: parseInt(e.target.value) || 300 }))}
-                  className="w-32"
-                />
-                <p className="text-sm text-muted-foreground">
-                  How often the NAS sends accounting updates. Sent as Acct-Interim-Interval to the NAS device.
                 </p>
               </div>
 

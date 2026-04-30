@@ -34,15 +34,20 @@ const SERVICE_VERSION = '2.0.0';
 const log = createLogger('radius-service');
 const startTime = Date.now();
 
-// RADIUS server configuration paths (Rocky Linux 10: radiusd package)
-const RADIUS_CONFIG_PATH = process.env.RADIUS_CONFIG_PATH || '/etc/raddb';
+// RADIUS server configuration paths
+// Sandbox: project-local freeradius-install/
+// Production (Rocky 10): dnf install → /etc/raddb/
+// Override with RADIUS_CONFIG_PATH env var
+const RADIUS_CONFIG_PATH = process.env.RADIUS_CONFIG_PATH ||
+  (process.env.NODE_ENV === 'production'
+    ? '/etc/raddb'
+    : fsSync.existsSync('/home/z/my-project/freeradius-install/etc/raddb')
+      ? '/home/z/my-project/freeradius-install/etc/raddb'
+      : '/etc/raddb');
 const RADIUS_CLIENTS_PATH = path.join(RADIUS_CONFIG_PATH, 'clients.conf');
 
-// ============================================================================
-// PostgreSQL Connection Pool
-// ============================================================================
-
-const DATABASE_URL = 'postgresql://z@localhost:5432/staysuite';
+// Database connection (sandbox uses local PG, production uses system PG)
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://z@localhost:5432/staysuite';
 
 const pool = new pg.Pool({
   connectionString: DATABASE_URL,
