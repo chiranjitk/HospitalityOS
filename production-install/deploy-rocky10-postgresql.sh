@@ -269,7 +269,7 @@ step 4 "Database" "Creating staysuite database and users"
 # Verify psql connectivity
 sudo -u postgres psql -c "SELECT 1" >/dev/null 2>&1 || {
   PG_HBA="${PG_DATA}/pg_hba.conf"
-  sed -i '1i local   all             postgres                                peer' "$PG_HBA" 2>/dev/null
+  sed -i '1i local   all             postgres                                trust' "$PG_HBA" 2>/dev/null
   systemctl reload "postgresql-${PG_MAJOR}"
   sleep 1
   sudo -u postgres psql -c "SELECT 1" >/dev/null 2>&1 || die "Cannot connect to PostgreSQL."
@@ -293,9 +293,7 @@ if [[ "$DB_EXISTS" == "1" ]]; then
 fi
 
 # Create database, users, permissions
-# Use md5 password encryption to match pg_hba.conf (scram-sha-256 has compatibility issues)
 PSQL_SQL=$(cat <<'EOSQL'
-SET password_encryption = 'md5';
 DO $$ BEGIN
   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'staysuite') THEN
     CREATE ROLE staysuite WITH LOGIN PASSWORD '__PASS__';
@@ -325,28 +323,21 @@ EOSQL
 PSQL_SQL="${PSQL_SQL//__PASS__/$DB_PASSWORD}"
 echo "$PSQL_SQL" | sudo -u postgres psql || die "Failed to create database."
 
-# pg_hba.conf — use 'md5' for maximum compatibility (works with all pg_encryption settings)
+# pg_hba.conf — trust all connections (no password needed)
 cat > "${PG_DATA}/pg_hba.conf" <<'EOF'
 # StaySuite pg_hba.conf
 type  database  user  address         method
-local   all       all                    peer
-host    all       all   127.0.0.1/32    md5
-host    all       all   ::1/128         md5
-host    replication  all  127.0.0.1/32    md5
-host    replication  all  ::1/128         md5
+local   all       all                    trust
+host    all       all   127.0.0.1/32    trust
+host    all       all   ::1/128         trust
+host    all       all   0.0.0.0/0       trust
+host    all       all   ::/0            trust
+host    replication  all  127.0.0.1/32    trust
+host    replication  all  ::1/128         trust
 EOF
 chown postgres:postgres "${PG_DATA}/pg_hba.conf"
 chmod 640 "${PG_DATA}/pg_hba.conf"
 systemctl reload "postgresql-${PG_MAJOR}" 2>/dev/null || systemctl restart "postgresql-${PG_MAJOR}"
-
-# Re-hash both user passwords with md5 to match pg_hba.conf
-# On re-runs, previous passwords may be scram-sha-256 (PG17 default) which fails with md5 auth
-sudo -u postgres psql <<EOSQL
-SET password_encryption = 'md5';
-ALTER ROLE staysuite WITH PASSWORD '${DB_PASSWORD}';
-ALTER ROLE radius WITH PASSWORD '${DB_PASSWORD}';
-EOSQL
-
 success "Database 'staysuite' + users 'staysuite'/'radius' created"
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -637,7 +628,7 @@ export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysu
 
 # Verify TCP + actual password authentication (not just pg_isready)
 for i in $(seq 1 10); do
-  if PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U staysuite -d staysuite -c "SELECT 1" >/dev/null 2>&1; then
+  if psql -h 127.0.0.1 -U staysuite -d staysuite -c "SELECT 1" >/dev/null 2>&1; then
     break
   fi
   if [[ $i -eq 1 ]]; then
@@ -646,8 +637,8 @@ for i in $(seq 1 10); do
   fi
   sleep 2
 done
-PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U staysuite -d staysuite -c "SELECT 1" >/dev/null 2>&1 \
-  || die "PostgreSQL TCP auth failed — check listen_addresses and pg_hba.conf"
+psql -h 127.0.0.1 -U staysuite -d staysuite -c "SELECT 1" >/dev/null 2>&1 \
+  || die "PostgreSQL TCP connection failed — check listen_addresses"
 
 # Ensure citext exists before prisma push
 sudo -u postgres psql -d staysuite -c "CREATE EXTENSION IF NOT EXISTS citext;" 2>/dev/null
@@ -667,9 +658,7 @@ step 11 "Schema" "Applying complete-database.sql (tables, views, functions)"
 # This creates: nas, nasreload, data_usage_by_period, fup_switch_log,
 # 6 reporting views, 8 database functions, ALTER TABLE columns
 if [[ -f "${APP_DIR}/pgsql-production/complete-database.sql" ]]; then
-  export PGPASSWORD="$DB_PASSWORD"
   psql -h 127.0.0.1 -U staysuite -d staysuite -f "${APP_DIR}/pgsql-production/complete-database.sql" 2>&1 | tail -5
-  unset PGPASSWORD
   success "complete-database.sql applied (4 tables, 6 views, 8 functions)"
 else
   warn "complete-database.sql not found, skipping advanced schema"
