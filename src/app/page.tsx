@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/app-layout';
 import { ErrorBoundary } from '@/components/common/error-boundary';
+import { SectionLoadingSkeleton } from '@/components/sections/section-loading-skeleton';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 
@@ -66,12 +67,7 @@ function SectionContent({ section }: { section: string }) {
   }
 
   if (!Comp) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-3">
-        <Loader2 className="h-8 w-8 animate-spin text-teal-600 dark:text-teal-400" />
-        <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
-      </div>
-    );
+    return <SectionLoadingSkeleton />;
   }
 
   return (
