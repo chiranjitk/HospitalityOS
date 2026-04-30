@@ -765,7 +765,7 @@ cat > "${APP_DIR}/ecosystem.config.js" <<'JSEOF'
 const BUN_PATH = '__BUN_PATH__';
 const APP_DIR  = '__APP_DIR__';
 
-const DB_URL = 'postgresql://staysuite:__DBPASS__@127.0.0.1:5432/staysuite';
+const DB_URL = 'postgresql://staysuite:__DBPASS__@127.0.0.1:5432/staysuite?connect_timeout=60';
 
 module.exports = {
   apps: [
@@ -775,7 +775,7 @@ module.exports = {
       script: 'start-nextjs.sh',
       interpreter: 'bash',
       cwd: APP_DIR,
-      env: { NODE_ENV: 'production', PORT: 3000 },
+      env: { NODE_ENV: 'production', PORT: 3000, DATABASE_URL: DB_URL },
       max_memory_restart: '2G',
       max_restarts: 10,
       restart_delay: 3000,
