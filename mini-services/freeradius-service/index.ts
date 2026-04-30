@@ -3825,7 +3825,7 @@ app.post('/api/data-cap/check-all', async (c) => {
   try {
     // Find all users with data caps (vendor-agnostic — check ALL known data-limit attributes)
     const cappedUsers = db.query(
-      "SELECT DISTINCT username, attribute, value as cap_bytes FROM radreply WHERE attribute IN ('Mikrotik-Total-Limit', 'ChilliSpot-Max-Total-Octets', 'ChilliSpot-Max-Input-Octets', 'ChilliSpot-Max-Output-Octets', 'WISPr-Volume-Total-Octets') AND value IS NOT NULL AND CAST(value AS INTEGER) > 0"
+      "SELECT DISTINCT username, attribute, value as cap_bytes FROM radreply WHERE attribute IN ('Mikrotik-Total-Limit', 'ChilliSpot-Max-Total-Octets', 'ChilliSpot-Max-Input-Octets', 'ChilliSpot-Max-Output-Octets', 'WISPr-Volume-Total-Octets') AND value IS NOT NULL AND CAST(value AS BIGINT) > 0"
     ).all() as Array<{ username: string; attribute: string; cap_bytes: string }>;
 
     const overCap: Array<{
@@ -5238,7 +5238,7 @@ setInterval(async () => {
   try {
     // Find all users with data caps (vendor-agnostic — check ALL known data-limit attributes)
     const cappedUsers = db.query(
-      "SELECT DISTINCT username, attribute, value as cap_bytes FROM radreply WHERE attribute IN ('Mikrotik-Total-Limit', 'ChilliSpot-Max-Total-Octets', 'ChilliSpot-Max-Input-Octets', 'ChilliSpot-Max-Output-Octets', 'WISPr-Volume-Total-Octets') AND value IS NOT NULL AND CAST(value AS INTEGER) > 0"
+      "SELECT DISTINCT username, attribute, value as cap_bytes FROM radreply WHERE attribute IN ('Mikrotik-Total-Limit', 'ChilliSpot-Max-Total-Octets', 'ChilliSpot-Max-Input-Octets', 'ChilliSpot-Max-Output-Octets', 'WISPr-Volume-Total-Octets') AND value IS NOT NULL AND CAST(value AS BIGINT) > 0"
     ).all() as Array<{ username: string; attribute: string; cap_bytes: string }>;
 
     for (const u of cappedUsers) {
@@ -5550,7 +5550,7 @@ app.delete('/api/content-filter/:id', async (c) => {
 // Export content filter rules as dnsmasq-compatible blocklist
 app.get('/api/content-filter/export', async (c) => {
   try {
-    const rows = await db.query('SELECT name, category, domains FROM "ContentFilter" WHERE enabled = 1').all() as Array<{ name: string; category: string; domains: string }>;
+    const rows = await db.query('SELECT name, category, domains FROM "ContentFilter" WHERE enabled = true').all() as Array<{ name: string; category: string; domains: string }>;
     const allDomains: string[] = [];
     for (const row of rows) {
       try {
@@ -5627,7 +5627,7 @@ app.get('/api/content-filter/test', async (c) => {
     // Extract domain from URL
     let domain = url.replace(/^https?:\/\//, '').split('/')[0].split(':')[0].toLowerCase();
 
-    const rules = await db.query('SELECT name, category, domains FROM "ContentFilter" WHERE enabled = 1').all() as Array<{ name: string; category: string; domains: string }>;
+    const rules = await db.query('SELECT name, category, domains FROM "ContentFilter" WHERE enabled = true').all() as Array<{ name: string; category: string; domains: string }>;
 
     for (const rule of rules) {
       try {
@@ -6080,12 +6080,12 @@ app.post('/api/bandwidth-schedules/enforce', async (c) => {
     let schedules: Record<string, unknown>[];
 
     if (scheduleId) {
-      const row = await db.query('SELECT * FROM "ScheduleAccess" WHERE id = ? AND enabled = 1').get(scheduleId) as Record<string, unknown> | undefined;
+      const row = await db.query('SELECT * FROM "ScheduleAccess" WHERE id = ? AND enabled = true').get(scheduleId) as Record<string, unknown> | undefined;
       if (!row) return c.json({ success: false, error: 'Schedule not found or disabled' }, 404);
       schedules = [row];
     } else {
       schedules = await db.query(
-        `SELECT * FROM "ScheduleAccess" WHERE enabled = 1${propertyId ? ' AND propertyId = ?' : ''}`
+        `SELECT * FROM "ScheduleAccess" WHERE enabled = true${propertyId ? ' AND propertyId = ?' : ''}`
       ).all(...(propertyId ? [propertyId] : [])) as Record<string, unknown>[];
     }
 
@@ -6393,7 +6393,7 @@ async function enforceBandwidthSchedules(
 setInterval(async () => {
   try {
     const schedules = await db.query(
-      'SELECT * FROM "ScheduleAccess" WHERE enabled = 1'
+      'SELECT * FROM "ScheduleAccess" WHERE enabled = true'
     ).all() as Array<Record<string, unknown>>;
 
     if (schedules.length === 0) return;
