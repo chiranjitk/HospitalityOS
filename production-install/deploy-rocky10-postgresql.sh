@@ -214,9 +214,9 @@ else
   EFFECTIVE_CACHE="1536MB"
 fi
 
-# Force TCP listen — sed replaces existing line or appends if missing
-sed -i "s/^#\?listen_addresses\s*=.*/listen_addresses = 'localhost'/" "$PG_CONF"
-grep -q "^listen_addresses" "$PG_CONF" || echo "listen_addresses = 'localhost'" >> "$PG_CONF"
+# Force TCP listen on explicit IPs (avoid 'localhost' DNS ambiguity on some systems)
+sed -i "s/^#\?listen_addresses\s*=.*/listen_addresses = '127.0.0.1,::1'/" "$PG_CONF"
+grep -q "^listen_addresses" "$PG_CONF" || echo "listen_addresses = '127.0.0.1,::1'" >> "$PG_CONF"
 sed -i "s/^#\?port\s*=.*/port = 5432/" "$PG_CONF"
 grep -q "^port" "$PG_CONF" || echo "port = 5432" >> "$PG_CONF"
 
@@ -293,7 +293,9 @@ if [[ "$DB_EXISTS" == "1" ]]; then
 fi
 
 # Create database, users, permissions
+# Use md5 password encryption to match pg_hba.conf (scram-sha-256 has compatibility issues)
 PSQL_SQL=$(cat <<'EOSQL'
+SET password_encryption = 'md5';
 DO $$ BEGIN
   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'staysuite') THEN
     CREATE ROLE staysuite WITH LOGIN PASSWORD '__PASS__';
@@ -323,12 +325,15 @@ EOSQL
 PSQL_SQL="${PSQL_SQL//__PASS__/$DB_PASSWORD}"
 echo "$PSQL_SQL" | sudo -u postgres psql || die "Failed to create database."
 
-# pg_hba.conf
+# pg_hba.conf — use 'md5' for maximum compatibility (works with all pg_encryption settings)
 cat > "${PG_DATA}/pg_hba.conf" <<'EOF'
 # StaySuite pg_hba.conf
-local   all             all                                     peer
-host    all             all             127.0.0.1/32            scram-sha-256
-host    all             all             ::1/128                 scram-sha-256
+type  database  user  address         method
+local   all       all                    peer
+host    all       all   127.0.0.1/32    md5
+host    all       all   ::1/128         md5
+host    replication  all  127.0.0.1/32    md5
+host    replication  all  ::1/128         md5
 EOF
 chown postgres:postgres "${PG_DATA}/pg_hba.conf"
 chmod 640 "${PG_DATA}/pg_hba.conf"
@@ -586,7 +591,7 @@ cat > "${APP_DIR}/.env" <<EOENV
 # StaySuite HospitalityOS — Production Environment
 # Generated: $(date -Iseconds)
 
-DATABASE_URL=postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite
+DATABASE_URL=postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=30
 RADIUS_DB_URL=postgresql://radius:${DB_PASSWORD}@127.0.0.1:5432/staysuite
 NODE_ENV=production
 PORT=3000
@@ -619,21 +624,27 @@ success "All dependencies installed"
 step 10 "Prisma" "Pushing schema (~231 PMS tables)"
 
 cd "$APP_DIR"
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=30"
 
-# Verify TCP before anything else
-pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null || {
-  warn "PostgreSQL TCP not responding — restarting..."
-  systemctl restart "postgresql-${PG_MAJOR}"
-  sleep 3
-  pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null || die "PostgreSQL TCP still not available after restart"
-}
+# Verify TCP + actual password authentication (not just pg_isready)
+for i in $(seq 1 10); do
+  if PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U staysuite -d staysuite -c "SELECT 1" >/dev/null 2>&1; then
+    break
+  fi
+  if [[ $i -eq 1 ]]; then
+    warn "Waiting for PostgreSQL TCP auth to be ready..."
+    systemctl restart "postgresql-${PG_MAJOR}" 2>/dev/null
+  fi
+  sleep 2
+done
+PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U staysuite -d staysuite -c "SELECT 1" >/dev/null 2>&1 \
+  || die "PostgreSQL TCP auth failed — check listen_addresses and pg_hba.conf"
 
 # Ensure citext exists before prisma push
 sudo -u postgres psql -d staysuite -c "CREATE EXTENSION IF NOT EXISTS citext;" 2>/dev/null
 
 info "Running prisma db push..."
-npx prisma db push --schema=prisma/schema.prisma --skip-generate --accept-data-loss 2>&1 | tail -5
+npx prisma db push --schema=prisma/schema.prisma --skip-generate --accept-data-loss 2>&1 | tail -10
 
 info "Running prisma generate..."
 npx prisma generate --schema=prisma/schema.prisma 2>&1 | tail -3
