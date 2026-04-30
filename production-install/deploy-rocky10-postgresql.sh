@@ -834,31 +834,17 @@ step 15 "CoA" "Finalizing FreeRADIUS CoA and post-auth configuration"
 if [[ -f "${APP_DIR}/freeradius-config-patches/setup-production.sh" ]]; then
   info "Applying FreeRADIUS production patches..."
   export FR_DB_PASS="$DB_PASSWORD"
-  export FR_DB_HOST="localhost"
+  export FR_DB_HOST="127.0.0.1"
   export FR_DB_PORT="5432"
   export FR_DB_NAME="staysuite"
   export FR_DB_USER="radius"
-  # setup-production.sh may fail — it tries to overwrite our custom mods-enabled/sql
-  # We already have the correct config from step 5b, so treat as non-fatal
-  bash "${APP_DIR}/freeradius-config-patches/setup-production.sh" 2>&1 | tail -15 || true
+  bash "${APP_DIR}/freeradius-config-patches/setup-production.sh" 2>&1 | tail -20 || true
+else
+  # Fallback: ensure CoA is enabled manually
+  info "setup-production.sh not found — applying minimal CoA config..."
+  [[ -f "${RADD}/sites-available/coa" && ! -L "${RADD}/sites-enabled/coa" ]] && \
+    ln -sf ../sites-available/coa "${RADD}/sites-enabled/coa"
 fi
-
-# setup-production.sh may have overwritten our custom mods-enabled/sql with a symlink.
-# Restore the deploy script's custom SQL config if it was replaced.
-if [[ -L "${RADD}/mods-enabled/sql" ]]; then
-  warn "setup-production.sh replaced mods-enabled/sql with symlink — restoring custom config"
-  rm -f "${RADD}/mods-enabled/sql"
-  echo "$FR_SQL_CONF" > "${RADD}/mods-enabled/sql"
-  chown root:radiusd "${RADD}/mods-enabled/sql" 2>/dev/null || true
-  chmod 640 "${RADD}/mods-enabled/sql" 2>/dev/null || true
-fi
-
-# Also re-apply EAP commenting (setup-production.sh's module loop may disturb things)
-for site_file in "${RADD}/sites-available/default" "${RADD}/sites-available/inner-tunnel"; do
-  [[ -f "$site_file" ]] || continue
-  sed -i '/^[[:space:]]*eap[[:space:]]*{/,/^[[:space:]]*}/ s/^[[:space:]]*/# /' "$site_file"
-  sed -i '/^[[:space:]]*#.*eap/! { /^[[:space:]]*eap[[:space:]]*$/ s/^[[:space:]]*/# / }' "$site_file"
-done
 
 # Restart FreeRADIUS with final config
 info "Testing FreeRADIUS configuration..."
@@ -868,7 +854,6 @@ RADIUS_TEST2=$(radiusd -XC 2>&1) && {
 } || {
   warn "FreeRADIUS config check issues (non-fatal):"
   echo "$RADIUS_TEST2" | tail -10
-  # Try to restart anyway — radiusd may still work despite warnings
   systemctl restart radiusd 2>/dev/null || true
   if systemctl is-active --quiet radiusd 2>/dev/null; then
     success "FreeRADIUS restarted (running with warnings)"

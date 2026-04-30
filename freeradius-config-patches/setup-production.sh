@@ -75,8 +75,6 @@ if [ -z "$FR_DB_PASS" ]; then
     err "Database password not set. Set FR_DB_PASS env var or configure production-env.conf"
 fi
 
-FR_CONN_STRING="dbname=$FR_DB_NAME host=$FR_DB_HOST port=$FR_DB_PORT user=$FR_DB_USER password=$FR_DB_PASS"
-
 # ── Preflight ───────────────────────────────────────────────────────
 info "StaySuite FreeRADIUS Production Setup"
 info "====================================="
@@ -123,6 +121,16 @@ for mod in sqlippool dhcp eap; do
     fi
 done
 
+# Comment out EAP references in site configs (Rocky 10 has them uncommented by default)
+for site_file in "$RADDB/sites-available/default" "$RADDB/sites-available/inner-tunnel"; do
+    if [ -f "$site_file" ]; then
+        # Comment out 'eap' block references
+        sed -i '/^[[:space:]]*eap[[:space:]]*{/,/^[[:space:]]*}/ s/^[[:space:]]*/# /' "$site_file"
+        # Comment out standalone 'eap' module references (in authorize/authenticate sections)
+        sed -i '/^[[:space:]]*#.*eap/! { /^[[:space:]]*eap[[:space:]]*$/ s/^[[:space:]]*/# / }' "$site_file"
+    fi
+done
+
 # ── Step 2: Configure SQL Module ────────────────────────────────────
 info "Step 2/6: Configuring SQL module..."
 
@@ -131,15 +139,36 @@ if [ -f "$SQL_MOD" ]; then
     # Backup
     cp "$SQL_MOD" "${SQL_MOD}.bak.$(date +%Y%m%d%H%M%S)"
 
-    # Apply settings using sed
+    # Apply settings using sed — set individual fields, not a full connection string
     sed -i "s/^dialect.*=.*/dialect = \"postgresql\"/" "$SQL_MOD"
     sed -i "s/^driver.*=.*/driver = \"rlm_sql_postgresql\"/" "$SQL_MOD"
-    sed -i "s|^radius_db.*=.*|radius_db = \"$FR_CONN_STRING\"|" "$SQL_MOD"
+    sed -i "s|^# *radius_db.*=.*|radius_db = \"$FR_DB_NAME\"|" "$SQL_MOD"
+    sed -i "s/^radius_db.*=.*/radius_db = \"$FR_DB_NAME\"/" "$SQL_MOD"
     sed -i "s/^read_clients.*=.*/read_clients = yes/" "$SQL_MOD"
     sed -i "s/^# *client_table.*/client_table = \"nas\"/" "$SQL_MOD"
 
+    # Set server, port, login, password within the sql {} block
+    # Handle both commented and uncommented forms
+    sed -i "s/^# *server.*=.*/server = \"$FR_DB_HOST\"/" "$SQL_MOD"
+    sed -i "s/^server\s*=.*/server = \"$FR_DB_HOST\"/" "$SQL_MOD"
+    sed -i "s/^# *port.*=.*/port = $FR_DB_PORT/" "$SQL_MOD"
+    sed -i "s/^port\s*=.*/port = $FR_DB_PORT/" "$SQL_MOD"
+    sed -i "s/^# *login.*=.*/login = \"$FR_DB_USER\"/" "$SQL_MOD"
+    sed -i "s/^login\s*=.*/login = \"$FR_DB_USER\"/" "$SQL_MOD"
+    sed -i "s/^# *password.*=.*/password = \"$FR_DB_PASS\"/" "$SQL_MOD"
+    sed -i "s/^password\s*=.*/password = \"$FR_DB_PASS\"/" "$SQL_MOD"
+
     # Remove debug logfile if present
     sed -i '/^logfile.*=.*sql_debug/d' "$SQL_MOD"
+
+    # Make sure mods-enabled/sql is a symlink to the configured module
+    if [ ! -L "$RADDB/mods-enabled/sql" ] && [ -f "$RADDB/mods-enabled/sql" ]; then
+        rm -f "$RADDB/mods-enabled/sql"
+        ln -sf ../mods-available/sql "$RADDB/mods-enabled/sql"
+        warn "Replaced custom SQL config with symlink (now configured properly)"
+    elif [ ! -L "$RADDB/mods-enabled/sql" ]; then
+        ln -sf ../mods-available/sql "$RADDB/mods-enabled/sql"
+    fi
 
     ok "SQL module configured for PostgreSQL"
 else
@@ -309,6 +338,9 @@ info "Verifying FreeRADIUS configuration..."
 if "$FR_BIN" -C -l /dev/null -d "$RADDB" 2>&1; then
     ok "Configuration is valid!"
 else
+    echo ""
+    echo -e "${YELLOW}[WARN]${NC} Configuration test had issues. Showing last 20 lines:"
+    "$FR_BIN" -XC -l /dev/null -d "$RADDB" 2>&1 | tail -20
     err "Configuration test FAILED — check the output above"
 fi
 
