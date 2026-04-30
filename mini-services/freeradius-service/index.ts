@@ -47,13 +47,14 @@ const RADIUS_CONFIG_PATH = process.env.RADIUS_CONFIG_PATH ||
 const RADIUS_CLIENTS_PATH = path.join(RADIUS_CONFIG_PATH, 'clients.conf');
 
 // Database connection (sandbox uses local PG, production uses system PG)
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/staysuite';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/staysuite';
 
 const pool = new pg.Pool({
   connectionString: DATABASE_URL,
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 30000,
+  application_name: 'freeradius-service',
 });
 
 // ============================================================================

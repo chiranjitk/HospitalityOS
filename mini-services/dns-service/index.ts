@@ -32,7 +32,7 @@ const log = createLogger('dns-service');
 const startTime = Date.now();
 
 const PROJECT_ROOT = process.env.PROJECT_ROOT || path.resolve(__dirname, '..', '..');
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://z@localhost:5432/staysuite';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://z@127.0.0.1:5432/staysuite';
 
 // Detect system dnsmasq
 const SYSTEM_DNSMASQ = (() => {
@@ -56,7 +56,8 @@ const pool = new Pool({
   connectionString: DATABASE_URL,
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 30000,
+  application_name: 'dns-service',
 });
 
 pool.on('error', (err: Error) => {

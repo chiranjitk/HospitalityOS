@@ -1113,3 +1113,32 @@ Thu Apr 30 16:06:08 2026 : Info: Loaded virtual server inner-tunnel
 Thu Apr 30 16:06:08 2026 : Info: Loaded virtual server default
 Thu Apr 30 16:06:08 2026 : Info: Loaded virtual server coa
 Thu Apr 30 16:06:11 2026 : Info: Ignoring HUP (less than 5s since last one)
+Thu Apr 30 19:05:09 2026 : Info: Received HUP signal
+Thu Apr 30 19:05:09 2026 : Info: HUP - Re-reading configuration files
+Thu Apr 30 19:05:09 2026 : Info: HUP - loading modules
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "auth_log"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "reply_log"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "pre_proxy_log"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "post_proxy_log"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "IPASS"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "suffix"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "bangpath"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "realmpercent"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "ntdomain"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "pap"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "etc_passwd"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "attr_filter.post-proxy"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "attr_filter.pre-proxy"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "attr_filter.access_reject"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "attr_filter.access_challenge"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "attr_filter.accounting_response"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "attr_filter.coa"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "files"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "detail"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "linelog"
+Thu Apr 30 19:05:09 2026 : Info:  Module: Reloaded module "log_accounting"
+Thu Apr 30 19:05:09 2026 : Info: Loaded virtual server <default>
+Thu Apr 30 19:05:09 2026 : Info:  # Skipping contents of 'if' as it is always 'false' -- /home/z/my-project/freeradius-install/etc/raddb/sites-enabled/inner-tunnel:377
+Thu Apr 30 19:05:09 2026 : Info: Loaded virtual server inner-tunnel
+Thu Apr 30 19:05:09 2026 : Info: Loaded virtual server default
+Thu Apr 30 19:05:09 2026 : Info: Loaded virtual server coa
