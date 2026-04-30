@@ -134,12 +134,52 @@ function sanitizeDhcpOptionName(name: string): string {
   return key.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
+/** Simple IPv4 regex */
+const IP_V4_RE = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+
+/** Check if a string looks like an IPv4 address */
+function isIPv4(s: string): boolean {
+  return IP_V4_RE.test(s.trim());
+}
+
+/** Options that require IP addresses (not hostnames) */
+const IP_ONLY_OPTIONS = new Set([
+  'ntp-server', 'ntp', 'tftp-server', 'tftp', 'wpad',
+  'time-server', 'name-server', 'smtp-server', 'pop3-server',
+  'nntp-server', 'www-server', 'finger-server', 'irc-server',
+  'netbios-ns', 'netbios-dd', 'netbios-nb', 'dhcp-server',
+]);
+
 /**
- * Sanitize a DHCP option value: trim whitespace around commas.
- * e.g. "8.8.8.8, 1.1.1.1" → "8.8.8.8,1.1.1.1"
+ * Resolve hostname to IPv4 address using system DNS.
+ * Returns the IP string on success, or the original value on failure.
  */
-function sanitizeDhcpOptionValue(value: string): string {
-  return value.split(',').map((s: string) => s.trim()).join(',');
+function resolveHostname(hostname: string): string {
+  if (isIPv4(hostname)) return hostname;
+  try {
+    const result = safeExec(`getent ahosts -4 ${hostname} 2>/dev/null | head -1`);
+    const ip = result.trim().split(/\s+/)[0];
+    if (ip && isIPv4(ip)) {
+      log.info(`Resolved ${hostname} → ${ip}`);
+      return ip;
+    }
+  } catch {}
+  log.warn(`Could not resolve hostname "${hostname}" — keeping as-is`);
+  return hostname;
+}
+
+/**
+ * Sanitize a DHCP option value: trim whitespace around commas,
+ * and resolve hostnames to IPs for options that require IPs.
+ */
+function sanitizeDhcpOptionValue(value: string, optionName: string): string {
+  const parts = value.split(',').map((s: string) => s.trim());
+  if (IP_ONLY_OPTIONS.has(optionName)) {
+    // Resolve any hostnames to IPs for IP-only options
+    const resolved = parts.map((p: string) => isIPv4(p) ? p : resolveHostname(p));
+    return resolved.join(',');
+  }
+  return parts.join(',');
 }
 
 function parseDnsList(val: unknown): string[] {
@@ -534,7 +574,7 @@ async function generateConfig(): Promise<{ success: boolean; message: string; li
         const subnetOpts = dhcpOptions.filter((o: any) => o.subnetId === sub.id);
         for (const opt of subnetOpts) {
           const optName = sanitizeDhcpOptionName(opt.name || '');
-          const optVal = sanitizeDhcpOptionValue(opt.value || '');
+          const optVal = sanitizeDhcpOptionValue(opt.value || '', optName);
           if (optName && optVal) {
             config += `dhcp-option=option:${optName},${optVal}\n`;
           }
@@ -553,7 +593,7 @@ async function generateConfig(): Promise<{ success: boolean; message: string; li
 
       for (const opt of globalOpts) {
         const optName = sanitizeDhcpOptionName(opt.name || '');
-        const optVal = sanitizeDhcpOptionValue(opt.value || '');
+        const optVal = sanitizeDhcpOptionValue(opt.value || '', optName);
         config += `# ID: ${opt.id}`;
         if (opt.description) config += ` | ${opt.description}`;
         config += `\n`;
