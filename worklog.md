@@ -180,3 +180,22 @@ Stage Summary:
 - FreeRADIUS binary: /home/z/my-project/freeradius-install/sbin/radiusd
 - Note: freeradius/ has compiled-from-source FR but has OpenSSL 3.5 TLS incompatibility
 - Committed and pushed to GitHub successfully
+---
+Task ID: 5
+Agent: main
+Task: Fix seed.ts for admin login - replace hardcoded string IDs with proper UUID generation
+
+Work Log:
+- Found root seed.ts used hardcoded string IDs ('tenant-1', 'role-1') incompatible with PostgreSQL @db.Uuid
+- Found prisma/seed.ts already had correct uuid() helper for deterministic UUID generation
+- Copied prisma/seed.ts to root seed.ts, fixed wifi-seed import path
+- Ran seed successfully with DATABASE_URL set explicitly
+- All 7 admin users seeded, all verified, all active
+
+Stage Summary:
+- seed.ts now uses proper UUID generation via uuid() helper function
+- 7 users seeded across 2 tenants
+- Admin credentials: admin@royalstay.in / admin123
+- Platform admin: platform@staysuite.com / admin123
+- Tenant 2 admin: admin@oceanview.com / admin123
+- Full demo data seeded: rooms, bookings, guests, WiFi, RADIUS, network, billing, etc.
