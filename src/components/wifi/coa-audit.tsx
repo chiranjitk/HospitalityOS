@@ -31,11 +31,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
-import {
   GitBranch,
   Search,
   Loader2,
@@ -51,9 +46,8 @@ import {
   Server,
   User,
   AlertTriangle,
-  Filter,
-  FileText,
   MonitorDot,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -102,34 +96,50 @@ const TRIGGER_CONFIG: Record<string, { color: string; icon: typeof Zap; label: s
   'checkout':  { color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', icon: FileText, label: 'Checkout' },
 };
 
+// ─── Helpers ────────────────────────────────────────────────────────────────────
+
+function parseAttributes(attrStr: string): Record<string, string> | null {
+  if (!attrStr) return null;
+  try {
+    if (attrStr.startsWith('{')) return JSON.parse(attrStr);
+    const attrs: Record<string, string> = {};
+    attrStr.split('\n').forEach(line => {
+      const match = line.match(/^(.+?)\s*=\s*"?(.*?)"?\s*$/);
+      if (match) attrs[match[1].trim()] = match[2].trim();
+    });
+    return Object.keys(attrs).length > 0 ? attrs : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatTimestamp(ts: string) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleString();
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────────
 
 export default function CoaAudit() {
   const [entries, setEntries] = useState<CoaAuditEntry[]>([]);
   const [stats, setStats] = useState<CoaAuditStats>({
-    totalToday: 0,
-    successCount: 0,
-    failedCount: 0,
-    successRate: 0,
-    byType: [],
+    totalToday: 0, successCount: 0, failedCount: 0, successRate: 0, byType: [],
   });
   const [isLoading, setIsLoading] = useState(true);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
-  // Filter state (local, applied on Search click only)
+  // Filter state (local, applied on Search click only — no auto-refresh)
   const [searchQuery, setSearchQuery] = useState('');
   const [coaTypeFilter, setCoaTypeFilter] = useState<string>('all');
   const [resultFilter, setResultFilter] = useState<string>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // Applied filters (what was last searched)
   const appliedFiltersRef = useRef({
-    searchQuery: '', coaTypeFilter: 'all', resultFilter: 'all',
-    startDate: '', endDate: '',
+    searchQuery: '', coaTypeFilter: 'all', resultFilter: 'all', startDate: '', endDate: '',
   });
 
-  // ─── Fetch data (no auto-refresh, only on demand) ──────────────────────────
+  // ─── Data fetching ─────────────────────────────────────────────────────────
 
   const fetchAudit = async () => {
     setIsLoading(true);
@@ -165,29 +175,24 @@ export default function CoaAudit() {
     }
   };
 
-  // Load once on mount only — no auto-refresh
+  // Initial load — no auto-refresh, only once on mount
   useEffect(() => {
     const load = async () => {
       setIsLoading(true);
       try {
-        const params = new URLSearchParams();
         const [listRes, statsRes] = await Promise.all([
-          fetch(`/api/wifi/radius?action=coa-audit-list&${params.toString()}`),
+          fetch('/api/wifi/radius?action=coa-audit-list'),
           fetch('/api/wifi/radius?action=coa-audit-stats'),
         ]);
         const listData = await listRes.json();
         const statsData = await statsRes.json();
-
         if (listData.success && listData.data) {
           setEntries(Array.isArray(listData.data) ? listData.data : []);
-        } else {
-          setEntries([]);
         }
         if (statsData.success && statsData.data) {
           setStats(statsData.data);
         }
-      } catch (error) {
-        console.error('Failed to fetch CoA audit:', error);
+      } catch {
         setEntries([]);
       } finally {
         setIsLoading(false);
@@ -196,55 +201,26 @@ export default function CoaAudit() {
     load();
   }, []);
 
-  // Manual refresh: re-fetch with same applied filters
-  const handleRefresh = () => {
-    fetchAudit();
-  };
+  const handleRefresh = () => fetchAudit();
 
-  // Apply filters: snapshot current filter values and fetch
   const handleSearch = () => {
-    appliedFiltersRef.current = {
-      searchQuery, coaTypeFilter, resultFilter, startDate, endDate,
-    };
+    appliedFiltersRef.current = { searchQuery, coaTypeFilter, resultFilter, startDate, endDate };
     fetchAudit();
   };
 
-  // Clear all filters
   const handleClear = () => {
-    setSearchQuery('');
-    setCoaTypeFilter('all');
-    setResultFilter('all');
-    setStartDate('');
-    setEndDate('');
-    appliedFiltersRef.current = {
-      searchQuery: '', coaTypeFilter: 'all', resultFilter: 'all',
-      startDate: '', endDate: '',
-    };
+    setSearchQuery(''); setCoaTypeFilter('all'); setResultFilter('all');
+    setStartDate(''); setEndDate('');
+    appliedFiltersRef.current = { searchQuery: '', coaTypeFilter: 'all', resultFilter: 'all', startDate: '', endDate: '' };
     fetchAudit();
   };
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────
+  const toggleExpand = (id: string) => setExpandedRow(prev => prev === id ? null : id);
 
-  const parseAttributes = (attrStr: string): Record<string, string> | null => {
-    if (!attrStr) return null;
-    try {
-      if (attrStr.startsWith('{')) return JSON.parse(attrStr);
-      const attrs: Record<string, string> = {};
-      attrStr.split('\n').forEach(line => {
-        const match = line.match(/^(.+?)\s*=\s*"?(.*?)"?\s*$/);
-        if (match) attrs[match[1].trim()] = match[2].trim();
-      });
-      return Object.keys(attrs).length > 0 ? attrs : null;
-    } catch {
-      return null;
-    }
-  };
+  // ─── Derived ─────────────────────────────────────────────────────────────
 
-  const formatTimestamp = (ts: string) => {
-    if (!ts) return '—';
-    const date = new Date(ts);
-    return date.toLocaleString();
-  };
+  const coaTypes = Array.from(new Set(entries.map(e => e.coaType).filter(Boolean)));
+  const hasActiveFilters = searchQuery || coaTypeFilter !== 'all' || resultFilter !== 'all' || startDate || endDate;
 
   // ─── Sub-components ──────────────────────────────────────────────────────
 
@@ -264,9 +240,7 @@ export default function CoaAudit() {
         <AlertTriangle className="h-3 w-3 mr-1" />Timeout
       </Badge>
     );
-    return (
-      <Badge className="bg-gray-400 hover:bg-gray-500 text-white border-0 shrink-0">Pending</Badge>
-    );
+    return <Badge className="bg-gray-400 hover:bg-gray-500 text-white border-0 shrink-0">Pending</Badge>;
   };
 
   const CoaTypeBadge = ({ type }: { type: string }) => {
@@ -281,17 +255,10 @@ export default function CoaAudit() {
     const Icon = config.icon;
     return (
       <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium', config.color)}>
-        <Icon className="h-3 w-3" />
-        {config.label}
+        <Icon className="h-3 w-3" />{config.label}
       </span>
     );
   };
-
-  // Unique CoA types from data for filter dropdown
-  const coaTypes = Array.from(new Set(entries.map(e => e.coaType).filter(Boolean)));
-
-  // Check if any filter is active
-  const hasActiveFilters = searchQuery || coaTypeFilter !== 'all' || resultFilter !== 'all' || startDate || endDate;
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -301,8 +268,7 @@ export default function CoaAudit() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
-            <GitBranch className="h-5 w-5" />
-            CoA Audit Trail
+            <GitBranch className="h-5 w-5" />CoA Audit Trail
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             Change of Authorization logs — bandwidth changes, session disconnects, policy enforcement
@@ -316,50 +282,24 @@ export default function CoaAudit() {
 
       {/* Stats Cards */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <Card className="p-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-cyan-500/10">
-              <Activity className="h-4 w-4 text-cyan-500" />
+        {[
+          { icon: Activity, color: 'text-cyan-500', bg: 'bg-cyan-500/10', value: stats.totalToday, label: 'Total Operations' },
+          { icon: CheckCircle, color: 'text-emerald-500', bg: 'bg-emerald-500/10', value: stats.successCount, label: 'Successful', valueColor: 'text-emerald-600' },
+          { icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10', value: stats.failedCount, label: 'Failed', valueColor: 'text-red-600' },
+          { icon: TrendingUp, color: 'text-teal-500', bg: 'bg-teal-500/10', value: `${stats.successRate}%`, label: 'Success Rate', valueColor: 'text-teal-600' },
+        ].map((s) => (
+          <Card key={s.label} className="p-3.5">
+            <div className="flex items-center gap-2.5">
+              <div className={cn('p-2 rounded-lg', s.bg)}>
+                <s.icon className={cn('h-4 w-4', s.color)} />
+              </div>
+              <div>
+                <div className={cn('text-xl font-bold tabular-nums', s.valueColor)}>{s.value}</div>
+                <div className="text-[11px] text-muted-foreground">{s.label}</div>
+              </div>
             </div>
-            <div>
-              <div className="text-xl font-bold tabular-nums">{stats.totalToday}</div>
-              <div className="text-[11px] text-muted-foreground">Total Operations</div>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <CheckCircle className="h-4 w-4 text-emerald-500" />
-            </div>
-            <div>
-              <div className="text-xl font-bold tabular-nums text-emerald-600">{stats.successCount}</div>
-              <div className="text-[11px] text-muted-foreground">Successful</div>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-red-500/10">
-              <XCircle className="h-4 w-4 text-red-500" />
-            </div>
-            <div>
-              <div className="text-xl font-bold tabular-nums text-red-600">{stats.failedCount}</div>
-              <div className="text-[11px] text-muted-foreground">Failed</div>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-teal-500/10">
-              <TrendingUp className="h-4 w-4 text-teal-500" />
-            </div>
-            <div>
-              <div className="text-xl font-bold tabular-nums text-teal-600">{stats.successRate}%</div>
-              <div className="text-[11px] text-muted-foreground">Success Rate</div>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        ))}
       </div>
 
       {/* By Type Breakdown */}
@@ -417,29 +357,16 @@ export default function CoaAudit() {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-2">
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="h-9 text-sm w-36"
-                />
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-9 text-sm w-36" />
                 <span className="text-xs text-muted-foreground">to</span>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="h-9 text-sm w-36"
-                />
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-9 text-sm w-36" />
               </div>
               <div className="flex gap-2 ml-auto">
                 {hasActiveFilters && (
-                  <Button variant="ghost" size="sm" onClick={handleClear} className="h-8 text-xs">
-                    Clear
-                  </Button>
+                  <Button variant="ghost" size="sm" onClick={handleClear} className="h-8 text-xs">Clear</Button>
                 )}
                 <Button size="sm" onClick={handleSearch} disabled={isLoading} className="h-8 text-xs">
-                  <Search className="h-3 w-3 mr-1" />
-                  Search
+                  <Search className="h-3 w-3 mr-1" />Search
                 </Button>
               </div>
             </div>
@@ -468,87 +395,82 @@ export default function CoaAudit() {
           ) : (
             <div className="overflow-x-auto">
               <div className="max-h-[480px] overflow-y-auto">
-                <Table>
-                  <TableHeader sticky>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-9" />
-                      <TableHead className="min-w-[160px]">Timestamp</TableHead>
-                      <TableHead className="min-w-[160px]">Username</TableHead>
-                      <TableHead className="min-w-[120px]">Action</TableHead>
-                      <TableHead className="min-w-[100px]">Result</TableHead>
-                      <TableHead className="min-w-[110px]">NAS IP</TableHead>
-                      <TableHead className="min-w-[100px]">Trigger</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <table className="w-full caption-bottom text-sm">
+                  <thead className="sticky top-0 z-10 bg-background [&_tr]:border-b">
+                    <tr className="border-b border-border/50 hover:bg-transparent">
+                      <th className="h-9 w-9 px-2 text-left align-middle font-medium text-muted-foreground" />
+                      <th className="h-9 px-3 text-left align-middle font-medium text-muted-foreground min-w-[160px]">Timestamp</th>
+                      <th className="h-9 px-3 text-left align-middle font-medium text-muted-foreground min-w-[160px]">Username</th>
+                      <th className="h-9 px-3 text-left align-middle font-medium text-muted-foreground min-w-[120px]">Action</th>
+                      <th className="h-9 px-3 text-left align-middle font-medium text-muted-foreground min-w-[100px]">Result</th>
+                      <th className="h-9 px-3 text-left align-middle font-medium text-muted-foreground min-w-[110px]">NAS IP</th>
+                      <th className="h-9 px-3 text-left align-middle font-medium text-muted-foreground min-w-[100px]">Trigger</th>
+                    </tr>
+                  </thead>
+                  <tbody className="[&_tr:last-child]:border-0">
                     {entries.map((entry) => {
                       const parsedAttrs = parseAttributes(entry.attributes || '');
                       const isExpanded = expandedRow === entry.id;
                       const isFailed = entry.result === 'failed';
 
                       return (
-                        <Collapsible
-                          key={entry.id}
-                          open={isExpanded}
-                          onOpenChange={(open) => setExpandedRow(open ? entry.id : null)}
-                        >
+                        <React.Fragment key={entry.id}>
                           {/* Main row */}
-                          <TableRow
+                          <tr
                             className={cn(
-                              'cursor-pointer transition-colors',
+                              'border-b border-border/50 cursor-pointer transition-colors',
+                              'hover:bg-muted/60',
                               isFailed && !isExpanded && 'bg-red-50/40 dark:bg-red-950/10',
                               isExpanded && 'bg-muted/40',
                             )}
+                            onClick={() => toggleExpand(entry.id)}
                           >
-                            <TableCell className="py-2.5">
-                              <CollapsibleTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-5 w-5 p-0 hover:bg-transparent">
-                                  {isExpanded
-                                    ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                                    : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                                  }
-                                </Button>
-                              </CollapsibleTrigger>
-                            </TableCell>
-                            <TableCell className="py-2.5">
+                            <td className="py-2.5 px-2 align-middle">
+                              <Button variant="ghost" size="sm" className="h-5 w-5 p-0 hover:bg-transparent">
+                                {isExpanded
+                                  ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                  : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                              </Button>
+                            </td>
+                            <td className="py-2.5 px-3 align-middle">
                               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                 <Clock className="h-3 w-3 shrink-0" />
                                 <span>{formatTimestamp(entry.timestamp)}</span>
                               </div>
-                            </TableCell>
-                            <TableCell className="py-2.5">
+                            </td>
+                            <td className="py-2.5 px-3 align-middle">
                               <p className="text-sm font-medium leading-tight">{entry.username}</p>
                               {entry.propertyName && (
                                 <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">{entry.propertyName}</p>
                               )}
-                            </TableCell>
-                            <TableCell className="py-2.5">
+                            </td>
+                            <td className="py-2.5 px-3 align-middle">
                               <CoaTypeBadge type={entry.coaType} />
-                            </TableCell>
-                            <TableCell className="py-2.5">
+                            </td>
+                            <td className="py-2.5 px-3 align-middle">
                               <div className="flex flex-col gap-0.5">
                                 <ResultBadge result={entry.result} />
                                 {entry.responseCode && (
                                   <span className="text-[10px] font-mono text-muted-foreground leading-none">{entry.responseCode}</span>
                                 )}
                               </div>
-                            </TableCell>
-                            <TableCell className="py-2.5">
+                            </td>
+                            <td className="py-2.5 px-3 align-middle">
                               <span className="text-xs font-mono text-muted-foreground">{entry.nasIp || '—'}</span>
-                            </TableCell>
-                            <TableCell className="py-2.5">
+                            </td>
+                            <td className="py-2.5 px-3 align-middle">
                               <TriggerBadge trigger={entry.triggeredBy || 'system'} />
-                            </TableCell>
-                          </TableRow>
+                            </td>
+                          </tr>
 
-                          {/* Expanded detail row */}
-                          <TableRow>
-                            <TableCell colSpan={7} className="p-0">
-                              <CollapsibleContent>
-                                <div className="bg-muted/30 border-t px-5 py-4">
+                          {/* Expanded detail row — plain <tr> directly in <tbody>, no wrappers */}
+                          {isExpanded && (
+                            <tr className="border-b border-border/50 bg-muted/30">
+                              <td colSpan={7} className="p-0">
+                                <div className="border-t px-5 py-4">
                                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                    {/* Error Message */}
-                                    <div className={cn(isFailed && 'col-span-1')}>
+                                    {/* Error */}
+                                    <div>
                                       <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Error</p>
                                       {entry.errorMessage ? (
                                         <div className="flex items-start gap-1.5 bg-red-50 dark:bg-red-950/20 rounded px-2 py-1.5">
@@ -600,14 +522,14 @@ export default function CoaAudit() {
                                     </div>
                                   </div>
                                 </div>
-                              </CollapsibleContent>
-                            </TableCell>
-                          </TableRow>
-                        </Collapsible>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
-                  </TableBody>
-                </Table>
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
