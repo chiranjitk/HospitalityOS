@@ -360,3 +360,20 @@ Stage Summary:
 - Full captive portal E2E ready: redirect service → zone config API → multi-method auth API → designed guest portal page
 - Admin portal page (portal-page.tsx) already had full implementation with 5 tabs: Portal Instances, Portal Designer, Voucher Designer, Print Cards, Walled Garden
 - All 96 WiFi API routes verified, all 17 portal API routes confirmed working
+
+---
+Task ID: 6
+Agent: Main
+Task: Fix Rocky 10 deployment script — EAP module referenced but not enabled
+
+Work Log:
+- Diagnosed: Rocky 10's default FreeRADIUS package has `eap` uncommented in sites-available/default and inner-tunnel
+- The script disables EAP module (`rm -f mods-enabled/eap`) but did NOT comment out eap references in site configs
+- FreeRADIUS fails config check: "Failed to find 'eap' as a module or policy"
+- Fixed production-install/deploy-rocky10-postgresql.sh: added step 5a2 after module disable loop
+- Step 5a2 uses sed to: (1) comment out `eap { ... }` blocks in authorize sections, (2) comment out standalone `eap` in authenticate/REJECT sections
+- Applied to both sites-available/default and sites-available/inner-tunnel
+
+Stage Summary:
+- Fixed: production-install/deploy-rocky10-postgresql.sh now comments out all eap references in site configs
+- Hotfix for existing Rocky 10 server: run `sed` commands on /etc/raddb/sites-available/default and inner-tunnel

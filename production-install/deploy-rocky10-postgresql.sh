@@ -338,6 +338,19 @@ for mod in sqlippool dhcp eap; do
   rm -f "${RADD}/mods-enabled/$mod" 2>/dev/null || true
 done
 
+# ── 5a2: Comment out EAP references in site configs ─────────────────────────
+# Rocky 10's default sites-available/default and inner-tunnel have 'eap' uncommented
+# in authenticate/authorize sections, but we disabled the eap module above.
+# FreeRADIUS will fail config check if eap is referenced but not enabled.
+for site_file in "${RADD}/sites-available/default" "${RADD}/sites-available/inner-tunnel"; do
+  [[ -f "$site_file" ]] || continue
+  info "  Commenting out eap references in $(basename "$site_file")..."
+  # Comment out 'eap { ... }' blocks (authorize section)
+  sed -i '/^[[:space:]]*eap[[:space:]]*{/,/^[[:space:]]*}/ s/^[[:space:]]*/# /' "$site_file"
+  # Comment out standalone 'eap' lines (authenticate section, Post-Auth-Type REJECT)
+  sed -i '/^[[:space:]]*#.*eap/! { /^[[:space:]]*eap[[:space:]]*$/ s/^[[:space:]]*/# / }' "$site_file"
+done
+
 # ── 5b: Write SQL module ─────────────────────────────────────────────────────
 info "Configuring SQL module for PostgreSQL..."
 FR_SQL_CONF=$(cat <<'EOCONF'
