@@ -189,10 +189,18 @@ interface Schedule {
 
 const API_BASE = '/api/nftables';
 
+interface NftablesResult {
+  applied: boolean;
+  mode: 'production' | 'simulation';
+  rulesApplied?: Record<string, number>;
+  liveRuleCounts?: Record<string, number>;
+  errors?: string[];
+}
+
 async function apiFetch<T>(
   url: string,
   options?: RequestInit
-): Promise<{ success: boolean; data?: T; error?: { message: string } }> {
+): Promise<{ success: boolean; data?: T; error?: { message: string }; nftables?: NftablesResult }> {
   return fetch(url, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
@@ -202,6 +210,32 @@ async function apiFetch<T>(
       throw new Error(result.error?.message || `Request failed (${res.status})`);
     return result;
   });
+}
+
+// ─── nftables Apply Toast Helper ─────────────────────────────────────
+
+function showApplyToast(
+  toast: ReturnType<typeof useToast>['toast'],
+  nftables: NftablesResult | undefined,
+  actionName: string
+) {
+  if (!nftables) return;
+  if (nftables.errors && nftables.errors.length > 0) {
+    toast({
+      title: `${actionName} — partial apply`,
+      description: `Applied with ${nftables.errors.length} error(s): ${nftables.errors.join(', ')}`,
+    });
+  } else if (nftables.applied === true) {
+    toast({
+      title: `${actionName} and applied to nftables`,
+      description: `Rules applied in ${nftables.mode} mode.`,
+    });
+  } else {
+    toast({
+      title: `${actionName} (simulation mode)`,
+      description: 'No changes were applied to the live firewall.',
+    });
+  }
 }
 
 // ─── Shared Components ───────────────────────────────────────────────
@@ -408,6 +442,7 @@ function RulesTab() {
   const [editingRule, setEditingRule] = useState<GuiRule | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [filters, setFilters] = useState({ protocol: 'all', action: 'all', chain: 'all' });
+  const [nftablesMode, setNftablesMode] = useState<'production' | 'simulation' | null>(null);
 
   const [form, setForm] = useState({
     name: '',
@@ -439,9 +474,21 @@ function RulesTab() {
     }
   }, [toast]);
 
+  const fetchNftablesStatus = useCallback(async () => {
+    try {
+      const res = await apiFetch<{ mode: string }>(`${API_BASE}/status`);
+      if (res.success && res.data) {
+        setNftablesMode((res.data.mode as 'production' | 'simulation') || null);
+      }
+    } catch {
+      // silently ignore — badge simply won't show
+    }
+  }, []);
+
   useEffect(() => {
     fetchRules();
-  }, [fetchRules]);
+    fetchNftablesStatus();
+  }, [fetchRules, fetchNftablesStatus]);
 
   const openAdd = () => {
     setEditingRule(null);
@@ -473,18 +520,18 @@ function RulesTab() {
     try {
       setSaving(true);
       if (editingRule) {
-        await apiFetch(`${API_BASE}/gui-rules/${editingRule.id}`, {
+        const res = await apiFetch(`${API_BASE}/gui-rules/${editingRule.id}`, {
           method: 'PUT',
           body: JSON.stringify(form),
         });
-        toast({ title: 'Rule Updated', description: `${form.name} has been updated.` });
+        showApplyToast(toast, res.nftables, `Rule "${form.name}" updated`);
       } else {
         const maxP = rules.length > 0 ? Math.max(...rules.map((r) => r.priority)) : 0;
-        await apiFetch(`${API_BASE}/gui-rules`, {
+        const res = await apiFetch(`${API_BASE}/gui-rules`, {
           method: 'POST',
           body: JSON.stringify({ ...form, priority: maxP + 10 }),
         });
-        toast({ title: 'Rule Created', description: `${form.name} has been created.` });
+        showApplyToast(toast, res.nftables, `Rule "${form.name}" created`);
       }
       setDialogOpen(false);
       await fetchRules();
@@ -499,8 +546,8 @@ function RulesTab() {
   const deleteRule = async () => {
     if (!deleteId) return;
     try {
-      await apiFetch(`${API_BASE}/gui-rules/${deleteId}`, { method: 'DELETE' });
-      toast({ title: 'Rule Deleted', description: 'Firewall rule has been removed.' });
+      const res = await apiFetch(`${API_BASE}/gui-rules/${deleteId}`, { method: 'DELETE' });
+      showApplyToast(toast, res.nftables, 'Rule deleted');
       await fetchRules();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to delete rule';
@@ -514,12 +561,12 @@ function RulesTab() {
     const rule = rules.find((r) => r.id === id);
     if (!rule) return;
     try {
-      await apiFetch(`${API_BASE}/gui-rules/${id}/toggle`, {
+      const res = await apiFetch(`${API_BASE}/gui-rules/${id}/toggle`, {
         method: 'PATCH',
         body: JSON.stringify({ enabled: !rule.enabled }),
       });
       setRules(rules.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r)));
-      toast({ title: rule.enabled ? 'Rule Disabled' : 'Rule Enabled' });
+      showApplyToast(toast, res.nftables, rule.enabled ? 'Rule disabled' : 'Rule enabled');
     } catch {
       toast({ title: 'Error', description: 'Failed to toggle rule', variant: 'destructive' });
     }
@@ -576,6 +623,27 @@ function RulesTab() {
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <Filter className="h-4 w-4 text-muted-foreground" />
+        {nftablesMode && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge
+                variant="outline"
+                className={cn(
+                  'text-xs font-semibold gap-1.5',
+                  nftablesMode === 'production'
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700'
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-700'
+                )}
+              >
+                <ShieldCheck className="h-3 w-3" />
+                Auto-Apply: {nftablesMode === 'production' ? 'ON' : 'Simulation'}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              nftables auto-apply is {nftablesMode === 'production' ? 'active — rules are applied to the live firewall' : 'in simulation mode — no live changes'}
+            </TooltipContent>
+          </Tooltip>
+        )}
         <Select value={filters.protocol} onValueChange={(v) => setFilters((p) => ({ ...p, protocol: v }))}>
           <SelectTrigger className="w-32">
             <SelectValue placeholder="Protocol" />
@@ -642,7 +710,8 @@ function RulesTab() {
           action={filters.protocol === 'all' && filters.action === 'all' && filters.chain === 'all' ? { label: 'Add Rule', onClick: openAdd } : undefined}
         />
       ) : (
-        <Card>
+        <Card className="overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-teal-500 to-emerald-500" />
           <CardContent className="p-0">
             <div className="max-h-96 overflow-y-auto">
               <Table>
@@ -1621,7 +1690,7 @@ function QuickBlockTab() {
       {/* Quick Add Form */}
       <Card className="border-teal-200 bg-teal-50/30 dark:bg-teal-950/10 dark:border-teal-800">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="text-base tracking-tight flex items-center gap-2">
             <Ban className="h-4 w-4 text-teal-600 dark:text-teal-400" />
             Quick Block
           </CardTitle>
@@ -2111,7 +2180,7 @@ function PresetsTab() {
         method: 'POST',
         body: JSON.stringify({ sourceIp: sourceIp.trim() || undefined }),
       });
-      toast({ title: 'Preset Applied', description: res.data?.message || 'Preset has been applied successfully.' });
+      showApplyToast(toast, res.nftables, 'Preset applied');
       setApplyId(null);
       setSourceIp('');
     } catch (e: unknown) {
@@ -2188,7 +2257,7 @@ function PresetsTab() {
                       <div className="p-2 rounded-lg bg-muted">
                         <Icon className="h-4 w-4 text-muted-foreground" />
                       </div>
-                      <CardTitle className="text-base">{preset.name}</CardTitle>
+                      <CardTitle className="text-base tracking-tight">{preset.name}</CardTitle>
                     </div>
                     <CategoryBadge category={preset.category} />
                   </div>
@@ -2352,7 +2421,7 @@ interface ChainArchData {
 }
 
 interface ChainStatusData {
-  guiChains: Record<string, { exists: boolean; table: string; ruleCount: number }>;
+  guiChains: Record<string, { exists: boolean; table: string; ruleCount: number; liveRuleCount?: number }>;
   ruleCounts: { guiRules: number; enabledGuiRules: number; portForwards: number; rateLimits: number };
   appliedConfig: boolean;
   mode: string;
@@ -2377,6 +2446,9 @@ function ChainArchitectureTab() {
     security: true,
     sets: true,
   });
+  const [selectedLiveChain, setSelectedLiveChain] = useState('firewallchains');
+  const [liveRulesText, setLiveRulesText] = useState<string | null>(null);
+  const [liveRulesLoading, setLiveRulesLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -2462,6 +2534,43 @@ function ChainArchitectureTab() {
     return statusData.guiChains[chainName]?.ruleCount ?? 0;
   };
 
+  const getLiveRuleCount = (chainName: string): number => {
+    if (!statusData?.guiChains) return 0;
+    return statusData.guiChains[chainName]?.liveRuleCount ?? statusData.guiChains[chainName]?.ruleCount ?? 0;
+  };
+
+  const loadLiveRules = async () => {
+    try {
+      setLiveRulesLoading(true);
+      const res = await apiFetch<{ config: string }>(`${API_BASE}/config/preview`);
+      if (res.success && res.data) {
+        const fullConfig = res.data.config;
+        // Filter to the selected chain's block in the nftables config
+        const lines = fullConfig.split('\n');
+        let inChain = false;
+        let braceDepth = 0;
+        let filtered: string[] = [];
+        for (const line of lines) {
+          if (line.includes(`chain ${selectedLiveChain}`)) {
+            inChain = true;
+            braceDepth = 0;
+          }
+          if (inChain) {
+            filtered.push(line);
+            braceDepth += (line.match(/{/g) || []).length;
+            braceDepth -= (line.match(/}/g) || []).length;
+            if (braceDepth <= 0 && filtered.length > 1) break;
+          }
+        }
+        setLiveRulesText(filtered.length > 0 ? filtered.join('\n') : `# No content found for chain "${selectedLiveChain}"`);
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load live chain rules', variant: 'destructive' });
+    } finally {
+      setLiveRulesLoading(false);
+    }
+  };
+
   // ── Loading Skeleton ──
   if (loading || !archData) {
     return (
@@ -2539,7 +2648,7 @@ function ChainArchitectureTab() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.06 }}
           >
-            <Card className="bg-card/80 backdrop-blur-sm border-border/60 hover:shadow-md transition-shadow">
+            <Card className="bg-card/80 backdrop-blur-sm border-border/60 hover:shadow-lg transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
                   <div className={cn('flex items-center justify-center w-10 h-10 rounded-lg', card.bg)}>
@@ -2561,7 +2670,7 @@ function ChainArchitectureTab() {
       {/* ════════════════════════════════════════════════════════════ */}
       {archData.tables['inet mangle'] && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-          <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden">
+          <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden hover:shadow-lg transition-shadow">
             <div className="h-1 bg-gradient-to-r from-teal-500 to-emerald-400" />
             <CardHeader className="pb-2">
               <button
@@ -2602,7 +2711,7 @@ function ChainArchitectureTab() {
                       </div>
                       <div className="space-y-1.5 ml-3">
                         {archData.tables['inet mangle'].hooks.prerouting?.flow.map((item, idx) => (
-                          <ChainFlowItem key={idx} item={item} ruleCount={item.type === 'gui_chain' ? getRuleCount(item.chain ?? '') : undefined} />
+                          <ChainFlowItem key={idx} item={item} ruleCount={item.type === 'gui_chain' ? getLiveRuleCount(item.chain ?? '') : undefined} />
                         ))}
                       </div>
                     </div>
@@ -2616,7 +2725,7 @@ function ChainArchitectureTab() {
                       </div>
                       <div className="space-y-1.5 ml-3">
                         {archData.tables['inet mangle'].hooks.postrouting?.flow.map((item, idx) => (
-                          <ChainFlowItem key={idx} item={item} ruleCount={item.type === 'gui_chain' ? getRuleCount(item.chain ?? '') : undefined} />
+                          <ChainFlowItem key={idx} item={item} ruleCount={item.type === 'gui_chain' ? getLiveRuleCount(item.chain ?? '') : undefined} />
                         ))}
                       </div>
                     </div>
@@ -2629,18 +2738,21 @@ function ChainArchitectureTab() {
                           Regular Chains (GUI conntrack)
                         </p>
                         <div className="space-y-1.5">
-                          {archData.tables['inet mangle'].guiChains.filter((c) => c.includes('_conn')).map((chainName) => (
-                            <div key={chainName} className="flex items-center justify-between px-3 py-1.5 rounded-md bg-teal-100/50 dark:bg-teal-900/20">
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-cyan-500" />
-                                <span className="font-mono text-xs font-semibold text-teal-700 dark:text-teal-300">{chainName}</span>
-                                <Badge variant="outline" className="text-[10px] bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700">
-                                  GUI
-                                </Badge>
+                          {archData.tables['inet mangle'].guiChains.filter((c) => c.includes('_conn')).map((chainName) => {
+                            const liveCount = getLiveRuleCount(chainName);
+                            return (
+                              <div key={chainName} className="flex items-center justify-between px-3 py-1.5 rounded-md bg-teal-100/50 dark:bg-teal-900/20">
+                                <div className="flex items-center gap-2">
+                                  <div className={cn('w-2 h-2 rounded-full', liveCount > 0 ? 'bg-emerald-500' : 'bg-muted-foreground/30')} />
+                                  <span className="font-mono text-xs font-semibold text-teal-700 dark:text-teal-300">{chainName}</span>
+                                  <Badge variant="outline" className="text-[10px] bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700">
+                                    GUI
+                                  </Badge>
+                                </div>
+                                <span className={cn('text-xs font-mono font-semibold', liveCount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>{liveCount} rules</span>
                               </div>
-                              <span className="text-xs text-muted-foreground">{getRuleCount(chainName)} rules</span>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -2657,7 +2769,7 @@ function ChainArchitectureTab() {
       {/* ════════════════════════════════════════════════════════════ */}
       {archData.tables['inet nat'] && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }}>
-          <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden">
+          <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden hover:shadow-lg transition-shadow">
             <div className="h-1 bg-gradient-to-r from-cyan-500 to-blue-400" />
             <CardHeader className="pb-2">
               <button
@@ -2699,7 +2811,7 @@ function ChainArchitectureTab() {
                         </div>
                         <div className="space-y-1.5 ml-3">
                           {archData.tables['inet nat'].hooks.prerouting.flow.map((item, idx) => (
-                            <ChainFlowItem key={idx} item={item} ruleCount={item.type === 'gui_chain' ? getRuleCount(item.chain ?? '') : undefined} />
+                            <ChainFlowItem key={idx} item={item} ruleCount={item.type === 'gui_chain' ? getLiveRuleCount(item.chain ?? '') : undefined} />
                           ))}
                         </div>
                       </div>
@@ -2715,7 +2827,7 @@ function ChainArchitectureTab() {
                         </div>
                         <div className="space-y-1.5 ml-3">
                           {archData.tables['inet nat'].hooks.postrouting.flow.map((item, idx) => (
-                            <ChainFlowItem key={idx} item={item} ruleCount={item.type === 'gui_chain' ? getRuleCount(item.chain ?? '') : undefined} />
+                            <ChainFlowItem key={idx} item={item} ruleCount={item.type === 'gui_chain' ? getLiveRuleCount(item.chain ?? '') : undefined} />
                           ))}
                         </div>
                       </div>
@@ -2733,7 +2845,7 @@ function ChainArchitectureTab() {
       {/* ════════════════════════════════════════════════════════════ */}
       {archData.securityHooks.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
-          <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden">
+          <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden hover:shadow-lg transition-shadow">
             <div className="h-1 bg-gradient-to-r from-amber-500 to-rose-500" />
             <CardHeader className="pb-2">
               <button
@@ -2807,7 +2919,7 @@ function ChainArchitectureTab() {
       {/* ════════════════════════════════════════════════════════════ */}
       {archData.sets.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.33 }}>
-          <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden">
+          <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden hover:shadow-lg transition-shadow">
             <div className="h-1 bg-gradient-to-r from-violet-500 to-purple-400" />
             <CardHeader className="pb-2">
               <button
@@ -2874,7 +2986,7 @@ function ChainArchitectureTab() {
       {/* ── Config Preview ── */}
       {/* ════════════════════════════════════════════════════════════ */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}>
-        <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden">
+        <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden hover:shadow-lg transition-shadow">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm tracking-tight flex items-center gap-2">
@@ -2920,11 +3032,83 @@ function ChainArchitectureTab() {
         </Card>
       </motion.div>
 
+      {/* ════════════════════════════════════════════════════════════ */}
+      {/* ── Live Chain Viewer ── */}
+      {/* ════════════════════════════════════════════════════════════ */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }}>
+        <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden hover:shadow-lg transition-shadow">
+          <div className="h-1 bg-gradient-to-r from-emerald-500 to-teal-400" />
+          <CardHeader className="pb-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <CardTitle className="text-sm tracking-tight flex items-center gap-2">
+                <Eye className="h-4 w-4 text-emerald-500" />
+                Live Chain Viewer
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Select value={selectedLiveChain} onValueChange={(v) => { setSelectedLiveChain(v); setLiveRulesText(null); }}>
+                  <SelectTrigger className="w-48 h-8 text-xs">
+                    <SelectValue placeholder="Select chain" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CHAIN_OPTIONS.map((group) => (
+                      <SelectItem key={group.group} value={group.chains.map((c) => c.value).join(',')} disabled className="pointer-events-none text-muted-foreground font-semibold text-xs">
+                        {group.group}
+                      </SelectItem>
+                    ))}
+                    {CHAIN_OPTIONS.flatMap((g) => g.chains).map((chain) => {
+                      const liveCount = getLiveRuleCount(chain.value);
+                      return (
+                        <SelectItem key={chain.value} value={chain.value} className="pl-6">
+                          <div className="flex items-center gap-2">
+                            <span>{chain.label}</span>
+                            <div className="flex items-center gap-1">
+                              <div className={cn('w-1.5 h-1.5 rounded-full', liveCount > 0 ? 'bg-emerald-500' : 'bg-muted-foreground/30')} />
+                              <span className="text-[10px] font-mono text-muted-foreground">{liveCount}</span>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm" onClick={loadLiveRules} disabled={liveRulesLoading} className="text-xs">
+                  {liveRulesLoading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
+                  Load Live Rules
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <AnimatePresence>
+            {liveRulesText !== null && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
+                <CardContent className="pt-0 pb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className={cn('w-2 h-2 rounded-full', getLiveRuleCount(selectedLiveChain) > 0 ? 'bg-emerald-500' : 'bg-muted-foreground/30')} />
+                    <span className="text-[11px] text-muted-foreground">
+                      Chain <span className="font-mono font-semibold">{selectedLiveChain}</span> &middot; {getLiveRuleCount(selectedLiveChain)} live rule{getLiveRuleCount(selectedLiveChain) !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <pre className="bg-zinc-950 text-zinc-100 rounded-lg p-4 overflow-x-auto overflow-y-auto text-[11px] font-mono leading-relaxed border border-zinc-800 max-h-96 scrollbar-thin">
+                    <code>{liveRulesText}</code>
+                  </pre>
+                </CardContent>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Card>
+      </motion.div>
+
       {/* ── Legend ── */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.45 }}
+        transition={{ delay: 0.5 }}
         className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground px-1"
       >
         <span className="font-medium text-foreground/70">Legend:</span>

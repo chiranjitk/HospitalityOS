@@ -34,7 +34,7 @@ import { createLogger } from '../shared/logger';
 
 const app = new Hono();
 const PORT = 3013;
-const SERVICE_VERSION = '2.0.0';
+const SERVICE_VERSION = '2.1.0';
 const log = createLogger('nftables-service');
 const startTime = Date.now();
 
@@ -885,6 +885,42 @@ function flushGuiChainsInNftables(): { flushed: string[]; errors: string[] } {
 }
 
 /**
+ * Auto-apply helper: if nftables is installed (production mode),
+ * flush GUI chains and re-add all rules from JSON storage.
+ * This is called after every CRUD operation to keep nftables in sync.
+ */
+interface AutoApplyResult {
+  applied: boolean;
+  mode: 'production' | 'simulation';
+  rulesApplied?: Record<string, number>;
+  liveRuleCounts?: Record<string, number>;
+  errors?: string[];
+}
+
+function autoApplyRules(): AutoApplyResult {
+  if (!isNftablesInstalled()) {
+    return { applied: false, mode: 'simulation' };
+  }
+
+  const result = applyGuiRulesToNftables();
+  const liveCounts = getLiveChainRuleCounts();
+
+  if (result.errors.length > 0) {
+    log.warn('Auto-apply completed with errors', { errors: result.errors });
+  } else {
+    log.info('Auto-apply completed', { rulesApplied: result.rulesApplied });
+  }
+
+  return {
+    applied: true,
+    mode: 'production',
+    rulesApplied: result.rulesApplied,
+    liveRuleCounts: liveCounts,
+    errors: result.errors.length > 0 ? result.errors : undefined,
+  };
+}
+
+/**
  * Get live rule counts from nftables for each GUI chain.
  */
 function getLiveChainRuleCounts(): Record<string, number> {
@@ -1181,7 +1217,10 @@ app.post('/api/gui-rules', async (c) => {
 
     log.info('Created GUI rule', { id: newRule.id, name, chain, action });
 
-    return c.json({ success: true, data: newRule });
+    // Auto-apply to nftables in production mode
+    const applyResult = autoApplyRules();
+
+    return c.json({ success: true, data: newRule, nftables: applyResult });
   } catch (err: unknown) {
     const error = err instanceof Error ? err.message : String(err);
     return c.json({ success: false, error }, 500);
@@ -1238,7 +1277,10 @@ app.put('/api/gui-rules/:id', async (c) => {
 
     log.info('Updated GUI rule', { id, name: updated.name });
 
-    return c.json({ success: true, data: updated });
+    // Auto-apply to nftables in production mode
+    const applyResult = autoApplyRules();
+
+    return c.json({ success: true, data: updated, nftables: applyResult });
   } catch (err: unknown) {
     const error = err instanceof Error ? err.message : String(err);
     return c.json({ success: false, error }, 500);
@@ -1259,7 +1301,10 @@ app.delete('/api/gui-rules/:id', (c) => {
 
   log.info('Deleted GUI rule', { id, name: deleted.name });
 
-  return c.json({ success: true, message: 'Rule deleted', data: deleted });
+  // Auto-apply to nftables in production mode
+  const delApplyResult = autoApplyRules();
+
+  return c.json({ success: true, message: 'Rule deleted', data: deleted, nftables: delApplyResult });
 });
 
 app.patch('/api/gui-rules/:id/toggle', (c) => {
@@ -1277,7 +1322,10 @@ app.patch('/api/gui-rules/:id/toggle', (c) => {
 
   log.info('Toggled GUI rule', { id, enabled: rules[index].enabled });
 
-  return c.json({ success: true, data: rules[index] });
+  // Auto-apply to nftables in production mode
+  const toggleApplyResult = autoApplyRules();
+
+  return c.json({ success: true, data: rules[index], nftables: toggleApplyResult });
 });
 
 // ============================================================================
@@ -1344,7 +1392,10 @@ app.post('/api/port-forwards', async (c) => {
 
     log.info('Created port forward', { id: newPf.id, name, externalPort, internalIp, internalPort });
 
-    return c.json({ success: true, data: newPf });
+    // Auto-apply to nftables in production mode
+    const pfApplyResult = autoApplyRules();
+
+    return c.json({ success: true, data: newPf, nftables: pfApplyResult });
   } catch (err: unknown) {
     const error = err instanceof Error ? err.message : String(err);
     return c.json({ success: false, error }, 500);
@@ -1385,7 +1436,10 @@ app.put('/api/port-forwards/:id', async (c) => {
 
     log.info('Updated port forward', { id, name: updated.name });
 
-    return c.json({ success: true, data: updated });
+    // Auto-apply to nftables in production mode
+    const pfUpdResult = autoApplyRules();
+
+    return c.json({ success: true, data: updated, nftables: pfUpdResult });
   } catch (err: unknown) {
     const error = err instanceof Error ? err.message : String(err);
     return c.json({ success: false, error }, 500);
@@ -1406,7 +1460,10 @@ app.delete('/api/port-forwards/:id', (c) => {
 
   log.info('Deleted port forward', { id, name: deleted.name });
 
-  return c.json({ success: true, message: 'Port forward deleted', data: deleted });
+  // Auto-apply to nftables in production mode
+  const pfDelResult = autoApplyRules();
+
+  return c.json({ success: true, message: 'Port forward deleted', data: deleted, nftables: pfDelResult });
 });
 
 app.patch('/api/port-forwards/:id/toggle', (c) => {
@@ -1423,7 +1480,10 @@ app.patch('/api/port-forwards/:id/toggle', (c) => {
 
   log.info('Toggled port forward', { id, enabled: pfs[index].enabled });
 
-  return c.json({ success: true, data: pfs[index] });
+  // Auto-apply to nftables in production mode
+  const pfTogResult = autoApplyRules();
+
+  return c.json({ success: true, data: pfs[index], nftables: pfTogResult });
 });
 
 // ============================================================================
@@ -1636,7 +1696,10 @@ app.post('/api/quick-blocks', async (c) => {
 
     log.info('Created quick block', { id: newBlock.id, type, value, reason });
 
-    return c.json({ success: true, data: newBlock });
+    // Auto-apply to nftables in production mode
+    const qbCreateResult = autoApplyRules();
+
+    return c.json({ success: true, data: newBlock, nftables: qbCreateResult });
   } catch (err: unknown) {
     const error = err instanceof Error ? err.message : String(err);
     return c.json({ success: false, error }, 500);
@@ -1657,7 +1720,10 @@ app.delete('/api/quick-blocks/:id', (c) => {
 
   log.info('Deleted quick block', { id, type: deleted.type, value: deleted.value });
 
-  return c.json({ success: true, message: 'Quick block removed', data: deleted });
+  // Auto-apply to nftables in production mode
+  const qbDelResult = autoApplyRules();
+
+  return c.json({ success: true, message: 'Quick block removed', data: deleted, nftables: qbDelResult });
 });
 
 // ============================================================================
@@ -1835,15 +1901,21 @@ app.post('/api/presets/:id/apply', async (c) => {
 
     log.info('Applied preset', { presetId: id, presetName: preset.name, rulesCreated: createdRules.length });
 
+    // Auto-apply to nftables in production mode — THIS IS THE CRITICAL FIX
+    // Previously, presets only saved to JSON and never pushed rules to nftables.
+    // Now, rules are immediately applied to the kernel nftables chains.
+    const applyResult = autoApplyRules();
+
     return c.json({
       success: true,
-      message: `Preset "${preset.name}" applied with ${createdRules.length} rules`,
+      message: `Preset "${preset.name}" applied with ${createdRules.length} rules${applyResult.applied ? ' and applied to nftables' : ''}`,
       data: {
         preset: preset.name,
         presetId: preset.id,
         rulesCreated: createdRules.length,
         rules: createdRules,
       },
+      nftables: applyResult,
     });
   } catch (err: unknown) {
     const error = err instanceof Error ? err.message : String(err);
