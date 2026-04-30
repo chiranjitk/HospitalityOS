@@ -13,7 +13,7 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "db:seed": "bun prisma/seed.ts",
-    "services:install": "cd mini-services/freeradius-service && bun install && cd ../realtime-service && bun install && cd ../availability-service && bun install && cd ../kea-service && bun install && cd ../..",
+    "services:install": "cd mini-services/freeradius-service && bun install && cd ../realtime-service && bun install && cd ../availability-service && bun install && cd ../dhcp-service && bun install && cd ../..",
     "services:setup": "bun install && bun run db:generate && bun run db:push && bun run services:install",
     "test": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) vitest run",
     "test:watch": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) vitest",

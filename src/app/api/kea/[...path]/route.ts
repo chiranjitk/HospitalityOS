@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const KEA_SERVICE_URL = 'http://127.0.0.1:3011';
+const DHCP_SERVICE_URL = 'http://127.0.0.1:3011';
 
 /**
- * Catch-all proxy route for Kea DHCP4 service.
- * Forwards requests from /api/kea/* to http://localhost:3011/api/*
+ * Catch-all proxy route for DHCP service (dnsmasq backend).
+ * Routes /api/kea/* → dhcp-service on port 3011/api/*
+ *
+ * Note: The /api/kea/ path prefix is kept for backward compatibility
+ * with the existing DHCP management UI (dhcp-page.tsx).
+ * The dhcp-service (dnsmasq) replaced the old Kea DHCP4 service.
  *
  * Examples:
- *   GET  /api/kea/status       → http://localhost:3011/api/status
- *   GET  /api/kea/subnets      → http://localhost:3011/api/subnets
- *   POST /api/kea/subnets      → http://localhost:3011/api/subnets
- *   GET  /api/kea/reservations → http://localhost:3011/api/reservations
- *   GET  /api/kea/leases       → http://localhost:3011/api/leases
- *   POST /api/kea/service/start → http://localhost:3011/api/service/start
+ *   GET  /api/kea/status       → http://127.0.0.1:3011/api/status
+ *   GET  /api/kea/subnets      → http://127.0.0.1:3011/api/subnets
+ *   POST /api/kea/subnets      → http://127.0.0.1:3011/api/subnets
+ *   GET  /api/kea/reservations → http://127.0.0.1:3011/api/reservations
+ *   GET  /api/kea/leases       → http://127.0.0.1:3011/api/leases
+ *   POST /api/kea/service/start → http://127.0.0.1:3011/api/service/start
  */
 async function proxyRequest(request: NextRequest, method: string) {
   try {
@@ -20,7 +24,7 @@ async function proxyRequest(request: NextRequest, method: string) {
       .replace('/api/kea/', '')
       .replace('/api/kea', '');
     const searchParams = request.nextUrl.searchParams.toString();
-    const targetUrl = `${KEA_SERVICE_URL}/api/${pathSegments}${searchParams ? '?' + searchParams : ''}`;
+    const targetUrl = `${DHCP_SERVICE_URL}/api/${pathSegments}${searchParams ? '?' + searchParams : ''}`;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -51,23 +55,23 @@ async function proxyRequest(request: NextRequest, method: string) {
     const isTimeout = error.name === 'TimeoutError' || error.message?.includes('abort');
 
     if (isConnectionError || isTimeout) {
-      console.warn('[Kea Proxy] Kea DHCP service unavailable at', KEA_SERVICE_URL);
+      console.warn('[DHCP Proxy] DHCP service unavailable at', DHCP_SERVICE_URL);
       return NextResponse.json(
         {
           success: false,
           error: {
             code: 'SERVICE_UNAVAILABLE',
-            message: 'Kea DHCP service is not running. Start it with: cd mini-services/kea-service && bun run dev',
-            hint: 'OS network data is available at /api/network/os without kea-service',
+            message: 'DHCP service is not running. Start it with: cd mini-services/dhcp-service && bun run dev',
+            hint: 'OS network data is available at /api/network/os without dhcp-service',
           },
         },
         { status: 503 }
       );
     }
 
-    console.error('[Kea Proxy] Error:', error.message);
+    console.error('[DHCP Proxy] Error:', error.message);
     return NextResponse.json(
-      { success: false, error: { code: 'PROXY_ERROR', message: `Failed to reach Kea DHCP service: ${error.message}` } },
+      { success: false, error: { code: 'PROXY_ERROR', message: `Failed to reach DHCP service: ${error.message}` } },
       { status: 502 }
     );
   }
