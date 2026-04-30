@@ -1,15 +1,9 @@
 # StaySuite DNS Configuration - Auto-generated
-# Last updated: 2026-04-30T20:50:00.000Z
+# Last updated: 2026-04-27T07:58:02.559Z
 # DO NOT EDIT MANUALLY - Changes will be overwritten
 
-# Upstream DNS forwarders
-server=8.8.8.8
-server=8.8.4.4
-server=1.1.1.1
-
 # DNS Redirects (Captive Portal)
-address=/connect.staysuite.local/192.168.10.1
-address=/portal.staysuite.local/192.168.10.1
+address=//*/192.168.10.1
 
 # Zone: staysuite.local
 address=/portal.staysuite.local/192.168.1.10
@@ -18,11 +12,6 @@ address=/dns.staysuite.local/192.168.1.1
 # Zone: guest.staysuite.local
 address=/portal.guest.staysuite.local/192.168.10.1
 address=/dns.guest.staysuite.local/192.168.1.1
-
-# Zone: royalstay.local (hotel internal)
-address=/gateway.royalstay.local/192.168.1.1
-address=/pms.royalstay.local/192.168.1.50
-address=/wifi.royalstay.local/192.168.10.1
 
 # General settings
 domain-needed

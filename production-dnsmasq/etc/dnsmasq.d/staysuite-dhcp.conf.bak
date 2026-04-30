@@ -1,6 +1,12 @@
 # StaySuite DHCP Configuration - Auto-generated
-# Last updated: 2026-04-30T20:50:00.000Z
+# Last updated: 2026-04-27T07:58:02.446Z
 # DO NOT EDIT MANUALLY - Managed by StaySuite dhcp-service
+
+# ─────────────────────────────────────────────
+# Interface Bindings
+# ─────────────────────────────────────────────
+
+bind-interfaces
 
 # ─────────────────────────────────────────────
 # DHCP Subnets
@@ -12,6 +18,7 @@ dhcp-range=192.168.10.100,192.168.10.254,255.255.255.0,1h
 dhcp-option=option:router,192.168.10.1
 dhcp-option=option:dns-server,192.168.1.1,8.8.8.8
 dhcp-option=option:domain-name,guest.royalstay.local
+dhcp-option=option:Domain Name,guest.royalstay.local
 
 # Subnet: IoT Devices Subnet (192.168.40.0/24)
 # ID: 930fa188-5732-46f8-a17a-91723afce130
@@ -35,23 +42,21 @@ dhcp-option=option:dns-server,192.168.1.1,8.8.8.8
 dhcp-option=option:domain-name,staff.royalstay.local
 
 # ─────────────────────────────────────────────
-# Custom DHCP Options (Global)
+# Custom DHCP Options
 # ─────────────────────────────────────────────
 
 # ID: 53640176-da16-465b-a69f-5211b40b06ed | Default DNS servers for all subnets
-dhcp-option=option:dns-server,8.8.8.8,1.1.1.1
-
-# ID: fb009c34-2b59-4c0d-86ed-61eb14f3fbf9 | NTP server for time synchronization
-# pool.ntp.org resolved to 162.159.200.123
-dhcp-option=option:ntp-server,162.159.200.123
+dhcp-option=option:DNS Servers,8.8.8.8, 1.1.1.1
+# ID: fb009c34-2b59-4c0d-86ed-61eb14f3fbf9 | Network time protocol server for time synchronization
+dhcp-option=option:NTP Server,pool.ntp.org
 
 # ─────────────────────────────────────────────
 # MAC Reservations
 # ─────────────────────────────────────────────
 
-# ID: 7ce7ca63-8bf9-404f-8a7e-1cd44708c7aa | Smart lock for Room 101
+# ID: 7ce7ca63-8bf9-404f-8a7e-1cd44708c7aa | Smart lock for Room 101 - always needs same IP
 dhcp-host=AA:BB:CC:DD:01:01,192.168.40.101,Room101-SmartLock
 # ID: 425e0bc9-c3e8-4253-a2a4-f4e036f2019f | Smart thermostat for Room 101
 dhcp-host=AA:BB:CC:DD:01:02,192.168.40.102,Room101-Thermostat
-# ID: 06340955-7533-420e-95bc-7a18f93d0106 | Front desk manager laptop
+# ID: 06340955-7533-420e-95bc-7a18f93d0106 | Front desk manager laptop - fixed IP for printer access
 dhcp-host=AA:BB:CC:DD:02:01,192.168.20.51,Priya-Laptop
