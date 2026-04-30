@@ -181,7 +181,7 @@ sql {
         # server = mongodb://<DERIVED USERNAME>@192.168.0.2:PORT/DATABASE?authSource=$external&ssl=true&authMechanism=MONGODB-X509
 
         # Database table configuration for everything except Oracle
-        radius_db = "dbname=staysuite host=localhost port=5432 user=z"
+        radius_db = "dbname=staysuite host=localhost port=5432 user=postgres password=postgres"
 
         # If you are using Oracle then use this instead
 #       radius_db = "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CONNECT_DATA=(SID=your_sid)))"

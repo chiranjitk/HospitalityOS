@@ -2,14 +2,14 @@ module.exports = {
   apps: [
     {
       name: 'staysuite-freeradius',
-      script: '/home/z/my-project/freeradius/sbin/radiusd',
-      args: '-d /home/z/my-project/freeradius/etc/raddb -f',
+      script: '/home/z/my-project/freeradius-install/sbin/radiusd',
+      args: '-d /home/z/my-project/freeradius-install/etc/raddb -f',
       cwd: '/home/z/my-project',
       interpreter: 'none',
       watch: false,
       autorestart: true,
       env: {
-        LD_LIBRARY_PATH: '/home/z/my-project/freeradius-deps/usr/local/lib',
+        LD_LIBRARY_PATH: '/home/z/my-project/freeradius-install/lib',
       },
     },
     {
