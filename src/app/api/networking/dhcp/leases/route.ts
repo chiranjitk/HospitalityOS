@@ -8,10 +8,13 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { searchParams } = request.nextUrl;
-    const propertyId = searchParams.get('propertyId') || 'property-1';
+    const propertyId = searchParams.get('propertyId');
+
+    const where: Record<string, unknown> = { tenantId: user.tenantId, state: 'active' };
+    if (propertyId) where.propertyId = propertyId;
 
     const items = await db.dhcpLease.findMany({
-      where: { tenantId: user.tenantId, propertyId, state: 'active' },
+      where,
       include: {
         subnet: { select: { id: true, name: true, subnet: true } },
       },

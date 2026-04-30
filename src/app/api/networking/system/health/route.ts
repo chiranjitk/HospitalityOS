@@ -21,27 +21,29 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { searchParams } = request.nextUrl;
-    const propertyId = searchParams.get('propertyId') || 'property-1';
+    const propertyId = searchParams.get('propertyId');
 
-    // Check if we have stored health data in the database
-    const health = await db.systemNetworkHealth.findUnique({
-      where: { propertyId },
-    });
-
-    if (health) {
-      return NextResponse.json({
-        hostname: health.hostname,
-        kernel: health.kernelVersion,
-        uptime: health.uptime,
-        cpuUsage: health.cpuUsage,
-        ramTotal: health.ramTotal,
-        ramUsed: health.ramUsed,
-        diskTotal: health.diskTotal,
-        diskUsed: health.diskUsed,
-        cpuTemperature: health.cpuTemperature,
-        services: JSON.parse(health.services),
-        lastUpdated: health.lastUpdated,
+    // Check if we have stored health data in the database (only if propertyId provided)
+    if (propertyId) {
+      const health = await db.systemNetworkHealth.findUnique({
+        where: { propertyId },
       });
+
+      if (health) {
+        return NextResponse.json({
+          hostname: health.hostname,
+          kernel: health.kernelVersion,
+          uptime: health.uptime,
+          cpuUsage: health.cpuUsage,
+          ramTotal: health.ramTotal,
+          ramUsed: health.ramUsed,
+          diskTotal: health.diskTotal,
+          diskUsed: health.diskUsed,
+          cpuTemperature: health.cpuTemperature,
+          services: JSON.parse(health.services),
+          lastUpdated: health.lastUpdated,
+        });
+      }
     }
 
     // No DB record — fetch LIVE metrics from the system (no mock/dummy data)

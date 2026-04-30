@@ -8,17 +8,19 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { searchParams } = request.nextUrl;
-    const propertyId = searchParams.get('propertyId') || 'property-1';
+    const propertyId = searchParams.get('propertyId');
     const hours = parseInt(searchParams.get('hours') || '24', 10);
     const since = new Date(Date.now() - hours * 60 * 60 * 1000);
 
+    const where: Record<string, unknown> = {
+      tenantId: user.tenantId,
+      timestamp: { gte: since },
+      destDomain: { not: null },
+    };
+    if (propertyId) where.propertyId = propertyId;
+
     const logs = await db.natLog.findMany({
-      where: {
-        tenantId: user.tenantId,
-        propertyId,
-        timestamp: { gte: since },
-        destDomain: { not: null },
-      },
+      where,
       orderBy: { timestamp: 'desc' },
       take: 500,
     });

@@ -8,10 +8,13 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { searchParams } = request.nextUrl;
-    const propertyId = searchParams.get('propertyId') || 'property-1';
+    const propertyId = searchParams.get('propertyId');
+
+    const where: Record<string, unknown> = { tenantId: user.tenantId };
+    if (propertyId) where.propertyId = propertyId;
 
     const dailyData = await db.bandwidthUsageDaily.findMany({
-      where: { tenantId: user.tenantId, propertyId },
+      where,
       orderBy: { date: 'desc' },
       take: 30,
     });
