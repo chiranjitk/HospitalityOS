@@ -1,0 +1,19 @@
+Apr 30 20:44:05 dnsmasq[25423]: started, version 2.90 cachesize 150
+Apr 30 20:44:05 dnsmasq[25423]: compile time options: IPv6 GNU-getopt no-DBus no-UBus no-i18n no-IDN DHCP DHCPv6 no-Lua TFTP no-conntrack ipset no-nftset auth no-cryptohash no-DNSSEC loop-detect inotify dumpfile
+Apr 30 20:44:05 dnsmasq[25423]: warning: failed to change owner of /home/z/my-project/production-dnsmasq/logs/dnsmasq.log: Operation not permitted
+Apr 30 20:44:05 dnsmasq[25423]: using nameserver 8.8.8.8#53
+Apr 30 20:44:05 dnsmasq[25423]: using nameserver 8.8.4.4#53
+Apr 30 20:44:05 dnsmasq[25423]: using nameserver 1.1.1.1#53
+Apr 30 20:44:05 dnsmasq[25423]: using only locally-known addresses for staysuite.local
+Apr 30 20:44:05 dnsmasq[25423]: read /etc/hosts - 9 names
+Apr 30 20:44:17 dnsmasq[25470]: started, version 2.90 cachesize 150
+Apr 30 20:44:17 dnsmasq[25470]: compile time options: IPv6 GNU-getopt no-DBus no-UBus no-i18n no-IDN DHCP DHCPv6 no-Lua TFTP no-conntrack ipset no-nftset auth no-cryptohash no-DNSSEC loop-detect inotify dumpfile
+Apr 30 20:44:17 dnsmasq[25470]: warning: failed to change owner of /home/z/my-project/production-dnsmasq/logs/dnsmasq.log: Operation not permitted
+Apr 30 20:44:17 dnsmasq[25470]: using nameserver 8.8.8.8#53
+Apr 30 20:44:17 dnsmasq[25470]: using nameserver 8.8.4.4#53
+Apr 30 20:44:17 dnsmasq[25470]: using nameserver 1.1.1.1#53
+Apr 30 20:44:17 dnsmasq[25470]: using only locally-known addresses for staysuite.local
+Apr 30 20:44:17 dnsmasq[25470]: read /etc/hosts - 9 names
+Apr 30 20:44:19 dnsmasq[25470]: query[A] google.com from 127.0.0.1
+Apr 30 20:44:19 dnsmasq[25470]: forwarded google.com to 8.8.8.8
+Apr 30 20:44:19 dnsmasq[25470]: reply google.com is 142.250.198.78
