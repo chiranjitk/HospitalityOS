@@ -197,17 +197,42 @@ function resolveHostname(hostname: string): string {
 }
 
 /**
- * Sanitize a DHCP option value: trim whitespace around commas,
- * and resolve hostnames to IPs for options that require IPs.
+ * Check if a string looks like a hostname (contains letters but isn't a pure IPv4).
+ * Used to aggressively resolve hostnames in DHCP option values.
  */
+function looksLikeHostname(s: string): boolean {
+  const trimmed = s.trim();
+  if (!trimmed || isIPv4(trimmed)) return false;
+  // Must contain at least one letter and a dot (domain-like) OR be purely alphabetic (single-label hostname)
+  return /^[a-zA-Z]/.test(trimmed);
+}
+
+/**
+ * Sanitize a DHCP option value: trim whitespace around commas.
+ * AGGRESSIVELY resolves ALL hostnames to IPs (not just IP_ONLY_OPTIONS).
+ * dnsmasq almost always requires IPs — hostnames in IP slots cause "bad IP address" errors.
+ * Only skips resolution for known string-type options (domain-name, wpad, bootfile, etc.).
+ */
+const STRING_ONLY_OPTIONS = new Set([
+  'domain-name', 'wpad', 'bootfile', 'root-path', 'tftp-server-name',
+]);
+
 function sanitizeDhcpOptionValue(value: string, optionName: string): string {
-  const parts = value.split(',').map((s: string) => s.trim());
-  if (IP_ONLY_OPTIONS.has(optionName)) {
-    // Resolve any hostnames to IPs for IP-only options
-    const resolved = parts.map((p: string) => isIPv4(p) ? p : resolveHostname(p));
-    return resolved.join(',');
+  const parts = value.split(',').map((s: string) => s.trim()).filter(Boolean);
+  // Skip hostname resolution for known string-type options
+  if (STRING_ONLY_OPTIONS.has(optionName)) {
+    return parts.join(',');
   }
-  return parts.join(',');
+  // Resolve ANY hostname-like value to IP (aggressive — catches ALL cases)
+  const resolved = parts.map((p: string) => {
+    if (isIPv4(p)) return p;
+    // Pure numbers or already-resolved IPs — keep as-is
+    if (/^\d+$/.test(p)) return p;
+    // Anything that looks like a hostname — resolve it
+    if (looksLikeHostname(p)) return resolveHostname(p);
+    return p;
+  });
+  return resolved.join(',');
 }
 
 function parseDnsList(val: unknown): string[] {
@@ -600,6 +625,26 @@ async function generateConfig(): Promise<{ success: boolean; message: string; li
         // Domain name
         if (sub.domainName) {
           config += `dhcp-option=option:domain-name,${sub.domainName}\n`;
+        }
+
+        // NTP servers — resolve hostnames to IPs (dnsmasq requires IPs for option 42)
+        const ntp = parseDnsList(sub.ntpServers);
+        if (ntp.length > 0) {
+          const resolvedNtp = ntp.map((s: string) => resolveHostname(s.trim())).filter(Boolean);
+          if (resolvedNtp.length > 0) {
+            config += `dhcp-option=option:ntp-server,${resolvedNtp.join(',')}\n`;
+          }
+        }
+
+        // Next server (PXE/TFTP boot server IP)
+        if (sub.nextServer) {
+          const nextServerIp = resolveHostname(sub.nextServer.trim());
+          config += `dhcp-option=option:tftp-server,${nextServerIp}\n`;
+        }
+
+        // Boot file name
+        if (sub.bootFileName) {
+          config += `dhcp-option=option:bootfile,${sub.bootFileName}\n`;
         }
 
         // Per-subnet custom DHCP options
