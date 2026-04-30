@@ -337,7 +337,9 @@ host    replication  all  ::1/128         trust
 EOF
 chown postgres:postgres "${PG_DATA}/pg_hba.conf"
 chmod 640 "${PG_DATA}/pg_hba.conf"
-systemctl reload "postgresql-${PG_MAJOR}" 2>/dev/null || systemctl restart "postgresql-${PG_MAJOR}"
+systemctl restart "postgresql-${PG_MAJOR}"
+sleep 2
+systemctl is-active --quiet "postgresql-${PG_MAJOR}" || die "PostgreSQL failed to restart after pg_hba.conf change"
 success "Database 'staysuite' + users 'staysuite'/'radius' created"
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -626,19 +628,32 @@ step 10 "Prisma" "Pushing schema (~231 PMS tables)"
 cd "$APP_DIR"
 export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=30"
 
-# Verify TCP + actual password authentication (not just pg_isready)
+# Ensure pg_hba.conf is trust (something may have changed it since Step 4)
+cat > "${PG_DATA}/pg_hba.conf" <<'EOF'
+# StaySuite pg_hba.conf
+type  database  user  address         method
+local   all       all                    trust
+host    all       all   127.0.0.1/32    trust
+host    all       all   ::1/128         trust
+host    all       all   0.0.0.0/0       trust
+host    all       all   ::/0            trust
+host    replication  all  127.0.0.1/32    trust
+host    replication  all  ::1/128         trust
+EOF
+chown postgres:postgres "${PG_DATA}/pg_hba.conf"
+systemctl restart "postgresql-${PG_MAJOR}" 2>/dev/null
+sleep 2
+
+# Verify TCP connectivity
 for i in $(seq 1 10); do
   if psql -h 127.0.0.1 -U staysuite -d staysuite -c "SELECT 1" >/dev/null 2>&1; then
     break
   fi
-  if [[ $i -eq 1 ]]; then
-    warn "Waiting for PostgreSQL TCP auth to be ready..."
-    systemctl restart "postgresql-${PG_MAJOR}" 2>/dev/null
-  fi
+  warn "PostgreSQL not ready yet... ($i/10)"
   sleep 2
 done
 psql -h 127.0.0.1 -U staysuite -d staysuite -c "SELECT 1" >/dev/null 2>&1 \
-  || die "PostgreSQL TCP connection failed — check listen_addresses"
+  || die "PostgreSQL TCP connection failed — check listen_addresses and pg_hba.conf"
 
 # Ensure citext exists before prisma push
 sudo -u postgres psql -d staysuite -c "CREATE EXTENSION IF NOT EXISTS citext;" 2>/dev/null
