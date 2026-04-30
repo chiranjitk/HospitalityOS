@@ -1,13 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Activity, Database, Wifi, Globe, Radio } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useQuery } from '@tanstack/react-query';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -171,16 +170,39 @@ function SystemHealthLoadingSkeleton() {
 // ─── Main Widget ────────────────────────────────────────────────────────
 
 export function SystemHealthStatusWidget() {
-  const { data, isLoading, isError, dataUpdatedAt } = useQuery<SystemHealthResponse>({
-    queryKey: ['system-health'],
-    queryFn: async () => {
-      const res = await fetch('/api/system-health');
-      if (!res.ok) throw new Error('Failed to fetch system health');
-      return res.json();
-    },
-    refetchInterval: 30000, // Auto-refresh every 30 seconds
-    staleTime: 15000,
-  });
+  const [data, setData] = useState<SystemHealthResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  const [lastChecked, setLastChecked] = useState<string>('--:--:--');
+
+  // Initial fetch + auto-refresh every 30 seconds
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      if (cancelled) return;
+      try {
+        const res = await fetch('/api/system-health');
+        if (cancelled) return;
+        if (!res.ok) throw new Error('Failed to fetch system health');
+        const json = await res.json();
+        if (cancelled) return;
+        setData(json);
+        setLastChecked(new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+        }));
+        setIsError(false);
+      } catch {
+        if (!cancelled) setIsError(true);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    load();
+    const interval = setInterval(load, 30000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   if (isLoading) {
     return <SystemHealthLoadingSkeleton />;
@@ -197,7 +219,13 @@ export function SystemHealthStatusWidget() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">Unable to check service status.</p>
+          <p className="text-sm text-muted-foreground mb-3">Unable to check service status.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="text-sm font-medium text-primary hover:underline cursor-pointer"
+          >
+            Try Again
+          </button>
         </CardContent>
       </Card>
     );
@@ -207,10 +235,6 @@ export function SystemHealthStatusWidget() {
   const totalServices = data.services.length;
   const overallStatus = healthyCount === totalServices ? 'healthy' : healthyCount >= totalServices / 2 ? 'degraded' : 'error';
   const overallConfig = STATUS_CONFIG[overallStatus] || STATUS_CONFIG.down;
-
-  const lastChecked = dataUpdatedAt
-    ? new Date(dataUpdatedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
-    : '--:--:--';
 
   return (
     <Card className="border border-border/60 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 rounded-2xl overflow-hidden">

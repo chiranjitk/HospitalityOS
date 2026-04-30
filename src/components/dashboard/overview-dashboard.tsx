@@ -31,6 +31,7 @@ import {
   BarChart3,
   MessageSquare,
   Crown,
+  Wifi,
   type LucideIcon,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -60,6 +61,7 @@ import StaffPerformanceWidget from './widgets/staff-performance';
 import ChannelPerformanceWidget from './widgets/channel-performance';
 import { QuickNotesWidget } from './widgets/quick-notes';
 import { SystemHealthStatusWidget } from './widgets/system-health-widget';
+import { WiFiLiveStatsWidget } from './widgets/wifi-live-stats-widget';
 
 const OccupancyHeatmap = React.lazy(() => import('./occupancy-heatmap').then(m => ({ default: m.OccupancyHeatmap })));
 
@@ -620,7 +622,13 @@ export default function OverviewDashboard() {
             <OperationsBoardWidget />
             <QuickNotesWidget />
           </div>
-          <div className="mt-5">
+        </div>
+
+        {/* ── Network & Connectivity ── */}
+        <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
+          <SectionLabel icon={Wifi} title={t('networkConnectivity')} />
+          <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
+            <WiFiLiveStatsWidget />
             <SystemHealthStatusWidget />
           </div>
         </div>

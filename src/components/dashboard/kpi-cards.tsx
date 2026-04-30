@@ -105,12 +105,12 @@ const variantConfig: Record<CardVariant, {
     iconBg: 'from-violet-500 to-purple-600',
   },
   cyan: {
-    iconGradient: 'bg-gradient-to-br from-cyan-400 to-blue-500',
-    topBarGradient: 'bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-600',
-    barColor: 'bg-cyan-500 dark:bg-cyan-500',
-    barHoverColor: 'bg-cyan-600 dark:bg-cyan-400',
-    glowColor: 'group-hover:shadow-cyan-500/40',
-    iconBg: 'from-cyan-500 to-blue-600',
+    iconGradient: 'bg-gradient-to-br from-teal-400 to-cyan-500',
+    topBarGradient: 'bg-gradient-to-r from-teal-500 via-cyan-500 to-teal-600',
+    barColor: 'bg-teal-500 dark:bg-teal-500',
+    barHoverColor: 'bg-teal-600 dark:bg-teal-400',
+    glowColor: 'group-hover:shadow-teal-500/40',
+    iconBg: 'from-teal-500 to-cyan-600',
   },
   amber: {
     iconGradient: 'bg-gradient-to-br from-amber-400 to-orange-500',
@@ -207,20 +207,20 @@ function KPICard({
       <Card
         className={cn(
           'group relative overflow-hidden transition-all duration-300 h-full rounded-2xl',
-          'hover:shadow-2xl hover:-translate-y-1',
+          'hover:shadow-lg hover:-translate-y-1',
           config.glowColor,
           isNeumorphism
             ? 'border border-border/50 shadow-[6px_6px_12px_var(--neu-shadow-dark),-6px_-6px_12px_var(--neu-shadow-light)]'
             : isGlassmorphism
               ? 'border border-white/40 bg-card/60 backdrop-blur-xl shadow-lg'
-              : 'border border-border/50 bg-card shadow-md'
+              : 'border border-border/50 bg-white/80 dark:bg-card/80 backdrop-blur-sm shadow-md'
         )}
       >
-        {/* Gradient top accent bar — 2px */}
+        {/* Gradient top accent bar — 2px emerald-to-teal */}
         <div
           className={cn(
             'absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl z-20',
-            config.topBarGradient
+            'bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500'
           )}
         />
 
@@ -273,7 +273,7 @@ function KPICard({
                     className={cn(
                       'inline-flex items-center gap-0.5 text-[11px] font-bold px-2 py-[3px] rounded-full border transition-all duration-300',
                       trend === 'up' &&
-                        'bg-primary/10 text-primary border-primary/20 dark:bg-primary/10 dark:text-primary dark:border-primary/20',
+                        'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50',
                       trend === 'down' &&
                         'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/50',
                       trend === 'neutral' &&
@@ -332,13 +332,6 @@ function KPICardSkeleton({ index = 0 }: { index?: number }) {
   const isNeumorphism = themeId === 'neumorphism';
   const isGlassmorphism = themeId === 'frosted-glass';
 
-  const accentColors = [
-    'bg-primary/70',
-    'bg-violet-400/70',
-    'bg-cyan-400/70',
-    'bg-amber-400/70',
-  ];
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -353,14 +346,14 @@ function KPICardSkeleton({ index = 0 }: { index?: number }) {
             ? 'border border-border/50 shadow-[6px_6px_12px_var(--neu-shadow-dark),-6px_-6px_12px_var(--neu-shadow-light)]'
             : isGlassmorphism
               ? 'border border-white/40 bg-card/60 backdrop-blur-xl shadow-lg'
-              : 'border border-border/50 bg-card shadow-md'
+              : 'border border-border/50 bg-white/80 dark:bg-card/80 backdrop-blur-sm shadow-md'
         )}
       >
-        {/* Accent bar skeleton */}
+        {/* Accent bar skeleton — emerald to teal */}
         <Skeleton
           className={cn(
             'h-[2px] w-full rounded-none',
-            accentColors[index % accentColors.length]
+            'bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500'
           )}
         />
 

@@ -6,6 +6,7 @@ import { Header } from './header';
 import { Breadcrumb } from './breadcrumb';
 import { useUIStore, useAuthStore } from '@/store';
 import { cn } from '@/lib/utils';
+import { Separator } from '@/components/ui/separator';
 import { useTranslations } from 'next-intl';
 
 interface AppLayoutProps {
@@ -15,7 +16,7 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const t = useTranslations('layout');
   const { sidebarCollapsed } = useUIStore();
-  const { setLoading, setProperties, setCurrentProperty } = useAuthStore();
+  const { user, setLoading, setProperties, setCurrentProperty } = useAuthStore();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Load properties from API and set currentProperty
@@ -76,7 +77,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   }, [mobileSidebarOpen]);
 
   return (
-    <div className="min-h-screen bg-background relative app-background overflow-x-hidden">
+    <div className="min-h-screen flex flex-col bg-background relative app-background overflow-x-hidden">
       {/* Decorative background elements - theme-specific */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-40 -left-40 w-80 h-80 bg-gradient-start/5 rounded-full blur-3xl" />
@@ -104,6 +105,21 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {children}
       </main>
+
+      {/* Sticky Footer — only shown when authenticated */}
+      {user && (
+        <footer className={cn(
+          "relative z-10 mt-auto transition-all duration-300 ml-0 lg:ml-[260px]",
+          sidebarCollapsed && "lg:ml-[68px]"
+        )}>
+          <Separator className="opacity-40" />
+          <div className="px-4 py-3 text-center">
+            <p className="text-[11px] text-muted-foreground/60">
+              &copy; 2026 StaySuite HospitalityOS by Cryptsk Pvt Ltd
+            </p>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }

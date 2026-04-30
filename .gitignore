@@ -92,3 +92,7 @@ freeradius/
 # E2E test files
 src/lib/wifi/services/test-e2e-credentials.ts
 worklog.md
+
+# Sandbox environment (generated files, QA artifacts, agent working dir)
+download/
+agent-ctx/
