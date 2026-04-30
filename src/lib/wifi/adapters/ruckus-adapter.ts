@@ -82,7 +82,7 @@ export interface RuckusConfig extends GatewayConfig {
 }
 
 /** Shared FreeRADIUS service URL */
-const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://localhost:3010';
+const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
 
 // ============================================================================
 // RADIUS VSA Constants for Ruckus

@@ -19,7 +19,7 @@ import { requireAuth, requirePermission, hasPermission } from '@/lib/auth/tenant
 import { db } from '@/lib/db';
 import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
 
-const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://localhost:3010';
+const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
 
 /**
  * Fix radacct DateTime columns that FreeRADIUS fills with empty strings ""

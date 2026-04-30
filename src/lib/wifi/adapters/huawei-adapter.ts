@@ -23,7 +23,7 @@ import {
 // ---------------------------------------------------------------------------
 
 const HUAWEI_VENDOR_ID = 2011;
-const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://localhost:3010';
+const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
 
 // ---------------------------------------------------------------------------
 // Exported types

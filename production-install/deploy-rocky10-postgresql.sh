@@ -608,7 +608,7 @@ cat > "${APP_DIR}/.env" <<EOENV
 # StaySuite HospitalityOS — Production Environment
 # Generated: $(date -Iseconds)
 
-DATABASE_URL=postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=30
+DATABASE_URL=postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=20&pool_timeout=30
 RADIUS_DB_URL=postgresql://radius:${DB_PASSWORD}@127.0.0.1:5432/staysuite
 NODE_ENV=production
 PORT=3000
@@ -710,7 +710,7 @@ success "All permissions re-granted"
 step 12 "Seed" "Inserting demo data"
 
 cd "$APP_DIR"
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=20&pool_timeout=30"
 
 if [[ -f "prisma/seed.ts" ]]; then
   info "Running seed script..."
@@ -730,7 +730,7 @@ step 13 "Build" "Building Next.js application (standalone)"
 
 cd "$APP_DIR"
 export NODE_OPTIONS='--max-old-space-size=8192'
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=20&pool_timeout=30"
 
 info "Building Next.js (this may take a few minutes)..."
 bun run build 2>&1 | tail -10
@@ -765,7 +765,7 @@ cat > "${APP_DIR}/ecosystem.config.js" <<'JSEOF'
 const BUN_PATH = '__BUN_PATH__';
 const APP_DIR  = '__APP_DIR__';
 
-const DB_URL = 'postgresql://staysuite:__DBPASS__@127.0.0.1:5432/staysuite?connect_timeout=60';
+const DB_URL = 'postgresql://staysuite:__DBPASS__@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=20&pool_timeout=30';
 
 module.exports = {
   apps: [

@@ -32,7 +32,7 @@ import {
 
 const JUNIPER_VENDOR_ID = 2636;
 const WISPR_VENDOR_ID = 14122;
-const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://localhost:3010';
+const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
 
 const MIST_API_URLS = {
   'us-east-1': 'https://api.mist.com',

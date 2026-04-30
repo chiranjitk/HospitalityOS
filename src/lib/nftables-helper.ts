@@ -12,7 +12,7 @@
 import { db } from '@/lib/db';
 
 const NFTABLES_SERVICE_URL =
-  process.env.NFTABLES_SERVICE_URL || 'http://localhost:3013';
+  process.env.NFTABLES_SERVICE_URL || 'http://127.0.0.1:3013';
 
 /**
  * Send a request to the nftables service.

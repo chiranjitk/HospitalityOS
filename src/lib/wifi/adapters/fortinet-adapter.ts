@@ -74,7 +74,7 @@ export interface FortinetConfig extends GatewayConfig {
 // ============================================================================
 
 const RADIUS_SERVICE_URL =
-  process.env.RADIUS_SERVICE_URL || 'http://localhost:3010';
+  process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
 
 /** Fortinet Vendor-Specific Attributes — Vendor ID: 12356 */
 export const FORTINET_VSA = {

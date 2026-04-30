@@ -34,7 +34,7 @@ import {
   BandwidthPolicy,
 } from './gateway-adapter';
 
-const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://localhost:3010';
+const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
 
 export interface ArubaConfig extends GatewayConfig {
   vendor: 'aruba';

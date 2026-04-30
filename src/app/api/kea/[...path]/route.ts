@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const KEA_SERVICE_URL = 'http://localhost:3011';
+const KEA_SERVICE_URL = 'http://127.0.0.1:3011';
 
 /**
  * Catch-all proxy route for Kea DHCP4 service.

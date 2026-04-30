@@ -24,7 +24,7 @@ import {
 // ---------------------------------------------------------------------------
 
 const NETGEAR_VENDOR_ID = 4526;
-const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://localhost:3010';
+const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
 
 const INSIGHT_REGION_URLS: Record<string, string> = {
   us: 'https://api.insight.netgear.com/v1',

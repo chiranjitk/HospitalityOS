@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const NFTABLES_SERVICE_PORT = 3013;
-const NFTABLES_SERVICE_HOST = `http://localhost:${NFTABLES_SERVICE_PORT}`;
+const NFTABLES_SERVICE_HOST = `http://127.0.0.1:${NFTABLES_SERVICE_PORT}`;
 
 /**
  * Catch-all proxy route for nftables firewall service.

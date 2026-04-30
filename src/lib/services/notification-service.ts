@@ -505,7 +505,7 @@ export class NotificationService {
     timestamp: Date;
   }): void {
     // Fire-and-forget: don't block the notification flow
-    const realtimeUrl = process.env.REALTIME_SERVICE_URL || 'http://localhost:3003';
+    const realtimeUrl = process.env.REALTIME_SERVICE_URL || 'http://127.0.0.1:3003';
     fetch(`${realtimeUrl}/emit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

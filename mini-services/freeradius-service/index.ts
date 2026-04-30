@@ -3707,7 +3707,7 @@ app.get('/api/data-cap/check', async (c) => {
     }
 
     // Get total usage from active radacct sessions
-    const usageRow = db.query(
+    const usageRow = await db.query(
       "SELECT COALESCE(SUM(acctinputoctets + acctoutputoctets), 0) as total_bytes FROM radacct WHERE username = ? AND acctstoptime IS NULL"
     ).get(username) as { total_bytes: number } | undefined;
     const usedBytes = usageRow?.total_bytes || 0;
@@ -3824,7 +3824,7 @@ app.post('/api/data-cap/enforce', async (c) => {
 app.post('/api/data-cap/check-all', async (c) => {
   try {
     // Find all users with data caps (vendor-agnostic — check ALL known data-limit attributes)
-    const cappedUsers = db.query(
+    const cappedUsers = await db.query(
       "SELECT DISTINCT username, attribute, value as cap_bytes FROM radreply WHERE attribute IN ('Mikrotik-Total-Limit', 'ChilliSpot-Max-Total-Octets', 'ChilliSpot-Max-Input-Octets', 'ChilliSpot-Max-Output-Octets', 'WISPr-Volume-Total-Octets') AND value IS NOT NULL AND CAST(value AS BIGINT) > 0"
     ).all() as Array<{ username: string; attribute: string; cap_bytes: string }>;
 
@@ -3838,7 +3838,7 @@ app.post('/api/data-cap/check-all', async (c) => {
       const capBytes = parseInt(u.cap_bytes, 10) || 0;
       if (capBytes <= 0) continue;
 
-      const usageRow = db.query(
+      const usageRow = await db.query(
         "SELECT COALESCE(SUM(acctinputoctets + acctoutputoctets), 0) as total_bytes, COUNT(*) as sessions FROM radacct WHERE username = ? AND acctstoptime IS NULL"
       ).get(u.username) as { total_bytes: number; sessions: number } | undefined;
 
@@ -5237,7 +5237,7 @@ setInterval(async () => {
 setInterval(async () => {
   try {
     // Find all users with data caps (vendor-agnostic — check ALL known data-limit attributes)
-    const cappedUsers = db.query(
+    const cappedUsers = await db.query(
       "SELECT DISTINCT username, attribute, value as cap_bytes FROM radreply WHERE attribute IN ('Mikrotik-Total-Limit', 'ChilliSpot-Max-Total-Octets', 'ChilliSpot-Max-Input-Octets', 'ChilliSpot-Max-Output-Octets', 'WISPr-Volume-Total-Octets') AND value IS NOT NULL AND CAST(value AS BIGINT) > 0"
     ).all() as Array<{ username: string; attribute: string; cap_bytes: string }>;
 
@@ -5252,7 +5252,7 @@ setInterval(async () => {
       }
 
       // Check usage
-      const usageRow = db.query(
+      const usageRow = await db.query(
         "SELECT COALESCE(SUM(acctinputoctets + acctoutputoctets), 0) as total_bytes FROM radacct WHERE username = ? AND acctstoptime IS NULL"
       ).get(u.username) as { total_bytes: number } | undefined;
 
