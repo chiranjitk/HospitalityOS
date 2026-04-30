@@ -1400,7 +1400,7 @@ function RateLimitTab() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-xs font-mono">{limit.protocol.toUpperCase()}</Badge>
+                        <Badge variant="outline" className="text-xs font-mono">{(limit.protocol || 'all').toUpperCase()}</Badge>
                       </TableCell>
                       <TableCell>
                         <Switch checked={limit.enabled} onCheckedChange={() => toggleLimit(limit.id)} />
@@ -2232,7 +2232,7 @@ function PresetsTab() {
                   <p className="text-xs font-medium text-muted-foreground">Rules to be created:</p>
                   {selectedPreset.rules.map((rule, i) => (
                     <div key={i} className="text-xs font-mono text-muted-foreground flex items-center gap-2">
-                      <Badge variant="outline" className="text-[10px]">{rule.protocol.toUpperCase()}</Badge>
+                      <Badge variant="outline" className="text-[10px]">{(rule.protocol || 'all').toUpperCase()}</Badge>
                       <span>port {rule.destPort}</span>
                       <ActionBadge action={rule.action} />
                     </div>
