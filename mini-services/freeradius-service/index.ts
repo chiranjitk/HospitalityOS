@@ -62,6 +62,55 @@ const pool = new pg.Pool({
 // ============================================================================
 
 /**
+ * Auto-quote camelCase/PascalCase column names in SQL for PostgreSQL.
+ * PostgreSQL folds unquoted identifiers to lowercase, but Prisma creates
+ * camelCase columns like "validUntil", "validFrom", etc.
+ * This function finds unquoted identifiers that contain uppercase letters
+ * and wraps them in double quotes.
+ */
+function autoQuoteIdentifiers(sql: string): string {
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let result = '';
+  let i = 0;
+  while (i < sql.length) {
+    const ch = sql[i];
+    if (ch === "'" && !inDoubleQuote) { inSingleQuote = !inSingleQuote; result += ch; i++; continue; }
+    if (ch === '"' && !inSingleQuote) { inDoubleQuote = !inDoubleQuote; result += ch; i++; continue; }
+    if (!inSingleQuote && !inDoubleQuote) {
+      // Match unquoted identifiers that contain at least one lowercase followed by uppercase (camelCase)
+      const m = sql.slice(i).match(/^([a-zA-Z_][a-zA-Z0-9_]*[a-z][a-zA-Z0-9]*[A-Z][a-zA-Z0-9_]*)/);
+      if (m && m[1]) {
+        // Verify it's not a SQL keyword (basic check)
+        const upper = m[1].toUpperCase();
+        const sqlKeywords = new Set([
+          'SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'NULL', 'IS', 'IN', 'ON',
+          'SET', 'INSERT', 'INTO', 'VALUES', 'UPDATE', 'DELETE', 'CREATE', 'ALTER',
+          'TABLE', 'INDEX', 'DROP', 'AS', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER',
+          'CROSS', 'GROUP', 'BY', 'ORDER', 'HAVING', 'LIMIT', 'OFFSET', 'UNION',
+          'ALL', 'EXISTS', 'BETWEEN', 'LIKE', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END',
+          'TRUE', 'FALSE', 'NOW', 'ASC', 'DESC', 'DISTINCT', 'COUNT', 'SUM', 'AVG',
+          'MAX', 'MIN', 'COALESCE', 'IF', 'DO', 'BEGIN', 'EXCEPTION', 'CONFLICT',
+          'NOTHING', 'ACTIVE', 'EXPIRED', 'TEXT', 'INTEGER', 'BIGINT', 'BOOLEAN',
+          'TIMESTAMP', 'DEFAULT', 'CASCADE', 'RESTRICT', 'PRIMARY', 'KEY', 'FOREIGN',
+          'REFERENCES', 'ADD', 'COLUMN', 'IF', 'UUID', 'GENERATE', 'RANDOM', 'UUID',
+        ]);
+        if (!sqlKeywords.has(upper) && /[a-z][A-Z]/.test(m[1])) {
+          result += `"${m[1]}"`;
+        } else {
+          result += m[1];
+        }
+        i += m[1].length;
+        continue;
+      }
+    }
+    result += ch;
+    i++;
+  }
+  return result;
+}
+
+/**
  * Convert SQLite ? placeholders to PostgreSQL $1, $2, ... placeholders.
  * Correctly handles string literals (doesn't convert ? inside quotes).
  */
@@ -122,6 +171,7 @@ const db = {
       processedSQL = convertInsertOrIgnore(processedSQL);
     }
     processedSQL = convertSQL(processedSQL);
+    processedSQL = autoQuoteIdentifiers(processedSQL);
     const convertedSQL = convertPlaceholders(processedSQL);
     return {
       all: async (...params: unknown[]) => {
@@ -143,6 +193,7 @@ const db = {
       processedSQL = convertInsertOrIgnore(processedSQL);
     }
     processedSQL = convertSQL(processedSQL);
+    processedSQL = autoQuoteIdentifiers(processedSQL);
     await pool.query(processedSQL);
   },
 };

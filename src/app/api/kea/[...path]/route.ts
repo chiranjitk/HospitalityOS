@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const DHCP_SERVICE_URL = 'http://127.0.0.1:3011';
 
+// Rate-limit warning logs to once per 30 seconds
+let lastProxyWarnTime = 0;
+let lastProxyErrorTime = 0;
+
 /**
  * Catch-all proxy route for DHCP service (dnsmasq backend).
  * Routes /api/kea/* → dhcp-service on port 3011/api/*
@@ -55,7 +59,11 @@ async function proxyRequest(request: NextRequest, method: string) {
     const isTimeout = error.name === 'TimeoutError' || error.message?.includes('abort');
 
     if (isConnectionError || isTimeout) {
-      console.warn('[DHCP Proxy] DHCP service unavailable at', DHCP_SERVICE_URL);
+      const now = Date.now();
+      if (now - lastProxyWarnTime > 30000) {
+        console.warn('[DHCP Proxy] DHCP service unavailable at', DHCP_SERVICE_URL);
+        lastProxyWarnTime = now;
+      }
       return NextResponse.json(
         {
           success: false,
@@ -69,7 +77,11 @@ async function proxyRequest(request: NextRequest, method: string) {
       );
     }
 
-    console.error('[DHCP Proxy] Error:', error.message);
+    const now = Date.now();
+    if (now - lastProxyErrorTime > 30000) {
+      console.error('[DHCP Proxy] Error:', error.message);
+      lastProxyErrorTime = now;
+    }
     return NextResponse.json(
       { success: false, error: { code: 'PROXY_ERROR', message: `Failed to reach DHCP service: ${error.message}` } },
       { status: 502 }
