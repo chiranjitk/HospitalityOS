@@ -214,11 +214,15 @@ else
   EFFECTIVE_CACHE="1536MB"
 fi
 
+# Force TCP listen — sed replaces existing line or appends if missing
+sed -i "s/^#\?listen_addresses\s*=.*/listen_addresses = 'localhost'/" "$PG_CONF"
+grep -q "^listen_addresses" "$PG_CONF" || echo "listen_addresses = 'localhost'" >> "$PG_CONF"
+sed -i "s/^#\?port\s*=.*/port = 5432/" "$PG_CONF"
+grep -q "^port" "$PG_CONF" || echo "port = 5432" >> "$PG_CONF"
+
 cat >> "$PG_CONF" <<PGTUNE
 
 # StaySuite Production Tuning
-listen_addresses = 'localhost'
-port = 5432
 shared_buffers = ${SHARED_BUFFERS}
 effective_cache_size = ${EFFECTIVE_CACHE}
 maintenance_work_mem = 256MB
@@ -231,9 +235,9 @@ log_line_prefix = '%t [%p]: db=%d,user=%u,app=%a,client=%h '
 # End StaySuite Tuning
 PGTUNE
 
-# Start
+# Start (or restart if already running — needed to pick up listen_addresses)
 info "Starting PostgreSQL ${PG_MAJOR}..."
-systemctl start "postgresql-${PG_MAJOR}" || {
+systemctl restart "postgresql-${PG_MAJOR}" || {
   error "PostgreSQL failed to start!"
   journalctl -u "postgresql-${PG_MAJOR}" -n 15 --no-pager 2>&1
   die "Check logs above."
@@ -241,7 +245,21 @@ systemctl start "postgresql-${PG_MAJOR}" || {
 sleep 2
 systemctl is-active --quiet "postgresql-${PG_MAJOR}" || die "PostgreSQL not running."
 systemctl enable "postgresql-${PG_MAJOR}"
-success "PostgreSQL ${PG_MAJOR} installed, tuned, and running"
+
+# Verify TCP connectivity (not just Unix socket)
+for i in $(seq 1 5); do
+  if pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null; then
+    break
+  fi
+  warn "PostgreSQL TCP not ready yet, waiting... ($i/5)"
+  sleep 2
+done
+pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null || {
+  error "PostgreSQL not accepting TCP connections on 127.0.0.1:5432"
+  journalctl -u "postgresql-${PG_MAJOR}" -n 10 --no-pager 2>&1
+  die "Check listen_addresses in ${PG_CONF}"
+}
+success "PostgreSQL ${PG_MAJOR} installed, tuned, and running (TCP verified)"
 
 # ════════════════════════════════════════════════════════════════════════════════
 # STEP 4: Database Setup
@@ -568,8 +586,8 @@ cat > "${APP_DIR}/.env" <<EOENV
 # StaySuite HospitalityOS — Production Environment
 # Generated: $(date -Iseconds)
 
-DATABASE_URL=postgresql://staysuite:${DB_PASSWORD}@localhost:5432/staysuite
-RADIUS_DB_URL=postgresql://radius:${DB_PASSWORD}@localhost:5432/staysuite
+DATABASE_URL=postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite
+RADIUS_DB_URL=postgresql://radius:${DB_PASSWORD}@127.0.0.1:5432/staysuite
 NODE_ENV=production
 PORT=3000
 NEXTAUTH_SECRET=${APP_SECRET}
@@ -601,7 +619,15 @@ success "All dependencies installed"
 step 10 "Prisma" "Pushing schema (~231 PMS tables)"
 
 cd "$APP_DIR"
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@localhost:5432/staysuite"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
+
+# Verify TCP before anything else
+pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null || {
+  warn "PostgreSQL TCP not responding — restarting..."
+  systemctl restart "postgresql-${PG_MAJOR}"
+  sleep 3
+  pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null || die "PostgreSQL TCP still not available after restart"
+}
 
 # Ensure citext exists before prisma push
 sudo -u postgres psql -d staysuite -c "CREATE EXTENSION IF NOT EXISTS citext;" 2>/dev/null
@@ -622,7 +648,7 @@ step 11 "Schema" "Applying complete-database.sql (tables, views, functions)"
 # 6 reporting views, 8 database functions, ALTER TABLE columns
 if [[ -f "${APP_DIR}/pgsql-production/complete-database.sql" ]]; then
   export PGPASSWORD="$DB_PASSWORD"
-  psql -h localhost -U staysuite -d staysuite -f "${APP_DIR}/pgsql-production/complete-database.sql" 2>&1 | tail -5
+  psql -h 127.0.0.1 -U staysuite -d staysuite -f "${APP_DIR}/pgsql-production/complete-database.sql" 2>&1 | tail -5
   unset PGPASSWORD
   success "complete-database.sql applied (4 tables, 6 views, 8 functions)"
 else
@@ -650,7 +676,7 @@ success "All permissions re-granted"
 step 12 "Seed" "Inserting demo data"
 
 cd "$APP_DIR"
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@localhost:5432/staysuite"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
 
 if [[ -f "prisma/seed.ts" ]]; then
   info "Running seed script..."
@@ -670,7 +696,7 @@ step 13 "Build" "Building Next.js application (standalone)"
 
 cd "$APP_DIR"
 export NODE_OPTIONS='--max-old-space-size=8192'
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@localhost:5432/staysuite"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
 
 info "Building Next.js (this may take a few minutes)..."
 bun run build 2>&1 | tail -10
@@ -705,7 +731,7 @@ cat > "${APP_DIR}/ecosystem.config.js" <<'JSEOF'
 const BUN_PATH = '__BUN_PATH__';
 const APP_DIR  = '__APP_DIR__';
 
-const DB_URL = 'postgresql://staysuite:__DBPASS__@localhost:5432/staysuite';
+const DB_URL = 'postgresql://staysuite:__DBPASS__@127.0.0.1:5432/staysuite';
 
 module.exports = {
   apps: [
@@ -895,8 +921,8 @@ echo "    Environment:      ${APP_DIR}/.env"
 echo ""
 
 echo -e "${BOLD}  CREDENTIALS${NC}"
-echo "    DB (app):         postgresql://staysuite:${DB_PASSWORD}@localhost:5432/staysuite"
-echo "    DB (radius):      postgresql://radius:${DB_PASSWORD}@localhost:5432/staysuite"
+echo "    DB (app):         postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
+echo "    DB (radius):      postgresql://radius:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
 echo "    NextAuth Secret:  ${APP_SECRET}"
 if ! $SKIP_MIKROTIK; then
 echo "    MikroTik IP:      ${MIKROTIK_IP}"
