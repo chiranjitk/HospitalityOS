@@ -272,10 +272,10 @@ export default function LoginPage() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ type: 'spring', stiffness: 200, damping: 20 }}
         >
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-teal-500 via-emerald-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-500 via-amber-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange-500/30">
             <Hotel className="h-6 w-6 text-white" />
           </div>
-          <div className="h-4 w-24 bg-gradient-to-r from-teal-500/30 to-emerald-500/30 rounded animate-pulse" />
+          <div className="h-4 w-24 bg-gradient-to-r from-orange-500/30 to-amber-500/30 rounded animate-pulse" />
         </motion.div>
       </div>
     );
@@ -338,7 +338,7 @@ export default function LoginPage() {
           >
             {/* Logo */}
             <motion.div className="flex items-center gap-3" variants={headerVariants}>
-              <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-teal-400 via-emerald-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/30 transition-transform hover:scale-110 duration-300">
+              <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-orange-500 via-amber-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange-500/30 transition-transform hover:scale-110 duration-300">
                 <Hotel className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -659,7 +659,7 @@ export default function LoginPage() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: 'spring', stiffness: 200, damping: 20 }}
               >
-                <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-teal-400 via-emerald-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-orange-500 via-amber-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange-500/30">
                   <Hotel className="h-5 w-5 text-white" />
                 </div>
                 <div>
