@@ -132,6 +132,20 @@ export async function POST(request: NextRequest) {
           now.getTime() + sessionTimeout * 60 * 1000
         );
 
+        // Resolve a valid propertyId (required FK — must exist in Property table)
+        const resolvedPropertyId = voucher.plan?.propertyId
+          || await db.property.findFirst({
+              where: { tenantId: voucher.tenantId },
+              select: { id: true },
+            }).then(p => p?.id);
+
+        if (!resolvedPropertyId) {
+          return errorResponse(
+            'NO_PROPERTY',
+            'No property configured. Please contact front desk.'
+          );
+        }
+
         if (existingUser) {
           await db.wiFiUser.update({
             where: { id: existingUser.id },
@@ -146,7 +160,7 @@ export async function POST(request: NextRequest) {
           await db.wiFiUser.create({
             data: {
               tenantId: voucher.tenantId,
-              propertyId: voucher.plan?.propertyId || voucher.tenantId,
+              propertyId: resolvedPropertyId,
               username: wifiUsername,
               password: voucher.code,
               guestId: voucher.guestId,
@@ -368,7 +382,10 @@ export async function POST(request: NextRequest) {
           });
 
           // Get any property from the portal
-          const fallbackPropertyId = portal?.propertyId || '';
+          const fallbackPropertyId = portal?.propertyId
+            || await (portal?.tenantId
+              ? db.property.findFirst({ where: { tenantId: portal.tenantId }, select: { id: true } }).then(p => p?.id)
+              : Promise.resolve(undefined));
 
           if (existingUser) {
             await db.wiFiUser.update({
@@ -453,17 +470,26 @@ export async function POST(request: NextRequest) {
         if (portal) {
           const wifiUsername = `open-${Date.now()}`;
           try {
-            await db.wiFiUser.create({
-              data: {
-                tenantId: portal.tenantId,
-                propertyId: portal.propertyId,
-                username: wifiUsername,
-                password: `open-${Date.now()}`,
-                validFrom: now,
-                validUntil,
-                status: 'active',
-              },
-            });
+            // Resolve a valid propertyId (portal.propertyId may be null)
+            const resolvedPropertyId = portal.propertyId
+              || await db.property.findFirst({
+                  where: { tenantId: portal.tenantId },
+                  select: { id: true },
+                }).then(p => p?.id);
+
+            if (resolvedPropertyId) {
+              await db.wiFiUser.create({
+                data: {
+                  tenantId: portal.tenantId,
+                  propertyId: resolvedPropertyId,
+                  username: wifiUsername,
+                  password: `open-${Date.now()}`,
+                  validFrom: now,
+                  validUntil,
+                  status: 'active',
+                },
+              });
+            }
           } catch {
             // Ignore unique constraint race — best effort
           }
