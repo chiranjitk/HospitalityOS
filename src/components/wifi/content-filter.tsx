@@ -89,7 +89,7 @@ interface ContentFilterItem {
   propertyId: string;
   name: string;
   category: string;
-  domains: string; // JSON string from API
+  domains: string[] | string; // array from API, JSON string from older codepaths
   enabled: boolean;
   scheduleId: string | null;
   createdAt: string;
@@ -229,9 +229,10 @@ const API_BASE = '/api/wifi/firewall/content-filter';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
-function parseDomains(domainsStr: string): string[] {
+function parseDomains(domains: string[] | string): string[] {
+  if (Array.isArray(domains)) return domains;
   try {
-    const parsed = JSON.parse(domainsStr);
+    const parsed = JSON.parse(domains);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
@@ -314,6 +315,7 @@ export default function ContentFilterPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [e2guardianConnected, setE2guardianConnected] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
 
   // ─── Filter State ──────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
@@ -420,10 +422,24 @@ export default function ContentFilterPage() {
     }
   };
 
+  const loadSyncStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/sync`);
+      const json = await res.json();
+      if (json.success && json.data?.status?.lastSyncAt) {
+        setLastSyncAt(json.data.status.lastSyncAt);
+        setE2guardianConnected(true);
+      }
+    } catch {
+      // sync not available
+    }
+  };
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch
     void loadFilters();
     void loadProperties();
+    void loadSyncStatus();
   }, []);
 
   // ─── CRUD Operations ───────────────────────────────────────────────────────
@@ -562,8 +578,10 @@ export default function ContentFilterPage() {
       const json = await res.json();
 
       if (json.success) {
-        toast.success('Config synced to e2guardian');
+        toast.success(`Synced ${json.summary?.totalDomains || 0} domains across ${json.summary?.categoriesCount || 0} categories`);
         setE2guardianConnected(true);
+        setLastSyncAt(json.syncedAt || null);
+        loadFilters();
       } else {
         toast.error(json.error?.message || 'Sync failed');
       }
@@ -947,8 +965,8 @@ export default function ContentFilterPage() {
           <SummaryCard
             icon={Clock}
             label="Last Synced"
-            value="Manual"
-            sub="Click Sync to update e2guardian"
+            value={lastSyncAt ? new Date(lastSyncAt).toLocaleTimeString() : 'Manual'}
+            sub={lastSyncAt ? new Date(lastSyncAt).toLocaleDateString() : 'Click Sync to update e2guardian'}
             delay={0.2}
           />
         </div>
