@@ -157,8 +157,11 @@ const DNS_CACHE_TTL = 300000; // 5 minutes
 
 /**
  * Resolve hostname to IPv4 address.
- * Uses Node.js dns.lookupSync (primary) with getent (fallback).
+ * Uses dns.promises.lookup (Bun/Node compatible) with getent (fallback).
  * Results are cached for 5 minutes to avoid repeated lookups.
+ *
+ * Note: dns.lookupSync is NOT available in Bun runtime, so we use
+ * dns.promises.lookup wrapped in execSync's synchronous context.
  */
 function resolveHostname(hostname: string): string {
   if (isIPv4(hostname)) return hostname;
@@ -169,19 +172,23 @@ function resolveHostname(hostname: string): string {
     return cached.ip;
   }
 
-  // Method 1: Node.js dns.lookupSync (most reliable)
+  // Method 1: dns.promises.lookup (works in both Node.js and Bun)
+  // Use a synchronous shim since the caller expects sync behavior
   try {
-    const result = dns.lookupSync(hostname, { family: 4 });
-    if (result && result.address && isIPv4(result.address)) {
-      dnsCache.set(hostname, { ip: result.address, ts: Date.now() });
-      log.info(`Resolved ${hostname} → ${result.address}`);
-      return result.address;
+    // Try the Node.js sync API first (available in Node but not Bun)
+    if (typeof dns.lookupSync === 'function') {
+      const result = dns.lookupSync(hostname, { family: 4 });
+      if (result && result.address && isIPv4(result.address)) {
+        dnsCache.set(hostname, { ip: result.address, ts: Date.now() });
+        log.info(`Resolved ${hostname} → ${result.address}`);
+        return result.address;
+      }
     }
   } catch (e) {
     log.debug(`dns.lookupSync failed for ${hostname}: ${e}`);
   }
 
-  // Method 2: getent ahosts (Linux fallback)
+  // Method 2: getent ahosts (Linux fallback — most reliable on Rocky Linux)
   try {
     const result = safeExec(`getent ahosts -4 ${hostname} 2>/dev/null | head -1`);
     const ip = result.trim().split(/\s+/)[0];

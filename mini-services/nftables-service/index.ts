@@ -19,7 +19,7 @@
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import { createLogger } from '../shared/logger';
 import pg from 'pg';
 
@@ -689,12 +689,44 @@ interface NftResult {
   error?: string;
 }
 
+/**
+ * Split a command string into arguments, respecting double-quoted segments.
+ * e.g. `comment "gui:abc Remote Access"` → ['comment', '"gui:abc Remote Access"']
+ * The quotes are preserved so nft can parse them in its own syntax.
+ */
+function splitNftArgs(cmd: string): string[] {
+  const args: string[] = [];
+  let current = '';
+  let inQuote = false;
+  for (let i = 0; i < cmd.length; i++) {
+    const ch = cmd[i];
+    if (ch === '"' && !inQuote) {
+      inQuote = true;
+      current += ch;
+    } else if (ch === '"' && inQuote) {
+      inQuote = false;
+      current += ch;
+    } else if (/\s/.test(ch) && !inQuote) {
+      if (current) { args.push(current); current = ''; }
+    } else {
+      current += ch;
+    }
+  }
+  if (current) args.push(current);
+  return args;
+}
+
 function nftExec(command: string, timeout = 10000): NftResult {
   try {
-    execSync(`nft ${command}`, { encoding: 'utf-8', timeout });
+    // Use execFileSync to bypass shell interpretation.
+    // execSync would strip double-quotes around comments (e.g. comment "text")
+    // causing nft syntax errors when comments contain colons or spaces.
+    const args = splitNftArgs(command);
+    execFileSync('nft', args, { encoding: 'utf-8', timeout });
     return { success: true, command };
   } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : String(err);
+    const stderr = (err as Record<string, unknown>)?.stderr;
+    const error = typeof stderr === 'string' && stderr ? stderr : (err instanceof Error ? err.message : String(err));
     log.error('nft command failed', { command, error });
     return { success: false, command, error };
   }
