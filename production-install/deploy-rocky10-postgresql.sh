@@ -310,6 +310,23 @@ if [[ -d "$PG_CONF_D" ]]; then
   done
 fi
 
+# ── pg_hba.conf: ALL TRUST (must be set BEFORE first start) ──────────────────
+# Write trust-based pg_hba.conf here in Step 3 so it's active from the very
+# first startup. Without this, PG starts with default scram-sha-256 auth
+# and all subsequent psql/radiusd connections fail.
+cat > "${PG_DATA}/pg_hba.conf" <<'EOF'
+# StaySuite pg_hba.conf — ALL TRUST (no password authentication needed)
+local   all             all                                     trust
+host    all             all             127.0.0.1/32            trust
+host    all             all             0.0.0.0/0               trust
+host    all             all             ::1/128                 trust
+local   replication     all                                     trust
+host    replication     all             127.0.0.1/32            trust
+host    replication     all             ::1/128                 trust
+EOF
+chown postgres:postgres "${PG_DATA}/pg_hba.conf"
+chmod 640 "${PG_DATA}/pg_hba.conf"
+
 cat >> "$PG_CONF" <<PGTUNE
 
 # StaySuite Production Tuning
@@ -325,7 +342,7 @@ log_line_prefix = '%t [%p]: db=%d,user=%u,app=%a,client=%h '
 # End StaySuite Tuning
 PGTUNE
 
-# Start (or restart if already running — needed to pick up listen_addresses)
+# Start PostgreSQL (pg_hba.conf is already set to trust)
 info "Starting PostgreSQL ${PG_MAJOR}..."
 systemctl reset-failed "postgresql-${PG_MAJOR}" 2>/dev/null || true
 systemctl start "postgresql-${PG_MAJOR}" || {
