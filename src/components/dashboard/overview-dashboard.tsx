@@ -64,6 +64,11 @@ import { SystemHealthStatusWidget } from './widgets/system-health-widget';
 import { WiFiLiveStatsWidget } from './widgets/wifi-live-stats-widget';
 import { WeatherWidget } from './widgets/weather-widget';
 import { TaskRemindersWidget } from './widgets/task-reminders-widget';
+import { GuestJourneyPipelineWidget } from './widgets/guest-journey-pipeline';
+import { DailyPerformanceScoreWidget } from './widgets/daily-performance-score';
+import { RevenueTrendWidget } from './revenue-trend-widget';
+import { QuickInsightsWidget } from './widgets/quick-insights';
+import { PropertyStatusSummaryWidget } from './widgets/property-status-summary';
 
 const OccupancyHeatmap = React.lazy(() => import('./occupancy-heatmap').then(m => ({ default: m.OccupancyHeatmap })));
 
@@ -616,6 +621,16 @@ export default function OverviewDashboard() {
           <TodaySummaryCard summary={summary} isLoading={isLoading} />
         </div>
 
+        {/* ── Guest Journey Pipeline ── */}
+        <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
+          <GuestJourneyPipelineWidget />
+        </div>
+
+        {/* ── Quick Insights ── */}
+        <div className="relative z-10">
+          <QuickInsightsWidget />
+        </div>
+
         {/* ── Operations Center ── */}
         <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
           <SectionLabel icon={Radio} title={t('operationsCenter')} />
@@ -644,6 +659,7 @@ export default function OverviewDashboard() {
             <TodaysSchedule />
             <RoomStatusWidget />
           </div>
+          <PropertyStatusSummaryWidget />
         </div>
 
         {/* ── Alerts, Activity & Staff ── */}
@@ -668,6 +684,12 @@ export default function OverviewDashboard() {
         {/* ── Revenue & Performance ── */}
         <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
           <SectionLabel icon={Zap} title={t('revenuePerformance')} />
+          <div className="grid gap-5 grid-cols-1 lg:grid-cols-3">
+            <DailyPerformanceScoreWidget />
+            <div className="lg:col-span-2">
+              <RevenueTrendWidget />
+            </div>
+          </div>
           <div className="grid gap-5 grid-cols-1 md:grid-cols-2">
             <PerformanceScoreWidget />
             <RevenueBreakdownWidget />
