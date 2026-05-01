@@ -336,6 +336,7 @@
     "wifi-dns": "DNS Server",
     "wifi-portal": "Captive Portal",
     "wifi-firewall": "Firewall & Bandwidth",
+    "wifi-content-filter": "Content Filter",
     "wifi-reports": "Reports",
     "revenue-pricing": "Dynamic Pricing",
     "revenue-forecasting": "Demand Forecasting",
