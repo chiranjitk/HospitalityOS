@@ -88,6 +88,10 @@ async function buildPortalConfig(portalId: string) {
       portalMappings: {
         where: { enabled: true },
       },
+      authMethods: {
+        where: { enabled: true },
+        orderBy: { priority: 'asc' },
+      },
     },
   });
 
@@ -176,6 +180,30 @@ async function buildPortalConfig(portalId: string) {
     },
     ssids: allSsids,
     termsRequired: !!(portalPage?.termsText || portalPage?.termsUrl),
+    // List of enabled auth methods with labels (same as /api/v1/wifi/portal)
+    authMethods: portal.authMethods.map((am) => {
+      let config: Record<string, unknown> = {};
+      try {
+        config = am.config ? JSON.parse(am.config) : {};
+      } catch {
+        config = {};
+      }
+      return {
+        method: am.method,
+        label: (config.label as string) || am.method,
+        description: (config.description as string) || '',
+      };
+    }),
+    // Form fields configuration from PortalPage (same as /api/v1/wifi/portal)
+    formFields: portalPage?.formFields
+      ? (() => {
+          try {
+            return JSON.parse(portalPage.formFields);
+          } catch {
+            return null;
+          }
+        })()
+      : null,
   };
 }
 

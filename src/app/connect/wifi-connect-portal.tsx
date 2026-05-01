@@ -3,9 +3,15 @@
 /**
  * Public WiFi Captive Portal — Multi-Method Authentication
  *
- * URL: /connect?zone=<slug>&code=<voucher>
- * - zone: portal zone slug (default: "default-zone")
- * - code: pre-filled voucher code from QR scan
+ * URL: /connect  (or /connect?code=<voucher> for QR scan)
+ *
+ * Portal resolution flow:
+ *   1. User connects to WiFi → gets IP from DHCP → redirected to /connect
+ *   2. /connect calls resolve-zone API → server checks client IP against
+ *      PortalMapping subnets → returns the correct portal config
+ *   3. If no IP match, falls back to default-zone
+ *
+ * - code: pre-filled voucher code from QR scan (optional)
  *
  * States: loading → auth_form → authenticating → success → error
  */
@@ -872,7 +878,6 @@ type PortalState =
 
 function PortalContent() {
   const searchParams = useSearchParams();
-  const zoneParam = searchParams.get('zone') || 'default-zone';
   const codeParam = searchParams.get('code') || '';
 
   const [portalConfig, setPortalConfig] = useState<PortalConfig | null>(null);
@@ -884,30 +889,56 @@ function PortalContent() {
   const [selectedMethod, setSelectedMethod] = useState('');
   const [guestInfo, setGuestInfo] = useState({ firstName: '', lastName: '', email: '', phone: '' });
 
-  // ── Fetch portal config on mount ──
+  // ── Apply portal config to state ──
+  const applyPortalConfig = useCallback((data: PortalConfig) => {
+    setPortalConfig(data);
+    setDesign({ ...DEFAULT_DESIGN, ...data.design });
+    // Initialize selected method from authMethods list
+    const methods = data.authMethods?.length
+      ? data.authMethods
+      : [{ method: data.authMethod || 'voucher', label: data.authMethod || 'voucher', description: '' }];
+    setSelectedMethod(methods[0].method);
+    setState('auth_form');
+  }, []);
+
+  // ── Fetch portal config on mount — IP-based auto-resolution ──
   useEffect(() => {
     let cancelled = false;
     const fetchPortal = async () => {
       try {
-        const res = await fetch(
-          `/api/v1/wifi/portal?slug=${encodeURIComponent(zoneParam)}`
+        // Step 1: Call resolve-zone API to auto-detect portal from client IP
+        // This matches the user's IP against PortalMapping subnets
+        const resolveRes = await fetch('/api/wifi/portal/resolve-zone');
+        if (cancelled) return;
+        const resolveResult = await resolveRes.json();
+
+        if (resolveResult.success && resolveResult.data?.config) {
+          // IP matched a subnet → use the mapped portal directly
+          console.log(
+            '[Portal] IP-resolved zone:',
+            resolveResult.data.zone,
+            'subnet:',
+            resolveResult.data.matchedSubnet
+          );
+          applyPortalConfig(resolveResult.data.config as PortalConfig);
+          return;
+        }
+
+        // Step 2: No IP match (or no client IP detectable) → fall back to default-zone
+        console.log('[Portal] No IP subnet match, falling back to default-zone');
+        const fallbackRes = await fetch(
+          '/api/v1/wifi/portal?slug=default-zone'
         );
         if (cancelled) return;
-        const result = await res.json();
-        if (result.success && result.data) {
-          setPortalConfig(result.data);
-          setDesign({ ...DEFAULT_DESIGN, ...result.data.design });
-          // Initialize selected method from authMethods list
-          const methods = result.data.authMethods?.length
-            ? result.data.authMethods
-            : [{ method: result.data.authMethod || 'voucher', label: result.data.authMethod || 'voucher', description: '' }];
-          setSelectedMethod(methods[0].method);
-          setState('auth_form');
+        const fallbackResult = await fallbackRes.json();
+
+        if (fallbackResult.success && fallbackResult.data) {
+          applyPortalConfig(fallbackResult.data);
         } else {
-          // Portal not found — use fallback defaults (voucher-only)
+          // Even default-zone not found — render with voucher fallback
           console.warn(
             '[Portal] Config not found, using fallback:',
-            result.error?.message
+            fallbackResult.error?.message
           );
           setState('auth_form');
         }
@@ -921,10 +952,10 @@ function PortalContent() {
     return () => {
       cancelled = true;
     };
-  }, [zoneParam]);
+  }, [applyPortalConfig]);
 
   // ── Authentication handler ──
-  const portalSlug = portalConfig?.slug || zoneParam;
+  const portalSlug = portalConfig?.slug || 'default-zone';
   const authenticate = useCallback(
     async (method: string, payload: Record<string, string>) => {
       setState('authenticating');
