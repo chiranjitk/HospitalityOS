@@ -295,18 +295,26 @@ systemctl start "postgresql-${PG_MAJOR}" || {
   [[ -d "$PG_LOG" ]] && cat "$(ls -t "$PG_LOG"/*.log 2>/dev/null | head -1)" | tail -30
   die "Check logs above."
 }
-sleep 2
+# Give PostgreSQL time for first-boot recovery / WAL replay
+sleep 5
 systemctl is-active --quiet "postgresql-${PG_MAJOR}" || die "PostgreSQL not running."
 systemctl enable "postgresql-${PG_MAJOR}"
 
 # Verify TCP connectivity (not just Unix socket)
-for i in $(seq 1 10); do
+PG_READY=0
+for i in $(seq 1 15); do
   if pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null; then
+    PG_READY=1
+    info "PostgreSQL TCP ready after ~$((i*2)) seconds"
     break
   fi
-  warn "PostgreSQL TCP not ready yet, waiting... ($i/10)"
+  warn "PostgreSQL TCP not ready yet, waiting... ($i/15)"
   sleep 2
 done
+if [[ $PG_READY -eq 1 ]]; then
+  # Extra stability sleep — PG may briefly accept connections during recovery
+  sleep 2
+fi
 pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null || {
   error "PostgreSQL not accepting TCP connections on 127.0.0.1:5432"
   echo "--- Diagnostic info ---"
