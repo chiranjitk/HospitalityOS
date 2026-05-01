@@ -1,0 +1,45 @@
+# Build artifacts
+autom4te.cache/
+config.log
+config.status
+stamp-h1
+aclocal.m4
+compile
+config.guess
+config.sub
+configure
+depcomp
+install-sh
+missing
+Makefile
+Makefile.in
+e2config.h
+
+# Compiled objects
+*.o
+*.lo
+*.la
+*.Plo
+.deps/
+.libs/
+dist/
+src/e2guardian
+!src/e2guardian/
+
+# Generated configs (runtime only)
+configs/downloadmanagers/default.conf
+configs/contentscanners/*.conf
+data/scripts/e2guardian.service
+data/scripts/logrotation
+data/scripts/bsd-init
+data/scripts/solaris-init
+data/scripts/systemv-init
+data/scripts/e2guardian
+
+# Generated list files
+configs/lists/example.group/
+configs/lists/examplef1.story
+
+# OS files
+.DS_Store
+Thumbs.db

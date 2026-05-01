@@ -1,0 +1,453 @@
+# =============================================================================
+# StaySuite-HospitalityOS — e2guardian Main Configuration
+# =============================================================================
+#
+# This is the MAIN e2guardian configuration file.
+# It is read at startup. List files referenced here are re-read on reload (-r).
+#
+# StaySuite Architecture:
+#   - Transparent HTTP proxy on port 8080
+#   - Transparent HTTPS (SNI-based) on port 8443
+#   - 3 filter groups: kids (1), basic (2), premium (3)
+#   - IP-based group assignment from WiFi plan type
+#   - Blocklists generated from PostgreSQL ContentFilter table
+#
+# IMPORTANT: This file configures the MAIN process only.
+# Per-group settings are in e2guardianf1.conf, e2guardianf2.conf, e2guardianf3.conf
+#
+# See: tools/e2guardian/README.md for full deployment guide
+# =============================================================================
+
+
+# =============================================================================
+# QUICK_START — Essential settings to get running
+# =============================================================================
+
+# Language for block page templates and log messages
+language = 'ukenglish'
+
+# =============================================================================
+# NAMES_PATHS — Directory locations and naming
+# =============================================================================
+
+# LISTDIR variable — used as a template in list references via __LISTDIR__
+.Define LISTDIR </etc/e2guardian/lists/common>
+
+# Language template directory
+languagedir = '/usr/share/e2guardian/languages'
+
+# Storyboard for pre-authentication flow
+preauthstoryboard = '/etc/e2guardian/preauth.story'
+
+# Server name shown in logs and block pages (default: system hostname)
+servername = 'staysuite-filter'
+
+# Daemon user/group — e2guardian drops privileges to this user after startup
+daemonuser = 'e2guardian'
+daemongroup = 'e2guardian'
+
+# Logging output destinations
+# Options: 'stderr', 'stdout', 'syslog:LOG_LEVEL', 'file:/path/to/file'
+set_error = 'syslog:LOG_ERR'
+set_info = 'syslog:LOG_INFO'
+set_warning = 'syslog:LOG_WARNING'
+
+
+# =============================================================================
+# NETWORK — Bind addresses and ports
+# =============================================================================
+
+# Listen on all interfaces (blank = all IPs)
+# For multi-homed gateways, specify: filterip = 10.10.0.1
+filterip = ''
+
+# HTTP proxy port — receives transparently redirected HTTP (port 80) traffic
+filterports = 8080
+
+# TLS proxy port — receives transparently redirected HTTPS (port 443) traffic
+# Used for SNI-based filtering (ssl_mitm = off) or full MITM (ssl_mitm = on)
+tlsfilterports = 8090
+
+# Common Name for the TLS proxy certificate
+# Must match what clients see (use gateway IP or hostname)
+tlsproxycn = '10.10.0.1'
+
+# No upstream proxy — e2guardian connects directly to the internet
+# Uncomment and set if you have Squid or another proxy upstream
+# proxyip = '127.0.0.1'
+# proxyport = 3128
+
+
+# =============================================================================
+# SSL / TLS — HTTPS filtering configuration
+# =============================================================================
+
+# Enable SSL/TLS support — REQUIRED for HTTPS filtering (both SNI and MITM)
+enablessl = on
+
+# Transparent HTTPS port — nftables redirects port 443 here
+transparenthttpsport = 8443
+
+# =============================================================================
+# MITM — Man-in-the-Middle certificate settings
+# =============================================================================
+# StaySuite DEFAULT: SNI-only mode (ssl_mitm = off in filter group configs)
+# This means we filter by domain name from TLS ClientHello, NOT by decrypting traffic
+# No CA certificate installation needed on guest devices.
+#
+# To enable full MITM deep inspection, set sslmitm = on in each e2guardianfN.conf
+# AND install the CA cert on all guest devices.
+# =============================================================================
+
+# CA certificate for signing generated MITM certificates
+cacertificatepath = '/etc/e2guardian/private/ca.pem'
+
+# CA private key
+caprivatekeypath = '/etc/e2guardian/private/ca.key'
+
+# Private key for generated per-site certificates
+certprivatekeypath = '/etc/e2guardian/private/cert.key'
+
+# Directory where generated certificates are cached
+generatedcertpath = '/etc/e2guardian/private/generatedcerts/'
+
+# Generated certificate lifetime: auto = align to Jan/Jun, valid 12 months
+generatedcertstart = auto
+
+# Use openssl.conf for advanced settings (hardware acceleration, CloudFlare compat)
+useopensslconf = off
+# opensslconffile = '/etc/e2guardian/openssl.conf'
+
+# TLS cipher suite
+setcipherlist = "HIGH:!ADH:!MD5:!RC4:!SRP:!PSK:!DSS"
+
+# Sites that should NEVER be MITM'd (banking, payment processors, etc.)
+sitelist = 'name=nomitm,path=__LISTDIR__/nomitmsitelist'
+ipsitelist = 'name=nomitm,path=__LISTDIR__/nomitmsiteiplist'
+
+
+# =============================================================================
+# TRANSPARENT — Transparent proxy settings
+# =============================================================================
+
+# Default filter group for transparent (non-authenticated) requests
+# This is used when a client IP doesn't match any ipgroups entry
+defaulttransparentfiltergroup = 1
+
+# Use original destination IP/port when forwarding (Linux only)
+# Solves the "Snapchat issue" where DNS resolution gives wrong IP
+useoriginalip = on
+
+
+# =============================================================================
+# FILTER GROUPS — How many and which is default
+# =============================================================================
+# StaySuite uses 3 filter groups mapped to WiFi plan tiers:
+#   Group 1 = kids    (free/basic plans — most restrictive)
+#   Group 2 = basic   (standard/business plans — moderate)
+#   Group 3 = premium (premium/vip plans — minimal filtering)
+#
+# Each group has its own config file: e2guardianf1.conf, e2guardianf2.conf, e2guardianf3.conf
+# =============================================================================
+
+filtergroups = 3
+
+# Default for explicit proxy mode (not used in StaySuite transparent mode)
+defaultfiltergroup = 2
+
+
+# =============================================================================
+# AUTH — Authentication and group assignment
+# =============================================================================
+# StaySuite uses IP-based auth: guest IP ranges map to filter groups
+# based on their WiFi plan type (free→group1, standard→group2, premium→group3)
+#
+# The mapping is auto-generated by generate-config.sh --ip-groups
+# into /etc/e2guardian/lists/authplugins/ipgroups
+# =============================================================================
+
+# IP-based authentication plugin — assigns filter groups by client IP
+authplugin = '/etc/e2guardian/authplugins/ip.conf'
+
+# IP → filter group mapping file (auto-generated from WiFiPlan table)
+ipmaplist = 'name=ipmap,path=__LISTDIR__/../authplugins/ipgroups'
+
+# User → filter group mapping (not used in transparent mode, but required)
+maplist = 'name=defaultusermap,path=__LISTDIR__/../authplugins/filtergroupslist'
+
+# Port → filter group mapping (not used, but available for multi-port setups)
+maplist = 'name=portmap,path=__LISTDIR__/../authplugins/portgroups'
+
+# If a user has no group mapping, try next auth plugin instead of using default
+authrequiresuserandgroup = off
+
+# --- Banned / Exception client IPs ---
+
+# Client IPs that are completely blocked from using the proxy
+iplist = 'name=bannedclient,messageno=100,logmessageno=103,path=__LISTDIR__/bannediplist'
+
+# Client IPs that bypass all filtering (management, staff)
+iplist = 'name=exceptionclient,messageno=600,path=__LISTDIR__/exceptioniplist'
+
+# Reverse DNS lookups for banned/exception clients (off for performance)
+reverseclientiplookups = off
+
+# --- Authentication exception sites ---
+# Sites allowed before auth (OS updates, AV updates, etc.)
+ipsitelist = 'name=authexception,messageno=602,path=__LISTDIR__/authexceptioniplist'
+sitelist = 'name=authexception,messageno=602,path=__LISTDIR__/authexceptionsitelist'
+urllist = 'name=authexception,messageno=603,path=__LISTDIR__/authexceptionurllist'
+
+# Browser detection — used to decide block page vs MITM behavior
+regexpboollist = 'name=browser,path=__LISTDIR__/browserregexplist'
+
+
+# =============================================================================
+# ACCESS LOG — What and where to log
+# =============================================================================
+
+# Log destination: file, syslog, stderr, or stdout
+set_accesslog = 'file:/var/log/e2guardian/access.log'
+
+# Log format (StaySuite uses format 8 — Protex with search terms and flags)
+# 1=DG space-delimited, 2=CSV, 3=Squid, 4=Tab, 5=Protex, 6=Protex no server,
+# 7=Protex+search+flags, 8=Protex+search+flags no server (RECOMMENDED)
+logfileformat = 8
+
+# Logging level: 0=none, 1=denied only, 2=text based, 3=all requests
+loglevel = 3
+
+# Log when an exception (whitelist) match allows a request through
+# 0=never, 1=log without marking, 2=log and mark (default)
+logexceptionhits = 2
+
+# Don't log ad-block category hits (too noisy)
+logadblocks = off
+
+# Show weighted phrases that caused a block in the log
+showweightedfound = on
+
+# Use dash '-' for empty fields (essential for log parsing)
+usedashforblank = on
+
+# Log client IP and hostname (for format 5-8)
+logclientnameandip = on
+
+# Don't log user-agent (very verbose)
+loguseragent = off
+
+# Don't reverse-resolve client IPs for logging (performance)
+logclienthostnames = off
+
+# Tag log lines with their type (ACCESS, INFO, ERROR)
+tag_logs = on
+
+# Add ECH indicator to flags when Encrypted Client Hello is detected
+addECHtoFlags = on
+
+# Maximum length of individual log fields (characters)
+maxlogitemlength = 2000
+
+
+# =============================================================================
+# MONITORING — Health checks and statistics
+# =============================================================================
+
+# Dynamic statistics log — records thread usage, queue sizes, etc.
+set_dstatslog = 'file:/var/log/e2guardian/dstats.log'
+
+# Statistics interval in seconds (default 300 = 5 minutes)
+dstatinterval = 300
+
+# Human-readable timestamps in dstats (local timezone instead of epoch)
+statshumanreadable = on
+
+# Internal test URL — returns "OK" if e2guardian is functioning
+# Used by load balancers and monitoring tools
+internaltesturl = 'internal.test.e2guardian.org'
+
+# Internal status URL — returns user info, group, version, flags
+# Used for debugging user access
+internalstatusurl = 'internal.status.e2guardian.org'
+
+# Monitor flag files — created in /run/e2guardian/ for external monitoring
+monitorflagprefix = '/run/e2guardian/e2g_flag_'
+
+
+# =============================================================================
+# URL FILTERING — Site and URL filtering behavior
+# =============================================================================
+
+# Don't reverse-resolve IPs to check against site lists (performance)
+reverseaddresslookups = off
+
+
+# =============================================================================
+# LIST SETTINGS — How lists are loaded and handled
+# =============================================================================
+
+# Don't abort if a list file is missing — warn and continue
+abortiflistmissing = off
+
+# Don't search site lists for IP addresses (use dedicated IP site lists instead)
+# Setting to 'off' is faster
+searchsitelistforip = off
+
+
+# =============================================================================
+# AV SCANNERS — Anti-virus content scanning (optional)
+# =============================================================================
+# Uncomment to enable ClamAV scanning of downloaded files
+# Requires clamd to be running and accessible
+# =============================================================================
+
+# contentscanner = '/etc/e2guardian/contentscanners/clamdscan.conf'
+contentscannertimeout = 60
+
+
+# =============================================================================
+# HEADER — HTTP header handling
+# =============================================================================
+
+# Add X-Forwarded-For header with client IP (useful for upstream logging)
+addforwardedfor = off
+
+# Don't trust X-Forwarded-For from upstream (security)
+usexforwardedfor = off
+
+# Maximum HTTP header lines to prevent header-based attacks
+maxheaderlines = 2000
+
+
+# =============================================================================
+# BLOCK PAGE — What the user sees when blocked
+# =============================================================================
+
+# Reporting level:
+# -1 = stealth mode (log but don't block)
+#  0 = just "Access Denied"
+#  1 = report reason but not phrases
+#  2 = full report with phrases
+#  3 = HTML template (RECOMMENDED for hospitality)
+reportinglevel = 3
+
+# Replace banned images with a transparent 1x1 GIF (cleans up blocked ads)
+usecustombannedimage = on
+custombannedimagefile = '/usr/share/e2guardian/transparent1x1.gif'
+
+# Replace banned flash content
+usecustombannedflash = on
+custombannedflashfile = '/usr/share/e2guardian/blockedflash.swf'
+
+
+# =============================================================================
+# DOWNLOAD MANAGER — How large file downloads are handled
+# =============================================================================
+
+# Default download manager — simple, reliable
+downloadmanager = '/etc/e2guardian/downloadmanagers/default.conf'
+
+# Temp directory for file caching during scans
+filecachedir = '/tmp'
+
+# Delete temp files after download completes
+deletedownloadedtempfiles = on
+
+# Initial trickle delay (seconds) before sending first keepalive
+initialtrickledelay = 20
+
+# Trickle delay between keepalive packets
+trickledelay = 10
+
+
+# =============================================================================
+# PHRASE FILTERING — Content scanning with weighted phrases
+# =============================================================================
+
+# Weighted phrase mode:
+# 0 = off (no phrase filtering at all — NOT recommended)
+# 1 = normal (each occurrence of a phrase counts)
+# 2 = singular (each UNIQUE phrase counts once — recommended)
+weightedphrasemode = 2
+
+# Phrase filter mode:
+# 0 = raw HTML only
+# 1 = smart (HTML stripped) only
+# 2 = both raw and smart (most thorough — slightly slower)
+# 3 = meta/title tags only (fastest)
+phrasefiltermode = 2
+
+# Force lowercase for phrase matching
+preservecase = 0
+
+# Decode hex-encoded content (%XX) before phrase filtering
+hexdecodecontent = off
+
+# Use fast DFA search (default, works great for ASCII/UTF-8)
+forcequicksearch = off
+
+
+# =============================================================================
+# TUNING — Performance parameters for 5000+ concurrent users
+# =============================================================================
+
+# Worker threads — max concurrent connections
+# 500 = home/small office, 2000 = medium hotel, 5000+ = large resort
+httpworkers = 5000
+
+# Max content size to phrase-filter (KiB) — skip very large pages
+maxcontentfiltersize = 4096
+
+# Max content size to keep in RAM for AV scanning (KiB)
+maxcontentramcachescansize = 4096
+
+# Max content size to download to disk for AV scanning (KiB)
+maxcontentfilecachescansize = 50000
+
+# TCP timeout to upstream proxy (seconds)
+proxytimeout = 15
+
+# TCP timeout to connect to upstream target host (seconds)
+connecttimeout = 15
+
+# TCP timeout between e2guardian and client (seconds)
+pcontimeout = 60
+
+# Server response read timeout (seconds)
+serverresponsechildren = 30
+
+# Socket receive buffer size (bytes)
+socketreceivebuffer = 131072
+
+# Socket send buffer size (bytes)
+socketsendbuffer = 131072
+
+# Maximum number of child server processes (0 = no limit, use workers only)
+maxchildren = 0
+
+
+# =============================================================================
+# LOOP PREVENTION — Prevent proxy loops
+# =============================================================================
+
+# IPs of this e2guardian server (prevent requests from looping back)
+# Add all interface IPs that could receive redirected traffic
+checkip = 127.0.0.1
+# checkip = 10.10.0.1
+# checkip = 192.168.1.1
+
+# Extra ports to loop-protect (e.g., if using Squid in front)
+# extracheckports = 3128
+
+
+# =============================================================================
+# PROCESS — Daemon behavior
+# =============================================================================
+
+# Don't daemonize — stay in foreground (useful with systemd Type=simple)
+# nodaemon = off
+
+# Soft restart — close listening sockets, let existing connections finish,
+# then restart with new config. More graceful than kill -HUP.
+# softrestart = on
+
