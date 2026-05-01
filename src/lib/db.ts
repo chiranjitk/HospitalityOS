@@ -3,12 +3,16 @@ import { PrismaClient } from '@prisma/client'
 const isProduction = process.env.NODE_ENV === 'production';
 
 const createPrismaClient = () => {
+  const databaseUrl = process.env.DATABASE_URL || process.env.DATABASE_URL_UNPOOLED;
+  if (!databaseUrl) {
+    console.error('[DB] FATAL: DATABASE_URL environment variable is not set');
+  }
   return new PrismaClient({
     log: ['error', 'warn'],
-    ...(isProduction ? {
-      datasources: process.env.DATABASE_URL_UNPOOLED ? {
-        db: { url: process.env.DATABASE_URL_UNPOOLED }
-      } : undefined,
+    ...(databaseUrl ? {
+      datasources: {
+        db: { url: databaseUrl }
+      }
     } : {}),
   })
 }
