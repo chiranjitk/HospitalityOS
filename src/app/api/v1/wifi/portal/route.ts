@@ -42,6 +42,10 @@ export async function GET(request: NextRequest) {
         portalMappings: {
           where: { enabled: true },
         },
+        authMethods: {
+          where: { enabled: true },
+          orderBy: { priority: 'asc' },
+        },
       },
     });
 
@@ -141,6 +145,30 @@ export async function GET(request: NextRequest) {
       },
       ssids: allSsids,
       termsRequired: !!(portalPage?.termsText || portalPage?.termsUrl),
+      // List of enabled auth methods with labels
+      authMethods: portal.authMethods.map((am) => {
+        let config: Record<string, unknown> = {};
+        try {
+          config = am.config ? JSON.parse(am.config) : {};
+        } catch {
+          config = {};
+        }
+        return {
+          method: am.method,
+          label: (config.label as string) || am.method,
+          description: (config.description as string) || '',
+        };
+      }),
+      // Form fields configuration from PortalPage
+      formFields: portalPage?.formFields
+        ? (() => {
+            try {
+              return JSON.parse(portalPage.formFields);
+            } catch {
+              return null;
+            }
+          })()
+        : null,
     };
 
     return NextResponse.json({ success: true, data: safeData });

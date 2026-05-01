@@ -37,7 +37,9 @@ import {
   RefreshCw,
   Gift,
   Info,
+  Mail,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -84,6 +86,20 @@ interface PortalDesign {
   subtitle: string;
 }
 
+interface AuthMethodOption {
+  method: string;
+  label: string;
+  description: string;
+}
+
+interface FormFieldConfig {
+  visible?: boolean;
+  required?: boolean;
+  label?: string;
+}
+
+type FormFieldsConfig = Record<string, boolean | FormFieldConfig>;
+
 interface PortalConfig {
   name: string;
   slug: string;
@@ -94,6 +110,8 @@ interface PortalConfig {
   design: PortalDesign;
   ssids: string[];
   termsRequired: boolean;
+  authMethods: AuthMethodOption[];
+  formFields: FormFieldsConfig | null;
 }
 
 interface AuthResult {
@@ -106,8 +124,20 @@ interface AuthResult {
 }
 
 // ────────────────────────────────────────────────────────────
-// Default design (graceful degradation fallback)
+// Defaults
 // ────────────────────────────────────────────────────────────
+
+const DEFAULT_AUTH_METHODS: AuthMethodOption[] = [
+  { method: 'voucher', label: 'Voucher Code', description: 'Enter a WiFi voucher' },
+];
+
+const METHOD_ICONS: Record<string, React.ReactNode> = {
+  voucher: <QrCode className="w-4 h-4" />,
+  room_number: <DoorOpen className="w-4 h-4" />,
+  pms_credentials: <Key className="w-4 h-4" />,
+  sms_otp: <Smartphone className="w-4 h-4" />,
+  open_access: <Globe className="w-4 h-4" />,
+};
 
 const DEFAULT_DESIGN: PortalDesign = {
   layoutType: 'centered',
@@ -851,6 +881,8 @@ function PortalContent() {
   const [errorMessage, setErrorMessage] = useState('');
   const [authResult, setAuthResult] = useState<AuthResult | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState('');
+  const [guestInfo, setGuestInfo] = useState({ firstName: '', lastName: '', email: '', phone: '' });
 
   // ── Fetch portal config on mount ──
   useEffect(() => {
@@ -865,6 +897,11 @@ function PortalContent() {
         if (result.success && result.data) {
           setPortalConfig(result.data);
           setDesign({ ...DEFAULT_DESIGN, ...result.data.design });
+          // Initialize selected method from authMethods list
+          const methods = result.data.authMethods?.length
+            ? result.data.authMethods
+            : [{ method: result.data.authMethod || 'voucher', label: result.data.authMethod || 'voucher', description: '' }];
+          setSelectedMethod(methods[0].method);
           setState('auth_form');
         } else {
           // Portal not found — use fallback defaults (voucher-only)
@@ -934,7 +971,38 @@ function PortalContent() {
   // ── Style helpers ──
   const accentColor = design.accentColor;
   const textColor = design.textColor;
-  const authMethod = portalConfig?.authMethod || 'voucher';
+  const authMethods = portalConfig?.authMethods?.length
+    ? portalConfig.authMethods
+    : DEFAULT_AUTH_METHODS;
+  const activeMethod = selectedMethod || authMethods[0]?.method || 'voucher';
+  const formFields = portalConfig?.formFields || null;
+
+  // ── Helper: check if a form field is visible (supports both boolean and object formats) ──
+  const isFieldVisible = (key: string): boolean => {
+    if (!formFields) return false;
+    const val = formFields[key];
+    if (typeof val === 'boolean') return val;
+    if (typeof val === 'object' && val !== null) return (val as FormFieldConfig).visible ?? false;
+    return false;
+  };
+
+  const isFieldRequired = (key: string): boolean => {
+    if (!formFields) return false;
+    const val = formFields[key];
+    if (typeof val === 'object' && val !== null) return (val as FormFieldConfig).required ?? false;
+    return false;
+  };
+
+  const getFieldLabel = (key: string, fallback: string): string => {
+    if (!formFields) return fallback;
+    const val = formFields[key];
+    if (typeof val === 'object' && val !== null) return (val as FormFieldConfig).label || fallback;
+    return fallback;
+  };
+
+  const hasVisibleFormFields = (): boolean => {
+    return ['firstName', 'lastName', 'email', 'phone'].some(isFieldVisible);
+  };
 
   // ── Background styles ──
   const bgStyle: React.CSSProperties = {};
@@ -972,12 +1040,23 @@ function PortalContent() {
   }
 
   // ── Determine which form to show ──
-  const isVoucherPrefill = codeParam && authMethod === 'voucher';
+  const isVoucherPrefill = codeParam && activeMethod === 'voucher';
   const canSubmit =
     !portalConfig?.termsRequired || termsAccepted;
 
+  // ── Build guest info payload for auth ──
+  const buildGuestInfoPayload = (): Record<string, unknown> | undefined => {
+    if (!hasVisibleFormFields()) return undefined;
+    const info: Record<string, string> = {};
+    if (isFieldVisible('firstName') && guestInfo.firstName.trim()) info.firstName = guestInfo.firstName.trim();
+    if (isFieldVisible('lastName') && guestInfo.lastName.trim()) info.lastName = guestInfo.lastName.trim();
+    if (isFieldVisible('email') && guestInfo.email.trim()) info.email = guestInfo.email.trim();
+    if (isFieldVisible('phone') && guestInfo.phone.trim()) info.phone = guestInfo.phone.trim();
+    return Object.keys(info).length > 0 ? info : undefined;
+  };
+
   const renderAuthForm = () => {
-    switch (authMethod) {
+    switch (activeMethod) {
       case 'voucher':
         return (
           <VoucherForm
@@ -985,7 +1064,7 @@ function PortalContent() {
             accentColor={accentColor}
             textColor={textColor}
             onSubmit={(code) =>
-              authenticate('voucher', { voucherCode: code })
+              authenticate('voucher', { voucherCode: code, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
             }
             loading={state === 'authenticating'}
             hasQrPrefill={isVoucherPrefill}
@@ -997,7 +1076,7 @@ function PortalContent() {
             accentColor={accentColor}
             textColor={textColor}
             onSubmit={(room, name) =>
-              authenticate('room_number', { roomNumber: room, lastName: name })
+              authenticate('room_number', { roomNumber: room, lastName: name, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
             }
             loading={state === 'authenticating'}
           />
@@ -1008,7 +1087,7 @@ function PortalContent() {
             accentColor={accentColor}
             textColor={textColor}
             onSubmit={(username, password) =>
-              authenticate('pms_credentials', { username, password })
+              authenticate('pms_credentials', { username, password, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
             }
             loading={state === 'authenticating'}
           />
@@ -1018,7 +1097,10 @@ function PortalContent() {
           <SmsOtpForm
             accentColor={accentColor}
             textColor={textColor}
-            onAuthenticate={authenticate}
+            onAuthenticate={(method, payload) => {
+              const gi = buildGuestInfoPayload();
+              authenticate(method, gi ? { ...payload, guestInfo: gi } : payload);
+            }}
             loading={state === 'authenticating'}
           />
         );
@@ -1026,7 +1108,7 @@ function PortalContent() {
         return (
           <OpenAccessForm
             accentColor={accentColor}
-            onConnect={() => authenticate('open_access', {})}
+            onConnect={() => authenticate('open_access', { ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })}
             loading={state === 'authenticating'}
           />
         );
@@ -1037,13 +1119,137 @@ function PortalContent() {
             accentColor={accentColor}
             textColor={textColor}
             onSubmit={(code) =>
-              authenticate('voucher', { voucherCode: code })
+              authenticate('voucher', { voucherCode: code, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
             }
             loading={state === 'authenticating'}
             hasQrPrefill={isVoucherPrefill}
           />
         );
     }
+  };
+
+  // ── Method selector tabs (shown when multiple methods are available) ──
+  const renderMethodTabs = () => {
+    if (authMethods.length <= 1) return null;
+    return (
+      <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-1" role="tablist" aria-label="Authentication methods">
+        {authMethods.map((am) => (
+          <button
+            key={am.method}
+            role="tab"
+            aria-selected={activeMethod === am.method}
+            onClick={() => {
+              setSelectedMethod(am.method);
+              setState('auth_form');
+              setErrorMessage('');
+              setGuestInfo({ firstName: '', lastName: '', email: '', phone: '' });
+            }}
+            className={cn(
+              'flex-1 text-sm font-medium py-2.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1.5 min-w-0',
+              activeMethod === am.method
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            )}
+            title={am.description || am.label}
+          >
+            {METHOD_ICONS[am.method] || <Key className="w-4 h-4" />}
+            <span className="truncate">{am.label}</span>
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  // ── Guest info fields section (shown when formFields config has visible fields) ──
+  const renderGuestInfoFields = () => {
+    if (!hasVisibleFormFields()) return null;
+    return (
+      <div className="space-y-3 mb-4 pb-4 border-b border-gray-100">
+        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+          Guest Information
+        </p>
+        {isFieldVisible('firstName') && (
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium flex items-center gap-1" style={{ color: textColor }}>
+              {getFieldLabel('firstName', 'First Name')}
+              {isFieldRequired('firstName') && <span className="text-red-500">*</span>}
+            </label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={guestInfo.firstName}
+                onChange={(e) => setGuestInfo((prev) => ({ ...prev, firstName: e.target.value }))}
+                placeholder="John"
+                disabled={state === 'authenticating'}
+                className="w-full pl-10 pr-4 py-2.5 text-sm border-2 border-gray-200 rounded-xl focus:outline-none transition-all disabled:opacity-50"
+                style={{ borderColor: accentColor + '40' }}
+              />
+            </div>
+          </div>
+        )}
+        {isFieldVisible('lastName') && (
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium flex items-center gap-1" style={{ color: textColor }}>
+              {getFieldLabel('lastName', 'Last Name')}
+              {isFieldRequired('lastName') && <span className="text-red-500">*</span>}
+            </label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={guestInfo.lastName}
+                onChange={(e) => setGuestInfo((prev) => ({ ...prev, lastName: e.target.value }))}
+                placeholder="Smith"
+                disabled={state === 'authenticating'}
+                className="w-full pl-10 pr-4 py-2.5 text-sm border-2 border-gray-200 rounded-xl focus:outline-none transition-all disabled:opacity-50"
+                style={{ borderColor: accentColor + '40' }}
+              />
+            </div>
+          </div>
+        )}
+        {isFieldVisible('email') && (
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium flex items-center gap-1" style={{ color: textColor }}>
+              {getFieldLabel('email', 'Email')}
+              {isFieldRequired('email') && <span className="text-red-500">*</span>}
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="email"
+                value={guestInfo.email}
+                onChange={(e) => setGuestInfo((prev) => ({ ...prev, email: e.target.value }))}
+                placeholder="john@example.com"
+                disabled={state === 'authenticating'}
+                className="w-full pl-10 pr-4 py-2.5 text-sm border-2 border-gray-200 rounded-xl focus:outline-none transition-all disabled:opacity-50"
+                style={{ borderColor: accentColor + '40' }}
+              />
+            </div>
+          </div>
+        )}
+        {isFieldVisible('phone') && (
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium flex items-center gap-1" style={{ color: textColor }}>
+              {getFieldLabel('phone', 'Phone')}
+              {isFieldRequired('phone') && <span className="text-red-500">*</span>}
+            </label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="tel"
+                value={guestInfo.phone}
+                onChange={(e) => setGuestInfo((prev) => ({ ...prev, phone: e.target.value }))}
+                placeholder="+1 555 123 4567"
+                disabled={state === 'authenticating'}
+                className="w-full pl-10 pr-4 py-2.5 text-sm border-2 border-gray-200 rounded-xl focus:outline-none transition-all disabled:opacity-50"
+                style={{ borderColor: accentColor + '40' }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   // ── Layout type rendering ──
@@ -1225,11 +1431,15 @@ function PortalContent() {
                       </div>
                     )}
 
+                    {/* Auth Method Tabs */}
+                    {renderMethodTabs()}
+
                     {/* Auth Form */}
                     <div
                       className="transition-opacity duration-200"
                       style={{ opacity: canSubmit ? 1 : 0.5, pointerEvents: canSubmit ? 'auto' : 'none' }}
                     >
+                      {renderGuestInfoFields()}
                       {renderAuthForm()}
                     </div>
 
@@ -1389,6 +1599,9 @@ function PortalContent() {
                     </div>
                   )}
 
+                  {/* Auth Method Tabs */}
+                  {renderMethodTabs()}
+
                   {/* Auth Form */}
                   <div
                     className="transition-opacity duration-200"
@@ -1397,6 +1610,7 @@ function PortalContent() {
                       pointerEvents: canSubmit ? 'auto' : 'none',
                     }}
                   >
+                    {renderGuestInfoFields()}
                     {renderAuthForm()}
                   </div>
 

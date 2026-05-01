@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
       password,
       phoneNumber,
       otpCode,
+      guestInfo,
     } = body as {
       method?: string;
       portalSlug?: string;
@@ -47,6 +48,7 @@ export async function POST(request: NextRequest) {
       password?: string;
       phoneNumber?: string;
       otpCode?: string;
+      guestInfo?: { firstName?: string; lastName?: string; email?: string; phone?: string };
     };
 
     if (!method) {
