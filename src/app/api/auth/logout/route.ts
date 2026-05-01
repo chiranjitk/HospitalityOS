@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
         try {
           await logAuth(request, 'logout', session.user.id, {
             email: session.user.email,
-          });
+          }, session.user.tenantId);
         } catch (auditError) {
           console.error('Failed to log logout audit event:', auditError);
         }

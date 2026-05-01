@@ -17,6 +17,39 @@ import type { AuditLog, User, Tenant } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
 // =====================================================
+// UUID SAFETY
+// =====================================================
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Validate a UUID string. PostgreSQL @db.Uuid columns reject non-UUID values.
+ */
+function isValidUUID(value: string | undefined | null): boolean {
+  if (!value) return false;
+  return UUID_RE.test(value);
+}
+
+/**
+ * Safe UUID helper: returns the value if valid UUID, otherwise null.
+ * Use for optional FK fields (userId, correlationId, entityId).
+ */
+function safeUUID(value: string | undefined | null): string | null {
+  return isValidUUID(value) ? value! : null;
+}
+
+/**
+ * Safe UUID helper for required FK fields (tenantId).
+ * Returns the value if valid UUID, or throws an error.
+ */
+function requireUUID(value: string | undefined | null, fieldName: string = 'value'): string {
+  if (!value || !UUID_RE.test(value)) {
+    throw new Error(`[AUDIT] Invalid UUID for ${fieldName}: "${value}"`);
+  }
+  return value;
+}
+
+// =====================================================
 // TYPES & INTERFACES
 // =====================================================
 
@@ -192,20 +225,28 @@ class AuditLogService {
     } = input;
 
     try {
+      // Validate UUID fields BEFORE hitting PostgreSQL
+      // tenantId is required — skip the entire audit log if invalid
+      if (!isValidUUID(tenantId)) {
+        console.warn(`[AUDIT] Skipping log: invalid tenantId "${tenantId}" for ${module}.${action}`);
+        // Return a dummy-like object to avoid breaking callers
+        return {} as AuditLog;
+      }
+
       // Build the audit log entry
       const auditLog = await db.auditLog.create({
         data: {
           tenantId,
-          userId: userId || null, // Ensure null instead of undefined
+          userId: safeUUID(userId), // null if not a valid UUID
           module,
           action,
           entityType,
-          entityId,
+          entityId: safeUUID(entityId), // null if not a valid UUID
           oldValue: oldValue ? JSON.stringify(oldValue) : null,
           newValue: newValue ? JSON.stringify(newValue) : null,
           ipAddress,
           userAgent,
-          correlationId: correlationId || this.correlationId || undefined,
+          correlationId: safeUUID(correlationId), // null if not a valid UUID
         },
       });
 
@@ -258,20 +299,24 @@ class AuditLogService {
    */
   async logBatch(inputs: AuditLogInput[]): Promise<number> {
     const data = inputs.map(input => ({
-      tenantId: input.tenantId,
-      userId: input.userId,
+      tenantId: isValidUUID(input.tenantId) ? input.tenantId : '',
+      userId: safeUUID(input.userId),
       module: input.module,
       action: input.action,
       entityType: input.entityType,
-      entityId: input.entityId,
+      entityId: safeUUID(input.entityId),
       oldValue: input.oldValue ? JSON.stringify(input.oldValue) : null,
       newValue: input.newValue ? JSON.stringify(input.newValue) : null,
       ipAddress: input.ipAddress,
       userAgent: input.userAgent,
-      correlationId: input.correlationId || this.correlationId,
+      correlationId: safeUUID(input.correlationId),
     }));
 
-    const result = await db.auditLog.createMany({ data });
+    // Filter out entries with invalid tenantId (required field)
+    const validData = data.filter(d => d.tenantId !== '');
+    if (validData.length === 0) return 0;
+
+    const result = await db.auditLog.createMany({ data: validData });
     return result.count;
   }
 

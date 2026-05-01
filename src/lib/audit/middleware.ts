@@ -44,10 +44,12 @@ export interface RequestContext {
 
 /**
  * Extract context from a Next.js request.
- * NOTE: tenantId from headers must be a valid UUID for PostgreSQL.
- * Callers should always provide overrides?.tenantId from authenticated session.
+ * NOTE: tenantId from headers MUST be a valid UUID for PostgreSQL.
+ * If no valid UUID header is found, returns empty string — callers must
+ * provide overrides?.tenantId from authenticated session.
  */
 export function extractRequestContext(request: NextRequest): RequestContext {
+  const rawTenantId = request.headers.get('x-tenant-id') || '';
   return {
     ipAddress:
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
@@ -55,8 +57,10 @@ export function extractRequestContext(request: NextRequest): RequestContext {
       request.headers.get('cf-connecting-ip') ||
       'unknown',
     userAgent: request.headers.get('user-agent') ?? undefined,
-    tenantId: request.headers.get('x-tenant-id') || 'demo-tenant',
-    userId: request.headers.get('x-user-id') || undefined,
+    tenantId: UUID_REGEX.test(rawTenantId) ? rawTenantId : '',
+    userId: (request.headers.get('x-user-id') && UUID_REGEX.test(request.headers.get('x-user-id')!))
+      ? request.headers.get('x-user-id')!
+      : undefined,
   };
 }
 
@@ -72,16 +76,16 @@ export async function logAuth(
   action: 'login' | 'logout' | 'login_failed' | 'password_reset' | 'password_change' | '2fa_enabled' | '2fa_disabled' | '2fa_verified' | 'session_revoked',
   userId: string | undefined,
   metadata?: Record<string, unknown>,
-  tenantId?: string // Optional tenantId override
+  tenantId?: string // Optional tenantId override (MUST be valid UUID from session)
 ) {
   const ctx = extractRequestContext(request);
   return auditLogService.log({
     tenantId: tenantId || ctx.tenantId,
-    userId,
+    userId: safeUUID(userId),
     module: 'auth',
     action,
     entityType: 'session',
-    entityId: userId,
+    entityId: safeUUID(userId),
     newValue: metadata,
     ipAddress: ctx.ipAddress,
     userAgent: ctx.userAgent,
@@ -102,11 +106,11 @@ export async function logGuest(
   const ctx = extractRequestContext(request);
   return auditLogService.log({
     tenantId: overrides?.tenantId || ctx.tenantId,
-    userId: overrides?.userId || ctx.userId,
+    userId: safeUUID(overrides?.userId || ctx.userId),
     module: 'guests',
     action,
     entityType: 'guest',
-    entityId: guestId,
+    entityId: safeUUID(guestId),
     oldValue,
     newValue,
     ipAddress: ctx.ipAddress,
@@ -128,11 +132,11 @@ export async function logRoom(
   const ctx = extractRequestContext(request);
   return auditLogService.log({
     tenantId: overrides?.tenantId || ctx.tenantId,
-    userId: overrides?.userId || ctx.userId,
+    userId: safeUUID(overrides?.userId || ctx.userId),
     module: 'rooms',
     action,
     entityType: 'room',
-    entityId: roomId,
+    entityId: safeUUID(roomId),
     oldValue,
     newValue,
     ipAddress: ctx.ipAddress,
@@ -155,11 +159,11 @@ export async function logBooking(
   const ctx = extractRequestContext(request);
   return auditLogService.log({
     tenantId: overrides?.tenantId || ctx.tenantId,
-    userId: overrides?.userId || ctx.userId,
+    userId: safeUUID(overrides?.userId || ctx.userId),
     module: 'bookings',
     action,
     entityType: 'booking',
-    entityId: bookingId,
+    entityId: safeUUID(bookingId),
     oldValue,
     newValue,
     ipAddress: ctx.ipAddress,
@@ -180,11 +184,11 @@ export async function logPayment(
   const ctx = extractRequestContext(request);
   return auditLogService.log({
     tenantId: overrides?.tenantId || ctx.tenantId,
-    userId: overrides?.userId || ctx.userId,
+    userId: safeUUID(overrides?.userId || ctx.userId),
     module: 'billing',
     action,
     entityType: 'payment',
-    entityId: paymentId,
+    entityId: safeUUID(paymentId),
     newValue: metadata,
     ipAddress: ctx.ipAddress,
     userAgent: ctx.userAgent,
@@ -204,11 +208,11 @@ export async function logFolio(
   const ctx = extractRequestContext(request);
   return auditLogService.log({
     tenantId: overrides?.tenantId || ctx.tenantId,
-    userId: overrides?.userId || ctx.userId,
+    userId: safeUUID(overrides?.userId || ctx.userId),
     module: 'billing',
     action,
     entityType: 'folio',
-    entityId: folioId,
+    entityId: safeUUID(folioId),
     newValue: metadata,
     ipAddress: ctx.ipAddress,
     userAgent: ctx.userAgent,
@@ -229,11 +233,11 @@ export async function logUser(
   const ctx = extractRequestContext(request);
   return auditLogService.log({
     tenantId: overrides?.tenantId || ctx.tenantId,
-    userId: overrides?.userId || ctx.userId,
+    userId: safeUUID(overrides?.userId || ctx.userId),
     module: 'users',
     action,
     entityType: 'user',
-    entityId: targetUserId,
+    entityId: safeUUID(targetUserId),
     oldValue,
     newValue,
     ipAddress: ctx.ipAddress,
@@ -255,11 +259,11 @@ export async function logWifi(
   const ctx = extractRequestContext(request);
   return auditLogService.log({
     tenantId: overrides?.tenantId || ctx.tenantId,
-    userId: overrides?.userId || ctx.userId,
+    userId: safeUUID(overrides?.userId || ctx.userId),
     module: 'wifi',
     action,
     entityType,
-    entityId,
+    entityId: safeUUID(entityId),
     newValue: metadata,
     ipAddress: ctx.ipAddress,
     userAgent: ctx.userAgent,
@@ -281,11 +285,11 @@ export async function logInventory(
   const ctx = extractRequestContext(request);
   return auditLogService.log({
     tenantId: overrides?.tenantId || ctx.tenantId,
-    userId: overrides?.userId || ctx.userId,
+    userId: safeUUID(overrides?.userId || ctx.userId),
     module: 'inventory',
     action,
     entityType,
-    entityId,
+    entityId: safeUUID(entityId),
     oldValue,
     newValue,
     ipAddress: ctx.ipAddress,
@@ -333,11 +337,11 @@ export async function logTask(
   const ctx = extractRequestContext(request);
   return auditLogService.log({
     tenantId: overrides?.tenantId || ctx.tenantId,
-    userId: overrides?.userId || ctx.userId,
+    userId: safeUUID(overrides?.userId || ctx.userId),
     module: 'housekeeping',
     action,
     entityType: 'task',
-    entityId: taskId,
+    entityId: safeUUID(taskId),
     newValue: metadata,
     ipAddress: ctx.ipAddress,
     userAgent: ctx.userAgent,
@@ -358,11 +362,11 @@ export async function logChannel(
   const ctx = extractRequestContext(request);
   return auditLogService.log({
     tenantId: overrides?.tenantId || ctx.tenantId,
-    userId: overrides?.userId || ctx.userId,
+    userId: safeUUID(overrides?.userId || ctx.userId),
     module: 'channel',
     action,
     entityType,
-    entityId,
+    entityId: safeUUID(entityId),
     newValue: metadata,
     ipAddress: ctx.ipAddress,
     userAgent: ctx.userAgent,
@@ -382,7 +386,7 @@ export async function logSecurity(
   const ctx = extractRequestContext(request);
   return auditLogService.log({
     tenantId: overrides?.tenantId || ctx.tenantId,
-    userId: overrides?.userId || ctx.userId,
+    userId: safeUUID(overrides?.userId || ctx.userId),
     module: 'security',
     action,
     entityType: 'security_event',
@@ -432,11 +436,11 @@ export async function audit(
   const ctx = extractRequestContext(request);
   return auditLogService.log({
     tenantId: overrides?.tenantId || ctx.tenantId,
-    userId: overrides?.userId || ctx.userId,
+    userId: safeUUID(overrides?.userId || ctx.userId),
     module,
     action,
     entityType,
-    entityId,
+    entityId: safeUUID(entityId),
     oldValue,
     newValue,
     ipAddress: ctx.ipAddress,
