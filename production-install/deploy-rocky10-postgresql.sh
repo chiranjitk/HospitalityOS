@@ -1114,10 +1114,13 @@ else
   warn "Next.js not yet listening on port 3000 (may still be starting)"
 fi
 
-# Save for auto-restart on reboot
+# Stop all PM2 services — save config but keep them stopped to avoid
+# saturating PostgreSQL during remaining setup steps (FreeRADIUS, cron, IPDR)
+info "Stopping PM2 services to free resources for remaining setup..."
+pm2 stop all 2>/dev/null
 pm2 save
 pm2 startup systemd -u root --hp /root 2>/dev/null || true
-success "PM2 configured — 11 services started"
+success "PM2 configured — 11 services (stopped, will start at end)"
 
 # ════════════════════════════════════════════════════════════════════════════════
 # STEP 15: FreeRADIUS CoA + Post-Auth
@@ -1424,6 +1427,31 @@ else
 echo "    1. Log in to StaySuite and configure property, rooms, WiFi plans."
 echo "    2. Add NAS clients via StaySuite AAA Configuration page"
 echo "    3. Test RADIUS auth: radclient -x 127.0.0.1 auth testing123"
+fi
+echo ""
+
+# ════════════════════════════════════════════════════════════════════════════════
+# FINAL: Start all PM2 services (after all setup complete)
+# ════════════════════════════════════════════════════════════════════════════════
+echo ""
+info "Starting all PM2 services..."
+pm2 restart all 2>/dev/null
+sleep 3
+pm2 save
+
+# Quick health check
+ALL_OK=true
+for svc_name in staysuite-nextjs availability-service realtime-service freeradius-service dhcp-service dns-service nftables-service captive-redirect conntrack-bridge sni-parser; do
+  SVC_PID=$(pm2 pid "$svc_name" 2>/dev/null)
+  if [[ -z "$SVC_PID" ]]; then
+    warn "$svc_name — not running"
+    ALL_OK=false
+  fi
+done
+if $ALL_OK; then
+  success "All PM2 services started successfully"
+else
+  warn "Some PM2 services failed — run: pm2 status"
 fi
 echo ""
 
