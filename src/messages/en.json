@@ -229,6 +229,8 @@
     "localization": "Localization",
     "featureFlags": "Feature Flags",
     "securitySettings": "Security",
+    "help": "Help & Support",
+    "settings": "Settings",
     "_comment_kebab_keys": "Kebab-case keys for sidebar navigation lookup by item IDs",
     "dashboard-overview": "Overview",
     "dashboard-command-center": "Command Center",
