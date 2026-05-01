@@ -33,10 +33,9 @@ const SERVICE_VERSION = '2.2.0';
 const log = createLogger('nftables-service');
 const startTime = Date.now();
 
-// Database — use NFTABLES_DB_URL or fall back to hardcoded PostgreSQL URL.
-// We do NOT use process.env.DATABASE_URL because the sandbox shell may inherit
-// a SQLite URL (file:/...) that would break pg connections.
-const DB_URL = process.env.NFTABLES_DB_URL || 'postgresql://postgres:postgres@localhost:5432/staysuite';
+// Database — use NFTABLES_DB_URL > DATABASE_URL > fallback PostgreSQL URL.
+// In production, DATABASE_URL is injected by PM2 ecosystem.config.js.
+const DB_URL = process.env.NFTABLES_DB_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/staysuite';
 const pool = new pg.Pool({
   connectionString: DB_URL,
   max: 10,

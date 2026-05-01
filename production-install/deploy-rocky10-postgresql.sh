@@ -981,7 +981,7 @@ module.exports = {
       script: 'index.ts',
       interpreter: BUN_PATH,
       cwd: `${APP_DIR}/mini-services/nftables-service`,
-      env: { NODE_ENV: 'production', PORT: 3013 },
+      env: { NODE_ENV: 'production', PORT: 3013, DATABASE_URL: DB_URL },
       max_restarts: 10, restart_delay: 3000,
     },
     {
