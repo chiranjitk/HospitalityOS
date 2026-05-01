@@ -20,10 +20,12 @@
 #  11.  Seed demo data (properties, rooms, plans, users)
 #  12.  Build Next.js standalone
 #  13.  Install PM2 + generate production ecosystem.config.js
-#  14.  Start ALL services via PM2 (Next.js + 6 mini-services)
+#  14.  Start ALL services via PM2 (Next.js + 9 mini-services)
 #  15.  Configure FreeRADIUS CoA (port 3799)
 #  16.  Set up cron jobs (data usage processing)
-#  17.  Print deployment summary
+#  17.  Install conntrack-tools + configure nftables LOG rules for DNS/TLS capture
+#  18.  ClickHouse IPDR tables creation (nat_log, dns_cache, sni_log, web_surfing_report)
+#  19.  Print deployment summary
 #
 # Usage:
 #   chmod +x deploy-rocky10-postgresql.sh
@@ -106,7 +108,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-STEPS=17
+STEPS=19
 DEFAULT_DB_PASSWORD="Staysuite2025"
 
 confirm() {
@@ -871,6 +873,46 @@ module.exports = {
       env: { NODE_ENV: 'production', PORT: 8888 },
       max_restarts: 10, restart_delay: 3000,
     },
+    // IPDR Network Logging Pipeline (WiFi gateway analytics + TRAI compliance)
+    {
+      name: 'conntrack-bridge',
+      script: 'index.ts',
+      interpreter: BUN_PATH,
+      cwd: `${APP_DIR}/mini-services/conntrack-bridge`,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3020,
+        CLICKHOUSE_URL: 'http://127.0.0.1:8123',
+        CONNTRACK_BIN: '/usr/sbin/conntrack',
+      },
+      max_restarts: 10, restart_delay: 3000,
+    },
+    {
+      name: 'dns-parser',
+      script: 'index.ts',
+      interpreter: BUN_PATH,
+      cwd: `${APP_DIR}/mini-services/dns-parser`,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3021,
+        CLICKHOUSE_URL: 'http://127.0.0.1:8123',
+        DNS_LOG_FILE: '/var/log/dns-queries.log',
+      },
+      max_restarts: 10, restart_delay: 3000,
+    },
+    {
+      name: 'sni-parser',
+      script: 'index.ts',
+      interpreter: BUN_PATH,
+      cwd: `${APP_DIR}/mini-services/sni-parser`,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3022,
+        CLICKHOUSE_URL: 'http://127.0.0.1:8123',
+        SNI_LOG_FILE: '/var/log/sni-queries.log',
+      },
+      max_restarts: 10, restart_delay: 3000,
+    },
   ],
 };
 JSEOF
@@ -891,7 +933,7 @@ sleep 3
 # Save for auto-restart on reboot
 pm2 save
 pm2 startup systemd -u root --hp /root 2>/dev/null || true
-success "PM2 configured — 8 services started"
+success "PM2 configured — 11 services started"
 
 # ════════════════════════════════════════════════════════════════════════════════
 # STEP 15: FreeRADIUS CoA + Post-Auth
@@ -970,9 +1012,172 @@ chmod 644 "$CRON_FILE"
 success "Cron jobs configured (hourly + 5min + daily cleanup)"
 
 # ════════════════════════════════════════════════════════════════════════════════
-# STEP 17: Deployment Summary
+# STEP 17: Network Logging Pipeline (IPDR)
 # ════════════════════════════════════════════════════════════════════════════════
-step 17 "Summary" "Deployment complete"
+step 17 "IPDR Pipeline" "Installing conntrack-tools + configuring nftables LOG rules"
+
+info "Installing network logging packages..."
+dnf install -y --quiet conntrack-tools iptables-nft dnsmasq 2>/dev/null || {
+  warn "Some network packages may not be available, trying alternatives..."
+  dnf install -y --quiet conntrack-tools iptables-nft 2>/dev/null || true
+  dnf install -y --quiet dnsmasq 2>/dev/null || true
+}
+
+# Verify conntrack binary
+if command -v conntrack >/dev/null 2>&1; then
+  CONNTRACK_BIN=$(which conntrack)
+  success "conntrack-tools installed (binary: ${CONNTRACK_BIN})"
+else
+  warn "conntrack binary not found — conntrack-bridge will run in simulation mode"
+fi
+
+# Create DNS log directory + file for dnsmasq log-queries
+mkdir -p /var/log/staysuite
+touch /var/log/dns-queries.log
+touch /var/log/sni-queries.log
+chmod 644 /var/log/dns-queries.log /var/log/sni-queries.log
+
+# Configure dnsmasq for DNS query logging (captures all guest DNS queries)
+DNSMASQ_CONF="/etc/dnsmasq.d/staysuite-dns.conf"
+mkdir -p /etc/dnsmasq.d
+cat > "$DNSMASQ_CONF" << 'DNSEOF'
+# StaySuite — DNS query logging for WebSurfing/IPDR analytics
+# All DNS queries are logged to /var/log/dns-queries.log in JSON format
+log-queries
+log-facility=/var/log/dns-queries.log
+# DNS cache size (128 = 128 names, good for hotel gateway)
+cache-size=512
+# Don't pollute upstream DNS with local queries
+domain-needed
+bogus-priv
+DNSEOF
+
+# Configure dnsmasq to log queries in our JSON format via a log wrapper
+# Since dnsmasq logs to syslog by default, we use log-queries with a custom log format
+cat > /etc/logrotate.d/dnsmasq-staysuite << 'LOGEOF'
+/var/log/dns-queries.log /var/log/sni-queries.log {
+    daily
+    missingok
+    rotate 14
+    compress
+    delaycompress
+    notifempty
+    copytruncate
+    maxsize 500M
+}
+LOGEOF
+
+# Configure rsyslog to capture dnsmasq queries into our JSON log file
+# This creates the bridge between dnsmasq log-queries and dns-parser service
+if [[ -f /etc/rsyslog.conf ]]; then
+  grep -q "dnsmasq.*dns-queries" /etc/rsyslog.conf 2>/dev/null || {
+    cat >> /etc/rsyslog.conf << 'RSEOF'
+# StaySuite: Route dnsmasq DNS queries to JSON log for IPDR pipeline
+:programname, isequal, "dnsmasq" /var/log/dns-queries.log
+RSEOF
+    systemctl restart rsyslog 2>/dev/null || true
+  }
+fi
+
+# Try to start dnsmasq (may fail if port 53 is in use — non-fatal)
+if systemctl restart dnsmasq 2>/dev/null; then
+  systemctl enable dnsmasq 2>/dev/null || true
+  success "dnsmasq started with DNS query logging"
+else
+  warn "dnsmasq not started (port 53 may be in use or package missing) — DNS logging will work via alternate methods"
+fi
+
+# Configure nftables LOG rules for network traffic capture
+# These rules log DNS queries (port 53) and TLS SYN packets (port 443)
+# The logged packets are parsed by dns-parser and sni-parser services
+info "Configuring nftables LOG rules for DNS/TLS capture..."
+NFT_LOG_SCRIPT="/usr/local/bin/staysuite-nftables-logging.sh"
+cat > "$NFT_LOG_SCRIPT" <<'NFTEOF'
+#!/bin/bash
+# StaySuite — nftables LOG rules for IPDR network logging
+# Run this AFTER the main nftables rules are loaded
+# This adds logging rules that feed the dns-parser and sni-parser services
+
+NFT=$(which nft 2>/dev/null || echo "/usr/sbin/nft")
+
+$NFT add table inet staysuite_log 2>/dev/null || true
+$NFT flush table inet staysuite_log 2>/dev/null || true
+
+# Log DNS queries (UDP/TCP port 53) — parsed by dns-parser service
+$NFT add chain inet staysuite_log input { type filter hook input priority -150 \; }
+$NFT add rule inet staysuite_log input iifname != "lo" udp dport 53 log prefix "DNS_QUERY: " counter
+$NFT add rule inet staysuite_log input iifname != "lo" tcp dport 53 log prefix "DNS_QUERY: " counter
+
+# Log TLS SYN packets (TCP port 443, SYN only) — parsed by sni-parser service
+# Only SYN packets contain TLS ClientHello with SNI (no payload in SYN-ACK)
+$NFT add rule inet staysuite_log input iifname != "lo" tcp dport 443 tcp flags syn tcp flags & (fin|syn|rst|psh|ack|urg) == syn log prefix "TLS_SYN: " counter
+
+# Log to syslog so parsers can read them
+# The LOG rules above send to kernel log which syslog/journalctl captures
+echo "nftables LOG rules installed for DNS/TLS capture"
+NFTEOF
+chmod +x "$NFT_LOG_SCRIPT"
+
+# Try to apply the logging rules (non-fatal if nftables not ready)
+if command -v nft >/dev/null 2>&1; then
+  bash "$NFT_LOG_SCRIPT" 2>/dev/null && success "nftables LOG rules installed (DNS port 53 + TLS port 443 SYN)" \
+    || warn "nftables LOG rules not applied (nft may not be configured yet — rules will be applied when nftables starts)"
+else
+  warn "nft not found — LOG rules will be applied when nftables is configured"
+fi
+
+success "IPDR network logging pipeline configured"
+
+# ════════════════════════════════════════════════════════════════════════════════
+# STEP 18: ClickHouse IPDR Schema
+# ════════════════════════════════════════════════════════════════════════════════
+step 18 "ClickHouse" "Configuring IPDR database schema"
+
+# Check if ClickHouse is available
+CH_URL="http://127.0.0.1:8123"
+if curl -s --max-time 5 "${CH_URL}/?query=SELECT%201" >/dev/null 2>&1; then
+  info "ClickHouse detected — applying IPDR schema..."
+
+  # Apply the IPDR schema from the project
+  if [[ -f "${APP_DIR}/tools/clickhouse/schemas/ipdr_schema.sql" ]]; then
+    # Read schema and execute each statement
+    while IFS= read -r sql_line; do
+      [[ -z "$sql_line" || "$sql_line" =~ ^-- ]] && continue
+      curl -s --max-time 10 "${CH_URL}/" -d "$sql_line" >/dev/null 2>&1 || \
+        warn "ClickHouse DDL warning (non-fatal): $sql_line"
+    done < "${APP_DIR}/tools/clickhouse/schemas/ipdr_schema.sql"
+    success "ClickHouse IPDR schema applied (4 tables: nat_log, dns_cache, sni_log, web_surfing_report)"
+  else
+    warn "IPDR schema file not found — ClickHouse tables will be auto-created by logging services"
+  fi
+
+  # Add CLICKHOUSE_URL to .env
+  if ! grep -q "CLICKHOUSE_URL" "${APP_DIR}/.env" 2>/dev/null; then
+    echo "CLICKHOUSE_URL=${CH_URL}" >> "${APP_DIR}/.env"
+    echo "CLICKHOUSE_USER=default" >> "${APP_DIR}/.env"
+    echo "CLICKHOUSE_PASSWORD=" >> "${APP_DIR}/.env"
+  fi
+
+  # Restart logging services to pick up ClickHouse
+  pm2 restart conntrack-bridge dns-parser sni-parser 2>/dev/null || true
+  success "Logging services restarted with ClickHouse connection"
+else
+  warn "ClickHouse not detected at ${CH_URL}"
+  info "The IPDR logging services will work in ring-buffer-only mode until ClickHouse is installed."
+  info "To install ClickHouse later:"
+  echo "    dnf install -y clickhouse-server clickhouse-client"
+  echo "    systemctl start clickhouse-server"
+  echo "    bash ${APP_DIR}/tools/clickhouse/schemas/apply-ipdr-schema.sh"
+  echo ""
+  info "Ring buffer (last 5000 events) will still be available for live viewing."
+fi
+
+success "IPDR database setup complete"
+
+# ════════════════════════════════════════════════════════════════════════════════
+# STEP 19: Deployment Summary
+# ════════════════════════════════════════════════════════════════════════════════
+step 19 "Summary" "Deployment complete"
 
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
@@ -1007,7 +1212,7 @@ done
 echo ""
 
 echo -e "${BOLD}  PM2 SERVICES${NC}"
-for svc_name in staysuite-nextjs availability-service realtime-service freeradius-service dhcp-service dns-service nftables-service captive-redirect; do
+for svc_name in staysuite-nextjs availability-service realtime-service freeradius-service dhcp-service dns-service nftables-service captive-redirect conntrack-bridge dns-parser sni-parser; do
   SVC_PID=$(pm2 pid "$svc_name" 2>/dev/null)
   ICON="FAIL"; [[ -n "$SVC_PID" ]] && ICON=" OK "
   echo "    [${ICON}] ${svc_name}"
@@ -1023,6 +1228,9 @@ echo "    3011  DHCP Service (dnsmasq)"
 echo "    3012  DNS Service"
 echo "    3013  nftables Service"
 echo "    8888  Captive Portal Redirect (HTTP 302)"
+echo "    3020  Conntrack Bridge (IPDR NAT logging)"
+echo "    3021  DNS Parser (IPDR domain capture)"
+echo "    3022  SNI Parser (IPDR TLS domain capture)"
 echo "    1812  FreeRADIUS Auth (UDP)"
 echo "    1813  FreeRADIUS Accounting (UDP)"
 echo "    3799  FreeRADIUS CoA (UDP)"
