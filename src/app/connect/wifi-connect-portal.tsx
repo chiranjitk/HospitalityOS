@@ -3,12 +3,9 @@
 /**
  * Public WiFi Captive Portal — Multi-Method Authentication
  *
- * URL: /connect
- * - No query params needed — zone is resolved by backend from client IP
- * - ?code=<voucher> still supported for QR code pre-fill
- *
- * Security: No zone slug visible in URL. Backend resolves zone from
- * client IP address using PortalMapping CIDR matching.
+ * URL: /connect?zone=<slug>&code=<voucher>
+ * - zone: portal zone slug (default: "default-zone")
+ * - code: pre-filled voucher code from QR scan
  *
  * States: loading → auth_form → authenticating → success → error
  */
@@ -845,6 +842,7 @@ type PortalState =
 
 function PortalContent() {
   const searchParams = useSearchParams();
+  const zoneParam = searchParams.get('zone') || 'default-zone';
   const codeParam = searchParams.get('code') || '';
 
   const [portalConfig, setPortalConfig] = useState<PortalConfig | null>(null);
@@ -854,42 +852,42 @@ function PortalContent() {
   const [authResult, setAuthResult] = useState<AuthResult | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
-  // ── Resolve zone from backend (client IP → CIDR match → portal config) ──
+  // ── Fetch portal config on mount ──
   useEffect(() => {
     let cancelled = false;
-    const resolveZone = async () => {
+    const fetchPortal = async () => {
       try {
-        const res = await fetch('/api/wifi/portal/resolve-zone');
+        const res = await fetch(
+          `/api/v1/wifi/portal?slug=${encodeURIComponent(zoneParam)}`
+        );
         if (cancelled) return;
         const result = await res.json();
-
-        if (result.success && result.data?.config) {
-          // Zone matched — use the resolved portal config
-          setPortalConfig(result.data.config);
-          setDesign({ ...DEFAULT_DESIGN, ...result.data.config.design });
+        if (result.success && result.data) {
+          setPortalConfig(result.data);
+          setDesign({ ...DEFAULT_DESIGN, ...result.data.design });
           setState('auth_form');
         } else {
-          // No zone match — use fallback defaults (voucher-only)
+          // Portal not found — use fallback defaults (voucher-only)
           console.warn(
-            '[Portal] No zone matched client IP, using fallback defaults',
-            result.data?.matchedSubnet ? `(checked ${result.data.matchedSubnet})` : ''
+            '[Portal] Config not found, using fallback:',
+            result.error?.message
           );
           setState('auth_form');
         }
       } catch {
         if (cancelled) return;
-        console.warn('[Portal] Failed to resolve zone, using fallback');
+        console.warn('[Portal] Failed to fetch config, using fallback');
         setState('auth_form');
       }
     };
-    resolveZone();
+    fetchPortal();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [zoneParam]);
 
   // ── Authentication handler ──
-  const portalSlug = portalConfig?.slug || 'default-zone';
+  const portalSlug = portalConfig?.slug || zoneParam;
   const authenticate = useCallback(
     async (method: string, payload: Record<string, string>) => {
       setState('authenticating');

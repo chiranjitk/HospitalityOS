@@ -31,11 +31,8 @@ export function useTenantSwitcher() {
   // Fetch available tenants when platform admin is detected
   useEffect(() => {
     if (!isPlatformAdmin) {
-      const resetTimer = setTimeout(() => {
-        setAvailableTenants([]);
-        setIsLoading(false);
-      }, 0);
-      return () => clearTimeout(resetTimer);
+      setAvailableTenants([]);
+      return;
     }
 
     let cancelled = false;

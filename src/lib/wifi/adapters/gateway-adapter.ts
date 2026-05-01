@@ -25,6 +25,8 @@ export interface GatewayConfig {
 }
 
 export type GatewayVendor = 
+  // Native — Cryptsk own gateway (Multimode: Gateway + RADIUS)
+  | 'cryptsk'
   // Tier 1
   | 'mikrotik'
   | 'unifi'

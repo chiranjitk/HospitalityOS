@@ -144,10 +144,6 @@ export default function PortalWhitelist() {
   };
 
   const fetchEntries = useCallback(async () => {
-    if (!propertyId) {
-      setIsLoading(false);
-      return;
-    }
     setIsLoading(true);
     try {
       const res = await fetch(buildUrl('/api/wifi/portal-whitelist'));

@@ -48,11 +48,18 @@
         # fn_get_mikrotik_rate_limit() also logs switch-over events to
         # fup_switch_log table for GUI display.
         #
+        # BOTH Mikrotik-Rate-Limit AND Cryptsk-Rate-Limit are set so that
+        # the post-auth works in BOTH modes:
+        #   - External Gateway mode: MikroTik/Cisco/Aruba NAS uses its own VSA
+        #   - Multimode: Cryptsk gateway uses Cryptsk-Rate-Limit (Vendor 64179)
+        # The NAS silently ignores VSA attributes it doesn't recognize.
+        #
         update control {
             &Tmp-String-2 := "%{sql:SELECT fn_get_mikrotik_rate_limit('%{User-Name}')}"
         }
         update reply {
             &Mikrotik-Rate-Limit := "%{control:Tmp-String-2}"
+            &Cryptsk-Rate-Limit := "%{control:Tmp-String-2}"
         }
 
         # NOTE: The existing "sql" and "exec" lines should follow AFTER these blocks

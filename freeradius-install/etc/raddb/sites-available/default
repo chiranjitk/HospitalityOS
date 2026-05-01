@@ -784,8 +784,8 @@ session {
 #  Once we KNOW that the user has been authenticated, there are
 #  additional steps we can take.
 post-auth {
-	# StaySuite: Send RADIUS reply attributes (bandwidth, session timeout)
-	sql
+        # StaySuite: Send RADIUS reply attributes (bandwidth, session timeout)
+        sql
         #
         #  If you need to have a State attribute, you can
         #  add it here.  e.g. for later CoA-Request with
@@ -894,8 +894,16 @@ post-auth {
         }
 
         #  StaySuite: MikroTik FUP rate limit via PostgreSQL function
+        #  Used in EXTERNAL GATEWAY mode when NAS is MikroTik
         update reply {
                 Mikrotik-Rate-Limit := "%{sql:SELECT fn_get_mikrotik_rate_limit('%{User-Name}')}"
+        }
+
+        #  Cryptsk: Native FUP rate limit via PostgreSQL function
+        #  Used in MULTIMODE when Cryptsk is the gateway (Vendor ID 64179)
+        #  Cryptsk-Rate-Limit uses the same "D/U" format as MikroTik for compatibility
+        update reply {
+                Cryptsk-Rate-Limit := "%{sql:SELECT fn_get_mikrotik_rate_limit('%{User-Name}')}"
         }
 
         #  StaySuite: Concurrent login check via PostgreSQL function
