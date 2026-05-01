@@ -1,0 +1,506 @@
+/* ============================================
+   DESIGN SYSTEM - GRADIENT MODERN (LIGHT)
+   ============================================ */
+
+/* Primary Gradient Background */
+.bg-gradient-primary {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+}
+
+/* Gradient Text */
+.text-gradient {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Gradient Border */
+.border-gradient {
+  position: relative;
+  background: var(--card);
+  border-radius: var(--radius-lg);
+}
+
+.border-gradient::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Gradient Card */
+.gradient-card {
+  background: var(--card);
+  border-radius: var(--radius-xl);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.gradient-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--gradient-start), var(--gradient-end));
+}
+
+.gradient-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -8px oklch(from var(--gradient-start) l c h / 25%);
+}
+
+/* Premium Card for Dark Theme */
+.dark .gradient-card::before {
+  background: linear-gradient(90deg, oklch(0.78 0.15 75), oklch(0.70 0.12 85));
+}
+
+.dark .gradient-card:hover {
+  box-shadow: 0 12px 24px -8px oklch(0.78 0.15 75 / 20%);
+}
+
+/* Gradient Button */
+.btn-gradient {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  color: white;
+  font-weight: 600;
+  border-radius: var(--radius-lg);
+  padding: 0.625rem 1.25rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 14px -4px oklch(from var(--gradient-start) l c h / 50%);
+}
+
+.btn-gradient:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px -4px oklch(from var(--gradient-start) l c h / 60%);
+}
+
+.btn-gradient:active {
+  transform: translateY(0);
+}
+
+/* Premium Button for Dark Theme */
+.dark .btn-gradient {
+  background: linear-gradient(135deg, oklch(0.78 0.15 75), oklch(0.70 0.12 85));
+  color: oklch(0.12 0.02 75);
+  box-shadow: 0 4px 14px -4px oklch(0.78 0.15 75 / 40%);
+}
+
+.dark .btn-gradient:hover {
+  box-shadow: 0 6px 20px -4px oklch(0.78 0.15 75 / 50%);
+}
+
+/* Gradient Icon Container */
+.icon-gradient {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  color: white;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px -4px oklch(from var(--gradient-start) l c h / 50%);
+}
+
+.dark .icon-gradient {
+  background: linear-gradient(135deg, oklch(0.78 0.15 75), oklch(0.70 0.12 85));
+  color: oklch(0.12 0.02 75);
+  box-shadow: 0 4px 12px -4px oklch(0.78 0.15 75 / 40%);
+}
+
+/* Gradient Header */
+.header-gradient {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  color: white;
+}
+
+.dark .header-gradient {
+  background: linear-gradient(135deg, oklch(0.18 0.03 270), oklch(0.14 0.025 280));
+  border-bottom: 1px solid oklch(0.78 0.15 75 / 20%);
+}
+
+/* Gradient Stats */
+.stat-gradient {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  color: white;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  position: relative;
+}
+
+.stat-gradient::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 50%, oklch(0 0 0 / 0.1) 100%);
+  pointer-events: none;
+}
+
+.dark .stat-gradient {
+  background: linear-gradient(135deg, oklch(0.22 0.03 75), oklch(0.18 0.025 85));
+}
+
+/* Premium Divider */
+.divider-premium {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gradient-start), transparent);
+}
+
+.dark .divider-premium {
+  background: linear-gradient(90deg, transparent, oklch(0.78 0.15 75), transparent);
+}
+
+/* Gradient Badge */
+.badge-gradient {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+}
+
+.dark .badge-gradient {
+  background: linear-gradient(135deg, oklch(0.78 0.15 75), oklch(0.70 0.12 85));
+  color: oklch(0.12 0.02 75);
+}
+
+/* Gradient Progress */
+.progress-gradient {
+  background: var(--muted);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.progress-gradient-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gradient-start), var(--gradient-end));
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+
+.dark .progress-gradient-bar {
+  background: linear-gradient(90deg, oklch(0.78 0.15 75), oklch(0.70 0.12 85));
+}
+
+/* Gradient Tab Active */
+.tab-gradient-active {
+  position: relative;
+}
+
+.tab-gradient-active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--gradient-start), var(--gradient-end));
+}
+
+.dark .tab-gradient-active::after {
+  background: linear-gradient(90deg, oklch(0.78 0.15 75), oklch(0.70 0.12 85));
+}
+
+/* Glow Effect */
+.glow-gradient {
+  position: relative;
+}
+
+.glow-gradient::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  border-radius: inherit;
+  z-index: -1;
+  opacity: 0;
+  filter: blur(8px);
+  transition: opacity 0.3s ease;
+}
+
+.glow-gradient:hover::after {
+  opacity: 0.5;
+}
+
+.dark .glow-gradient::after {
+  background: linear-gradient(135deg, oklch(0.78 0.15 75), oklch(0.70 0.12 85));
+}
+
+/* ============================================
+   PAGE LAYOUT COMPONENTS
+   ============================================ */
+
+/* Page Container */
+.page-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Page Header with Gradient */
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .page-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+}
+
+.page-header-content {
+  flex: 1;
+}
+
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.page-title-gradient {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dark .page-title-gradient {
+  background: linear-gradient(135deg, oklch(0.78 0.15 75), oklch(0.90 0.08 60));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.page-title-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.page-title-icon-gradient {
+  color: var(--gradient-start);
+}
+
+.dark .page-title-icon-gradient {
+  color: oklch(0.78 0.15 75);
+}
+
+.page-description {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  margin-top: 0.5rem;
+}
+
+.page-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Stat Card - Gradient Style */
+.stat-card {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--gradient-start), var(--gradient-end));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -8px oklch(from var(--gradient-start) l c h / 20%);
+}
+
+.stat-card:hover::before {
+  opacity: 1;
+}
+
+.dark .stat-card::before {
+  background: linear-gradient(90deg, oklch(0.78 0.15 75), oklch(0.70 0.12 85));
+}
+
+.dark .stat-card:hover {
+  box-shadow: 0 8px 24px -8px oklch(0.78 0.15 75 / 15%);
+}
+
+.stat-card-inner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+/* Stat Icon Variants */
+.stat-icon {
+  padding: 0.625rem;
+  border-radius: var(--radius-lg);
+  flex-shrink: 0;
+}
+
+.stat-icon-primary {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  color: white;
+  box-shadow: 0 4px 12px -4px oklch(from var(--gradient-start) l c h / 50%);
+}
+
+.dark .stat-icon-primary {
+  background: linear-gradient(135deg, oklch(0.78 0.15 75), oklch(0.70 0.12 85));
+  color: oklch(0.12 0.02 75);
+  box-shadow: 0 4px 12px -4px oklch(0.78 0.15 75 / 40%);
+}
+
+.stat-icon-emerald {
+  background: linear-gradient(135deg, oklch(0.60 0.15 142), oklch(0.55 0.13 152));
+  color: white;
+}
+
+.dark .stat-icon-emerald {
+  background: linear-gradient(135deg, oklch(0.35 0.08 142), oklch(0.30 0.06 152));
+  color: oklch(0.75 0.10 142);
+}
+
+.stat-icon-blue {
+  background: linear-gradient(135deg, oklch(0.55 0.18 240), oklch(0.50 0.16 250));
+  color: white;
+}
+
+.dark .stat-icon-blue {
+  background: linear-gradient(135deg, oklch(0.30 0.08 240), oklch(0.25 0.06 250));
+  color: oklch(0.70 0.12 240);
+}
+
+.stat-icon-amber {
+  background: linear-gradient(135deg, oklch(0.75 0.15 75), oklch(0.70 0.13 85));
+  color: white;
+}
+
+.dark .stat-icon-amber {
+  background: linear-gradient(135deg, oklch(0.30 0.06 75), oklch(0.25 0.05 85));
+  color: oklch(0.80 0.10 75);
+}
+
+.stat-icon-purple {
+  background: linear-gradient(135deg, oklch(0.52 0.20 300), oklch(0.48 0.18 310));
+  color: white;
+}
+
+.dark .stat-icon-purple {
+  background: linear-gradient(135deg, oklch(0.30 0.10 300), oklch(0.25 0.08 310));
+  color: oklch(0.72 0.12 300);
+}
+
+.stat-icon-rose {
+  background: linear-gradient(135deg, oklch(0.58 0.20 10), oklch(0.54 0.18 20));
+  color: white;
+}
+
+.dark .stat-icon-rose {
+  background: linear-gradient(135deg, oklch(0.30 0.08 10), oklch(0.25 0.06 20));
+  color: oklch(0.72 0.10 10);
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Filter Bar */
+.filter-bar {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+.filter-bar-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .filter-bar-inner {
+    flex-direction: row;
+  }
+}
+
+.filter-search {
+  flex: 1;
+  position: relative;
+}
+
+.filter-search-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted-foreground);
+}
+
+.filter-search-input {
+  padding-left: 2.75rem;
+  height: 2.5rem;
+  width: 100%;
+  border-radius: var(--radius-lg);
+}
+
+.filter-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-shrink: 0;
+}
