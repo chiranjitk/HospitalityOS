@@ -320,3 +320,145 @@ html.dark * {
   box-shadow: 0 0 30px -10px oklch(from var(--primary) l c h / 0.15),
               0 0 60px -20px oklch(from var(--primary) l c h / 0.08);
 }
+
+/* ============================================
+   POLISH & MICRO-INTERACTIONS
+   Enhanced hover effects, transitions, and visual refinements
+   ============================================ */
+
+/* No-scrollbar utility for horizontal scroll areas */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Card hover lift effect */
+.card-hover-lift {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+.card-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -5px oklch(from var(--border) l c h / 0.2);
+}
+
+/* Subtle breathing animation for live indicators */
+@keyframes breathe {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+.animate-breathe {
+  animation: breathe 2.5s ease-in-out infinite;
+}
+
+/* Shimmer loading effect */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(from var(--muted) l c h / 0.3) 25%,
+    oklch(from var(--muted) l c h / 0.6) 50%,
+    oklch(from var(--muted) l c h / 0.3) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+/* Smooth number counter transition */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Press-down effect for interactive elements */
+.press-effect {
+  transition: transform 0.15s ease;
+}
+.press-effect:active {
+  transform: scale(0.97);
+}
+
+/* Glow ring on hover for important elements */
+.glow-hover {
+  transition: box-shadow 0.3s ease;
+}
+.glow-hover:hover {
+  box-shadow: 0 0 20px -5px oklch(from var(--primary) l c h / 0.3),
+              0 0 40px -10px oklch(from var(--primary) l c h / 0.15);
+}
+
+/* Refined scrollbar for specific areas */
+.custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; border-radius: 9999px; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: oklch(from var(--border) l c h / 0.25);
+  border-radius: 9999px;
+  transition: background 0.2s;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: oklch(from var(--border) l c h / 0.45);
+}
+
+/* Fade-in-up animation utility */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out forwards;
+}
+
+/* Scale-in animation for modals/overlays */
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in {
+  animation: scaleIn 0.2s ease-out forwards;
+}
+
+/* Status dot pulse (refined) */
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 oklch(from var(--color-live) l c h / 0.4); }
+  50% { opacity: 0.8; box-shadow: 0 0 0 4px oklch(from var(--color-live) l c h / 0); }
+}
+.status-dot-pulse {
+  animation: statusPulse 2.5s ease-in-out infinite;
+}
+
+/* Gradient text utility (multi-color) */
+.text-gradient-warm {
+  background: linear-gradient(135deg, oklch(0.75 0.15 75), oklch(0.65 0.18 25));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Smooth page background transition */
+.app-background {
+  transition: background-color 0.5s ease;
+}
+
+/* Badge refinements */
+.badge-glow {
+  box-shadow: 0 0 8px -2px oklch(from var(--primary) l c h / 0.3);
+}
+
+/* Border gradient for cards */
+.border-gradient {
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  position: relative;
+}
+.border-gradient::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, oklch(from var(--primary) l c h / 0.2), transparent 50%, oklch(from var(--primary) l c h / 0.1));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}

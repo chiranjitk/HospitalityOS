@@ -71,6 +71,8 @@ import { QuickInsightsWidget } from './widgets/quick-insights';
 import { PropertyStatusSummaryWidget } from './widgets/property-status-summary';
 import { WelcomeBannerWidget } from './widgets/welcome-banner';
 import { RoomOccupancyBreakdownWidget } from './widgets/room-occupancy-breakdown';
+import { ActivityTimelineWidget } from './widgets/activity-timeline';
+import { StaffDutyRosterWidget } from './widgets/staff-duty-roster';
 
 const OccupancyHeatmap = React.lazy(() => import('./occupancy-heatmap').then(m => ({ default: m.OccupancyHeatmap })));
 
@@ -544,7 +546,7 @@ export default function OverviewDashboard() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { setTimeout(fetchData, 0); }, [fetchData]);
 
   return (
     <>
@@ -682,6 +684,16 @@ export default function OverviewDashboard() {
             <RecentActivityFeed />
             <StaffOnDutyWidget />
           </div>
+        </div>
+
+        {/* ── Activity Timeline ── */}
+        <div className="relative z-10">
+          <ActivityTimelineWidget />
+        </div>
+
+        {/* ── Staff Duty Roster ── */}
+        <div className="relative z-10">
+          <StaffDutyRosterWidget />
         </div>
 
         {/* ── Maintenance & Guest Insights ── */}

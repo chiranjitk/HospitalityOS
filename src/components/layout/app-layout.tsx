@@ -126,16 +126,21 @@ export function AppLayout({ children }: AppLayoutProps) {
           "relative z-10 mt-auto transition-all duration-300 ml-0 lg:ml-[260px]",
           sidebarCollapsed && "lg:ml-[68px]"
         )}>
-          <Separator className="opacity-30" />
-          {/* Gradient accent line */}
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/15 to-transparent" />
-          <div className="px-4 py-3">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 max-w-screen-xl mx-auto">
+          <Separator className="opacity-20" />
+          {/* Animated gradient accent line */}
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/40 to-transparent animate-[gradientSlide_6s_ease-in-out_infinite]" />
+          </div>
+          <div className="px-4 py-3.5">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 max-w-screen-xl mx-auto">
               {/* Left — Branding */}
-              <div className="flex items-center gap-2">
-                <div className="flex items-center justify-center w-5 h-5 rounded-md bg-gradient-to-br from-primary to-primary/70 text-white">
-                  <Zap className="h-2.5 w-2.5" />
-                </div>
+              <div className="flex items-center gap-2.5">
+                <motion.div 
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  className="flex items-center justify-center w-6 h-6 rounded-lg bg-gradient-to-br from-primary to-primary/70 text-white shadow-sm shadow-primary/20"
+                >
+                  <Zap className="h-3 w-3" />
+                </motion.div>
                 <p className="text-[11px] text-muted-foreground/60">
                   &copy; 2026{' '}
                   <span className="font-semibold text-muted-foreground/80">StaySuite</span>{' '}
@@ -143,35 +148,39 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <span className="font-medium text-muted-foreground/70">Cryptsk Pvt Ltd</span>
                 </p>
                 <motion.span
-                  whileHover={{ scale: 1.2 }}
-                  className="text-muted-foreground/30 hover:text-red-400 transition-colors"
+                  whileHover={{ scale: 1.3, rotate: 15 }}
+                  className="text-muted-foreground/25 hover:text-red-400 transition-colors cursor-pointer"
                 >
-                  <Heart className="h-3 w-3" />
+                  <Heart className="h-3 w-3 fill-current" />
                 </motion.span>
               </div>
 
               {/* Center — Feature Pills (desktop only) */}
-              <div className="hidden md:flex items-center gap-1.5">
-                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/30 border border-border/20">
-                  <Shield className="h-2.5 w-2.5 text-primary/60" />
+              <div className="hidden md:flex items-center gap-2">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/25 border border-border/15 transition-all duration-200 hover:bg-muted/40 hover:border-border/25 hover:shadow-sm">
+                  <Shield className="h-2.5 w-2.5 text-primary/50" />
                   <span className="text-[10px] text-muted-foreground/50 font-medium">SOC 2</span>
                 </div>
-                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/30 border border-border/20">
-                  <Globe className="h-2.5 w-2.5 text-primary/60" />
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/25 border border-border/15 transition-all duration-200 hover:bg-muted/40 hover:border-border/25 hover:shadow-sm">
+                  <Globe className="h-2.5 w-2.5 text-primary/50" />
                   <span className="text-[10px] text-muted-foreground/50 font-medium">Multi-Tenant</span>
                 </div>
-                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/30 border border-border/20">
-                  <Zap className="h-2.5 w-2.5 text-amber-500/60" />
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/25 border border-border/15 transition-all duration-200 hover:bg-muted/40 hover:border-border/25 hover:shadow-sm">
+                  <Zap className="h-2.5 w-2.5 text-amber-500/50" />
                   <span className="text-[10px] text-muted-foreground/50 font-medium">24/7 Support</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/25 border border-border/15 transition-all duration-200 hover:bg-muted/40 hover:border-border/25 hover:shadow-sm">
+                  <Heart className="h-2.5 w-2.5 text-rose-400/50" />
+                  <span className="text-[10px] text-muted-foreground/50 font-medium">Made in India</span>
                 </div>
               </div>
 
               {/* Right — Tech Stack & Version */}
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-mono border-primary/20 text-primary/60 bg-primary/5">
-                  v1.1.0
+              <div className="flex items-center gap-2.5">
+                <Badge variant="outline" className="text-[10px] px-2 py-0 h-4.5 font-mono border-primary/15 text-primary/50 bg-primary/5 hover:bg-primary/10 hover:border-primary/25 transition-all duration-200">
+                  v1.2.0
                 </Badge>
-                <span className="text-[10px] text-muted-foreground/35">
+                <span className="text-[10px] text-muted-foreground/30 font-mono">
                   Next.js 16 &middot; PostgreSQL 17 &middot; FreeRADIUS 3.2
                 </span>
               </div>
