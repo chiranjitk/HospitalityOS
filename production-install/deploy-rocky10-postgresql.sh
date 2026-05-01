@@ -201,14 +201,19 @@ dnf install -y --quiet "postgresql${PG_MAJOR}-server" "postgresql${PG_MAJOR}-con
 
 # Initialize
 PG_DATA="/var/lib/pgsql/${PG_MAJOR}/data"
-info "Initializing PostgreSQL ${PG_MAJOR}..."
-systemctl stop "postgresql-${PG_MAJOR}" 2>/dev/null || true
-sleep 1
-if [[ -d "${PG_DATA}" ]]; then
-  warn "Wiping existing PG data: ${PG_DATA}"
-  rm -rf "${PG_DATA}"
+STAYSUITE_INIT_MARKER="${PG_DATA}/.staysuite-initialized"
+if [[ -f "$STAYSUITE_INIT_MARKER" ]]; then
+  info "PostgreSQL ${PG_MAJOR} data already initialized by StaySuite — skipping initdb"
+else
+  info "Initializing PostgreSQL ${PG_MAJOR}..."
+  systemctl stop "postgresql-${PG_MAJOR}" 2>/dev/null || true
+  sleep 1
+  if [[ -d "${PG_DATA}" ]]; then
+    warn "Wiping existing PG data: ${PG_DATA}"
+    rm -rf "${PG_DATA}"
+  fi
+  "/usr/pgsql-${PG_MAJOR}/bin/postgresql-${PG_MAJOR}-setup" initdb
 fi
-"/usr/pgsql-${PG_MAJOR}/bin/postgresql-${PG_MAJOR}-setup" initdb
 chown -R postgres:postgres "${PG_DATA}"
 chmod 700 "${PG_DATA}"
 restorecon -R "${PG_DATA}" 2>/dev/null || true
@@ -295,27 +300,20 @@ systemctl start "postgresql-${PG_MAJOR}" || {
   [[ -d "$PG_LOG" ]] && cat "$(ls -t "$PG_LOG"/*.log 2>/dev/null | head -1)" | tail -30
   die "Check logs above."
 }
-# Give PostgreSQL time for first-boot recovery / WAL replay
-sleep 5
 systemctl is-active --quiet "postgresql-${PG_MAJOR}" || die "PostgreSQL not running."
 systemctl enable "postgresql-${PG_MAJOR}"
 
-# Verify TCP connectivity (not just Unix socket)
+# Verify TCP connectivity — use a single robust loop
 PG_READY=0
-for i in $(seq 1 15); do
+for i in $(seq 1 20); do
   if pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null; then
     PG_READY=1
-    info "PostgreSQL TCP ready after ~$((i*2)) seconds"
+    info "PostgreSQL TCP ready (attempt $i/20)"
     break
   fi
-  warn "PostgreSQL TCP not ready yet, waiting... ($i/15)"
-  sleep 2
+  sleep 1
 done
-if [[ $PG_READY -eq 1 ]]; then
-  # Extra stability sleep — PG may briefly accept connections during recovery
-  sleep 2
-fi
-pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null || {
+if [[ $PG_READY -eq 0 ]]; then
   error "PostgreSQL not accepting TCP connections on 127.0.0.1:5432"
   echo "--- Diagnostic info ---"
   echo "listen_addresses in postgresql.conf:"
@@ -329,7 +327,10 @@ pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null || {
   echo "--- PostgreSQL log ---"
   journalctl -u "postgresql-${PG_MAJOR}" -n 20 --no-pager 2>&1
   die "Check listen_addresses and conf.d/ overrides above."
-}
+fi
+
+# Mark as initialized so re-runs don't wipe data
+sudo -u postgres touch "$STAYSUITE_INIT_MARKER"
 success "PostgreSQL ${PG_MAJOR} installed, tuned, and running (TCP verified)"
 
 # ════════════════════════════════════════════════════════════════════════════════
