@@ -11,7 +11,10 @@
  *      PortalMapping subnets → returns the correct portal config
  *   3. If no IP match, falls back to default-zone
  *
- * - code: pre-filled voucher code from QR scan (optional)
+ * CRITICAL: ALL visual styling is driven by the portal's design config.
+ *           NO hardcoded colors, borders, shadows, or border-radii.
+ *           What the admin designs in the Portal Designer tab is exactly
+ *           what renders here.
  *
  * States: loading → auth_form → authenticating → success → error
  */
@@ -33,64 +36,46 @@ import {
   Smartphone,
   Globe,
   Phone,
-  ChevronRight,
   ExternalLink,
   Hotel,
   MapPin,
   PhoneCall,
-  Hash,
-  WifiOff,
   RefreshCw,
   Gift,
-  Info,
   Mail,
+  Star,
+  Waves,
+  Sparkles,
+  UtensilsCrossed,
+  Dumbbell,
+  Coffee,
+  Car,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  PortalDesignConfig,
+  DEFAULT_PORTAL_DESIGN,
+  getBackgroundStyle,
+  getBackgroundCSSValue,
+  isDarkBackground,
+  getOverlayStyle,
+  getFormContainerClasses,
+  getCardShadowCSS,
+  getCardTextColor,
+  getSubtitleColor,
+  getMutedTextColor,
+  getInputClasses,
+  getInputWithIconClasses,
+  getButtonClasses,
+  getIconColor,
+  getAnimationClasses,
+  getSocialIconLabel,
+  mergeDesignConfig,
+} from '@/lib/wifi/portal-design-utils';
 
 // ────────────────────────────────────────────────────────────
 // Types
 // ────────────────────────────────────────────────────────────
-
-interface PortalDesign {
-  layoutType: string;
-  backgroundType: string;
-  gradientFrom: string;
-  gradientTo: string;
-  backgroundColor: string;
-  textColor: string;
-  accentColor: string;
-  backgroundImage: string;
-  backgroundOverlay: number;
-  fontFamily: string;
-  headingFontFamily: string;
-  formStyle: string;
-  inputStyle: string;
-  buttonStyle: string;
-  buttonSize: string;
-  cardShadow: string;
-  animationType: string;
-  welcomeMessage: string;
-  hotelName: string;
-  hotelAddress: string;
-  hotelPhone: string;
-  hotelWebsite: string;
-  logoUrl: string;
-  showHotelInfo: boolean;
-  amenities: string[];
-  showAmenities: boolean;
-  showSocialMedia: boolean;
-  socialLinks: Array<{ platform: string; url: string }>;
-  showClock: boolean;
-  showWeather: boolean;
-  promotionTitle: string;
-  promotionDesc: string;
-  showPromotion: boolean;
-  termsText: string;
-  termsUrl: string;
-  showBranding: boolean;
-  title: string;
-  subtitle: string;
-}
 
 interface AuthMethodOption {
   method: string;
@@ -113,7 +98,7 @@ interface PortalConfig {
   sessionTimeout: number;
   maxBandwidthDown: number;
   maxBandwidthUp: number;
-  design: PortalDesign;
+  design: PortalDesignConfig;
   ssids: string[];
   termsRequired: boolean;
   authMethods: AuthMethodOption[];
@@ -145,52 +130,26 @@ const METHOD_ICONS: Record<string, React.ReactNode> = {
   open_access: <Globe className="w-4 h-4" />,
 };
 
-const DEFAULT_DESIGN: PortalDesign = {
-  layoutType: 'centered',
-  backgroundType: 'gradient',
-  gradientFrom: '#0ea5e9',
-  gradientTo: '#065f46',
-  backgroundColor: '#ffffff',
-  textColor: '#1f2937',
-  accentColor: '#0d9488',
-  backgroundImage: '',
-  backgroundOverlay: 40,
-  fontFamily: 'Inter, system-ui, sans-serif',
-  headingFontFamily: 'Inter, system-ui, sans-serif',
-  formStyle: 'rounded',
-  inputStyle: 'rounded',
-  buttonStyle: 'filled',
-  buttonSize: 'medium',
-  cardShadow: 'medium',
-  animationType: 'fade',
-  welcomeMessage: 'Enjoy your stay',
-  hotelName: '',
-  hotelAddress: '',
-  hotelPhone: '',
-  hotelWebsite: '',
-  logoUrl: '',
-  showHotelInfo: false,
-  amenities: [],
-  showAmenities: false,
-  showSocialMedia: false,
-  socialLinks: [],
-  showClock: false,
-  showWeather: false,
-  promotionTitle: '',
-  promotionDesc: '',
-  showPromotion: false,
-  termsText: '',
-  termsUrl: '',
-  showBranding: true,
-  title: 'Welcome',
-  subtitle: 'Connect to WiFi',
+// ────────────────────────────────────────────────────────────
+// Amenity icons mapping
+// ────────────────────────────────────────────────────────────
+
+const AMENITY_ICONS: Record<string, typeof Wifi> = {
+  'Free WiFi': Wifi,
+  'Swimming Pool': Waves,
+  'Spa & Wellness': Sparkles,
+  'Restaurant': UtensilsCrossed,
+  'Fitness Center': Dumbbell,
+  'Room Service': Coffee,
+  'Parking': Car,
+  'Concierge': Star,
 };
 
 // ────────────────────────────────────────────────────────────
 // Live Clock Component
 // ────────────────────────────────────────────────────────────
 
-function LiveClock({ textColor }: { textColor: string }) {
+function LiveClock({ design }: { design: PortalDesignConfig }) {
   const [time, setTime] = useState('');
 
   useEffect(() => {
@@ -209,10 +168,126 @@ function LiveClock({ textColor }: { textColor: string }) {
     return () => clearInterval(interval);
   }, []);
 
+  const color = getMutedTextColor(design);
+
   return (
-    <div className="flex items-center justify-center gap-2 text-sm opacity-70">
-      <Clock className="w-4 h-4" style={{ color: textColor }} />
-      <span style={{ color: textColor }}>{time}</span>
+    <div className="flex items-center justify-center gap-2 text-sm">
+      <Clock className="w-4 h-4" style={{ color }} />
+      <span style={{ color }}>{time}</span>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Dynamic Input Component
+// ────────────────────────────────────────────────────────────
+
+function DynamicInput({
+  design,
+  label,
+  type = 'text',
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  autoFocus,
+  onKeyDown,
+  icon,
+  inputMode,
+  maxLength,
+  className = '',
+}: {
+  design: PortalDesignConfig;
+  label: string;
+  type?: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  disabled?: boolean;
+  autoFocus?: boolean;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
+  icon?: React.ReactNode;
+  inputMode?: 'text' | 'tel' | 'numeric';
+  maxLength?: number;
+  className?: string;
+}) {
+  const inputCls = icon
+    ? getInputWithIconClasses(design)
+    : getInputClasses(design);
+
+  const labelColor = getCardTextColor(design);
+  const iconColor = getIconColor(design);
+
+  return (
+    <div className="space-y-2">
+      <label className="text-sm font-medium" style={{ color: labelColor }}>
+        {label}
+      </label>
+      <div className="relative">
+        {icon && (
+          <div className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: iconColor }}>
+            {icon}
+          </div>
+        )}
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          disabled={disabled}
+          autoFocus={autoFocus}
+          onKeyDown={onKeyDown}
+          inputMode={inputMode}
+          maxLength={maxLength}
+          className={cn(inputCls, className)}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Dynamic Button Component
+// ────────────────────────────────────────────────────────────
+
+function DynamicButton({
+  design,
+  onClick,
+  disabled,
+  loading,
+  children,
+}: {
+  design: PortalDesignConfig;
+  onClick: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  children: React.ReactNode;
+}) {
+  const btn = getButtonClasses(design);
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled || loading}
+      className={btn.className}
+      style={btn.style}
+    >
+      {loading ? (
+        <Loader2 className="w-5 h-5 animate-spin" />
+      ) : children}
+    </button>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Error Display
+// ────────────────────────────────────────────────────────────
+
+function ErrorDisplay({ message }: { message: string }) {
+  return (
+    <div className="flex items-start gap-2 bg-red-50 rounded-lg p-3">
+      <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+      <p className="text-sm text-red-700">{message}</p>
     </div>
   );
 }
@@ -222,16 +297,14 @@ function LiveClock({ textColor }: { textColor: string }) {
 // ────────────────────────────────────────────────────────────
 
 function VoucherForm({
+  design,
   initialCode,
-  accentColor,
-  textColor,
   onSubmit,
   loading,
   hasQrPrefill,
 }: {
+  design: PortalDesignConfig;
   initialCode: string;
-  accentColor: string;
-  textColor: string;
   onSubmit: (code: string) => void;
   loading: boolean;
   hasQrPrefill: boolean;
@@ -251,62 +324,40 @@ function VoucherForm({
   return (
     <div className="space-y-4">
       {hasQrPrefill && (
-        <div className="flex items-center gap-2 bg-teal-50 rounded-lg p-3">
-          <QrCode className="w-4 h-4 text-teal-600 flex-shrink-0" />
-          <p className="text-sm text-teal-700">
+        <div
+          className="flex items-center gap-2 rounded-lg p-3"
+          style={{ backgroundColor: design.accentColor + '15' }}
+        >
+          <QrCode className="w-4 h-4 flex-shrink-0" style={{ color: design.accentColor }} />
+          <p className="text-sm" style={{ color: design.accentColor }}>
             <span className="font-medium">QR Code scanned</span> — your
             voucher code has been pre-filled
           </p>
         </div>
       )}
 
-      <div className="space-y-2">
-        <label
-          className="text-sm font-medium"
-          style={{ color: textColor }}
-        >
-          Voucher Code
-        </label>
-        <input
-          type="text"
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-          placeholder="XXXXX-XXXXX"
-          disabled={loading}
-          autoFocus={!hasQrPrefill}
-          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-          className="w-full px-4 py-3 text-center text-lg font-mono font-bold tracking-wider border-2 border-gray-200 rounded-xl focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase"
-          style={{
-            borderColor: accentColor + '40',
-          }}
-        />
-      </div>
+      <DynamicInput
+        design={design}
+        label="Voucher Code"
+        type="text"
+        value={code}
+        onChange={(v) => setCode(v.toUpperCase())}
+        placeholder="XXXXX-XXXXX"
+        disabled={loading}
+        autoFocus={!hasQrPrefill}
+        onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+        inputMode="text"
+        className="text-center text-lg font-mono font-bold tracking-wider uppercase"
+      />
 
-      {error && (
-        <div className="flex items-start gap-2 bg-red-50 rounded-lg p-3">
-          <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
+      {error && <ErrorDisplay message={error} />}
 
-      <button
-        onClick={handleSubmit}
-        disabled={loading || !code.trim()}
-        className="w-full font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.98]"
-        style={{ backgroundColor: accentColor, color: '#ffffff' }}
-      >
-        {loading ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Connecting...
-          </>
-        ) : (
-          <>
-            <Wifi className="w-5 h-5" />
-            Connect to WiFi
-          </>
-        )}
-      </button>
+      <DynamicButton design={design} onClick={handleSubmit} disabled={!code.trim()} loading={loading}>
+        <>
+          <Wifi className="w-5 h-5" />
+          Connect to WiFi
+        </>
+      </DynamicButton>
     </div>
   );
 }
@@ -316,13 +367,11 @@ function VoucherForm({
 // ────────────────────────────────────────────────────────────
 
 function RoomNumberForm({
-  accentColor,
-  textColor,
+  design,
   onSubmit,
   loading,
 }: {
-  accentColor: string;
-  textColor: string;
+  design: PortalDesignConfig;
   onSubmit: (roomNumber: string, lastName: string) => void;
   loading: boolean;
 }) {
@@ -331,83 +380,41 @@ function RoomNumberForm({
   const [error, setError] = useState('');
 
   const handleSubmit = () => {
-    if (!room.trim()) {
-      setError('Please enter your room number');
-      return;
-    }
-    if (!name.trim()) {
-      setError('Please enter your last name');
-      return;
-    }
+    if (!room.trim()) { setError('Please enter your room number'); return; }
+    if (!name.trim()) { setError('Please enter your last name'); return; }
     setError('');
     onSubmit(room.trim(), name.trim());
   };
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <label className="text-sm font-medium" style={{ color: textColor }}>
-          Room Number
-        </label>
-        <div className="relative">
-          <DoorOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            value={room}
-            onChange={(e) => setRoom(e.target.value)}
-            placeholder="e.g. 101"
-            disabled={loading}
-            autoFocus
-            className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none transition-all disabled:opacity-50"
-            style={{ borderColor: accentColor + '40' }}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium" style={{ color: textColor }}>
-          Last Name
-        </label>
-        <div className="relative">
-          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Smith"
-            disabled={loading}
-            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none transition-all disabled:opacity-50"
-            style={{ borderColor: accentColor + '40' }}
-          />
-        </div>
-      </div>
-
-      {error && (
-        <div className="flex items-start gap-2 bg-red-50 rounded-lg p-3">
-          <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
-
-      <button
-        onClick={handleSubmit}
-        disabled={loading || !room.trim() || !name.trim()}
-        className="w-full font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.98]"
-        style={{ backgroundColor: accentColor, color: '#ffffff' }}
-      >
-        {loading ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Authenticating...
-          </>
-        ) : (
-          <>
-            <Key className="w-5 h-5" />
-            Sign In with Room
-          </>
-        )}
-      </button>
+      <DynamicInput
+        design={design}
+        label="Room Number"
+        value={room}
+        onChange={setRoom}
+        placeholder="e.g. 101"
+        disabled={loading}
+        autoFocus
+        icon={<DoorOpen className="w-4 h-4" />}
+      />
+      <DynamicInput
+        design={design}
+        label="Last Name"
+        value={name}
+        onChange={setName}
+        placeholder="e.g. Smith"
+        disabled={loading}
+        onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+        icon={<User className="w-4 h-4" />}
+      />
+      {error && <ErrorDisplay message={error} />}
+      <DynamicButton design={design} onClick={handleSubmit} disabled={!room.trim() || !name.trim()} loading={loading}>
+        <>
+          <Key className="w-5 h-5" />
+          Sign In with Room
+        </>
+      </DynamicButton>
     </div>
   );
 }
@@ -417,13 +424,11 @@ function RoomNumberForm({
 // ────────────────────────────────────────────────────────────
 
 function PmsCredentialsForm({
-  accentColor,
-  textColor,
+  design,
   onSubmit,
   loading,
 }: {
-  accentColor: string;
-  textColor: string;
+  design: PortalDesignConfig;
   onSubmit: (username: string, password: string) => void;
   loading: boolean;
 }) {
@@ -432,83 +437,42 @@ function PmsCredentialsForm({
   const [error, setError] = useState('');
 
   const handleSubmit = () => {
-    if (!uname.trim()) {
-      setError('Please enter your username');
-      return;
-    }
-    if (!pass.trim()) {
-      setError('Please enter your password');
-      return;
-    }
+    if (!uname.trim()) { setError('Please enter your username'); return; }
+    if (!pass.trim()) { setError('Please enter your password'); return; }
     setError('');
     onSubmit(uname.trim(), pass.trim());
   };
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <label className="text-sm font-medium" style={{ color: textColor }}>
-          Username
-        </label>
-        <div className="relative">
-          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            value={uname}
-            onChange={(e) => setUname(e.target.value)}
-            placeholder="Enter username"
-            disabled={loading}
-            autoFocus
-            className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none transition-all disabled:opacity-50"
-            style={{ borderColor: accentColor + '40' }}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium" style={{ color: textColor }}>
-          Password
-        </label>
-        <div className="relative">
-          <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="password"
-            value={pass}
-            onChange={(e) => setPass(e.target.value)}
-            placeholder="Enter password"
-            disabled={loading}
-            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none transition-all disabled:opacity-50"
-            style={{ borderColor: accentColor + '40' }}
-          />
-        </div>
-      </div>
-
-      {error && (
-        <div className="flex items-start gap-2 bg-red-50 rounded-lg p-3">
-          <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
-
-      <button
-        onClick={handleSubmit}
-        disabled={loading || !uname.trim() || !pass.trim()}
-        className="w-full font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.98]"
-        style={{ backgroundColor: accentColor, color: '#ffffff' }}
-      >
-        {loading ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Authenticating...
-          </>
-        ) : (
-          <>
-            <Key className="w-5 h-5" />
-            Sign In
-          </>
-        )}
-      </button>
+      <DynamicInput
+        design={design}
+        label="Username"
+        value={uname}
+        onChange={setUname}
+        placeholder="Enter username"
+        disabled={loading}
+        autoFocus
+        icon={<User className="w-4 h-4" />}
+      />
+      <DynamicInput
+        design={design}
+        label="Password"
+        type="password"
+        value={pass}
+        onChange={setPass}
+        placeholder="Enter password"
+        disabled={loading}
+        onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+        icon={<Key className="w-4 h-4" />}
+      />
+      {error && <ErrorDisplay message={error} />}
+      <DynamicButton design={design} onClick={handleSubmit} disabled={!uname.trim() || !pass.trim()} loading={loading}>
+        <>
+          <Key className="w-5 h-5" />
+          Sign In
+        </>
+      </DynamicButton>
     </div>
   );
 }
@@ -518,20 +482,17 @@ function PmsCredentialsForm({
 // ────────────────────────────────────────────────────────────
 
 function SmsOtpForm({
-  accentColor,
-  textColor,
+  design,
   onAuthenticate,
   loading,
 }: {
-  accentColor: string;
-  textColor: string;
+  design: PortalDesignConfig;
   onAuthenticate: (method: string, payload: Record<string, string>) => void;
   loading: boolean;
 }) {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
-  const [otpSent, setOtpSent] = useState(false);
   const [error, setError] = useState('');
   const [countdown, setCountdown] = useState(0);
 
@@ -543,23 +504,15 @@ function SmsOtpForm({
   }, [countdown]);
 
   const handleSendOtp = async () => {
-    if (!phone.trim()) {
-      setError('Please enter your phone number');
-      return;
-    }
+    if (!phone.trim()) { setError('Please enter your phone number'); return; }
     setError('');
-    setOtpSent(false);
     onAuthenticate('sms_otp', { phoneNumber: phone.trim() });
-    // Optimistically move to OTP step
     setStep('otp');
     setCountdown(60);
   };
 
   const handleVerifyOtp = () => {
-    if (!otp.trim()) {
-      setError('Please enter the OTP code');
-      return;
-    }
+    if (!otp.trim()) { setError('Please enter the OTP code'); return; }
     setError('');
     onAuthenticate('sms_otp', {
       phoneNumber: phone.trim(),
@@ -575,134 +528,79 @@ function SmsOtpForm({
     setCountdown(60);
   };
 
+  const mutedColor = getMutedTextColor(design);
+  const labelColor = getCardTextColor(design);
+
   if (step === 'phone') {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-gray-500 text-center">
+        <p className="text-sm text-center" style={{ color: mutedColor }}>
           We&apos;ll send a verification code to your phone
         </p>
-        <div className="space-y-2">
-          <label className="text-sm font-medium" style={{ color: textColor }}>
-            Phone Number
-          </label>
-          <div className="relative">
-            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+1 555 123 4567"
-              disabled={loading}
-              autoFocus
-              className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none transition-all disabled:opacity-50"
-              style={{ borderColor: accentColor + '40' }}
-            />
-          </div>
-        </div>
-
-        {error && (
-          <div className="flex items-start gap-2 bg-red-50 rounded-lg p-3">
-            <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-red-700">{error}</p>
-          </div>
-        )}
-
-        <button
-          onClick={handleSendOtp}
-          disabled={loading || !phone.trim()}
-          className="w-full font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.98]"
-          style={{ backgroundColor: accentColor, color: '#ffffff' }}
-        >
-          {loading ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Sending...
-            </>
-          ) : (
-            <>
-              <Smartphone className="w-5 h-5" />
-              Send Verification Code
-            </>
-          )}
-        </button>
+        <DynamicInput
+          design={design}
+          label="Phone Number"
+          type="tel"
+          value={phone}
+          onChange={setPhone}
+          placeholder="+1 555 123 4567"
+          disabled={loading}
+          autoFocus
+          icon={<Phone className="w-4 h-4" />}
+          inputMode="tel"
+        />
+        {error && <ErrorDisplay message={error} />}
+        <DynamicButton design={design} onClick={handleSendOtp} disabled={!phone.trim()} loading={loading}>
+          <>
+            <Smartphone className="w-5 h-5" />
+            Send Verification Code
+          </>
+        </DynamicButton>
       </div>
     );
   }
 
-  // OTP verification step
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500 text-center">
+      <p className="text-sm text-center" style={{ color: mutedColor }}>
         Enter the 6-digit code sent to{' '}
-        <span className="font-medium text-gray-700">{phone}</span>
+        <span className="font-medium" style={{ color: labelColor }}>{phone}</span>
       </p>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium" style={{ color: textColor }}>
-          Verification Code
-        </label>
-        <input
-          type="text"
-          value={otp}
-          onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-          placeholder="000000"
-          disabled={loading}
-          autoFocus
-          maxLength={6}
-          className="w-full px-4 py-3 text-center text-2xl font-mono font-bold tracking-[0.5em] border-2 border-gray-200 rounded-xl focus:outline-none transition-all disabled:opacity-50"
-          style={{ borderColor: accentColor + '40' }}
-        />
-      </div>
-
-      {error && (
-        <div className="flex items-start gap-2 bg-red-50 rounded-lg p-3">
-          <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
-
-      <button
-        onClick={handleVerifyOtp}
-        disabled={loading || otp.length < 6}
-        className="w-full font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.98]"
-        style={{ backgroundColor: accentColor, color: '#ffffff' }}
-      >
-        {loading ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Verifying...
-          </>
-        ) : (
-          <>
-            <CheckCircle className="w-5 h-5" />
-            Verify & Connect
-          </>
-        )}
-      </button>
-
+      <DynamicInput
+        design={design}
+        label="Verification Code"
+        value={otp}
+        onChange={(v) => setOtp(v.replace(/\D/g, '').slice(0, 6))}
+        placeholder="000000"
+        disabled={loading}
+        autoFocus
+        maxLength={6}
+        inputMode="numeric"
+        className="text-center text-2xl font-mono font-bold tracking-[0.5em]"
+      />
+      {error && <ErrorDisplay message={error} />}
+      <DynamicButton design={design} onClick={handleVerifyOtp} disabled={otp.length < 6} loading={loading}>
+        <>
+          <CheckCircle className="w-5 h-5" />
+          Verify & Connect
+        </>
+      </DynamicButton>
       <div className="flex items-center justify-between text-sm">
         <button
-          onClick={() => {
-            setStep('phone');
-            setOtp('');
-            setError('');
-          }}
-          className="text-gray-500 hover:text-gray-700 flex items-center gap-1"
+          onClick={() => { setStep('phone'); setOtp(''); setError(''); }}
+          className="hover:underline flex items-center gap-1"
+          style={{ color: mutedColor }}
         >
           <span>&larr;</span> Change number
         </button>
         <button
           onClick={handleResend}
           disabled={countdown > 0}
-          className="flex items-center gap-1 disabled:text-gray-300"
-          style={{ color: countdown > 0 ? undefined : accentColor }}
+          className="flex items-center gap-1 disabled:opacity-40"
+          style={{ color: design.accentColor }}
         >
-          <RefreshCw
-            className={`w-3 h-3 ${countdown > 0 ? '' : 'animate-none'}`}
-          />
-          {countdown > 0
-            ? `Resend in ${countdown}s`
-            : 'Resend code'}
+          <RefreshCw className="w-3 h-3" />
+          {countdown > 0 ? `Resend in ${countdown}s` : 'Resend code'}
         </button>
       </div>
     </div>
@@ -714,37 +612,27 @@ function SmsOtpForm({
 // ────────────────────────────────────────────────────────────
 
 function OpenAccessForm({
-  accentColor,
+  design,
   onConnect,
   loading,
 }: {
-  accentColor: string;
+  design: PortalDesignConfig;
   onConnect: () => void;
   loading: boolean;
 }) {
+  const mutedColor = getMutedTextColor(design);
+
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500 text-center">
+      <p className="text-sm text-center" style={{ color: mutedColor }}>
         Click below to connect to the WiFi network
       </p>
-      <button
-        onClick={onConnect}
-        disabled={loading}
-        className="w-full font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.98]"
-        style={{ backgroundColor: accentColor, color: '#ffffff' }}
-      >
-        {loading ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Connecting...
-          </>
-        ) : (
-          <>
-            <Globe className="w-5 h-5" />
-            Connect Now
-          </>
-        )}
-      </button>
+      <DynamicButton design={design} onClick={onConnect} loading={loading}>
+        <>
+          <Globe className="w-5 h-5" />
+          Connect Now
+        </>
+      </DynamicButton>
     </div>
   );
 }
@@ -755,16 +643,15 @@ function OpenAccessForm({
 
 function SuccessScreen({
   authResult,
-  accentColor,
-  textColor,
   design,
 }: {
   authResult: AuthResult;
-  accentColor: string;
-  textColor: string;
-  design: PortalDesign;
+  design: PortalDesignConfig;
 }) {
   const [countdown, setCountdown] = useState(10);
+  const textColor = getCardTextColor(design);
+  const mutedColor = getMutedTextColor(design);
+  const accent = design.accentColor;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -777,19 +664,19 @@ function SuccessScreen({
     <div className="text-center space-y-5 py-4">
       <div
         className="inline-flex items-center justify-center w-20 h-20 rounded-full"
-        style={{ backgroundColor: accentColor + '15' }}
+        style={{ backgroundColor: accent + '15' }}
       >
-        <CheckCircle className="w-10 h-10" style={{ color: accentColor }} />
+        <CheckCircle className="w-10 h-10" style={{ color: accent }} />
       </div>
       <div>
         <h2 className="text-2xl font-bold" style={{ color: textColor }}>
           Connected!
         </h2>
-        <p className="text-sm mt-1" style={{ color: textColor + '99' }}>
+        <p className="text-sm mt-1" style={{ color: mutedColor }}>
           {authResult.message || 'You are now connected to hotel WiFi.'}
         </p>
         {design.welcomeMessage && (
-          <p className="text-sm mt-2 italic" style={{ color: accentColor }}>
+          <p className="text-sm mt-2 italic" style={{ color: accent }}>
             {design.welcomeMessage}
           </p>
         )}
@@ -798,18 +685,20 @@ function SuccessScreen({
       {/* Session Info Card */}
       <div
         className="rounded-xl p-4 text-sm space-y-3"
-        style={{ backgroundColor: accentColor + '08', border: `1px solid ${accentColor}20` }}
+        style={{
+          backgroundColor: accent + '08',
+          border: `1px solid ${accent}20`,
+          borderRadius: design.formStyle === 'pill' ? '1.5rem' : design.formStyle === 'square' ? '0' : '0.75rem',
+        }}
       >
         <h3 className="font-semibold text-left" style={{ color: textColor }}>
           Session Details
         </h3>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4" style={{ color: accentColor }} />
+            <Clock className="w-4 h-4" style={{ color: accent }} />
             <div className="text-left">
-              <p className="text-xs" style={{ color: textColor + '80' }}>
-                Duration
-              </p>
+              <p className="text-xs" style={{ color: mutedColor }}>Duration</p>
               <p className="font-medium" style={{ color: textColor }}>
                 {authResult.sessionTimeout >= 60
                   ? `${Math.floor(authResult.sessionTimeout / 60)}h ${authResult.sessionTimeout % 60 > 0 ? `${authResult.sessionTimeout % 60}m` : ''}`
@@ -818,33 +707,23 @@ function SuccessScreen({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4" style={{ color: accentColor }} />
+            <Zap className="w-4 h-4" style={{ color: accent }} />
             <div className="text-left">
-              <p className="text-xs" style={{ color: textColor + '80' }}>
-                Download
-              </p>
-              <p className="font-medium" style={{ color: textColor }}>
-                {authResult.bandwidthDown} Mbps
-              </p>
+              <p className="text-xs" style={{ color: mutedColor }}>Download</p>
+              <p className="font-medium" style={{ color: textColor }}>{authResult.bandwidthDown} Mbps</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Wifi className="w-4 h-4" style={{ color: accentColor }} />
+            <Wifi className="w-4 h-4" style={{ color: accent }} />
             <div className="text-left">
-              <p className="text-xs" style={{ color: textColor + '80' }}>
-                Upload
-              </p>
-              <p className="font-medium" style={{ color: textColor }}>
-                {authResult.bandwidthUp} Mbps
-              </p>
+              <p className="text-xs" style={{ color: mutedColor }}>Upload</p>
+              <p className="font-medium" style={{ color: textColor }}>{authResult.bandwidthUp} Mbps</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4" style={{ color: accentColor }} />
+            <Shield className="w-4 h-4" style={{ color: accent }} />
             <div className="text-left">
-              <p className="text-xs" style={{ color: textColor + '80' }}>
-                Method
-              </p>
+              <p className="text-xs" style={{ color: mutedColor }}>Method</p>
               <p className="font-medium capitalize" style={{ color: textColor }}>
                 {authResult.method.replace('_', ' ')}
               </p>
@@ -856,11 +735,168 @@ function SuccessScreen({
       <button
         onClick={() => window.location.reload()}
         className="text-sm flex items-center gap-1 justify-center mx-auto hover:underline"
-        style={{ color: accentColor }}
+        style={{ color: accent }}
       >
         <RefreshCw className="w-3 h-3" />
         Connect another device
       </button>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Hotel Info Block
+// ────────────────────────────────────────────────────────────
+
+function HotelInfoBlock({ design, dark }: { design: PortalDesignConfig; dark: boolean }) {
+  if (!design.showHotelInfo || !design.hotelName) return null;
+  const textColor = dark ? '#ffffff' : design.textColor;
+  const mutedColor = dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
+
+  return (
+    <div className="w-full text-center space-y-1">
+      <p className="text-sm font-semibold" style={{ color: textColor }}>{design.hotelName}</p>
+      <div className="flex items-center justify-center gap-1 text-xs" style={{ color: mutedColor }}>
+        {design.hotelAddress && (
+          <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{design.hotelAddress}</span>
+        )}
+      </div>
+      <div className="flex items-center justify-center gap-3 text-xs" style={{ color: mutedColor }}>
+        {design.hotelPhone && (
+          <span className="flex items-center gap-1"><PhoneCall className="w-3 h-3" />{design.hotelPhone}</span>
+        )}
+        {design.hotelWebsite && (
+          <span className="flex items-center gap-1"><Globe className="w-3 h-3" />{design.hotelWebsite}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Amenities Block
+// ────────────────────────────────────────────────────────────
+
+function AmenitiesBlock({ design, dark }: { design: PortalDesignConfig; dark: boolean }) {
+  if (!design.showAmenities || design.amenities.length === 0) return null;
+  const iconColor = dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)';
+  const badgeBg = dark ? 'bg-white/12 text-white/90 backdrop-blur-sm' : 'bg-black/5 text-gray-700';
+
+  return (
+    <div className="flex flex-wrap gap-1.5 justify-center">
+      {design.amenities.map((a, i) => {
+        const AmIcon = AMENITY_ICONS[a] || Star;
+        return (
+          <span
+            key={i}
+            className="px-2.5 py-1 text-xs rounded-full font-medium backdrop-blur-sm"
+            style={{
+              backgroundColor: dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.05)',
+              color: dark ? 'rgba(255,255,255,0.9)' : undefined,
+            }}
+          >
+            <AmIcon className="w-3 h-3 inline mr-1" style={{ color: iconColor }} />
+            {a}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Promotion Block
+// ────────────────────────────────────────────────────────────
+
+function PromotionBlock({ design }: { design: PortalDesignConfig }) {
+  if (!design.showPromotion || !design.promotionTitle) return null;
+  const dark = isDarkBackground(design);
+
+  return (
+    <div
+      className="w-full flex items-start gap-3 rounded-xl p-3"
+      style={{
+        backgroundColor: dark ? 'rgba(255,255,255,0.12)' : design.accentColor + '10',
+        backdropFilter: dark ? 'blur(8px)' : undefined,
+        border: dark ? '1px solid rgba(255,255,255,0.15)' : 'none',
+      }}
+    >
+      <Gift className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: design.accentColor }} />
+      <div>
+        <p className="font-semibold text-sm" style={{ color: dark ? '#ffffff' : getCardTextColor(design) }}>
+          {design.promotionTitle}
+        </p>
+        {design.promotionDesc && (
+          <p className="text-xs mt-1" style={{ color: dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}>
+            {design.promotionDesc}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Social Links Block
+// ────────────────────────────────────────────────────────────
+
+function SocialLinksBlock({ design }: { design: PortalDesignConfig }) {
+  if (!design.showSocialMedia || !design.socialLinks?.length) return null;
+  const activeLinks = design.socialLinks.filter((l) => l.url);
+
+  if (activeLinks.length === 0) return null;
+
+  return (
+    <div className="flex items-center justify-center gap-3">
+      {activeLinks.map((l) => (
+        <a
+          key={l.platform}
+          href={l.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-9 h-9 flex items-center justify-center rounded-full transition-opacity hover:opacity-80"
+          style={{
+            backgroundColor: 'rgba(255,255,255,0.1)',
+            color: '#ffffff',
+          }}
+        >
+          <span className="text-xs font-bold">{getSocialIconLabel(l.platform)}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Logo Component
+// ────────────────────────────────────────────────────────────
+
+function PortalLogo({ design, size = 'large' }: { design: PortalDesignConfig; size?: 'large' | 'medium' | 'small' }) {
+  const dark = isDarkBackground(design);
+  const sizeClasses = size === 'large' ? 'h-16 mb-4' : size === 'medium' ? 'h-12' : 'h-10';
+  const containerClasses = size === 'large' ? 'w-16 h-16 rounded-2xl mb-4' : size === 'medium' ? 'w-12 h-12 rounded-xl' : 'w-10 h-10 rounded-xl';
+
+  if (design.logoUrl) {
+    return (
+      <img
+        src={design.logoUrl}
+        alt="Hotel Logo"
+        className={cn('mx-auto object-contain drop-shadow-lg', sizeClasses)}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        'inline-flex items-center justify-center mx-auto',
+        containerClasses,
+        dark ? 'bg-white/15 backdrop-blur-sm' : 'bg-black/5',
+        dark && 'border border-white/20'
+      )}
+      style={dark ? { border: '1px solid rgba(255,255,255,0.2)' } : {}}
+    >
+      <Wifi className={size === 'large' ? 'w-8 h-8' : size === 'medium' ? 'w-6 h-6' : 'w-5 h-5'} style={{ color: dark ? '#ffffff' : design.accentColor }} />
     </div>
   );
 }
@@ -881,7 +917,7 @@ function PortalContent() {
   const codeParam = searchParams.get('code') || '';
 
   const [portalConfig, setPortalConfig] = useState<PortalConfig | null>(null);
-  const [design, setDesign] = useState<PortalDesign>(DEFAULT_DESIGN);
+  const [design, setDesign] = useState<PortalDesignConfig>(DEFAULT_PORTAL_DESIGN);
   const [state, setState] = useState<PortalState>('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const [authResult, setAuthResult] = useState<AuthResult | null>(null);
@@ -892,8 +928,7 @@ function PortalContent() {
   // ── Apply portal config to state ──
   const applyPortalConfig = useCallback((data: PortalConfig) => {
     setPortalConfig(data);
-    setDesign({ ...DEFAULT_DESIGN, ...data.design });
-    // Initialize selected method from authMethods list
+    setDesign(mergeDesignConfig(data.design));
     const methods = data.authMethods?.length
       ? data.authMethods
       : [{ method: data.authMethod || 'voucher', label: data.authMethod || 'voucher', description: '' }];
@@ -906,26 +941,18 @@ function PortalContent() {
     let cancelled = false;
     const fetchPortal = async () => {
       try {
-        // Single call to resolve-zone API:
-        //   1. Detects client IP
-        //   2. Matches IP against PortalMapping subnets (IP Pool → Portal mapping)
-        //   3. If match found → returns that portal's config
-        //   4. If no match → falls back to the portal marked isDefault=true
-        //   5. If no default → returns null (client renders voucher fallback)
         const resolveRes = await fetch('/api/wifi/portal/resolve-zone');
         if (cancelled) return;
         const resolveResult = await resolveRes.json();
 
         if (resolveResult.success && resolveResult.data?.config) {
-          const isDefault = resolveResult.data.isDefault;
           console.log(
             '[Portal] Resolved zone:',
             resolveResult.data.zone,
-            isDefault ? '(default fallback)' : `subnet: ${resolveResult.data.matchedSubnet}`
+            resolveResult.data.isDefault ? '(default fallback)' : `subnet: ${resolveResult.data.matchedSubnet}`
           );
           applyPortalConfig(resolveResult.data.config as PortalConfig);
         } else {
-          // No portal configured at all — render with voucher fallback
           console.warn('[Portal] No portal config available, using voucher fallback');
           setState('auth_form');
         }
@@ -936,9 +963,7 @@ function PortalContent() {
       }
     };
     fetchPortal();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [applyPortalConfig]);
 
   // ── Authentication handler ──
@@ -949,53 +974,41 @@ function PortalContent() {
       setErrorMessage('');
 
       try {
-        const body: Record<string, unknown> = {
-          method,
-          portalSlug,
-          ...payload,
-        };
-
+        const body: Record<string, unknown> = { method, portalSlug, ...payload };
         const res = await fetch('/api/v1/wifi/auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-
         const result = await res.json();
 
-        // For SMS OTP "send" step, handle optimistically
-        if (method === 'sms_otp' && !payload.otpCode && result.success) {
-          return; // The SMS form component already handles state transition
-        }
+        if (method === 'sms_otp' && !payload.otpCode && result.success) return;
 
         if (result.success && result.data?.authenticated) {
           setAuthResult(result.data);
           setState('success');
         } else {
           setState('error');
-          const msg = result.error?.message || 'Authentication failed';
-          setErrorMessage(msg);
+          setErrorMessage(result.error?.message || 'Authentication failed');
         }
       } catch {
         setState('error');
-        setErrorMessage(
-          'Network error. Please ensure you are connected to the hotel WiFi and try again.'
-        );
+        setErrorMessage('Network error. Please ensure you are connected to the hotel WiFi and try again.');
       }
     },
     [portalSlug]
   );
 
-  // ── Style helpers ──
-  const accentColor = design.accentColor;
-  const textColor = design.textColor;
+  // ── Derived values ──
   const authMethods = portalConfig?.authMethods?.length
     ? portalConfig.authMethods
     : DEFAULT_AUTH_METHODS;
   const activeMethod = selectedMethod || authMethods[0]?.method || 'voucher';
   const formFields = portalConfig?.formFields || null;
+  const dark = isDarkBackground(design);
+  const animCls = getAnimationClasses(design);
 
-  // ── Helper: check if a form field is visible (supports both boolean and object formats) ──
+  // ── Form field helpers ──
   const isFieldVisible = (key: string): boolean => {
     if (!formFields) return false;
     const val = formFields[key];
@@ -1022,30 +1035,15 @@ function PortalContent() {
     return ['firstName', 'lastName', 'email', 'phone'].some(isFieldVisible);
   };
 
-  // ── Background styles ──
-  const bgStyle: React.CSSProperties = {};
-  let bodyBgStyle = '';
-  if (design.backgroundType === 'gradient') {
-    bgStyle.background = `linear-gradient(135deg, ${design.gradientFrom}, ${design.gradientTo})`;
-    bodyBgStyle = `linear-gradient(135deg, ${design.gradientFrom}, ${design.gradientTo})`;
-  } else if (design.backgroundType === 'solid') {
-    bgStyle.backgroundColor = design.backgroundColor;
-    bodyBgStyle = design.backgroundColor;
-  } else if (design.backgroundType === 'image' && design.backgroundImage) {
-    bgStyle.backgroundImage = `url(${design.backgroundImage})`;
-    bgStyle.backgroundSize = 'cover';
-    bgStyle.backgroundPosition = 'center';
-    bodyBgStyle = design.backgroundColor || design.gradientFrom || '#0ea5e9';
-  } else {
-    // Default gradient
-    bgStyle.background = `linear-gradient(135deg, ${design.gradientFrom}, ${design.gradientTo})`;
-    bodyBgStyle = `linear-gradient(135deg, ${design.gradientFrom}, ${design.gradientTo})`;
-  }
+  // ── Background ──
+  const bgStyle = getBackgroundStyle(design);
+  const overlayStyle = getOverlayStyle(design);
+  const bodyBg = getBackgroundCSSValue(design);
 
-  // ── Sync body background to prevent white flash ──
+  // ── Sync body background ──
   useEffect(() => {
-    if (bodyBgStyle) {
-      document.body.style.background = bodyBgStyle;
+    if (bodyBg) {
+      document.body.style.background = bodyBg;
       document.body.style.margin = '0';
       document.body.style.fontFamily = design.fontFamily;
     }
@@ -1054,53 +1052,26 @@ function PortalContent() {
       document.body.style.margin = '';
       document.body.style.fontFamily = '';
     };
-  }, [bodyBgStyle, design.fontFamily]);
-
-  // ── Determine if the design uses a dark background (gradient/image) with light text ──
-  const isDarkBackground = design.backgroundType === 'gradient' || design.backgroundType === 'image';
-
-  // ── Card text color: adapts based on form style ──
-  // Glass/minimal forms are transparent → use white text for dark backgrounds
-  // Standard/solid forms have white background → use dark text
-  const isGlassCard = design.formStyle === 'glass' || design.formStyle === 'minimal';
-  const cardTextColor = (isDarkBackground && isGlassCard) ? '#ffffff' : '#1f2937';
-
-  // ── Card style: used in split layout ──
-  const cardStyle = isDarkBackground
-    ? 'bg-white/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-6 space-y-5'
-    : 'bg-white rounded-2xl shadow-2xl p-6 space-y-5';
-  const cardShadow = design.cardShadow === 'large'
-    ? '0 25px 50px -12px rgba(0,0,0,0.25)'
-    : design.cardShadow === 'none'
-      ? 'none'
-      : '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)';
-
-  const overlayStyle: React.CSSProperties = {};
-  if (design.backgroundType === 'image' || design.backgroundOverlay > 0) {
-    overlayStyle.backgroundColor = `rgba(0,0,0,${design.backgroundOverlay / 100})`;
-  }
+  }, [bodyBg, design.fontFamily]);
 
   // ── Loading state ──
   if (state === 'loading') {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={bgStyle}
-      >
+      <div className="min-h-screen flex items-center justify-center" style={bgStyle}>
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 text-white animate-spin" />
-          <p className="text-white/80 text-sm">Loading portal...</p>
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: dark ? '#ffffff' : design.textColor }} />
+          <p className="text-sm" style={{ color: dark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)' }}>
+            Loading portal...
+          </p>
         </div>
       </div>
     );
   }
 
-  // ── Determine which form to show ──
   const isVoucherPrefill = codeParam && activeMethod === 'voucher';
-  const canSubmit =
-    !portalConfig?.termsRequired || termsAccepted;
+  const canSubmit = !portalConfig?.termsRequired || termsAccepted;
 
-  // ── Build guest info payload for auth ──
+  // ── Guest info payload ──
   const buildGuestInfoPayload = (): Record<string, unknown> | undefined => {
     if (!hasVisibleFormFields()) return undefined;
     const info: Record<string, string> = {};
@@ -1111,14 +1082,14 @@ function PortalContent() {
     return Object.keys(info).length > 0 ? info : undefined;
   };
 
+  // ── Render auth form by method ──
   const renderAuthForm = () => {
     switch (activeMethod) {
       case 'voucher':
         return (
           <VoucherForm
+            design={design}
             initialCode={isVoucherPrefill ? codeParam : ''}
-            accentColor={accentColor}
-            textColor={cardTextColor}
             onSubmit={(code) =>
               authenticate('voucher', { voucherCode: code, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
             }
@@ -1129,8 +1100,7 @@ function PortalContent() {
       case 'room_number':
         return (
           <RoomNumberForm
-            accentColor={accentColor}
-            textColor={cardTextColor}
+            design={design}
             onSubmit={(room, name) =>
               authenticate('room_number', { roomNumber: room, lastName: name, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
             }
@@ -1140,8 +1110,7 @@ function PortalContent() {
       case 'pms_credentials':
         return (
           <PmsCredentialsForm
-            accentColor={accentColor}
-            textColor={cardTextColor}
+            design={design}
             onSubmit={(username, password) =>
               authenticate('pms_credentials', { username, password, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
             }
@@ -1151,8 +1120,7 @@ function PortalContent() {
       case 'sms_otp':
         return (
           <SmsOtpForm
-            accentColor={accentColor}
-            textColor={cardTextColor}
+            design={design}
             onAuthenticate={(method, payload) => {
               const gi = buildGuestInfoPayload();
               authenticate(method, gi ? { ...payload, guestInfo: gi } : payload);
@@ -1163,7 +1131,7 @@ function PortalContent() {
       case 'open_access':
         return (
           <OpenAccessForm
-            accentColor={accentColor}
+            design={design}
             onConnect={() => authenticate('open_access', { ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })}
             loading={state === 'authenticating'}
           />
@@ -1171,9 +1139,8 @@ function PortalContent() {
       default:
         return (
           <VoucherForm
+            design={design}
             initialCode={isVoucherPrefill ? codeParam : ''}
-            accentColor={accentColor}
-            textColor={cardTextColor}
             onSubmit={(code) =>
               authenticate('voucher', { voucherCode: code, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
             }
@@ -1184,11 +1151,12 @@ function PortalContent() {
     }
   };
 
-  // ── Method selector tabs (shown when multiple methods are available) ──
+  // ── Method selector tabs ──
   const renderMethodTabs = () => {
     if (authMethods.length <= 1) return null;
     return (
-      <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-1" role="tablist" aria-label="Authentication methods">
+      <div className="flex gap-1 p-1 rounded-xl mb-1" role="tablist" aria-label="Authentication methods"
+        style={{ backgroundColor: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }}>
         {authMethods.map((am) => (
           <button
             key={am.method}
@@ -1203,8 +1171,8 @@ function PortalContent() {
             className={cn(
               'flex-1 text-sm font-medium py-2.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1.5 min-w-0',
               activeMethod === am.method
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                ? (dark ? 'bg-white/20 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm')
+                : (dark ? 'text-white/60 hover:text-white/80' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50')
             )}
             title={am.description || am.label}
           >
@@ -1216,126 +1184,133 @@ function PortalContent() {
     );
   };
 
-  // ── Guest info fields section (shown when formFields config has visible fields) ──
+  // ── Guest info fields section ──
   const renderGuestInfoFields = () => {
     if (!hasVisibleFormFields()) return null;
+    const labelColor = getCardTextColor(design);
+
     return (
-      <div className="space-y-3 mb-4 pb-4 border-b border-gray-100">
-        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+      <div className="space-y-3 mb-4 pb-4" style={{ borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'}` }}>
+        <p className="text-xs font-medium uppercase tracking-wider" style={{ color: getMutedTextColor(design) }}>
           Guest Information
         </p>
         {isFieldVisible('firstName') && (
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium flex items-center gap-1" style={{ color: cardTextColor }}>
-              {getFieldLabel('firstName', 'First Name')}
-              {isFieldRequired('firstName') && <span className="text-red-500">*</span>}
-            </label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={guestInfo.firstName}
-                onChange={(e) => setGuestInfo((prev) => ({ ...prev, firstName: e.target.value }))}
-                placeholder="John"
-                disabled={state === 'authenticating'}
-                className="w-full pl-10 pr-4 py-2.5 text-sm border-2 border-gray-200 rounded-xl focus:outline-none transition-all disabled:opacity-50"
-                style={{ borderColor: accentColor + '40' }}
-              />
-            </div>
-          </div>
+          <DynamicInput
+            design={design}
+            label={getFieldLabel('firstName', 'First Name') + (isFieldRequired('firstName') ? ' *' : '')}
+            value={guestInfo.firstName}
+            onChange={(v) => setGuestInfo((prev) => ({ ...prev, firstName: v }))}
+            placeholder="John"
+            disabled={state === 'authenticating'}
+            icon={<User className="w-4 h-4" />}
+          />
         )}
         {isFieldVisible('lastName') && (
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium flex items-center gap-1" style={{ color: cardTextColor }}>
-              {getFieldLabel('lastName', 'Last Name')}
-              {isFieldRequired('lastName') && <span className="text-red-500">*</span>}
-            </label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={guestInfo.lastName}
-                onChange={(e) => setGuestInfo((prev) => ({ ...prev, lastName: e.target.value }))}
-                placeholder="Smith"
-                disabled={state === 'authenticating'}
-                className="w-full pl-10 pr-4 py-2.5 text-sm border-2 border-gray-200 rounded-xl focus:outline-none transition-all disabled:opacity-50"
-                style={{ borderColor: accentColor + '40' }}
-              />
-            </div>
-          </div>
+          <DynamicInput
+            design={design}
+            label={getFieldLabel('lastName', 'Last Name') + (isFieldRequired('lastName') ? ' *' : '')}
+            value={guestInfo.lastName}
+            onChange={(v) => setGuestInfo((prev) => ({ ...prev, lastName: v }))}
+            placeholder="Smith"
+            disabled={state === 'authenticating'}
+            icon={<User className="w-4 h-4" />}
+          />
         )}
         {isFieldVisible('email') && (
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium flex items-center gap-1" style={{ color: cardTextColor }}>
-              {getFieldLabel('email', 'Email')}
-              {isFieldRequired('email') && <span className="text-red-500">*</span>}
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="email"
-                value={guestInfo.email}
-                onChange={(e) => setGuestInfo((prev) => ({ ...prev, email: e.target.value }))}
-                placeholder="john@example.com"
-                disabled={state === 'authenticating'}
-                className="w-full pl-10 pr-4 py-2.5 text-sm border-2 border-gray-200 rounded-xl focus:outline-none transition-all disabled:opacity-50"
-                style={{ borderColor: accentColor + '40' }}
-              />
-            </div>
-          </div>
+          <DynamicInput
+            design={design}
+            label={getFieldLabel('email', 'Email') + (isFieldRequired('email') ? ' *' : '')}
+            type="email"
+            value={guestInfo.email}
+            onChange={(v) => setGuestInfo((prev) => ({ ...prev, email: v }))}
+            placeholder="john@example.com"
+            disabled={state === 'authenticating'}
+            icon={<Mail className="w-4 h-4" />}
+          />
         )}
         {isFieldVisible('phone') && (
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium flex items-center gap-1" style={{ color: cardTextColor }}>
-              {getFieldLabel('phone', 'Phone')}
-              {isFieldRequired('phone') && <span className="text-red-500">*</span>}
-            </label>
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="tel"
-                value={guestInfo.phone}
-                onChange={(e) => setGuestInfo((prev) => ({ ...prev, phone: e.target.value }))}
-                placeholder="+1 555 123 4567"
-                disabled={state === 'authenticating'}
-                className="w-full pl-10 pr-4 py-2.5 text-sm border-2 border-gray-200 rounded-xl focus:outline-none transition-all disabled:opacity-50"
-                style={{ borderColor: accentColor + '40' }}
-              />
-            </div>
-          </div>
+          <DynamicInput
+            design={design}
+            label={getFieldLabel('phone', 'Phone') + (isFieldRequired('phone') ? ' *' : '')}
+            type="tel"
+            value={guestInfo.phone}
+            onChange={(v) => setGuestInfo((prev) => ({ ...prev, phone: v }))}
+            placeholder="+1 555 123 4567"
+            disabled={state === 'authenticating'}
+            icon={<Phone className="w-4 h-4" />}
+            inputMode="tel"
+          />
         )}
       </div>
     );
   };
 
-  // ── Layout type rendering ──
-  const isSplit =
-    design.layoutType === 'split_left' ||
-    design.layoutType === 'split_right';
+  // ── Layout type ──
+  const isSplit = design.layoutType === 'split_left' || design.layoutType === 'split_right';
+  const formCls = getFormContainerClasses(design);
+  const cardShadowStyle = getCardShadowCSS(design);
 
-  // ── Social media icon helper ──
-  const getSocialIcon = (platform: string) => {
-    switch (platform.toLowerCase()) {
-      case 'facebook':
-        return 'f';
-      case 'instagram':
-        return 'IG';
-      case 'twitter':
-        return 'X';
-      case 'linkedin':
-        return 'in';
-      case 'youtube':
-        return '▶';
-      case 'tripadvisor':
-        return 'TA';
-      default:
-        return platform.charAt(0).toUpperCase();
+  // ── Render the card content (shared across layouts) ──
+  const renderCardContent = () => {
+    if (state === 'success' && authResult) {
+      return <SuccessScreen authResult={authResult} design={design} />;
     }
+
+    return (
+      <>
+        {/* Error display */}
+        {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
+
+        {/* Auth Method Tabs */}
+        {renderMethodTabs()}
+
+        {/* Auth Form */}
+        <div
+          className="transition-opacity duration-200"
+          style={{ opacity: canSubmit ? 1 : 0.5, pointerEvents: canSubmit ? 'auto' : 'none' }}
+        >
+          {renderGuestInfoFields()}
+          {renderAuthForm()}
+        </div>
+
+        {/* Terms checkbox */}
+        {portalConfig?.termsRequired && (
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              className="mt-0.5"
+              style={{ accentColor: design.accentColor }}
+            />
+            <span style={{ color: getMutedTextColor(design) }}>
+              I agree to the{' '}
+              {portalConfig.design.termsUrl ? (
+                <a
+                  href={portalConfig.design.termsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                  style={{ color: design.accentColor }}
+                >
+                  terms and conditions
+                </a>
+              ) : (
+                <span style={{ color: design.accentColor }} className="font-medium">
+                  terms and conditions
+                </span>
+              )}
+            </span>
+          </label>
+        )}
+      </>
+    );
   };
 
+  // ── Main Layout ──
   return (
     <div
-      className="fixed inset-0 flex flex-col overflow-y-auto"
+      className={cn('fixed inset-0 flex flex-col overflow-y-auto', animCls)}
       style={{
         ...bgStyle,
         fontFamily: design.fontFamily,
@@ -1347,414 +1322,109 @@ function PortalContent() {
       {/* Main content */}
       <main className="flex-1 flex items-center justify-center p-4 relative z-10">
         {isSplit ? (
-          // ── Split Layout ──
+          // ══════════════════════════════════════════════════════════
+          // SPLIT LAYOUT
+          // ══════════════════════════════════════════════════════════
           <div className="w-full max-w-5xl flex flex-col md:flex-row gap-6">
             {/* Info Panel */}
-            <div className="flex-1 flex flex-col justify-center text-white p-6 md:p-10 space-y-6">
-              {design.logoUrl ? (
-                <img
-                  src={design.logoUrl}
-                  alt="Hotel Logo"
-                  className="h-12 object-contain"
-                />
-              ) : (
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm">
-                  <Wifi className="w-7 h-7 text-white" />
-                </div>
-              )}
-              <h1
-                className="text-3xl md:text-4xl font-bold"
-                style={{ fontFamily: design.headingFontFamily }}
-              >
+            <div className="flex-1 flex flex-col justify-center p-6 md:p-10 space-y-6" style={{ color: dark ? '#ffffff' : design.textColor }}>
+              <PortalLogo design={design} size="large" />
+              <h1 className="text-3xl md:text-4xl font-bold" style={{ fontFamily: design.headingFontFamily }}>
                 {design.title}
               </h1>
-              <p className="text-white/80 text-lg">{design.subtitle}</p>
+              <p style={{ color: dark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)' }} className="text-lg">
+                {design.subtitle}
+              </p>
               {design.welcomeMessage && (
-                <p className="text-white/60 italic">{design.welcomeMessage}</p>
+                <p className="italic" style={{ color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}>
+                  {design.welcomeMessage}
+                </p>
               )}
-              {design.showHotelInfo && design.hotelName && (
-                <div className="space-y-2 text-sm text-white/70">
-                  <p className="flex items-center gap-2">
-                    <Hotel className="w-4 h-4" />
-                    {design.hotelName}
-                  </p>
-                  {design.hotelAddress && (
-                    <p className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4" />
-                      {design.hotelAddress}
-                    </p>
-                  )}
-                  {design.hotelPhone && (
-                    <p className="flex items-center gap-2">
-                      <PhoneCall className="w-4 h-4" />
-                      {design.hotelPhone}
-                    </p>
-                  )}
-                  {design.hotelWebsite && (
-                    <p className="flex items-center gap-2">
-                      <Globe className="w-4 h-4" />
-                      {design.hotelWebsite}
-                    </p>
-                  )}
-                </div>
-              )}
-              {design.showAmenities && design.amenities.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {design.amenities.map((a, i) => (
-                    <span
-                      key={i}
-                      className="px-3 py-1 text-xs bg-white/15 rounded-full backdrop-blur-sm"
-                    >
-                      {a}
-                    </span>
-                  ))}
-                </div>
-              )}
+              <HotelInfoBlock design={design} dark={dark} />
+              <AmenitiesBlock design={design} dark={dark} />
             </div>
 
             {/* Form Panel */}
             <div className="w-full md:w-[420px]">
-              <div
-                className={cardStyle}
-                style={{ boxShadow: cardShadow }}
-              >
-                {state === 'success' && authResult ? (
-                  <SuccessScreen
-                    authResult={authResult}
-                    accentColor={accentColor}
-                    textColor={cardTextColor}
-                    design={design}
-                  />
-                ) : (
-                  <>
-                    {/* Mobile-only header */}
-                    <div className="md:hidden text-center space-y-2">
-                      {design.logoUrl ? (
-                        <img
-                          src={design.logoUrl}
-                          alt="Logo"
-                          className="h-10 mx-auto object-contain"
-                        />
-                      ) : (
-                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl mx-auto" style={{ backgroundColor: accentColor + '15' }}>
-                          <Wifi className="w-6 h-6" style={{ color: accentColor }} />
-                        </div>
-                      )}
-                      <h2
-                        className="text-xl font-bold"
-                        style={{
-                          color: cardTextColor,
-                          fontFamily: design.headingFontFamily,
-                        }}
-                      >
-                        {design.title}
-                      </h2>
-                      <p className="text-sm text-gray-500">{design.subtitle}</p>
-                    </div>
+              <div className={formCls} style={cardShadowStyle}>
+                {/* Mobile-only header */}
+                <div className="md:hidden text-center space-y-2 mb-4">
+                  <PortalLogo design={design} size="small" />
+                  <h2 className="text-xl font-bold" style={{ color: getCardTextColor(design), fontFamily: design.headingFontFamily }}>
+                    {design.title}
+                  </h2>
+                  <p className="text-sm" style={{ color: getMutedTextColor(design) }}>{design.subtitle}</p>
+                </div>
 
-                    {/* Error display */}
-                    {state === 'error' && errorMessage && (
-                      <div className="flex items-start gap-2 bg-red-50 rounded-lg p-3">
-                        <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-                        <p className="text-sm text-red-700">{errorMessage}</p>
-                      </div>
-                    )}
-
-                    {/* Promotion banner */}
-                    {design.showPromotion && design.promotionTitle && (
-                      <div
-                        className="flex items-start gap-3 rounded-lg p-3"
-                        style={{ backgroundColor: accentColor + '10' }}
-                      >
-                        <Gift className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: accentColor }} />
-                        <div>
-                          <p className="font-semibold text-sm" style={{ color: cardTextColor }}>
-                            {design.promotionTitle}
-                          </p>
-                          {design.promotionDesc && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              {design.promotionDesc}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Auth Method Tabs */}
-                    {renderMethodTabs()}
-
-                    {/* Auth Form */}
-                    <div
-                      className="transition-opacity duration-200"
-                      style={{ opacity: canSubmit ? 1 : 0.5, pointerEvents: canSubmit ? 'auto' : 'none' }}
-                    >
-                      {renderGuestInfoFields()}
-                      {renderAuthForm()}
-                    </div>
-
-                    {/* Terms checkbox */}
-                    {portalConfig?.termsRequired && (
-                      <label className="flex items-start gap-2 text-sm cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={termsAccepted}
-                          onChange={(e) => setTermsAccepted(e.target.checked)}
-                          className="mt-0.5 accent-current"
-                          style={{ accentColor }}
-                        />
-                        <span className="text-gray-600">
-                          I agree to the{' '}
-                          {portalConfig.design.termsUrl ? (
-                            <a
-                              href={portalConfig.design.termsUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="underline"
-                              style={{ color: accentColor }}
-                            >
-                              terms and conditions
-                            </a>
-                          ) : (
-                            <span style={{ color: accentColor }} className="font-medium">
-                              terms and conditions
-                            </span>
-                          )}
-                        </span>
-                      </label>
-                    )}
-                  </>
-                )}
+                {renderCardContent()}
               </div>
             </div>
           </div>
         ) : (
-          // ── Centered / Card / Full-bleed Layout ──
-          // Matches the design preview: header + hotel info on the gradient,
-          // only the form inside the card.
+          // ══════════════════════════════════════════════════════════
+          // CENTERED / CARD / FULL-BLEED LAYOUT
+          // ══════════════════════════════════════════════════════════
           <div className="w-full max-w-md flex flex-col items-center">
+            {/* ── ABOVE THE CARD (on background) ── */}
 
-            {/* ── ABOVE THE CARD (on gradient background) ── */}
-
-            {/* Promotion banner — shown above the card on the gradient */}
+            {/* Promotion banner */}
             {design.showPromotion && design.promotionTitle && state !== 'success' && (
-              <div
-                className="w-full flex items-start gap-3 rounded-xl p-3 mb-4"
-                style={{ backgroundColor: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.15)' }}
-              >
-                <Gift className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-300" />
-                <div>
-                  <p className="font-semibold text-sm text-white">{design.promotionTitle}</p>
-                  {design.promotionDesc && (
-                    <p className="text-xs text-white/70 mt-1">{design.promotionDesc}</p>
-                  )}
-                </div>
-              </div>
+              <PromotionBlock design={design} />
             )}
 
             {/* Clock */}
             {design.showClock && (
               <div className="mb-3 flex justify-center">
-                <LiveClock textColor="#ffffff" />
+                <LiveClock design={design} />
               </div>
             )}
 
             {/* Logo */}
-            {design.logoUrl ? (
-              <img
-                src={design.logoUrl}
-                alt="Hotel Logo"
-                className="h-16 mx-auto object-contain mb-4 drop-shadow-lg"
-              />
-            ) : (
-              <div
-                className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 bg-white/15 backdrop-blur-sm"
-                style={{ border: '1px solid rgba(255,255,255,0.2)' }}
-              >
-                <Wifi className="w-8 h-8 text-white" />
-              </div>
-            )}
+            <PortalLogo design={design} size="large" />
 
-            {/* Title & Subtitle — on gradient background, white text */}
+            {/* Title & Subtitle */}
             <div className="text-center mb-2">
               <h1
-                className="text-2xl md:text-3xl font-bold text-white drop-shadow-sm"
-                style={{ fontFamily: design.headingFontFamily }}
+                className="text-2xl md:text-3xl font-bold drop-shadow-sm"
+                style={{ fontFamily: design.headingFontFamily, color: dark ? '#ffffff' : design.textColor }}
               >
                 {design.title}
               </h1>
-              <p className="text-sm md:text-base text-white/80 mt-1">{design.subtitle}</p>
-              {design.welcomeMessage && (
-                <p className="text-xs text-white/60 mt-2 italic">{design.welcomeMessage}</p>
-              )}
-            </div>
-
-            {/* Hotel info — on gradient background */}
-            {design.showHotelInfo && design.hotelName && (
-              <div className="w-full text-center space-y-1 mb-4">
-                <p className="text-sm font-semibold text-white">{design.hotelName}</p>
-                <div className="flex items-center justify-center gap-1 text-xs text-white/70">
-                  {design.hotelAddress && (
-                    <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{design.hotelAddress}</span>
-                  )}
-                </div>
-                <div className="flex items-center justify-center gap-3 text-xs text-white/70">
-                  {design.hotelPhone && (
-                    <span className="flex items-center gap-1"><PhoneCall className="w-3 h-3" />{design.hotelPhone}</span>
-                  )}
-                  {design.hotelWebsite && (
-                    <span className="flex items-center gap-1"><Globe className="w-3 h-3" />{design.hotelWebsite}</span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Amenity tags — on gradient background */}
-            {design.showAmenities && design.amenities.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 justify-center mb-5">
-                {design.amenities.map((a, i) => (
-                  <span
-                    key={i}
-                    className="px-2.5 py-1 text-xs rounded-full font-medium bg-white/12 text-white/90 backdrop-blur-sm"
-                  >
-                    {a}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* ── THE CARD (form only) ── */}
-            <div
-              className={cn(
-                'w-full',
-                design.formStyle === 'glass'
-                  ? 'bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 space-y-4'
-                  : design.formStyle === 'minimal'
-                    ? 'bg-transparent rounded-2xl p-6 space-y-4'
-                    : 'bg-white rounded-2xl p-6 space-y-4',
-              )}
-              style={{ boxShadow: cardShadow }}
-            >
-              {/* Success state */}
-              {state === 'success' && authResult ? (
-                <SuccessScreen
-                  authResult={authResult}
-                  accentColor={accentColor}
-                  textColor={cardTextColor}
-                  design={design}
-                />
-              ) : (
-                <>
-                  {/* Error display */}
-                  {state === 'error' && errorMessage && (
-                    <div className="flex items-start gap-2 bg-red-50 rounded-lg p-3">
-                      <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-                      <p className="text-sm text-red-700">{errorMessage}</p>
-                    </div>
-                  )}
-
-                  {/* Auth flow label */}
-                  <div className="flex items-center gap-1.5" style={{ color: cardTextColor + '80' }}>
-                    <Wifi className="w-3.5 h-3.5" style={{ color: accentColor }} />
-                    <span className="text-xs font-semibold uppercase tracking-wider">
-                      {activeMethod === 'voucher' ? 'Enter Voucher' : activeMethod === 'room_number' ? 'Enter Room' : activeMethod === 'sms_otp' ? 'OTP Login' : activeMethod === 'open_access' ? 'Free Access' : 'Sign In'}
-                    </span>
-                  </div>
-
-                  {/* Auth Method Tabs */}
-                  {renderMethodTabs()}
-
-                  {/* Auth Form */}
-                  <div
-                    className="transition-opacity duration-200"
-                    style={{
-                      opacity: canSubmit ? 1 : 0.5,
-                      pointerEvents: canSubmit ? 'auto' : 'none',
-                    }}
-                  >
-                    {renderGuestInfoFields()}
-                    {renderAuthForm()}
-                  </div>
-
-                  {/* Terms checkbox */}
-                  {portalConfig?.termsRequired && (
-                    <label className="flex items-start gap-2 text-sm cursor-pointer" style={{ color: cardTextColor + '80' }}>
-                      <input
-                        type="checkbox"
-                        checked={termsAccepted}
-                        onChange={(e) => setTermsAccepted(e.target.checked)}
-                        className="mt-0.5"
-                        style={{ accentColor }}
-                      />
-                      <span>
-                        I agree to the{' '}
-                        {portalConfig.design.termsUrl ? (
-                          <a
-                            href={portalConfig.design.termsUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline"
-                            style={{ color: accentColor }}
-                          >
-                            terms and conditions
-                          </a>
-                        ) : (
-                          <span style={{ color: accentColor }} className="font-medium">
-                            terms and conditions
-                          </span>
-                        )}
-                      </span>
-                    </label>
-                  )}
-
-                  {/* Info section */}
-                  <div className="border-t pt-3 space-y-1.5" style={{ borderColor: cardTextColor + '15' }}>
-                    <div className="flex items-start gap-2 text-xs" style={{ color: cardTextColor + '60' }}>
-                      <Shield className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                      <p>Secure connection — your credentials are encrypted</p>
-                    </div>
-                    <div className="flex items-start gap-2 text-xs" style={{ color: cardTextColor + '60' }}>
-                      <Clock className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                      <p>
-                        Session timeout:{' '}
-                        {portalConfig?.sessionTimeout || 1440} minutes
-                      </p>
-                    </div>
-                    <div className="flex items-start gap-2 text-xs" style={{ color: cardTextColor + '60' }}>
-                      <Zap className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                      <p>
-                        Bandwidth: up to{' '}
-                        {portalConfig?.maxBandwidthDown || 5} Mbps down,{' '}
-                        {portalConfig?.maxBandwidthUp || 1} Mbps up
-                      </p>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Social media links */}
-            {design.showSocialMedia && design.socialLinks.length > 0 && (
-              <div className="flex items-center justify-center gap-3 mt-5">
-                {design.socialLinks.map((link, i) => (
-                  <a
-                    key={i}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-10 h-10 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center text-white/80 hover:bg-white/25 transition-colors text-xs font-bold"
-                    aria-label={link.platform}
-                  >
-                    {getSocialIcon(link.platform)}
-                  </a>
-                ))}
-              </div>
-            )}
-
-            {/* Footer branding */}
-            {design.showBranding && (
-              <p className="text-center text-xs text-white/50 mt-6">
-                Powered by StaySuite Hospitality OS
+              <p className="text-sm md:text-base mt-1" style={{ color: getSubtitleColor(design) }}>
+                {design.subtitle}
               </p>
+              {design.welcomeMessage && (
+                <p className="text-xs mt-2 italic" style={{ color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}>
+                  {design.welcomeMessage}
+                </p>
+              )}
+            </div>
+
+            {/* Hotel info */}
+            <div className="mb-4">
+              <HotelInfoBlock design={design} dark={dark} />
+            </div>
+
+            {/* Amenities */}
+            <div className="mb-5">
+              <AmenitiesBlock design={design} dark={dark} />
+            </div>
+
+            {/* ── THE FORM CARD ── */}
+            <div className={cn('w-full', formCls)} style={cardShadowStyle}>
+              {renderCardContent()}
+            </div>
+
+            {/* Social Links (below card) */}
+            <div className="mt-4">
+              <SocialLinksBlock design={design} />
+            </div>
+
+            {/* Branding footer */}
+            {design.showBranding && (
+              <div className="text-center mt-4" style={{ color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }}>
+                <p className="text-[10px]">Powered by StaySuite Hospitality OS</p>
+              </div>
             )}
           </div>
         )}
@@ -1764,15 +1434,18 @@ function PortalContent() {
 }
 
 // ────────────────────────────────────────────────────────────
-// Exported component with Suspense boundary
+// Page Export (with Suspense boundary for useSearchParams)
 // ────────────────────────────────────────────────────────────
 
 export function WifiConnectPortal() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gradient-to-br from-teal-600 via-teal-700 to-emerald-800 flex items-center justify-center">
-          <Loader2 className="w-8 h-8 text-white animate-spin" />
+        <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0ea5e9, #065f46)' }}>
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="w-8 h-8 text-white animate-spin" />
+            <p className="text-white/80 text-sm">Loading portal...</p>
+          </div>
         </div>
       }
     >
