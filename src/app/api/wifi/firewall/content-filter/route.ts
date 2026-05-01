@@ -167,10 +167,20 @@ export async function POST(request: NextRequest) {
       ? domains.map((d: unknown) => String(d).trim()).filter(Boolean)
       : [];
 
+    // Auto-resolve propertyId if not provided (field is required in schema)
+    let resolvedPropertyId = propertyId;
+    if (!resolvedPropertyId) {
+      const firstProperty = await db.property.findFirst({
+        where: { tenantId: user.tenantId },
+        select: { id: true },
+      });
+      resolvedPropertyId = firstProperty?.id || '';
+    }
+
     const filter = await db.contentFilter.create({
       data: {
         tenantId: user.tenantId,
-        propertyId: propertyId || null,
+        propertyId: resolvedPropertyId,
         name,
         category,
         domains: JSON.stringify(sanitizedDomains),

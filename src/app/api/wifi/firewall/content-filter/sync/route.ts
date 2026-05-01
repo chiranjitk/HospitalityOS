@@ -1,34 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import {
+  syncE2guardianConfig,
+  getSyncStatus,
+  getListFilesSummary,
+} from '@/lib/wifi/e2guardian-sync';
 
-// POST /api/wifi/firewall/content-filter/sync - Trigger e2guardian config sync
+// POST /api/wifi/firewall/content-filter/sync — Trigger e2guardian config sync
 export async function POST(request: NextRequest) {
   const user = await requirePermission(request, 'network.manage');
   if (user instanceof NextResponse) return user;
 
   try {
-    // This is a stub for e2guardian sync.
-    // In production, this would regenerate the e2guardian config file
-    // and send a SIGHUP to the e2guardian process.
-    // For now, we return success to allow the frontend to work.
+    const body = await request.json().catch(() => ({}));
+    const propertyId = body.propertyId || undefined;
 
-    // TODO: Implement actual e2guardian sync:
-    // 1. Fetch all enabled content filters from DB
-    // 2. Generate e2guardian config (phraselists, bannedsitelist, etc.)
-    // 3. Write config to /etc/e2guardian/lists/
-    // 4. Send SIGHUP to e2guardian to reload config
-    // 5. Return sync status
+    const result = await syncE2guardianConfig(user.tenantId, propertyId);
 
     return NextResponse.json({
-      success: true,
-      message: 'Config synced to e2guardian',
-      syncedAt: new Date().toISOString(),
+      success: result.success,
+      message: result.message,
+      syncedAt: result.syncedAt,
+      duration: result.duration,
+      summary: {
+        totalDomains: result.totalDomainsWritten,
+        categoriesCount: result.categoriesGenerated.length,
+        categories: result.categoriesGenerated,
+        filesWritten: result.filesWritten,
+        configFiles: result.configFilesGenerated,
+      },
     });
   } catch (error) {
     console.error('Error syncing content filter config:', error);
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to sync config to e2guardian' } },
-      { status: 500 }
+      { status: 500 },
+    );
+  }
+}
+
+// GET /api/wifi/firewall/content-filter/sync — Get sync status and generated files
+export async function GET(request: NextRequest) {
+  const user = await requirePermission(request, 'network.manage');
+  if (user instanceof NextResponse) return user;
+
+  try {
+    const status = await getSyncStatus();
+    const files = await getListFilesSummary();
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        status,
+        listFiles: files.banned,
+        configFiles: files.configs,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching sync status:', error);
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch sync status' } },
+      { status: 500 },
     );
   }
 }

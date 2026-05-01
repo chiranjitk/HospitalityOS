@@ -17,7 +17,13 @@ export async function GET(request: NextRequest) {
       by: ['category'],
       where,
       _count: { id: true },
-      _sum: { enabled: true },
+    });
+
+    // Count enabled filters per category separately
+    const enabledSummary = await db.contentFilter.groupBy({
+      by: ['category'],
+      where: { ...where, enabled: true },
+      _count: { id: true },
     });
 
     // Count total domains per category
@@ -42,10 +48,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const enabledCountMap: Record<string, number> = {};
+    for (const item of enabledSummary) {
+      enabledCountMap[item.category] = item._count.id;
+    }
+
     const categories = categorySummary.map((item) => ({
       category: item.category,
       count: item._count.id,
-      enabledCount: item._sum?.enabled ? Number(item._sum.enabled) : 0,
+      enabledCount: enabledCountMap[item.category] || 0,
       totalDomains: domainsPerCategory[item.category] || 0,
       enabledDomains: enabledDomainsPerCategory[item.category] || 0,
     }));

@@ -78,10 +78,20 @@ export async function POST(request: NextRequest) {
     // Generate a name if not provided
     const filterName = name || `Bulk import — ${category} (${sanitizedDomains.length} domains)`;
 
+    // Auto-resolve propertyId if not provided (field is required in schema)
+    let resolvedPropertyId = propertyId;
+    if (!resolvedPropertyId) {
+      const firstProperty = await db.property.findFirst({
+        where: { tenantId: user.tenantId },
+        select: { id: true },
+      });
+      resolvedPropertyId = firstProperty?.id || '';
+    }
+
     const filter = await db.contentFilter.create({
       data: {
         tenantId: user.tenantId,
-        propertyId: propertyId || null,
+        propertyId: resolvedPropertyId,
         name: filterName,
         category,
         domains: JSON.stringify(sanitizedDomains),
