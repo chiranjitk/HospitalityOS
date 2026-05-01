@@ -491,44 +491,44 @@ function BandwidthUsageTab() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Detailed Usage Data</CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <ScrollArea className="max-h-96">
+        <CardContent className="p-0 overflow-hidden">
+          <div className="max-h-96 overflow-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Download (MB)</TableHead>
-                  <TableHead className="text-right">Upload (MB)</TableHead>
-                  <TableHead className="text-right">Total (MB)</TableHead>
-                  <TableHead className="text-right">Users</TableHead>
-                  <TableHead className="text-right">Peak Users</TableHead>
-                  <TableHead>Peak Time</TableHead>
-                  <TableHead className="text-right">Active</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap">Date</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap text-right hidden sm:table-cell">DL (MB)</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap text-right hidden sm:table-cell">UL (MB)</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap text-right">Total</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap text-right hidden md:table-cell">Users</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap text-right hidden md:table-cell">Peak</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Peak Time</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap text-right hidden lg:table-cell">Active</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredData.map((day) => (
                   <TableRow key={day.date} className="hover:bg-muted/30">
-                    <TableCell className="font-medium">{formatDate(day.date)}</TableCell>
-                    <TableCell className="text-right text-teal-600 dark:text-teal-400 font-mono text-sm">{day.download.toLocaleString()}</TableCell>
-                    <TableCell className="text-right text-amber-600 dark:text-amber-400 font-mono text-sm">{day.upload.toLocaleString()}</TableCell>
-                    <TableCell className="text-right font-mono text-sm font-medium">{day.total.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">{day.users}</TableCell>
-                    <TableCell className="text-right">{day.peakUsers || day.users}</TableCell>
-                    <TableCell><Badge variant="secondary" className="text-xs">{day.peakTime}</Badge></TableCell>
-                    <TableCell className="text-right"><Badge variant={day.activeSessions > 0 ? 'default' : 'secondary'} className="text-xs">{day.activeSessions}</Badge></TableCell>
+                    <TableCell className="text-xs sm:text-sm font-medium whitespace-nowrap">{formatDate(day.date)}</TableCell>
+                    <TableCell className="text-right text-teal-600 dark:text-teal-400 font-mono text-xs sm:text-sm hidden sm:table-cell">{day.download.toLocaleString()}</TableCell>
+                    <TableCell className="text-right text-amber-600 dark:text-amber-400 font-mono text-xs sm:text-sm hidden sm:table-cell">{day.upload.toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-mono text-xs sm:text-sm font-medium whitespace-nowrap">{day.total.toLocaleString()}</TableCell>
+                    <TableCell className="text-right text-xs sm:text-sm hidden md:table-cell">{day.users}</TableCell>
+                    <TableCell className="text-right text-xs sm:text-sm hidden md:table-cell">{day.peakUsers || day.users}</TableCell>
+                    <TableCell className="hidden lg:table-cell"><Badge variant="secondary" className="text-xs">{day.peakTime}</Badge></TableCell>
+                    <TableCell className="text-right hidden lg:table-cell"><Badge variant={day.activeSessions > 0 ? 'default' : 'secondary'} className="text-xs">{day.activeSessions}</Badge></TableCell>
                   </TableRow>
                 ))}
                 {filteredData.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8 text-xs">
                       No data found for the selected period. Bandwidth data is sourced from RADIUS accounting sessions.
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
-          </ScrollArea>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -806,20 +806,20 @@ function UserBandwidthTab() {
           <CardTitle className="text-base">User Bandwidth Details</CardTitle>
           <CardDescription>Click a row to expand session history</CardDescription>
         </CardHeader>
-        <CardContent className="p-0">
-          <ScrollArea className="max-h-96">
+        <CardContent className="p-0 overflow-hidden">
+          <div className="max-h-96 overflow-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort('username')}>Username <SortIcon col="username" isActive={sortKey === 'username'} /></TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort('ip')}>IP <SortIcon col="ip" isActive={sortKey === 'ip'} /></TableHead>
-                  <TableHead>MAC</TableHead>
-                  <TableHead>Plan</TableHead>
-                  <TableHead className="cursor-pointer text-right" onClick={() => handleSort('sessions')}>Sessions <SortIcon col="sessions" isActive={sortKey === 'sessions'} /></TableHead>
-                  <TableHead className="cursor-pointer text-right" onClick={() => handleSort('totalDown')}>Download <SortIcon col="totalDown" isActive={sortKey === 'totalDown'} /></TableHead>
-                  <TableHead className="cursor-pointer text-right" onClick={() => handleSort('totalUp')}>Upload <SortIcon col="totalUp" isActive={sortKey === 'totalUp'} /></TableHead>
-                  <TableHead className="cursor-pointer text-right" onClick={() => handleSort('avgDuration')}>Avg Duration <SortIcon col="avgDuration" isActive={sortKey === 'avgDuration'} /></TableHead>
-                  <TableHead>Last Seen</TableHead>
+                  <TableHead className="cursor-pointer text-xs whitespace-nowrap" onClick={() => handleSort('username')}>Username <SortIcon col="username" isActive={sortKey === 'username'} /></TableHead>
+                  <TableHead className="cursor-pointer text-xs whitespace-nowrap hidden sm:table-cell" onClick={() => handleSort('ip')}>IP <SortIcon col="ip" isActive={sortKey === 'ip'} /></TableHead>
+                  <TableHead className="text-xs whitespace-nowrap hidden md:table-cell">MAC</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Plan</TableHead>
+                  <TableHead className="cursor-pointer text-xs whitespace-nowrap text-right hidden md:table-cell" onClick={() => handleSort('sessions')}>Sessions <SortIcon col="sessions" isActive={sortKey === 'sessions'} /></TableHead>
+                  <TableHead className="cursor-pointer text-xs whitespace-nowrap text-right" onClick={() => handleSort('totalDown')}>DL <SortIcon col="totalDown" isActive={sortKey === 'totalDown'} /></TableHead>
+                  <TableHead className="cursor-pointer text-xs whitespace-nowrap text-right" onClick={() => handleSort('totalUp')}>UL <SortIcon col="totalUp" isActive={sortKey === 'totalUp'} /></TableHead>
+                  <TableHead className="cursor-pointer text-xs whitespace-nowrap text-right hidden lg:table-cell" onClick={() => handleSort('avgDuration')}>Avg Dur <SortIcon col="avgDuration" isActive={sortKey === 'avgDuration'} /></TableHead>
+                  <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Last Seen</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -829,15 +829,15 @@ function UserBandwidthTab() {
                       className="cursor-pointer hover:bg-muted/30"
                       onClick={() => setExpandedUser(expandedUser === user.username ? null : user.username)}
                     >
-                      <TableCell className="font-medium">{user.username}</TableCell>
-                      <TableCell className="font-mono text-sm">{user.ip}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{user.mac}</TableCell>
-                      <TableCell><Badge variant="outline" className="text-xs">{user.plan}</Badge></TableCell>
-                      <TableCell className="text-right">{user.sessions}</TableCell>
-                      <TableCell className="text-right text-teal-600 dark:text-teal-400 font-mono text-sm">{formatMB(user.totalDown)}</TableCell>
-                      <TableCell className="text-right text-amber-600 dark:text-amber-400 font-mono text-sm">{formatMB(user.totalUp)}</TableCell>
-                      <TableCell className="text-right">{formatDuration(user.avgDuration)}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{user.lastSeen ? new Date(user.lastSeen).toLocaleDateString() : '—'}</TableCell>
+                      <TableCell className="text-xs sm:text-sm font-medium whitespace-nowrap">{user.username}</TableCell>
+                      <TableCell className="font-mono text-xs sm:text-sm hidden sm:table-cell">{user.ip}</TableCell>
+                      <TableCell className="font-mono text-[10px] sm:text-xs text-muted-foreground hidden md:table-cell">{user.mac}</TableCell>
+                      <TableCell className="hidden lg:table-cell"><Badge variant="outline" className="text-[10px] sm:text-xs">{user.plan}</Badge></TableCell>
+                      <TableCell className="text-right text-xs sm:text-sm hidden md:table-cell">{user.sessions}</TableCell>
+                      <TableCell className="text-right text-teal-600 dark:text-teal-400 font-mono text-xs sm:text-sm">{formatMB(user.totalDown)}</TableCell>
+                      <TableCell className="text-right text-amber-600 dark:text-amber-400 font-mono text-xs sm:text-sm">{formatMB(user.totalUp)}</TableCell>
+                      <TableCell className="text-right text-xs sm:text-sm hidden lg:table-cell">{formatDuration(user.avgDuration)}</TableCell>
+                      <TableCell className="text-[10px] sm:text-xs text-muted-foreground hidden lg:table-cell">{user.lastSeen ? new Date(user.lastSeen).toLocaleDateString() : '—'}</TableCell>
                     </TableRow>
                     {expandedUser === user.username && (
                       <TableRow className="bg-muted/10">
@@ -845,32 +845,34 @@ function UserBandwidthTab() {
                           <div className="p-3 ml-4">
                             <p className="text-xs font-semibold mb-2 flex items-center gap-1.5"><Clock className="h-3 w-3" /> Session History for {user.username}</p>
                             {user.sessionHistory && user.sessionHistory.length > 0 ? (
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead className="text-xs">Session</TableHead>
-                                    <TableHead className="text-xs">Start</TableHead>
-                                    <TableHead className="text-xs">End</TableHead>
-                                    <TableHead className="text-xs">NAS</TableHead>
-                                    <TableHead className="text-xs text-right">Download</TableHead>
-                                    <TableHead className="text-xs text-right">Upload</TableHead>
-                                    <TableHead className="text-xs text-right">Duration</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {user.sessionHistory.map((s: any) => (
-                                    <TableRow key={s.id}>
-                                      <TableCell className="font-mono text-xs">{s.id.substring(0, 8)}...</TableCell>
-                                      <TableCell className="text-xs">{s.start ? new Date(s.start).toLocaleString() : '—'}</TableCell>
-                                      <TableCell className="text-xs">{s.end ? new Date(s.end).toLocaleString() : 'Active'}</TableCell>
-                                      <TableCell className="font-mono text-xs text-muted-foreground">{s.nas || '—'}</TableCell>
-                                      <TableCell className="text-xs text-right text-teal-600 dark:text-teal-400 font-mono">{formatMB(s.download)}</TableCell>
-                                      <TableCell className="text-xs text-right text-amber-600 dark:text-amber-400 font-mono">{formatMB(s.upload)}</TableCell>
-                                      <TableCell className="text-xs text-right">{formatDuration(s.duration)}</TableCell>
+                              <div className="overflow-x-auto">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">Session</TableHead>
+                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">Start</TableHead>
+                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">End</TableHead>
+                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden sm:table-cell">NAS</TableHead>
+                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">DL</TableHead>
+                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">UL</TableHead>
+                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">Duration</TableHead>
                                     </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {user.sessionHistory.map((s: any) => (
+                                      <TableRow key={s.id}>
+                                        <TableCell className="font-mono text-[10px] sm:text-xs whitespace-nowrap">{s.id.substring(0, 8)}...</TableCell>
+                                        <TableCell className="text-[10px] sm:text-xs whitespace-nowrap">{s.start ? new Date(s.start).toLocaleString() : '—'}</TableCell>
+                                        <TableCell className="text-[10px] sm:text-xs whitespace-nowrap">{s.end ? new Date(s.end).toLocaleString() : 'Active'}</TableCell>
+                                        <TableCell className="font-mono text-[10px] sm:text-xs text-muted-foreground hidden sm:table-cell">{s.nas || '—'}</TableCell>
+                                        <TableCell className="text-[10px] sm:text-xs text-right text-teal-600 dark:text-teal-400 font-mono whitespace-nowrap">{formatMB(s.download)}</TableCell>
+                                        <TableCell className="text-[10px] sm:text-xs text-right text-amber-600 dark:text-amber-400 font-mono whitespace-nowrap">{formatMB(s.upload)}</TableCell>
+                                        <TableCell className="text-[10px] sm:text-xs text-right whitespace-nowrap">{formatDuration(s.duration)}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
                             ) : (
                               <p className="text-xs text-muted-foreground">No session history available</p>
                             )}
@@ -882,7 +884,7 @@ function UserBandwidthTab() {
                 ))}
                 {filteredUsers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8 text-xs">
                       {usersData.length === 0
                         ? 'No user bandwidth data. Data is sourced from RADIUS accounting sessions.'
                         : 'No users match your search.'}
@@ -891,7 +893,7 @@ function UserBandwidthTab() {
                 )}
               </TableBody>
             </Table>
-          </ScrollArea>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -1088,7 +1090,7 @@ function WebSurfingTab() {
       <div className="grid md:grid-cols-3 gap-3 sm:gap-4">
         <Card className="md:col-span-2">
           <CardHeader className="pb-2"><CardTitle className="text-sm sm:text-base">Top 20 Most Visited Domains</CardTitle></CardHeader>
-          <CardContent>
+          <CardContent className="overflow-hidden">
             <ScrollArea className="max-h-64">
               <div className="space-y-1.5">
                 {topDomains.map((d, i) => (
@@ -1133,10 +1135,9 @@ function WebSurfingTab() {
       {/* Domain Access Logs Table */}
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm sm:text-base">Domain Access Logs</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          <ScrollArea className="max-h-96">
-            <div className="overflow-x-auto">
-              <Table>
+        <CardContent className="p-0 overflow-hidden">
+          <div className="max-h-96 overflow-auto">
+            <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs whitespace-nowrap">Timestamp</TableHead>
@@ -1168,8 +1169,7 @@ function WebSurfingTab() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
-          </ScrollArea>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -1298,9 +1298,8 @@ function NATLogsTab() {
 
       {/* NAT Logs Table */}
       <Card>
-        <CardContent className="p-0">
-          <ScrollArea className="max-h-[500px]">
-            <div className="overflow-x-auto">
+        <CardContent className="p-0 overflow-hidden">
+          <div className="max-h-[500px] overflow-auto">
               <Table>
                 <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow>
@@ -1351,8 +1350,7 @@ function NATLogsTab() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
-          </ScrollArea>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -1571,74 +1569,72 @@ function VoucherReportTab() {
             {statusFilter !== 'all' && ` (filtered: ${statusFilter})`}
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-0">
-          <ScrollArea className="max-h-96">
+        <CardContent className="p-0 overflow-hidden">
+          <div className="max-h-96 overflow-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Plan</TableHead>
-                  <TableHead>Guest / Issued To</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Validity</TableHead>
-                  <TableHead>Used At</TableHead>
-                  <TableHead>Issued</TableHead>
-                  <TableHead className="text-right">Property</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap">Code</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap hidden sm:table-cell">Plan</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap">Guest</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap">Status</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap hidden md:table-cell">Validity</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Used At</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Issued</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap text-right hidden xl:table-cell">Property</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {vouchers.map((v) => (
                   <TableRow key={v.id} className="hover:bg-muted/30">
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Ticket className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="font-mono font-medium text-sm">{v.code}</span>
+                      <div className="flex items-center gap-1.5">
+                        <Ticket className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                        <span className="font-mono font-medium text-[10px] sm:text-sm">{v.code}</span>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6"
+                          className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0"
                           onClick={() => {
                             navigator.clipboard.writeText(v.code);
                             toast({ title: 'Copied', description: `Voucher code ${v.code} copied to clipboard` });
                           }}
                         >
-                          <Copy className="h-3 w-3" />
+                          <Copy className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                         </Button>
                       </div>
                     </TableCell>
-                    <TableCell><Badge variant="outline" className="text-xs">{v.planName}</Badge></TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {v.guestName ? (
-                          <span className="font-medium">{v.guestName}</span>
-                        ) : v.issuedTo ? (
-                          <span>{v.issuedTo}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </div>
+                    <TableCell className="hidden sm:table-cell"><Badge variant="outline" className="text-[10px] sm:text-xs">{v.planName}</Badge></TableCell>
+                    <TableCell className="text-[10px] sm:text-xs">
+                      {v.guestName ? (
+                        <span className="font-medium">{v.guestName}</span>
+                      ) : v.issuedTo ? (
+                        <span>{v.issuedTo}</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
-                      <Badge className={cn('text-xs', statusColors[v.status] || '')}>
+                      <Badge className={cn('text-[10px] sm:text-xs', statusColors[v.status] || '')}>
                         {v.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="text-[10px] sm:text-xs text-muted-foreground hidden md:table-cell">
                       <div>{new Date(v.validFrom).toLocaleDateString()}</div>
                       <div>→ {new Date(v.validUntil).toLocaleDateString()}</div>
                     </TableCell>
-                    <TableCell className="text-xs">
+                    <TableCell className="text-[10px] sm:text-xs hidden lg:table-cell">
                       {v.usedAt ? new Date(v.usedAt).toLocaleString() : <span className="text-muted-foreground">—</span>}
                     </TableCell>
-                    <TableCell className="text-xs">
+                    <TableCell className="text-[10px] sm:text-xs hidden lg:table-cell">
                       {v.issuedAt ? new Date(v.issuedAt).toLocaleDateString() : <span className="text-muted-foreground">—</span>}
                     </TableCell>
-                    <TableCell className="text-right text-xs text-muted-foreground truncate max-w-32">{v.propertyName}</TableCell>
+                    <TableCell className="text-right text-[10px] sm:text-xs text-muted-foreground truncate max-w-32 hidden xl:table-cell">{v.propertyName}</TableCell>
                   </TableRow>
                 ))}
                 {vouchers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8 text-xs">
                       {searchQuery || statusFilter !== 'all'
                         ? 'No vouchers match your filters.'
                         : 'No vouchers found. Create vouchers from the WiFi Management section.'}
@@ -1647,7 +1643,7 @@ function VoucherReportTab() {
                 )}
               </TableBody>
             </Table>
-          </ScrollArea>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -2885,16 +2881,16 @@ function SystemHealthTab() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="max-h-64">
+          <CardContent className="p-0 overflow-hidden">
+            <div className="max-h-64 overflow-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Metric</TableHead>
-                    <TableHead>Condition</TableHead>
-                    <TableHead className="text-right">Threshold</TableHead>
-                    <TableHead>Label</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap">Metric</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap">Condition</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap text-right">Threshold</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap">Label</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap text-center">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -2915,7 +2911,7 @@ function SystemHealthTab() {
                   ))}
                 </TableBody>
               </Table>
-            </ScrollArea>
+            </div>
           </CardContent>
         </Card>
 
