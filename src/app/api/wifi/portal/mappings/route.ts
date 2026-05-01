@@ -91,6 +91,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate UUID format for all UUID fields to prevent DB type cast errors
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const uuidFields = { propertyId, portalId, fallbackPortalId, vlanConfigId };
+    for (const [field, value] of Object.entries(uuidFields)) {
+      if (value && !UUID_REGEX.test(value)) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid UUID format for field: ${field}` } },
+          { status: 400 }
+        );
+      }
+    }
+
     // Verify property belongs to tenant
     const property = await db.property.findFirst({
       where: { id: propertyId, tenantId },

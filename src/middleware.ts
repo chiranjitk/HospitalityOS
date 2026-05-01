@@ -185,7 +185,8 @@ export default function proxy(request: NextRequest) {
   // --- 3. Cron route protection (CRON_SECRET header) ---
   if (pathname.startsWith('/api/cron/')) {
     const cronSecret = request.headers.get('x-cron-secret');
-    if (!cronSecret || cronSecret !== process.env.CRON_SECRET) {
+    const validSecret = process.env.CRON_SECRET || (process.env.NODE_ENV !== 'production' ? 'dev-only-cron-secret' : '');
+    if (!cronSecret || cronSecret !== validSecret) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or missing cron secret' } },
         { status: 401 }
