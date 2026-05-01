@@ -167,6 +167,11 @@ if [ -f "$SQL_MOD" ]; then
         sed -i '/^\s*password/a connect_timeout = 3' "$SQL_MOD"
     fi
 
+    # Set aggressive pool settings (avoid 5 simultaneous PG connections on fresh start)
+    sed -i 's/^[[:space:]]*start\s*=.*/start = 1/' "$SQL_MOD"
+    sed -i 's/^[[:space:]]*min\s*=.*/min = 1/' "$SQL_MOD"
+    sed -i 's/^[[:space:]]*spare\s*=.*/spare = 3/' "$SQL_MOD"
+
     # Remove debug logfile if present
     sed -i '/^[[:space:]]*logfile.*=.*sql_debug/d' "$SQL_MOD"
 
