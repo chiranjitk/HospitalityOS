@@ -255,3 +255,68 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
+
+/* ============================================
+   ENHANCED GLOBAL STYLES
+   Dark mode refinements, utility classes & effects
+   ============================================ */
+
+/* Custom Scrollbar - Light & Dark */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(from var(--border) l c h / 0.4) transparent;
+}
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: oklch(from var(--border) l c h / 0.3);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: oklch(from var(--border) l c h / 0.5);
+}
+
+/* Dark mode glassmorphism utility */
+.glass-dark {
+  background: oklch(0.15 0.01 260 / 0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid oklch(1 0 0 / 0.08);
+}
+
+/* Smooth transitions for theme switching */
+html.dark * {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.15s ease;
+}
+
+/* Selection color */
+::selection {
+  background: oklch(from var(--primary) l c h / 0.25);
+  color: oklch(from var(--primary-foreground) l c h);
+}
+
+/* Focus visible ring */
+:focus-visible {
+  outline: 2px solid oklch(from var(--ring) l c h / 0.5);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Animated gradient background */
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Custom utility for subtle text gradient */
+.text-gradient {
+  background: linear-gradient(135deg, var(--primary), oklch(0.7 0.15 160));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Dark mode card glow effect */
+.dark .card-glow {
+  box-shadow: 0 0 30px -10px oklch(from var(--primary) l c h / 0.15),
+              0 0 60px -20px oklch(from var(--primary) l c h / 0.08);
+}

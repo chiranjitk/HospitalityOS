@@ -69,6 +69,8 @@ import { DailyPerformanceScoreWidget } from './widgets/daily-performance-score';
 import { RevenueTrendWidget } from './revenue-trend-widget';
 import { QuickInsightsWidget } from './widgets/quick-insights';
 import { PropertyStatusSummaryWidget } from './widgets/property-status-summary';
+import { WelcomeBannerWidget } from './widgets/welcome-banner';
+import { RoomOccupancyBreakdownWidget } from './widgets/room-occupancy-breakdown';
 
 const OccupancyHeatmap = React.lazy(() => import('./occupancy-heatmap').then(m => ({ default: m.OccupancyHeatmap })));
 
@@ -583,6 +585,11 @@ export default function OverviewDashboard() {
       <div className="space-y-5 relative">
         <MeshBackground />
 
+        {/* ── Welcome Banner ── */}
+        <div className="relative z-10">
+          <WelcomeBannerWidget />
+        </div>
+
         {/* ── Greeting ── */}
         <GreetingCard
           occupancy={summary?.occupancy || 0}
@@ -660,6 +667,11 @@ export default function OverviewDashboard() {
             <RoomStatusWidget />
           </div>
           <PropertyStatusSummaryWidget />
+        </div>
+
+        {/* ── Room Occupancy Breakdown ── */}
+        <div className="relative z-10">
+          <RoomOccupancyBreakdownWidget />
         </div>
 
         {/* ── Alerts, Activity & Staff ── */}

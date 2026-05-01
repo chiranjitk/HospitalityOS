@@ -508,6 +508,10 @@
   "dashboard": {
     "title": "Dashboard",
     "welcome": "Welcome back! Here's an overview of your property performance today.",
+    "welcomeBack": "Welcome back",
+    "guestFrontdesk": "3 guests expected today",
+    "housekeepingRole": "12 rooms scheduled for turnover",
+    "today": "Today",
     "totalRevenue": "Total Revenue",
     "occupancyRate": "Occupancy Rate",
     "activeBookings": "Active Bookings",
@@ -812,7 +816,13 @@
     "insightPositive": "Positive",
     "insightWarning": "Needs Attention",
     "insightNeutral": "Info",
-    "viewDetails": "View Details"
+    "viewDetails": "View Details",
+    "viewRooms": "View Rooms",
+    "refresh": "Refresh",
+    "propertyStatus": "Property Status",
+    "occupancyBreakdown": "Room Occupancy Breakdown",
+    "byStatus": "By Status",
+    "byFloor": "By Floor"
   },
   "forms": {
     "required": "Required",

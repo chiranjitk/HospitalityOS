@@ -36,5 +36,18 @@ module.exports = {
       },
       max_memory_restart: '2G',
     },
+    {
+      name: 'staysuite-realtime',
+      script: 'mini-services/realtime-service/index.ts',
+      cwd: '/home/z/my-project',
+      interpreter: 'bun',
+      args: '--hot',
+      watch: false,
+      autorestart: true,
+      env: {
+        PORT: 3003,
+        DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/staysuite',
+      },
+    },
   ],
 };
