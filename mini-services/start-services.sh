@@ -27,7 +27,7 @@ sleep 1
 
 # Start DHCP Service (port 3011)
 cd "$DHCP_DIR"
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/staysuite" \
+DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/staysuite" \
 PROJECT_ROOT="$PROJECT_ROOT" \
 DNSMASQ_CONF_DIR="$PROJECT_ROOT/dhcp-local" \
 DNSMASQ_LEASES="/tmp/dnsmasq-dhcp.leases" \
@@ -37,7 +37,7 @@ echo "DHCP Service started (PID: $DHCP_PID, Port: 3011)"
 
 # Start DNS Service (port 3012)
 cd "$DNS_DIR"
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/staysuite" \
+DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/staysuite" \
 PROJECT_ROOT="$PROJECT_ROOT" \
 DNSMASQ_CONFIG_DIR="$PROJECT_ROOT/dns-local" \
 nohup bun index.ts >> /tmp/dns-service.log 2>&1 &

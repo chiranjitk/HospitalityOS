@@ -860,19 +860,34 @@ async function parseLeasesFile(): Promise<any[]> {
     leasesFile: DNSMASQ_LEASES,
   });
 
-  // Verify DB connection
-  try {
-    await pool.query('SELECT 1');
-    log.info('Connected to PostgreSQL', {
-      database: DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
-    });
-  } catch (error) {
-    log.error('Failed to connect to PostgreSQL', {
-      database: DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
-      error: String(error),
-    });
-    process.exit(1);
+  // Verify DB connection with retry (PG may not be ready immediately after boot)
+  const maxRetries = 10;
+  const retryDelay = 3000;
+  let dbConnected = false;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await pool.query('SELECT 1');
+      dbConnected = true;
+      log.info('Connected to PostgreSQL', {
+        database: DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
+      });
+      break;
+    } catch (error) {
+      const isLast = attempt === maxRetries;
+      log[isLast ? 'error' : 'warn'](
+        isLast
+          ? 'Failed to connect to PostgreSQL after all retries'
+          : `PostgreSQL connection attempt ${attempt}/${maxRetries} failed, retrying in ${retryDelay / 1000}s...`,
+        {
+          database: DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
+          error: String(error),
+        }
+      );
+      if (isLast) process.exit(1);
+      await new Promise(r => setTimeout(r, retryDelay));
+    }
   }
+  if (!dbConnected) process.exit(1);
 
   // Generate initial config
   await generateConfig();

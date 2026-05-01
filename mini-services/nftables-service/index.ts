@@ -35,12 +35,17 @@ const startTime = Date.now();
 
 // Database — use NFTABLES_DB_URL > DATABASE_URL > fallback PostgreSQL URL.
 // In production, DATABASE_URL is injected by PM2 ecosystem.config.js.
-const DB_URL = process.env.NFTABLES_DB_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/staysuite';
+const DB_URL = process.env.NFTABLES_DB_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/staysuite';
 const pool = new pg.Pool({
   connectionString: DB_URL,
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 10000,
+});
+
+// Reconnect on pool-level errors (e.g. PostgreSQL restart)
+pool.on('error', (err: Error) => {
+  log.warn('PostgreSQL pool error (auto-recovering)', { error: err.message });
 });
 
 // Nettype constants
@@ -1755,33 +1760,45 @@ app.get('/api/config/preview', async (c) => {
 // Database connection verification on startup
 // ============================================================================
 
-async function verifyDatabase() {
-  try {
-    const res = await pool.query('SELECT NOW() as now, current_database() as db');
-    log.info('Database connected', {
-      db: res.rows[0].db,
-      time: res.rows[0].now,
-      url: DB_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
-    });
+async function verifyDatabase(maxRetries = 10, delayMs = 3000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await pool.query('SELECT NOW() as now, current_database() as db');
+      log.info('Database connected', {
+        db: res.rows[0].db,
+        time: res.rows[0].now,
+        url: DB_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
+      });
 
-    // Verify tables exist
-    const tables = await pool.query(
-      `SELECT tablename FROM pg_tables WHERE schemaname = 'public'
-       AND tablename IN ('NftGuiRule', 'NftPortForward', 'NftRateLimit', 'NftQuickBlock', 'NftSchedule')`
-    );
-    const found = tables.rows.map(r => r.tablename);
-    const expected = ['NftGuiRule', 'NftPortForward', 'NftRateLimit', 'NftQuickBlock', 'NftSchedule'];
-    const missing = expected.filter(t => !found.includes(t));
-    if (missing.length > 0) {
-      log.error('Missing database tables', { missing });
-    } else {
-      log.info('All nftables-service tables verified', { tables: found });
+      // Verify tables exist
+      const tables = await pool.query(
+        `SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+         AND tablename IN ('NftGuiRule', 'NftPortForward', 'NftRateLimit', 'NftQuickBlock', 'NftSchedule')`
+      );
+      const found = tables.rows.map(r => r.tablename);
+      const expected = ['NftGuiRule', 'NftPortForward', 'NftRateLimit', 'NftQuickBlock', 'NftSchedule'];
+      const missing = expected.filter(t => !found.includes(t));
+      if (missing.length > 0) {
+        log.error('Missing database tables', { missing });
+      } else {
+        log.info('All nftables-service tables verified', { tables: found });
+      }
+      return; // Success — exit retry loop
+    } catch (error) {
+      const isLast = attempt === maxRetries;
+      log[isLast ? 'error' : 'warn'](
+        isLast
+          ? 'Database connection failed after all retries — service will start but operations will fail'
+          : `Database connection attempt ${attempt}/${maxRetries} failed, retrying in ${delayMs / 1000}s...`,
+        {
+          error: String(error),
+          url: DB_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
+          attempt,
+        }
+      );
+      if (isLast) break;
+      await new Promise(r => setTimeout(r, delayMs));
     }
-  } catch (error) {
-    log.error('Database connection failed — service will start but all operations will fail', {
-      error: String(error),
-      url: DB_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
-    });
   }
 }
 

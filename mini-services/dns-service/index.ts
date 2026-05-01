@@ -64,16 +64,28 @@ pool.on('error', (err: Error) => {
   log.error('Unexpected database pool error', { error: err.message });
 });
 
-// Test connection
+// Test connection with retry (PG may not be ready immediately after boot)
 (async () => {
-  try {
-    const client = await pool.connect();
-    await client.query('SELECT 1');
-    client.release();
-    log.info('Connected to PostgreSQL', { database: DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@') });
-  } catch (error) {
-    log.error('Failed to connect to PostgreSQL', { database: DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'), error: String(error) });
-    process.exit(1);
+  const maxRetries = 10;
+  const delayMs = 3000;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const client = await pool.connect();
+      await client.query('SELECT 1');
+      client.release();
+      log.info('Connected to PostgreSQL', { database: DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@') });
+      break;
+    } catch (error) {
+      const isLast = attempt === maxRetries;
+      log[isLast ? 'error' : 'warn'](
+        isLast
+          ? 'Failed to connect to PostgreSQL after all retries — exiting'
+          : `PostgreSQL connection attempt ${attempt}/${maxRetries} failed, retrying in ${delayMs / 1000}s...`,
+        { database: DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'), error: String(error) }
+      );
+      if (isLast) process.exit(1);
+      await new Promise(r => setTimeout(r, delayMs));
+    }
   }
 })();
 
