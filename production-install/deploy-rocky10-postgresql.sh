@@ -70,7 +70,7 @@ wait_for_pg() {
     if pg_isready -h "$host" -p "$port" -q 2>/dev/null; then
       return 0
     fi
-    sleep 1
+    sleep 3
   done
   return 1
 }
@@ -362,7 +362,7 @@ for i in $(seq 1 30); do
     info "PostgreSQL TCP ready (attempt $i/30)"
     break
   fi
-  sleep 1
+  sleep 3
 done
 if [[ $PG_READY -eq 0 ]]; then
   error "PostgreSQL not accepting TCP connections on 127.0.0.1:5432"
