@@ -845,13 +845,12 @@ html.dark[data-theme="scarlet-noir"],
 
 /* ===== SCARLET NOIR - THE NETFLIX LOOK (MOST DRAMATIC) ===== */
 
-/* Cards - Scarlet accent, pure black backgrounds, red glow */
+/* Cards - Scarlet accent, red glow */
 [data-theme="scarlet-noir"] [data-slot="card"] {
   border: 1px solid oklch(0.58 0.25 22 / 0.2) !important;
   box-shadow: 0 4px 20px -4px oklch(0 0 0 / 0.4) !important;
   transition: all 0.3s ease;
   position: relative;
-  background: oklch(0.08 0 0) !important;
 }
 
 [data-theme="scarlet-noir"] [data-slot="card"]::after {
@@ -1064,7 +1063,7 @@ html.dark[data-theme="slate-enterprise"],
   --card: oklch(0.20 0.015 230);
   --card-foreground: oklch(0.90 0.01 230);
   --popover: oklch(0.20 0.015 230);
-  --popover-foreground: oklch(0.90 01 230);
+  --popover-foreground: oklch(0.90 0.01 230);
 
   --primary: oklch(0.55 0.06 230);
   --primary-foreground: oklch(0.98 0.005 230);

@@ -95,6 +95,8 @@ export function applyUITheme(themeId: UIStyleTheme, mode: 'light' | 'dark') {
       ['foreground', '--foreground'],
       ['card', '--card'],
       ['cardForeground', '--card-foreground'],
+      ['popover', '--popover'],
+      ['popoverForeground', '--popover-foreground'],
       ['muted', '--muted'],
       ['mutedForeground', '--muted-foreground'],
       ['border', '--border'],
@@ -127,6 +129,10 @@ export function applyUITheme(themeId: UIStyleTheme, mode: 'light' | 'dark') {
         root.style.setProperty(cssVar, value);
       }
     }
+
+    // Popover derives from card values (popover is a floating card)
+    root.style.setProperty('--popover', colors.card);
+    root.style.setProperty('--popover-foreground', colors.cardForeground);
 
     // Apply feature-specific data attributes (for CSS feature selectors)
     const features = theme.features;
