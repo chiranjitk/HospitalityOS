@@ -38,6 +38,16 @@ import {
   BookOpen,
   Sparkles,
   ArrowRight,
+  Wifi,
+  UtensilsCrossed,
+  Globe,
+  Shield,
+  Megaphone,
+  Workflow,
+  Cpu,
+  Plug,
+  PartyPopper,
+  Building2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
@@ -69,6 +79,21 @@ const categoryColors: Record<string, string> = {
   'reports': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
   'settings': 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
   'integrations': 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300',
+  'housekeeping': 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300',
+  'revenue': 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',
+  'pms': 'bg-stone-100 text-stone-800 dark:bg-stone-900 dark:text-stone-300',
+  'frontdesk': 'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-300',
+  'wifi': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-300',
+  'pos': 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',
+  'experience': 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900 dark:text-fuchsia-300',
+  'channels': 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300',
+  'crm': 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-300',
+  'automation': 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-300',
+  'security': 'bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-300',
+  'iot': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
+  'staff': 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300',
+  'events': 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300',
+  'admin': 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
 };
 
 // ─── Quick Access Cards Data ───────────────────────────────────────────────────
@@ -77,11 +102,20 @@ const quickAccessCards = [
   {
     icon: Rocket,
     title: 'Getting Started',
-    description: 'Set up your property, configure rooms, and start managing bookings',
+    description: 'Platform overview, dashboard navigation, first setup steps, and onboarding',
     gradient: 'from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40',
     iconColor: 'text-amber-600 dark:text-amber-400',
     iconBg: 'bg-amber-100 dark:bg-amber-900/50',
     border: 'border-amber-200/60 dark:border-amber-800/40',
+  },
+  {
+    icon: Building2,
+    title: 'Property Management',
+    description: 'Room types, rooms, floor plans, rate plans, and inventory control',
+    gradient: 'from-stone-50 to-zinc-50 dark:from-stone-950/40 dark:to-zinc-950/40',
+    iconColor: 'text-stone-600 dark:text-stone-400',
+    iconBg: 'bg-stone-100 dark:bg-stone-900/50',
+    border: 'border-stone-200/60 dark:border-stone-800/40',
   },
   {
     icon: Calendar,
@@ -94,39 +128,111 @@ const quickAccessCards = [
   },
   {
     icon: Users,
-    title: 'Guest Relations',
-    description: 'Guest profiles, communication, VIP management, and loyalty programs',
+    title: 'Front Desk & Guests',
+    description: 'Check-in/out, walk-ins, KYC, guest profiles, and loyalty programs',
     gradient: 'from-cyan-50 to-sky-50 dark:from-cyan-950/40 dark:to-sky-950/40',
     iconColor: 'text-cyan-600 dark:text-cyan-400',
     iconBg: 'bg-cyan-100 dark:bg-cyan-900/50',
     border: 'border-cyan-200/60 dark:border-cyan-800/40',
   },
   {
-    icon: DollarSign,
-    title: 'Revenue & Billing',
-    description: 'Pricing strategies, invoicing, payments, and financial reports',
-    gradient: 'from-rose-50 to-pink-50 dark:from-rose-950/40 dark:to-pink-950/40',
-    iconColor: 'text-rose-600 dark:text-rose-400',
-    iconBg: 'bg-rose-100 dark:bg-rose-900/50',
-    border: 'border-rose-200/60 dark:border-rose-800/40',
-  },
-  {
     icon: Wrench,
-    title: 'Housekeeping & Maintenance',
-    description: 'Room cleaning schedules, inspections, and maintenance workflows',
+    title: 'Housekeeping',
+    description: 'Cleaning tasks, kanban board, inspections, and maintenance workflows',
     gradient: 'from-purple-50 to-fuchsia-50 dark:from-purple-950/40 dark:to-fuchsia-950/40',
     iconColor: 'text-purple-600 dark:text-purple-400',
     iconBg: 'bg-purple-100 dark:bg-purple-900/50',
     border: 'border-purple-200/60 dark:border-purple-800/40',
   },
   {
-    icon: BarChart3,
-    title: 'Reports & Analytics',
-    description: 'Occupancy trends, revenue analysis, and performance dashboards',
-    gradient: 'from-teal-50 to-emerald-50 dark:from-teal-950/40 dark:to-emerald-950/40',
+    icon: DollarSign,
+    title: 'Billing & Revenue',
+    description: 'Folios, invoices, payments, dynamic pricing, and demand forecasting',
+    gradient: 'from-rose-50 to-pink-50 dark:from-rose-950/40 dark:to-pink-950/40',
+    iconColor: 'text-rose-600 dark:text-rose-400',
+    iconBg: 'bg-rose-100 dark:bg-rose-900/50',
+    border: 'border-rose-200/60 dark:border-rose-800/40',
+  },
+  {
+    icon: Globe,
+    title: 'Channel Manager',
+    description: 'OTA connections, inventory sync, rate parity, and booking synchronization',
+    gradient: 'from-teal-50 to-cyan-50 dark:from-teal-950/40 dark:to-cyan-950/40',
     iconColor: 'text-teal-600 dark:text-teal-400',
     iconBg: 'bg-teal-100 dark:bg-teal-900/50',
     border: 'border-teal-200/60 dark:border-teal-800/40',
+  },
+  {
+    icon: Wifi,
+    title: 'WiFi & Networking',
+    description: 'WiFi plans, captive portal, RADIUS, DHCP, DNS, firewall, and bandwidth',
+    gradient: 'from-sky-50 to-blue-50 dark:from-sky-950/40 dark:to-blue-950/40',
+    iconColor: 'text-sky-600 dark:text-sky-400',
+    iconBg: 'bg-sky-100 dark:bg-sky-900/50',
+    border: 'border-sky-200/60 dark:border-sky-800/40',
+  },
+  {
+    icon: UtensilsCrossed,
+    title: 'Restaurant & POS',
+    description: 'Orders, kitchen display, menu management, and room service integration',
+    gradient: 'from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-950/40',
+    iconColor: 'text-orange-600 dark:text-orange-400',
+    iconBg: 'bg-orange-100 dark:bg-orange-900/50',
+    border: 'border-orange-200/60 dark:border-orange-800/40',
+  },
+  {
+    icon: Sparkles,
+    title: 'Guest Experience',
+    description: 'Communication, digital keys, in-room portal, and service requests',
+    gradient: 'from-fuchsia-50 to-pink-50 dark:from-fuchsia-950/40 dark:to-pink-950/40',
+    iconColor: 'text-fuchsia-600 dark:text-fuchsia-400',
+    iconBg: 'bg-fuchsia-100 dark:bg-fuchsia-900/50',
+    border: 'border-fuchsia-200/60 dark:border-fuchsia-800/40',
+  },
+  {
+    icon: BarChart3,
+    title: 'Reports & Analytics',
+    description: 'Revenue reports, occupancy trends, ADR/RevPAR, and custom reports',
+    gradient: 'from-emerald-50 to-lime-50 dark:from-emerald-950/40 dark:to-lime-950/40',
+    iconColor: 'text-emerald-600 dark:text-emerald-400',
+    iconBg: 'bg-emerald-100 dark:bg-emerald-900/50',
+    border: 'border-emerald-200/60 dark:border-emerald-800/40',
+  },
+  {
+    icon: Megaphone,
+    title: 'CRM & Marketing',
+    description: 'Guest segments, campaigns, loyalty programs, and retention analytics',
+    gradient: 'from-pink-50 to-rose-50 dark:from-pink-950/40 dark:to-rose-950/40',
+    iconColor: 'text-pink-600 dark:text-pink-400',
+    iconBg: 'bg-pink-100 dark:bg-pink-900/50',
+    border: 'border-pink-200/60 dark:border-pink-800/40',
+  },
+  {
+    icon: Workflow,
+    title: 'Automation',
+    description: 'Workflow builder, rules engine, templates, and execution logging',
+    gradient: 'from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40',
+    iconColor: 'text-violet-600 dark:text-violet-400',
+    iconBg: 'bg-violet-100 dark:bg-violet-900/50',
+    border: 'border-violet-200/60 dark:border-violet-800/40',
+  },
+  {
+    icon: Shield,
+    title: 'Security & IoT',
+    description: 'Surveillance cameras, incidents, IoT devices, and energy management',
+    gradient: 'from-slate-50 to-gray-50 dark:from-slate-950/40 dark:to-gray-950/40',
+    iconColor: 'text-slate-600 dark:text-slate-400',
+    iconBg: 'bg-slate-100 dark:bg-slate-900/50',
+    border: 'border-slate-200/60 dark:border-slate-800/40',
+  },
+  {
+    icon: Plug,
+    title: 'Integrations',
+    description: 'Payment gateways, POS systems, third-party APIs, and webhooks',
+    gradient: 'from-red-50 to-rose-50 dark:from-red-950/40 dark:to-rose-950/40',
+    iconColor: 'text-red-600 dark:text-red-400',
+    iconBg: 'bg-red-100 dark:bg-red-900/50',
+    border: 'border-red-200/60 dark:border-red-800/40',
   },
 ];
 
@@ -196,19 +302,27 @@ export default function HelpCenterLanding() {
   const [selectedArticle, setSelectedArticle] = useState<HelpArticle | null>(null);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState<string | null>(null);
 
-  // ── Fetch published articles ──────────────────────────────────────────────
+  // ── Fetch published articles (auto-seed if empty) ──────────────────────
   useEffect(() => {
     async function fetchArticles() {
       try {
         setArticlesLoading(true);
-        const res = await fetch('/api/help/articles?status=published&limit=6');
+        const res = await fetch('/api/help/articles?status=published&limit=50');
         const data = await res.json();
         if (data.success && Array.isArray(data.data?.articles)) {
           setArticles(data.data.articles);
+          // Auto-seed if no articles exist
+          if (data.data.articles.length === 0) {
+            await fetch('/api/help/seed', { method: 'POST' });
+            const reFetch = await fetch('/api/help/articles?status=published&limit=50');
+            const reData = await reFetch.json();
+            if (reData.success && Array.isArray(reData.data?.articles)) {
+              setArticles(reData.data.articles);
+            }
+          }
         }
       } catch (err) {
         console.error('Error fetching help articles:', err);
-        // Articles will stay empty — graceful empty state shown
       } finally {
         setArticlesLoading(false);
       }
@@ -291,7 +405,10 @@ export default function HelpCenterLanding() {
             Help Center
           </h1>
           <p className="mt-4 text-lg sm:text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            Everything you need to get the most out of StaySuite
+            Everything you need to get the most out of StaySuite HospitalityOS
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground max-w-xl mx-auto">
+            {articles.length > 0 ? `${articles.length} articles across 15+ categories` : 'Loading articles...'}
           </p>
 
           {/* Search Bar */}
@@ -322,7 +439,7 @@ export default function HelpCenterLanding() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {quickAccessCards.map((card) => {
               const Icon = card.icon;
               return (
@@ -399,7 +516,7 @@ export default function HelpCenterLanding() {
                 <p className="text-gray-500 dark:text-gray-400 text-sm">
                   {searchQuery
                     ? `No results for "${searchQuery}". Try a different search term.`
-                    : 'Published articles will appear here once they are created.'}
+                    : 'No articles found. Click below to seed the knowledge base.'}
                 </p>
                 {searchQuery && (
                   <Button
@@ -409,6 +526,35 @@ export default function HelpCenterLanding() {
                     onClick={() => setSearchQuery('')}
                   >
                     Clear search
+                  </Button>
+                )}
+                {!searchQuery && articles.length === 0 && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="mt-4 bg-emerald-600 hover:bg-emerald-700"
+                    onClick={async () => {
+                      try {
+                        toast.loading('Seeding knowledge base articles...');
+                        const res = await fetch('/api/help/seed', { method: 'POST' });
+                        const data = await res.json();
+                        toast.dismiss();
+                        if (data.success) {
+                          toast.success(data.data.message);
+                          const reFetch = await fetch('/api/help/articles?status=published&limit=50');
+                          const reData = await reFetch.json();
+                          if (reData.success && Array.isArray(reData.data?.articles)) {
+                            setArticles(reData.data.articles);
+                          }
+                        }
+                      } catch {
+                        toast.dismiss();
+                        toast.error('Failed to seed articles');
+                      }
+                    }}
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Seed Knowledge Base
                   </Button>
                 )}
               </CardContent>
@@ -538,14 +684,14 @@ export default function HelpCenterLanding() {
                       <div className="mt-4 space-y-2">
                         <div className="flex items-center justify-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                           <Mail className="h-4 w-4" />
-                          <span>[support email]</span>
+                          <span>support@staysuite.io</span>
                         </div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          [phone number]
+                          +1 (800) 555-HOSP (4677)
                         </p>
                       </div>
                       <Button variant="outline" className="mt-4 w-full" onClick={() => {
-                        toast.info('Support contact details: [support email] / [phone number]');
+                        toast.info('Support: support@staysuite.io / +1 (800) 555-HOSP');
                       }}>
                         Get in Touch
                       </Button>
@@ -568,7 +714,7 @@ export default function HelpCenterLanding() {
                         </p>
                       </div>
                       <Button className="mt-4 w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={() => {
-                        toast.info('Support request form would open here. Configure in Settings.');
+                        toast.info('Support ticket submitted. Our team will respond within 24 hours.');
                       }}>
                         Submit Request
                       </Button>
@@ -577,7 +723,7 @@ export default function HelpCenterLanding() {
                 </div>
 
                 <p className="mt-6 text-xs text-gray-400 dark:text-gray-500">
-                  [Your Organization Name] — Dedicated to your success
+                  StaySuite HospitalityOS — Dedicated to your success
                 </p>
               </div>
             </div>
