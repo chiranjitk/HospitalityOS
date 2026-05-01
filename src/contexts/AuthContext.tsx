@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store';
 
 interface User {
   id: string;
@@ -55,6 +56,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const zustandSetUser = useAuthStore((s) => s.setUser);
+  const zustandLogout = useAuthStore((s) => s.logout);
+
+  // Sync AuthContext user to Zustand store (footer, quick stats bar depend on it)
+  useEffect(() => {
+    if (user) {
+      zustandSetUser({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        avatar: user.avatar || undefined,
+        role: user.roleName,
+        permissions: user.permissions,
+        isPlatformAdmin: user.isPlatformAdmin,
+        roleId: user.roleId || undefined,
+        tenantId: user.tenantId,
+      });
+    }
+  }, [user, zustandSetUser]);
 
   const fetchSession = useCallback(async () => {
     try {
@@ -75,7 +96,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    fetchSession();
+    // Use setTimeout(0) to avoid synchronous setState in effect body (react-hooks lint rule)
+    const id = setTimeout(() => { fetchSession(); }, 0);
+    return () => clearTimeout(id);
   }, [fetchSession]);
 
   /**
@@ -212,11 +235,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
       setUser(null);
+      zustandLogout();
       router.push('/login');
     } catch (error) {
       console.error('Logout error:', error);
     }
-  }, [router]);
+  }, [router, zustandLogout]);
 
   const refreshUser = useCallback(async () => {
     await fetchSession();

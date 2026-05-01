@@ -77,6 +77,14 @@ export function Header({ className, onMenuClick }: HeaderProps) {
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  // Detect scroll for shadow effect
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 8);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Live clock - updates every second
   useEffect(() => {
@@ -162,11 +170,12 @@ export function Header({ className, onMenuClick }: HeaderProps) {
   return (
     <header className={cn(
       "sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b border-border/30 bg-background/80 backdrop-blur-2xl px-3 sm:px-4 transition-all duration-300",
+      isScrolled && "header-scrolled",
       sidebarCollapsed ? "lg:ml-[68px]" : "lg:ml-[260px]", // Dynamic margin based on sidebar state
       className
     )}>
-      {/* Subtle bottom accent line */}
-      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+      {/* Gradient bottom accent line */}
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 via-50% oklch(0.7 0.15 160 / 0.2) to-transparent" />
 
       {/* Left Section */}
       <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-shrink">
@@ -174,10 +183,10 @@ export function Header({ className, onMenuClick }: HeaderProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="h-11 w-11 lg:hidden rounded-xl hover:bg-muted/80 active:scale-95 transition-all duration-200"
+          className="h-11 w-11 lg:hidden rounded-xl hover:bg-muted/80 active:scale-95 transition-all duration-200 hover:shadow-sm hover:shadow-primary/5"
           onClick={onMenuClick}
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-5 w-5 transition-transform duration-200 group-hover:rotate-6" />
           <span className="sr-only">{tLayout('toggleMenu')}</span>
         </Button>
 
@@ -263,8 +272,8 @@ export function Header({ className, onMenuClick }: HeaderProps) {
         {/* Help - Desktop */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground/60 hover:text-foreground hover:bg-muted/60 hidden md:flex rounded-xl transition-all duration-200" onClick={() => setActiveSection('help-center')}>
-              <HelpCircle className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground/60 hover:text-foreground hover:bg-muted/60 hidden md:flex rounded-xl transition-all duration-200 hover:shadow-sm hover:shadow-primary/5" onClick={() => setActiveSection('help-center')}>
+              <HelpCircle className="h-4 w-4 transition-transform duration-200 hover:scale-110" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" sideOffset={4} className="text-xs font-medium">{tLayout('helpCenter')}</TooltipContent>
@@ -276,10 +285,10 @@ export function Header({ className, onMenuClick }: HeaderProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="h-10 w-10 text-muted-foreground/60 hover:text-foreground hover:bg-muted/60 hidden md:flex rounded-xl transition-all duration-200"
+              className="h-10 w-10 text-muted-foreground/60 hover:text-foreground hover:bg-muted/60 hidden md:flex rounded-xl transition-all duration-200 hover:shadow-sm hover:shadow-primary/5"
               onClick={toggleShortcuts}
             >
-              <Keyboard className="h-4 w-4" />
+              <Keyboard className="h-4 w-4 transition-transform duration-200 hover:scale-110" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" sideOffset={4} className="text-xs font-medium">
@@ -291,13 +300,13 @@ export function Header({ className, onMenuClick }: HeaderProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="h-11 w-11 text-muted-foreground/60 hover:text-foreground lg:hidden rounded-xl transition-all duration-200"
+          className="h-11 w-11 text-muted-foreground/60 hover:text-foreground lg:hidden rounded-xl transition-all duration-200 hover:shadow-sm hover:shadow-primary/5"
           onClick={() => {
             setCommandPaletteOpen(true);
             paletteRef.current?.open();
           }}
         >
-          <Search className="h-4 w-4" />
+          <Search className="h-4 w-4 transition-transform duration-200 hover:scale-110" />
           <span className="sr-only">{tLayout('search')}</span>
         </Button>
 
@@ -310,13 +319,13 @@ export function Header({ className, onMenuClick }: HeaderProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="h-10 w-10 text-muted-foreground/60 hover:text-foreground hover:bg-muted/60 rounded-xl transition-all duration-200"
+              className="h-10 w-10 text-muted-foreground/60 hover:text-foreground hover:bg-muted/60 rounded-xl transition-all duration-200 hover:shadow-sm hover:shadow-primary/5"
               onClick={toggleMode}
             >
               {isDark ? (
-                <Sun className="h-4 w-4" />
+                <Sun className="h-4 w-4 transition-transform duration-200 hover:rotate-45" />
               ) : (
-                <Moon className="h-4 w-4" />
+                <Moon className="h-4 w-4 transition-transform duration-200 hover:-rotate-12" />
               )}
             </Button>
           </TooltipTrigger>
@@ -335,7 +344,7 @@ export function Header({ className, onMenuClick }: HeaderProps) {
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-11 pl-2 pr-2 md:pr-3 gap-2 hover:bg-muted rounded-xl">
+            <Button variant="ghost" className="relative h-11 pl-2 pr-2 md:pr-3 gap-2 hover:bg-muted rounded-xl transition-all duration-200 hover:shadow-sm">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="relative">

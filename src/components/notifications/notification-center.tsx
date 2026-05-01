@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRealtime, NotificationEvent } from '@/hooks/use-realtime';
+import { cn } from '@/lib/utils';
 
 // ============================================
 // Types
@@ -335,7 +336,12 @@ export function NotificationBellButton() {
     <Button
       variant="ghost"
       size="icon"
-      className="relative h-9 w-9"
+      className={cn(
+        "relative h-10 w-10 rounded-xl transition-all duration-200",
+        "text-muted-foreground/60 hover:text-foreground hover:bg-muted/60",
+        "hover:shadow-sm hover:shadow-primary/5",
+        unreadCount > 0 && "bell-pulse"
+      )}
       onClick={() => setPanelOpen(!panelOpen)}
       aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
     >

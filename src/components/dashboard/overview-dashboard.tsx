@@ -76,6 +76,9 @@ import { ActivityTimelineWidget } from './widgets/activity-timeline';
 import { StaffDutyRosterWidget } from './widgets/staff-duty-roster';
 import { RevenueForecastWidget } from './widgets/revenue-forecast';
 import { GuestDemographicsWidget } from './widgets/guest-demographics';
+import { MaintenanceTrackerProWidget } from './widgets/maintenance-tracker-pro';
+import { RevenueBreakdownDonutWidget } from './widgets/revenue-breakdown-donut';
+import { GuestFeedbackSummaryWidget } from './widgets/guest-feedback-summary';
 import { LazySection } from './lazy-section';
 
 const OccupancyHeatmap = React.lazy(() => import('./occupancy-heatmap').then(m => ({ default: m.OccupancyHeatmap })));
@@ -203,7 +206,7 @@ function GreetingCard({ occupancy = 0, arrivals = 0, alertsCount = 0 }: {
       transition={{ duration: 0.5 }}
     >
       <Card className={cn(
-        "relative overflow-hidden rounded-xl border border-border/60 shadow-md",
+        "relative overflow-hidden rounded-xl border border-border/60 shadow-md hover-lift",
         "bg-card"
       )}>
         <div className={cn("absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r", gradient)} />
@@ -291,7 +294,7 @@ function TodaySummaryCard({ summary, isLoading }: { summary: TodaySummary | null
 
   if (isLoading || !summary) {
     return (
-      <Card className="border border-border/60 shadow-md rounded-2xl bg-card">
+      <Card className="card-accent border border-border/60 shadow-md rounded-2xl bg-card">
         <CardContent className="p-5">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-[88px] rounded-xl" />)}
@@ -329,7 +332,7 @@ function TodaySummaryCard({ summary, isLoading }: { summary: TodaySummary | null
   ];
 
   return (
-    <Card className="border border-border/60 shadow-md rounded-2xl bg-card">
+    <Card className="card-accent border border-border/60 shadow-md rounded-2xl bg-card hover-lift">
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -389,12 +392,12 @@ function TodaySummaryCard({ summary, isLoading }: { summary: TodaySummary | null
 
 function SectionLabel({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
   return (
-    <div className="flex items-center gap-2.5 py-1">
-      <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-primary/10 ring-1 ring-primary/15">
+    <div className="section-header">
+      <div className="section-header-icon">
         <Icon className="h-3.5 w-3.5 text-primary" />
       </div>
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-foreground/80">{title}</h2>
-      <div className="flex-1 h-px bg-border/70" />
+      <h2 className="section-header-title">{title}</h2>
+      <div className="section-header-line" />
     </div>
   );
 }
@@ -407,7 +410,7 @@ function AlertsWidget({ alerts, isLoading }: { alerts: TodaySummary['alerts']; i
 
   if (isLoading) {
     return (
-      <Card className="border border-border/60 shadow-md rounded-2xl bg-card">
+      <Card className="card-accent border border-border/60 shadow-md rounded-2xl bg-card">
         <CardContent className="p-5">
           <Skeleton className="h-5 w-28 mb-4" />
           <div className="space-y-2">
@@ -429,7 +432,7 @@ function AlertsWidget({ alerts, isLoading }: { alerts: TodaySummary['alerts']; i
   const limitedAlerts = alerts.slice(0, 4);
 
   return (
-    <Card className="border border-border/60 shadow-md rounded-2xl bg-card">
+    <Card className="card-accent border border-border/60 shadow-md rounded-2xl bg-card hover-lift">
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -701,9 +704,10 @@ export default function OverviewDashboard() {
           <div className="relative z-10 space-y-2">
             <SectionLabel icon={Wrench} title={t('maintenanceInsights')} />
             <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
+              <MaintenanceTrackerProWidget />
               <MaintenanceTrackerWidget />
-              <GuestSegmentsWidget />
             </div>
+            <GuestSegmentsWidget />
           </div>
         </LazySection>
 
@@ -717,7 +721,8 @@ export default function OverviewDashboard() {
                 <RevenueTrendWidget />
               </div>
             </div>
-            <div className="grid gap-5 grid-cols-1 md:grid-cols-2">
+            <div className="grid gap-5 grid-cols-1 md:grid-cols-3">
+              <RevenueBreakdownDonutWidget />
               <PerformanceScoreWidget />
               <RevenueBreakdownWidget />
             </div>
@@ -766,7 +771,10 @@ export default function OverviewDashboard() {
         <LazySection>
           <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
             <SectionLabel icon={Users} title={t('guestFeedbackSection')} />
-            <GuestFeedbackWidget />
+            <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
+              <GuestFeedbackWidget />
+              <GuestFeedbackSummaryWidget />
+            </div>
           </div>
         </LazySection>
 

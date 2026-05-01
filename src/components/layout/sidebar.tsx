@@ -224,29 +224,29 @@ function SidebarItem({ item, isActive, onClick, isFeatureEnabled, hasPermission,
       onClick={onClick}
       className={cn(
         "group/item relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium",
-        "transition-all duration-200 ease-out",
+        "transition-all duration-250 ease-out",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-primary/30 focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar",
         isActive
           ? "bg-sidebar-accent/40 text-foreground font-semibold"
-          : "text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/40 hover:scale-[1.01]"
+          : "text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:translate-x-[2px]"
       )}
     >
-      {/* Active left accent bar - clean 2px solid */}
+      {/* Active left accent bar — gradient */}
       <div className={cn(
         "absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full transition-all duration-300 ease-out",
         isActive
-          ? "h-5 w-[2px] bg-primary"
-          : "h-0 w-0 bg-transparent group-hover/item:h-2 group-hover/item:w-[2px] group-hover/item:bg-primary/30"
+          ? "h-5 w-[3px] bg-gradient-to-b from-sidebar-primary via-sidebar-ring to-sidebar-primary"
+          : "h-0 w-0 bg-transparent group-hover/item:h-2 group-hover/item:w-[2px] group-hover/item:bg-sidebar-primary/30"
       )} />
 
-      {/* Icon in soft rounded container with teal tint when active */}
+      {/* Icon in soft rounded container with glow when active */}
       <div className={cn(
-        "flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200 ease-out flex-shrink-0",
+        "flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-250 ease-out flex-shrink-0",
         isActive
-          ? "bg-gradient-to-br from-sidebar-primary/15 to-sidebar-ring/5 text-sidebar-primary shadow-sm shadow-sidebar-primary/10"
+          ? "bg-gradient-to-br from-sidebar-primary/20 to-sidebar-ring/8 text-sidebar-primary shadow-sm shadow-sidebar-primary/15 sidebar-icon-glow"
           : "bg-transparent text-sidebar-foreground group-hover/item:bg-sidebar-accent/50 group-hover/item:text-sidebar-foreground"
       )}>
-        <item.icon className="h-3.5 w-3.5" />
+        <item.icon className="h-3.5 w-3.5 transition-transform duration-200 group-hover/item:scale-110" />
       </div>
 
       <span className={cn(
@@ -256,7 +256,7 @@ function SidebarItem({ item, isActive, onClick, isFeatureEnabled, hasPermission,
       {/* Notification badge with animated pulse */}
       {item.badge && (
         <span className={cn(
-          "relative inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-md text-[10px] font-semibold tabular-nums transition-all duration-200",
+          "relative inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-md text-[10px] font-semibold tabular-nums transition-all duration-250",
           isActive
             ? "bg-gradient-to-r from-sidebar-primary/20 to-sidebar-ring/15 text-sidebar-primary"
             : "bg-sidebar-accent/50 text-sidebar-foreground"
