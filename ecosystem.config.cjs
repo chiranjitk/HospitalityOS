@@ -18,7 +18,7 @@ module.exports = {
       watch: false,
       autorestart: true,
       env: {
-        LD_LIBRARY_PATH: '/home/z/my-project/freeradius-install/lib:/home/z/my-project/pgsql-runtime/lib',
+        LD_LIBRARY_PATH: '/home/z/freeradius-install/lib:/home/z/my-project/freeradius-install/lib:/home/z/my-project/pgsql-runtime/lib',
       },
     },
     {
@@ -30,7 +30,7 @@ module.exports = {
       autorestart: true,
       env: {
         PORT: 3000,
-        DATABASE_URL: 'postgresql://postgres@localhost:5432/staysuite',
+        DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/staysuite',
         NEXT_DISABLE_TURBOPACK: '1',
         NODE_OPTIONS: '--max-old-space-size=1536',
       },
