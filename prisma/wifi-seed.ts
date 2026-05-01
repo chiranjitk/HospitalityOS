@@ -2756,10 +2756,153 @@ export async function seedWiFiData() {
   });
   console.log('✓ 1 System Network Health seeded');
 
+  // ═══════════════════════════════════════════════════════════════
+  // 41. IP POOLS (4)
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding IP Pools (4)...');
+
+  const POOL_IDS = {
+    guest: uuid('ippool-guest'),
+    staff: uuid('ippool-staff'),
+    vip: uuid('ippool-vip'),
+    iot: uuid('ippool-iot'),
+  };
+
+  // IpPool uses Prisma client with raw inet values
+  for (const [key, id] of Object.entries(POOL_IDS)) {
+    const cfg: Record<string, any> = {
+      guest: { name: 'Guest VLAN Pool', desc: 'DHCP pool for guest WiFi on VLAN 10', subnet: '10.10.10.0/24', gateway: '10.10.10.1', def: true, captive: true, enabled: true, ranges: [['10.10.10.50', '10.10.10.200', 'Guest usable range']] },
+      staff: { name: 'Staff VLAN Pool', desc: 'DHCP pool for staff network on VLAN 20', subnet: '10.10.20.0/24', gateway: '10.10.20.1', def: false, captive: false, enabled: true, ranges: [['10.10.20.10', '10.10.20.100', 'Staff devices']] },
+      vip: { name: 'VIP Lounge Pool', desc: 'Premium VIP lounge WiFi on VLAN 30', subnet: '10.10.30.0/24', gateway: '10.10.30.1', def: false, captive: true, enabled: true, ranges: [['10.10.30.20', '10.10.30.80', 'VIP guests']] },
+      iot: { name: 'IoT Devices Pool', desc: 'IoT sensor and smart device pool on VLAN 40', subnet: '10.10.40.0/24', gateway: '10.10.40.1', def: false, captive: false, enabled: true, ranges: [['10.10.40.10', '10.10.40.50', 'IoT devices']] },
+    }[key];
+    if (!cfg) continue;
+
+    // Use raw SQL for inet columns
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "IpPool" (id, "tenantId", "propertyId", name, description, gateway, subnet, "isDefault", "captivePortal", enabled, "createdAt", "updatedAt")
+      VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::inet, $7::inet, $8, $9, $10, $11, $12)
+      ON CONFLICT ("tenantId", name) DO UPDATE SET
+        gateway = EXCLUDED.gateway, subnet = EXCLUDED.subnet, "isDefault" = EXCLUDED."isDefault",
+        "captivePortal" = EXCLUDED."captivePortal", enabled = EXCLUDED.enabled, "updatedAt" = EXCLUDED."updatedAt"
+    `, id, TENANT_ID, PROPERTY_ID, cfg.name, cfg.desc, cfg.gateway, cfg.subnet, cfg.def, cfg.captive, cfg.enabled, now, now);
+
+    // Clear old ranges and insert new ones
+    await prisma.$executeRawUnsafe(`DELETE FROM "IpPoolRange" WHERE "poolId" = $1::uuid`, id);
+    for (const [start, end, comment] of cfg.ranges) {
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO "IpPoolRange" (id, "poolId", "startIp", "endIp", comment, "createdAt")
+        VALUES (gen_random_uuid(), $1::uuid, $2::inet, $3::inet, $4, $5)
+      `, id, start, end, comment, now);
+    }
+  }
+  console.log('✓ 4 IP Pools seeded with ranges');
+
+  // ═══════════════════════════════════════════════════════════════
+  // 42. CAPTIVE PORTAL INSTANCES (2)
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding Captive Portal Instances (2)...');
+
+  const PORTAL_INSERT = [
+    {
+      id: PORTAL_IDS.hotel, tenantId: TENANT_ID, propertyId: PROPERTY_ID,
+      name: 'Royal Stay Guest Portal', description: 'Main captive portal for hotel guests',
+      slug: 'royal-stay-guest', authMethod: 'pms_credentials', roamingMode: 'auth_origin',
+      allowsRoamingFrom: '[]', maxBandwidthDown: 5242880, maxBandwidthUp: 1048576,
+      bandwidthPolicy: 'zone', nasIdentifier: 'stayserie-radius-01',
+      ssidList: JSON.stringify(['StaySuite-Guest', 'StaySuite-VIP']),
+      listenIp: '0.0.0.0', listenPort: 80, useSsl: false, enabled: true,
+      maxConcurrent: 1000, sessionTimeout: 86400, idleTimeout: 3600,
+      redirectUrl: 'https://www.royalstay.in',
+      successMessage: 'Welcome to Royal Stay Resort & Spa!',
+      failMessage: 'Authentication failed. Please try again or contact reception.',
+    },
+    {
+      id: PORTAL_IDS.staff, tenantId: TENANT_ID, propertyId: PROPERTY_ID,
+      name: 'Staff Network Portal', description: 'Captive portal for staff WiFi authentication',
+      slug: 'royal-stay-staff', authMethod: 'pms_credentials', roamingMode: 'auth_origin',
+      allowsRoamingFrom: '[]', maxBandwidthDown: 10485760, maxBandwidthUp: 5242880,
+      bandwidthPolicy: 'zone', nasIdentifier: 'stayserie-radius-01',
+      ssidList: JSON.stringify(['StaySuite-Staff']),
+      listenIp: '0.0.0.0', listenPort: 80, useSsl: false, enabled: true,
+      maxConcurrent: 200, sessionTimeout: 28800, idleTimeout: 1800,
+      redirectUrl: 'https://intranet.royalstay.in',
+      successMessage: 'Staff network access granted.',
+      failMessage: 'Invalid staff credentials. Contact IT support.',
+    },
+  ];
+
+  for (const p of PORTAL_INSERT) {
+    await prisma.captivePortal.upsert({
+      where: { id: p.id },
+      create: {
+        id: p.id, tenantId: p.tenantId, propertyId: p.propertyId,
+        name: p.name, description: p.description, slug: p.slug,
+        authMethod: p.authMethod, roamingMode: p.roamingMode,
+        allowsRoamingFrom: p.allowsRoamingFrom,
+        maxBandwidthDown: p.maxBandwidthDown, maxBandwidthUp: p.maxBandwidthUp,
+        bandwidthPolicy: p.bandwidthPolicy, nasIdentifier: p.nasIdentifier,
+        ssidList: p.ssidList, listenIp: p.listenIp, listenPort: p.listenPort,
+        useSsl: p.useSsl, enabled: p.enabled, maxConcurrent: p.maxConcurrent,
+        sessionTimeout: p.sessionTimeout, idleTimeout: p.idleTimeout,
+        redirectUrl: p.redirectUrl, successMessage: p.successMessage, failMessage: p.failMessage,
+      },
+      update: {
+        name: p.name, slug: p.slug, enabled: p.enabled, description: p.description,
+        authMethod: p.authMethod, ssidList: p.ssidList,
+      },
+    });
+  }
+  console.log('✓ 2 Captive Portal Instances seeded');
+
+  // ═══════════════════════════════════════════════════════════════
+  // 43. PORTAL MAPPINGS (2) — subnet → portal routing
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding Portal Mappings (2)...');
+
+  const MAPPING_IDS = {
+    guestPortal: uuid('portalmap-guest'),
+    vipPortal: uuid('portalmap-vip'),
+  };
+
+  for (const m of [
+    { id: MAPPING_IDS.guestPortal, tenantId: TENANT_ID, propertyId: PROPERTY_ID, portalId: PORTAL_IDS.hotel, subnet: '10.10.10.0/24', vlanId: 10, ssid: 'StaySuite-Guest', priority: 100, enabled: true },
+    { id: MAPPING_IDS.vipPortal, tenantId: TENANT_ID, propertyId: PROPERTY_ID, portalId: PORTAL_IDS.hotel, subnet: '10.10.30.0/24', vlanId: 30, ssid: 'StaySuite-VIP', priority: 90, enabled: true },
+  ]) {
+    await prisma.portalMapping.upsert({
+      where: { id: m.id },
+      create: { id: m.id, tenantId: m.tenantId, propertyId: m.propertyId, portalId: m.portalId, subnet: m.subnet, vlanId: m.vlanId, ssid: m.ssid, priority: m.priority, enabled: m.enabled },
+      update: { subnet: m.subnet, vlanId: m.vlanId, ssid: m.ssid, priority: m.priority, enabled: m.enabled },
+    });
+  }
+  console.log('✓ 2 Portal Mappings seeded');
+
+  // ═══════════════════════════════════════════════════════════════
+  // 44. PORTAL AUTH METHODS (5) — for hotel portal
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding Portal Auth Methods (5)...');
+
+  const AUTH_METHOD_DATA = [
+    { method: 'pms_credentials', priority: 1, config: { label: 'Room Number + Last Name', description: 'Guest enters room number and last name for verification' } },
+    { method: 'voucher', priority: 2, config: { label: 'WiFi Voucher Code', description: 'Enter a pre-printed voucher code' } },
+    { method: 'sms_otp', priority: 3, config: { label: 'SMS OTP', description: 'Receive a one-time password via SMS' } },
+    { method: 'room_number', priority: 4, config: { label: 'Room Number Only', description: 'Quick access with just room number' } },
+    { method: 'open_access', priority: 10, config: { label: 'Open Access', description: 'No authentication required' } },
+  ];
+
+  for (const am of AUTH_METHOD_DATA) {
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "PortalAuthentication" (id, "tenantId", "propertyId", "portalId", method, priority, config, "createdAt", "updatedAt")
+      VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6::jsonb, $7, $8)
+      ON CONFLICT DO NOTHING
+    `, TENANT_ID, PROPERTY_ID, PORTAL_IDS.hotel, am.method, am.priority, JSON.stringify(am.config), now, now);
+  }
+  console.log('✓ 5 Portal Auth Methods seeded');
+
   // NOTE: RadiusProvisioningLog is NOT seeded — it gets populated
   // automatically from real provisioning actions (sync, provision,
   // deprovision, suspend, resume, guest-wifi-link/unlink, update).
   // See: wifiUserService.logProvisioning() in wifi-user-service.ts
 
-  console.log('\n📡 WiFi module seed data completed! All 40 categories seeded.');
+  console.log('\n📡 WiFi module seed data completed! All 44 categories seeded.');
 }

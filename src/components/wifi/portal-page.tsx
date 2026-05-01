@@ -1737,11 +1737,13 @@ function VoucherDesignerTab({ portalOptions }: { portalOptions: Array<{ id: stri
     async function load() {
       setLoading(true);
       const data = await apiFetch<any>(`/api/wifi/portal/vouchers?propertyId=${propertyId || 'default'}`);
-      if (data && Array.isArray(data)) {
-        setGuests(data.map((g: any) => ({
-          id: g.id || g.bookingId || '', guestName: g.guestName || 'Guest', roomNumber: g.roomNumber || '---',
-          status: g.status || 'pending', username: g.username || '', password: g.password || '',
-          ssid: g.ssid || 'Guest-WiFi', validUntil: g.validUntil || g.checkOut || '',
+      const vouchers = data?.vouchers;
+      if (vouchers && Array.isArray(vouchers)) {
+        setGuests(vouchers.map((g: any) => ({
+          id: g.bookingId || g.id || '', guestName: g.guestName || 'Guest', roomNumber: g.roomNumber || '---',
+          status: g.wifiStatus || g.status || 'pending', username: g.wifiUsername || g.username || '',
+          password: g.wifiPassword || g.password || '', ssid: g.ssid || 'Guest-WiFi',
+          validUntil: g.wifiValidUntil || g.validUntil || g.checkOut || '',
         })));
       } else {
         setGuests([]);
