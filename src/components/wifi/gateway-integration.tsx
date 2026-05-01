@@ -68,6 +68,7 @@ interface WiFiGateway {
   id: string;
   name: string;
   type:
+    | 'cryptsk'
     | 'mikrotik'
     | 'cisco'
     | 'ubiquiti'
@@ -131,6 +132,7 @@ interface SyncResultData {
 }
 
 const gatewayTypes = [
+  { value: 'cryptsk', label: 'Cryptsk (Native Gateway)' },
   { value: 'mikrotik', label: 'MikroTik RouterOS' },
   { value: 'cisco', label: 'Cisco Meraki' },
   { value: 'ubiquiti', label: 'Ubiquiti UniFi' },

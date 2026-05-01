@@ -1036,11 +1036,35 @@ export async function seedWiFiData() {
   console.log('✓ 1 WiFi AAA Config seeded');
 
   // ═══════════════════════════════════════════════════════════════
-  // 7. RADIUS NAS (2)
+  // 7. RADIUS NAS (3) — First entry is the built-in Multimode NAS
   // ═══════════════════════════════════════════════════════════════
-  console.log('Seeding Radius NAS (2)...');
+  // The 127.0.0.1 / cryptsk entry is the DEFAULT Multimode NAS client.
+  // It represents the Cryptsk product itself acting as gateway + RADIUS server.
+  // This is a SYSTEM entry — protected from deletion via the API and GUI.
+  console.log('Seeding Radius NAS (3 — 1 system + 2 external)...');
   await prisma.radiusNAS.createMany({
     data: [
+      // ── SYSTEM: Cryptsk Multimode (always present, protected) ──
+      {
+        id: uuid('nas-cryptsk-local'),
+        tenantId: TENANT_ID,
+        propertyId: PROPERTY_ID,
+        name: 'Cryptsk Gateway (Multimode)',
+        shortname: 'cryptsk-local',
+        ipAddress: '127.0.0.1',
+        type: 'cryptsk',
+        ports: '1812',
+        secret: 'localkey',
+        description: 'Built-in Cryptsk gateway for multimode operation. Uses Cryptsk VSA (Vendor ID 64179). This system entry cannot be deleted.',
+        coaEnabled: true,
+        coaPort: 3799,
+        authPort: 1812,
+        acctPort: 1813,
+        status: 'active',
+        totalAuths: 12480,
+        totalAccts: 95200,
+      },
+      // ── EXTERNAL: MikroTik ──
       {
         tenantId: TENANT_ID,
         propertyId: PROPERTY_ID,
@@ -1061,6 +1085,7 @@ export async function seedWiFiData() {
         totalAuths: 4523,
         totalAccts: 38910,
       },
+      // ── EXTERNAL: Aruba ──
       {
         tenantId: TENANT_ID,
         propertyId: PROPERTY_ID,
@@ -1083,7 +1108,34 @@ export async function seedWiFiData() {
       },
     ],
   });
-  console.log('✓ 2 Radius NAS seeded');
+  console.log('✓ 3 Radius NAS seeded (1 system + 2 external)');
+
+  // Also seed the system Cryptsk NAS into the native FreeRADIUS `nas` table
+  // so FreeRADIUS can accept RADIUS packets from the local gateway (read_clients = yes)
+  try {
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO nas (nasname, shortname, type, ports, secret, server, community, description)
+      VALUES ('127.0.0.1', 'cryptsk-local', 'cryptsk', 1812, 'localkey', NULL, NULL,
+              'Cryptsk Multimode Gateway — built-in system NAS')
+      ON CONFLICT DO NOTHING
+    `);
+    // Also seed the external NAS entries into native table
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO nas (nasname, shortname, type, ports, secret, server, community, description)
+      VALUES ('10.0.1.1', 'mikrotik-main', 'mikrotik', 1812, 'nas_secret_mikrotik_1', NULL, 'public_ro',
+              'MikroTik Router - Main')
+      ON CONFLICT DO NOTHING
+    `);
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO nas (nasname, shortname, type, ports, secret, server, community, description)
+      VALUES ('10.0.1.2', 'aruba-conf', 'aruba', 1812, 'nas_secret_aruba_1', NULL, 'public_ro',
+              'Aruba Controller - Conference')
+      ON CONFLICT DO NOTHING
+    `);
+    console.log('✓ 3 native nas table entries seeded');
+  } catch (nasErr) {
+    console.log('Native nas table seed note:', nasErr instanceof Error ? nasErr.message : nasErr);
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // 8. RADIUS SERVER CONFIG (1)

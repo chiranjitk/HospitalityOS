@@ -9,6 +9,7 @@ import {
   GatewayConfig,
   GatewayVendor,
 } from './gateway-adapter';
+import { CryptskAdapter, CryptskConfig } from './cryptsk-adapter';
 import { MikrotikAdapter, MikrotikConfig } from './mikrotik-adapter';
 import { TPLinkAdapter, TPLinkConfig } from './tplink-adapter';
 import { UniFiAdapter, UniFiConfig } from './unifi-adapter';
@@ -29,6 +30,7 @@ export * from './gateway-adapter';
 
 // Vendor configurations
 export type VendorConfig = 
+  | CryptskConfig
   | MikrotikConfig 
   | TPLinkConfig 
   | UniFiConfig 
@@ -56,6 +58,28 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
   coaPort: number;
   radiusPort: number;
 }> = {
+  cryptsk: {
+    name: 'Cryptsk (Native)',
+    description: 'Cryptsk Private Limited — Multimode Gateway + RADIUS (Vendor ID 64179)',
+    popularIn: ['India', 'Global'],
+    features: [
+      'Native Multimode (Gateway + RADIUS)',
+      'Cryptsk VSA (Vendor ID 64179)',
+      'Built-in Captive Portal',
+      'Built-in DHCP + NAT',
+      'RADIUS CoA (Internal)',
+      'Bandwidth Shaping',
+      'Data Limit Enforcement',
+      'FUP (Fair Usage Policy)',
+      'IP Pool Management',
+      'VLAN Assignment',
+      'Content Filtering',
+      'QoS Priority',
+    ],
+    apiPort: 3000,
+    coaPort: 3799,
+    radiusPort: 1812,
+  },
   mikrotik: {
     name: 'MikroTik',
     description: 'RouterOS - Popular in hospitality and ISP deployments',
@@ -327,6 +351,7 @@ export const DEFAULT_PORTS: Record<GatewayVendor, {
   radiusAuth: number;
   radiusAcct: number;
 }> = {
+  cryptsk: { api: 3000, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
   mikrotik: { api: 8728, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
   tplink: { api: 8043, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
   unifi: { api: 8443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
@@ -363,6 +388,9 @@ export function createGatewayAdapter<T extends GatewayVendor>(
   };
 
   switch (vendor) {
+    case 'cryptsk':
+      return new CryptskAdapter(fullConfig as CryptskConfig);
+
     case 'mikrotik':
       return new MikrotikAdapter(fullConfig as MikrotikConfig);
     

@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
 
-// GET /api/wifi/nas - List all NAS clients from PostgreSQL, filtered by property
+// System NAS constants — Cryptsk Multimode gateway (127.0.0.1 / cryptsk type)
+// This entry represents the physical Cryptsk machine acting as gateway + RADIUS.
+// It is NOT tied to a specific property — one machine = one gateway = one deployment.
+// It must ALWAYS be visible regardless of property filter.
+const SYSTEM_NAS_IP = '127.0.0.1';
+const SYSTEM_NAS_TYPE = 'cryptsk';
+
+// GET /api/wifi/nas - List NAS clients, always including the system gateway
 export async function GET(request: NextRequest) {
   const context = await requirePermission(request, 'wifi.manage');
   if (context instanceof NextResponse) return context;
@@ -10,6 +17,9 @@ export async function GET(request: NextRequest) {
   try {
     const propertyId = request.nextUrl.searchParams.get('propertyId');
 
+    // Base: always within the tenant
+    // When propertyId is given, show property NAS + system NAS (gateway machine)
+    // When no propertyId, show all tenant NAS (system entry is naturally included)
     let query = `
       SELECT id, "tenantId", "propertyId", name, shortname, "ipAddress", type,
              secret, "coaEnabled", "coaPort", "authPort", "acctPort", status,
@@ -19,13 +29,16 @@ export async function GET(request: NextRequest) {
     `;
     const params: unknown[] = [context.tenantId];
 
-    // Fix #3: Filter by propertyId when provided (multi-property support)
     if (propertyId) {
-      query += ` AND "propertyId" = $2::uuid`;
+      // Show NAS for this property AND always include the system gateway entry
+      // The system NAS (127.0.0.1 / cryptsk) is the physical machine itself —
+      // it's not property-specific, it's the deployment instance.
+      query += ` AND ("propertyId" = $2::uuid OR ("ipAddress" = '${SYSTEM_NAS_IP}' AND type = '${SYSTEM_NAS_TYPE}'))`;
       params.push(propertyId);
     }
 
-    query += ` ORDER BY "createdAt" DESC`;
+    // System NAS always first, then by createdAt DESC
+    query += ` ORDER BY CASE WHEN "ipAddress" = '${SYSTEM_NAS_IP}' AND type = '${SYSTEM_NAS_TYPE}' THEN 0 ELSE 1 END, "createdAt" DESC`;
 
     const nasList = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(query, ...params);
 
@@ -104,15 +117,16 @@ export async function PUT(request: NextRequest) {
     const { id, name, shortname, ipAddress, type, secret, sharedSecret, coaEnabled, coaPort, authPort, acctPort } = body;
     if (!id) return NextResponse.json({ success: false, error: 'NAS id is required' }, { status: 400 });
 
-    // Fix #4: Fetch current NAS to get the old IP for native nas table update
-    const currentNas = await db.$queryRawUnsafe<Array<{ ipAddress: string }>>(
-      `SELECT "ipAddress" FROM "RadiusNAS" WHERE id = $1::uuid AND "tenantId" = $2::uuid`,
+    // Fetch current NAS to get the old IP and check if it's the system entry
+    const currentNas = await db.$queryRawUnsafe<Array<{ ipAddress: string; type: string }>>(
+      `SELECT "ipAddress", type FROM "RadiusNAS" WHERE id = $1::uuid AND "tenantId" = $2::uuid`,
       id, context.tenantId
     );
     if (!currentNas || currentNas.length === 0) {
       return NextResponse.json({ success: false, error: 'NAS client not found' }, { status: 404 });
     }
     const oldIpAddress = currentNas[0].ipAddress;
+    const isSystemNas = currentNas[0].type === 'cryptsk' && oldIpAddress === '127.0.0.1';
 
     const updates: string[] = [];
     const params: unknown[] = [];
@@ -129,6 +143,16 @@ export async function PUT(request: NextRequest) {
     if (updates.length > 0) {
       params.push(id);
       await db.$executeRawUnsafe(`UPDATE "RadiusNAS" SET ${updates.join(', ')}, "updatedAt" = NOW() WHERE id = $${params.length}::uuid AND "tenantId" = $${params.length + 1}::uuid`, ...params, context.tenantId);
+    }
+
+    // System NAS protection: if user tried to change IP or type on the system entry, revert
+    if (isSystemNas) {
+      if (ipAddress && ipAddress !== '127.0.0.1') {
+        await db.$executeRawUnsafe(`UPDATE "RadiusNAS" SET "ipAddress" = '127.0.0.1' WHERE id = $1::uuid`, id);
+      }
+      if (type && type !== 'cryptsk') {
+        await db.$executeRawUnsafe(`UPDATE "RadiusNAS" SET type = 'cryptsk' WHERE id = $1::uuid`, id);
+      }
     }
 
     // Fix #4: Sync native FreeRADIUS nas table
@@ -164,22 +188,32 @@ export async function DELETE(request: NextRequest) {
     const id = request.nextUrl.searchParams.get('id');
     if (!id) return NextResponse.json({ success: false, error: 'NAS id is required' }, { status: 400 });
 
-    // Fix #4: Fetch IP before deleting so we can clean up native nas table
-    const nasRecord = await db.$queryRawUnsafe<Array<{ ipAddress: string }>>(
-      `SELECT "ipAddress" FROM "RadiusNAS" WHERE id = $1::uuid AND "tenantId" = $2::uuid`,
+    // Fetch the NAS record to check if it's the system entry
+    const nasRecord = await db.$queryRawUnsafe<Array<{ ipAddress: string; type: string }>>(
+      `SELECT "ipAddress", type FROM "RadiusNAS" WHERE id = $1::uuid AND "tenantId" = $2::uuid`,
       id, context.tenantId
     );
+
+    if (!nasRecord || nasRecord.length === 0) {
+      return NextResponse.json({ success: false, error: 'NAS client not found' }, { status: 404 });
+    }
+
+    // Protect the system Cryptsk Multimode NAS from deletion
+    if (nasRecord[0].ipAddress === SYSTEM_NAS_IP && nasRecord[0].type === SYSTEM_NAS_TYPE) {
+      return NextResponse.json({
+        success: false,
+        error: 'Cannot delete the Cryptsk Gateway (Multimode) system NAS. This is required for multimode operation.',
+      }, { status: 403 });
+    }
 
     // Delete from Prisma RadiusNAS
     await db.$executeRawUnsafe(`DELETE FROM "RadiusNAS" WHERE id = $1::uuid AND "tenantId" = $2::uuid`, id, context.tenantId);
 
-    // Fix #4: Also delete from native FreeRADIUS nas table
-    if (nasRecord && nasRecord.length > 0) {
-      try {
-        await db.$executeRawUnsafe(`DELETE FROM nas WHERE nasname = $1`, nasRecord[0].ipAddress);
-      } catch (nasErr) {
-        console.warn('[NAS] Native nas table delete warning:', nasErr);
-      }
+    // Also delete from native FreeRADIUS nas table
+    try {
+      await db.$executeRawUnsafe(`DELETE FROM nas WHERE nasname = $1`, nasRecord[0].ipAddress);
+    } catch (nasErr) {
+      console.warn('[NAS] Native nas table delete warning:', nasErr);
     }
 
     return NextResponse.json({ success: true, message: 'NAS deleted' });

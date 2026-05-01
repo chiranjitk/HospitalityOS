@@ -90,6 +90,8 @@ import {
   UserCog,
   Info,
   Building2,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react';
 import CredentialPolicyTab, { type CredentialConfig } from './credential-policy-tab';
 import { useToast } from '@/hooks/use-toast';
@@ -195,7 +197,17 @@ interface NasVendorGroup {
   vendors: { value: string; label: string }[];
 }
 
+// System NAS identifier — the built-in Cryptsk Multimode gateway
+const SYSTEM_NAS_IP = '127.0.0.1';
+const SYSTEM_NAS_TYPE = 'cryptsk';
+
 const NAS_VENDOR_GROUPS: NasVendorGroup[] = [
+  {
+    heading: 'System / Built-in',
+    vendors: [
+      { value: 'cryptsk', label: 'Cryptsk Gateway (Multimode)' },
+    ],
+  },
   {
     heading: 'WiFi AP & Controllers — Hospitality',
     vendors: [
@@ -518,6 +530,7 @@ export default function AAAConfig() {
   const [nasDialogOpen, setNasDialogOpen] = useState(false);
   const [editingNas, setEditingNas] = useState<NASClient | null>(null);
   const [deleteNasId, setDeleteNasId] = useState<string | null>(null);
+  const [deleteErrorMsg, setDeleteErrorMsg] = useState<string | null>(null);
   const [vendorOpen, setVendorOpen] = useState(false);
   const [nasForm, setNasForm] = useState({
     name: '',
@@ -882,9 +895,19 @@ export default function AAAConfig() {
     }
   };
 
+  // Check if a NAS client is the system entry (protected)
+  const isSystemNAS = (nas: NASClient) => nas.ipAddress === SYSTEM_NAS_IP && nas.type === SYSTEM_NAS_TYPE;
+
   // Delete NAS Client
   const handleDeleteNas = (id: string) => {
+    const nas = nasClients.find(n => n.id === id);
+    if (nas && isSystemNAS(nas)) {
+      setDeleteErrorMsg('Cannot delete the Cryptsk Gateway (Multimode) system NAS. This is required for multimode operation.');
+      setDeleteNasId(null);
+      return;
+    }
     setDeleteNasId(id);
+    setDeleteErrorMsg(null);
   };
 
   const confirmDeleteNas = async () => {
@@ -915,6 +938,7 @@ export default function AAAConfig() {
       });
     } finally {
       setDeleteNasId(null);
+      setDeleteErrorMsg(null);
     }
   };
 
@@ -1315,14 +1339,18 @@ export default function AAAConfig() {
               <div>
                 <CardTitle>NAS Clients</CardTitle>
                 <CardDescription>
-                  Configure routers and access points that connect to the RADIUS server
+                  The Cryptsk Gateway (system) is always active for multimode. Add external routers/APs below.
                 </CardDescription>
+              </div>
+              <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+                <Lock className="h-3 w-3 text-amber-500" />
+                System NAS is pre-configured for Multimode
               </div>
               <Dialog open={nasDialogOpen} onOpenChange={setNasDialogOpen}>
                 <DialogTrigger asChild>
                   <Button onClick={resetNasForm}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Add NAS Client
+                    Add External NAS
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl">
@@ -1493,12 +1521,31 @@ export default function AAAConfig() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {nasClients.map((nas) => (
-                      <TableRow key={nas.id}>
-                        <TableCell className="font-medium">{nas.name}</TableCell>
-                        <TableCell>{nas.ipAddress}</TableCell>
+                    {nasClients.map((nas) => {
+                      const system = isSystemNAS(nas);
+                      return (
+                      <TableRow key={nas.id} className={system ? 'bg-muted/40' : ''}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {system && <Lock className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+                            {nas.name}
+                          </div>
+                          {system && (
+                            <p className="text-xs text-muted-foreground mt-0.5">System — Multimode Gateway</p>
+                          )}
+                        </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{nas.type}</Badge>
+                          <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{nas.ipAddress}</code>
+                        </TableCell>
+                        <TableCell>
+                          {system ? (
+                            <Badge variant="default" className="gap-1">
+                              <ShieldCheck className="h-3 w-3" />
+                              Cryptsk
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">{nas.type}</Badge>
+                          )}
                         </TableCell>
                         <TableCell>{nas.authPort}</TableCell>
                         <TableCell>{nas.acctPort}</TableCell>
@@ -1519,19 +1566,24 @@ export default function AAAConfig() {
                             variant="ghost"
                             size="sm"
                             onClick={() => openEditNas(nas)}
+                            disabled={system}
+                            title={system ? 'System NAS — edit restricted (IP and type cannot be changed)' : 'Edit NAS'}
                           >
-                            <Edit className="h-4 w-4" />
+                            <Edit className={`h-4 w-4 ${system ? 'opacity-40' : ''}`} />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDeleteNas(nas.id)}
+                            disabled={system}
+                            title={system ? 'System NAS — cannot be deleted' : 'Delete NAS'}
                           >
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <Trash2 className={`h-4 w-4 ${system ? 'opacity-40' : 'text-destructive'}`} />
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}

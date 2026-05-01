@@ -11,7 +11,7 @@
 #   2.  dnf system update + EPEL
 #   3.  PostgreSQL 16/17 from PGDG (production-tuned)
 #   4.  Create 'staysuite' database + 'staysuite' & 'radius' users
-#   5.  FreeRADIUS 3.x install + full PostgreSQL SQL module config
+#   5.  FreeRADIUS 3.x install + Cryptsk VSA dictionary + PostgreSQL SQL module config
 #   6.  Node.js 22 LTS + Bun runtime
 #   7.  Clone StaySuite-HospitalityOS from GitHub
 #   8.  Install dependencies (bun install)
@@ -34,9 +34,11 @@
 # Options:
 #   --db-password PASS    PostgreSQL password (default: Staysuite2025)
 #   --mikrotik-ip IP      MikroTik NAS IP (default: 192.168.88.1)
+#   --cryptsk-ip IP       Cryptsk gateway IP for multimode (default: 127.0.0.1)
 #   --shared-secret KEY   RADIUS shared secret (default: localkey)
 #   --app-dir DIR         Install directory (default: /opt/staysuite)
 #   --skip-mikrotik       Skip MikroTik NAS client config
+#   --skip-cryptsk        Skip Cryptsk VSA + NAS client config
 #   --yes                 Skip all confirmation prompts
 #
 # Idempotent: safe to re-run (backs up existing DB).
@@ -90,19 +92,23 @@ banner() {
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
 MIKROTIK_IP=""
+CRYPTSK_IP=""
 SHARED_SECRET=""
 DB_PASSWORD=""
 APP_DIR="/opt/staysuite"
 SKIP_MIKROTIK=false
+SKIP_CRYPTSK=false
 AUTO_YES=false
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --db-password)    DB_PASSWORD="$2"; shift 2 ;;
     --mikrotik-ip)    MIKROTIK_IP="$2"; shift 2 ;;
+    --cryptsk-ip)     CRYPTSK_IP="$2"; shift 2 ;;
     --shared-secret)  SHARED_SECRET="$2"; shift 2 ;;
     --app-dir)        APP_DIR="$2"; shift 2 ;;
     --skip-mikrotik)  SKIP_MIKROTIK=true; shift ;;
+    --skip-cryptsk)   SKIP_CRYPTSK=true; shift ;;
     --yes|-y)         AUTO_YES=true; shift ;;
     *) die "Unknown option: $1. Use --help." ;;
   esac
@@ -525,7 +531,73 @@ simul_count_query = "SELECT COUNT(*) FROM radacct WHERE username = '%{SQL-User-N
 simul_verify_query = "SELECT radacctid FROM radacct WHERE username = '%{SQL-User-Name}' AND acctstoptime IS NULL AND callingstationid = '%{Calling-Station-Id}' LIMIT 1"
 EOQUERY
 
-# ── 5d: Configure sites ─────────────────────────────────────────────────────
+# ── 5d: Install Cryptsk VSA Dictionary ──────────────────────────────────────
+# Cryptsk (IANA Vendor ID 64179) is used in MULTIMODE where the product acts
+# as both captive-portal gateway AND RADIUS server. The VSA dictionary defines
+# all Cryptsk-specific attributes (rate-limit, bandwidth, FUP, VLAN, etc.)
+if ! $SKIP_CRYPTSK; then
+  info "Installing Cryptsk VSA dictionary (Vendor ID 64179)..."
+
+  # Use the project's standalone dictionary file if available
+  if [[ -f "${APP_DIR}/freeradius-install/etc/raddb/dictionary.cryptsk" ]]; then
+    cp "${APP_DIR}/freeradius-install/etc/raddb/dictionary.cryptsk" "${RADD}/dictionary.cryptsk"
+  else
+    # Fallback: write the dictionary inline (idempotent)
+    cat > "${RADD}/dictionary.cryptsk" << 'CRYPTEOF'
+# =============================================================================
+# CRYPTSK PRIVATE LIMITED  —  Vendor-Specific Attributes (VSA)
+# IANA Private Enterprise Code: 64179
+# =============================================================================
+
+VENDOR    Cryptsk          64179
+
+BEGIN-VENDOR Cryptsk
+
+# Core Traffic Shaping (1-10)
+ATTRIBUTE       Cryptsk-Rate-Limit              1       string
+ATTRIBUTE       Cryptsk-Bandwidth-Max-Down      2       integer
+ATTRIBUTE       Cryptsk-Bandwidth-Max-Up        3       integer
+ATTRIBUTE       Cryptsk-Total-Limit             4       integer
+ATTRIBUTE       Cryptsk-Max-Input-Octets        5       integer
+ATTRIBUTE       Cryptsk-Max-Output-Octets       6       integer
+
+# Session & Access Control (11-20)
+ATTRIBUTE       Cryptsk-Session-Timeout         11      integer
+ATTRIBUTE       Cryptsk-Idle-Timeout            12      integer
+ATTRIBUTE       Cryptsk-Max-Sessions            13      integer
+
+# Network Assignment (21-30)
+ATTRIBUTE       Cryptsk-Pool-Name               21      string
+ATTRIBUTE       Cryptsk-VLAN-ID                 22      integer
+ATTRIBUTE       Cryptsk-Static-IP               23      ipaddr
+
+# Portal & Filtering (31-40)
+ATTRIBUTE       Cryptsk-Redirect-URL            31      string
+ATTRIBUTE       Cryptsk-Filter-Id               32      string
+ATTRIBUTE       Cryptsk-User-Profile            33      string
+ATTRIBUTE       Cryptsk-Plan-Name               34      string
+
+# FUP & Policy (41-50)
+ATTRIBUTE       Cryptsk-FUP-Rate-Limit          41      string
+ATTRIBUTE       Cryptsk-FUP-Threshold-Bytes     42      integer
+ATTRIBUTE       Cryptsk-Data-Reset-Interval     43      integer
+ATTRIBUTE       Cryptsk-QoS-Priority            44      integer
+ATTRIBUTE       Cryptsk-Billing-Class           45      string
+
+END-VENDOR Cryptsk
+CRYPTEOF
+  fi
+
+  # Ensure the main dictionary includes dictionary.cryptsk
+  if ! grep -q '\\$INCLUDE.*dictionary\\.cryptsk' "${RADD}/dictionary" 2>/dev/null; then
+    echo '$INCLUDE dictionary.cryptsk' >> "${RADD}/dictionary"
+  fi
+  chown root:radiusd "${RADD}/dictionary.cryptsk" 2>/dev/null || true
+  chmod 644 "${RADD}/dictionary.cryptsk" 2>/dev/null || true
+  success "Cryptsk VSA dictionary installed (Vendor ID 64179)"
+fi
+
+# ── 5e: Configure sites ─────────────────────────────────────────────────────
 info "Configuring FreeRADIUS sites..."
 SITES_DEFAULT="${RADD}/sites-available/default"
 [[ -f "$SITES_DEFAULT" ]] && sed -i 's/^#\s*-sql/-sql/' "$SITES_DEFAULT"
@@ -544,7 +616,7 @@ COAEOF
   ln -sf ../sites-available/coa "${RADD}/sites-enabled/coa"
 fi
 
-# ── 5e: MikroTik NAS client ─────────────────────────────────────────────────
+# ── 5f: MikroTik NAS client ─────────────────────────────────────────────────
 if ! $SKIP_MIKROTIK; then
   [[ -z "$MIKROTIK_IP" ]] && MIKROTIK_IP="${MIKROTIK_IP:-192.168.88.1}"
   [[ -z "$SHARED_SECRET" ]] && SHARED_SECRET="${SHARED_SECRET:-localkey}"
@@ -580,7 +652,37 @@ EOCLIENT
   success "MikroTik NAS client configured (${MIKROTIK_IP})"
 fi
 
-# ── 5f: Test and start FreeRADIUS ───────────────────────────────────────────
+# ── 5g: Cryptsk Gateway NAS client (Multimode) ─────────────────────────────
+if ! $SKIP_CRYPTSK; then
+  [[ -z "$CRYPTSK_IP" ]] && CRYPTSK_IP="127.0.0.1"
+  [[ -z "$SHARED_SECRET" ]] && SHARED_SECRET="${SHARED_SECRET:-localkey}"
+
+  if ! $AUTO_YES && [[ -z "${CRYPTSK_IP:-}" ]]; then
+    read -rp "  Enter Cryptsk Gateway IP [127.0.0.1]: " CRYPTSK_IP
+    CRYPTSK_IP="${CRYPTSK_IP:-127.0.0.1}"
+  fi
+
+  mkdir -p "${RADD}/clients.d"
+  cat > "${RADD}/clients.d/cryptsk.conf" <<EOCLIENT
+client cryptsk {
+  ipaddr = ${CRYPTSK_IP}
+  secret = ${SHARED_SECRET}
+  shortname = cryptsk
+  coa_server = cryptsk-coa
+  response_window = 6.0
+}
+home_server cryptsk-coa {
+  type = coa
+  ipaddr = ${CRYPTSK_IP}
+  port = 3799
+  secret = ${SHARED_SECRET}
+}
+EOCLIENT
+
+  success "Cryptsk Gateway NAS client configured (${CRYPTSK_IP}) — MULTIMODE ready"
+fi
+
+# ── 5h: Test and start FreeRADIUS ───────────────────────────────────────────
 info "Testing FreeRADIUS configuration..."
 RADIUS_TEST=$(radiusd -XC 2>&1) || {
   error "FreeRADIUS config check FAILED:"; echo "$RADIUS_TEST"; die "Fix errors above."
@@ -1147,8 +1249,11 @@ echo "    DB (radius):      postgresql://radius:${DB_PASSWORD}@127.0.0.1:5432/st
 echo "    NextAuth Secret:  ${APP_SECRET}"
 if ! $SKIP_MIKROTIK; then
 echo "    MikroTik IP:      ${MIKROTIK_IP}"
-echo "    RADIUS Secret:    ${SHARED_SECRET}"
 fi
+if ! $SKIP_CRYPTSK; then
+echo "    Cryptsk IP:       ${CRYPTSK_IP} (Multimode)"
+fi
+echo "    RADIUS Secret:    ${SHARED_SECRET}"
 echo ""
 
 echo -e "${BOLD}  SYSTEM SERVICES${NC}"
@@ -1201,10 +1306,21 @@ echo "    FreeRADIUS:      journalctl -u radiusd"
 echo ""
 
 echo -e "${BOLD}${YELLOW}  NEXT STEPS${NC}"
+if ! $SKIP_MIKROTIK; then
 echo "    1. Configure MikroTik Router for RADIUS:"
 echo "       Server: ${SERVER_IP}, Auth: 1812/UDP, Acct: 1813/UDP, Secret: ${SHARED_SECRET}"
 echo "    2. Log in to StaySuite and configure property, rooms, WiFi plans."
 echo "    3. Test RADIUS auth: radclient -x 127.0.0.1 auth testing123"
+elif ! $SKIP_CRYPTSK; then
+echo "    1. Multimode active — Cryptsk gateway is the NAS (IP: ${CRYPTSK_IP})"
+echo "       Cryptsk VSA (Vendor 64179) installed in FreeRADIUS dictionary"
+echo "    2. Log in to StaySuite and configure property, rooms, WiFi plans."
+echo "    3. Test RADIUS auth: radclient -x 127.0.0.1 auth testing123"
+else
+echo "    1. Log in to StaySuite and configure property, rooms, WiFi plans."
+echo "    2. Add NAS clients via StaySuite AAA Configuration page"
+echo "    3. Test RADIUS auth: radclient -x 127.0.0.1 auth testing123"
+fi
 echo ""
 
 echo -e "${BOLD}${GREEN}=================================================================${NC}"

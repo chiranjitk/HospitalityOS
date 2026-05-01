@@ -301,10 +301,64 @@ DEFAULT
         ChilliSpot-Max-Total-Octets
         Mikrotik-Rate-Limit
         Mikrotik-Total-Limit
+        Cryptsk-Rate-Limit
+        Cryptsk-Bandwidth-Max-Down
+        Cryptsk-Bandwidth-Max-Up
+        Cryptsk-Total-Limit
+        Cryptsk-FUP-Rate-Limit
         Filter-Id
         Reply-Message
 ATTR_EOF
     ok "Created CoA attribute filter"
+fi
+
+# ── Step 5b: Install Cryptsk VSA Dictionary ──────────────────────────
+info "Step 5b/6: Installing Cryptsk VSA dictionary (Vendor ID 64179)..."
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+CRYPTSK_DICT="$PROJECT_ROOT/freeradius-install/etc/raddb/dictionary.cryptsk"
+
+if [ -f "$CRYPTSK_DICT" ]; then
+    cp "$CRYPTSK_DICT" "$RADDB/dictionary.cryptsk"
+    # Ensure main dictionary includes it
+    if ! grep -q '\$INCLUDE.*dictionary\.cryptsk' "$RADDB/dictionary" 2>/dev/null; then
+        echo '$INCLUDE dictionary.cryptsk' >> "$RADDB/dictionary"
+    fi
+    ok "Cryptsk VSA dictionary installed from project source"
+else
+    # Fallback: write inline
+    cat > "$RADDB/dictionary.cryptsk" << 'CRYPTEOF'
+# CRYPTSK PRIVATE LIMITED — VSA (IANA Vendor ID 64179)
+VENDOR    Cryptsk          64179
+BEGIN-VENDOR Cryptsk
+ATTRIBUTE       Cryptsk-Rate-Limit              1       string
+ATTRIBUTE       Cryptsk-Bandwidth-Max-Down      2       integer
+ATTRIBUTE       Cryptsk-Bandwidth-Max-Up        3       integer
+ATTRIBUTE       Cryptsk-Total-Limit             4       integer
+ATTRIBUTE       Cryptsk-Max-Input-Octets        5       integer
+ATTRIBUTE       Cryptsk-Max-Output-Octets       6       integer
+ATTRIBUTE       Cryptsk-Session-Timeout         11      integer
+ATTRIBUTE       Cryptsk-Idle-Timeout            12      integer
+ATTRIBUTE       Cryptsk-Max-Sessions            13      integer
+ATTRIBUTE       Cryptsk-Pool-Name               21      string
+ATTRIBUTE       Cryptsk-VLAN-ID                 22      integer
+ATTRIBUTE       Cryptsk-Static-IP               23      ipaddr
+ATTRIBUTE       Cryptsk-Redirect-URL            31      string
+ATTRIBUTE       Cryptsk-Filter-Id               32      string
+ATTRIBUTE       Cryptsk-User-Profile            33      string
+ATTRIBUTE       Cryptsk-Plan-Name               34      string
+ATTRIBUTE       Cryptsk-FUP-Rate-Limit          41      string
+ATTRIBUTE       Cryptsk-FUP-Threshold-Bytes     42      integer
+ATTRIBUTE       Cryptsk-Data-Reset-Interval     43      integer
+ATTRIBUTE       Cryptsk-QoS-Priority            44      integer
+ATTRIBUTE       Cryptsk-Billing-Class           45      string
+END-VENDOR Cryptsk
+CRYPTEOF
+    if ! grep -q '\$INCLUDE.*dictionary\.cryptsk' "$RADDB/dictionary" 2>/dev/null; then
+        echo '$INCLUDE dictionary.cryptsk' >> "$RADDB/dictionary"
+    fi
+    ok "Cryptsk VSA dictionary installed (inline fallback)"
 fi
 
 # ── Step 6: Generate clients.conf (placeholder) ────────────────────
@@ -376,8 +430,9 @@ echo "  ✓ SQL module → PostgreSQL ($FR_DB_NAME)"
 echo "  ✓ CoA enabled (port 3799) — receives CoA/Disconnect from NAS"
 echo "  ✓ Required modules enabled (sql, pap, chap, mschap, exec, ...)"
 echo "  ✓ Unwanted modules disabled (sqlippool, dhcp, eap)"
+echo "  ✓ Cryptsk VSA dictionary installed (Vendor 64179, 22 attributes)"
 echo "  ✓ clients.conf configured (localhost fallback)"
-echo "  ✓ Attribute filters set up for CoA"
+echo "  ✓ Attribute filters set up for CoA (incl. Cryptsk VSA)"
 echo "  ✓ systemd service enabled"
 echo ""
 info "Active sites:"

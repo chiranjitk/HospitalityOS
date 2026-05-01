@@ -1,38 +1,37 @@
 /**
  * Vendor-Agnostic RADIUS Attribute Utility (Server-Side)
  *
- * StaySuite is a multi-vendor, multi-NAS platform (MikroTik, Cisco, Aruba, Ruckus,
+ * Cryptsk HospitalityOS is a multi-vendor, multi-NAS platform (MikroTik, Cisco, Aruba, Ruckus,
  * Huawei, Juniper, Fortinet, UniFi, pfSense, etc.). RADIUS attributes MUST be
  * set according to the NAS vendor type — never hardcoded to a single vendor.
  *
  * Architecture:
- * ┌────────────┐    query NAS vendors    ┌──────────────────────┐
- * │ PMS / RADIUS│ ──────────────────────→ │ RadiusNAS table (type)│
- * │ Service     │                        └──────────────────────┘
- * └──────┬─────┘                                  │
- *        │                                        │
- *        ▼                                        ▼
- * ┌──────────────────────────────────────────────────────────┐
- * │  generateRadReplyAttributes(vendors, downloadMbps, ...)   │
- * │                                                          │
- * │  For EACH active vendor:                                  │
- * │    1. RFC-standard attrs  (Session-Timeout, WISPr-*)      │
- * │    2. Vendor-specific attrs (determined by vendor profile) │
- * └──────────────────────┬───────────────────────────────────┘
- *                        │
- *                        ▼
- *              Write ALL attrs to radreply
- *              (NAS ignores unrecognized attrs)
+ * ┌───────────────────────────────────────────────────────────────────────────┐
+ * │ OPERATING MODES                                                          │
+ * │                                                                          │
+ * │ 1. EXTERNAL GATEWAY MODE                                                │
+ * │    ┌────────────┐  query NAS vendors  ┌──────────────────────┐           │
+ * │    │ PMS / RADIUS│ ─────────────────→ │ RadiusNAS table (type)│           │
+ * │    │ Service     │                    └──────────────────────┘           │
+ * │    └──────┬─────┘                              │                         │
+ * │           │                                    ▼                         │
+ * │           │    For EACH active vendor → generate vendor-specific VSA    │
+ * │           │    (MikroTik, Cisco, ChilliSpot, etc.)                       │
+ * │                                                                          │
+ * │ 2. MULTIMODE (Cryptsk as Gateway + RADIUS)                             │
+ * │    ┌────────────────────────────────────────────┐                       │
+ * │    │  Cryptsk Product = Gateway + RADIUS Server │                       │
+ * │    │  VSA: Cryptsk-* (Vendor ID 64179)          │                       │
+ * │    └────────────────────────────────────────────┘                       │
+ * └───────────────────────────────────────────────────────────────────────────┘
  *
- * Reading attributes (display/edit):
- *   - Check ALL known data-limit attribute names per vendor
- *   - Check ALL known bandwidth attribute names per vendor
- *   - RFC-standard WISPr attrs are the universal fallback
- *
- * FREE RADICS VENDOR DICTIONARIES:
+ * FREE RADIUS VENDOR DICTIONARIES:
  *   FreeRADIUS ships 300+ vendor dictionary files (e.g., /usr/share/freeradius/dictionary.mikrotik)
  *   that define each vendor's VSA names, types, and formats. Our vendor profile system maps
- *   300+ vendor identifiers to 9 canonical profiles and knows which VSAs to use for each.
+ *   300+ vendor identifiers to canonical profiles and knows which VSAs to use for each.
+ *
+ *   Cryptsk's own VSA dictionary is in: freeradius-install/etc/raddb/dictionary
+ *   Vendor ID: 64179 (Cryptsk Private Limited)
  *
  *   Pure reading/parsing functions are in attribute-readers.ts (client-safe, no DB import).
  */
@@ -44,6 +43,7 @@ export {
   DATA_LIMIT_ATTRIBUTES,
   BANDWIDTH_ATTRIBUTES,
   ALL_VENDOR_SPECIFIC_ATTRIBUTES,
+  CRYPTSK_ATTRIBUTES,
   readDataLimitMB,
   readDataLimitBytes,
   readBandwidthMbps,
@@ -57,6 +57,7 @@ export {
 // ─── Vendor Profile Keys ─────────────────────────────────────────────────
 
 export type VendorProfile =
+  | 'cryptsk'      // Cryptsk Private Limited — Multimode (Gateway + RADIUS)
   | 'mikrotik'
   | 'cisco'
   | 'aruba'
@@ -74,13 +75,20 @@ export type VendorProfile =
  * Mirrors the logic in freeradius-service/index.ts normalizeVendor().
  *
  * Maps 300+ vendor identifiers to one of:
- *   mikrotik, cisco, aruba, chillispot, fortinet, huawei, juniper, wispr, other
+ *   cryptsk, mikrotik, cisco, aruba, chillispot, fortinet, huawei, juniper, wispr, other
+ *
+ * IMPORTANT: 'cryptsk' is checked FIRST — when the product runs in MULTIMODE,
+ * the NAS type should be set to 'cryptsk' so Cryptsk's own VSA are generated.
  */
 export function normalizeVendor(rawVendor: string): VendorProfile {
   const v = (rawVendor || 'other').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
 
-  const profiles: VendorProfile[] = ['mikrotik', 'cisco', 'aruba', 'chillispot', 'fortinet', 'huawei', 'juniper', 'wispr', 'other'];
+  const profiles: VendorProfile[] = ['cryptsk', 'mikrotik', 'cisco', 'aruba', 'chillispot', 'fortinet', 'huawei', 'juniper', 'wispr', 'other'];
   if (profiles.includes(v)) return v;
+
+  // ── cryptsk (always first — own product) ──
+  if (['cryptsk', 'cryptskpvtltd', 'cryptskprivate', 'cryptskpvt',
+    'staysuite', 'hospitalityos', 'cryptskprivate limited', 'cryptskpvtltd'].includes(v)) return 'cryptsk';
 
   // ── mikrotik ──
   if (['mikrotik', 'mikrotikrouteros', 'routeros', 'mikrotikswitch', 'crs', 'switchos'].includes(v)) return 'mikrotik';
@@ -173,8 +181,8 @@ export function normalizeVendor(rawVendor: string): VendorProfile {
  * Get all unique, active NAS vendor types from the RadiusNAS table.
  * Returns normalized vendor profile keys.
  *
- * Example: ['mikrotik', 'cisco'] — means the property uses both
- * MikroTik and Cisco NAS devices, so attributes for BOTH must be written.
+ * Example: ['cryptsk'] — means the product is running in MULTIMODE
+ *          ['mikrotik', 'cisco'] — external gateway mode with both vendors
  */
 export async function getActiveNASVendors(propertyId?: string): Promise<VendorProfile[]> {
   try {
@@ -290,32 +298,48 @@ function getVendorBandwidthAttrs(
   const attrs: Array<{ attribute: string; value: string }> = [];
 
   switch (vendor) {
+    case 'cryptsk':
+      // Cryptsk Multimode — use Cryptsk's own VSA (Vendor ID 64179)
+      // Cryptsk-Rate-Limit: MikroTik-compatible "D/U" format for easy migration
+      attrs.push(
+        { attribute: 'Cryptsk-Rate-Limit', value: `${downloadMbps}M/${uploadMbps}M` },
+        { attribute: 'Cryptsk-Bandwidth-Max-Down', value: String(downloadBps) },
+        { attribute: 'Cryptsk-Bandwidth-Max-Up', value: String(uploadBps) },
+      );
+      break;
+
     case 'mikrotik':
       attrs.push({ attribute: 'Mikrotik-Rate-Limit', value: `${downloadMbps}M/${uploadMbps}M` });
       break;
+
     case 'cisco':
       attrs.push({
         attribute: 'Cisco-AVPair',
         value: `sub:Ingress-Committed-Data-Rate=${downloadBps}\nsub:Egress-Committed-Data-Rate=${uploadBps}`,
       });
       break;
+
     case 'aruba':
       attrs.push({ attribute: 'Aruba-User-Role', value: 'guest' });
       break;
+
     case 'chillispot':
       attrs.push(
         { attribute: 'ChilliSpot-Bandwidth-Max-Down', value: String(downloadBps) },
         { attribute: 'ChilliSpot-Bandwidth-Max-Up', value: String(uploadBps) },
       );
       break;
+
     case 'fortinet':
       attrs.push({ attribute: 'Fortinet-Group', value: 'guest-wifi' });
       break;
+
     case 'huawei':
     case 'juniper':
     case 'wispr':
       // These vendors use WISPr natively — WISPr attrs already added above
       break;
+
     default:
       // Unknown/other vendor: write ChilliSpot attrs for broad compatibility.
       // Do NOT write Mikrotik-specific attrs — we don't know if the NAS is Mikrotik.
@@ -337,18 +361,30 @@ function getVendorDataLimitAttrs(
   const attrs: Array<{ attribute: string; value: string }> = [];
 
   switch (vendor) {
+    case 'cryptsk':
+      // Cryptsk Multimode — use Cryptsk's own VSA (Vendor ID 64179)
+      attrs.push(
+        { attribute: 'Cryptsk-Total-Limit', value: String(dataLimitBytes) },
+        { attribute: 'Cryptsk-Max-Input-Octets', value: String(dataLimitBytes) },
+        { attribute: 'Cryptsk-Max-Output-Octets', value: String(dataLimitBytes) },
+      );
+      break;
+
     case 'mikrotik':
       attrs.push({ attribute: 'Mikrotik-Total-Limit', value: String(dataLimitBytes) });
       break;
+
     case 'cisco':
       attrs.push({
         attribute: 'Cisco-AVPair',
         value: `sub:quota-in=${dataLimitBytes}\nsub:quota-out=${dataLimitBytes}`,
       });
       break;
+
     case 'aruba':
       // Aruba data limits enforced via ClearPass policies — no direct data cap VSA
       break;
+
     case 'chillispot':
       attrs.push(
         { attribute: 'ChilliSpot-Max-Total-Octets', value: String(dataLimitBytes) },
@@ -356,17 +392,19 @@ function getVendorDataLimitAttrs(
         { attribute: 'ChilliSpot-Max-Output-Octets', value: String(dataLimitBytes) },
       );
       break;
+
     case 'fortinet':
       attrs.push({ attribute: 'Fortinet-Group', value: 'guest-wifi' });
       break;
+
     case 'huawei':
     case 'juniper':
     case 'wispr':
       // These use WISPr natively or have no specific data cap VSA
       break;
+
     default:
       // Unknown/other vendor: write ChilliSpot attrs for broad compatibility.
-      // Do NOT write Mikrotik-specific attrs — we don't know if the NAS is Mikrotik.
       attrs.push(
         { attribute: 'ChilliSpot-Max-Total-Octets', value: String(dataLimitBytes) },
         { attribute: 'ChilliSpot-Max-Input-Octets', value: String(dataLimitBytes) },
@@ -384,7 +422,11 @@ function getVendorDataLimitAttrs(
  */
 export function getActiveDataLimitAttrs(attributes: Record<string, string> | undefined): string[] {
   if (!attributes) return [];
-  return ['Mikrotik-Total-Limit', 'ChilliSpot-Max-Total-Octets', 'ChilliSpot-Max-Input-Octets', 'ChilliSpot-Max-Output-Octets'].filter(attr => {
+  return [
+    'Cryptsk-Total-Limit', 'Cryptsk-Max-Input-Octets', 'Cryptsk-Max-Output-Octets',
+    'Mikrotik-Total-Limit',
+    'ChilliSpot-Max-Total-Octets', 'ChilliSpot-Max-Input-Octets', 'ChilliSpot-Max-Output-Octets',
+  ].filter(attr => {
     const val = attributes[attr];
     return val && Number(val) > 0;
   });
@@ -396,8 +438,13 @@ export function getActiveDataLimitAttrs(attributes: Record<string, string> | und
  */
 export function getActiveBandwidthAttrs(attributes: Record<string, string> | undefined): string[] {
   if (!attributes) return [];
-  return ['Mikrotik-Rate-Limit', 'ChilliSpot-Bandwidth-Max-Down', 'ChilliSpot-Bandwidth-Max-Up',
-    'WISPr-Bandwidth-Max-Down', 'WISPr-Bandwidth-Max-Up', 'Cisco-AVPair'].filter(attr => {
+  return [
+    'Cryptsk-Rate-Limit', 'Cryptsk-Bandwidth-Max-Down', 'Cryptsk-Bandwidth-Max-Up',
+    'Mikrotik-Rate-Limit',
+    'ChilliSpot-Bandwidth-Max-Down', 'ChilliSpot-Bandwidth-Max-Up',
+    'WISPr-Bandwidth-Max-Down', 'WISPr-Bandwidth-Max-Up',
+    'Cisco-AVPair',
+  ].filter(attr => {
     const val = attributes[attr];
     return val && val.length > 0;
   });
