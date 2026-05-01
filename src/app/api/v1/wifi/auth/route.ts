@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
+import { randomUUID } from 'crypto';
 
 // ────────────────────────────────────────────────────────────
 // In-memory OTP store (sandbox — use Redis in production)
@@ -15,6 +17,12 @@ function generateOtp(): string {
 
 // ────────────────────────────────────────────────────────────
 // POST /api/v1/wifi/auth — Guest WiFi authentication
+//
+// After successful authentication, this route:
+// 1. Provisions RADIUS credentials (RadCheck, RadReply, RadUserGroup)
+//    via wifiUserService — FreeRADIUS reads these tables directly.
+// 2. Writes an auth log to RadPostAuth (for Auth Logs dashboard tab).
+// 3. Creates an accounting session in RadAcct (for Active Users tab).
 // ────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
@@ -91,6 +99,8 @@ export async function POST(request: NextRequest) {
         });
 
         if (!voucher) {
+          // Log failed auth attempt
+          await logAuthAttempt(voucherCode.trim(), 'Access-Reject', request);
           return errorResponse(
             'INVALID_VOUCHER',
             'Invalid or expired voucher code'
@@ -98,6 +108,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (voucher.status !== 'active' || voucher.isUsed) {
+          await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request);
           return errorResponse(
             'VOUCHER_USED',
             'This voucher has already been used'
@@ -106,6 +117,7 @@ export async function POST(request: NextRequest) {
 
         const now = new Date();
         if (voucher.validUntil < now) {
+          await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request);
           return errorResponse(
             'VOUCHER_EXPIRED',
             'This voucher has expired. Please contact front desk for a new one.'
@@ -122,16 +134,6 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        // Create a WiFi user for RADIUS
-        const wifiUsername = `voucher-${voucher.code.toLowerCase()}`;
-        const existingUser = await db.wiFiUser.findUnique({
-          where: { username: wifiUsername },
-        });
-
-        const validUntil = new Date(
-          now.getTime() + sessionTimeout * 60 * 1000
-        );
-
         // Resolve a valid propertyId (required FK — must exist in Property table)
         const resolvedPropertyId = voucher.plan?.propertyId
           || await db.property.findFirst({
@@ -146,32 +148,62 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        if (existingUser) {
-          await db.wiFiUser.update({
-            where: { id: existingUser.id },
-            data: {
-              status: 'active',
-              validFrom: now,
-              validUntil,
-              radiusSynced: false,
-            },
+        const wifiUsername = `voucher-${voucher.code.toLowerCase()}`;
+        const validUntil = new Date(
+          now.getTime() + sessionTimeout * 60 * 1000
+        );
+
+        // ── Provision RADIUS credentials ──
+        const downloadBps = bwDown * 1000000;
+        const uploadBps = bwUp * 1000000;
+        const dataLimitMb = voucher.plan?.dataLimit ?? undefined;
+
+        try {
+          await wifiUserService.provisionUser({
+            tenantId: voucher.tenantId,
+            propertyId: resolvedPropertyId,
+            guestId: voucher.guestId ?? undefined,
+            bookingId: voucher.bookingId ?? undefined,
+            username: wifiUsername,
+            password: voucher.code,
+            planId: voucher.planId ?? undefined,
+            validFrom: now,
+            validUntil,
+            userType: 'guest',
+            downloadSpeed: downloadBps,
+            uploadSpeed: uploadBps,
+            sessionTimeoutMinutes: sessionTimeout,
+            dataLimit: dataLimitMb,
           });
-        } else {
-          await db.wiFiUser.create({
-            data: {
-              tenantId: voucher.tenantId,
-              propertyId: resolvedPropertyId,
-              username: wifiUsername,
-              password: voucher.code,
-              guestId: voucher.guestId,
-              bookingId: voucher.bookingId,
-              planId: voucher.planId,
-              validFrom: now,
-              validUntil,
-              status: 'active',
-            },
-          });
+        } catch (provisionErr) {
+          console.error('[Guest Auth] RADIUS provisioning failed:', provisionErr);
+          // User may already exist — try to update
+          try {
+            const existingUser = await db.wiFiUser.findUnique({
+              where: { username: wifiUsername },
+            });
+            if (existingUser) {
+              await db.wiFiUser.update({
+                where: { id: existingUser.id },
+                data: {
+                  status: 'active',
+                  validFrom: now,
+                  validUntil,
+                  radiusSynced: true,
+                  radiusSyncedAt: now,
+                },
+              });
+            }
+          } catch {
+            // Best effort
+          }
         }
+
+        // ── Log auth attempt (for Auth Logs tab) ──
+        await logAuthAttempt(wifiUsername, 'Access-Accept', request);
+
+        // ── Create accounting session (for Active Users tab) ──
+        await createAccountingSession(wifiUsername, request);
 
         return successResponse({
           authenticated: true,
@@ -220,48 +252,67 @@ export async function POST(request: NextRequest) {
         );
 
         if (!match) {
+          await logAuthAttempt(`room-${roomNumber.trim().toLowerCase()}`, 'Access-Reject', request);
           return errorResponse(
             'ROOM_NOT_FOUND',
             'No active guest found for this room number and last name. Please verify and try again.'
           );
         }
 
-        // Create or activate a WiFi user
-        const wifiUsername = `room-${match.room?.roomNumber?.toLowerCase() || roomNumber.trim().toLowerCase()}`;
         const now = new Date();
         const validUntil = new Date(
           now.getTime() + sessionTimeout * 60 * 1000
         );
 
-        const existingUser = await db.wiFiUser.findUnique({
-          where: { username: wifiUsername },
-        });
+        const wifiUsername = `room-${match.room?.roomNumber?.toLowerCase() || roomNumber.trim().toLowerCase()}`;
+        const userPassword = `${match.primaryGuest.lastName.toLowerCase()}-${match.id.slice(0, 8)}`;
+        const downloadBps = bwDown * 1000000;
+        const uploadBps = bwUp * 1000000;
 
-        if (existingUser) {
-          await db.wiFiUser.update({
-            where: { id: existingUser.id },
-            data: {
-              status: 'active',
-              validFrom: now,
-              validUntil,
-              radiusSynced: false,
-            },
+        // ── Provision RADIUS credentials ──
+        try {
+          await wifiUserService.provisionUser({
+            tenantId: match.tenantId,
+            propertyId: match.propertyId,
+            guestId: match.primaryGuestId,
+            bookingId: match.id,
+            username: wifiUsername,
+            password: userPassword,
+            validFrom: now,
+            validUntil,
+            userType: 'guest',
+            downloadSpeed: downloadBps,
+            uploadSpeed: uploadBps,
+            sessionTimeoutMinutes: sessionTimeout,
           });
-        } else {
-          await db.wiFiUser.create({
-            data: {
-              tenantId: match.tenantId,
-              propertyId: match.propertyId,
-              username: wifiUsername,
-              password: `${match.primaryGuest.lastName.toLowerCase()}-${match.id.slice(0, 8)}`,
-              guestId: match.primaryGuestId,
-              bookingId: match.id,
-              validFrom: now,
-              validUntil,
-              status: 'active',
-            },
-          });
+        } catch (provisionErr) {
+          console.error('[Guest Auth] RADIUS provisioning failed:', provisionErr);
+          try {
+            const existingUser = await db.wiFiUser.findUnique({
+              where: { username: wifiUsername },
+            });
+            if (existingUser) {
+              await db.wiFiUser.update({
+                where: { id: existingUser.id },
+                data: {
+                  status: 'active',
+                  validFrom: now,
+                  validUntil,
+                  radiusSynced: true,
+                  radiusSyncedAt: now,
+                },
+              });
+            }
+          } catch {
+            // Best effort
+          }
         }
+
+        // ── Log auth attempt ──
+        await logAuthAttempt(wifiUsername, 'Access-Accept', request);
+
+        // ── Create accounting session ──
+        await createAccountingSession(wifiUsername, request);
 
         return successResponse({
           authenticated: true,
@@ -293,6 +344,7 @@ export async function POST(request: NextRequest) {
         });
 
         if (!wifiUser) {
+          await logAuthAttempt(username.trim(), 'Access-Reject', request);
           return errorResponse(
             'INVALID_CREDENTIALS',
             'Invalid username or password'
@@ -300,6 +352,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (wifiUser.password !== password.trim()) {
+          await logAuthAttempt(username.trim(), 'Access-Reject', request);
           return errorResponse(
             'INVALID_CREDENTIALS',
             'Invalid username or password'
@@ -307,6 +360,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (wifiUser.status !== 'active') {
+          await logAuthAttempt(username.trim(), 'Access-Reject', request);
           return errorResponse(
             'ACCOUNT_INACTIVE',
             'Your WiFi account is not active. Please contact front desk.'
@@ -315,11 +369,30 @@ export async function POST(request: NextRequest) {
 
         const now = new Date();
         if (wifiUser.validUntil < now) {
+          await logAuthAttempt(username.trim(), 'Access-Reject', request);
           return errorResponse(
             'ACCOUNT_EXPIRED',
             'Your WiFi session has expired. Please contact front desk to renew.'
           );
         }
+
+        // Ensure RADIUS credentials exist (user might not have been provisioned)
+        const existingCheck = await db.radCheck.findFirst({
+          where: { username: wifiUser.username },
+        });
+        if (!existingCheck) {
+          try {
+            await wifiUserService.resumeUser(wifiUser.id);
+          } catch {
+            // Best effort — user already has valid WiFiUser record
+          }
+        }
+
+        // ── Log auth attempt ──
+        await logAuthAttempt(username.trim(), 'Access-Accept', request);
+
+        // ── Create accounting session ──
+        await createAccountingSession(username.trim(), request);
 
         return successResponse({
           authenticated: true,
@@ -370,16 +443,14 @@ export async function POST(request: NextRequest) {
           // OTP verified — clean up
           otpStore.delete(normalizedPhone);
 
-          // Create a WiFi user for the phone-based session
           const now = new Date();
           const validUntil = new Date(
             now.getTime() + sessionTimeout * 60 * 1000
           );
 
           const wifiUsername = `sms-${normalizedPhone.replace(/[^a-z0-9]/gi, '')}`;
-          const existingUser = await db.wiFiUser.findUnique({
-            where: { username: wifiUsername },
-          });
+          const downloadBps = bwDown * 1000000;
+          const uploadBps = bwUp * 1000000;
 
           // Get any property from the portal
           const fallbackPropertyId = portal?.propertyId
@@ -387,28 +458,49 @@ export async function POST(request: NextRequest) {
               ? db.property.findFirst({ where: { tenantId: portal.tenantId }, select: { id: true } }).then(p => p?.id)
               : Promise.resolve(undefined));
 
-          if (existingUser) {
-            await db.wiFiUser.update({
-              where: { id: existingUser.id },
-              data: {
-                status: 'active',
-                validFrom: now,
-                validUntil,
-                radiusSynced: false,
-              },
-            });
-          } else if (fallbackPropertyId) {
-            await db.wiFiUser.create({
-              data: {
+          if (fallbackPropertyId) {
+            // ── Provision RADIUS credentials ──
+            try {
+              await wifiUserService.provisionUser({
                 tenantId: portal?.tenantId || '',
                 propertyId: fallbackPropertyId,
                 username: wifiUsername,
                 password: stored.code,
                 validFrom: now,
                 validUntil,
-                status: 'active',
-              },
-            });
+                userType: 'guest',
+                downloadSpeed: downloadBps,
+                uploadSpeed: uploadBps,
+                sessionTimeoutMinutes: sessionTimeout,
+              });
+            } catch (provisionErr) {
+              console.error('[Guest Auth] RADIUS provisioning failed:', provisionErr);
+              try {
+                const existingUser = await db.wiFiUser.findUnique({
+                  where: { username: wifiUsername },
+                });
+                if (existingUser) {
+                  await db.wiFiUser.update({
+                    where: { id: existingUser.id },
+                    data: {
+                      status: 'active',
+                      validFrom: now,
+                      validUntil,
+                      radiusSynced: true,
+                      radiusSyncedAt: now,
+                    },
+                  });
+                }
+              } catch {
+                // Best effort
+              }
+            }
+
+            // ── Log auth attempt ──
+            await logAuthAttempt(wifiUsername, 'Access-Accept', request);
+
+            // ── Create accounting session ──
+            await createAccountingSession(wifiUsername, request);
           }
 
           return successResponse({
@@ -460,15 +552,16 @@ export async function POST(request: NextRequest) {
 
       // ─── Open Access ──────────────────────────────────────
       case 'open_access': {
-        // Auto-connect — no credentials needed
         const now = new Date();
         const validUntil = new Date(
           now.getTime() + sessionTimeout * 60 * 1000
         );
 
-        // Optionally create a WiFi user for tracking
         if (portal) {
           const wifiUsername = `open-${Date.now()}`;
+          const downloadBps = bwDown * 1000000;
+          const uploadBps = bwUp * 1000000;
+
           try {
             // Resolve a valid propertyId (portal.propertyId may be null)
             const resolvedPropertyId = portal.propertyId
@@ -478,20 +571,28 @@ export async function POST(request: NextRequest) {
                 }).then(p => p?.id);
 
             if (resolvedPropertyId) {
-              await db.wiFiUser.create({
-                data: {
-                  tenantId: portal.tenantId,
-                  propertyId: resolvedPropertyId,
-                  username: wifiUsername,
-                  password: `open-${Date.now()}`,
-                  validFrom: now,
-                  validUntil,
-                  status: 'active',
-                },
+              // ── Provision RADIUS credentials ──
+              await wifiUserService.provisionUser({
+                tenantId: portal.tenantId,
+                propertyId: resolvedPropertyId,
+                username: wifiUsername,
+                password: `open-${Date.now()}`,
+                validFrom: now,
+                validUntil,
+                userType: 'guest',
+                downloadSpeed: downloadBps,
+                uploadSpeed: uploadBps,
+                sessionTimeoutMinutes: sessionTimeout,
               });
+
+              // ── Log auth attempt ──
+              await logAuthAttempt(wifiUsername, 'Access-Accept', request);
+
+              // ── Create accounting session ──
+              await createAccountingSession(wifiUsername, request);
             }
           } catch {
-            // Ignore unique constraint race — best effort
+            // Ignore — best effort for open access
           }
         }
 
@@ -536,4 +637,78 @@ function errorResponse(code: string, message: string, status = 400) {
     },
     { status }
   );
+}
+
+/**
+ * Write an auth log to RadPostAuth table.
+ * This feeds the v_auth_logs view → Auth Logs dashboard tab.
+ */
+async function logAuthAttempt(
+  username: string,
+  reply: string,
+  request: NextRequest
+) {
+  try {
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || request.headers.get('x-real-ip')
+      || '';
+
+    await db.$executeRawUnsafe(
+      `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress)
+       VALUES ($1, '', $2, NOW(), $3)`,
+      username,
+      reply,
+      clientIp
+    );
+  } catch (err) {
+    // Non-fatal — auth logging failure should not block authentication
+    console.error('[Guest Auth] Failed to write auth log:', err);
+  }
+}
+
+/**
+ * Create an accounting session in RadAcct table.
+ * This feeds the v_active_sessions view → Active Users dashboard tab.
+ *
+ * The session is marked as 'start' with no stop time (acctstoptime = NULL),
+ * which is how FreeRADIUS represents an active session.
+ */
+async function createAccountingSession(
+  username: string,
+  request: NextRequest
+) {
+  try {
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || request.headers.get('x-real-ip')
+      || '0.0.0.0';
+
+    const now = new Date();
+    const acctSessionId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
+    const acctUniqueId = randomUUID();
+
+    await db.$executeRawUnsafe(
+      `INSERT INTO radacct (
+         acctuniqueid, acctsessionid, username,
+         nasipaddress, nasporttype, acctstarttime, acctupdatetime,
+         acctauthentic, framedipaddress, acctstatus,
+         acctinputoctets, acctoutputoctets, acctsessiontime,
+         "createdAt", "updatedAt"
+       ) VALUES (
+         $1, $2, $3,
+         $4, 'Wireless-802.11', $5, $5,
+         'PAP', $6, 'start',
+         0, 0, 0,
+         NOW(), NOW()
+       )`,
+      acctUniqueId,
+      acctSessionId,
+      username,
+      '10.0.1.1', // NAS IP (captive portal NAS)
+      now,
+      clientIp
+    );
+  } catch (err) {
+    // Non-fatal — accounting failure should not block authentication
+    console.error('[Guest Auth] Failed to create accounting session:', err);
+  }
 }
