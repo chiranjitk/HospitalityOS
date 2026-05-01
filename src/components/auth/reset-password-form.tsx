@@ -119,7 +119,7 @@ function ResetPasswordFormContent() {
           </Alert>
           <Button
             onClick={() => router.push('/login?forgot=true')}
-            className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700"
+            className="w-full bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600"
           >
             Request New Reset Link
           </Button>
@@ -133,7 +133,7 @@ function ResetPasswordFormContent() {
       <Card className="w-full max-w-md shadow-xl border-0">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <div className="rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 p-3">
+            <div className="rounded-full bg-gradient-to-br from-slate-700 to-slate-800 p-3">
               <Hotel className="h-8 w-8 text-white" />
             </div>
           </div>
@@ -159,7 +159,7 @@ function ResetPasswordFormContent() {
 
           <Button
             onClick={() => router.push('/login')}
-            className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700"
+            className="w-full bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600"
           >
             Go to Login
           </Button>
@@ -172,7 +172,7 @@ function ResetPasswordFormContent() {
     <Card className="w-full max-w-md shadow-xl border-0">
       <CardHeader className="space-y-1 text-center">
         <div className="flex justify-center mb-4">
-          <div className="rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 p-3">
+          <div className="rounded-full bg-gradient-to-br from-slate-700 to-slate-800 p-3">
             <Hotel className="h-8 w-8 text-white" />
           </div>
         </div>
@@ -279,7 +279,7 @@ function ResetPasswordFormContent() {
 
           <Button
             type="submit"
-            className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700"
+            className="w-full bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600"
             disabled={isLoading || !isPasswordStrong || newPassword !== confirmPassword}
           >
             {isLoading ? (

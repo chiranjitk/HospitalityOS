@@ -458,7 +458,7 @@ export default function TenantSignupPage() {
                       <Badge className={`w-fit mx-auto mb-2 ${
                         key === 'enterprise' ? 'bg-violet-500' :
                         key === 'professional' ? 'bg-cyan-500' :
-                        key === 'starter' ? 'bg-emerald-500' : 'bg-gray-500'
+                        key === 'starter' ? 'bg-amber-500' : 'bg-gray-500'
                       }`}>
                         {plan.name}
                       </Badge>
@@ -485,7 +485,7 @@ export default function TenantSignupPage() {
                         Selected Plan: <Badge className={`${
                           formData.plan === 'enterprise' ? 'bg-violet-500' :
                           formData.plan === 'professional' ? 'bg-cyan-500' :
-                          formData.plan === 'starter' ? 'bg-emerald-500' : 'bg-gray-500'
+                          formData.plan === 'starter' ? 'bg-amber-500' : 'bg-gray-500'
                         }`}>{selectedPlan.name}</Badge>
                       </CardTitle>
                       <CardDescription>

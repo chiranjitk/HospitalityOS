@@ -74,7 +74,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
   const demoCredentials = showDemoCredentials ? [
     { role: 'Admin', email: 'admin@royalstay.in', password: 'admin123', color: 'bg-violet-500' },
     { role: 'Front Desk', email: 'frontdesk@royalstay.in', password: 'staff123', color: 'bg-cyan-500' },
-    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'staff123', color: 'bg-emerald-500' },
+    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'staff123', color: 'bg-slate-500' },
   ] : [];
 
   return (
@@ -95,7 +95,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                 className="flex justify-center mb-4"
                 style={{ animation: 'formLogoFloat 4s ease-in-out infinite' }}
               >
-                <div className="rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 p-3.5 shadow-lg shadow-teal-500/30 transition-transform hover:scale-110 duration-300">
+                <div className="rounded-2xl bg-gradient-to-br from-slate-700 to-slate-800 p-3.5 shadow-lg shadow-slate-500/20 transition-transform hover:scale-110 duration-300">
                   <Hotel className="h-8 w-8 text-white" />
                 </div>
               </div>
@@ -134,7 +134,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                   placeholder="name@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="h-11 bg-white/50 dark:bg-slate-900/50 border-slate-200/80 dark:border-slate-700/80 rounded-xl transition-all duration-300 focus:bg-white dark:focus:bg-slate-900 focus:border-teal-400 focus:ring-2 focus:ring-teal-400/20 hover:border-slate-300 dark:hover:border-slate-600"
+                  className="h-11 bg-white/50 dark:bg-slate-900/50 border-slate-200/80 dark:border-slate-700/80 rounded-xl transition-all duration-300 focus:bg-white dark:focus:bg-slate-900 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 hover:border-slate-300 dark:hover:border-slate-600"
                   required
                   disabled={isLoading}
                   autoComplete="email"
@@ -153,7 +153,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="h-11 pr-10 bg-white/50 dark:bg-slate-900/50 border-slate-200/80 dark:border-slate-700/80 rounded-xl transition-all duration-300 focus:bg-white dark:focus:bg-slate-900 focus:border-teal-400 focus:ring-2 focus:ring-teal-400/20 hover:border-slate-300 dark:hover:border-slate-600"
+                    className="h-11 pr-10 bg-white/50 dark:bg-slate-900/50 border-slate-200/80 dark:border-slate-700/80 rounded-xl transition-all duration-300 focus:bg-white dark:focus:bg-slate-900 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 hover:border-slate-300 dark:hover:border-slate-600"
                     required
                     disabled={isLoading}
                     autoComplete="current-password"
@@ -177,8 +177,8 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                   type="submit"
                   className={cn(
                     "w-full h-11 rounded-xl font-semibold text-sm transition-all duration-300",
-                    "bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700",
-                    "shadow-lg shadow-teal-500/25 hover:shadow-xl hover:shadow-teal-500/30",
+                    "bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600",
+                    "shadow-lg shadow-slate-500/20 hover:shadow-xl hover:shadow-slate-500/25",
                     "hover:-translate-y-0.5 active:translate-y-0",
                     "disabled:opacity-70 disabled:hover:translate-y-0 disabled:shadow-lg",
                     "relative overflow-hidden"
