@@ -1518,14 +1518,17 @@ export async function POST(request: NextRequest) {
           for (const user of users) {
             try {
               // Delete+Insert radcheck (no unique constraint on username+attribute)
-              // Extended schema: id, wifiUserId, username, attribute, op, value, priority, isActive, createdAt, updatedAt
-              await db.$executeRawUnsafe(`
-                DELETE FROM radcheck WHERE username = $1 AND attribute = 'Cleartext-Password'
-              `, user.username);
-              await db.$executeRawUnsafe(`
-                INSERT INTO radcheck (id, "wifiUserId", username, attribute, op, value, "isActive", "createdAt", "updatedAt")
-                VALUES (gen_random_uuid(), $1::uuid, $2, 'Cleartext-Password', ':=', $3, true, NOW(), NOW())
-              `, user.id, user.username, user.password);
+              // Use Prisma ORM — avoids raw SQL schema mismatch issues
+              await db.radCheck.deleteMany({ where: { username: user.username, attribute: 'Cleartext-Password' } });
+              await db.radCheck.create({
+                data: {
+                  wifiUserId: user.id,
+                  username: user.username,
+                  attribute: 'Cleartext-Password',
+                  op: ':=',
+                  value: user.password,
+                },
+              });
 
               // Get plan
               const plan = user.planId ? plansMap.get(user.planId) : null;
@@ -1533,12 +1536,14 @@ export async function POST(request: NextRequest) {
               const op = ':=';
 
               // Delete+Insert radusergroup
-              // Extended schema: id, username, groupname, priority, createdAt
-              await db.$executeRawUnsafe(`DELETE FROM radusergroup WHERE username = $1`, user.username);
-              await db.$executeRawUnsafe(`
-                INSERT INTO radusergroup (id, username, groupname, priority, "createdAt")
-                VALUES (gen_random_uuid(), $1, $2, 0, NOW())
-              `, user.username, groupName);
+              await db.radUserGroup.deleteMany({ where: { username: user.username } });
+              await db.radUserGroup.create({
+                data: {
+                  username: user.username,
+                  groupname: groupName,
+                  priority: 0,
+                },
+              });
 
               // Sync plan attributes into radreply
               if (plan) {
@@ -1547,27 +1552,37 @@ export async function POST(request: NextRequest) {
                   : plan.validityDays * 86400;
 
                 // Clear old plan attributes for this user
-                await db.$executeRawUnsafe(`
-                  DELETE FROM radreply WHERE username = $1 AND attribute IN (
-                    'WISPr-Bandwidth-Max-Down', 'WISPr-Bandwidth-Max-Up',
-                    'Session-Timeout', 'Framed-IP-Address', 'Idle-Timeout'
-                  )
-                `, user.username);
+                await db.radReply.deleteMany({
+                  where: {
+                    username: user.username,
+                    attribute: { in: ['WISPr-Bandwidth-Max-Down', 'WISPr-Bandwidth-Max-Up', 'Session-Timeout', 'Framed-IP-Address', 'Idle-Timeout'] },
+                  },
+                });
 
-                // Insert bandwidth attributes — extended schema with id, wifiUserId, isActive, timestamps
-                await db.$executeRawUnsafe(`
-                  INSERT INTO radreply (id, "wifiUserId", username, attribute, op, value, "isActive", "createdAt", "updatedAt") VALUES
-                    (gen_random_uuid(), $1::uuid, $2, 'WISPr-Bandwidth-Max-Down', $3, $4, true, NOW(), NOW()),
-                    (gen_random_uuid(), $1::uuid, $2, 'WISPr-Bandwidth-Max-Up', $3, $5, true, NOW(), NOW()),
-                    (gen_random_uuid(), $1::uuid, $2, 'Session-Timeout', $3, $6, true, NOW(), NOW())
-                `, user.id, user.username, op, String(plan.downloadSpeed * 1024), String(plan.uploadSpeed * 1024), String(sessionTimeout));
+                // Insert bandwidth + session timeout attributes via Prisma ORM
+                const replyAttrs = [
+                  { attribute: 'WISPr-Bandwidth-Max-Down', op: ':=' as const, value: String(plan.downloadSpeed * 1024) },
+                  { attribute: 'WISPr-Bandwidth-Max-Up', op: ':=' as const, value: String(plan.uploadSpeed * 1024) },
+                  { attribute: 'Session-Timeout', op: ':=' as const, value: String(sessionTimeout) },
+                ];
+                for (const attr of replyAttrs) {
+                  await db.radReply.create({
+                    data: {
+                      wifiUserId: user.id,
+                      username: user.username,
+                      attribute: attr.attribute,
+                      op: attr.op,
+                      value: attr.value,
+                    },
+                  });
+                }
               }
 
               // Mark as synced
-              await db.$executeRawUnsafe(`
-                UPDATE "WiFiUser" SET "radiusSynced" = true, "radiusSyncedAt" = NOW()
-                WHERE username = $1
-              `, user.username);
+              await db.wiFiUser.updateMany({
+                where: { username: user.username },
+                data: { radiusSynced: true, radiusSyncedAt: new Date() },
+              });
 
               syncedCount++;
             } catch (syncErr) {
@@ -2072,15 +2087,15 @@ export async function POST(request: NextRequest) {
 
           // 3. Handle password change
           if (password && password.trim()) {
-            await db.$executeRawUnsafe(
-              `UPDATE "WiFiUser" SET password = $1 WHERE id = $2::uuid`,
-              password, userId
-            );
+            await db.wiFiUser.update({
+              where: { id: userId },
+              data: { password },
+            });
             // Update radcheck
-            await db.$executeRawUnsafe(
-              `UPDATE radcheck SET value = $1, "updatedAt" = NOW(), "isActive" = true WHERE username = $2 AND attribute = 'Cleartext-Password'`,
-              password, existingUser.username
-            );
+            await db.radCheck.updateMany({
+              where: { username: existingUser.username, attribute: 'Cleartext-Password' },
+              data: { value: password, isActive: true },
+            });
           }
 
           // 4. Handle group/plan name change — use same format as sync-users: "plan_" prefix
@@ -2089,11 +2104,14 @@ export async function POST(request: NextRequest) {
             : undefined);
 
           if (effectiveGroup) {
-            await db.$executeRawUnsafe(`DELETE FROM radusergroup WHERE username = $1`, existingUser.username);
-            await db.$executeRawUnsafe(
-              `INSERT INTO radusergroup (id, username, groupname, priority, "createdAt") VALUES (gen_random_uuid(), $1, $2, 0, NOW())`,
-              existingUser.username, effectiveGroup
-            );
+            await db.radUserGroup.deleteMany({ where: { username: existingUser.username } });
+            await db.radUserGroup.create({
+              data: {
+                username: existingUser.username,
+                groupname: effectiveGroup,
+                priority: 0,
+              },
+            });
           }
 
           // 5. Handle bandwidth change — update radreply (also triggered by plan change)
@@ -2107,66 +2125,79 @@ export async function POST(request: NextRequest) {
               : (effectivePlan?.uploadSpeed ?? 5) * 1000000;
 
             // Clear old bandwidth attrs
-            await db.$executeRawUnsafe(`
-              DELETE FROM radreply WHERE username = $1 AND attribute IN (
-                'WISPr-Bandwidth-Max-Down', 'WISPr-Bandwidth-Max-Up'
-              )
-            `, existingUser.username);
+            await db.radReply.deleteMany({
+              where: {
+                username: existingUser.username,
+                attribute: { in: ['WISPr-Bandwidth-Max-Down', 'WISPr-Bandwidth-Max-Up'] },
+              },
+            });
 
-            // Insert new
-            await db.$executeRawUnsafe(
-              `INSERT INTO radreply (id, "wifiUserId", username, attribute, op, value, "isActive", "createdAt", "updatedAt")
-               VALUES (gen_random_uuid(), $1::uuid, $2, 'WISPr-Bandwidth-Max-Down', ':=', $3, true, NOW(), NOW())`,
-              userId, existingUser.username, String(dlBps)
-            );
-            await db.$executeRawUnsafe(
-              `INSERT INTO radreply (id, "wifiUserId", username, attribute, op, value, "isActive", "createdAt", "updatedAt")
-               VALUES (gen_random_uuid(), $1::uuid, $2, 'WISPr-Bandwidth-Max-Up', ':=', $3, true, NOW(), NOW())`,
-              userId, existingUser.username, String(ulBps)
-            );
+            // Insert new via Prisma ORM
+            await db.radReply.create({
+              data: {
+                wifiUserId: userId,
+                username: existingUser.username,
+                attribute: 'WISPr-Bandwidth-Max-Down',
+                op: ':=',
+                value: String(dlBps),
+              },
+            });
+            await db.radReply.create({
+              data: {
+                wifiUserId: userId,
+                username: existingUser.username,
+                attribute: 'WISPr-Bandwidth-Max-Up',
+                op: ':=',
+                value: String(ulBps),
+              },
+            });
           }
 
           // 6. Handle session timeout
           if (sessionTimeout !== undefined) {
             const timeoutSec = sessionTimeout * 60;
-            await db.$executeRawUnsafe(`DELETE FROM radreply WHERE username = $1 AND attribute = 'Session-Timeout'`, existingUser.username);
+            await db.radReply.deleteMany({ where: { username: existingUser.username, attribute: 'Session-Timeout' } });
             if (timeoutSec > 0) {
-              await db.$executeRawUnsafe(
-                `INSERT INTO radreply (id, "wifiUserId", username, attribute, op, value, "isActive", "createdAt", "updatedAt")
-                 VALUES (gen_random_uuid(), $1::uuid, $2, 'Session-Timeout', ':=', $3, true, NOW(), NOW())`,
-                userId, existingUser.username, String(timeoutSec)
-              );
+              await db.radReply.create({
+                data: {
+                  wifiUserId: userId,
+                  username: existingUser.username,
+                  attribute: 'Session-Timeout',
+                  op: ':=',
+                  value: String(timeoutSec),
+                },
+              });
             }
           }
 
           // 7. Handle data limit
           if (dataLimit !== undefined && dataLimit > 0) {
             const limitBytes = String(dataLimit * 1024 * 1024);
-            await db.$executeRawUnsafe(`DELETE FROM radreply WHERE username = $1 AND attribute = 'Framed-Filter-Id'`, existingUser.username);
+            await db.radReply.deleteMany({ where: { username: existingUser.username, attribute: 'Framed-Filter-Id' } });
             // Data limit is typically enforced via group attributes, but store for reference
           }
 
           // 8. Handle validUntil
           if (validUntil) {
-            await db.$executeRawUnsafe(
-              `UPDATE "WiFiUser" SET "validUntil" = $1::timestamptz WHERE id = $2::uuid`,
-              new Date(validUntil), userId
-            );
+            await db.wiFiUser.update({
+              where: { id: userId },
+              data: { validUntil: new Date(validUntil) },
+            });
           }
 
           // 9. Handle userType
           if (userType) {
-            await db.$executeRawUnsafe(
-              `UPDATE "WiFiUser" SET "userType" = $1 WHERE id = $2::uuid`,
-              userType, userId
-            );
+            await db.wiFiUser.update({
+              where: { id: userId },
+              data: { userType },
+            });
           }
 
           // 10. Mark synced
-          await db.$executeRawUnsafe(
-            `UPDATE "WiFiUser" SET "radiusSynced" = true, "radiusSyncedAt" = NOW() WHERE id = $1::uuid`,
-            userId
-          );
+          await db.wiFiUser.update({
+            where: { id: userId },
+            data: { radiusSynced: true, radiusSyncedAt: new Date() },
+          });
 
           return NextResponse.json({
             success: true,

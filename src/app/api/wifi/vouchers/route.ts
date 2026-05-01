@@ -240,50 +240,61 @@ export async function POST(request: NextRequest) {    const user = await require
       // ── Create RADIUS radcheck entry so FreeRADIUS can authenticate voucher code ──
       // The voucher code serves as BOTH username and password for RADIUS auth.
       // This is the industry-standard approach for captive portal voucher systems.
+      // Uses Prisma ORM (db.radCheck.create) instead of raw SQL — consistent with wifi-user-service.
       try {
-        const expirationDate = voucherValidUntil.toISOString().split('T')[0]; // FreeRADIUS format: YYYY-MM-DD
-        const nowISO = new Date().toISOString().replace('T', ' ').split('.')[0]; // PostgreSQL timestamp format
+        // 1. Cleartext-Password: voucher code is both username AND password
+        await db.radCheck.create({
+          data: {
+            username: currentCode,
+            attribute: 'Cleartext-Password',
+            op: ':=',
+            value: currentCode,
+          },
+        });
 
-        // Insert radcheck entries (raw SQL for FreeRADIUS compatibility — includes required columns)
-        // Extended schema: id, wifiUserId, username, attribute, op, value, priority, isActive, createdAt, updatedAt
-        await db.$executeRawUnsafe(
-          `INSERT INTO radcheck (id, username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (gen_random_uuid(), $1, 'Cleartext-Password', ':=', $2, 1, $3, $4)`,
-          currentCode, currentCode, nowISO, nowISO
-        );
-        await db.$executeRawUnsafe(
-          `INSERT INTO radcheck (id, username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (gen_random_uuid(), $1, 'Expiration', ':=', $2, 1, $3, $4)`,
-          currentCode, expirationDate, nowISO, nowISO
-        );
+        // 2. Expiration attribute for FreeRADIUS
+        await db.radCheck.create({
+          data: {
+            username: currentCode,
+            attribute: 'Expiration',
+            op: ':=',
+            value: voucherValidUntil.toISOString().split('T')[0], // FreeRADIUS format: YYYY-MM-DD
+          },
+        });
 
-        // Insert radreply entries for plan enforcement (bandwidth + session timeout)
+        // 3. Insert radreply entries for plan enforcement (bandwidth + session timeout)
         if (plan.downloadSpeed) {
-          const downBps = plan.downloadSpeed * 1000000; // Mbps to bps
-          await db.$executeRawUnsafe(
-            `INSERT INTO radreply (id, username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (gen_random_uuid(), $1, 'WISPr-Bandwidth-Max-Down', '=', $2, 1, $3, $4)`,
-            currentCode, String(downBps), nowISO, nowISO
-          );
+          await db.radReply.create({
+            data: {
+              username: currentCode,
+              attribute: 'WISPr-Bandwidth-Max-Down',
+              op: '=',
+              value: String(plan.downloadSpeed * 1000000), // Mbps to bps
+            },
+          });
         }
         if (plan.uploadSpeed) {
-          const upBps = plan.uploadSpeed * 1000000;
-          await db.$executeRawUnsafe(
-            `INSERT INTO radreply (id, username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (gen_random_uuid(), $1, 'WISPr-Bandwidth-Max-Up', '=', $2, 1, $3, $4)`,
-            currentCode, String(upBps), nowISO, nowISO
-          );
+          await db.radReply.create({
+            data: {
+              username: currentCode,
+              attribute: 'WISPr-Bandwidth-Max-Up',
+              op: '=',
+              value: String(plan.uploadSpeed * 1000000),
+            },
+          });
         }
-        if (plan.sessionLimit) {
-          await db.$executeRawUnsafe(
-            `INSERT INTO radreply (id, username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (gen_random_uuid(), $1, 'Session-Timeout', '=', $2, 1, $3, $4)`,
-            currentCode, String(plan.sessionLimit), nowISO, nowISO
-          );
-        }
-        // Always set a session timeout based on validity days if no explicit session limit
-        if (!plan.sessionLimit) {
-          const sessionTimeoutSec = voucherValidityDays * 24 * 60 * 60;
-          await db.$executeRawUnsafe(
-            `INSERT INTO radreply (id, username, attribute, op, value, isActive, createdAt, updatedAt) VALUES (gen_random_uuid(), $1, 'Session-Timeout', '=', $2, 1, $3, $4)`,
-            currentCode, String(sessionTimeoutSec), nowISO, nowISO
-          );
-        }
+        // Session timeout: explicit plan limit or computed from validity days
+        const sessionTimeoutSec = plan.sessionLimit
+          ? plan.sessionLimit
+          : voucherValidityDays * 24 * 60 * 60;
+        await db.radReply.create({
+          data: {
+            username: currentCode,
+            attribute: 'Session-Timeout',
+            op: '=',
+            value: String(sessionTimeoutSec),
+          },
+        });
 
         console.log(`[Voucher] Created RADIUS credentials for voucher ${currentCode}`);
       } catch (radiusError) {
@@ -730,8 +741,9 @@ export async function DELETE(request: NextRequest) {    const user = await requi
 
     // Remove RADIUS credentials so the code can no longer authenticate
     try {
-      await db.$executeRawUnsafe(`DELETE FROM radcheck WHERE username = $1 AND "wifiUserId" IS NULL`, voucher.code);
-      await db.$executeRawUnsafe(`DELETE FROM radreply WHERE username = $1 AND "wifiUserId" IS NULL`, voucher.code);
+      // Delete all radcheck + radreply entries for this voucher code
+      await db.radCheck.deleteMany({ where: { username: voucher.code } });
+      await db.radReply.deleteMany({ where: { username: voucher.code } });
       console.log(`[Voucher] Removed RADIUS credentials for revoked voucher ${voucher.code}`);
     } catch (radiusError) {
       console.error(`[Voucher] Failed to remove RADIUS credentials for ${voucher.code}:`, radiusError);
