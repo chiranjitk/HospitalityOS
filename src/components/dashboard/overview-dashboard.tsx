@@ -59,8 +59,9 @@ import { RatePlanComparisonWidget } from './widgets/rate-plan-comparison';
 import { GuestSegmentsWidget } from './widgets/guest-segments';
 import { GuestCommunicationWidget } from './widgets/guest-communication';
 import StaffPerformanceWidget from './widgets/staff-performance';
-import ChannelPerformanceWidget from './widgets/channel-performance';
-import { QuickNotesWidget } from './widgets/quick-notes';
+import { ChannelPerformanceWidget } from './widgets/channel-performance-widget';
+import { QuickNotesStickyWidget } from './widgets/quick-notes-widget';
+import { TodaysTasksWidget } from './widgets/todays-tasks';
 import { SystemHealthStatusWidget } from './widgets/system-health-widget';
 import { WiFiLiveStatsWidget } from './widgets/wifi-live-stats-widget';
 import { WeatherWidget } from './widgets/weather-widget';
@@ -392,12 +393,19 @@ function TodaySummaryCard({ summary, isLoading }: { summary: TodaySummary | null
 
 function SectionLabel({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
   return (
-    <div className="section-header">
+    <div className="flex items-center gap-3 py-1.5">
+      {/* Left decorative dot */}
+      <span className="w-1 h-1 rounded-full bg-primary/40 shrink-0" />
+      {/* Icon badge */}
       <div className="section-header-icon">
         <Icon className="h-3.5 w-3.5 text-primary" />
       </div>
-      <h2 className="section-header-title">{title}</h2>
+      {/* Title with gradient underline */}
+      <h2 className="section-gradient-underline section-header-title">{title}</h2>
+      {/* Gradient line */}
       <div className="section-header-line" />
+      {/* Right decorative dot */}
+      <span className="w-1 h-1 rounded-full bg-primary/25 shrink-0" />
     </div>
   );
 }
@@ -640,8 +648,8 @@ export default function OverviewDashboard() {
             <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
               <ShiftSummaryWidget />
               <OperationsBoardWidget />
-              <QuickNotesWidget />
               <TaskRemindersWidget />
+              <TodaysTasksWidget />
             </div>
           </div>
         </LazySection>
@@ -783,6 +791,13 @@ export default function OverviewDashboard() {
           <div className="relative z-10 space-y-2">
             <SectionLabel icon={BarChart3} title={t('analytics')} />
             <DashboardCharts />
+          </div>
+        </LazySection>
+
+        {/* ── Quick Sticky Notes ── */}
+        <LazySection>
+          <div className="relative z-10">
+            <QuickNotesStickyWidget />
           </div>
         </LazySection>
 

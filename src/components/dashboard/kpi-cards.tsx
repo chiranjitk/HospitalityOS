@@ -3,6 +3,7 @@
 import React, { useEffect, useCallback, useRef, useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useI18n } from '@/contexts/I18nContext';
@@ -17,10 +18,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Minus,
+  Eye,
   LucideIcon,
   AlertTriangle,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // ─── Animated Counter Hook ──────────────────────────────────────────────────
 function useAnimatedCounter(target: number, duration: number = 1200, enabled: boolean = true) {
@@ -69,12 +71,12 @@ function useAnimatedCounter(target: number, duration: number = 1200, enabled: bo
   return display;
 }
 
-// ─── Sparkline data per variant ─────────────────────────────────────────────
-const sparklineData: Record<string, number[]> = {
-  emerald: [30, 45, 35, 55, 50, 65, 60, 75, 70, 85, 80, 90],
-  violet:  [25, 40, 55, 45, 60, 50, 70, 65, 80, 75, 85, 95],
-  cyan:    [60, 45, 70, 50, 65, 55, 40, 70, 60, 50, 75, 55],
-  amber:   [35, 50, 40, 55, 65, 50, 70, 60, 80, 70, 85, 90],
+// ─── Sparkline data per variant (7 dots for compact display) ──────────────
+const sparklineDots: Record<string, number[]> = {
+  emerald: [30, 55, 35, 65, 50, 75, 60],
+  violet:  [25, 50, 55, 45, 65, 60, 80],
+  cyan:    [60, 45, 70, 50, 40, 65, 55],
+  amber:   [35, 50, 40, 60, 55, 75, 65],
 };
 
 // ─── Variant Config ─────────────────────────────────────────────────────────
@@ -87,6 +89,8 @@ const variantConfig: Record<CardVariant, {
   barHoverColor: string;
   glowColor: string;
   iconBg: string;
+  leftBorderStart: string;
+  leftBorderEnd: string;
 }> = {
   emerald: {
     iconGradient: 'bg-gradient-to-br from-primary to-primary',
@@ -95,6 +99,8 @@ const variantConfig: Record<CardVariant, {
     barHoverColor: 'bg-primary/80 dark:bg-primary/80',
     glowColor: 'group-hover:shadow-primary/40',
     iconBg: 'from-primary to-primary',
+    leftBorderStart: 'oklch(0.65 0.18 160)',
+    leftBorderEnd: 'oklch(0.60 0.14 170)',
   },
   violet: {
     iconGradient: 'bg-gradient-to-br from-violet-400 to-purple-600',
@@ -103,6 +109,8 @@ const variantConfig: Record<CardVariant, {
     barHoverColor: 'bg-violet-600 dark:bg-violet-400',
     glowColor: 'group-hover:shadow-violet-500/40',
     iconBg: 'from-violet-500 to-purple-600',
+    leftBorderStart: 'oklch(0.65 0.20 295)',
+    leftBorderEnd: 'oklch(0.55 0.18 310)',
   },
   cyan: {
     iconGradient: 'bg-gradient-to-br from-teal-400 to-cyan-500',
@@ -111,6 +119,8 @@ const variantConfig: Record<CardVariant, {
     barHoverColor: 'bg-teal-600 dark:bg-teal-400',
     glowColor: 'group-hover:shadow-teal-500/40',
     iconBg: 'from-teal-500 to-cyan-600',
+    leftBorderStart: 'oklch(0.65 0.14 175)',
+    leftBorderEnd: 'oklch(0.60 0.16 190)',
   },
   amber: {
     iconGradient: 'bg-gradient-to-br from-amber-400 to-orange-500',
@@ -119,14 +129,47 @@ const variantConfig: Record<CardVariant, {
     barHoverColor: 'bg-amber-600 dark:bg-amber-400',
     glowColor: 'group-hover:shadow-amber-500/40',
     iconBg: 'from-amber-500 to-orange-600',
+    leftBorderStart: 'oklch(0.75 0.15 75)',
+    leftBorderEnd: 'oklch(0.70 0.14 55)',
   },
 };
 
-// ─── Sparkline Component ────────────────────────────────────────────────────
-function SparklineBars({ variant, delay = 0 }: { variant: CardVariant; delay?: number }) {
+// ─── Animated Trend Arrow Component ──────────────────────────────────────────
+function AnimatedTrendArrow({ trend }: { trend: 'up' | 'down' | 'neutral' }) {
+  const iconClass = "h-3 w-3";
+
+  if (trend === 'up') {
+    return (
+      <motion.span
+        className="inline-flex text-emerald-600 dark:text-emerald-400"
+        animate={{ y: [0, -2, 0] }}
+        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <ArrowUpRight className={iconClass} />
+      </motion.span>
+    );
+  }
+
+  if (trend === 'down') {
+    return (
+      <motion.span
+        className="inline-flex text-red-500 dark:text-red-400"
+        animate={{ y: [0, 2, 0] }}
+        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <ArrowDownRight className={iconClass} />
+      </motion.span>
+    );
+  }
+
+  return <Minus className={cn(iconClass, 'text-muted-foreground/50')} />;
+}
+
+// ─── Sparkline Dots Component (7 dots) ───────────────────────────────────────
+function SparklineDots({ variant, delay = 0 }: { variant: CardVariant; delay?: number }) {
   const [mounted, setMounted] = useState(false);
   const config = variantConfig[variant];
-  const bars = sparklineData[variant] || sparklineData.emerald;
+  const dots = sparklineDots[variant] || sparklineDots.emerald;
 
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), delay);
@@ -134,25 +177,28 @@ function SparklineBars({ variant, delay = 0 }: { variant: CardVariant; delay?: n
   }, [delay]);
 
   return (
-    <div className="flex items-end gap-[3px] h-6 mt-3 w-full">
-      {bars.map((h, i) => (
-        <motion.div
-          key={i}
-          initial={{ scaleY: 0, opacity: 0 }}
-          animate={mounted ? { scaleY: 1, opacity: 1 } : { scaleY: 0, opacity: 0 }}
-          transition={{
-            duration: 0.4,
-            delay: delay / 1000 + i * 0.04,
-            ease: 'easeOut',
-          }}
-          style={{ transformOrigin: 'bottom', height: `${h}%` }}
-          className={cn(
-            'flex-1 rounded-[2px] transition-colors duration-300',
-            config.barColor,
-            'group-hover:' + config.barHoverColor
-          )}
-        />
-      ))}
+    <div className="flex items-center gap-[5px] mt-3 w-full px-0.5">
+      {dots.map((size, i) => {
+        const dotSize = 3 + (size / 100) * 4;
+        return (
+          <motion.div
+            key={i}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={mounted ? { scale: 1, opacity: 0.7 } : { scale: 0, opacity: 0 }}
+            transition={{
+              duration: 0.3,
+              delay: delay / 1000 + i * 0.06,
+              ease: 'easeOut',
+            }}
+            className={cn(
+              'rounded-full transition-all duration-300 group-hover:opacity-100',
+              config.barColor,
+              'group-hover:' + config.barHoverColor
+            )}
+            style={{ width: dotSize, height: dotSize }}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -200,128 +246,152 @@ function KPICard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: index * 0.08, ease: 'easeOut' }}
-      whileHover={{ scale: 1.03, y: -4 }}
+      whileHover={{ scale: 1.03, y: -5 }}
       whileTap={{ scale: 0.98 }}
       className="h-full cursor-pointer"
     >
-      <Card
-        className={cn(
-          'group relative overflow-hidden transition-all duration-300 h-full rounded-2xl',
-          'hover:shadow-lg hover:-translate-y-1',
-          config.glowColor,
-          isNeumorphism
-            ? 'border border-border/50 shadow-[6px_6px_12px_var(--neu-shadow-dark),-6px_-6px_12px_var(--neu-shadow-light)]'
-            : isGlassmorphism
-              ? 'border border-white/40 bg-card/60 backdrop-blur-xl shadow-lg'
-              : 'border border-border/50 bg-white/80 dark:bg-card/80 backdrop-blur-sm shadow-md'
-        )}
-      >
-        {/* Gradient top accent bar — 2px emerald-to-teal */}
-        <div
-          className={cn(
-            'absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl z-20',
-            'bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500'
-          )}
-        />
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Card
+            className={cn(
+              'group relative overflow-hidden transition-all duration-300 h-full rounded-2xl card-shine',
+              'hover:shadow-xl hover:-translate-y-1',
+              config.glowColor,
+              isNeumorphism
+                ? 'border border-border/50 shadow-[6px_6px_12px_var(--neu-shadow-dark),-6px_-6px_12px_var(--neu-shadow-light)]'
+                : isGlassmorphism
+                  ? 'border border-white/40 bg-card/60 backdrop-blur-xl shadow-lg'
+                  : 'border border-border/50 bg-white/80 dark:bg-card/80 backdrop-blur-sm shadow-md'
+            )}
+            style={
+              { '--kpi-accent-start': config.leftBorderStart, '--kpi-accent-end': config.leftBorderEnd } as React.CSSProperties
+            }
+          >
+            {/* Gradient left border (3px) */}
+            <div
+              className={cn(
+                'absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full z-10',
+                'bg-gradient-to-b',
+                variant === 'emerald' && 'from-emerald-400 to-teal-500',
+                variant === 'violet' && 'from-violet-400 to-purple-600',
+                variant === 'cyan' && 'from-teal-400 to-cyan-500',
+                variant === 'amber' && 'from-amber-400 to-orange-500',
+              )}
+            />
 
-        {/* Decorative background blur orb */}
-        <div
-          className={cn(
-            'absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-[0.06] blur-2xl transition-all duration-700',
-            'group-hover:opacity-[0.12] group-hover:scale-125',
-            config.iconGradient
-          )}
-        />
+            {/* Gradient top accent bar — 2px */}
+            <div
+              className={cn(
+                'absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl z-20',
+                'bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500'
+              )}
+            />
 
-        {/* Bottom-left subtle glow on hover */}
-        <div
-          className={cn(
-            'absolute -bottom-8 -left-8 w-24 h-24 rounded-full opacity-0 blur-2xl transition-opacity duration-700',
-            'group-hover:opacity-[0.08]',
-            config.iconGradient
-          )}
-        />
+            {/* Decorative background blur orb */}
+            <div
+              className={cn(
+                'absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-[0.06] blur-2xl transition-all duration-700',
+                'group-hover:opacity-[0.12] group-hover:scale-125',
+                config.iconGradient
+              )}
+            />
 
-        <CardContent className="p-5 pt-6 relative z-10">
-          <div className="flex items-start justify-between gap-4">
-            {/* Left: text content */}
-            <div className="space-y-2 flex-1 min-w-0">
-              <p className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider truncate">
-                {title}
-              </p>
+            {/* Bottom-left subtle glow on hover */}
+            <div
+              className={cn(
+                'absolute -bottom-8 -left-8 w-24 h-24 rounded-full opacity-0 blur-2xl transition-opacity duration-700',
+                'group-hover:opacity-[0.08]',
+                config.iconGradient
+              )}
+            />
 
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <motion.span
-                  className="text-[28px] font-extrabold tracking-tight tabular-nums text-foreground leading-none"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: index * 0.08 + 0.15 }}
-                >
-                  {displayValue}
-                </motion.span>
-                {subtitle && (
-                  <span className="text-xs text-muted-foreground/80 truncate font-medium">
-                    {subtitle}
-                  </span>
-                )}
-              </div>
+            {/* Bottom gradient overlay */}
+            <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black/[0.02] to-transparent dark:from-black/[0.05] dark:to-transparent pointer-events-none z-0" />
 
-              {/* Trend badge */}
-              {change !== undefined && (
-                <div className="flex items-center gap-1.5 pt-1">
-                  <span
-                    className={cn(
-                      'inline-flex items-center gap-0.5 text-[11px] font-bold px-2 py-[3px] rounded-full border transition-all duration-300',
-                      trend === 'up' &&
-                        'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50',
-                      trend === 'down' &&
-                        'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/50',
-                      trend === 'neutral' &&
-                        'bg-muted/50 text-muted-foreground border-border dark:bg-muted/40 dark:border-border'
+            <CardContent className="p-5 pt-6 relative z-10">
+              <div className="flex items-start justify-between gap-4">
+                {/* Left: text content */}
+                <div className="space-y-2 flex-1 min-w-0">
+                  <p className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider truncate">
+                    {title}
+                  </p>
+
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <motion.span
+                      className="text-[28px] font-extrabold tracking-tight tabular-nums text-foreground leading-none"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: index * 0.08 + 0.15 }}
+                    >
+                      {displayValue}
+                    </motion.span>
+                    {subtitle && (
+                      <span className="text-xs text-muted-foreground/80 truncate font-medium">
+                        {subtitle}
+                      </span>
                     )}
-                  >
-                    {trend === 'up' && <ArrowUpRight className="h-3 w-3" />}
-                    {trend === 'down' && <ArrowDownRight className="h-3 w-3" />}
-                    {trend === 'neutral' && <Minus className="h-3 w-3" />}
-                    {change > 0 ? '+' : ''}
-                    {change}%
-                  </span>
-                  {changeLabel && (
-                    <span className="text-[11px] text-muted-foreground/70 truncate font-medium">
-                      {changeLabel}
-                    </span>
+                  </div>
+
+                  {/* Trend badge with animated arrow */}
+                  {change !== undefined && (
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1 text-[11px] font-bold px-2 py-[3px] rounded-full border transition-all duration-300',
+                          trend === 'up' &&
+                            'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50',
+                          trend === 'down' &&
+                            'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/50',
+                          trend === 'neutral' &&
+                            'bg-muted/50 text-muted-foreground border-border dark:bg-muted/40 dark:border-border'
+                        )}
+                      >
+                        <AnimatedTrendArrow trend={trend || 'neutral'} />
+                        {change > 0 ? '+' : ''}
+                        {change}%
+                      </span>
+                      {changeLabel && (
+                        <span className="text-[11px] text-muted-foreground/70 truncate font-medium">
+                          {changeLabel}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
 
-            {/* Right: circular icon */}
-            <div className="relative flex-shrink-0">
-              {/* Pulse ring on hover */}
-              <div
-                className={cn(
-                  'absolute inset-0 rounded-full opacity-0 scale-100 transition-all duration-500',
-                  'group-hover:opacity-30 group-hover:scale-125 group-hover:animate-[iconPulse_1.5s_ease-out]',
-                  config.iconGradient
-                )}
-              />
-              <div
-                className={cn(
-                  'relative w-12 h-12 rounded-full flex items-center justify-center',
-                  'shadow-lg transition-all duration-300',
-                  'group-hover:scale-110 group-hover:shadow-xl',
-                  config.iconGradient
-                )}
-              >
-                <Icon className="h-5 w-5 text-white drop-shadow-sm" />
+                {/* Right: circular icon */}
+                <div className="relative flex-shrink-0">
+                  {/* Pulse ring on hover */}
+                  <div
+                    className={cn(
+                      'absolute inset-0 rounded-full opacity-0 scale-100 transition-all duration-500',
+                      'group-hover:opacity-30 group-hover:scale-125 group-hover:animate-[iconPulse_1.5s_ease-out]',
+                      config.iconGradient
+                    )}
+                  />
+                  <div
+                    className={cn(
+                      'relative w-12 h-12 rounded-full flex items-center justify-center',
+                      'shadow-lg transition-all duration-300',
+                      'group-hover:scale-110 group-hover:shadow-xl',
+                      config.iconGradient
+                    )}
+                  >
+                    <Icon className="h-5 w-5 text-white drop-shadow-sm" />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Sparkline */}
-          <SparklineBars variant={variant} delay={index * 80 + 200} />
-        </CardContent>
-      </Card>
+              {/* Sparkline dots */}
+              <SparklineDots variant={variant} delay={index * 80 + 200} />
+            </CardContent>
+          </Card>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="flex items-center gap-1.5">
+          <Eye className="h-3 w-3" />
+          View Details
+        </TooltipContent>
+      </Tooltip>
     </motion.div>
   );
 }
@@ -370,13 +440,13 @@ function KPICardSkeleton({ index = 0 }: { index?: number }) {
             {/* Icon skeleton — circular */}
             <Skeleton className="h-12 w-12 rounded-full flex-shrink-0" />
           </div>
-          {/* Sparkline skeleton */}
-          <div className="flex items-end gap-[3px] h-6 mt-4 w-full">
-            {[40, 65, 45, 80, 55, 90, 70, 85, 60, 95, 75, 50].map((h, i) => (
+          {/* Sparkline dots skeleton */}
+          <div className="flex items-center gap-[5px] mt-4 w-full px-0.5">
+            {[3, 5, 3.5, 5.5, 4, 5.8, 4.5].map((s, i) => (
               <Skeleton
                 key={i}
-                className="flex-1 rounded-[2px]"
-                style={{ height: `${h}%` }}
+                className="rounded-full"
+                style={{ width: s, height: s }}
               />
             ))}
           </div>
@@ -434,21 +504,6 @@ export function KPICards() {
   const { tDashboard, tCommon } = useI18n();
   useAuth();
 
-  // Handle real-time dashboard updates
-  const handleDashboardUpdate = useCallback((event: DashboardUpdateEvent) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[KPICards] Received dashboard update:', event.type);
-    }
-    if (event.type === 'stats') {
-      fetchStats();
-    }
-  }, []);
-
-  const { connectionStatus } = useRealtime({
-    showToasts: false,
-    onDashboardUpdate: handleDashboardUpdate,
-  });
-
   const fetchStats = useCallback(async () => {
     try {
       const response = await fetch('/api/dashboard');
@@ -465,8 +520,24 @@ export function KPICards() {
     }
   }, []);
 
+  // Handle real-time dashboard updates
+  const handleDashboardUpdate = useCallback((event: DashboardUpdateEvent) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[KPICards] Received dashboard update:', event.type);
+    }
+    if (event.type === 'stats') {
+      fetchStats();
+    }
+  }, [fetchStats]);
+
+  const { connectionStatus } = useRealtime({
+    showToasts: false,
+    onDashboardUpdate: handleDashboardUpdate,
+  });
+
   useEffect(() => {
-    fetchStats();
+    const id = setTimeout(() => { fetchStats(); }, 0);
+    return () => clearTimeout(id);
   }, [fetchStats]);
 
   // Auto-refresh every 30 seconds if not connected via WebSocket

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ChevronRight, Home } from 'lucide-react';
+import { Home } from 'lucide-react';
 import { useUIStore } from '@/store';
 import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
@@ -214,6 +214,34 @@ function getBreadcrumbSegments(section: string): string[] {
   ];
 }
 
+/** Gradient separator between breadcrumb items */
+function GradientSeparator() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="none"
+      className="shrink-0 mx-0.5"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="bc-sep-grad" x1="0" y1="0" x2="12" y2="0" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="oklch(from var(--primary) l c h / 0.5)" />
+          <stop offset="100%" stopColor="oklch(0.65 0.16 170 / 0.35)" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M4.5 2.5L8 6L4.5 9.5"
+        stroke="url(#bc-sep-grad)"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function Breadcrumb() {
   const t = useTranslations('layout');
   const { activeSection } = useUIStore();
@@ -223,28 +251,54 @@ export function Breadcrumb() {
   return (
     <nav
       aria-label="Breadcrumb"
-      className="flex items-center gap-1 text-xs text-muted-foreground py-1.5 px-0 select-none overflow-hidden"
+      className="flex items-center gap-0 text-[11px] text-muted-foreground py-1 px-0 select-none overflow-hidden"
     >
-      {/* Home icon */}
-      <Home className="h-3 w-3 shrink-0 opacity-50" />
+      {/* Home icon — first item with hover effect */}
+      <button
+        onClick={() => {}}
+        className={cn(
+          'breadcrumb-link flex items-center gap-1 rounded-md px-1.5 py-0.5',
+          'text-muted-foreground/60 hover:text-primary transition-colors duration-200',
+          'cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
+        )}
+        aria-label="Home"
+      >
+        <Home className="h-3 w-3 shrink-0" />
+      </button>
 
       {segments.map((segment, index) => {
         const isLast = index === segments.length - 1;
 
         return (
           <React.Fragment key={`${segment}-${index}`}>
-            <ChevronRight className="h-3 w-3 shrink-0 opacity-40" />
-            <span
-              className={cn(
-                'truncate transition-colors duration-150',
-                isLast
-                  ? 'font-medium text-foreground/80'
-                  : 'opacity-60 hover:opacity-100'
-              )}
-              aria-current={isLast ? 'page' : undefined}
-            >
-              {segment}
-            </span>
+            <GradientSeparator />
+            {isLast ? (
+              <span
+                className={cn(
+                  'inline-flex items-center truncate font-semibold',
+                  'px-2 py-0.5 rounded-md',
+                  'bg-primary/8 text-foreground/90',
+                  'border border-primary/12',
+                  'dark:bg-primary/12 dark:border-primary/15',
+                  'transition-colors duration-150'
+                )}
+                aria-current="page"
+              >
+                {segment}
+              </span>
+            ) : (
+              <button
+                className={cn(
+                  'breadcrumb-link truncate transition-colors duration-200',
+                  'text-muted-foreground/50 hover:text-primary',
+                  'rounded-md px-1 py-0.5 outline-none',
+                  'focus-visible:ring-2 focus-visible:ring-ring/50',
+                  'cursor-pointer'
+                )}
+              >
+                {segment}
+              </button>
+            )}
           </React.Fragment>
         );
       })}
