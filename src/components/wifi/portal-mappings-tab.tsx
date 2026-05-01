@@ -685,7 +685,7 @@ export default function PortalMappingsTab() {
                     {/* Bottom: toggle + VLAN */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-xs">
-                        {mapping?.vlanId !== null && mapping.vlanId !== undefined && (
+                        {mapping && mapping.vlanId != null && (
                           <Badge variant="outline" className="text-[10px] font-mono">
                             <Globe className="h-2.5 w-2.5 mr-0.5" />
                             VLAN {mapping.vlanId}
