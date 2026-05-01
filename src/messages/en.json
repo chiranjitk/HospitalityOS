@@ -860,7 +860,22 @@
     "foodAndBeverage": "Food & Beverage",
     "security": "Security",
     "conciergeDept": "Concierge",
-    "noStaffOnDuty": "No staff on duty"
+    "noStaffOnDuty": "No staff on duty",
+    "revenueForecast": "Revenue Forecast",
+    "revenueForecastDesc": "7-day projected vs actual revenue",
+    "projected": "Projected",
+    "actual": "Actual",
+    "totalProjected": "Total Projected",
+    "avgDaily": "Avg Daily",
+    "trend": "Trend",
+    "today": "Today",
+    "weekForecast": "7-Day Forecast",
+    "guestDemographics": "Guest Demographics",
+    "guestDemographicsDesc": "Guest distribution by nationality",
+    "topNationalities": "Top Nationalities",
+    "uniqueCountries": "Unique Countries",
+    "topNationality": "Top Nationality",
+    "viewAllGuests": "View All Guests"
   },
   "forms": {
     "required": "Required",

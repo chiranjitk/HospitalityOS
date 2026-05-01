@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useEffect, useState, useRef, useCallback } from 'react';
+import React, { Suspense, useEffect, useState, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { useUIStore, useAuthStore } from '@/store';
 import { useTranslations } from 'next-intl';
+import { useDashboardData } from '@/hooks/use-dashboard-data';
 import {
   Sun,
   Moon,
@@ -73,6 +74,8 @@ import { WelcomeBannerWidget } from './widgets/welcome-banner';
 import { RoomOccupancyBreakdownWidget } from './widgets/room-occupancy-breakdown';
 import { ActivityTimelineWidget } from './widgets/activity-timeline';
 import { StaffDutyRosterWidget } from './widgets/staff-duty-roster';
+import { RevenueForecastWidget } from './widgets/revenue-forecast';
+import { GuestDemographicsWidget } from './widgets/guest-demographics';
 
 const OccupancyHeatmap = React.lazy(() => import('./occupancy-heatmap').then(m => ({ default: m.OccupancyHeatmap })));
 
@@ -499,54 +502,40 @@ function AlertsWidget({ alerts, isLoading }: { alerts: TodaySummary['alerts']; i
 // ─── Main Overview Dashboard ────────────────────────────────────────────
 
 export default function OverviewDashboard() {
-  const [summary, setSummary] = useState<TodaySummary | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const { data: dashboardData, isLoading, isRefreshing, lastUpdated, refresh } = useDashboardData();
   const t = useTranslations('dashboard');
 
-  const fetchData = useCallback(async (showRefreshLoader = false) => {
-    if (showRefreshLoader) setIsRefreshing(true);
-    try {
-      const response = await fetch('/api/dashboard');
-      const result = await response.json();
-      if (result.success) {
-        const alerts: TodaySummary['alerts'] = [];
-        if (result.data.alerts) {
-          result.data.alerts.forEach((alert: any) => {
-            alerts.push({
-              id: alert.id,
-              type: alert.severity === 'critical' ? 'error' : alert.type === 'room' ? 'info' : 'warning',
-              title: alert.title,
-              message: alert.message,
-              section: alert.type === 'inventory' ? 'inventory-stock' : alert.type === 'service' ? 'experience-requests' : 'housekeeping-status',
-              action: 'View',
-            });
-          });
-        }
-        setSummary({
-          date: new Date().toISOString(),
-          dayName: new Date().toLocaleDateString('en-US', { weekday: 'long' }),
-          currentTime: new Date().toISOString(),
-          arrivals: result.data.guests?.arriving || result.data.stats?.guests?.arriving || 0,
-          departures: result.data.guests?.departing || result.data.stats?.guests?.departing || 0,
-          inHouse: result.data.stats?.guests?.checkedIn || 0,
-          availableRooms: result.data.commandCenter?.rooms?.available || 0,
-          occupancy: result.data.stats?.occupancy?.today || 0,
-          revenue: result.data.stats?.revenue?.today || 0,
-          alerts,
+  // Derive the TodaySummary from the shared dashboard data
+  const summary = useMemo<TodaySummary | null>(() => {
+    if (!dashboardData) return null;
+
+    const alerts: TodaySummary['alerts'] = [];
+    if (dashboardData.alerts) {
+      for (const alert of dashboardData.alerts) {
+        alerts.push({
+          id: alert.id,
+          type: alert.severity === 'critical' ? 'error' : alert.type === 'room' ? 'info' : 'warning',
+          title: alert.title,
+          message: alert.message,
+          section: alert.type === 'inventory' ? 'inventory-stock' : alert.type === 'service' ? 'experience-requests' : 'housekeeping-status',
+          action: 'View',
         });
       }
-    } catch (err) {
-      console.error('Failed to fetch dashboard data:', err);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-      setLastUpdated(new Date());
     }
-  }, []);
 
-  useEffect(() => { setTimeout(fetchData, 0); }, [fetchData]);
+    return {
+      date: new Date().toISOString(),
+      dayName: new Date().toLocaleDateString('en-US', { weekday: 'long' }),
+      currentTime: new Date().toISOString(),
+      arrivals: dashboardData.stats?.guests?.arriving ?? 0,
+      departures: dashboardData.stats?.guests?.departing ?? 0,
+      inHouse: dashboardData.stats?.guests?.checkedIn ?? 0,
+      availableRooms: dashboardData.commandCenter?.rooms?.available ?? 0,
+      occupancy: dashboardData.stats?.occupancy?.today ?? 0,
+      revenue: dashboardData.stats?.revenue?.today ?? 0,
+      alerts,
+    };
+  }, [dashboardData]);
 
   return (
     <>
@@ -609,7 +598,7 @@ export default function OverviewDashboard() {
             <span>{t('liveData')}</span>
           </div>
           <DashboardHeader
-            onRefresh={() => fetchData(true)}
+            onRefresh={refresh}
             isRefreshing={isRefreshing}
             lastUpdated={lastUpdated || undefined}
           />
@@ -719,15 +708,17 @@ export default function OverviewDashboard() {
             <RevenueBreakdownWidget />
           </div>
           <RatePlanComparisonWidget />
+          <RevenueForecastWidget />
         </div>
 
         {/* ── Guest Intelligence ── */}
         <div className="relative z-10 space-y-2">
           <SectionLabel icon={Crown} title={t('guestIntelligence')} />
-          <div className="grid gap-5 grid-cols-1 md:grid-cols-3">
+          <div className="grid gap-5 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
             <LoyaltyWidget />
             <StaffPerformanceWidget />
             <GuestSatisfactionWidget />
+            <GuestDemographicsWidget />
           </div>
         </div>
 
