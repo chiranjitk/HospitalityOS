@@ -90,7 +90,7 @@ function generateDemoData(count: number) {
     // Timestamp: spread over 7 days, newer entries first
     const timestamp = new Date(now - i * 3600000 * 1.68); // ~100 entries over 7 days
 
-    // Domain from map
+    // Domain from map (simulates SNI enrichment)
     const domain = DEST_IP_MAP[destIp] ?? '';
 
     // Guest name
@@ -140,7 +140,6 @@ function applyFilters(
   }
 
   if (protocol) {
-    // For ICMP filter, also match proto === 'icmp'
     filtered = filtered.filter((row) => {
       const p = String(row.proto ?? row.protocol ?? '');
       return p === protocol || (protocol === 'icmp' && p === 'icmp');
@@ -229,24 +228,41 @@ export async function GET(request: NextRequest) {
       );
 
       if (natRows.length > 0) {
-        // ── DNS cache enrichment ──────────────────────────────
+        // ── SNI log enrichment (TRUSTED source) ────────────────
+        // NFLOG captures TLS SNI from port 443 SYN packets.
+        // Unlike DNS logs, SNI is reliable — users cannot bypass it
+        // because every HTTPS connection sends SNI in plaintext.
         const domainMap = new Map<string, string>();
 
-        // Collect unique src_ips for DNS lookup
-        const uniqueSrcIps = [...new Set(natRows.map((r) => String(r.src_ip ?? '')))];
+        // Collect unique dst_ips for SNI lookup
+        const uniqueDstIps = [...new Set(natRows.map((r) => String(r.dst_ip ?? '')).filter(Boolean))];
 
-        // Query DNS cache for each unique source IP (last 1 hour)
-        for (const sip of uniqueSrcIps) {
-          if (!sip) continue;
-          const dnsRows = await query<Record<string, unknown>>(
-            `SELECT dst_ip, domain FROM ipdr.dns_cache ` +
-            `WHERE timestamp >= now() - INTERVAL 1 HOUR AND src_ip = '${sip.replace(/'/g, "\\'")}' ` +
-            `LIMIT 1000`,
+        if (uniqueDstIps.length > 0) {
+          // Build IN clause for batch query — one query instead of N+1
+          const ipList = uniqueDstIps.map((ip) => `'${ip.replace(/'/g, "\\'")}'`).join(',');
+
+          const sniRows = await query<Record<string, unknown>>(
+            `SELECT dst_ip, sni_domain, max(timestamp) as last_seen ` +
+            `FROM ipdr.sni_log ` +
+            `WHERE dst_ip IN (${ipList}) ` +
+            `  AND timestamp >= now() - INTERVAL 7 DAY ` +
+            `GROUP BY dst_ip, sni_domain ` +
+            `ORDER BY last_seen DESC ` +
+            `LIMIT 5000`,
           );
-          for (const row of dnsRows) {
+
+          // Map each dst_ip to its most recently seen SNI domain
+          const bestDomain = new Map<string, string>();
+          for (const row of sniRows) {
             const dip = String(row.dst_ip ?? '');
-            const domain = String(row.domain ?? '');
-            if (dip && domain) domainMap.set(dip, domain);
+            const domain = String(row.sni_domain ?? '');
+            if (dip && domain && !bestDomain.has(dip)) {
+              bestDomain.set(dip, domain);
+            }
+          }
+          // Transfer to domainMap
+          for (const [ip, domain] of bestDomain) {
+            domainMap.set(ip, domain);
           }
         }
 
@@ -317,12 +333,13 @@ export async function GET(request: NextRequest) {
           packets: Number(row.packets ?? 0),
           duration: Number(row.duration ?? 0),
           status: String(row.status ?? ''),
+          // Domain from SNI log (trusted source — captured from TLS handshake)
           domain: domainMap.get(String(row.dst_ip ?? '')) ?? '',
           guestName: guestMap.get(String(row.src_ip ?? '')) ?? '',
           action: 'allow',
         }));
 
-        // Apply action filter if needed (ClickHouse data always has allow for now)
+        // Apply action filter if needed
         if (action) {
           enriched = enriched.filter((row) => String(row.action) === action);
         }

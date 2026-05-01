@@ -248,7 +248,7 @@ async function ensureClickHouseTable(): Promise<void> {
     ENGINE = MergeTree()
     PARTITION BY toYYYYMMDD(timestamp)
     ORDER BY (timestamp, src_ip, sni_domain)
-    TTL timestamp + INTERVAL 7 DAY
+    TTL timestamp + INTERVAL 13 MONTH
   `;
 
   try {

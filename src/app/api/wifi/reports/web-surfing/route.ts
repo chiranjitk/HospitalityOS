@@ -97,7 +97,16 @@ const DOMAIN_CATEGORIES: Record<string, Category> = {
 };
 
 function classifyDomain(domain: string): Category {
-  return DOMAIN_CATEGORIES[domain] ?? 'other';
+  // Strip leading wildcard (e.g., *.google.com → google.com)
+  const clean = domain.replace(/^\*\./, '');
+  // Check exact match first, then parent domain
+  if (DOMAIN_CATEGORIES[clean]) return DOMAIN_CATEGORIES[clean];
+  const parts = clean.split('.');
+  if (parts.length >= 2) {
+    const parent = parts.slice(-2).join('.');
+    if (DOMAIN_CATEGORIES[parent]) return DOMAIN_CATEGORIES[parent];
+  }
+  return 'other';
 }
 
 // ─── Deterministic demo data ────────────────────────────────────
@@ -183,18 +192,6 @@ function generateDemoData() {
 
 // ─── Helpers ────────────────────────────────────────────────────
 
-interface WebSurfingRow {
-  date: string;
-  domain: string;
-  category: string;
-  src_ip: string;
-  visit_count: number;
-  total_bytes: number;
-  unique_hours: number;
-  first_seen: string;
-  last_seen: string;
-}
-
 interface SurfingEntry {
   id: string;
   domain: string;
@@ -270,29 +267,91 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category');
 
     // ── Attempt ClickHouse query ────────────────────────────────
+    // Data source: ipdr.sni_log (NFLOG TLS SNI captures)
+    // SNI is the TRUSTED source for domain identification because:
+    // - Every HTTPS connection sends SNI in plaintext during TLS handshake
+    // - Users cannot bypass it even with custom DNS (8.8.8.8, 1.1.1.1, etc.)
+    // - Unlike dnsmasq DNS logs, SNI is captured at the network level via NFLOG
     const clickhouseReady = await isAvailable();
 
     if (clickhouseReady) {
-      const rows = await query<WebSurfingRow>(`
+      // Query SNI log aggregated by domain + source IP, joined with nat_log for bytes
+      const sniRows = await query<Record<string, unknown>>(`
         SELECT
-          date,
-          domain,
-          category,
-          src_ip,
-          visit_count,
-          total_bytes,
-          unique_hours,
-          first_seen,
-          last_seen
-        FROM ipdr.web_surfing_report
-        WHERE date >= today() - 30
-        ORDER BY total_bytes DESC
+          s.sni_domain as domain,
+          s.src_ip,
+          count() as connections,
+          max(s.timestamp) as last_seen,
+          groupArray(DISTINCT s.tls_version)[1] as tls_version
+        FROM ipdr.sni_log s
+        WHERE s.timestamp >= now() - INTERVAL 30 DAY
+          AND s.sni_domain != ''
+        GROUP BY s.sni_domain, s.src_ip
+        ORDER BY connections DESC
         LIMIT 500
       `);
 
-      if (rows.length > 0) {
-        // Guest name resolution via WiFiSession
-        const uniqueIps = [...new Set(rows.map((r) => r.src_ip))];
+      if (sniRows.length > 0) {
+        // ── Get bytes from nat_log for each (src_ip, dst_ip) pair ──
+        // Build a map of (src_ip, sni_domain) → dst_ip from sni_log
+        // Then query nat_log for bytes matching those dst_ips
+        const domainDstMap = new Map<string, Set<string>>(); // "src_ip:domain" → Set<dst_ip>
+
+        const sniDetailRows = await query<Record<string, unknown>>(`
+          SELECT src_ip, dst_ip, sni_domain
+          FROM ipdr.sni_log
+          WHERE timestamp >= now() - INTERVAL 30 DAY
+            AND sni_domain != ''
+          GROUP BY src_ip, dst_ip, sni_domain
+          LIMIT 10000
+        `);
+
+        for (const row of sniDetailRows) {
+          const srcIp = String(row.src_ip ?? '');
+          const dstIp = String(row.dst_ip ?? '');
+          const domain = String(row.sni_domain ?? '');
+          if (srcIp && dstIp && domain) {
+            const key = `${srcIp}:${domain}`;
+            if (!domainDstMap.has(key)) domainDstMap.set(key, new Set());
+            domainDstMap.get(key)!.add(dstIp);
+          }
+        }
+
+        // Query nat_log for bytes matching these dst_ips
+        const allDstIps = new Set<string>();
+        for (const dstSet of domainDstMap.values()) {
+          for (const ip of dstSet) allDstIps.add(ip);
+        }
+
+        const bytesMap = new Map<string, number>(); // "src_ip:dst_ip" → total_bytes
+        if (allDstIps.size > 0) {
+          const ipChunks: string[][] = [];
+          const ipArr = [...allDstIps];
+          // ClickHouse IN clause limit: chunk into groups of 500
+          for (let i = 0; i < ipArr.length; i += 500) {
+            ipChunks.push(ipArr.slice(i, i + 500));
+          }
+
+          for (const chunk of ipChunks) {
+            const ipList = chunk.map((ip) => `'${ip.replace(/'/g, "\\'")}'`).join(',');
+            const bytesRows = await query<Record<string, unknown>>(`
+              SELECT src_ip, dst_ip, sum(bytes) as total_bytes
+              FROM ipdr.nat_log
+              WHERE timestamp >= now() - INTERVAL 30 DAY
+                AND dst_ip IN (${ipList})
+              GROUP BY src_ip, dst_ip
+              LIMIT 10000
+            `);
+
+            for (const row of bytesRows) {
+              const key = `${String(row.src_ip)}:${String(row.dst_ip)}`;
+              bytesMap.set(key, Number(row.total_bytes) || 0);
+            }
+          }
+        }
+
+        // ── Guest name resolution via WiFiSession ──────────────
+        const uniqueIps = [...new Set(sniRows.map((r) => String(r.src_ip ?? '')))];
         const ipToGuest = new Map<string, string>();
 
         if (uniqueIps.length > 0) {
@@ -319,21 +378,39 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        const data: SurfingEntry[] = rows.map((r, idx) => {
-          const lastAccess = r.last_seen ?? r.date;
+        // ── Build response ──────────────────────────────────────
+        const data: SurfingEntry[] = sniRows.map((r, idx) => {
+          const srcIp = String(r.src_ip ?? '');
+          const domain = String(r.domain ?? '');
+          const key = `${srcIp}:${domain}`;
+
+          // Sum bytes across all dst_ips that resolved to this domain for this src_ip
+          let totalBytes = 0;
+          const dstIps = domainDstMap.get(key);
+          if (dstIps) {
+            for (const dip of dstIps) {
+              const bKey = `${srcIp}:${dip}`;
+              totalBytes += bytesMap.get(bKey) || 0;
+            }
+          }
+
+          const lastAccess = String(r.last_seen ?? '');
           return {
             id: `ws-${idx + 1}`,
-            domain: r.domain,
-            sourceIp: r.src_ip,
-            source_ip: r.src_ip,
-            category: (r.category as Category) || classifyDomain(r.domain),
-            totalBytes: Number(r.total_bytes) || 0,
-            connections: Number(r.visit_count) || 0,
+            domain,
+            sourceIp: srcIp,
+            source_ip: srcIp,
+            category: classifyDomain(domain),
+            totalBytes,
+            connections: Number(r.connections) || 0,
             lastAccess,
             last_access: lastAccess,
-            guestName: ipToGuest.get(r.src_ip) ?? '',
+            guestName: ipToGuest.get(srcIp) ?? '',
           };
         });
+
+        // Sort by totalBytes descending
+        data.sort((a, b) => b.totalBytes - a.totalBytes);
 
         const filtered = applyFilters(data, search, category);
         const summary = computeSummary(filtered);

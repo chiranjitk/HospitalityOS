@@ -1,9 +1,21 @@
 -- StaySuite IPDR Database Schema
 -- For TRAI IPDR Act compliance (13-month retention)
+--
+-- Architecture (2 trusted sources only):
+--   1. conntrack → ipdr.nat_log    (bytes, packets, all connections)
+--   2. NFLOG 443 SYN → ipdr.sni_log (TLS SNI domains)
+--
+-- WHY NOT DNS logs (dnsmasq)?
+--   DNS logs are NOT a trusted source. If a user changes their global DNS
+--   (e.g., 8.8.8.8, 1.1.1.1, 9.9.9.9), those queries BYPASS dnsmasq entirely.
+--   SNI is captured from the TLS ClientHello at the network layer via NFLOG,
+--   so it's reliable regardless of the user's DNS configuration.
 
 CREATE DATABASE IF NOT EXISTS ipdr;
 
--- Main NAT connection log (from conntrack-bridge)
+-- ─── 1. NAT Connection Log (from conntrack-bridge) ──────────────
+-- Records every tracked connection: NEW, UPDATE, DESTROY events
+-- with byte counts, packet counts, NAT tuples, and duration.
 CREATE TABLE IF NOT EXISTS ipdr.nat_log (
   timestamp DateTime,
   proto String,
@@ -27,23 +39,13 @@ PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (timestamp, proto, src_ip, dst_ip)
 TTL timestamp + INTERVAL 13 MONTH;
 
--- DNS query cache (from dns-parser)
-CREATE TABLE IF NOT EXISTS ipdr.dns_cache (
-  timestamp DateTime,
-  src_ip String,
-  domain String,
-  query_type String,
-  query_type_num UInt16,
-  dns_server String,
-  response_ips String,
-  ttl UInt32 DEFAULT 0
-)
-ENGINE = MergeTree()
-PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (timestamp, src_ip, domain)
-TTL timestamp + INTERVAL 7 DAY;
-
--- TLS SNI cache (from sni-parser)
+-- ─── 2. TLS SNI Log (from sni-parser via NFLOG port 443 SYN) ────
+-- Captures the Server Name Indication from TLS ClientHello packets.
+-- This is the TRUSTED source for domain identification because:
+--   - Every HTTPS connection MUST send SNI in plaintext
+--   - Cannot be bypassed even with custom/encrypted DNS
+--   - Works regardless of DOH/DOT/DNS-over-HTTPS settings
+-- Used to enrich nat_log with domain names and build web surfing reports.
 CREATE TABLE IF NOT EXISTS ipdr.sni_log (
   timestamp DateTime,
   src_ip String,
@@ -56,21 +58,15 @@ CREATE TABLE IF NOT EXISTS ipdr.sni_log (
 ENGINE = MergeTree()
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (timestamp, src_ip, sni_domain)
-TTL timestamp + INTERVAL 7 DAY;
+TTL timestamp + INTERVAL 13 MONTH;
 
--- Pre-aggregated web surfing report
-CREATE TABLE IF NOT EXISTS ipdr.web_surfing_report (
-  date Date,
-  domain String,
-  category String,
-  src_ip String,
-  visit_count UInt64,
-  total_bytes UInt64,
-  unique_hours UInt8,
-  first_seen DateTime,
-  last_seen DateTime
-)
-ENGINE = SummingMergeTree()
-PARTITION BY toYYYYMM(date)
-ORDER BY (date, domain, src_ip, category)
-TTL date + INTERVAL 30 DAY;
+-- ─── NO dns_cache table ─────────────────────────────────────────
+-- Removed because dnsmasq DNS logs are unreliable:
+--   - Users can set custom DNS (8.8.8.8, 1.1.1.1) → queries bypass dnsmasq
+--   - DNS-over-HTTPS (DOH) and DNS-over-TLS (DOT) bypass local resolver
+--   - SNI from NFLOG is the correct and complete source for domain data
+
+-- ─── NO web_surfing_report table ────────────────────────────────
+-- Removed — web surfing reports are now built dynamically by joining
+-- ipdr.sni_log (domains) + ipdr.nat_log (bytes) at query time.
+-- This avoids stale pre-aggregated data and provides accurate results.
