@@ -1024,26 +1024,48 @@ function PortalContent() {
 
   // ── Background styles ──
   const bgStyle: React.CSSProperties = {};
+  let bodyBgStyle = '';
   if (design.backgroundType === 'gradient') {
     bgStyle.background = `linear-gradient(135deg, ${design.gradientFrom}, ${design.gradientTo})`;
+    bodyBgStyle = `linear-gradient(135deg, ${design.gradientFrom}, ${design.gradientTo})`;
   } else if (design.backgroundType === 'solid') {
     bgStyle.backgroundColor = design.backgroundColor;
+    bodyBgStyle = design.backgroundColor;
   } else if (design.backgroundType === 'image' && design.backgroundImage) {
     bgStyle.backgroundImage = `url(${design.backgroundImage})`;
     bgStyle.backgroundSize = 'cover';
     bgStyle.backgroundPosition = 'center';
+    bodyBgStyle = design.backgroundColor || design.gradientFrom || '#0ea5e9';
   } else {
     // Default gradient
     bgStyle.background = `linear-gradient(135deg, ${design.gradientFrom}, ${design.gradientTo})`;
+    bodyBgStyle = `linear-gradient(135deg, ${design.gradientFrom}, ${design.gradientTo})`;
   }
+
+  // ── Sync body background to prevent white flash ──
+  useEffect(() => {
+    if (bodyBgStyle) {
+      document.body.style.background = bodyBgStyle;
+      document.body.style.margin = '0';
+      document.body.style.fontFamily = design.fontFamily;
+    }
+    return () => {
+      document.body.style.background = '';
+      document.body.style.margin = '';
+      document.body.style.fontFamily = '';
+    };
+  }, [bodyBgStyle, design.fontFamily]);
 
   // ── Determine if the design uses a dark background (gradient/image) with light text ──
   const isDarkBackground = design.backgroundType === 'gradient' || design.backgroundType === 'image';
 
-  // ── Card text color: dark text inside the card (since card is near-white) ──
-  const cardTextColor = '#1f2937';
+  // ── Card text color: adapts based on form style ──
+  // Glass/minimal forms are transparent → use white text for dark backgrounds
+  // Standard/solid forms have white background → use dark text
+  const isGlassCard = design.formStyle === 'glass' || design.formStyle === 'minimal';
+  const cardTextColor = (isDarkBackground && isGlassCard) ? '#ffffff' : '#1f2937';
 
-  // ── Card style: glass-morphism on dark backgrounds, clean white on light backgrounds ──
+  // ── Card style: used in split layout ──
   const cardStyle = isDarkBackground
     ? 'bg-white/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-6 space-y-5'
     : 'bg-white rounded-2xl shadow-2xl p-6 space-y-5';
@@ -1204,7 +1226,7 @@ function PortalContent() {
         </p>
         {isFieldVisible('firstName') && (
           <div className="space-y-1.5">
-            <label className="text-sm font-medium flex items-center gap-1" style={{ color: textColor }}>
+            <label className="text-sm font-medium flex items-center gap-1" style={{ color: cardTextColor }}>
               {getFieldLabel('firstName', 'First Name')}
               {isFieldRequired('firstName') && <span className="text-red-500">*</span>}
             </label>
@@ -1224,7 +1246,7 @@ function PortalContent() {
         )}
         {isFieldVisible('lastName') && (
           <div className="space-y-1.5">
-            <label className="text-sm font-medium flex items-center gap-1" style={{ color: textColor }}>
+            <label className="text-sm font-medium flex items-center gap-1" style={{ color: cardTextColor }}>
               {getFieldLabel('lastName', 'Last Name')}
               {isFieldRequired('lastName') && <span className="text-red-500">*</span>}
             </label>
@@ -1244,7 +1266,7 @@ function PortalContent() {
         )}
         {isFieldVisible('email') && (
           <div className="space-y-1.5">
-            <label className="text-sm font-medium flex items-center gap-1" style={{ color: textColor }}>
+            <label className="text-sm font-medium flex items-center gap-1" style={{ color: cardTextColor }}>
               {getFieldLabel('email', 'Email')}
               {isFieldRequired('email') && <span className="text-red-500">*</span>}
             </label>
@@ -1264,7 +1286,7 @@ function PortalContent() {
         )}
         {isFieldVisible('phone') && (
           <div className="space-y-1.5">
-            <label className="text-sm font-medium flex items-center gap-1" style={{ color: textColor }}>
+            <label className="text-sm font-medium flex items-center gap-1" style={{ color: cardTextColor }}>
               {getFieldLabel('phone', 'Phone')}
               {isFieldRequired('phone') && <span className="text-red-500">*</span>}
             </label>
@@ -1313,7 +1335,7 @@ function PortalContent() {
 
   return (
     <div
-      className="min-h-screen flex flex-col"
+      className="fixed inset-0 flex flex-col overflow-y-auto"
       style={{
         ...bgStyle,
         fontFamily: design.fontFamily,
@@ -1421,7 +1443,7 @@ function PortalContent() {
                       <h2
                         className="text-xl font-bold"
                         style={{
-                          color: textColor,
+                          color: cardTextColor,
                           fontFamily: design.headingFontFamily,
                         }}
                       >
@@ -1446,7 +1468,7 @@ function PortalContent() {
                       >
                         <Gift className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: accentColor }} />
                         <div>
-                          <p className="font-semibold text-sm" style={{ color: textColor }}>
+                          <p className="font-semibold text-sm" style={{ color: cardTextColor }}>
                             {design.promotionTitle}
                           </p>
                           {design.promotionDesc && (
@@ -1507,78 +1529,111 @@ function PortalContent() {
           </div>
         ) : (
           // ── Centered / Card / Full-bleed Layout ──
-          <div className="w-full max-w-md">
+          // Matches the design preview: header + hotel info on the gradient,
+          // only the form inside the card.
+          <div className="w-full max-w-md flex flex-col items-center">
+
+            {/* ── ABOVE THE CARD (on gradient background) ── */}
+
+            {/* Promotion banner — shown above the card on the gradient */}
+            {design.showPromotion && design.promotionTitle && state !== 'success' && (
+              <div
+                className="w-full flex items-start gap-3 rounded-xl p-3 mb-4"
+                style={{ backgroundColor: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.15)' }}
+              >
+                <Gift className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-300" />
+                <div>
+                  <p className="font-semibold text-sm text-white">{design.promotionTitle}</p>
+                  {design.promotionDesc && (
+                    <p className="text-xs text-white/70 mt-1">{design.promotionDesc}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Clock */}
             {design.showClock && (
-              <div className="mb-4 flex justify-center">
+              <div className="mb-3 flex justify-center">
                 <LiveClock textColor="#ffffff" />
               </div>
             )}
 
+            {/* Logo */}
+            {design.logoUrl ? (
+              <img
+                src={design.logoUrl}
+                alt="Hotel Logo"
+                className="h-16 mx-auto object-contain mb-4 drop-shadow-lg"
+              />
+            ) : (
+              <div
+                className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 bg-white/15 backdrop-blur-sm"
+                style={{ border: '1px solid rgba(255,255,255,0.2)' }}
+              >
+                <Wifi className="w-8 h-8 text-white" />
+              </div>
+            )}
+
+            {/* Title & Subtitle — on gradient background, white text */}
+            <div className="text-center mb-2">
+              <h1
+                className="text-2xl md:text-3xl font-bold text-white drop-shadow-sm"
+                style={{ fontFamily: design.headingFontFamily }}
+              >
+                {design.title}
+              </h1>
+              <p className="text-sm md:text-base text-white/80 mt-1">{design.subtitle}</p>
+              {design.welcomeMessage && (
+                <p className="text-xs text-white/60 mt-2 italic">{design.welcomeMessage}</p>
+              )}
+            </div>
+
+            {/* Hotel info — on gradient background */}
+            {design.showHotelInfo && design.hotelName && (
+              <div className="w-full text-center space-y-1 mb-4">
+                <p className="text-sm font-semibold text-white">{design.hotelName}</p>
+                <div className="flex items-center justify-center gap-1 text-xs text-white/70">
+                  {design.hotelAddress && (
+                    <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{design.hotelAddress}</span>
+                  )}
+                </div>
+                <div className="flex items-center justify-center gap-3 text-xs text-white/70">
+                  {design.hotelPhone && (
+                    <span className="flex items-center gap-1"><PhoneCall className="w-3 h-3" />{design.hotelPhone}</span>
+                  )}
+                  {design.hotelWebsite && (
+                    <span className="flex items-center gap-1"><Globe className="w-3 h-3" />{design.hotelWebsite}</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Amenity tags — on gradient background */}
+            {design.showAmenities && design.amenities.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 justify-center mb-5">
+                {design.amenities.map((a, i) => (
+                  <span
+                    key={i}
+                    className="px-2.5 py-1 text-xs rounded-full font-medium bg-white/12 text-white/90 backdrop-blur-sm"
+                  >
+                    {a}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* ── THE CARD (form only) ── */}
             <div
-              className={cardStyle}
+              className={cn(
+                'w-full',
+                design.formStyle === 'glass'
+                  ? 'bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 space-y-4'
+                  : design.formStyle === 'minimal'
+                    ? 'bg-transparent rounded-2xl p-6 space-y-4'
+                    : 'bg-white rounded-2xl p-6 space-y-4',
+              )}
               style={{ boxShadow: cardShadow }}
             >
-              {/* Header */}
-              <div className="text-center space-y-2">
-                {design.logoUrl ? (
-                  <img
-                    src={design.logoUrl}
-                    alt="Hotel Logo"
-                    className="h-14 mx-auto object-contain"
-                  />
-                ) : (
-                  <div
-                    className="inline-flex items-center justify-center w-14 h-14 rounded-2xl"
-                    style={{ backgroundColor: accentColor + '15' }}
-                  >
-                    <Wifi className="w-7 h-7" style={{ color: accentColor }} />
-                  </div>
-                )}
-                <h1
-                  className="text-2xl font-bold"
-                  style={{
-                    color: textColor,
-                    fontFamily: design.headingFontFamily,
-                  }}
-                >
-                  {design.title}
-                </h1>
-                <p className="text-sm text-gray-500">{design.subtitle}</p>
-              </div>
-
-              {/* Hotel info (compact) */}
-              {design.showHotelInfo && design.hotelName && (
-                <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-3">
-                  <Hotel className="w-5 h-5 flex-shrink-0" style={{ color: accentColor }} />
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm truncate" style={{ color: textColor }}>
-                      {design.hotelName}
-                    </p>
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-500">
-                      {design.hotelAddress && <span>{design.hotelAddress}</span>}
-                      {design.hotelPhone && <span>{design.hotelPhone}</span>}
-                      {design.hotelWebsite && <span>{design.hotelWebsite}</span>}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Amenity tags */}
-              {design.showAmenities && design.amenities.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 justify-center">
-                  {design.amenities.map((a, i) => (
-                    <span
-                      key={i}
-                      className="px-2.5 py-1 text-xs rounded-full font-medium"
-                      style={{ backgroundColor: accentColor + '12', color: accentColor }}
-                    >
-                      {a}
-                    </span>
-                  ))}
-                </div>
-              )}
-
               {/* Success state */}
               {state === 'success' && authResult ? (
                 <SuccessScreen
@@ -1597,25 +1652,13 @@ function PortalContent() {
                     </div>
                   )}
 
-                  {/* Promotion banner */}
-                  {design.showPromotion && design.promotionTitle && (
-                    <div
-                      className="flex items-start gap-3 rounded-lg p-3"
-                      style={{ backgroundColor: accentColor + '10' }}
-                    >
-                      <Gift className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: accentColor }} />
-                      <div>
-                        <p className="font-semibold text-sm" style={{ color: textColor }}>
-                          {design.promotionTitle}
-                        </p>
-                        {design.promotionDesc && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            {design.promotionDesc}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  {/* Auth flow label */}
+                  <div className="flex items-center gap-1.5" style={{ color: cardTextColor + '80' }}>
+                    <Wifi className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                    <span className="text-xs font-semibold uppercase tracking-wider">
+                      {activeMethod === 'voucher' ? 'Enter Voucher' : activeMethod === 'room_number' ? 'Enter Room' : activeMethod === 'sms_otp' ? 'OTP Login' : activeMethod === 'open_access' ? 'Free Access' : 'Sign In'}
+                    </span>
+                  </div>
 
                   {/* Auth Method Tabs */}
                   {renderMethodTabs()}
@@ -1634,7 +1677,7 @@ function PortalContent() {
 
                   {/* Terms checkbox */}
                   {portalConfig?.termsRequired && (
-                    <label className="flex items-start gap-2 text-sm cursor-pointer">
+                    <label className="flex items-start gap-2 text-sm cursor-pointer" style={{ color: cardTextColor + '80' }}>
                       <input
                         type="checkbox"
                         checked={termsAccepted}
@@ -1642,7 +1685,7 @@ function PortalContent() {
                         className="mt-0.5"
                         style={{ accentColor }}
                       />
-                      <span className="text-gray-600">
+                      <span>
                         I agree to the{' '}
                         {portalConfig.design.termsUrl ? (
                           <a
@@ -1664,20 +1707,20 @@ function PortalContent() {
                   )}
 
                   {/* Info section */}
-                  <div className="border-t pt-4 space-y-2">
-                    <div className="flex items-start gap-2 text-xs text-gray-400">
-                      <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <div className="border-t pt-3 space-y-1.5" style={{ borderColor: cardTextColor + '15' }}>
+                    <div className="flex items-start gap-2 text-xs" style={{ color: cardTextColor + '60' }}>
+                      <Shield className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                       <p>Secure connection — your credentials are encrypted</p>
                     </div>
-                    <div className="flex items-start gap-2 text-xs text-gray-400">
-                      <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <div className="flex items-start gap-2 text-xs" style={{ color: cardTextColor + '60' }}>
+                      <Clock className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                       <p>
                         Session timeout:{' '}
                         {portalConfig?.sessionTimeout || 1440} minutes
                       </p>
                     </div>
-                    <div className="flex items-start gap-2 text-xs text-gray-400">
-                      <Zap className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <div className="flex items-start gap-2 text-xs" style={{ color: cardTextColor + '60' }}>
+                      <Zap className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                       <p>
                         Bandwidth: up to{' '}
                         {portalConfig?.maxBandwidthDown || 5} Mbps down,{' '}
