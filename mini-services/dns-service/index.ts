@@ -318,10 +318,19 @@ function getDnsmasqVersion(): string {
 function startDnsmasq(): { success: boolean; message: string } {
   if (isDnsmasqRunning()) return { success: true, message: 'dnsmasq is already running' };
   try {
-    const configDir = path.dirname(DNSMASQ_CONFIG);
-    execSync(`${DNSMASQ_BIN} -C ${configDir} 2>&1`, { encoding: 'utf-8' });
+    if (SYSTEM_DNSMASQ) {
+      // Production: use systemctl (Rocky Linux / systemd)
+      const result = safeExec('systemctl start dnsmasq 2>&1');
+      if (result.includes('not found') || result.includes('not loaded')) {
+        // Fall back to direct start with our config directory
+        execSync(`${DNSMASQ_BIN} -C ${path.dirname(DNSMASQ_CONFIG)} --keep-in-foreground=false 2>&1`, { encoding: 'utf-8' });
+      }
+    } else {
+      // Sandbox/dev: start directly
+      execSync(`${DNSMASQ_BIN} -C ${path.dirname(DNSMASQ_CONFIG)} --keep-in-foreground=false 2>&1`, { encoding: 'utf-8' });
+    }
     const start = Date.now();
-    while (Date.now() - start < 3000) {
+    while (Date.now() - start < 5000) {
       if (isDnsmasqRunning()) return { success: true, message: 'dnsmasq started successfully' };
       execSync('sleep 0.5');
     }
@@ -334,13 +343,21 @@ function startDnsmasq(): { success: boolean; message: string } {
 function stopDnsmasq(): { success: boolean; message: string } {
   if (!isDnsmasqRunning()) return { success: true, message: 'dnsmasq is not running' };
   try {
-    execSync('pkill dnsmasq 2>/dev/null || true');
+    if (SYSTEM_DNSMASQ) {
+      safeExec('systemctl stop dnsmasq 2>/dev/null || true');
+    } else {
+      execSync('pkill dnsmasq 2>/dev/null || true');
+    }
     const start = Date.now();
     while (Date.now() - start < 3000) {
       if (!isDnsmasqRunning()) return { success: true, message: 'dnsmasq stopped successfully' };
       execSync('sleep 0.5');
     }
-    try { execSync('pkill -9 dnsmasq 2>/dev/null'); } catch {}
+    if (SYSTEM_DNSMASQ) {
+      safeExec('systemctl kill -s SIGKILL dnsmasq 2>/dev/null || true');
+    } else {
+      try { execSync('pkill -9 dnsmasq 2>/dev/null'); } catch {}
+    }
     return { success: true, message: 'dnsmasq force-stopped' };
   } catch (error) {
     return { success: false, message: `Failed to stop dnsmasq: ${error}` };
@@ -348,36 +365,155 @@ function stopDnsmasq(): { success: boolean; message: string } {
 }
 
 function reloadDnsmasq(): { success: boolean; message: string } {
+  if (!isDnsmasqRunning()) {
+    // Not running — start it
+    return startDnsmasq();
+  }
   try {
+    if (SYSTEM_DNSMASQ) {
+      safeExec('systemctl reload dnsmasq 2>/dev/null || true');
+    }
+    // Always also send SIGHUP for direct process control
     execSync('pkill -HUP dnsmasq 2>/dev/null || true');
-    return { success: true, message: 'dnsmasq reload signal sent (config re-read)' };
+    return { success: true, message: 'dnsmasq reloaded (config re-read)' };
   } catch (error) {
     return { success: false, message: `Failed to reload dnsmasq: ${error}` };
   }
 }
 
+/**
+ * Default upstream DNS forwarders — used when DnsForwarder table is empty
+ * or has no enabled entries. These ensure external resolution always works.
+ */
+const DEFAULT_UPSTREAM_DNS = [
+  '8.8.8.8',        // Google DNS Primary
+  '8.8.4.4',        // Google DNS Secondary
+  '1.1.1.1',        // Cloudflare DNS Primary
+  '1.0.0.1',        // Cloudflare DNS Secondary
+];
+
 async function syncConfigToDisk(): Promise<{ success: boolean; lines: number }> {
   let config = `# StaySuite DNS Configuration - Auto-generated
 # Last updated: ${new Date().toISOString()}
 # DO NOT EDIT MANUALLY - Changes will be overwritten
+#
+# Architecture:
+#   1. Listen on ALL interfaces (gateway + DNS for LAN clients)
+#   2. Authoritative for local zones (staysuite.local, *.staysuite.local)
+#   3. Forward external queries to upstream DNS (Google/Cloudflare)
+#   4. Local domains resolve WITHOUT internet — always authoritative first
+#
+
+# ═══════════════════════════════════════════════════════════════════════
+# 1. GENERAL SETTINGS (must be first)
+# ═══════════════════════════════════════════════════════════════════════
+`;
+
+  // Listen on ALL interfaces — every interface IP works as gateway/DNS for LAN clients
+  config += `# Listen on all interfaces (0.0.0.0 = all IPv4)
+listen-address=0.0.0.0
+bind-dynamic
+
+# DNS behavior
+domain-needed          # Don't forward bare hostnames (no dots) to upstream
+bogus-priv             # Never forward private IP ranges to upstream
+no-resolv              # Don't read /etc/resolv.conf — we control upstream servers
+expand-hosts           # Expand simple hostnames from /etc/hosts
+stop-dns-rebind        # Protect against DNS rebinding attacks
+local-ttl=300          # TTL for local/authoritative responses (5 min)
+
+# Cache & performance
+cache-size=10000
+dns-forward-max=1000
+min-port=1024          # Use high ports for upstream queries (firewall friendly)
+edns-packet-max=4096   # Support large DNS responses (DNSSEC, large TXT)
 
 `;
 
-  // Upstream forwarders
+  // ═══════════════════════════════════════════════════════════════════════
+  // 2. UPSTREAM FORWARDERS — external domain resolution
+  // ═══════════════════════════════════════════════════════════════════════
+  let hasForwarders = false;
   try {
+    await pool.query('SELECT 1 FROM "DnsForwarder" LIMIT 1');
     const fwResult = await pool.query('SELECT * FROM "DnsForwarder" WHERE enabled = true');
     if (fwResult.rows.length > 0) {
-      config += '# Upstream DNS forwarders\n';
+      config += '# Upstream DNS forwarders (from database)\n';
       for (const f of fwResult.rows) {
         config += `server=${f.port !== 53 ? `${f.address}#${f.port}` : f.address}\n`;
+      }
+      hasForwarders = true;
+    }
+  } catch (error) {
+    log.warn('DnsForwarder table not available, using defaults', { error: String(error) });
+  }
+
+  // Always have at least default upstream servers — dnsmasq REFUSES queries without any
+  if (!hasForwarders) {
+    config += `# Upstream DNS forwarders (defaults — Google + Cloudflare)\n`;
+    for (const dns of DEFAULT_UPSTREAM_DNS) {
+      config += `server=${dns}\n`;
+    }
+  }
+
+  // Strict order: try servers in the order listed
+  config += `strict-order\n\n`;
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 3. LOCAL ZONES — authoritative resolution WITHOUT internet
+  // ═══════════════════════════════════════════════════════════════════════
+  try {
+    const zoneResult = await pool.query('SELECT * FROM "DnsZone" WHERE enabled = true');
+    for (const zone of zoneResult.rows) {
+      const domain = zone.domain;
+      config += `# ── Zone: ${domain} (authoritative) ──\n`;
+
+      // Mark this zone as local — dnsmasq will answer from its own records
+      // and NOT forward queries for this domain to upstream
+      config += `local=/${domain}/\n`;
+      config += `domain=${domain}\n`;
+
+      // Read records for this zone
+      try {
+        const recResult = await pool.query('SELECT * FROM "DnsRecord" WHERE "zoneId" = $1 AND enabled = true', [zone.id]);
+        for (const r of recResult.rows) {
+          const fqdn = `${r.name}.${domain}`;
+          switch (r.type) {
+            case 'A':
+              config += `host-record=${fqdn},${r.value}\n`;
+              break;
+            case 'AAAA':
+              config += `host-record=${fqdn},${r.value}\n`;
+              break;
+            case 'CNAME':
+              config += `cname=${fqdn},${r.value}\n`;
+              break;
+            case 'MX':
+              config += `mx-host=${domain},${r.value},${r.priority || 10}\n`;
+              break;
+            case 'TXT':
+              config += `txt-record=${fqdn},${r.value}\n`;
+              break;
+            case 'SRV':
+              config += `srv-host=${fqdn},${r.value},${r.priority || 10}\n`;
+              break;
+            case 'PTR':
+              config += `ptr-record=${fqdn},${r.value}\n`;
+              break;
+          }
+        }
+      } catch (error) {
+        log.warn(`Failed to read records for zone ${zone.id}`, { error: String(error) });
       }
       config += '\n';
     }
   } catch (error) {
-    log.warn('Failed to read forwarders for config', { error: String(error) });
+    log.warn('Failed to read zones for config', { error: String(error) });
   }
 
-  // DNS redirects (captive portal) - now from DnsRedirectRule table
+  // ═══════════════════════════════════════════════════════════════════════
+  // 4. DNS REDIRECTS — captive portal (address=/domain/target)
+  // ═══════════════════════════════════════════════════════════════════════
   try {
     const redirResult = await pool.query('SELECT * FROM "DnsRedirectRule" WHERE enabled = true ORDER BY priority ASC');
     if (redirResult.rows.length > 0) {
@@ -392,62 +528,32 @@ async function syncConfigToDisk(): Promise<{ success: boolean; lines: number }> 
     log.warn('Failed to read redirects for config', { error: String(error) });
   }
 
-  // DNS records
+  // ═══════════════════════════════════════════════════════════════════════
+  // 5. PTR (REVERSE DNS) for local subnets — rDNS for LAN clients
+  // ═══════════════════════════════════════════════════════════════════════
   try {
-    const zoneResult = await pool.query('SELECT * FROM "DnsZone" WHERE enabled = true');
-    for (const zone of zoneResult.rows) {
-      config += `# Zone: ${zone.domain}\n`;
-      try {
-        const recResult = await pool.query('SELECT * FROM "DnsRecord" WHERE "zoneId" = $1 AND enabled = true', [zone.id]);
-        for (const r of recResult.rows) {
-          switch (r.type) {
-            case 'A':
-              config += `address=/${r.name}.${zone.domain}/${r.value}\n`;
-              break;
-            case 'AAAA':
-              config += `address=/${r.name}.${zone.domain}/${r.value}\n`;
-              break;
-            case 'CNAME':
-              config += `cname=${r.name}.${zone.domain},${r.value}\n`;
-              break;
-            case 'MX':
-              config += `mx-host=${zone.domain},${r.value},${r.priority || 10}\n`;
-              break;
-            case 'TXT':
-              config += `txt-record=${r.name}.${zone.domain},${r.value}\n`;
-              break;
-            case 'SRV':
-              config += `srv-host=${r.name}.${zone.domain},${r.value},${r.priority || 10}\n`;
-              break;
-            case 'PTR':
-              config += `ptr-record=${r.name}.${zone.domain},${r.value}\n`;
-              break;
-          }
+    const subnetResult = await pool.query('SELECT "subnet" FROM "DhcpSubnet" WHERE "enabled" = true');
+    if (subnetResult.rows.length > 0) {
+      config += '# Reverse DNS — resolve local IPs from DHCP subnets\n';
+      for (const sub of subnetResult.rows) {
+        const cidr = sub.subnet;
+        if (cidr && cidr.includes('/')) {
+          const network = cidr.split('/')[0];
+          // rev-zone: 192.168.1.0/24 → 1.168.192.in-addr.arpa
+          const octets = network.split('.').reverse().join('.');
+          config += `auth-zone=${octets}.in-addr.arpa\n`;
         }
-      } catch (error) {
-        log.warn(`Failed to read records for zone ${zone.id}`, { error: String(error) });
       }
       config += '\n';
     }
   } catch (error) {
-    log.warn('Failed to read zones for config', { error: String(error) });
+    log.warn('Failed to read DHCP subnets for reverse DNS', { error: String(error) });
   }
-
-  // General settings
-  config += `# General settings
-domain-needed
-bogus-priv
-no-resolv
-expand-hosts
-local-ttl=300
-cache-size=10000
-dns-forward-max=1000
-min-port=1024
-`;
 
   try {
     fs.writeFileSync(DNSMASQ_CONFIG, config, 'utf-8');
-    const lineCount = config.split('\n').length;
+    const lineCount = config.split('\n').filter(l => l.trim() && !l.startsWith('#')).length;
+    log.info(`DNS config generated: ${DNSMASQ_CONFIG} (${lineCount} directives)`);
     return { success: true, lines: lineCount };
   } catch (error) {
     log.error('Failed to write dnsmasq config', { error: String(error) });

@@ -119,6 +119,24 @@ async function ensureActivityLogTable() {
   } catch {}
 }
 
+const DNS_SERVICE_URL = process.env.DNS_SERVICE_URL || 'http://localhost:3012';
+
+/** Proxy a request to the real dns-service mini-service on port 3012 */
+async function proxyToDnsService(path: string, method: string, body?: Record<string, unknown> | null): Promise<Response | null> {
+  try {
+    const url = `${DNS_SERVICE_URL}${path}`;
+    const opts: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body && ['POST', 'PUT', 'PATCH'].includes(method)) {
+      opts.body = JSON.stringify(body);
+    }
+    const res = await fetch(url, { ...opts, signal: AbortSignal.timeout(8000) });
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
+  } catch {
+    return null;
+  }
+}
+
 // ─── Route Handlers ───────────────────────────────────────────────────────────
 
 async function handleRequest(request: NextRequest, method: string) {
@@ -139,8 +157,13 @@ async function handleRequest(request: NextRequest, method: string) {
 
     const propertyId = await getDefaultPropertyId(tenantId);
 
-    // ─── Status ─────────────────────────────────────────────────────────────
+    // ─── Status — proxy to real dns-service, fall back to DB-only stub ───
     if (segments[0] === 'status' && segments.length === 1 && method === 'GET') {
+      // Try real mini-service first (has actual dnsmasq process status)
+      const proxied = await proxyToDnsService('/api/status', 'GET');
+      if (proxied) return proxied;
+
+      // Fallback: DB-only counts (mini-service not running)
       const [zoneCount, recordCount, redirectCount] = await Promise.all([
         db.dnsZone.count({ where: { tenantId } }),
         db.dnsRecord.count({ where: { tenantId } }),
@@ -159,30 +182,30 @@ async function handleRequest(request: NextRequest, method: string) {
       return NextResponse.json({
         success: true,
         data: {
-          installed: true,
-          running: false,
-          version: 'dnsmasq',
-          mode: 'standalone',
+          installed: true, running: false, version: 'dnsmasq', mode: 'standalone',
           configPath: '/etc/dnsmasq.d/staysuite.conf',
-          zoneCount,
-          recordCount,
-          redirectCount,
-          forwarderCount,
+          zoneCount, recordCount, redirectCount, forwarderCount,
           cacheStats: { size: 10000, maxSize: 10000, inserts: 0, evictions: 0, hitRate: 'N/A' },
+          _warning: 'dns-service mini-service not reachable — showing DB-only status',
         },
       });
     }
 
-    // ─── Service Control (stub) ────────────────────────────────────────────
+    // ─── Service Control — proxy to real dns-service ──────────────────────
     if (segments[0] === 'service' && segments.length === 2 && method === 'POST') {
       const action = segments[1];
       if (!['start', 'stop', 'restart', 'reload'].includes(action)) {
         return NextResponse.json({ success: false, error: `Invalid action: ${action}` }, { status: 400 });
       }
+
+      // Try real mini-service
+      const proxied = await proxyToDnsService(`/api/service/${action}`, 'POST', body);
+      if (proxied) return proxied;
+
       return NextResponse.json({
-        success: true,
-        message: `Service ${action} triggered via dnsmasq`,
-        running: action !== 'stop',
+        success: false,
+        error: `dns-service mini-service not reachable on port 3012. Cannot ${action} dnsmasq.`,
+        running: false,
       });
     }
 
