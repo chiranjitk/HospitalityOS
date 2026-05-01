@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { db } from '@/lib/db';
+import { getTenantContext, requireAuth, resolvePropertyId } from '@/lib/auth/tenant-context';
 import {
   scanConnections,
   setNetTypeOnInterface,
@@ -12,8 +13,6 @@ function safeExec(cmd: string, timeout = 10000): string {
   try { return execSync(cmd, { encoding: 'utf-8', timeout }); } catch (e: any) { return e.stderr?.trim() || e.stdout?.trim() || ''; }
 }
 
-const TENANT_ID = 'tenant-1';
-const PROPERTY_ID = 'property-1';
 const IFACE_NAME_RE = /^[a-zA-Z0-9._-]+$/;
 
 /**
@@ -28,8 +27,18 @@ const IFACE_NAME_RE = /^[a-zA-Z0-9._-]+$/;
 
 // ─── GET ────────────────────────────────────────────────────────────────────
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // ── Auth (read-only: fallback to first property) ──
+    const context = await getTenantContext(request);
+    let propertyId: string;
+    if (context) {
+      propertyId = await resolvePropertyId(context) || context.tenantId;
+    } else {
+      const firstProperty = await db.property.findFirst({ select: { id: true } });
+      propertyId = firstProperty?.id || '';
+    }
+
     // 1. Scan all .nmconnection files and group by nettype via nmcli wrapper
     const connections = scanConnections();
     const osRolesList: Array<{ interface: string; role: string; priority: number; nettype: number }> = [];
@@ -47,7 +56,7 @@ export async function GET() {
 
     // 2. Also read from DB to merge
     const dbRoles = await db.interfaceRole.findMany({
-      where: { propertyId: PROPERTY_ID },
+      where: { propertyId: propertyId },
     });
 
     // Build merged map: OS takes priority, DB fills gaps
@@ -106,6 +115,12 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
+    // ── Auth ──
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
+    const tenantId = context.tenantId;
+    const propertyId = await resolvePropertyId(context) || context.tenantId;
+
     const body = await request.json();
     const { roles } = body;
 
@@ -202,13 +217,13 @@ export async function PUT(request: NextRequest) {
         let dbSuccess = false;
         try {
           let dbIface = await db.networkInterface.findUnique({
-            where: { propertyId_name: { propertyId: PROPERTY_ID, name: ifaceName } },
+            where: { propertyId_name: { propertyId: propertyId, name: ifaceName } },
           });
           if (!dbIface) {
             dbIface = await db.networkInterface.create({
               data: {
-                tenantId: TENANT_ID,
-                propertyId: PROPERTY_ID,
+                tenantId: tenantId,
+                propertyId: propertyId,
                 name: ifaceName,
                 type: 'ethernet',
                 status: 'up',
@@ -219,13 +234,13 @@ export async function PUT(request: NextRequest) {
           await db.interfaceRole.upsert({
             where: {
               propertyId_interfaceId: {
-                propertyId: PROPERTY_ID,
+                propertyId: propertyId,
                 interfaceId: dbIface.id,
               },
             },
             create: {
-              tenantId: TENANT_ID,
-              propertyId: PROPERTY_ID,
+              tenantId: tenantId,
+              propertyId: propertyId,
               interfaceId: dbIface.id,
               role,
               priority,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { db } from '@/lib/db';
+import { getTenantContext, requireAuth, resolvePropertyId } from '@/lib/auth/tenant-context';
 import {
   scanConnections,
   addSecondaryIP,
@@ -15,8 +16,6 @@ function safeExec(cmd: string, timeout = 5000): string {
   try { return execSync(cmd, { encoding: 'utf-8', timeout }); } catch { return ''; }
 }
 
-const TENANT_ID = 'tenant-1';
-const PROPERTY_ID = 'property-1';
 const VALID_NAME = /^[a-zA-Z0-9._-]+$/;
 
 function cidrToNetmask(cidr: number): string {
@@ -57,11 +56,21 @@ function parseAddressStr(addr: string): { ip: string; cidr: number } | null {
 // GET — List secondary IPs from .nmconnection file
 // ────────────────────────────────────────────────────────────
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
   try {
     const { name } = await params;
+
+    // ── Auth (read-only: fallback to first property) ──
+    const context = await getTenantContext(request);
+    let propertyId: string;
+    if (context) {
+      propertyId = await resolvePropertyId(context) || context.tenantId;
+    } else {
+      const firstProperty = await db.property.findFirst({ select: { id: true } });
+      propertyId = firstProperty?.id || '';
+    }
 
     if (!VALID_NAME.test(name)) {
       return NextResponse.json(
@@ -106,11 +115,11 @@ export async function GET(
     let dbAliases: any[] = [];
     try {
       const netIface = await db.networkInterface.findUnique({
-        where: { propertyId_name: { propertyId: PROPERTY_ID, name } },
+        where: { propertyId_name: { propertyId: propertyId, name } },
       });
       if (netIface) {
         dbAliases = await db.interfaceAlias.findMany({
-          where: { propertyId: PROPERTY_ID, interfaceId: netIface.id },
+          where: { propertyId: propertyId, interfaceId: netIface.id },
           orderBy: { createdAt: 'desc' },
         });
       }
@@ -144,6 +153,13 @@ export async function POST(
 ) {
   try {
     const { name } = await params;
+
+    // ── Auth ──
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
+    const tenantId = context.tenantId;
+    const propertyId = await resolvePropertyId(context) || context.tenantId;
+
     const body = await request.json();
     const { ipAddress, netmask, description } = body;
 
@@ -203,13 +219,13 @@ export async function POST(
     // 2. Save to DB (InterfaceAlias)
     try {
       let netIface = await db.networkInterface.findUnique({
-        where: { propertyId_name: { propertyId: PROPERTY_ID, name } },
+        where: { propertyId_name: { propertyId: propertyId, name } },
       });
       if (!netIface) {
         netIface = await db.networkInterface.create({
           data: {
-            tenantId: TENANT_ID,
-            propertyId: PROPERTY_ID,
+            tenantId: tenantId,
+            propertyId: propertyId,
             name,
             type: 'ethernet',
             status: 'up',
@@ -219,8 +235,8 @@ export async function POST(
 
       await db.interfaceAlias.create({
         data: {
-          tenantId: TENANT_ID,
-          propertyId: PROPERTY_ID,
+          tenantId: tenantId,
+          propertyId: propertyId,
           interfaceId: netIface.id,
           interfaceName: name,
           ipAddress,
@@ -258,6 +274,12 @@ export async function DELETE(
 ) {
   try {
     const { name } = await params;
+
+    // ── Auth ──
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
+    const propertyId = await resolvePropertyId(context) || context.tenantId;
+
     const { searchParams } = new URL(request.url);
     const ip = searchParams.get('ip');
     const netmask = searchParams.get('netmask') || '255.255.255.0';
@@ -310,11 +332,11 @@ export async function DELETE(
     // 2. Remove from DB
     try {
       const netIface = await db.networkInterface.findUnique({
-        where: { propertyId_name: { propertyId: PROPERTY_ID, name } },
+        where: { propertyId_name: { propertyId: propertyId, name } },
       });
       if (netIface) {
         await db.interfaceAlias.deleteMany({
-          where: { propertyId: PROPERTY_ID, interfaceId: netIface.id, ipAddress: ip },
+          where: { propertyId: propertyId, interfaceId: netIface.id, ipAddress: ip },
         });
       }
       results.push({ step: 'database', success: true, message: 'Alias removed from database' });

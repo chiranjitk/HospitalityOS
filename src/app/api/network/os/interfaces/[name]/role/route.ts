@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { db } from '@/lib/db';
+import { getTenantContext, requireAuth, resolvePropertyId } from '@/lib/auth/tenant-context';
 import {
   scanConnections,
   setNetTypeOnInterface,
@@ -12,8 +13,6 @@ function safeExec(cmd: string, timeout = 10000): string {
   try { return execSync(cmd, { encoding: 'utf-8', timeout }); } catch (e: any) { return e.stderr?.trim() || e.stdout?.trim() || ''; }
 }
 
-const TENANT_ID = 'tenant-1';
-const PROPERTY_ID = 'property-1';
 const IFACE_NAME_RE = /^[a-zA-Z0-9._-]+$/;
 
 /**
@@ -30,11 +29,21 @@ const IFACE_NAME_RE = /^[a-zA-Z0-9._-]+$/;
 // ─── GET ────────────────────────────────────────────────────────────────────
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
   try {
     const { name } = await params;
+
+    // ── Auth (read-only: fallback to first property) ──
+    const context = await getTenantContext(request);
+    let propertyId: string;
+    if (context) {
+      propertyId = await resolvePropertyId(context) || context.tenantId;
+    } else {
+      const firstProperty = await db.property.findFirst({ select: { id: true } });
+      propertyId = firstProperty?.id || '';
+    }
 
     if (!IFACE_NAME_RE.test(name)) {
       return NextResponse.json(
@@ -89,14 +98,14 @@ export async function GET(
 
     // 2. Fallback to database
     const dbIface = await db.networkInterface.findUnique({
-      where: { propertyId_name: { propertyId: PROPERTY_ID, name } },
+      where: { propertyId_name: { propertyId: propertyId, name } },
     });
     let dbRole = null;
     if (dbIface) {
       dbRole = await db.interfaceRole.findUnique({
         where: {
           propertyId_interfaceId: {
-            propertyId: PROPERTY_ID,
+            propertyId: propertyId,
             interfaceId: dbIface.id,
           },
         },
@@ -143,6 +152,12 @@ export async function PUT(
 ) {
   try {
     const { name } = await params;
+
+    // ── Auth ──
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
+    const tenantId = context.tenantId;
+    const propertyId = await resolvePropertyId(context) || context.tenantId;
 
     if (!IFACE_NAME_RE.test(name)) {
       return NextResponse.json(
@@ -216,13 +231,13 @@ export async function PUT(
     // 2. Upsert to database
     try {
       let dbIface = await db.networkInterface.findUnique({
-        where: { propertyId_name: { propertyId: PROPERTY_ID, name } },
+        where: { propertyId_name: { propertyId: propertyId, name } },
       });
       if (!dbIface) {
         dbIface = await db.networkInterface.create({
           data: {
-            tenantId: TENANT_ID,
-            propertyId: PROPERTY_ID,
+            tenantId: tenantId,
+            propertyId: propertyId,
             name,
             type: 'ethernet',
             status: 'up',
@@ -233,13 +248,13 @@ export async function PUT(
       await db.interfaceRole.upsert({
         where: {
           propertyId_interfaceId: {
-            propertyId: PROPERTY_ID,
+            propertyId: propertyId,
             interfaceId: dbIface.id,
           },
         },
         create: {
-          tenantId: TENANT_ID,
-          propertyId: PROPERTY_ID,
+          tenantId: tenantId,
+          propertyId: propertyId,
           interfaceId: dbIface.id,
           role: roleLabel,
           priority: safePriority,
@@ -292,11 +307,16 @@ export async function PUT(
 // ─── DELETE ─────────────────────────────────────────────────────────────────
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
   try {
     const { name } = await params;
+
+    // ── Auth ──
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
+    const propertyId = await resolvePropertyId(context) || context.tenantId;
 
     if (!IFACE_NAME_RE.test(name)) {
       return NextResponse.json(
@@ -329,13 +349,13 @@ export async function DELETE(
     let dbDeleted = false;
     try {
       const dbIface = await db.networkInterface.findUnique({
-        where: { propertyId_name: { propertyId: PROPERTY_ID, name } },
+        where: { propertyId_name: { propertyId: propertyId, name } },
       });
       if (dbIface) {
         const existing = await db.interfaceRole.findUnique({
           where: {
             propertyId_interfaceId: {
-              propertyId: PROPERTY_ID,
+              propertyId: propertyId,
               interfaceId: dbIface.id,
             },
           },

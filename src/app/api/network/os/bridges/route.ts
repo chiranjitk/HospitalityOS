@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { db } from '@/lib/db';
+import { requireAuth, resolvePropertyId } from '@/lib/auth/tenant-context';
 import {
   scanConnections,
   createBridge,
@@ -11,8 +12,6 @@ function safeExec(cmd: string, timeout = 15000): string {
   try { return execSync(cmd, { encoding: 'utf-8', timeout }); } catch (e: any) { return e.stderr?.trim() || e.stdout?.trim() || ''; }
 }
 
-const TENANT_ID = 'tenant-1';
-const PROPERTY_ID = 'property-1';
 const VALID_NAME = /^[a-zA-Z0-9._-]+$/;
 
 function isValidIPv4(ip: string): boolean {
@@ -69,6 +68,12 @@ export async function GET() {
 // ──────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    // ── Auth ──
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
+    const tenantId = context.tenantId;
+    const propertyId = await resolvePropertyId(context) || context.tenantId;
+
     const body = await request.json();
     const { name, members, stp, forwardDelay, ipAddress, netmask, gateway } = body;
 
@@ -138,8 +143,8 @@ export async function POST(request: NextRequest) {
     try {
       await db.bridgeConfig.create({
         data: {
-          tenantId: TENANT_ID,
-          propertyId: PROPERTY_ID,
+          tenantId: tenantId,
+          propertyId: propertyId,
           name,
           memberInterfaces: JSON.stringify(safeMembers),
           stpEnabled: !!stp,
@@ -179,6 +184,11 @@ export async function POST(request: NextRequest) {
 // ──────────────────────────────────────────────
 export async function DELETE(request: NextRequest) {
   try {
+    // ── Auth ──
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
+    const propertyId = await resolvePropertyId(context) || context.tenantId;
+
     const { searchParams } = new URL(request.url);
     let name = searchParams.get('name');
 
@@ -222,7 +232,7 @@ export async function DELETE(request: NextRequest) {
     // 2. Remove from DB
     try {
       await db.bridgeConfig.deleteMany({
-        where: { propertyId: PROPERTY_ID, name },
+        where: { propertyId: propertyId, name },
       });
       results.push({ step: 'database', success: true, message: 'Bridge config removed from database' });
     } catch (dbErr: any) {

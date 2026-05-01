@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import { db } from '@/lib/db';
+import { requireAuth, resolvePropertyId } from '@/lib/auth/tenant-context';
 import {
   scanConnections,
   setStaticIP,
@@ -30,8 +31,6 @@ function inlineNmcliModWithPreserve(name: string, fn: () => void): void {
   withStaySuitePreserved(name, fn);
 }
 
-const TENANT_ID = 'tenant-1';
-const PROPERTY_ID = 'property-1';
 const VALID_NAME = /^[a-zA-Z0-9._-]+$/;
 
 function tryNmcli(fn: () => void, fallback: () => { success: boolean; data?: any; error?: string }): { success: boolean; data?: any; error?: string } {
@@ -105,6 +104,13 @@ export async function POST(
 ) {
   try {
     const { name } = await params;
+
+    // ── Auth ──
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
+    const tenantId = context.tenantId;
+    const propertyId = await resolvePropertyId(context) || context.tenantId;
+
     const body = await request.json();
 
     if (!VALID_NAME.test(name)) {
@@ -194,7 +200,7 @@ export async function POST(
     if (body.description !== undefined && body.mode === undefined) {
       try {
         const existing = await db.networkInterface.findUnique({
-          where: { propertyId_name: { propertyId: PROPERTY_ID, name } },
+          where: { propertyId_name: { propertyId: propertyId, name } },
         });
         if (existing) {
           await db.networkInterface.update({
@@ -204,8 +210,8 @@ export async function POST(
         } else {
           await db.networkInterface.create({
             data: {
-              tenantId: TENANT_ID,
-              propertyId: PROPERTY_ID,
+              tenantId: tenantId,
+              propertyId: propertyId,
               name,
               type: 'ethernet',
               status: 'up',
@@ -313,13 +319,13 @@ export async function POST(
       // 2. Store in database (InterfaceConfig)
       try {
         let dbIface = await db.networkInterface.findUnique({
-          where: { propertyId_name: { propertyId: PROPERTY_ID, name } },
+          where: { propertyId_name: { propertyId: propertyId, name } },
         });
         if (!dbIface) {
           dbIface = await db.networkInterface.create({
             data: {
-              tenantId: TENANT_ID,
-              propertyId: PROPERTY_ID,
+              tenantId: tenantId,
+              propertyId: propertyId,
               name,
               type: 'ethernet',
               status: 'up',
@@ -330,13 +336,13 @@ export async function POST(
         await db.interfaceConfig.upsert({
           where: {
             propertyId_interfaceId: {
-              propertyId: PROPERTY_ID,
+              propertyId: propertyId,
               interfaceId: dbIface.id,
             },
           },
           create: {
-            tenantId: TENANT_ID,
-            propertyId: PROPERTY_ID,
+            tenantId: tenantId,
+            propertyId: propertyId,
             interfaceId: dbIface.id,
             mode,
             ipAddress: body.ipAddress || null,

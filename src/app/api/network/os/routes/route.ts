@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { db } from '@/lib/db';
+import { getTenantContext, requireAuth, resolvePropertyId } from '@/lib/auth/tenant-context';
 import { addRoute, removeRoute, withStaySuitePreserved } from '@/lib/network/nmcli';
 
 function safeExec(cmd: string, timeout = 10000): string {
@@ -102,9 +103,6 @@ function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const TENANT_ID = 'tenant-1';
-const PROPERTY_ID = 'property-1';
-
 const VALID_NAME = /^[a-zA-Z0-9._-]+$/;
 
 function isValidIPv4(ip: string): boolean {
@@ -145,8 +143,18 @@ interface RouteEntry {
 // ──────────────────────────────────────────────────
 // GET /api/network/os/routes — List all routes
 // ──────────────────────────────────────────────────
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // ── Auth (read-only: fallback to first property) ──
+    const context = await getTenantContext(request);
+    let propertyId: string;
+    if (context) {
+      propertyId = await resolvePropertyId(context) || context.tenantId;
+    } else {
+      const firstProperty = await db.property.findFirst({ select: { id: true } });
+      propertyId = firstProperty?.id || '';
+    }
+
     // 1. Get OS routes via nmcli -j route show or ip route
     let osRoutes: RouteEntry[] = [];
     try {
@@ -206,7 +214,7 @@ export async function GET() {
     let dbRoutes: any[] = [];
     try {
       dbRoutes = await db.staticRoute.findMany({
-        where: { propertyId: PROPERTY_ID },
+        where: { propertyId: propertyId },
         orderBy: { metric: 'asc' },
       });
     } catch (dbErr: any) {
@@ -234,6 +242,12 @@ export async function GET() {
 // ──────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    // ── Auth ──
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
+    const tenantId = context.tenantId;
+    const propertyId = await resolvePropertyId(context) || context.tenantId;
+
     const body = await request.json();
     const { destination, gateway, interfaceName, metric, isDefault, name: routeName, description } = body;
 
@@ -318,8 +332,8 @@ export async function POST(request: NextRequest) {
       try {
         await db.staticRoute.create({
           data: {
-            tenantId: TENANT_ID,
-            propertyId: PROPERTY_ID,
+            tenantId: tenantId,
+            propertyId: propertyId,
             name: routeName || `route-${routeDest}-${gateway}`,
             destination: routeDest,
             gateway,
@@ -368,6 +382,11 @@ export async function POST(request: NextRequest) {
 // ──────────────────────────────────────────────────
 export async function DELETE(request: NextRequest) {
   try {
+    // ── Auth ──
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
+    const propertyId = await resolvePropertyId(context) || context.tenantId;
+
     const { searchParams } = new URL(request.url);
     const destination = searchParams.get('destination');
     const gateway = searchParams.get('gateway');
@@ -516,7 +535,7 @@ export async function DELETE(request: NextRequest) {
       const dbDest = destination === 'default' ? '0.0.0.0/0' : destination;
       await db.staticRoute.deleteMany({
         where: {
-          propertyId: PROPERTY_ID,
+          propertyId: propertyId,
           destination: dbDest,
           gateway,
         },
