@@ -1,35 +1,23 @@
 -- ============================================================
--- Hotfix: Drop view v_wifi_users before db:push
+-- Hotfix: Drop ALL views that depend on _old RADIUS tables
 -- ============================================================
--- The migration script renamed radcheck → radcheck_old,
--- but the view v_wifi_users still references radcheck (now radcheck_old).
--- Prisma db push tries to DROP radcheck_old but can't because
--- the view depends on it.
+-- The migration script renamed radcheck → radcheck_old etc.,
+-- but 6 views still reference the _old table names.
+-- Prisma db push cannot DROP _old tables while views depend on them.
 --
 -- Run this BEFORE bun run db:push:
 --   sudo -u postgres psql -d staysuite -f scripts/fix-drop-view-before-push.sql
 -- ============================================================
 
-BEGIN;
-
--- Drop the view that depends on radcheck_old
+DROP VIEW IF EXISTS v_active_sessions CASCADE;
+DROP VIEW IF EXISTS v_session_history CASCADE;
+DROP VIEW IF EXISTS v_auth_logs CASCADE;
+DROP VIEW IF EXISTS v_user_usage CASCADE;
 DROP VIEW IF EXISTS v_wifi_users CASCADE;
-
--- Also check for other views that might depend on _old tables
-DO $$
-DECLARE
-  r RECORD;
-BEGIN
-  FOR r IN SELECT table_name FROM information_schema.views WHERE table_schema = 'public' LOOP
-    -- Skip if view was already dropped
-    CONTINUE;
-  END LOOP;
-END $$;
-
-COMMIT;
+DROP VIEW IF EXISTS v_fup_switch_logs CASCADE;
 
 -- ============================================================
--- NOW run: bun run db:push
--- THEN recreate the view (after Prisma creates new radcheck table):
+-- NOW run: bun run db:push  (answer YES to warnings)
+-- THEN recreate all views:
 --   sudo -u postgres psql -d staysuite -f scripts/recreate-views.sql
 -- ============================================================
