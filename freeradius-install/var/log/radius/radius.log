@@ -36,3 +36,15 @@ Fri May  1 07:18:02 2026 : Info:  # Skipping contents of 'if' as it is always 'f
 Fri May  1 07:18:02 2026 : Info: Loaded virtual server inner-tunnel
 Fri May  1 07:18:02 2026 : Info: Loaded virtual server default
 Fri May  1 07:18:02 2026 : Info: Ready to process requests
+Fri May  1 11:57:12 2026 : Warning: Shared secret for client localhost is short, and likely can be broken by an attacker.
+Fri May  1 11:57:12 2026 : Warning: Shared secret for client localhost_ipv6 is short, and likely can be broken by an attacker.
+Fri May  1 11:57:12 2026 : Info: Debugger not attached
+Fri May  1 11:57:12 2026 : Info: rlm_sql (sql): Driver rlm_sql_postgresql (module rlm_sql_postgresql) loaded and linked
+Fri May  1 11:57:12 2026 : Info: rlm_sql (sql): Attempting to connect to database "staysuite"
+Fri May  1 11:57:12 2026 : Info: Loaded virtual server <default>
+Fri May  1 11:57:12 2026 : Info: Loaded virtual server coa
+Fri May  1 11:57:12 2026 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Fri May  1 11:57:12 2026 : Info: Loaded virtual server default
+Fri May  1 11:57:12 2026 : Info:  # Skipping contents of 'if' as it is always 'false' -- /home/z/my-project/freeradius-install/etc/raddb/sites-enabled/inner-tunnel:377
+Fri May  1 11:57:12 2026 : Info: Loaded virtual server inner-tunnel
+Fri May  1 11:57:12 2026 : Info: Ready to process requests
