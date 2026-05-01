@@ -126,6 +126,10 @@ interface UseRealtimeReturn {
   socket: Socket | null;
 }
 
+// Module-level debounce for connect error logging
+let _lastConnectErrorLogTime = 0;
+const CONNECT_ERROR_LOG_COOLDOWN = 60000; // 60 seconds
+
 /**
  * Comprehensive real-time hook for StaySuite
  * Provides socket connection management and event handling
@@ -160,7 +164,6 @@ export function useRealtime(options: UseRealtimeOptions = {}): UseRealtimeReturn
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 10;
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const connectErrorCount = useRef(0);
   const intentionalDisconnect = useRef(false);
   
   // Store callbacks in refs to avoid reconnection on callback changes
@@ -243,7 +246,6 @@ export function useRealtime(options: UseRealtimeOptions = {}): UseRealtimeReturn
         authenticated: true,
       });
       reconnectAttempts.current = 0;
-      connectErrorCount.current = 0;
       intentionalDisconnect.current = false;
       
       if (showToasts) {
@@ -280,19 +282,19 @@ export function useRealtime(options: UseRealtimeOptions = {}): UseRealtimeReturn
     });
 
     newSocket.on('connect_error', (error) => {
-      connectErrorCount.current++;
-      // Only log the first error to avoid console spam — retries are handled by socket.io
-      if (connectErrorCount.current === 1) {
+      const now = Date.now();
+      const shouldLog = (now - _lastConnectErrorLogTime) > CONNECT_ERROR_LOG_COOLDOWN;
+      if (shouldLog) {
+        _lastConnectErrorLogTime = now;
         console.warn(`[useRealtime] Real-time service unavailable. Live updates paused. The app will work without real-time updates. Error: ${error.message}`);
       }
       setConnectionStatus({
         connected: false,
         authenticated: false,
-        error: connectErrorCount.current === 1 ? 'Real-time service unavailable' : undefined,
+        error: shouldLog ? 'Real-time service unavailable' : undefined,
       });
       
-      // Notify the consumer once about the initial failure
-      if (connectErrorCount.current === 1) {
+      if (shouldLog) {
         callbacksRef.current.onError?.({ message: error.message });
       }
     });
@@ -474,7 +476,6 @@ export function useRealtime(options: UseRealtimeOptions = {}): UseRealtimeReturn
   // Manual reconnect
   const reconnect = useCallback(() => {
     reconnectAttempts.current = 0;
-    connectErrorCount.current = 0;
     intentionalDisconnect.current = false;
     if (socketRef.current) {
       socketRef.current.connect();

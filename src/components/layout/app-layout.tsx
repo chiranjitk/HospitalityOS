@@ -7,6 +7,7 @@ import { Breadcrumb } from './breadcrumb';
 import { useUIStore, useAuthStore } from '@/store';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { useTranslations } from 'next-intl';
 
 interface AppLayoutProps {
@@ -113,10 +114,21 @@ export function AppLayout({ children }: AppLayoutProps) {
           sidebarCollapsed && "lg:ml-[68px]"
         )}>
           <Separator className="opacity-40" />
-          <div className="px-4 py-3 text-center">
-            <p className="text-[11px] text-muted-foreground/60">
-              &copy; 2026 StaySuite HospitalityOS by Cryptsk Pvt Ltd
-            </p>
+          <div className="px-4 py-3">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-1.5 max-w-screen-xl mx-auto">
+              <p className="text-[11px] text-muted-foreground/60">
+                &copy; 2026 StaySuite HospitalityOS by{' '}
+                <span className="font-medium text-muted-foreground/80">Cryptsk Pvt Ltd</span>
+              </p>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-mono border-border/40 text-muted-foreground/50">
+                  v1.0.0
+                </Badge>
+                <span className="text-[10px] text-muted-foreground/40">
+                  Next.js 16 &middot; PostgreSQL 17 &middot; FreeRADIUS 3.2
+                </span>
+              </div>
+            </div>
           </div>
         </footer>
       )}
