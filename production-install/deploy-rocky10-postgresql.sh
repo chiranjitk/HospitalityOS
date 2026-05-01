@@ -1183,6 +1183,7 @@ if [[ $? -eq 0 ]]; then {
     warn "FreeRADIUS not running — check: journalctl -u radiusd -n 30"
   fi
 }
+fi
 
 # ════════════════════════════════════════════════════════════════════════════════
 # STEP 16: Cron Jobs
