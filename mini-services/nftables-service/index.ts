@@ -13,48 +13,41 @@
  *   - frchainspre  — nat prerouting → DNAT / Port Forward rules
  *   - frchainspost — nat postrouting → SNAT / Masquerade rules
  *
- * System chains (NOT managed by GUI): prerouting, postrouting, open,
- *   accounting, accountingup, accountingdn, syn_flood, invalid_packets,
- *   port_scan, ssh_protection, dns_protection, icmp_limit, input, forward, drop_log
- *
  * Port: 3013
- * Mode: Simulation/Demo (persists rules in JSON files, generates nftables config)
+ * Mode: Simulation/Demo (persists rules in PostgreSQL, generates nftables config)
  */
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { execSync } from 'child_process';
-import * as fs from 'fs';
-import * as path from 'path';
 import { createLogger } from '../shared/logger';
+import pg from 'pg';
 
 // ============================================================================
 // Constants & Setup
 // ============================================================================
 
 const app = new Hono();
-const PORT = 3013;
-const SERVICE_VERSION = '2.1.0';
+const PORT = parseInt(process.env.PORT || '3013', 10);
+const SERVICE_VERSION = '2.2.0';
 const log = createLogger('nftables-service');
 const startTime = Date.now();
 
-const SERVICE_ROOT = __dirname;
-const DATA_DIR = path.join(SERVICE_ROOT, 'data');
-const APPLIED_CONFIG_PATH = path.join(DATA_DIR, 'applied.conf');
+// Database — use NFTABLES_DB_URL or fall back to hardcoded PostgreSQL URL.
+// We do NOT use process.env.DATABASE_URL because the sandbox shell may inherit
+// a SQLite URL (file:/...) that would break pg connections.
+const DB_URL = process.env.NFTABLES_DB_URL || 'postgresql://postgres:postgres@localhost:5432/staysuite';
+const pool = new pg.Pool({
+  connectionString: DB_URL,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
 
 // Nettype constants
 const NETTYPE = {
-  LAN: 0,
-  WAN: 1,
-  VLAN: 2,
-  BRIDGE: 3,
-  BOND: 4,
-  MANAGEMENT: 5,
-  GUEST: 6,
-  IOT: 7,
-  UNUSED: 8,
-  DMZ: 9,
-  WIFI: 10,
+  LAN: 0, WAN: 1, VLAN: 2, BRIDGE: 3, BOND: 4,
+  MANAGEMENT: 5, GUEST: 6, IOT: 7, UNUSED: 8, DMZ: 9, WIFI: 10,
 } as const;
 
 // GUI chain names
@@ -162,74 +155,120 @@ interface Preset {
 }
 
 // ============================================================================
-// Data Storage Helpers
+// Database Helpers
 // ============================================================================
-
-function ensureDataDir(): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-}
-
-function readJsonData<T>(filename: string): T[] {
-  const filePath = path.join(DATA_DIR, filename);
-  if (!fs.existsSync(filePath)) return [];
-  try {
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data) as T[];
-  } catch {
-    return [];
-  }
-}
-
-function writeJsonData<T>(filename: string, data: T[]): void {
-  ensureDataDir();
-  const filePath = path.join(DATA_DIR, filename);
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
-}
-
-function readGuiRules(): GuiRule[] {
-  return readJsonData<GuiRule>('gui-rules.json');
-}
-
-function writeGuiRules(rules: GuiRule[]): void {
-  writeJsonData('gui-rules.json', rules);
-}
-
-function readPortForwards(): PortForward[] {
-  return readJsonData<PortForward>('port-forwards.json');
-}
-
-function writePortForwards(pfs: PortForward[]): void {
-  writeJsonData('port-forwards.json', pfs);
-}
-
-function readRateLimits(): RateLimit[] {
-  return readJsonData<RateLimit>('rate-limits.json');
-}
-
-function writeRateLimits(rls: RateLimit[]): void {
-  writeJsonData('rate-limits.json', rls);
-}
-
-function readQuickBlocks(): QuickBlock[] {
-  return readJsonData<QuickBlock>('quick-blocks.json');
-}
-
-function writeQuickBlocks(qbs: QuickBlock[]): void {
-  writeJsonData('quick-blocks.json', qbs);
-}
-
-function readSchedules(): Schedule[] {
-  return readJsonData<Schedule>('schedules.json');
-}
-
-function writeSchedules(scheds: Schedule[]): void {
-  writeJsonData('schedules.json', scheds);
-}
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+}
+
+async function readGuiRules(): Promise<GuiRule[]> {
+  const res = await pool.query(
+    `SELECT id, name, "chain", protocol, "sourceIp", "destIp", "destPort", "sourcePort",
+            action, "markValue", "dnatTo", "snatTo", enabled, comment, priority, handle,
+            "createdAt"::text, "updatedAt"::text
+     FROM "NftGuiRule" ORDER BY priority ASC`
+  );
+  return res.rows.map(rowToGuiRule);
+}
+
+function rowToGuiRule(row: Record<string, unknown>): GuiRule {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    chain: row.chain as GuiChainName,
+    protocol: row.protocol as string,
+    sourceIp: row.sourceIp as string | undefined,
+    destIp: row.destIp as string | undefined,
+    destPort: row.destPort as string | undefined,
+    sourcePort: row.sourcePort as string | undefined,
+    action: row.action as GuiRule['action'],
+    markValue: row.markValue as number | undefined,
+    dnatTo: row.dnatTo as string | undefined,
+    snatTo: row.snatTo as string | undefined,
+    enabled: row.enabled as boolean,
+    comment: row.comment as string | undefined,
+    priority: row.priority as number,
+    handle: row.handle as number | undefined,
+    createdAt: row.createdAt as string,
+    updatedAt: row.updatedAt as string,
+  };
+}
+
+async function readPortForwards(): Promise<PortForward[]> {
+  const res = await pool.query(
+    `SELECT id, name, protocol, "externalPort", "internalIp", "internalPort",
+            "sourceIp", enabled, comment, handle, "createdAt"::text
+     FROM "NftPortForward" ORDER BY "externalPort" ASC`
+  );
+  return res.rows.map(row => ({
+    id: row.id,
+    name: row.name,
+    protocol: row.protocol,
+    externalPort: row.externalPort,
+    internalIp: row.internalIp,
+    internalPort: row.internalPort,
+    sourceIp: row.sourceIp,
+    enabled: row.enabled,
+    comment: row.comment,
+    handle: row.handle,
+    createdAt: row.createdAt,
+  }));
+}
+
+async function readRateLimits(): Promise<RateLimit[]> {
+  const res = await pool.query(
+    `SELECT id, name, "targetIp", "targetSet", "downloadRate", "uploadRate",
+            protocol, enabled, comment, "downloadHandle", "uploadHandle", "createdAt"::text
+     FROM "NftRateLimit" ORDER BY name ASC`
+  );
+  return res.rows.map(row => ({
+    id: row.id,
+    name: row.name,
+    targetIp: row.targetIp,
+    targetSet: row.targetSet,
+    downloadRate: row.downloadRate,
+    uploadRate: row.uploadRate,
+    protocol: row.protocol,
+    enabled: row.enabled,
+    comment: row.comment,
+    downloadHandle: row.downloadHandle,
+    uploadHandle: row.uploadHandle,
+    createdAt: row.createdAt,
+  }));
+}
+
+async function readQuickBlocks(): Promise<QuickBlock[]> {
+  const res = await pool.query(
+    `SELECT id, type, value, reason, handle, "blockedAt"::text
+     FROM "NftQuickBlock" ORDER BY "blockedAt" DESC`
+  );
+  return res.rows.map(row => ({
+    id: row.id,
+    type: row.type,
+    value: row.value,
+    reason: row.reason,
+    handle: row.handle,
+    blockedAt: row.blockedAt,
+  }));
+}
+
+async function readSchedules(): Promise<Schedule[]> {
+  const res = await pool.query(
+    `SELECT id, name, days, "startTime", "endTime", timezone, "linkedRuleIds", enabled, "createdAt"::text
+     FROM "NftSchedule" ORDER BY name ASC`
+  );
+  return res.rows.map(row => ({
+    id: row.id,
+    name: row.name,
+    days: row.days,
+    startTime: row.startTime,
+    endTime: row.endTime,
+    timezone: row.timezone,
+    linkedRuleIds: row.linkedRuleIds || [],
+    enabled: row.enabled,
+    createdAt: row.createdAt,
+  }));
 }
 
 // ============================================================================
@@ -360,12 +399,11 @@ const BUILTIN_PRESETS: Preset[] = [
 // Config Preview Generation
 // ============================================================================
 
-function generateConfigPreview(): string {
-  const guiRules = readGuiRules();
-  const portForwards = readPortForwards();
-  const quickBlocks = readQuickBlocks();
+async function generateConfigPreview(): Promise<string> {
+  const guiRules = await readGuiRules();
+  const portForwards = await readPortForwards();
+  const quickBlocks = await readQuickBlocks();
 
-  // Convert port forwards to gui rules for rendering in frchainspre
   const pfRules: GuiRule[] = portForwards.map(pf => ({
     id: pf.id,
     name: pf.name,
@@ -392,7 +430,6 @@ function generateConfigPreview(): string {
       .sort((a, b) => a.priority - b.priority);
   }
 
-  // Build sets from quick blocks
   const blockedIps = quickBlocks.filter(b => b.type === 'ip').map(b => b.value);
   const blockedSubnets = quickBlocks.filter(b => b.type === 'subnet').map(b => b.value);
   const blockedMacs = quickBlocks.filter(b => b.type === 'mac').map(b => b.value);
@@ -416,7 +453,6 @@ function generateConfigPreview(): string {
   lines.push('    # Jumped to from prerouting hook after set-based jumps');
   lines.push('');
 
-  // Add quick block drop rules at the top
   if (blockedIps.length > 0) {
     lines.push('    # Quick Blocks - Blocked IPs');
     for (const ip of blockedIps) {
@@ -587,37 +623,29 @@ function generateConfigPreview(): string {
 function buildNftRuleLine(rule: GuiRule): string {
   const parts: string[] = [];
 
-  // Determine protocol handling — for tcp/udp with ports, protocol is part of port expression
-  // For other protocols (icmp, all) or when no ports are specified, add protocol as keyword
   const isTcpUdp = rule.protocol === 'tcp' || rule.protocol === 'udp';
   const hasPorts = (rule.sourcePort || rule.destPort) && isTcpUdp;
 
-  // Add protocol keyword only when it won't be duplicated by port expressions
   if (rule.protocol && rule.protocol !== 'all' && !hasPorts) {
     parts.push(rule.protocol);
   }
 
-  // Source IP
   if (rule.sourceIp) {
     parts.push(`ip saddr ${rule.sourceIp}`);
   }
 
-  // Dest IP (skip for DNAT/SNAT as they handle it differently)
   if (rule.destIp && rule.action !== 'dnat' && rule.action !== 'snat' && rule.action !== 'masquerade') {
     parts.push(`ip daddr ${rule.destIp}`);
   }
 
-  // Source Port (includes protocol prefix for tcp/udp)
   if (rule.sourcePort && isTcpUdp) {
     parts.push(`${rule.protocol} sport ${rule.sourcePort}`);
   }
 
-  // Dest Port (includes protocol prefix for tcp/udp)
   if (rule.destPort && isTcpUdp) {
     parts.push(`${rule.protocol} dport ${rule.destPort}`);
   }
 
-  // Action
   switch (rule.action) {
     case 'accept':
     case 'drop':
@@ -630,7 +658,6 @@ function buildNftRuleLine(rule: GuiRule): string {
       break;
     case 'dnat':
       if (rule.dnatTo) {
-        // destPort already added above if applicable
         parts.push(`dnat to ${rule.dnatTo}`);
       }
       break;
@@ -641,14 +668,12 @@ function buildNftRuleLine(rule: GuiRule): string {
       break;
     case 'masquerade':
       if (rule.destIp) {
-        // masquerade uses source IP (the subnet to masquerade for)
         parts.push(`ip saddr ${rule.destIp}`);
       }
       parts.push('masquerade');
       break;
   }
 
-  // Comment
   const comment = rule.comment ? ` comment "gui:${rule.id} ${rule.comment.replace(/"/g, '')}"` : ` comment "gui:${rule.id}"`;
   parts.push(comment);
 
@@ -665,9 +690,6 @@ interface NftResult {
   error?: string;
 }
 
-/**
- * Execute a single nft command with error handling.
- */
 function nftExec(command: string, timeout = 10000): NftResult {
   try {
     execSync(`nft ${command}`, { encoding: 'utf-8', timeout });
@@ -679,18 +701,11 @@ function nftExec(command: string, timeout = 10000): NftResult {
   }
 }
 
-/**
- * Check if a chain exists in a table.
- */
 function chainExists(table: string, chain: string): boolean {
   const result = nftExec(`list chain ${table} ${chain}`);
   return result.success;
 }
 
-/**
- * Ensure all 6 GUI chains exist. Create any that are missing.
- * This does NOT touch system chains — only the 6 GUI-controlled chains.
- */
 function ensureGuiChainsExist(): { created: string[]; existing: string[]; errors: NftResult[] } {
   const created: string[] = [];
   const existing: string[] = [];
@@ -715,56 +730,34 @@ function ensureGuiChainsExist(): { created: string[]; existing: string[]; errors
   return { created, existing, errors };
 }
 
-/**
- * Flush all rules from a specific GUI chain.
- * System chains are never touched.
- */
 function flushGuiChain(table: string, chain: string): NftResult {
   return nftExec(`flush chain ${table} ${chain}`);
 }
 
-/**
- * Apply a single rule to a specific GUI chain using atomic nft add rule.
- * Returns the nft command used (for logging/preview).
- */
 function addRuleToChain(table: string, chain: string, ruleLine: string): NftResult {
   return nftExec(`add rule ${table} ${chain} ${ruleLine}`);
 }
 
-/**
- * Apply all GUI rules to real nftables using atomic chain-level commands.
- *
- * CRITICAL: This function NEVER replaces full tables. It only:
- * 1. Ensures GUI chains exist (creates if missing)
- * 2. Flushes each GUI chain (clears old GUI rules)
- * 3. Adds new rules one-by-one to each GUI chain
- *
- * System chains (prerouting, postrouting, open, accounting, input, forward,
- * security hooks, etc.) are NEVER touched.
- */
-function applyGuiRulesToNftables(): {
+async function applyGuiRulesToNftables(): Promise<{
   success: boolean;
   chainsCreated: string[];
   chainsExisting: string[];
   rulesApplied: Record<string, number>;
   commands: string[];
   errors: string[];
-} {
+}> {
   const commands: string[] = [];
   const errors: string[] = [];
   const rulesApplied: Record<string, number> = {};
 
-  // Step 1: Ensure all GUI chains exist
   const chainCheck = ensureGuiChainsExist();
   commands.push(...chainCheck.created.map(c => `nft add chain ${GUI_CHAIN_DESCRIPTIONS[c].table} ${c}`));
   errors.push(...chainCheck.errors.map(e => e.error || 'Unknown chain creation error'));
 
-  // Read current rules from JSON storage
-  const guiRules = readGuiRules();
-  const portForwards = readPortForwards();
-  const quickBlocks = readQuickBlocks();
+  const guiRules = await readGuiRules();
+  const portForwards = await readPortForwards();
+  const quickBlocks = await readQuickBlocks();
 
-  // Convert port forwards to gui rules for frchainspre
   const pfRules: GuiRule[] = portForwards.map(pf => ({
     id: pf.id,
     name: pf.name,
@@ -784,7 +777,6 @@ function applyGuiRulesToNftables(): {
 
   const allRules = [...guiRules, ...pfRules];
 
-  // Group enabled rules by chain
   const enabledByChain: Record<string, GuiRule[]> = {};
   for (const chain of GUI_CHAINS) {
     enabledByChain[chain] = allRules
@@ -792,18 +784,15 @@ function applyGuiRulesToNftables(): {
       .sort((a, b) => a.priority - b.priority);
   }
 
-  // Build quick block rules
   const blockedIps = quickBlocks.filter(b => b.type === 'ip').map(b => b.value);
   const blockedSubnets = quickBlocks.filter(b => b.type === 'subnet').map(b => b.value);
 
-  // Step 2: For each GUI chain, flush and re-add rules
   for (const chain of GUI_CHAINS) {
     const meta = GUI_CHAIN_DESCRIPTIONS[chain];
     const table = meta.table;
     const rules = enabledByChain[chain];
     let chainRuleCount = 0;
 
-    // Flush the chain (remove old rules, keep the chain itself)
     const flushResult = flushGuiChain(table, chain);
     commands.push(`nft flush chain ${table} ${chain}`);
     if (!flushResult.success) {
@@ -811,14 +800,12 @@ function applyGuiRulesToNftables(): {
       continue;
     }
 
-    // Add quick block rules to firewallchains and firewallchainsdn
     if (chain === 'firewallchains') {
       for (const ip of blockedIps) {
-        const cmd = `add rule ${table} ${chain} ip daddr ${ip} drop comment "quick-block:ip"`;
         const result = addRuleToChain(table, chain, `ip daddr ${ip} drop comment "quick-block:ip"`);
-        commands.push(`nft ${cmd}`);
+        commands.push(`nft add rule ${table} ${chain} ip daddr ${ip} drop comment "quick-block:ip"`);
         if (result.success) chainRuleCount++;
-        else errors.push(result.error || `Failed: ${cmd}`);
+        else errors.push(result.error || `Failed: add rule ${table} ${chain} ip daddr ${ip} drop`);
       }
       for (const subnet of blockedSubnets) {
         const result = addRuleToChain(table, chain, `ip daddr ${subnet} drop comment "quick-block:subnet"`);
@@ -837,7 +824,6 @@ function applyGuiRulesToNftables(): {
       }
     }
 
-    // Add GUI rules
     for (const rule of rules) {
       const ruleLine = buildNftRuleLine(rule);
       const result = addRuleToChain(table, chain, ruleLine);
@@ -862,9 +848,6 @@ function applyGuiRulesToNftables(): {
   };
 }
 
-/**
- * Flush all GUI chains in real nftables (remove rules, keep chain definitions).
- */
 function flushGuiChainsInNftables(): { flushed: string[]; errors: string[] } {
   const flushed: string[] = [];
   const errors: string[] = [];
@@ -884,11 +867,6 @@ function flushGuiChainsInNftables(): { flushed: string[]; errors: string[] } {
   return { flushed, errors };
 }
 
-/**
- * Auto-apply helper: if nftables is installed (production mode),
- * flush GUI chains and re-add all rules from JSON storage.
- * This is called after every CRUD operation to keep nftables in sync.
- */
 interface AutoApplyResult {
   applied: boolean;
   mode: 'production' | 'simulation';
@@ -897,12 +875,12 @@ interface AutoApplyResult {
   errors?: string[];
 }
 
-function autoApplyRules(): AutoApplyResult {
+async function autoApplyRules(): Promise<AutoApplyResult> {
   if (!isNftablesInstalled()) {
     return { applied: false, mode: 'simulation' };
   }
 
-  const result = applyGuiRulesToNftables();
+  const result = await applyGuiRulesToNftables();
   const liveCounts = getLiveChainRuleCounts();
 
   if (result.errors.length > 0) {
@@ -920,9 +898,6 @@ function autoApplyRules(): AutoApplyResult {
   };
 }
 
-/**
- * Get live rule counts from nftables for each GUI chain.
- */
 function getLiveChainRuleCounts(): Record<string, number> {
   const counts: Record<string, number> = {};
 
@@ -930,7 +905,6 @@ function getLiveChainRuleCounts(): Record<string, number> {
     const meta = GUI_CHAIN_DESCRIPTIONS[chain];
     try {
       const output = execSync(`nft list chain ${meta.table} ${chain} 2>/dev/null`, { encoding: 'utf-8', timeout: 5000 });
-      // Count non-empty, non-comment lines that contain rule actions
       const ruleLines = output.split('\n').filter(line => {
         const trimmed = line.trim();
         return trimmed.length > 0
@@ -948,7 +922,6 @@ function getLiveChainRuleCounts(): Record<string, number> {
 
   return counts;
 }
-
 
 // ============================================================================
 // Chain Architecture Data
@@ -1026,7 +999,6 @@ function getChainArchitecture() {
 // Middleware
 // ============================================================================
 
-// Auth middleware - check Bearer token, skip for /health endpoint
 app.use('*', async (c, next) => {
   if (c.req.path === '/health') {
     return next();
@@ -1076,777 +1048,577 @@ app.get('/health', (c) => {
     uptime: Math.floor((Date.now() - startTime) / 1000),
     port: PORT,
     mode: isNftablesInstalled() ? 'production' : 'simulation',
+    storage: 'postgresql',
     memoryUsage: process.memoryUsage(),
   });
 });
 
-app.get('/api/status', (c) => {
-  const installed = isNftablesInstalled();
-  const version = installed ? getNftablesVersion() : 'Not installed (simulation mode)';
-  const tables = listTables();
+app.get('/api/status', async (c) => {
+  try {
+    const installed = isNftablesInstalled();
+    const version = installed ? getNftablesVersion() : 'Not installed (simulation mode)';
+    const tables = listTables();
 
-  const guiRules = readGuiRules();
-  const portForwards = readPortForwards();
-  const rateLimits = readRateLimits();
-  const quickBlocks = readQuickBlocks();
-  const schedules = readSchedules();
+    const guiRules = await readGuiRules();
+    const portForwards = await readPortForwards();
+    const rateLimits = await readRateLimits();
+    const quickBlocks = await readQuickBlocks();
+    const schedules = await readSchedules();
 
-  // In production, get live rule counts from actual nftables
-  const liveCounts = installed ? getLiveChainRuleCounts() : null;
+    const liveCounts = installed ? getLiveChainRuleCounts() : null;
 
-  const guiChainsInfo: Record<string, { exists: boolean; table: string; ruleCount: number; liveRuleCount?: number }> = {};
-  for (const chain of GUI_CHAINS) {
-    const rulesInChain = guiRules.filter(r => r.chain === chain && r.enabled).length;
-    const chainInfo: { exists: boolean; table: string; ruleCount: number; liveRuleCount?: number } = {
-      exists: true,
-      table: GUI_CHAIN_DESCRIPTIONS[chain].table,
-      ruleCount: chain === 'frchainspre'
-        ? rulesInChain + portForwards.filter(p => p.enabled).length
-        : rulesInChain,
-    };
-    if (liveCounts) {
-      chainInfo.exists = chainExists(GUI_CHAIN_DESCRIPTIONS[chain].table, chain);
-      chainInfo.liveRuleCount = liveCounts[chain] || 0;
+    const guiChainsInfo: Record<string, { exists: boolean; table: string; ruleCount: number; liveRuleCount?: number }> = {};
+    for (const chain of GUI_CHAINS) {
+      const rulesInChain = guiRules.filter(r => r.chain === chain && r.enabled).length;
+      const chainInfo: { exists: boolean; table: string; ruleCount: number; liveRuleCount?: number } = {
+        exists: true,
+        table: GUI_CHAIN_DESCRIPTIONS[chain].table,
+        ruleCount: chain === 'frchainspre'
+          ? rulesInChain + portForwards.filter(p => p.enabled).length
+          : rulesInChain,
+        liveRuleCount: liveCounts ? (liveCounts[chain] || 0) : undefined,
+      };
+      guiChainsInfo[chain] = chainInfo;
     }
-    guiChainsInfo[chain] = chainInfo;
-  }
 
+    return c.json({
+      success: true,
+      data: {
+        version: SERVICE_VERSION,
+        storage: 'postgresql',
+        mode: installed ? 'production' : 'simulation',
+        nftablesInstalled: installed,
+        nftablesVersion: version,
+        tables,
+        guiChains: guiChainsInfo,
+        counts: {
+          guiRules: guiRules.length,
+          enabledGuiRules: guiRules.filter(r => r.enabled).length,
+          portForwards: portForwards.length,
+          enabledPortForwards: portForwards.filter(p => p.enabled).length,
+          rateLimits: rateLimits.length,
+          enabledRateLimits: rateLimits.filter(r => r.enabled).length,
+          quickBlocks: quickBlocks.length,
+          schedules: schedules.length,
+          enabledSchedules: schedules.filter(s => s.enabled).length,
+        },
+        presetsAvailable: BUILTIN_PRESETS.length,
+        chainDescriptions: GUI_CHAIN_DESCRIPTIONS,
+      },
+    });
+  } catch (error) {
+    log.error('Failed to get status', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to retrieve status' }, 500);
+  }
+});
+
+// ============================================================================
+// 2. Chain Architecture
+// ============================================================================
+
+app.get('/api/chains', (c) => {
   return c.json({
-    mode: installed ? 'production' : 'simulation',
-    nftables: {
-      installed,
-      version,
-      tables,
-    },
-    ruleCounts: {
-      guiRules: guiRules.length,
-      enabledGuiRules: guiRules.filter(r => r.enabled).length,
-      portForwards: portForwards.length,
-      enabledPortForwards: portForwards.filter(p => p.enabled).length,
-      rateLimits: rateLimits.length,
-      enabledRateLimits: rateLimits.filter(r => r.enabled).length,
-      quickBlocks: quickBlocks.length,
-      schedules: schedules.length,
-      enabledSchedules: schedules.filter(s => s.enabled).length,
-    },
-    guiChains: guiChainsInfo,
-    appliedConfig: fs.existsSync(APPLIED_CONFIG_PATH),
-    appliedAt: fs.existsSync(APPLIED_CONFIG_PATH)
-      ? fs.statSync(APPLIED_CONFIG_PATH).mtime.toISOString()
-      : null,
+    success: true,
+    data: getChainArchitecture(),
   });
 });
 
 // ============================================================================
-// 2. GUI Rules CRUD
+// 3. GUI Rules CRUD
 // ============================================================================
 
-app.get('/api/gui-rules', (c) => {
-  const rules = readGuiRules().sort((a, b) => a.priority - b.priority);
-  return c.json({ success: true, data: rules, total: rules.length });
+app.get('/api/rules', async (c) => {
+  try {
+    const rules = await readGuiRules();
+    return c.json({ success: true, data: rules, total: rules.length });
+  } catch (error) {
+    log.error('Failed to read GUI rules', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to read rules' }, 500);
+  }
 });
 
-app.post('/api/gui-rules', async (c) => {
+app.post('/api/rules', async (c) => {
   try {
     const body = await c.req.json();
-    const {
-      name,
-      chain,
-      protocol = 'all',
-      sourceIp,
-      destIp,
-      destPort,
-      sourcePort,
-      action = 'accept',
-      markValue,
-      dnatTo,
-      snatTo,
-      enabled = true,
-      comment,
-      priority = 100,
-    } = body;
-
-    if (!name || !chain || !action) {
-      return c.json({ success: false, error: 'Missing required fields: name, chain, action' }, 400);
-    }
-
-    if (!GUI_CHAINS.includes(chain)) {
-      return c.json({ success: false, error: `Invalid chain: ${chain}. Must be one of: ${GUI_CHAINS.join(', ')}` }, 400);
-    }
-
-    const validActions = ['accept', 'drop', 'reject', 'log', 'mark', 'dnat', 'snat', 'masquerade'];
-    if (!validActions.includes(action)) {
-      return c.json({ success: false, error: `Invalid action: ${action}. Must be one of: ${validActions.join(', ')}` }, 400);
-    }
-
-    if (action === 'dnat' && !dnatTo) {
-      return c.json({ success: false, error: 'dnatTo is required when action is dnat' }, 400);
-    }
-
-    if (action === 'snat' && !snatTo) {
-      return c.json({ success: false, error: 'snatTo is required when action is snat' }, 400);
-    }
-
-    if (action === 'mark' && markValue === undefined) {
-      return c.json({ success: false, error: 'markValue is required when action is mark' }, 400);
-    }
-
-    const rules = readGuiRules();
-    const newRule: GuiRule = {
+    const rule: GuiRule = {
       id: generateId(),
-      name,
-      chain: chain as GuiChainName,
-      protocol,
-      sourceIp,
-      destIp,
-      destPort: destPort ? String(destPort) : undefined,
-      sourcePort: sourcePort ? String(sourcePort) : undefined,
-      action: action as GuiRule['action'],
-      markValue,
-      dnatTo,
-      snatTo,
-      enabled,
-      comment,
-      priority: Number(priority),
+      name: body.name,
+      chain: body.chain,
+      protocol: body.protocol || 'tcp',
+      sourceIp: body.sourceIp,
+      destIp: body.destIp,
+      destPort: body.destPort,
+      sourcePort: body.sourcePort,
+      action: body.action,
+      markValue: body.markValue,
+      dnatTo: body.dnatTo,
+      snatTo: body.snatTo,
+      enabled: body.enabled !== undefined ? body.enabled : true,
+      comment: body.comment,
+      priority: body.priority || 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    rules.push(newRule);
-    writeGuiRules(rules);
+    await pool.query(
+      `INSERT INTO "NftGuiRule" (id, name, "chain", protocol, "sourceIp", "destIp", "destPort", "sourcePort",
+        action, "markValue", "dnatTo", "snatTo", enabled, comment, priority, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+      [rule.id, rule.name, rule.chain, rule.protocol, rule.sourceIp, rule.destIp, rule.destPort, rule.sourcePort,
+       rule.action, rule.markValue, rule.dnatTo, rule.snatTo, rule.enabled, rule.comment, rule.priority,
+       rule.createdAt, rule.updatedAt]
+    );
 
-    log.info('Created GUI rule', { id: newRule.id, name, chain, action });
+    const applyResult = await autoApplyRules();
 
-    // Auto-apply to nftables in production mode
-    const applyResult = autoApplyRules();
-
-    return c.json({ success: true, data: newRule, nftables: applyResult });
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : String(err);
-    return c.json({ success: false, error }, 500);
+    return c.json({
+      success: true,
+      data: rule,
+      autoApply: applyResult,
+    });
+  } catch (error) {
+    log.error('Failed to create GUI rule', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to create rule' }, 500);
   }
 });
 
-app.put('/api/gui-rules/:id', async (c) => {
+app.put('/api/rules/:id', async (c) => {
   try {
-    const { id } = c.req.param();
+    const id = c.req.param('id');
     const body = await c.req.json();
-    const rules = readGuiRules();
-    const index = rules.findIndex(r => r.id === id);
 
-    if (index === -1) {
+    const result = await pool.query(
+      `UPDATE "NftGuiRule"
+       SET name = COALESCE($1, name), "chain" = COALESCE($2, "chain"), protocol = COALESCE($3, protocol),
+           "sourceIp" = $4, "destIp" = $5, "destPort" = $6, "sourcePort" = $7,
+           action = COALESCE($8, action), "markValue" = $9, "dnatTo" = $10, "snatTo" = $11,
+           enabled = COALESCE($12, enabled), comment = $13, priority = COALESCE($14, priority),
+           "updatedAt" = $15
+       WHERE id = $16 RETURNING *`,
+      [body.name, body.chain, body.protocol, body.sourceIp ?? null, body.destIp ?? null,
+       body.destPort ?? null, body.sourcePort ?? null, body.action, body.markValue ?? null,
+       body.dnatTo ?? null, body.snatTo ?? null, body.enabled, body.comment ?? null,
+       body.priority, new Date().toISOString(), id]
+    );
+
+    if (result.rowCount === 0) {
       return c.json({ success: false, error: 'Rule not found' }, 404);
     }
 
-    const existing = rules[index];
+    const applyResult = await autoApplyRules();
 
-    // Validate chain if changed
-    if (body.chain && !GUI_CHAINS.includes(body.chain)) {
-      return c.json({ success: false, error: `Invalid chain: ${body.chain}` }, 400);
-    }
-
-    // Validate action if changed
-    if (body.action) {
-      const validActions = ['accept', 'drop', 'reject', 'log', 'mark', 'dnat', 'snat', 'masquerade'];
-      if (!validActions.includes(body.action)) {
-        return c.json({ success: false, error: `Invalid action: ${body.action}` }, 400);
-      }
-    }
-
-    const updated: GuiRule = {
-      ...existing,
-      name: body.name !== undefined ? body.name : existing.name,
-      chain: body.chain !== undefined ? body.chain as GuiChainName : existing.chain,
-      protocol: body.protocol !== undefined ? body.protocol : existing.protocol,
-      sourceIp: body.sourceIp !== undefined ? body.sourceIp : existing.sourceIp,
-      destIp: body.destIp !== undefined ? body.destIp : existing.destIp,
-      destPort: body.destPort !== undefined ? (body.destPort ? String(body.destPort) : undefined) : existing.destPort,
-      sourcePort: body.sourcePort !== undefined ? (body.sourcePort ? String(body.sourcePort) : undefined) : existing.sourcePort,
-      action: body.action !== undefined ? body.action as GuiRule['action'] : existing.action,
-      markValue: body.markValue !== undefined ? body.markValue : existing.markValue,
-      dnatTo: body.dnatTo !== undefined ? body.dnatTo : existing.dnatTo,
-      snatTo: body.snatTo !== undefined ? body.snatTo : existing.snatTo,
-      enabled: body.enabled !== undefined ? body.enabled : existing.enabled,
-      comment: body.comment !== undefined ? body.comment : existing.comment,
-      priority: body.priority !== undefined ? Number(body.priority) : existing.priority,
-      updatedAt: new Date().toISOString(),
-    };
-
-    rules[index] = updated;
-    writeGuiRules(rules);
-
-    log.info('Updated GUI rule', { id, name: updated.name });
-
-    // Auto-apply to nftables in production mode
-    const applyResult = autoApplyRules();
-
-    return c.json({ success: true, data: updated, nftables: applyResult });
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : String(err);
-    return c.json({ success: false, error }, 500);
+    return c.json({
+      success: true,
+      data: rowToGuiRule(result.rows[0]),
+      autoApply: applyResult,
+    });
+  } catch (error) {
+    log.error('Failed to update GUI rule', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to update rule' }, 500);
   }
 });
 
-app.delete('/api/gui-rules/:id', (c) => {
-  const { id } = c.req.param();
-  const rules = readGuiRules();
-  const index = rules.findIndex(r => r.id === id);
+app.delete('/api/rules/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const result = await pool.query(`DELETE FROM "NftGuiRule" WHERE id = $1 RETURNING id`, [id]);
 
-  if (index === -1) {
-    return c.json({ success: false, error: 'Rule not found' }, 404);
+    if (result.rowCount === 0) {
+      return c.json({ success: false, error: 'Rule not found' }, 404);
+    }
+
+    const applyResult = await autoApplyRules();
+
+    return c.json({
+      success: true,
+      deleted: id,
+      autoApply: applyResult,
+    });
+  } catch (error) {
+    log.error('Failed to delete GUI rule', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to delete rule' }, 500);
   }
-
-  const deleted = rules.splice(index, 1)[0];
-  writeGuiRules(rules);
-
-  log.info('Deleted GUI rule', { id, name: deleted.name });
-
-  // Auto-apply to nftables in production mode
-  const delApplyResult = autoApplyRules();
-
-  return c.json({ success: true, message: 'Rule deleted', data: deleted, nftables: delApplyResult });
-});
-
-app.patch('/api/gui-rules/:id/toggle', (c) => {
-  const { id } = c.req.param();
-  const rules = readGuiRules();
-  const index = rules.findIndex(r => r.id === id);
-
-  if (index === -1) {
-    return c.json({ success: false, error: 'Rule not found' }, 404);
-  }
-
-  rules[index].enabled = !rules[index].enabled;
-  rules[index].updatedAt = new Date().toISOString();
-  writeGuiRules(rules);
-
-  log.info('Toggled GUI rule', { id, enabled: rules[index].enabled });
-
-  // Auto-apply to nftables in production mode
-  const toggleApplyResult = autoApplyRules();
-
-  return c.json({ success: true, data: rules[index], nftables: toggleApplyResult });
 });
 
 // ============================================================================
-// 3. Port Forwards CRUD
+// 4. Port Forwarding CRUD
 // ============================================================================
 
-app.get('/api/port-forwards', (c) => {
-  const pfs = readPortForwards().sort((a, b) => a.externalPort - b.externalPort);
-  return c.json({ success: true, data: pfs, total: pfs.length });
+app.get('/api/port-forwards', async (c) => {
+  try {
+    const forwards = await readPortForwards();
+    return c.json({ success: true, data: forwards, total: forwards.length });
+  } catch (error) {
+    log.error('Failed to read port forwards', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to read port forwards' }, 500);
+  }
 });
 
 app.post('/api/port-forwards', async (c) => {
   try {
     const body = await c.req.json();
-    const {
-      name,
-      protocol = 'tcp',
-      externalPort,
-      internalIp,
-      internalPort,
-      sourceIp,
-      enabled = true,
-      comment,
-    } = body;
-
-    if (!name || !externalPort || !internalIp || !internalPort) {
-      return c.json({ success: false, error: 'Missing required fields: name, externalPort, internalIp, internalPort' }, 400);
-    }
-
-    if (!['tcp', 'udp', 'both'].includes(protocol)) {
-      return c.json({ success: false, error: 'Protocol must be tcp, udp, or both' }, 400);
-    }
-
-    // Validate IP format
-    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
-    if (!ipRegex.test(internalIp)) {
-      return c.json({ success: false, error: 'Invalid internalIp format' }, 400);
-    }
-
-    if (externalPort < 1 || externalPort > 65535) {
-      return c.json({ success: false, error: 'externalPort must be between 1 and 65535' }, 400);
-    }
-
-    if (internalPort < 1 || internalPort > 65535) {
-      return c.json({ success: false, error: 'internalPort must be between 1 and 65535' }, 400);
-    }
-
-    const pfs = readPortForwards();
-    const newPf: PortForward = {
+    const pf: PortForward = {
       id: generateId(),
-      name,
-      protocol: protocol as PortForward['protocol'],
-      externalPort: Number(externalPort),
-      internalIp,
-      internalPort: Number(internalPort),
-      sourceIp,
-      enabled,
-      comment,
+      name: body.name,
+      protocol: body.protocol || 'tcp',
+      externalPort: body.externalPort,
+      internalIp: body.internalIp,
+      internalPort: body.internalPort,
+      sourceIp: body.sourceIp,
+      enabled: body.enabled !== undefined ? body.enabled : true,
+      comment: body.comment,
       createdAt: new Date().toISOString(),
     };
 
-    pfs.push(newPf);
-    writePortForwards(pfs);
+    await pool.query(
+      `INSERT INTO "NftPortForward" (id, name, protocol, "externalPort", "internalIp", "internalPort", "sourceIp", enabled, comment, "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [pf.id, pf.name, pf.protocol, pf.externalPort, pf.internalIp, pf.internalPort, pf.sourceIp, pf.enabled, pf.comment, pf.createdAt]
+    );
 
-    log.info('Created port forward', { id: newPf.id, name, externalPort, internalIp, internalPort });
+    const applyResult = await autoApplyRules();
 
-    // Auto-apply to nftables in production mode
-    const pfApplyResult = autoApplyRules();
-
-    return c.json({ success: true, data: newPf, nftables: pfApplyResult });
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : String(err);
-    return c.json({ success: false, error }, 500);
+    return c.json({
+      success: true,
+      data: pf,
+      autoApply: applyResult,
+    });
+  } catch (error) {
+    log.error('Failed to create port forward', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to create port forward' }, 500);
   }
 });
 
 app.put('/api/port-forwards/:id', async (c) => {
   try {
-    const { id } = c.req.param();
+    const id = c.req.param('id');
     const body = await c.req.json();
-    const pfs = readPortForwards();
-    const index = pfs.findIndex(p => p.id === id);
 
-    if (index === -1) {
+    const result = await pool.query(
+      `UPDATE "NftPortForward"
+       SET name = COALESCE($1, name), protocol = COALESCE($2, protocol),
+           "externalPort" = COALESCE($3, "externalPort"), "internalIp" = COALESCE($4, "internalIp"),
+           "internalPort" = COALESCE($5, "internalPort"), "sourceIp" = $6,
+           enabled = COALESCE($7, enabled), comment = $8
+       WHERE id = $9 RETURNING *`,
+      [body.name, body.protocol, body.externalPort, body.internalIp, body.internalPort,
+       body.sourceIp ?? null, body.enabled, body.comment ?? null, id]
+    );
+
+    if (result.rowCount === 0) {
       return c.json({ success: false, error: 'Port forward not found' }, 404);
     }
 
-    const existing = pfs[index];
+    const applyResult = await autoApplyRules();
+    const row = result.rows[0];
 
-    if (body.protocol && !['tcp', 'udp', 'both'].includes(body.protocol)) {
-      return c.json({ success: false, error: 'Protocol must be tcp, udp, or both' }, 400);
+    return c.json({
+      success: true,
+      data: {
+        id: row.id,
+        name: row.name,
+        protocol: row.protocol,
+        externalPort: row.externalPort,
+        internalIp: row.internalIp,
+        internalPort: row.internalPort,
+        sourceIp: row.sourceIp,
+        enabled: row.enabled,
+        comment: row.comment,
+        handle: row.handle,
+        createdAt: row.createdAt,
+      },
+      autoApply: applyResult,
+    });
+  } catch (error) {
+    log.error('Failed to update port forward', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to update port forward' }, 500);
+  }
+});
+
+app.delete('/api/port-forwards/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const result = await pool.query(`DELETE FROM "NftPortForward" WHERE id = $1 RETURNING id`, [id]);
+
+    if (result.rowCount === 0) {
+      return c.json({ success: false, error: 'Port forward not found' }, 404);
     }
 
-    const updated: PortForward = {
-      ...existing,
-      name: body.name !== undefined ? body.name : existing.name,
-      protocol: body.protocol !== undefined ? body.protocol as PortForward['protocol'] : existing.protocol,
-      externalPort: body.externalPort !== undefined ? Number(body.externalPort) : existing.externalPort,
-      internalIp: body.internalIp !== undefined ? body.internalIp : existing.internalIp,
-      internalPort: body.internalPort !== undefined ? Number(body.internalPort) : existing.internalPort,
-      sourceIp: body.sourceIp !== undefined ? body.sourceIp : existing.sourceIp,
-      enabled: body.enabled !== undefined ? body.enabled : existing.enabled,
-      comment: body.comment !== undefined ? body.comment : existing.comment,
-    };
+    const applyResult = await autoApplyRules();
 
-    pfs[index] = updated;
-    writePortForwards(pfs);
-
-    log.info('Updated port forward', { id, name: updated.name });
-
-    // Auto-apply to nftables in production mode
-    const pfUpdResult = autoApplyRules();
-
-    return c.json({ success: true, data: updated, nftables: pfUpdResult });
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : String(err);
-    return c.json({ success: false, error }, 500);
+    return c.json({
+      success: true,
+      deleted: id,
+      autoApply: applyResult,
+    });
+  } catch (error) {
+    log.error('Failed to delete port forward', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to delete port forward' }, 500);
   }
-});
-
-app.delete('/api/port-forwards/:id', (c) => {
-  const { id } = c.req.param();
-  const pfs = readPortForwards();
-  const index = pfs.findIndex(p => p.id === id);
-
-  if (index === -1) {
-    return c.json({ success: false, error: 'Port forward not found' }, 404);
-  }
-
-  const deleted = pfs.splice(index, 1)[0];
-  writePortForwards(pfs);
-
-  log.info('Deleted port forward', { id, name: deleted.name });
-
-  // Auto-apply to nftables in production mode
-  const pfDelResult = autoApplyRules();
-
-  return c.json({ success: true, message: 'Port forward deleted', data: deleted, nftables: pfDelResult });
-});
-
-app.patch('/api/port-forwards/:id/toggle', (c) => {
-  const { id } = c.req.param();
-  const pfs = readPortForwards();
-  const index = pfs.findIndex(p => p.id === id);
-
-  if (index === -1) {
-    return c.json({ success: false, error: 'Port forward not found' }, 404);
-  }
-
-  pfs[index].enabled = !pfs[index].enabled;
-  writePortForwards(pfs);
-
-  log.info('Toggled port forward', { id, enabled: pfs[index].enabled });
-
-  // Auto-apply to nftables in production mode
-  const pfTogResult = autoApplyRules();
-
-  return c.json({ success: true, data: pfs[index], nftables: pfTogResult });
 });
 
 // ============================================================================
-// 4. Rate Limits CRUD
+// 5. Rate Limiting CRUD
 // ============================================================================
 
-app.get('/api/rate-limits', (c) => {
-  const rls = readRateLimits();
-  return c.json({ success: true, data: rls, total: rls.length });
+app.get('/api/rate-limits', async (c) => {
+  try {
+    const limits = await readRateLimits();
+    return c.json({ success: true, data: limits, total: limits.length });
+  } catch (error) {
+    log.error('Failed to read rate limits', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to read rate limits' }, 500);
+  }
 });
 
 app.post('/api/rate-limits', async (c) => {
   try {
     const body = await c.req.json();
-    const {
-      name,
-      targetIp,
-      targetSet,
-      downloadRate,
-      uploadRate,
-      protocol,
-      enabled = true,
-      comment,
-    } = body;
-
-    if (!name || !downloadRate || !uploadRate) {
-      return c.json({ success: false, error: 'Missing required fields: name, downloadRate, uploadRate' }, 400);
-    }
-
-    if (!targetIp && !targetSet) {
-      return c.json({ success: false, error: 'Either targetIp or targetSet is required' }, 400);
-    }
-
-    // Validate rate format (e.g. "10mbit", "512kbit")
-    const rateRegex = /^\d+(mbit|kbit|kbytes|mbytes|bytes|gbit|gbytes)$/i;
-    if (!rateRegex.test(downloadRate)) {
-      return c.json({ success: false, error: `Invalid downloadRate format: ${downloadRate}. Expected format: e.g. "10mbit", "512kbit"` }, 400);
-    }
-    if (!rateRegex.test(uploadRate)) {
-      return c.json({ success: false, error: `Invalid uploadRate format: ${uploadRate}. Expected format: e.g. "10mbit", "512kbit"` }, 400);
-    }
-
-    const rls = readRateLimits();
-    const newRl: RateLimit = {
+    const rl: RateLimit = {
       id: generateId(),
-      name,
-      targetIp,
-      targetSet,
-      downloadRate,
-      uploadRate,
-      protocol,
-      enabled,
-      comment,
+      name: body.name,
+      targetIp: body.targetIp,
+      targetSet: body.targetSet,
+      downloadRate: body.downloadRate,
+      uploadRate: body.uploadRate,
+      protocol: body.protocol,
+      enabled: body.enabled !== undefined ? body.enabled : true,
+      comment: body.comment,
       createdAt: new Date().toISOString(),
     };
 
-    rls.push(newRl);
-    writeRateLimits(rls);
+    await pool.query(
+      `INSERT INTO "NftRateLimit" (id, name, "targetIp", "targetSet", "downloadRate", "uploadRate", protocol, enabled, comment, "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [rl.id, rl.name, rl.targetIp, rl.targetSet, rl.downloadRate, rl.uploadRate, rl.protocol, rl.enabled, rl.comment, rl.createdAt]
+    );
 
-    log.info('Created rate limit', { id: newRl.id, name, downloadRate, uploadRate });
-
-    return c.json({ success: true, data: newRl });
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : String(err);
-    return c.json({ success: false, error }, 500);
+    return c.json({
+      success: true,
+      data: rl,
+    });
+  } catch (error) {
+    log.error('Failed to create rate limit', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to create rate limit' }, 500);
   }
 });
 
 app.put('/api/rate-limits/:id', async (c) => {
   try {
-    const { id } = c.req.param();
+    const id = c.req.param('id');
     const body = await c.req.json();
-    const rls = readRateLimits();
-    const index = rls.findIndex(r => r.id === id);
 
-    if (index === -1) {
+    const result = await pool.query(
+      `UPDATE "NftRateLimit"
+       SET name = COALESCE($1, name), "targetIp" = $2, "targetSet" = $3,
+           "downloadRate" = COALESCE($4, "downloadRate"), "uploadRate" = COALESCE($5, "uploadRate"),
+           protocol = $6, enabled = COALESCE($7, enabled), comment = $8
+       WHERE id = $9 RETURNING *`,
+      [body.name, body.targetIp ?? null, body.targetSet ?? null, body.downloadRate, body.uploadRate,
+       body.protocol, body.enabled, body.comment ?? null, id]
+    );
+
+    if (result.rowCount === 0) {
       return c.json({ success: false, error: 'Rate limit not found' }, 404);
     }
 
-    const existing = rls[index];
-
-    // Validate rate format if changed
-    if (body.downloadRate) {
-      const rateRegex = /^\d+(mbit|kbit|kbytes|mbytes|bytes|gbit|gbytes)$/i;
-      if (!rateRegex.test(body.downloadRate)) {
-        return c.json({ success: false, error: `Invalid downloadRate format: ${body.downloadRate}` }, 400);
-      }
-    }
-    if (body.uploadRate) {
-      const rateRegex = /^\d+(mbit|kbit|kbytes|mbytes|bytes|gbit|gbytes)$/i;
-      if (!rateRegex.test(body.uploadRate)) {
-        return c.json({ success: false, error: `Invalid uploadRate format: ${body.uploadRate}` }, 400);
-      }
-    }
-
-    const updated: RateLimit = {
-      ...existing,
-      name: body.name !== undefined ? body.name : existing.name,
-      targetIp: body.targetIp !== undefined ? body.targetIp : existing.targetIp,
-      targetSet: body.targetSet !== undefined ? body.targetSet : existing.targetSet,
-      downloadRate: body.downloadRate !== undefined ? body.downloadRate : existing.downloadRate,
-      uploadRate: body.uploadRate !== undefined ? body.uploadRate : existing.uploadRate,
-      protocol: body.protocol !== undefined ? body.protocol : existing.protocol,
-      enabled: body.enabled !== undefined ? body.enabled : existing.enabled,
-      comment: body.comment !== undefined ? body.comment : existing.comment,
-    };
-
-    rls[index] = updated;
-    writeRateLimits(rls);
-
-    log.info('Updated rate limit', { id, name: updated.name });
-
-    return c.json({ success: true, data: updated });
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : String(err);
-    return c.json({ success: false, error }, 500);
+    const row = result.rows[0];
+    return c.json({
+      success: true,
+      data: {
+        id: row.id, name: row.name, targetIp: row.targetIp, targetSet: row.targetSet,
+        downloadRate: row.downloadRate, uploadRate: row.uploadRate, protocol: row.protocol,
+        enabled: row.enabled, comment: row.comment, downloadHandle: row.downloadHandle,
+        uploadHandle: row.uploadHandle, createdAt: row.createdAt,
+      },
+    });
+  } catch (error) {
+    log.error('Failed to update rate limit', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to update rate limit' }, 500);
   }
 });
 
-app.delete('/api/rate-limits/:id', (c) => {
-  const { id } = c.req.param();
-  const rls = readRateLimits();
-  const index = rls.findIndex(r => r.id === id);
+app.delete('/api/rate-limits/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const result = await pool.query(`DELETE FROM "NftRateLimit" WHERE id = $1 RETURNING id`, [id]);
 
-  if (index === -1) {
-    return c.json({ success: false, error: 'Rate limit not found' }, 404);
+    if (result.rowCount === 0) {
+      return c.json({ success: false, error: 'Rate limit not found' }, 404);
+    }
+
+    return c.json({ success: true, deleted: id });
+  } catch (error) {
+    log.error('Failed to delete rate limit', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to delete rate limit' }, 500);
   }
-
-  const deleted = rls.splice(index, 1)[0];
-  writeRateLimits(rls);
-
-  log.info('Deleted rate limit', { id, name: deleted.name });
-
-  return c.json({ success: true, message: 'Rate limit deleted', data: deleted });
-});
-
-app.patch('/api/rate-limits/:id/toggle', (c) => {
-  const { id } = c.req.param();
-  const rls = readRateLimits();
-  const index = rls.findIndex(r => r.id === id);
-
-  if (index === -1) {
-    return c.json({ success: false, error: 'Rate limit not found' }, 404);
-  }
-
-  rls[index].enabled = !rls[index].enabled;
-  writeRateLimits(rls);
-
-  log.info('Toggled rate limit', { id, enabled: rls[index].enabled });
-
-  return c.json({ success: true, data: rls[index] });
 });
 
 // ============================================================================
-// 5. Quick Blocks CRUD
+// 6. Quick Block CRUD
 // ============================================================================
 
-app.get('/api/quick-blocks', (c) => {
-  const qbs = readQuickBlocks().sort((a, b) => new Date(b.blockedAt).getTime() - new Date(a.blockedAt).getTime());
-  return c.json({ success: true, data: qbs, total: qbs.length });
+app.get('/api/quick-blocks', async (c) => {
+  try {
+    const blocks = await readQuickBlocks();
+    return c.json({ success: true, data: blocks, total: blocks.length });
+  } catch (error) {
+    log.error('Failed to read quick blocks', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to read quick blocks' }, 500);
+  }
 });
 
 app.post('/api/quick-blocks', async (c) => {
   try {
     const body = await c.req.json();
-    const { type, value, reason = '' } = body;
-
-    if (!type || !value) {
-      return c.json({ success: false, error: 'Missing required fields: type, value' }, 400);
-    }
-
-    if (!['ip', 'subnet', 'mac'].includes(type)) {
-      return c.json({ success: false, error: 'Type must be ip, subnet, or mac' }, 400);
-    }
-
-    // Validate format based on type
-    if (type === 'ip') {
-      const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
-      if (!ipRegex.test(value)) {
-        return c.json({ success: false, error: 'Invalid IP address format' }, 400);
-      }
-    } else if (type === 'subnet') {
-      const subnetRegex = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
-      if (!subnetRegex.test(value)) {
-        return c.json({ success: false, error: 'Invalid subnet format (expected x.x.x.x/y)' }, 400);
-      }
-    } else if (type === 'mac') {
-      const macRegex = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
-      if (!macRegex.test(value)) {
-        return c.json({ success: false, error: 'Invalid MAC address format (expected XX:XX:XX:XX:XX:XX)' }, 400);
-      }
-    }
-
-    // Check for duplicates
-    const qbs = readQuickBlocks();
-    if (qbs.some(b => b.type === type && b.value.toLowerCase() === value.toLowerCase())) {
-      return c.json({ success: false, error: `${type} ${value} is already blocked` }, 409);
-    }
-
-    const newBlock: QuickBlock = {
+    const qb: QuickBlock = {
       id: generateId(),
-      type: type as QuickBlock['type'],
-      value,
-      reason,
+      type: body.type || 'ip',
+      value: body.value,
+      reason: body.reason || '',
       blockedAt: new Date().toISOString(),
     };
 
-    qbs.push(newBlock);
-    writeQuickBlocks(qbs);
+    await pool.query(
+      `INSERT INTO "NftQuickBlock" (id, type, value, reason, "blockedAt")
+       VALUES ($1, $2, $3, $4, $5)`,
+      [qb.id, qb.type, qb.value, qb.reason, qb.blockedAt]
+    );
 
-    log.info('Created quick block', { id: newBlock.id, type, value, reason });
+    const applyResult = await autoApplyRules();
 
-    // Auto-apply to nftables in production mode
-    const qbCreateResult = autoApplyRules();
-
-    return c.json({ success: true, data: newBlock, nftables: qbCreateResult });
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : String(err);
-    return c.json({ success: false, error }, 500);
+    return c.json({
+      success: true,
+      data: qb,
+      autoApply: applyResult,
+    });
+  } catch (error) {
+    log.error('Failed to create quick block', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to create quick block' }, 500);
   }
 });
 
-app.delete('/api/quick-blocks/:id', (c) => {
-  const { id } = c.req.param();
-  const qbs = readQuickBlocks();
-  const index = qbs.findIndex(b => b.id === id);
+app.delete('/api/quick-blocks/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const result = await pool.query(`DELETE FROM "NftQuickBlock" WHERE id = $1 RETURNING id`, [id]);
 
-  if (index === -1) {
-    return c.json({ success: false, error: 'Quick block not found' }, 404);
+    if (result.rowCount === 0) {
+      return c.json({ success: false, error: 'Quick block not found' }, 404);
+    }
+
+    const applyResult = await autoApplyRules();
+
+    return c.json({
+      success: true,
+      deleted: id,
+      autoApply: applyResult,
+    });
+  } catch (error) {
+    log.error('Failed to delete quick block', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to delete quick block' }, 500);
   }
-
-  const deleted = qbs.splice(index, 1)[0];
-  writeQuickBlocks(qbs);
-
-  log.info('Deleted quick block', { id, type: deleted.type, value: deleted.value });
-
-  // Auto-apply to nftables in production mode
-  const qbDelResult = autoApplyRules();
-
-  return c.json({ success: true, message: 'Quick block removed', data: deleted, nftables: qbDelResult });
 });
 
 // ============================================================================
-// 6. Schedules CRUD
+// 7. Schedules CRUD
 // ============================================================================
 
-app.get('/api/schedules', (c) => {
-  const scheds = readSchedules();
-  return c.json({ success: true, data: scheds, total: scheds.length });
+app.get('/api/schedules', async (c) => {
+  try {
+    const schedules = await readSchedules();
+    return c.json({ success: true, data: schedules, total: schedules.length });
+  } catch (error) {
+    log.error('Failed to read schedules', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to read schedules' }, 500);
+  }
 });
 
 app.post('/api/schedules', async (c) => {
   try {
     const body = await c.req.json();
-    const {
-      name,
-      days,
-      startTime,
-      endTime,
-      timezone = 'UTC',
-      linkedRuleIds = [],
-      enabled = true,
-    } = body;
-
-    if (!name || !days || !startTime || !endTime) {
-      return c.json({ success: false, error: 'Missing required fields: name, days, startTime, endTime' }, 400);
-    }
-
-    // Validate days format (comma-separated numbers 1-7)
-    const dayNumbers = days.split(',').map((d: string) => parseInt(d.trim()));
-    if (dayNumbers.some(d => isNaN(d) || d < 1 || d > 7)) {
-      return c.json({ success: false, error: 'Days must be comma-separated numbers 1-7 (1=Mon, 7=Sun)' }, 400);
-    }
-
-    // Validate time format (HH:MM)
-    const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
-    if (!timeRegex.test(startTime)) {
-      return c.json({ success: false, error: 'Invalid startTime format (expected HH:MM)' }, 400);
-    }
-    if (!timeRegex.test(endTime)) {
-      return c.json({ success: false, error: 'Invalid endTime format (expected HH:MM)' }, 400);
-    }
-
-    const scheds = readSchedules();
-    const newSched: Schedule = {
+    const sched: Schedule = {
       id: generateId(),
-      name,
-      days,
-      startTime,
-      endTime,
-      timezone,
-      linkedRuleIds,
-      enabled,
+      name: body.name,
+      days: body.days || '1,2,3,4,5,6,7',
+      startTime: body.startTime || '00:00',
+      endTime: body.endTime || '23:59',
+      timezone: body.timezone || 'UTC',
+      linkedRuleIds: body.linkedRuleIds || [],
+      enabled: body.enabled !== undefined ? body.enabled : true,
       createdAt: new Date().toISOString(),
     };
 
-    scheds.push(newSched);
-    writeSchedules(scheds);
+    await pool.query(
+      `INSERT INTO "NftSchedule" (id, name, days, "startTime", "endTime", timezone, "linkedRuleIds", enabled, "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [sched.id, sched.name, sched.days, sched.startTime, sched.endTime, sched.timezone,
+       JSON.stringify(sched.linkedRuleIds), sched.enabled, sched.createdAt]
+    );
 
-    log.info('Created schedule', { id: newSched.id, name, days, startTime, endTime });
-
-    return c.json({ success: true, data: newSched });
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : String(err);
-    return c.json({ success: false, error }, 500);
+    return c.json({
+      success: true,
+      data: sched,
+    });
+  } catch (error) {
+    log.error('Failed to create schedule', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to create schedule' }, 500);
   }
 });
 
 app.put('/api/schedules/:id', async (c) => {
   try {
-    const { id } = c.req.param();
+    const id = c.req.param('id');
     const body = await c.req.json();
-    const scheds = readSchedules();
-    const index = scheds.findIndex(s => s.id === id);
 
-    if (index === -1) {
+    const linkedRuleIds = body.linkedRuleIds !== undefined ? JSON.stringify(body.linkedRuleIds) : undefined;
+
+    const result = await pool.query(
+      `UPDATE "NftSchedule"
+       SET name = COALESCE($1, name), days = COALESCE($2, days),
+           "startTime" = COALESCE($3, "startTime"), "endTime" = COALESCE($4, "endTime"),
+           timezone = COALESCE($5, timezone), "linkedRuleIds" = COALESCE($6, "linkedRuleIds"),
+           enabled = COALESCE($7, enabled)
+       WHERE id = $8 RETURNING *`,
+      [body.name, body.days, body.startTime, body.endTime, body.timezone, linkedRuleIds, body.enabled, id]
+    );
+
+    if (result.rowCount === 0) {
       return c.json({ success: false, error: 'Schedule not found' }, 404);
     }
 
-    const existing = scheds[index];
-
-    const updated: Schedule = {
-      ...existing,
-      name: body.name !== undefined ? body.name : existing.name,
-      days: body.days !== undefined ? body.days : existing.days,
-      startTime: body.startTime !== undefined ? body.startTime : existing.startTime,
-      endTime: body.endTime !== undefined ? body.endTime : existing.endTime,
-      timezone: body.timezone !== undefined ? body.timezone : existing.timezone,
-      linkedRuleIds: body.linkedRuleIds !== undefined ? body.linkedRuleIds : existing.linkedRuleIds,
-      enabled: body.enabled !== undefined ? body.enabled : existing.enabled,
-    };
-
-    scheds[index] = updated;
-    writeSchedules(scheds);
-
-    log.info('Updated schedule', { id, name: updated.name });
-
-    return c.json({ success: true, data: updated });
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : String(err);
-    return c.json({ success: false, error }, 500);
+    const row = result.rows[0];
+    return c.json({
+      success: true,
+      data: {
+        id: row.id, name: row.name, days: row.days, startTime: row.startTime, endTime: row.endTime,
+        timezone: row.timezone, linkedRuleIds: row.linkedRuleIds || [], enabled: row.enabled, createdAt: row.createdAt,
+      },
+    });
+  } catch (error) {
+    log.error('Failed to update schedule', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to update schedule' }, 500);
   }
 });
 
-app.delete('/api/schedules/:id', (c) => {
-  const { id } = c.req.param();
-  const scheds = readSchedules();
-  const index = scheds.findIndex(s => s.id === id);
+app.delete('/api/schedules/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const result = await pool.query(`DELETE FROM "NftSchedule" WHERE id = $1 RETURNING id`, [id]);
 
-  if (index === -1) {
-    return c.json({ success: false, error: 'Schedule not found' }, 404);
+    if (result.rowCount === 0) {
+      return c.json({ success: false, error: 'Schedule not found' }, 404);
+    }
+
+    return c.json({ success: true, deleted: id });
+  } catch (error) {
+    log.error('Failed to delete schedule', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to delete schedule' }, 500);
   }
-
-  const deleted = scheds.splice(index, 1)[0];
-  writeSchedules(scheds);
-
-  log.info('Deleted schedule', { id, name: deleted.name });
-
-  return c.json({ success: true, message: 'Schedule deleted', data: deleted });
 });
 
 // ============================================================================
-// 7. Presets
+// 8. Presets (read-only, built-in)
 // ============================================================================
 
 app.get('/api/presets', (c) => {
@@ -1859,236 +1631,146 @@ app.get('/api/presets', (c) => {
 
 app.post('/api/presets/:id/apply', async (c) => {
   try {
-    const { id } = c.req.param();
-    const preset = BUILTIN_PRESETS.find(p => p.id === id);
+    const presetId = c.req.param('id');
+    const preset = BUILTIN_PRESETS.find(p => p.id === presetId);
 
     if (!preset) {
-      return c.json({ success: false, error: `Preset not found: ${id}` }, 404);
+      return c.json({ success: false, error: 'Preset not found' }, 404);
     }
 
-    const body = await c.req.json().catch(() => ({}));
-    const overrideEnabled = body.enabled !== undefined ? body.enabled : true;
-
-    const rules = readGuiRules();
-    const createdRules: GuiRule[] = [];
-    const now = new Date().toISOString();
-
-    for (const template of preset.rules) {
-      const newRule: GuiRule = {
+    let createdCount = 0;
+    for (const ruleTemplate of preset.rules) {
+      const rule: GuiRule = {
         id: generateId(),
-        name: `[${preset.name}] ${template.name}`,
-        chain: template.chain,
-        protocol: template.protocol,
-        sourceIp: template.sourceIp,
-        destIp: template.destIp,
-        destPort: template.destPort,
-        sourcePort: template.sourcePort,
-        action: template.action,
-        markValue: template.markValue,
-        dnatTo: template.dnatTo,
-        snatTo: template.snatTo,
-        enabled: overrideEnabled,
-        comment: template.comment ? `Preset: ${preset.name} - ${template.comment}` : `Applied from preset: ${preset.name}`,
-        priority: template.priority,
-        createdAt: now,
-        updatedAt: now,
+        name: ruleTemplate.name,
+        chain: ruleTemplate.chain,
+        protocol: ruleTemplate.protocol,
+        sourceIp: ruleTemplate.sourceIp,
+        destIp: ruleTemplate.destIp,
+        destPort: ruleTemplate.destPort,
+        sourcePort: ruleTemplate.sourcePort,
+        action: ruleTemplate.action,
+        markValue: ruleTemplate.markValue,
+        dnatTo: ruleTemplate.dnatTo,
+        snatTo: ruleTemplate.snatTo,
+        enabled: ruleTemplate.enabled,
+        comment: ruleTemplate.comment,
+        priority: ruleTemplate.priority,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
-      rules.push(newRule);
-      createdRules.push(newRule);
+
+      await pool.query(
+        `INSERT INTO "NftGuiRule" (id, name, "chain", protocol, "sourceIp", "destIp", "destPort", "sourcePort",
+          action, "markValue", "dnatTo", "snatTo", enabled, comment, priority, "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+        [rule.id, rule.name, rule.chain, rule.protocol, rule.sourceIp, rule.destIp, rule.destPort, rule.sourcePort,
+         rule.action, rule.markValue, rule.dnatTo, rule.snatTo, rule.enabled, rule.comment, rule.priority,
+         rule.createdAt, rule.updatedAt]
+      );
+      createdCount++;
     }
 
-    writeGuiRules(rules);
-
-    log.info('Applied preset', { presetId: id, presetName: preset.name, rulesCreated: createdRules.length });
-
-    // Auto-apply to nftables in production mode — THIS IS THE CRITICAL FIX
-    // Previously, presets only saved to JSON and never pushed rules to nftables.
-    // Now, rules are immediately applied to the kernel nftables chains.
-    const applyResult = autoApplyRules();
+    const applyResult = await autoApplyRules();
 
     return c.json({
       success: true,
-      message: `Preset "${preset.name}" applied with ${createdRules.length} rules${applyResult.applied ? ' and applied to nftables' : ''}`,
       data: {
         preset: preset.name,
-        presetId: preset.id,
-        rulesCreated: createdRules.length,
-        rules: createdRules,
+        rulesCreated: createdCount,
+        autoApply: applyResult,
       },
-      nftables: applyResult,
     });
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : String(err);
-    return c.json({ success: false, error }, 500);
+  } catch (error) {
+    log.error('Failed to apply preset', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to apply preset' }, 500);
   }
 });
 
 // ============================================================================
-// 8. Config Generation & Apply
+// 9. Apply & Flush
 // ============================================================================
 
-app.get('/api/config/preview', (c) => {
-  const config = generateConfigPreview();
-  return c.json({
-    success: true,
-    config,
-    generatedAt: new Date().toISOString(),
-    mode: isNftablesInstalled() ? 'production' : 'simulation',
-  });
+app.post('/api/apply', async (c) => {
+  try {
+    const result = await applyGuiRulesToNftables();
+    return c.json({ success: result.success, data: result });
+  } catch (error) {
+    log.error('Failed to apply rules', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to apply rules' }, 500);
+  }
 });
 
-app.post('/api/apply', (c) => {
+app.post('/api/flush', (c) => {
+  const result = flushGuiChainsInNftables();
+  return c.json({ success: result.errors.length === 0, data: result });
+});
+
+// ============================================================================
+// 10. Config Preview
+// ============================================================================
+
+app.get('/api/config/preview', async (c) => {
   try {
-    // Also generate a config preview file for reference
-    const config = generateConfigPreview();
-    ensureDataDir();
-    fs.writeFileSync(APPLIED_CONFIG_PATH, config, 'utf-8');
+    const config = await generateConfigPreview();
+    return c.json({ success: true, data: { config } });
+  } catch (error) {
+    log.error('Failed to generate config preview', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to generate config preview' }, 500);
+  }
+});
 
-    // In simulation mode, we just save and return success
-    if (!isNftablesInstalled()) {
-      log.info('Applied config (simulation mode)', {
-        configLines: config.split('\n').length,
-        savedTo: APPLIED_CONFIG_PATH,
-      });
+// ============================================================================
+// Database connection verification on startup
+// ============================================================================
 
-      return c.json({
-        success: true,
-        mode: 'simulation',
-        message: 'Config applied (simulation mode). In production, rules would be applied atomically to GUI chains.',
-        configPath: APPLIED_CONFIG_PATH,
-        configLines: config.split('\n').length,
-      });
-    }
+async function verifyDatabase() {
+  try {
+    const res = await pool.query('SELECT NOW() as now, current_database() as db');
+    log.info('Database connected', {
+      db: res.rows[0].db,
+      time: res.rows[0].now,
+      url: DB_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
+    });
 
-    // ═══════════════════════════════════════════════════════════════════
-    // PRODUCTION MODE: Atomic chain-level apply
-    // ═══════════════════════════════════════════════════════════════════
-    // CRITICAL: We NEVER replace full tables. We use atomic commands:
-    //   1. nft add chain <table> <chain>  (only if chain doesn't exist)
-    //   2. nft flush chain <table> <chain> (clear old GUI rules)
-    //   3. nft add rule <table> <chain> <rule> (add new rules one by one)
-    //
-    // This preserves ALL system chains (prerouting, postrouting, open,
-    // accounting, security hooks, filter chains, etc.)
-    // ═══════════════════════════════════════════════════════════════════
-
-    log.info('Applying GUI rules to nftables (atomic chain-level)...');
-
-    const result = applyGuiRulesToNftables();
-
-    if (result.success) {
-      log.info('Applied GUI rules successfully', {
-        chainsCreated: result.chainsCreated,
-        chainsExisting: result.chainsExisting,
-        rulesApplied: result.rulesApplied,
-        totalCommands: result.commands.length,
-      });
-
-      // Get live rule counts from nftables to confirm
-      const liveCounts = getLiveChainRuleCounts();
-
-      return c.json({
-        success: true,
-        mode: 'production',
-        message: `Applied ${Object.values(result.rulesApplied).reduce((a, b) => a + b, 0)} rules across ${result.chainsExisting.length + result.chainsCreated.length} GUI chains.`,
-        chainsCreated: result.chainsCreated,
-        chainsExisting: result.chainsExisting,
-        rulesApplied: result.rulesApplied,
-        liveRuleCounts: liveCounts,
-        totalCommands: result.commands.length,
-        commands: result.commands,
-        configPath: APPLIED_CONFIG_PATH,
-      });
+    // Verify tables exist
+    const tables = await pool.query(
+      `SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+       AND tablename IN ('NftGuiRule', 'NftPortForward', 'NftRateLimit', 'NftQuickBlock', 'NftSchedule')`
+    );
+    const found = tables.rows.map(r => r.tablename);
+    const expected = ['NftGuiRule', 'NftPortForward', 'NftRateLimit', 'NftQuickBlock', 'NftSchedule'];
+    const missing = expected.filter(t => !found.includes(t));
+    if (missing.length > 0) {
+      log.error('Missing database tables', { missing });
     } else {
-      log.warn('Applied GUI rules with errors', {
-        errors: result.errors,
-        rulesApplied: result.rulesApplied,
-      });
-
-      // Get live rule counts even on partial failure
-      const liveCounts = getLiveChainRuleCounts();
-
-      return c.json({
-        success: true, // Still return success — some rules may have applied
-        mode: 'production',
-        message: `Applied with ${result.errors.length} error(s). Check errors for details.`,
-        chainsCreated: result.chainsCreated,
-        chainsExisting: result.chainsExisting,
-        rulesApplied: result.rulesApplied,
-        liveRuleCounts: liveCounts,
-        errors: result.errors,
-        commands: result.commands,
-        configPath: APPLIED_CONFIG_PATH,
-      });
+      log.info('All nftables-service tables verified', { tables: found });
     }
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : String(err);
-    log.error('Apply failed', { error });
-    return c.json({ success: false, error }, 500);
-  }
-});
-
-app.post('/api/flush-gui', (c) => {
-  try {
-    // Clear all GUI rules from JSON storage
-    writeGuiRules([]);
-    writePortForwards([]);
-    writeQuickBlocks([]);
-    writeRateLimits([]);
-    writeSchedules([]);
-
-    // Remove applied config file
-    if (fs.existsSync(APPLIED_CONFIG_PATH)) {
-      fs.unlinkSync(APPLIED_CONFIG_PATH);
-    }
-
-    // In production, also flush the actual nftables chains
-    let nftResult: { flushed: string[]; errors: string[] } | null = null;
-    if (isNftablesInstalled()) {
-      nftResult = flushGuiChainsInNftables();
-      log.info('Flushed GUI chains in nftables', { flushed: nftResult.flushed, errors: nftResult.errors });
-    }
-
-    return c.json({
-      success: true,
-      message: 'All GUI chain rules flushed. System chains untouched.',
-      mode: isNftablesInstalled() ? 'production' : 'simulation',
-      nftablesFlushed: nftResult?.flushed || [],
-      nftablesErrors: nftResult?.errors || [],
+  } catch (error) {
+    log.error('Database connection failed — service will start but all operations will fail', {
+      error: String(error),
+      url: DB_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
     });
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : String(err);
-    return c.json({ success: false, error }, 500);
   }
-});
-
-// ============================================================================
-// 9. Chain Architecture
-// ============================================================================
-
-app.get('/api/chain-architecture', (c) => {
-  return c.json({
-    success: true,
-    data: getChainArchitecture(),
-  });
-});
+}
 
 // ============================================================================
 // Start Server
 // ============================================================================
 
-ensureDataDir();
-
-log.info('Starting nftables-service', {
-  version: SERVICE_VERSION,
-  port: PORT,
-  mode: isNftablesInstalled() ? 'production' : 'simulation',
-  dataDir: DATA_DIR,
+verifyDatabase().then(() => {
+  log.info('Starting nftables-service', {
+    version: SERVICE_VERSION,
+    port: PORT,
+    mode: isNftablesInstalled() ? 'production' : 'simulation',
+    storage: 'postgresql',
+    dataDir: DB_URL.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
+  });
 });
 
-Bun.serve({
+export default {
   port: PORT,
   fetch: app.fetch,
-});
+};
 
 log.info('nftables-service is running', { port: PORT });
