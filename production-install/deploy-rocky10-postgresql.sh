@@ -685,7 +685,16 @@ EOCLIENT
   success "Cryptsk Gateway NAS client configured (${CRYPTSK_IP}) — MULTIMODE ready"
 fi
 
-# ── 5h: Test and start FreeRADIUS ───────────────────────────────────────────
+# ── 5h: Increase systemd timeout for radiusd (SQL pool init can be slow after fresh PG) ──
+info "Setting FreeRADIUS systemd timeout..."
+mkdir -p /etc/systemd/system/radiusd.service.d
+cat > /etc/systemd/system/radiusd.service.d/timeout.conf <<'EOF'
+[Service]
+TimeoutStartSec=120
+EOF
+systemctl daemon-reload
+
+# ── 5i: Test and start FreeRADIUS ───────────────────────────────────────────
 info "Testing FreeRADIUS configuration..."
 RADIUS_TEST=$(radiusd -XC 2>&1) || {
   error "FreeRADIUS config check FAILED:"; echo "$RADIUS_TEST"; die "Fix errors above."
@@ -693,7 +702,13 @@ RADIUS_TEST=$(radiusd -XC 2>&1) || {
 systemctl enable radiusd
 systemctl reset-failed radiusd 2>/dev/null || true
 systemctl restart radiusd
-sleep 2
+# Wait up to 60s for radiusd to become active
+for i in $(seq 1 30); do
+  if systemctl is-active --quiet radiusd 2>/dev/null; then
+    break
+  fi
+  sleep 2
+done
 systemctl is-active --quiet radiusd || die "FreeRADIUS failed to start! Check: journalctl -u radiusd -n 30"
 success "FreeRADIUS installed, configured, and running"
 
