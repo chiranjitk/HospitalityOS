@@ -1194,21 +1194,30 @@ export default function LoginPage() {
                 </div>
               </motion.div>
 
-              {/* ── Sign up link ── */}
+              {/* ── Register with license key link ── */}
               <motion.div
-                className="mt-6 text-center"
+                className="mt-6 text-center space-y-2"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.7, duration: 0.5 }}
               >
                 <p className="text-sm text-muted-foreground">
-                  Don&apos;t have an account?{' '}
+                  Have a license key?{' '}
                   <button
                     className="text-teal-600 dark:text-teal-400 font-semibold hover:text-teal-700 dark:hover:text-teal-300 transition-colors duration-200 underline-offset-4 hover:underline inline-flex items-center gap-1"
-                    onClick={() => router.push('/signup')}
+                    onClick={() => router.push('/register')}
                   >
-                    Start free trial
+                    Activate your plan
                     <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </p>
+                <p className="text-xs text-muted-foreground/60">
+                  Don&apos;t have a key?{' '}
+                  <button
+                    className="text-muted-foreground/80 hover:text-muted-foreground font-medium transition-colors duration-200 underline-offset-4 hover:underline"
+                    onClick={() => router.push('/register')}
+                  >
+                    Register with a trial key
                   </button>
                 </p>
               </motion.div>

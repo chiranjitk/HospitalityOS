@@ -36,6 +36,8 @@ const PUBLIC_PATHS = [
   '/api/v1/wifi/',          // FreeRADIUS proxy + guest portal auth (public)
   // Tenant listing (for signup flow)
   '/api/tenants',
+  // Registration (public, license key based)
+  '/api/registration/',
   // NOTE: /api/cron/ is handled separately with CRON_SECRET validation (step 3)
   // Guest app (uses portal tokens in query)
   '/api/guest-app/',
@@ -67,6 +69,7 @@ const PUBLIC_PATHS = [
   '/portal',
   '/guest',
   '/connect',
+  '/register',
 ];
 
 /**
@@ -131,7 +134,7 @@ export default function proxy(request: NextRequest) {
   const isSpecial = pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/signup') ||
     pathname.startsWith('/book') || pathname.startsWith('/kiosk') || pathname.startsWith('/portal') ||
     pathname.startsWith('/guest') || pathname.startsWith('/connect') || pathname.startsWith('/public') ||
-    pathname.startsWith('/help') || pathname.startsWith('/settings-security');
+    pathname.startsWith('/help') || pathname.startsWith('/settings-security') || pathname.startsWith('/register');
 
   // --- 2. Determine locale ---
   let locale = defaultLocale;

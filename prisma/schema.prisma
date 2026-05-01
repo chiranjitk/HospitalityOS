@@ -7213,3 +7213,62 @@ model CompetitorSyncLog {
   @@index([competitorName])
   @@index([startedAt])
 }
+
+// ============================================================
+// REGISTRATION & LICENSE KEY MODULE
+// ============================================================
+
+/// RegistrationPlan - SaaS subscription plans for license key activation
+model RegistrationPlan {
+  id               String       @id @default(uuid()) @db.Uuid
+  name             String       @unique // trial, starter, professional, enterprise
+  displayName      String       // "Trial", "Starter Plan", etc.
+  description      String?
+  price            Float        @default(0) // Monthly price in USD
+  currency         String       @default("USD")
+  maxProperties    Int          @default(1)
+  maxRoomsPerProperty Int       @default(50)
+  maxUsers         Int          @default(5)
+  maxStaff         Int          @default(10)
+  features         String       @default("[]") // JSON: list of feature flag IDs
+  sortOrder        Int          @default(0)
+  isActive         Boolean      @default(true)
+  highlighted      Boolean      @default(false) // Show as "popular" in UI
+  trialDays        Int?         // Number of trial days if applicable
+  createdAt        DateTime     @default(now()) @db.Timestamptz
+  updatedAt        DateTime     @updatedAt @db.Timestamptz
+  licenseKeys      LicenseKey[]
+
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+/// LicenseKey - Pre-generated keys distributed offline for plan activation
+model LicenseKey {
+  id               String           @id @default(uuid()) @db.Uuid
+  key              String           @unique // The actual license key (e.g., STS-XXXX-XXXX-XXXX-XXXX)
+  planId           String           @db.Uuid
+  status           String           @default("active") // active, activated, expired, revoked
+  // Who generated it
+  generatedBy      String?          @db.Uuid // userId of admin who generated
+  generatedFor     String?          // Optional note: company name or recipient
+  // Activation details
+  activatedBy      String?          @db.Uuid // userId who activated it
+  activatedAt      DateTime?        @db.Timestamptz
+  tenantId         String?          @db.Uuid // Tenant created on activation
+  // Expiration
+  expiresAt        DateTime?        @db.Timestamptz
+  // Metadata
+  note             String?          // Internal note
+  batchId          String?          // For bulk generation tracking
+  createdAt        DateTime         @default(now()) @db.Timestamptz
+  updatedAt        DateTime         @updatedAt @db.Timestamptz
+  plan             RegistrationPlan @relation(fields: [planId], references: [id])
+
+  @@index([key])
+  @@index([planId])
+  @@index([status])
+  @@index([batchId])
+  @@index([activatedBy])
+  @@index([tenantId])
+}

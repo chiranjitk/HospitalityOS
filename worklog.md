@@ -1152,3 +1152,20 @@ Task: Current Status Assessment
 6. **Add dark mode refinements** for newer widgets (greeting card, loyalty tier, etc.)
 7. **Mobile responsive polish** for all new widgets
 8. **Review and fix pre-existing lint errors**
+
+---
+Task ID: 3
+Agent: Schema Agent
+Task: Add RegistrationPlan and LicenseKey models to Prisma schema
+
+Work Log:
+- Added RegistrationPlan model (SaaS subscription plans with features, pricing, limits)
+- Added LicenseKey model (pre-generated keys for offline distribution, linked to plans)
+- Pushed schema to PostgreSQL via prisma db push
+- Seeded 4 plans: Trial (14 days), Starter ($49), Professional ($149), Enterprise ($399)
+- Seeded 5 sample license keys across all plans
+
+Stage Summary:
+- Database schema updated with 2 new models
+- 4 plans seeded with proper feature flag mappings matching existing PLAN_FEATURES
+- 5 sample license keys ready for testing registration flow
