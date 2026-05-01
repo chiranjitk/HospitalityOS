@@ -1,14 +1,16 @@
 'use client';
 
 /**
- * Pool Mappings Tab — Maps IP pools/subnets to captive portal instances.
+ * Pool Mappings Tab — Bridges IP Pools (IpPool table) with Portal Instances.
  *
- * Each mapping ties a Captive Portal to a VLAN, SSID, and/or subnet,
- * so the RADIUS server knows which portal page to serve for a given
- * network segment.
+ * Displays every IP Pool from the IP Pool Management table and shows which
+ * captive portal it is mapped to via the PortalMapping table. Users can
+ * create, edit, and delete these pool-to-portal mappings.
  *
- * API: /api/wifi/portal/mappings (REST: GET/POST)
- *      /api/wifi/portal/mappings/[id] (GET/PUT/DELETE)
+ * Data Sources:
+ *   IP Pools:   GET /api/wifi/ip-pools         → IpPool table
+ *   Portals:    GET /api/wifi/portal/instances   → CaptivePortal table
+ *   Mappings:   GET /api/wifi/portal/mappings    → PortalMapping table
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -64,12 +66,29 @@ import {
   Network,
   Globe,
   Monitor,
+  Server,
+  Users,
+  Unplug,
+  ShieldCheck,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePropertyId } from '@/hooks/use-property';
 import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
+
+interface IpPoolEntry {
+  id: string;
+  name: string;
+  description: string | null;
+  gateway: string | null;
+  subnet: string | null;
+  isDefault: boolean;
+  captivePortal: boolean;
+  enabled: boolean;
+  _count: { plans: number; users: number; ranges: number };
+  ranges: Array<{ startIp: string; endIp: string; comment?: string }>;
+}
 
 interface PortalMappingEntry {
   id: string;
@@ -79,12 +98,8 @@ interface PortalMappingEntry {
   ssid: string | null;
   subnet: string | null;
   priority: number;
-  fallbackPortalId: string | null;
   enabled: boolean;
-  createdAt: string;
-  updatedAt: string;
   captivePortal?: { id: string; name: string } | null;
-  property?: { id: string; name: string } | null;
 }
 
 interface PortalOption {
@@ -92,11 +107,15 @@ interface PortalOption {
   name: string;
 }
 
+interface PoolWithMapping {
+  pool: IpPoolEntry;
+  mapping: PortalMappingEntry | null;
+}
+
 interface MappingForm {
   portalId: string;
   vlanId: string;
   ssid: string;
-  subnet: string;
   priority: number;
   enabled: boolean;
 }
@@ -105,10 +124,27 @@ const EMPTY_FORM: MappingForm = {
   portalId: '',
   vlanId: '',
   ssid: '',
-  subnet: '',
   priority: 0,
   enabled: true,
 };
+
+// ─── Helpers ────────────────────────────────────────────────────────────────────
+
+function formatInet(val: string | null | undefined): string {
+  if (!val) return '';
+  return val.replace(/\/32$/, '');
+}
+
+function countTotalIps(ranges: Array<{ startIp: string; endIp: string }>): number {
+  return ranges.reduce((sum, r) => {
+    if (!r.startIp || !r.endIp) return sum;
+    try {
+      const s = r.startIp.replace(/\/\d+$/, '').split('.').reduce((a, o) => (a << 8) + parseInt(o), 0) >>> 0;
+      const e = r.endIp.replace(/\/\d+$/, '').split('.').reduce((a, o) => (a << 8) + parseInt(o), 0) >>> 0;
+      return sum + Math.max(0, e - s + 1);
+    } catch { return sum; }
+  }, 0);
+}
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 
@@ -116,88 +152,116 @@ export default function PortalMappingsTab() {
   const { toast } = useToast();
   const { propertyId } = usePropertyId();
 
-  const [mappings, setMappings] = useState<PortalMappingEntry[]>([]);
+  const [pools, setPools] = useState<IpPoolEntry[]>([]);
   const [portals, setPortals] = useState<PortalOption[]>([]);
+  const [mappings, setMappings] = useState<PortalMappingEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<PortalMappingEntry | null>(null);
+  const [editingMapping, setEditingMapping] = useState<PortalMappingEntry | null>(null);
+  const [editingPool, setEditingPool] = useState<IpPoolEntry | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   // Form state
   const [form, setForm] = useState<MappingForm>({ ...EMPTY_FORM });
 
-  // ─── API Helpers ─────────────────────────────────────────────────────────────
+  // ─── Data Fetching ──────────────────────────────────────────────────────────
 
-  const buildUrl = (base: string, params?: Record<string, string>) => {
-    const url = new URL(base, window.location.origin);
-    if (propertyId) url.searchParams.set('propertyId', propertyId);
-    if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-    return url.toString();
-  };
-
-  const fetchPortals = useCallback(async () => {
-    try {
-      const res = await fetch('/api/wifi/portal/instances');
-      const data = await res.json();
-      if (data.success && data.data) {
-        setPortals(Array.isArray(data.data)
-          ? data.data.map((p: any) => ({ id: p.id, name: p.name }))
-          : []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch portal instances:', error);
-    }
-  }, []);
-
-  const fetchMappings = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(buildUrl('/api/wifi/portal/mappings'));
-      const data = await res.json();
-      if (data.success && data.data) {
-        setMappings(Array.isArray(data.data) ? data.data : []);
-      } else {
-        setMappings([]);
+      const [poolsRes, portalsRes, mappingsRes] = await Promise.all([
+        fetch('/api/wifi/ip-pools'),
+        fetch('/api/wifi/portal/instances'),
+        fetch(`/api/wifi/portal/mappings${propertyId ? `?propertyId=${propertyId}` : ''}`),
+      ]);
+
+      const poolsData = await poolsRes.json();
+      const portalsData = await portalsRes.json();
+      const mappingsData = await mappingsRes.json();
+
+      if (poolsData.success && Array.isArray(poolsData.data)) {
+        setPools(poolsData.data);
+      }
+      if (portalsData.success && Array.isArray(portalsData.data)) {
+        setPortals(portalsData.data.map((p: any) => ({ id: p.id, name: p.name })));
+      }
+      if (mappingsData.success && Array.isArray(mappingsData.data)) {
+        setMappings(mappingsData.data);
       }
     } catch (error) {
-      console.error('Failed to fetch portal mappings:', error);
-      setMappings([]);
+      console.error('Failed to fetch pool mappings data:', error);
     } finally {
       setIsLoading(false);
     }
   }, [propertyId]);
 
-  useEffect(() => {
-    fetchPortals();
-    fetchMappings();
-  }, [fetchPortals, fetchMappings]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ─── Join Pools + Mappings ──────────────────────────────────────────────────
+
+  const joined: PoolWithMapping[] = pools.map(pool => {
+    // Match by subnet or by explicit portal mapping referencing same subnet
+    const mapping = mappings.find(m =>
+      m.subnet && pool.subnet &&
+      m.subnet.replace(/\/32$/, '') === pool.subnet.replace(/\/32$/, '')
+    ) || null;
+    return { pool, mapping };
+  });
+
+  // ─── Filtering ──────────────────────────────────────────────────────────────
+
+  const filtered = joined.filter(item => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      item.pool.name.toLowerCase().includes(q) ||
+      (item.pool.description || '').toLowerCase().includes(q) ||
+      (item.pool.subnet || '').toLowerCase().includes(q) ||
+      (item.mapping?.captivePortal?.name || '').toLowerCase().includes(q) ||
+      (item.mapping?.ssid || '').toLowerCase().includes(q)
+    );
+  });
+
+  const mappedCount = joined.filter(i => i.mapping).length;
+  const unmappedCount = joined.length - mappedCount;
 
   // ─── Form Helpers ───────────────────────────────────────────────────────────
 
   const resetForm = () => {
     setForm({ ...EMPTY_FORM });
-    setEditingEntry(null);
+    setEditingMapping(null);
+    setEditingPool(null);
   };
 
-  const openCreate = () => {
+  const openCreate = (pool: IpPoolEntry) => {
     resetForm();
+    setEditingPool(pool);
+    // Pre-fill from pool data
+    setForm(prev => ({
+      ...prev,
+      ssid: '',
+      vlanId: '',
+    }));
     setDialogOpen(true);
   };
 
-  const openEdit = (entry: PortalMappingEntry) => {
-    setEditingEntry(entry);
-    setForm({
-      portalId: entry.portalId,
-      vlanId: entry.vlanId !== null ? String(entry.vlanId) : '',
-      ssid: entry.ssid || '',
-      subnet: entry.subnet || '',
-      priority: entry.priority,
-      enabled: entry.enabled,
-    });
+  const openEdit = (item: PoolWithMapping) => {
+    resetForm();
+    setEditingPool(item.pool);
+    if (item.mapping) {
+      setEditingMapping(item.mapping);
+      setForm({
+        portalId: item.mapping.portalId,
+        vlanId: item.mapping.vlanId !== null ? String(item.mapping.vlanId) : '',
+        ssid: item.mapping.ssid || '',
+        priority: item.mapping.priority,
+        enabled: item.mapping.enabled,
+      });
+    }
     setDialogOpen(true);
   };
 
@@ -216,47 +280,44 @@ export default function PortalMappingsTab() {
     setSaving(true);
     try {
       let res: Response;
-      if (editingEntry) {
-        // Update
-        res = await fetch(`/api/wifi/portal/mappings/${editingEntry.id}`, {
+      const payload: Record<string, unknown> = {
+        propertyId,
+        portalId: form.portalId,
+        vlanId: form.vlanId ? parseInt(form.vlanId, 10) : null,
+        ssid: form.ssid || null,
+        subnet: editingPool?.subnet ? formatInet(editingPool.subnet) : null,
+        priority: form.priority,
+        enabled: form.enabled,
+      };
+
+      if (editingMapping) {
+        // Update existing mapping
+        const { propertyId: _, portalId: __, subnet: ___, ...updatePayload } = payload;
+        res = await fetch(`/api/wifi/portal/mappings/${editingMapping.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            vlanId: form.vlanId ? parseInt(form.vlanId, 10) : null,
-            ssid: form.ssid || null,
-            subnet: form.subnet || null,
-            priority: form.priority,
-            enabled: form.enabled,
-          }),
+          body: JSON.stringify(updatePayload),
         });
       } else {
-        // Create
+        // Create new mapping
         res = await fetch('/api/wifi/portal/mappings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            propertyId,
-            portalId: form.portalId,
-            vlanId: form.vlanId ? parseInt(form.vlanId, 10) : null,
-            ssid: form.ssid || null,
-            subnet: form.subnet || null,
-            priority: form.priority,
-            enabled: form.enabled,
-          }),
+          body: JSON.stringify(payload),
         });
       }
 
       const data = await res.json();
       if (data.success) {
         toast({
-          title: editingEntry ? 'Mapping Updated' : 'Mapping Created',
-          description: editingEntry
-            ? 'Portal mapping updated successfully'
-            : 'New portal-to-network mapping created',
+          title: editingMapping ? 'Mapping Updated' : 'Mapping Created',
+          description: editingMapping
+            ? `${editingPool?.name || 'Pool'} mapping updated`
+            : `${editingPool?.name || 'Pool'} mapped to ${portals.find(p => p.id === form.portalId)?.name || 'portal'}`,
         });
         setDialogOpen(false);
         resetForm();
-        fetchMappings();
+        fetchAll();
       } else {
         toast({
           title: 'Error',
@@ -277,8 +338,8 @@ export default function PortalMappingsTab() {
       const res = await fetch(`/api/wifi/portal/mappings/${deleteId}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
-        toast({ title: 'Deleted', description: 'Portal mapping removed' });
-        fetchMappings();
+        toast({ title: 'Mapping Removed', description: 'Pool-to-portal mapping deleted' });
+        fetchAll();
       } else {
         toast({ title: 'Error', description: data.error?.message || 'Failed to delete', variant: 'destructive' });
       }
@@ -289,49 +350,26 @@ export default function PortalMappingsTab() {
     }
   };
 
-  const handleToggle = async (entry: PortalMappingEntry) => {
+  const handleToggle = async (item: PoolWithMapping) => {
+    if (!item.mapping) return;
     try {
-      const res = await fetch(`/api/wifi/portal/mappings/${entry.id}`, {
+      const res = await fetch(`/api/wifi/portal/mappings/${item.mapping.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: !entry.enabled }),
+        body: JSON.stringify({ enabled: !item.mapping.enabled }),
       });
       const data = await res.json();
       if (data.success) {
         toast({
-          title: entry.enabled ? 'Mapping Disabled' : 'Mapping Enabled',
-          description: `${entry.captivePortal?.name || 'Portal'} mapping is now ${entry.enabled ? 'disabled' : 'enabled'}`,
+          title: item.mapping.enabled ? 'Mapping Disabled' : 'Mapping Enabled',
         });
-        fetchMappings();
+        fetchAll();
       } else {
         toast({ title: 'Error', description: data.error?.message || 'Failed to toggle', variant: 'destructive' });
       }
     } catch {
       toast({ title: 'Network Error', description: 'Failed to toggle mapping', variant: 'destructive' });
     }
-  };
-
-  // ─── Filtering ──────────────────────────────────────────────────────────────
-
-  const filteredMappings = mappings.filter(m => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      (m.captivePortal?.name || '').toLowerCase().includes(q) ||
-      (m.ssid || '').toLowerCase().includes(q) ||
-      (m.subnet || '').toLowerCase().includes(q) ||
-      String(m.vlanId || '').includes(q) ||
-      (m.property?.name || '').toLowerCase().includes(q)
-    );
-  });
-
-  const enabledCount = mappings.filter(m => m.enabled).length;
-  const disabledCount = mappings.length - enabledCount;
-
-  // ─── Portal name lookup ─────────────────────────────────────────────────────
-
-  const getPortalName = (entry: PortalMappingEntry) => {
-    return entry.captivePortal?.name || 'Unknown Portal';
   };
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -342,10 +380,11 @@ export default function PortalMappingsTab() {
       <div className="flex items-start gap-3 rounded-lg border border-teal-200 bg-teal-50/50 p-4 dark:border-teal-800 dark:bg-teal-950/30">
         <Info className="h-5 w-5 text-teal-600 dark:text-teal-400 mt-0.5 shrink-0" />
         <div>
-          <p className="text-sm font-medium text-teal-800 dark:text-teal-300">Pool / Network Mappings</p>
+          <p className="text-sm font-medium text-teal-800 dark:text-teal-300">IP Pool → Portal Mappings</p>
           <p className="text-xs text-teal-700/80 dark:text-teal-400/70 mt-1">
-            Map captive portal instances to VLANs, SSIDs, and IP subnets. The RADIUS server uses these mappings
-            to determine which portal page to serve for a given network segment.
+            Each IP Pool from <span className="font-semibold">WiFi Access → IP Pool Management</span> is listed below.
+            Map pools to captive portal instances so the RADIUS server knows which portal page to serve
+            for clients in each subnet.
           </p>
         </div>
       </div>
@@ -354,31 +393,25 @@ export default function PortalMappingsTab() {
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-2xl font-bold">{mappings.length}</span>
-            <span className="text-sm text-muted-foreground">mapping{mappings.length !== 1 ? 's' : ''}</span>
+            <span className="text-2xl font-bold">{pools.length}</span>
+            <span className="text-sm text-muted-foreground">pool{pools.length !== 1 ? 's' : ''}</span>
           </div>
           <div className="h-8 w-px bg-border" />
           <div className="flex items-center gap-3 text-xs">
             <span className="flex items-center gap-1">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              {enabledCount} active
+              {mappedCount} mapped
             </span>
-            {disabledCount > 0 && (
-              <span className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />
-                {disabledCount} inactive
-              </span>
-            )}
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-amber-500" />
+              {unmappedCount} unmapped
+            </span>
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={fetchMappings} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={fetchAll} disabled={isLoading}>
             <RefreshCw className={cn('h-4 w-4 mr-1.5', isLoading && 'animate-spin')} />
             Refresh
-          </Button>
-          <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white" onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            Add Mapping
           </Button>
         </div>
       </div>
@@ -387,32 +420,32 @@ export default function PortalMappingsTab() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search by portal, SSID, subnet, VLAN..."
+          placeholder="Search by pool name, subnet, portal..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-9"
         />
       </div>
 
-      {/* Mappings Table / Cards */}
+      {/* Pools Table */}
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          ) : filteredMappings.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center px-4">
               <div className="rounded-full bg-muted/50 p-4 mb-3">
-                <ArrowRightLeft className="h-8 w-8 text-muted-foreground/40" />
+                <Network className="h-8 w-8 text-muted-foreground/40" />
               </div>
               <h3 className="text-sm font-medium text-muted-foreground">
-                {searchQuery ? 'No matching mappings' : 'No pool mappings yet'}
+                {searchQuery ? 'No matching pools' : 'No IP pools found'}
               </h3>
               <p className="text-xs text-muted-foreground/60 mt-1 max-w-sm">
                 {searchQuery
                   ? 'Try a different search term'
-                  : 'Create a mapping to link a captive portal instance to a VLAN, SSID, or IP subnet'}
+                  : 'Create IP pools in WiFi Access → IP Pool Management first, then map them here'}
               </p>
             </div>
           ) : (
@@ -422,136 +455,249 @@ export default function PortalMappingsTab() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>IP Pool</TableHead>
+                      <TableHead>Subnet</TableHead>
                       <TableHead>Portal Instance</TableHead>
                       <TableHead>SSID</TableHead>
-                      <TableHead>VLAN</TableHead>
-                      <TableHead>Subnet</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead>Enabled</TableHead>
+                      <TableHead className="text-center">Plans</TableHead>
+                      <TableHead className="text-center">Users</TableHead>
+                      <TableHead className="text-center">Mapped</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredMappings.map((entry) => (
-                      <TableRow key={entry.id} className={cn(!entry.enabled && 'opacity-50')}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Monitor className="h-3.5 w-3.5 text-teal-500 shrink-0" />
-                            <div>
-                              <p className="text-sm font-medium">{getPortalName(entry)}</p>
-                              {entry.property?.name && (
-                                <p className="text-[10px] text-muted-foreground">{entry.property.name}</p>
+                    {filtered.map(({ pool, mapping }) => {
+                      const totalIps = countTotalIps(pool.ranges || []);
+                      return (
+                        <TableRow key={pool.id} className={cn(!pool.enabled && 'opacity-50')}>
+                          {/* Pool Name */}
+                          <TableCell>
+                            <div className="flex items-center gap-2 min-w-[130px]">
+                              <div className={cn(
+                                'p-1.5 rounded-md',
+                                mapping ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-muted'
+                              )}>
+                                <Network className={cn(
+                                  'h-3.5 w-3.5',
+                                  mapping ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+                                )} />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium">{pool.name}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  {pool.isDefault && (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-700">
+                                      Default
+                                    </Badge>
+                                  )}
+                                  {pool.captivePortal && (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-teal-500/10 text-teal-600 border-teal-200 dark:border-teal-700">
+                                      <ShieldCheck className="h-2.5 w-2.5 mr-0.5" />
+                                      Portal
+                                    </Badge>
+                                  )}
+                                  {!pool.enabled && (
+                                    <Badge variant="secondary" className="text-[9px] px-1 py-0">Disabled</Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            {pool.description && (
+                              <p className="text-[10px] text-muted-foreground mt-0.5 ml-6 truncate max-w-[200px]">
+                                {pool.description}
+                              </p>
+                            )}
+                          </TableCell>
+
+                          {/* Subnet */}
+                          <TableCell>
+                            <div className="space-y-0.5">
+                              <span className="font-mono text-xs bg-muted/60 px-1.5 py-0.5 rounded">
+                                {formatInet(pool.subnet) || '—'}
+                              </span>
+                              {totalIps > 0 && (
+                                <p className="text-[10px] text-muted-foreground">{totalIps.toLocaleString()} IPs</p>
                               )}
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {entry.ssid ? (
-                            <div className="flex items-center gap-1.5">
-                              <Wifi className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-sm font-mono">{entry.ssid}</span>
+                          </TableCell>
+
+                          {/* Portal Instance (mapped) */}
+                          <TableCell>
+                            {mapping?.captivePortal?.name ? (
+                              <div className="flex items-center gap-1.5">
+                                <Monitor className="h-3.5 w-3.5 text-teal-500 shrink-0" />
+                                <span className="text-sm">{mapping.captivePortal.name}</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <Unplug className="h-3.5 w-3.5 text-muted-foreground/40" />
+                                <span className="text-xs text-muted-foreground italic">Not mapped</span>
+                              </div>
+                            )}
+                          </TableCell>
+
+                          {/* SSID */}
+                          <TableCell>
+                            {mapping?.ssid ? (
+                              <div className="flex items-center gap-1">
+                                <Wifi className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-xs font-mono">{mapping.ssid}</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">&mdash;</span>
+                            )}
+                          </TableCell>
+
+                          {/* Plans */}
+                          <TableCell className="text-center">
+                            {pool._count?.plans > 0 ? (
+                              <Badge variant="outline" className="text-[10px]">
+                                <Server className="h-2.5 w-2.5 mr-0.5" />
+                                {pool._count.plans}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">0</span>
+                            )}
+                          </TableCell>
+
+                          {/* Users */}
+                          <TableCell className="text-center">
+                            {pool._count?.users > 0 ? (
+                              <Badge variant="outline" className="text-[10px]">
+                                <Users className="h-2.5 w-2.5 mr-0.5" />
+                                {pool._count.users}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">0</span>
+                            )}
+                          </TableCell>
+
+                          {/* Mapped toggle */}
+                          <TableCell className="text-center">
+                            {mapping ? (
+                              <Switch
+                                checked={mapping.enabled}
+                                onCheckedChange={() => handleToggle({ pool, mapping })}
+                              />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">&mdash;</span>
+                            )}
+                          </TableCell>
+
+                          {/* Actions */}
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              {mapping ? (
+                                <>
+                                  <Button variant="ghost" size="sm" onClick={() => openEdit({ pool, mapping })}>
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={() => setDeleteId(mapping.id)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openCreate(pool)}
+                                  className="text-teal-600 hover:text-teal-700"
+                                >
+                                  <Plus className="h-4 w-4 mr-1" />
+                                  Map
+                                </Button>
+                              )}
                             </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">&mdash;</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {entry.vlanId !== null ? (
-                            <Badge variant="outline" className="text-xs font-mono">
-                              <Network className="h-3 w-3 mr-1" />
-                              VLAN {entry.vlanId}
-                            </Badge>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">&mdash;</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {entry.subnet ? (
-                            <span className="font-mono text-xs bg-muted/60 px-2 py-0.5 rounded">{entry.subnet}</span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">&mdash;</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="text-xs">{entry.priority}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Switch
-                            checked={entry.enabled}
-                            onCheckedChange={() => handleToggle(entry)}
-                          />
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => openEdit(entry)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => setDeleteId(entry.id)}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
 
               {/* Mobile: Card view */}
               <div className="sm:hidden divide-y">
-                {filteredMappings.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className={cn('p-4 space-y-3', !entry.enabled && 'opacity-50')}
-                  >
-                    {/* Portal name + toggle */}
+                {filtered.map(({ pool, mapping }) => (
+                  <div key={pool.id} className={cn('p-4 space-y-3', !pool.enabled && 'opacity-50')}>
+                    {/* Header row: pool name + badge + actions */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <Monitor className="h-4 w-4 text-teal-500 shrink-0" />
+                        <div className={cn(
+                          'p-1.5 rounded-md',
+                          mapping ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-muted'
+                        )}>
+                          <Network className={cn(
+                            'h-4 w-4',
+                            mapping ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+                          )} />
+                        </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{getPortalName(entry)}</p>
-                          {entry.property?.name && (
-                            <p className="text-[10px] text-muted-foreground">{entry.property.name}</p>
-                          )}
+                          <p className="text-sm font-medium truncate">{pool.name}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {mapping ? (
+                              <Badge className="text-[9px] px-1 py-0 bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-700">
+                                <Monitor className="h-2.5 w-2.5 mr-0.5" />
+                                {mapping.captivePortal?.name}
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-[9px] px-1 py-0">
+                                Unmapped
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <Switch
-                        checked={entry.enabled}
-                        onCheckedChange={() => handleToggle(entry)}
-                      />
+                      <div className="flex gap-1 shrink-0">
+                        {mapping ? (
+                          <>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit({ pool, mapping })}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setDeleteId(mapping.id)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button variant="ghost" size="sm" className="h-8 px-2 text-teal-600" onClick={() => openCreate(pool)}>
+                            <Plus className="h-4 w-4 mr-0.5" />Map
+                          </Button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Details grid */}
                     <div className="grid grid-cols-3 gap-2 text-xs">
                       <div>
+                        <span className="text-muted-foreground">Subnet:</span>
+                        <span className="ml-1 font-mono">{formatInet(pool.subnet) || '—'}</span>
+                      </div>
+                      <div>
                         <span className="text-muted-foreground">SSID:</span>
-                        <span className="ml-1">{entry.ssid || '—'}</span>
+                        <span className="ml-1">{mapping?.ssid || '—'}</span>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">VLAN:</span>
-                        <span className="ml-1">{entry.vlanId !== null ? entry.vlanId : '—'}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Priority:</span>
-                        <span className="ml-1">{entry.priority}</span>
+                        <span className="text-muted-foreground">Plans:</span>
+                        <span className="ml-1">{pool._count?.plans || 0}</span>
                       </div>
                     </div>
-                    {entry.subnet && (
-                      <div className="flex items-center gap-1 text-xs">
-                        <Globe className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-muted-foreground">Subnet:</span>
-                        <span className="ml-1 font-mono">{entry.subnet}</span>
-                      </div>
-                    )}
 
-                    {/* Actions */}
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(entry)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setDeleteId(entry.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                    {/* Bottom: toggle + VLAN */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs">
+                        {mapping?.vlanId !== null && mapping.vlanId !== undefined && (
+                          <Badge variant="outline" className="text-[10px] font-mono">
+                            <Globe className="h-2.5 w-2.5 mr-0.5" />
+                            VLAN {mapping.vlanId}
+                          </Badge>
+                        )}
+                        {pool.isDefault && (
+                          <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-200">Default</Badge>
+                        )}
+                      </div>
+                      {mapping && (
+                        <Switch checked={mapping.enabled} onCheckedChange={() => handleToggle({ pool, mapping })} />
+                      )}
                     </div>
                   </div>
                 ))}
@@ -561,22 +707,46 @@ export default function PortalMappingsTab() {
         </CardContent>
       </Card>
 
-      {/* Add/Edit Dialog */}
+      {/* Add/Edit Mapping Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingEntry ? 'Edit Pool Mapping' : 'Add Pool Mapping'}</DialogTitle>
+            <DialogTitle>
+              {editingMapping ? 'Edit Pool Mapping' : `Map "${editingPool?.name || 'Pool'}" to Portal`}
+            </DialogTitle>
             <DialogDescription>
-              {editingEntry
-                ? 'Update the network-to-portal mapping configuration'
-                : 'Create a new mapping to link a portal instance to a network segment'}
+              {editingMapping
+                ? `Update the mapping for ${editingPool?.name || 'this pool'}`
+                : `Assign a captive portal instance to serve for ${editingPool?.name || 'this pool'}`}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+
+          {/* Pool info summary */}
+          {editingPool && (
+            <div className="rounded-lg bg-muted/50 border p-3 space-y-1">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Network className="h-4 w-4 text-muted-foreground" />
+                {editingPool.name}
+                {editingPool.isDefault && (
+                  <Badge variant="outline" className="text-[9px] px-1 py-0">Default</Badge>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground ml-6">
+                {editingPool.subnet && (
+                  <span>Subnet: <span className="font-mono text-foreground">{formatInet(editingPool.subnet)}</span></span>
+                )}
+                {editingPool.gateway && (
+                  <span>Gateway: <span className="font-mono text-foreground">{formatInet(editingPool.gateway)}</span></span>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="grid gap-4 py-2">
             {/* Portal Instance Select */}
             <div className="space-y-2">
               <Label>Portal Instance *</Label>
-              {editingEntry ? (
+              {editingMapping ? (
                 <Input
                   value={portals.find(p => p.id === form.portalId)?.name || 'Assigned Portal'}
                   disabled
@@ -599,9 +769,9 @@ export default function PortalMappingsTab() {
                 </Select>
               )}
               <p className="text-[10px] text-muted-foreground">
-                {editingEntry
+                {editingMapping
                   ? 'Portal cannot be changed after creation'
-                  : 'The captive portal to serve for this network segment'}
+                  : 'The captive portal to serve for clients in this pool'}
               </p>
             </div>
 
@@ -617,7 +787,7 @@ export default function PortalMappingsTab() {
               <p className="text-[10px] text-muted-foreground">WiFi network name (optional)</p>
             </div>
 
-            {/* VLAN + Subnet Row */}
+            {/* VLAN + Priority Row */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>VLAN ID</Label>
@@ -631,20 +801,6 @@ export default function PortalMappingsTab() {
                 <p className="text-[10px] text-muted-foreground">VLAN tag (optional)</p>
               </div>
               <div className="space-y-2">
-                <Label>Subnet</Label>
-                <Input
-                  value={form.subnet}
-                  onChange={(e) => setForm(prev => ({ ...prev, subnet: e.target.value }))}
-                  placeholder="e.g. 10.10.10.0/24"
-                  className="font-mono"
-                />
-                <p className="text-[10px] text-muted-foreground">CIDR subnet (optional)</p>
-              </div>
-            </div>
-
-            {/* Priority + Enabled Row */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
                 <Label>Priority</Label>
                 <Input
                   type="number"
@@ -654,20 +810,13 @@ export default function PortalMappingsTab() {
                 />
                 <p className="text-[10px] text-muted-foreground">Higher = matched first</p>
               </div>
-              <div className="flex items-end space-x-2 pb-1">
-                <Switch
-                  checked={form.enabled}
-                  onCheckedChange={(checked) => setForm(prev => ({ ...prev, enabled: checked }))}
-                />
-                <Label className="text-sm">Enabled</Label>
-              </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { resetForm(); setDialogOpen(false); }}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving || (!editingEntry && !form.portalId)} className="bg-teal-600 hover:bg-teal-700 text-white">
+            <Button onClick={handleSave} disabled={saving || (!editingMapping && !form.portalId)} className="bg-teal-600 hover:bg-teal-700 text-white">
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {editingEntry ? 'Update Mapping' : 'Create Mapping'}
+              {editingMapping ? 'Update Mapping' : 'Create Mapping'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -677,10 +826,10 @@ export default function PortalMappingsTab() {
       <AlertDialog open={!!deleteId} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Pool Mapping?</AlertDialogTitle>
+            <AlertDialogTitle>Remove Pool Mapping?</AlertDialogTitle>
             <AlertDialogDescription>
-              This mapping will be permanently removed. The portal will no longer be
-              associated with this network segment.
+              This pool will no longer be mapped to a captive portal. Clients in this
+              subnet will not see a portal login page.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -689,7 +838,7 @@ export default function PortalMappingsTab() {
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              Remove Mapping
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
