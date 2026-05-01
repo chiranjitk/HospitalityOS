@@ -155,6 +155,20 @@ const IP_ONLY_OPTIONS = new Set([
 const dnsCache = new Map<string, { ip: string; ts: number }>();
 const DNS_CACHE_TTL = 300000; // 5 minutes
 
+/** Hardcoded fallback IPs for well-known NTP hostnames (used when DNS is unavailable) */
+const NTP_FALLBACK_MAP: Record<string, string[]> = {
+  'pool.ntp.org': ['162.159.200.1', '162.159.200.123'],
+  'time.google.com': ['216.239.35.0', '216.239.35.4', '216.239.35.8', '216.239.35.12'],
+  'time.cloudflare.com': ['162.159.200.1', '162.159.200.123'],
+  'time.apple.com': ['17.253.4.253', '17.253.4.254'],
+  'time.windows.com': ['20.190.159.2', '20.190.159.4'],
+  'ntp.ubuntu.com': ['91.189.91.157', '91.189.94.4'],
+  '0.pool.ntp.org': ['162.159.200.1'],
+  '1.pool.ntp.org': ['162.159.200.123'],
+  '2.pool.ntp.org': ['216.239.35.0'],
+  '3.pool.ntp.org': ['216.239.35.4'],
+};
+
 /**
  * Resolve hostname to IPv4 address.
  * Uses dns.promises.lookup (Bun/Node compatible) with getent (fallback).
@@ -198,6 +212,15 @@ function resolveHostname(hostname: string): string {
       return ip;
     }
   } catch {}
+
+  // Method 3: Hardcoded fallback for well-known NTP hostnames
+  const fallback = NTP_FALLBACK_MAP[hostname.toLowerCase()];
+  if (fallback && fallback.length > 0) {
+    const fbIp = fallback[0];
+    dnsCache.set(hostname, { ip: fbIp, ts: Date.now() });
+    log.info(`Resolved ${hostname} → ${fbIp} (hardcoded fallback — DNS unavailable)`);
+    return fbIp;
+  }
 
   log.warn(`Could not resolve hostname "${hostname}" — returning empty (dnsmasq requires IP addresses)`);
   return ''; // Return empty — caller must skip this value
