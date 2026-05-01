@@ -17,6 +17,7 @@
 #   8.  Install dependencies (bun install)
 #   9.  prisma db push (creates ~231 PMS tables)
 #  10.  complete-database.sql (4 helper tables, 6 views, 8 functions)
+#  10b. nftables-service-tables.sql (5 tables for firewall mini-service)
 #  11.  Seed demo data (properties, rooms, plans, users)
 #  12.  Build Next.js standalone
 #  13.  Install PM2 + generate production ecosystem.config.js
@@ -825,6 +826,14 @@ if [[ -f "${APP_DIR}/pgsql-production/complete-database.sql" ]]; then
   success "complete-database.sql applied (4 tables, 6 views, 8 functions)"
 else
   warn "complete-database.sql not found, skipping advanced schema"
+fi
+
+# nftables-service tables (firewall mini-service DB storage)
+if [[ -f "${APP_DIR}/pgsql-production/nftables-service-tables.sql" ]]; then
+  psql -h 127.0.0.1 -U staysuite -d staysuite -f "${APP_DIR}/pgsql-production/nftables-service-tables.sql" 2>&1 | grep -v NOTICE
+  success "nftables-service-tables.sql applied (5 tables: NftGuiRule, NftPortForward, NftRateLimit, NftQuickBlock, NftSchedule)"
+else
+  warn "nftables-service-tables.sql not found, skipping"
 fi
 
 # Re-grant all permissions (after prisma push and complete-database.sql)

@@ -69,6 +69,13 @@ DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME
 echo "[3/4] Creating database structure..."
 $PSQL $DB_CONN -f "$SCRIPT_DIR/complete-database.sql" 2>&1 | grep -v NOTICE
 
+# nftables-service tables (firewall mini-service DB storage)
+echo "[3b/4] Creating nftables-service tables..."
+if [[ -f "$SCRIPT_DIR/nftables-service-tables.sql" ]]; then
+    $PSQL $DB_CONN -f "$SCRIPT_DIR/nftables-service-tables.sql" 2>&1 | grep -v NOTICE
+    echo "  OK nftables-service tables (NftGuiRule, NftPortForward, NftRateLimit, NftQuickBlock, NftSchedule)"
+fi
+
 echo "[4/4] Seeding demo data..."
 DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}" \
   npx tsx prisma/seed.ts 2>&1
