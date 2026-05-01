@@ -1056,49 +1056,49 @@ function WebSurfingTab() {
 
       {/* 4 Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="p-4"><div className="flex items-center gap-3"><Globe className="h-8 w-8 text-violet-500" /><div><p className="text-xs text-muted-foreground">Total Domains</p><p className="text-xl font-bold">{(summary.totalDomains || 0).toLocaleString()}</p></div></div></Card>
-          <Card className="p-4"><div className="flex items-center gap-3"><Activity className="h-8 w-8 text-teal-500" /><div><p className="text-xs text-muted-foreground">Total Traffic</p><p className="text-xl font-bold">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
-          <Card className="p-4"><div className="flex items-center gap-3"><Users className="h-8 w-8 text-amber-500" /><div><p className="text-xs text-muted-foreground">Unique Users</p><p className="text-xl font-bold">{(summary.uniqueUsers || 0).toLocaleString()}</p></div></div></Card>
-          <Card className="p-4"><div className="flex items-center gap-3"><TrendingUp className="h-8 w-8 text-rose-500" /><div><p className="text-xs text-muted-foreground">Top Category</p><p className="text-xl font-bold capitalize">{(summary.topCategory || 'other').replace('_', ' ')}</p></div></div></Card>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Globe className="h-6 w-6 sm:h-8 sm:w-8 text-violet-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Domains</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.totalDomains || 0).toLocaleString()}</p></div></div></Card>
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Activity className="h-6 w-6 sm:h-8 sm:w-8 text-teal-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Traffic</p><p className="text-lg sm:text-xl font-bold truncate">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Users className="h-6 w-6 sm:h-8 sm:w-8 text-amber-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Unique Users</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.uniqueUsers || 0).toLocaleString()}</p></div></div></Card>
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-rose-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Top Category</p><p className="text-lg sm:text-xl font-bold capitalize truncate">{(summary.topCategory || 'other').replace('_', ' ')}</p></div></div></Card>
         </div>
       )}
 
       {/* Filters */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
+        <CardContent className="p-3 sm:p-4">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search domain, IP, or guest name..." value={domainSearch} onChange={(e) => setDomainSearch(e.target.value)} className="pl-9" />
             </div>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
                 {ALL_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" onClick={handleExportCSV}><FileDown className="h-3.5 w-3.5 mr-1.5" /> Export</Button>
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleExportCSV}><FileDown className="h-3.5 w-3.5 mr-1.5" /> Export</Button>
           </div>
         </CardContent>
       </Card>
 
       {/* Top Domains + Category Pie */}
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid md:grid-cols-3 gap-3 sm:gap-4">
         <Card className="md:col-span-2">
-          <CardHeader className="pb-2"><CardTitle className="text-base">Top 20 Most Visited Domains</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm sm:text-base">Top 20 Most Visited Domains</CardTitle></CardHeader>
           <CardContent>
             <ScrollArea className="max-h-64">
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {topDomains.map((d, i) => (
-                  <div key={d.domain} className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground w-5">{i + 1}</span>
-                    <span className="text-xs font-mono w-36 truncate">{d.domain}</span>
-                    <div className="flex-1 h-3 bg-muted rounded-sm overflow-hidden">
+                  <div key={d.domain} className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="text-[10px] sm:text-xs text-muted-foreground w-4 sm:w-5 flex-shrink-0">{i + 1}</span>
+                    <span className="text-[10px] sm:text-xs font-mono w-20 sm:w-36 truncate flex-shrink-0">{d.domain}</span>
+                    <div className="flex-1 h-2.5 sm:h-3 bg-muted rounded-sm overflow-hidden min-w-0">
                       <div className="h-full bg-gradient-to-r from-teal-400 to-emerald-500 rounded-sm" style={{ width: `${(d.bytes / maxDomainBytes) * 100}%` }} />
                     </div>
-                    <span className="text-xs text-muted-foreground w-16 text-right">{formatBytes(d.bytes)}</span>
+                    <span className="text-[10px] sm:text-xs text-muted-foreground w-12 sm:w-16 text-right flex-shrink-0">{formatBytes(d.bytes)}</span>
                   </div>
                 ))}
               </div>
@@ -1106,22 +1106,22 @@ function WebSurfingTab() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-base">Category Distribution</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm sm:text-base">Category Distribution</CardTitle></CardHeader>
           <CardContent>
             <div className="flex flex-col items-center">
               {categoryBreakdown.length > 0 ? (
-                <div className="w-32 h-32 rounded-full" style={{ background: `conic-gradient(${pieGradient})` }} />
+                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full" style={{ background: `conic-gradient(${pieGradient})` }} />
               ) : (
-                <div className="w-32 h-32 rounded-full bg-muted flex items-center justify-center"><span className="text-xs text-muted-foreground">No data</span></div>
+                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-muted flex items-center justify-center"><span className="text-xs text-muted-foreground">No data</span></div>
               )}
-              <div className="mt-4 space-y-2 w-full">
+              <div className="mt-3 sm:mt-4 space-y-1.5 sm:space-y-2 w-full">
                 {categoryBreakdown.map(c => (
-                  <div key={c.name} className="flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: catGradient[c.name] }} />
-                      {c.name.replace('_', ' ')}
+                  <div key={c.name} className="flex items-center justify-between text-[10px] sm:text-xs">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: catGradient[c.name] }} />
+                      <span className="truncate">{c.name.replace('_', ' ')}</span>
                     </span>
-                    <span className="font-medium">{c.pct.toFixed(1)}%</span>
+                    <span className="font-medium flex-shrink-0">{c.pct.toFixed(1)}%</span>
                   </div>
                 ))}
               </div>
@@ -1132,41 +1132,43 @@ function WebSurfingTab() {
 
       {/* Domain Access Logs Table */}
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-base">Domain Access Logs</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-sm sm:text-base">Domain Access Logs</CardTitle></CardHeader>
         <CardContent className="p-0">
           <ScrollArea className="max-h-96">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead>Domain</TableHead>
-                  <TableHead>Source IP</TableHead>
-                  <TableHead>Guest Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-right">Connections</TableHead>
-                  <TableHead className="text-right">Total Bytes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLogs.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No web surfing data available. Data will appear once the DNS logging pipeline is active.</TableCell></TableRow>
-                ) : filteredLogs.slice(0, 200).map((log, idx) => (
-                  <TableRow key={log.id || `${log.domain}-${log.sourceIp || log.source_ip}-${idx}`} className="hover:bg-muted/30">
-                    <TableCell className="text-xs text-muted-foreground">{new Date(log.timestamp || log.lastAccess || log.last_access).toLocaleString()}</TableCell>
-                    <TableCell className="font-mono text-sm">{log.domain}</TableCell>
-                    <TableCell className="font-mono text-xs text-teal-600 dark:text-teal-400">{log.sourceIp || log.source_ip}</TableCell>
-                    <TableCell className="text-xs">{log.guestName || <span className="text-muted-foreground">—</span>}</TableCell>
-                    <TableCell>
-                      <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', catColors[log.category] || catColors.other)}>
-                        {(log.category || 'other').replace('_', ' ')}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm">{log.connections}</TableCell>
-                    <TableCell className="text-right font-mono text-sm">{formatBytes(log.totalBytes)}</TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs whitespace-nowrap">Timestamp</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap">Domain</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap">Source IP</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden sm:table-cell">Guest Name</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden md:table-cell">Category</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap text-right">Conns</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap text-right">Bytes</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredLogs.length === 0 ? (
+                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground text-xs">No web surfing data available. Data will appear once the DNS logging pipeline is active.</TableCell></TableRow>
+                  ) : filteredLogs.slice(0, 200).map((log, idx) => (
+                    <TableRow key={log.id || `${log.domain}-${log.sourceIp || log.source_ip}-${idx}`} className="hover:bg-muted/30">
+                      <TableCell className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">{new Date(log.timestamp || log.lastAccess || log.last_access).toLocaleString()}</TableCell>
+                      <TableCell className="font-mono text-xs sm:text-sm max-w-[100px] sm:max-w-[180px] truncate">{log.domain}</TableCell>
+                      <TableCell className="font-mono text-[10px] sm:text-xs text-teal-600 dark:text-teal-400 whitespace-nowrap">{log.sourceIp || log.source_ip}</TableCell>
+                      <TableCell className="text-[10px] sm:text-xs hidden sm:table-cell">{log.guestName || <span className="text-muted-foreground">—</span>}</TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <span className={cn('text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-medium', catColors[log.category] || catColors.other)}>
+                          {(log.category || 'other').replace('_', ' ')}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-[10px] sm:text-sm">{log.connections}</TableCell>
+                      <TableCell className="text-right font-mono text-[10px] sm:text-sm">{formatBytes(log.totalBytes)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </ScrollArea>
         </CardContent>
       </Card>
@@ -1256,24 +1258,24 @@ function NATLogsTab() {
 
       {/* 4 Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="p-4"><div className="flex items-center gap-3"><Activity className="h-8 w-8 text-sky-500" /><div><p className="text-xs text-muted-foreground">Total Connections</p><p className="text-xl font-bold">{(summary.totalConnections || 0).toLocaleString()}</p></div></div></Card>
-          <Card className="p-4"><div className="flex items-center gap-3"><Download className="h-8 w-8 text-teal-500" /><div><p className="text-xs text-muted-foreground">Total Traffic</p><p className="text-xl font-bold">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
-          <Card className="p-4"><div className="flex items-center gap-3"><Users className="h-8 w-8 text-amber-500" /><div><p className="text-xs text-muted-foreground">Unique Sources</p><p className="text-xl font-bold">{(summary.uniqueSources || 0).toLocaleString()}</p></div></div></Card>
-          <Card className="p-4"><div className="flex items-center gap-3"><Network className="h-8 w-8 text-violet-500" /><div><p className="text-xs text-muted-foreground">Top Protocol</p><p className="text-xl font-bold uppercase">{summary.topProtocol || 'tcp'}</p></div></div></Card>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Activity className="h-6 w-6 sm:h-8 sm:w-8 text-sky-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Connections</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.totalConnections || 0).toLocaleString()}</p></div></div></Card>
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Download className="h-6 w-6 sm:h-8 sm:w-8 text-teal-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Traffic</p><p className="text-lg sm:text-xl font-bold truncate">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Users className="h-6 w-6 sm:h-8 sm:w-8 text-amber-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Unique Sources</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.uniqueSources || 0).toLocaleString()}</p></div></div></Card>
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Network className="h-6 w-6 sm:h-8 sm:w-8 text-violet-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Top Protocol</p><p className="text-lg sm:text-xl font-bold uppercase truncate">{summary.topProtocol || 'tcp'}</p></div></div></Card>
         </div>
       )}
 
       {/* Filters */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
+        <CardContent className="p-3 sm:p-4">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search IP, domain, or guest name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
             </div>
             <Select value={protocolFilter} onValueChange={setProtocolFilter}>
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-32"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Proto</SelectItem>
                 <SelectItem value="tcp">TCP</SelectItem>
@@ -1282,14 +1284,14 @@ function NATLogsTab() {
               </SelectContent>
             </Select>
             <Select value={actionFilter} onValueChange={setActionFilter}>
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-32"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Actions</SelectItem>
                 <SelectItem value="allow">Allow</SelectItem>
                 <SelectItem value="deny">Deny</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" onClick={handleExportCSV}><FileDown className="h-3.5 w-3.5 mr-1.5" /> Export</Button>
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleExportCSV}><FileDown className="h-3.5 w-3.5 mr-1.5" /> Export</Button>
           </div>
         </CardContent>
       </Card>
@@ -1298,56 +1300,58 @@ function NATLogsTab() {
       <Card>
         <CardContent className="p-0">
           <ScrollArea className="max-h-[500px]">
-            <Table>
-              <TableHeader className="sticky top-0 bg-background z-10">
-                <TableRow>
-                  <TableHead className="text-xs">Timestamp</TableHead>
-                  <TableHead className="text-xs">Source IP:Port</TableHead>
-                  <TableHead className="text-xs">Dest IP:Port</TableHead>
-                  <TableHead className="text-xs">Proto</TableHead>
-                  <TableHead className="text-xs">Event</TableHead>
-                  <TableHead className="text-xs text-right">Download ↓</TableHead>
-                  <TableHead className="text-xs text-right">Upload ↑</TableHead>
-                  <TableHead className="text-xs text-right">Packets</TableHead>
-                  <TableHead className="text-xs">Domain</TableHead>
-                  <TableHead className="text-xs">Guest</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLogs.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No NAT log data available. Data will appear once the conntrack logging pipeline is active.</TableCell></TableRow>
-                ) : filteredLogs.slice(0, 200).map((log, idx) => (
-                  <TableRow key={log.id || `nat-${idx}`} className={cn('hover:bg-muted/30', (log.action === 'deny') && 'bg-red-50/50 dark:bg-red-950/10')}>
-                    <TableCell className="text-xs text-muted-foreground font-mono whitespace-nowrap">
-                      {new Date(log.timestamp).toLocaleTimeString()}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      <span className="text-teal-600 dark:text-teal-400">{log.source_ip || log.sourceIp}</span>:<span className="text-muted-foreground">{log.src_port || log.sourcePort}</span>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      <span className="text-amber-600 dark:text-amber-400">{log.dest_ip || log.destIp}</span>:<span className="text-muted-foreground">{log.dst_port || log.destPort}</span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={(log.proto || log.protocol) === 'tcp' ? 'default' : 'outline'} className="text-xs uppercase font-mono">
-                        {log.proto || log.protocol}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {(log.event_type || log.eventType) && (
-                        <Badge variant="outline" className={cn('text-xs font-mono', (log.event_type || log.eventType) === 'DESTROY' && 'text-red-500 border-red-200 dark:border-red-800', (log.event_type || log.eventType) === 'NEW' && 'text-emerald-500 border-emerald-200 dark:border-emerald-800')}>
-                          {log.event_type || log.eventType}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right text-xs font-mono text-teal-600 dark:text-teal-400">{formatBytes(log.bytes_orig || 0)}</TableCell>
-                    <TableCell className="text-right text-xs font-mono text-amber-600 dark:text-amber-400">{formatBytes(log.bytes_reply || 0)}</TableCell>
-                    <TableCell className="text-right text-xs font-mono">{(log.packets || 0).toLocaleString()}</TableCell>
-                    <TableCell className="text-xs font-mono max-w-[120px] truncate">{log.domain || '—'}</TableCell>
-                    <TableCell className="text-xs">{log.guestName || <span className="text-muted-foreground">—</span>}</TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="sticky top-0 bg-background z-10">
+                  <TableRow>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">Time</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">Source</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden lg:table-cell">Dest</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">Proto</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden sm:table-cell">Event</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">↓ DL</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">↑ UL</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right hidden md:table-cell">Pkts</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden md:table-cell">Domain</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden lg:table-cell">Guest</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredLogs.length === 0 ? (
+                    <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground text-xs">No NAT log data available. Data will appear once the conntrack logging pipeline is active.</TableCell></TableRow>
+                  ) : filteredLogs.slice(0, 200).map((log, idx) => (
+                    <TableRow key={log.id || `nat-${idx}`} className={cn('hover:bg-muted/30', (log.action === 'deny') && 'bg-red-50/50 dark:bg-red-950/10')}>
+                      <TableCell className="text-[10px] sm:text-xs text-muted-foreground font-mono whitespace-nowrap">
+                        {new Date(log.timestamp).toLocaleTimeString()}
+                      </TableCell>
+                      <TableCell className="font-mono text-[10px] sm:text-xs whitespace-nowrap">
+                        <span className="text-teal-600 dark:text-teal-400">{log.source_ip || log.sourceIp}</span>:<span className="text-muted-foreground">{log.src_port || log.sourcePort}</span>
+                      </TableCell>
+                      <TableCell className="font-mono text-[10px] sm:text-xs whitespace-nowrap hidden lg:table-cell">
+                        <span className="text-amber-600 dark:text-amber-400">{log.dest_ip || log.destIp}</span>:<span className="text-muted-foreground">{log.dst_port || log.destPort}</span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={(log.proto || log.protocol) === 'tcp' ? 'default' : 'outline'} className="text-[10px] sm:text-xs uppercase font-mono">
+                          {log.proto || log.protocol}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        {(log.event_type || log.eventType) && (
+                          <Badge variant="outline" className={cn('text-[10px] sm:text-xs font-mono', (log.event_type || log.eventType) === 'DESTROY' && 'text-red-500 border-red-200 dark:border-red-800', (log.event_type || log.eventType) === 'NEW' && 'text-emerald-500 border-emerald-200 dark:border-emerald-800')}>
+                            {log.event_type || log.eventType}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right text-[10px] sm:text-xs font-mono text-teal-600 dark:text-teal-400 whitespace-nowrap">{formatBytes(log.bytes_orig || 0)}</TableCell>
+                      <TableCell className="text-right text-[10px] sm:text-xs font-mono text-amber-600 dark:text-amber-400 whitespace-nowrap">{formatBytes(log.bytes_reply || 0)}</TableCell>
+                      <TableCell className="text-right text-[10px] sm:text-xs font-mono hidden md:table-cell">{(log.packets || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-[10px] sm:text-xs font-mono max-w-[100px] sm:max-w-[120px] truncate hidden md:table-cell">{log.domain || '—'}</TableCell>
+                      <TableCell className="text-[10px] sm:text-xs hidden lg:table-cell">{log.guestName || <span className="text-muted-foreground">—</span>}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </ScrollArea>
         </CardContent>
       </Card>
