@@ -168,6 +168,7 @@ interface LogoProps {
 function SidebarItem({ item, isActive, onClick, isFeatureEnabled, hasPermission, collapsed }: SidebarItemProps) {
   const menuItemId = item.href.replace('#', '');
   const featureId = getFeatureForMenuItem(menuItemId);
+  const [isHovered, setIsHovered] = useState(false);
   
   if (!hasPermission) return null;
   
@@ -222,21 +223,40 @@ function SidebarItem({ item, isActive, onClick, isFeatureEnabled, hasPermission,
     <Link
       href={item.href}
       onClick={onClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       className={cn(
         "group/item relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium",
         "transition-all duration-250 ease-out",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-primary/30 focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar",
         isActive
           ? "bg-sidebar-accent/40 text-foreground font-semibold"
-          : "text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:translate-x-[2px]"
+          : "text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
       )}
     >
-      {/* Active left accent bar — gradient */}
+      {/* Active gradient background overlay */}
+      {isActive && (
+        <motion.div
+          className="absolute inset-0 rounded-xl pointer-events-none"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+          style={{
+            background: 'linear-gradient(135deg, oklch(from var(--sidebar-primary) l c h / 0.08), transparent 60%)',
+          }}
+        />
+      )}
+
+      {/* Active left accent bar — gradient with slide animation */}
       <div className={cn(
-        "absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full transition-all duration-300 ease-out",
+        "absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full",
         isActive
           ? "h-5 w-[3px] bg-gradient-to-b from-sidebar-primary via-sidebar-ring to-sidebar-primary"
-          : "h-0 w-0 bg-transparent group-hover/item:h-2 group-hover/item:w-[2px] group-hover/item:bg-sidebar-primary/30"
+          : cn(
+              "h-0 w-0 bg-transparent",
+              isHovered && "h-3 w-[2px] bg-sidebar-primary/40"
+            ),
+        "transition-all duration-300 ease-out"
       )} />
 
       {/* Icon in soft rounded container with glow when active */}
@@ -252,6 +272,11 @@ function SidebarItem({ item, isActive, onClick, isFeatureEnabled, hasPermission,
       <span className={cn(
         "flex-1 truncate transition-all duration-200"
       )}>{item.title}</span>
+
+      {/* Active pulsing dot indicator */}
+      {isActive && (
+        <span className="w-[3px] h-[3px] rounded-full bg-sidebar-primary nav-active-dot flex-shrink-0" />
+      )}
 
       {/* Notification badge with animated pulse */}
       {item.badge && (
@@ -286,9 +311,9 @@ function SidebarSection({ section, isExpanded, onToggle, activeSection, onNavCli
       <button
         onClick={onToggle}
         className={cn(
-          "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] font-semibold uppercase tracking-[0.12em] transition-all duration-200 group/section",
+          "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] font-semibold uppercase tracking-[0.12em] transition-all duration-200 group/section section-btn-highlight",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-primary/30",
-          "hover:bg-sidebar-accent/20",
+          "hover:bg-sidebar-accent/30",
           hasActiveItem 
             ? "text-sidebar-primary" 
             : "text-sidebar-foreground hover:text-sidebar-foreground"
@@ -416,9 +441,10 @@ function SearchInput({ searchQuery, setSearchQuery }: SearchInputProps) {
         <motion.div
           animate={{ 
             x: isFocused ? -1 : 0,
-            scale: isFocused ? 1.05 : 1 
+            scale: isFocused ? 1.05 : 1,
+            rotate: isFocused ? 12 : 0
           }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.25, type: 'spring' }}
         >
           <Search className={cn(
             "absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 transition-colors duration-300 z-10",

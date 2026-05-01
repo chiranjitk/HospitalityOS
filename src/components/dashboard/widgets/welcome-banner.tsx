@@ -116,11 +116,17 @@ export function WelcomeBannerWidget() {
           'relative overflow-hidden rounded-2xl border border-border/50 shadow-sm',
           'bg-gradient-to-r from-emerald-50/80 via-white to-teal-50/60',
           'dark:from-emerald-950/30 dark:via-background dark:to-teal-950/20',
-          'hover:shadow-md transition-shadow duration-300'
+          'hover:shadow-md hover:-translate-y-[1px] transition-all duration-300'
         )}
       >
+        {/* Top 2px gradient accent bar */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 z-10" />
+
+        {/* Subtle inner shadow for depth */}
+        <div className="absolute inset-0 shadow-[inset_0_2px_6px_-2px_oklch(0_0_0/0.04)] dark:shadow-[inset_0_2px_8px_-2px_oklch(0_0_0/0.15)] pointer-events-none rounded-2xl" />
+
         {/* Gradient left border accent */}
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-emerald-500 via-teal-500 to-emerald-600" />
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-emerald-500 via-teal-500 to-emerald-600 z-10" />
 
         {/* Animated shimmer overlay */}
         <motion.div
@@ -131,12 +137,14 @@ export function WelcomeBannerWidget() {
         />
 
         <CardContent className="p-5 flex items-center gap-5 relative">
-          {/* Avatar */}
+          {/* Avatar with gradient ring */}
           <div className="relative shrink-0">
+            {/* Gradient ring around avatar */}
+            <div className="absolute -inset-1 rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-400 opacity-40 blur-[2px] animate-[breathe_2.5s_ease-in-out_infinite]" />
             <div
               className={cn(
-                'flex items-center justify-center w-12 h-12 rounded-full text-white font-bold text-sm',
-                'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20'
+                'relative flex items-center justify-center w-12 h-12 rounded-full text-white font-bold text-sm',
+                'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20 ring-2 ring-white/80 dark:ring-background/80'
               )}
             >
               {initials || '?'}

@@ -818,3 +818,261 @@ html.dark * {
   z-index: 10;
   pointer-events: none;
 }
+
+/* ============================================
+   TASK 10-a: BUTTON STYLING SYSTEM & DECORATIVE CLASSES
+   Gradient buttons, ghost hover, glow badges, patterns, text shadows
+   ============================================ */
+
+/* Gradient background button — primary to teal */
+.btn-primary-gradient {
+  background: linear-gradient(135deg, var(--primary), oklch(0.65 0.16 170));
+  color: var(--primary-foreground);
+  border: none;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px -2px oklch(from var(--primary) l c h / 0.3);
+}
+.btn-primary-gradient:hover {
+  box-shadow: 0 6px 20px -4px oklch(from var(--primary) l c h / 0.4);
+  transform: translateY(-1px);
+}
+.btn-primary-gradient:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Ghost hover button — transparent that shows bg on hover */
+.btn-ghost-hover {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  transition: all 0.2s ease;
+}
+.btn-ghost-hover:hover {
+  background: oklch(from var(--muted) l c h / 0.8);
+  border-color: oklch(from var(--border) l c h / 0.8);
+  box-shadow: 0 2px 8px -2px oklch(0 0 0 / 0.06);
+}
+.btn-ghost-hover:active {
+  transform: scale(0.97);
+}
+
+/* Green glow badge for positive indicators */
+.badge-glow-success {
+  background: oklch(0.94 0.04 145);
+  color: oklch(0.35 0.12 145);
+  box-shadow: 0 0 12px -3px oklch(0.55 0.15 145 / 0.4),
+              inset 0 0 0 1px oklch(0.55 0.15 145 / 0.15);
+}
+.dark .badge-glow-success {
+  background: oklch(0.22 0.05 145);
+  color: oklch(0.78 0.10 145);
+  box-shadow: 0 0 12px -3px oklch(0.55 0.15 145 / 0.25),
+              inset 0 0 0 1px oklch(0.55 0.15 145 / 0.10);
+}
+
+/* Amber glow badge for warning indicators */
+.badge-glow-warning {
+  background: oklch(0.96 0.04 75);
+  color: oklch(0.48 0.12 65);
+  box-shadow: 0 0 12px -3px oklch(0.75 0.15 75 / 0.35),
+              inset 0 0 0 1px oklch(0.75 0.15 75 / 0.12);
+}
+.dark .badge-glow-warning {
+  background: oklch(0.22 0.04 75);
+  color: oklch(0.82 0.08 75);
+  box-shadow: 0 0 12px -3px oklch(0.75 0.15 75 / 0.20),
+              inset 0 0 0 1px oklch(0.75 0.15 75 / 0.08);
+}
+
+/* Subtle dot grid pattern overlay for cards */
+.card-pattern {
+  position: relative;
+  overflow: hidden;
+}
+.card-pattern::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  background-image: radial-gradient(
+    oklch(from var(--border) l c h / 0.5) 1px,
+    transparent 1px
+  );
+  background-size: 16px 16px;
+  pointer-events: none;
+  z-index: 0;
+}
+.dark .card-pattern::after {
+  opacity: 0.15;
+  background-image: radial-gradient(
+    oklch(from var(--border) l c h / 0.3) 1px,
+    transparent 1px
+  );
+}
+
+/* Subtle text shadow for headings */
+.text-shadow-sm {
+  text-shadow: 0 1px 3px oklch(0 0 0 / 0.06);
+}
+.dark .text-shadow-sm {
+  text-shadow: 0 1px 4px oklch(0 0 0 / 0.3);
+}
+
+/* Animated grid pattern overlay for login/hero sections */
+@keyframes gridPulse {
+  0%, 100% { opacity: 0.03; }
+  50% { opacity: 0.06; }
+}
+.grid-pattern-overlay {
+  background-image:
+    linear-gradient(oklch(from var(--border) l c h / 0.5) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(from var(--border) l c h / 0.5) 1px, transparent 1px);
+  background-size: 48px 48px;
+  animation: gridPulse 8s ease-in-out infinite;
+}
+
+/* Rotating gradient border for cards */
+@keyframes rotateGradientBorder {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.border-gradient-rotate {
+  position: relative;
+}
+.border-gradient-rotate::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from 0deg,
+    oklch(0.65 0.16 170),
+    oklch(0.55 0.15 310),
+    oklch(0.78 0.15 75),
+    oklch(0.65 0.16 170)
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: rotateGradientBorder 6s linear infinite;
+  opacity: 0.6;
+}
+
+/* Pulsing glow ring behind logos/icons */
+@keyframes pulsingGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px 4px oklch(from var(--primary) l c h / 0.15);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 40px 8px oklch(from var(--primary) l c h / 0.25);
+    transform: scale(1.04);
+  }
+}
+.pulsing-glow-ring {
+  animation: pulsingGlow 3s ease-in-out infinite;
+}
+
+/* Shimmer sweep across cards */
+@keyframes shimmerSweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+.shimmer-sweep {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer-sweep::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    120deg,
+    transparent 30%,
+    oklch(1 0 0 / 0.05) 45%,
+    oklch(1 0 0 / 0.10) 50%,
+    oklch(1 0 0 / 0.05) 55%,
+    transparent 70%
+  );
+  animation: shimmerSweep 6s ease-in-out infinite 4s;
+  pointer-events: none;
+  z-index: 1;
+}
+.dark .shimmer-sweep::after {
+  background: linear-gradient(
+    120deg,
+    transparent 30%,
+    oklch(1 0 0 / 0.02) 45%,
+    oklch(1 0 0 / 0.04) 50%,
+    oklch(1 0 0 / 0.02) 55%,
+    transparent 70%
+  );
+}
+
+/* Active nav pulsing dot indicator */
+@keyframes navDotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.4); }
+}
+.nav-active-dot {
+  animation: navDotPulse 2s ease-in-out infinite;
+}
+
+/* Sidebar hover border slide */
+.sidebar-border-slide {
+  position: relative;
+}
+.sidebar-border-slide::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%) scaleX(0);
+  transform-origin: left;
+  width: 3px;
+  height: 40%;
+  border-radius: 0 4px 4px 0;
+  background: oklch(from var(--sidebar-primary) l c h / 0.4);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar-border-slide:hover::after {
+  transform: translateY(-50%) scaleX(1);
+}
+
+/* Section button hover highlight */
+.section-btn-highlight {
+  transition: all 0.2s ease;
+}
+.section-btn-highlight:hover {
+  background: oklch(from var(--sidebar-accent) l c h / 0.5);
+}
+
+/* Search icon rotation on focus */
+@keyframes searchIconRotate {
+ 0% { transform: translate(-50%, -50%) rotate(0deg); }
+  25% { transform: translate(-50%, -50%) rotate(12deg); }
+  50% { transform: translate(-50%, -50%) rotate(-8deg); }
+  75% { transform: translate(-50%, -50%) rotate(4deg); }
+  100% { transform: translate(-50%, -50%) rotate(0deg); }
+}
+.search-icon-animate {
+  animation: searchIconRotate 0.5s ease-out;
+}
+
+/* Animated gradient background — slow color shift */
+@keyframes gradientColorShift {
+  0%, 100% { background-position: 0% 50%; }
+  25% { background-position: 50% 100%; }
+  50% { background-position: 100% 50%; }
+  75% { background-position: 50% 0%; }
+}
+.gradient-bg-shift {
+  background-size: 300% 300%;
+  animation: gradientColorShift 15s ease infinite;
+}

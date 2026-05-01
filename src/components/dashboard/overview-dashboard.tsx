@@ -80,6 +80,9 @@ import { GuestDemographicsWidget } from './widgets/guest-demographics';
 import { MaintenanceTrackerProWidget } from './widgets/maintenance-tracker-pro';
 import { RevenueBreakdownDonutWidget } from './widgets/revenue-breakdown-donut';
 import { GuestFeedbackSummaryWidget } from './widgets/guest-feedback-summary';
+import { WeatherForecastWidget } from './widgets/weather-forecast-widget';
+import { LoyaltyTierWidget } from './widgets/loyalty-tier-widget';
+import { MiniRevenueChart } from './widgets/mini-revenue-chart';
 import { LazySection } from './lazy-section';
 
 const OccupancyHeatmap = React.lazy(() => import('./occupancy-heatmap').then(m => ({ default: m.OccupancyHeatmap })));
@@ -174,6 +177,7 @@ function GreetingCard({ occupancy = 0, arrivals = 0, alertsCount = 0 }: {
   let chipBg = 'bg-primary/10 dark:bg-primary/10';
   let chipText = 'text-primary dark:text-primary';
   let clockColor = 'text-primary dark:text-primary';
+  let cardGradientBg = '';
 
   if (hour >= 12 && hour < 17) {
     greeting = t('goodAfternoon'); Icon = CloudSun; accentColor = 'sky';
@@ -181,20 +185,24 @@ function GreetingCard({ occupancy = 0, arrivals = 0, alertsCount = 0 }: {
     iconBg = 'bg-gradient-to-br from-sky-400 to-cyan-600';
     ringColor = 'ring-sky-400/40'; chipBg = 'bg-sky-50 dark:bg-sky-950/40';
     chipText = 'text-sky-700 dark:text-sky-400'; clockColor = 'text-sky-600 dark:text-sky-400';
+    cardGradientBg = 'bg-gradient-to-r from-sky-50/80 via-white to-cyan-50/60 dark:from-sky-950/20 dark:via-background dark:to-cyan-950/15';
   } else if (hour >= 17 && hour < 21) {
     greeting = t('goodEvening'); Icon = Moon; accentColor = 'violet';
     gradient = 'from-violet-500 to-purple-500';
     iconBg = 'bg-gradient-to-br from-violet-400 to-purple-600';
     ringColor = 'ring-violet-400/40'; chipBg = 'bg-violet-50 dark:bg-violet-950/40';
     chipText = 'text-violet-700 dark:text-violet-400'; clockColor = 'text-violet-600 dark:text-violet-400';
+    cardGradientBg = 'bg-gradient-to-r from-violet-50/80 via-white to-purple-50/60 dark:from-violet-950/20 dark:via-background dark:to-purple-950/15';
   } else if (hour >= 21 || hour < 5) {
     greeting = t('goodNight'); Icon = Moon; accentColor = 'slate';
     gradient = 'from-slate-600 to-slate-800';
     iconBg = 'bg-gradient-to-br from-slate-500 to-slate-700';
     ringColor = 'ring-slate-400/40'; chipBg = 'bg-slate-100 dark:bg-slate-800/40';
     chipText = 'text-slate-700 dark:text-slate-400'; clockColor = 'text-slate-500 dark:text-slate-400';
+    cardGradientBg = 'bg-gradient-to-r from-slate-50/80 via-white to-slate-100/60 dark:from-slate-950/20 dark:via-background dark:to-slate-900/15';
   } else {
     greeting = t('goodMorning'); Icon = Sun;
+    cardGradientBg = 'bg-gradient-to-r from-emerald-50/80 via-white to-teal-50/60 dark:from-emerald-950/20 dark:via-background dark:to-teal-950/15';
   }
 
   const dayName = currentTime.toLocaleDateString('en-US', { weekday: 'long' });
@@ -207,24 +215,36 @@ function GreetingCard({ occupancy = 0, arrivals = 0, alertsCount = 0 }: {
       transition={{ duration: 0.5 }}
     >
       <Card className={cn(
-        "relative overflow-hidden rounded-xl border border-border/60 shadow-md hover-lift",
-        "bg-card"
+        "relative overflow-hidden rounded-xl border border-border/60 shadow-md hover-lift shimmer-sweep",
+        cardGradientBg || "bg-card"
       )}>
         <div className={cn("absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r", gradient)} />
         {/* Animated gradient border-bottom glow */}
         <div className="absolute bottom-0 left-0 right-0 h-[2px] animate-[gradientSlide_4s_ease-in-out_infinite bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
 
+        {/* Property watermark behind greeting */}
+        {currentProperty?.name && (
+          <div className="absolute top-1/2 right-4 -translate-y-1/2 select-none pointer-events-none">
+            <span className="text-5xl sm:text-6xl font-extrabold text-foreground/[0.03] dark:text-foreground/[0.04] leading-none tracking-tight whitespace-nowrap">
+              {currentProperty.name}
+            </span>
+          </div>
+        )}
+
         <CardContent className="p-4 sm:p-5 relative z-10">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0 flex-1">
-              {/* Icon */}
-              <div className={cn("flex items-center justify-center w-10 h-10 rounded-xl shadow-md flex-shrink-0", iconBg)}>
-                <Icon className="h-5 w-5 text-white" />
+              {/* Icon with gradient ring */}
+              <div className="relative flex-shrink-0">
+                <div className={cn("absolute -inset-1 rounded-xl bg-gradient-to-br opacity-30 blur-sm animate-[breathe_2.5s_ease-in-out_infinite]", gradient)} />
+                <div className={cn("relative flex items-center justify-center w-10 h-10 rounded-xl shadow-md", iconBg)}>
+                  <Icon className="h-5 w-5 text-white" />
+                </div>
               </div>
 
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                  <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground text-shadow-sm">
                     {greeting}<span className="inline-block animate-[wave_2s_ease-in-out_infinite] origin-[70%_70%]">!</span>
                   </h1>
                   <div className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg border text-xs font-mono font-semibold tabular-nums", chipBg, chipText, "border-border/40")}>
@@ -661,7 +681,7 @@ export default function OverviewDashboard() {
             <div className="grid gap-5 grid-cols-1 lg:grid-cols-3">
               <WiFiLiveStatsWidget />
               <SystemHealthStatusWidget />
-              <WeatherWidget />
+              <WeatherForecastWidget />
             </div>
           </div>
         </LazySection>
@@ -730,6 +750,7 @@ export default function OverviewDashboard() {
               </div>
             </div>
             <div className="grid gap-5 grid-cols-1 md:grid-cols-3">
+              <MiniRevenueChart />
               <RevenueBreakdownDonutWidget />
               <PerformanceScoreWidget />
               <RevenueBreakdownWidget />
@@ -745,9 +766,13 @@ export default function OverviewDashboard() {
             <SectionLabel icon={Crown} title={t('guestIntelligence')} />
             <div className="grid gap-5 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
               <LoyaltyWidget />
+              <LoyaltyTierWidget />
               <StaffPerformanceWidget />
-              <GuestSatisfactionWidget />
               <GuestDemographicsWidget />
+            </div>
+            <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
+              <GuestSatisfactionWidget />
+              <WeatherWidget />
             </div>
           </div>
         </LazySection>

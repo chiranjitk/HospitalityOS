@@ -74,12 +74,12 @@ const containerVariants = {
 };
 
 const cardVariants = {
-  hidden: { opacity: 0, y: 30, scale: 0.96 },
+  hidden: { opacity: 0, y: 10, scale: 0.97 },
   visible: {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { type: 'spring', stiffness: 200, damping: 24, mass: 0.8 },
+    transition: { type: 'spring', stiffness: 220, damping: 22, mass: 0.8 },
   },
 };
 
@@ -718,9 +718,9 @@ export default function LoginPage() {
                 </div>
               </motion.div>
 
-              {/* ── Glassmorphism Card ── */}
+              {/* ── Glassmorphism Card with Rotating Gradient Border ── */}
               <motion.div
-                className="rounded-2xl border border-border/40 dark:border-white/[0.08] bg-card/80 dark:bg-slate-950/60 backdrop-blur-xl shadow-2xl shadow-primary/5 dark:shadow-[0_8px_40px_-12px_rgba(0,0,0,0.5),0_0_80px_-20px_rgba(20,184,166,0.10)] relative overflow-hidden"
+                className="rounded-2xl border border-border/40 dark:border-white/[0.08] bg-card/80 dark:bg-slate-950/60 backdrop-blur-xl shadow-2xl shadow-primary/5 dark:shadow-[0_8px_40px_-12px_rgba(0,0,0,0.5),0_0_80px_-20px_rgba(20,184,166,0.10)] relative overflow-hidden border-gradient-rotate"
                 variants={cardVariants}
                 initial="hidden"
                 animate="visible"
@@ -732,7 +732,7 @@ export default function LoginPage() {
               >
                 {/* Animated gradient border on top edge with shimmer */}
                 <div
-                  className="absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl"
+                  className="absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl z-10"
                   style={{
                     background: 'linear-gradient(90deg, #10b981, #14b8a6, #06b6d4, #10b981)',
                     backgroundSize: '300% 100%',
@@ -745,10 +745,15 @@ export default function LoginPage() {
                 {/* Inner glass highlight */}
                 <div className="absolute inset-0 bg-gradient-to-b from-white/[0.08] to-transparent dark:from-white/[0.03] pointer-events-none" />
 
-                <div className="p-5 sm:p-6 lg:p-8 relative">
+                {/* Subtle animated grid pattern overlay */}
+                <div className="absolute inset-0 grid-pattern-overlay pointer-events-none" />
+
+                <div className="p-5 sm:p-6 lg:p-8 relative z-10">
 
                   {/* Header */}
                   <div className="mb-7">
+                    {/* Pulsing glow ring behind StaySuite logo area */}
+                    <div className="absolute -top-16 -left-16 w-32 h-32 rounded-full bg-gradient-to-br from-emerald-400/20 via-teal-400/15 to-cyan-400/10 blur-2xl pulsing-glow-ring pointer-events-none" />
                     <motion.div
                       className="flex items-center gap-2 mb-2"
                       variants={headerVariants}
@@ -756,7 +761,7 @@ export default function LoginPage() {
                       animate="visible"
                     >
                       <div className="h-8 w-1 rounded-full bg-gradient-to-b from-teal-500 via-emerald-400 to-cyan-500" />
-                      <h2 className="text-xl font-bold text-foreground tracking-tight">
+                      <h2 className="text-xl font-bold text-foreground tracking-tight text-shadow-sm">
                         {requireTwoFactor ? 'Two-factor authentication' : t('signIn')}
                       </h2>
                     </motion.div>
@@ -770,6 +775,18 @@ export default function LoginPage() {
                         ? 'Enter your verification code'
                         : t('signInToYourAccountToContinue')}
                     </motion.p>
+                    {/* Trusted by badge with Shield icon */}
+                    <motion.div
+                      className="mt-3 pl-3"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 22, delay: 0.15 }}
+                    >
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-800/30 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                        <Shield className="h-3 w-3" />
+                        Trusted by 2,500+ properties
+                      </span>
+                    </motion.div>
                   </div>
 
                   {/* Form */}
