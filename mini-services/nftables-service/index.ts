@@ -1816,9 +1816,19 @@ verifyDatabase().then(() => {
   });
 });
 
-export default {
-  port: PORT,
-  fetch: app.fetch,
-};
-
-log.info('nftables-service is running', { port: PORT });
+// Explicit Bun.serve() instead of export default for better error reporting
+try {
+  const server = Bun.serve({
+    port: PORT,
+    hostname: '0.0.0.0',
+    fetch: app.fetch,
+  });
+  log.info('nftables-service is listening', {
+    port: server.port,
+    hostname: server.hostname,
+  });
+} catch (err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  log.error('FATAL: Failed to start nftables-service HTTP server', { port: PORT, error: message });
+  process.exit(1);
+}

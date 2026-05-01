@@ -146,6 +146,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3013,
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       },
     },
     {
