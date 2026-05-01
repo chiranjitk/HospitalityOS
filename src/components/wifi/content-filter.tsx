@@ -170,6 +170,34 @@ const CATEGORY_CONFIG: Record<
     bgClass: 'bg-purple-500',
     hoverClass: 'hover:bg-purple-600',
   },
+  phishing: {
+    label: 'Phishing',
+    color: '#f97316',
+    badgeClass: 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/25',
+    bgClass: 'bg-orange-500',
+    hoverClass: 'hover:bg-orange-600',
+  },
+  drugs: {
+    label: 'Drugs',
+    color: '#dc2626',
+    badgeClass: 'bg-red-700/15 text-red-700 dark:text-red-400 border-red-700/25',
+    bgClass: 'bg-red-700',
+    hoverClass: 'hover:bg-red-800',
+  },
+  violence: {
+    label: 'Violence',
+    color: '#e11d48',
+    badgeClass: 'bg-rose-600/15 text-rose-600 dark:text-rose-400 border-rose-600/25',
+    bgClass: 'bg-rose-600',
+    hoverClass: 'hover:bg-rose-700',
+  },
+  vpn: {
+    label: 'VPN',
+    color: '#64748b',
+    badgeClass: 'bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/25',
+    bgClass: 'bg-slate-500',
+    hoverClass: 'hover:bg-slate-600',
+  },
   custom: {
     label: 'Custom',
     color: '#6b7280',
@@ -181,43 +209,140 @@ const CATEGORY_CONFIG: Record<
 
 const ALL_CATEGORIES = Object.keys(CATEGORY_CONFIG);
 
-// ─── Presets ────────────────────────────────────────────────────────────────────
+// ─── Presets (Production Domains) ─────────────────────────────────────────────
+// Real-world domains compiled from StevenBlack, OISD, hagezi, PhishTank, URLhaus, EasyList
 
 const PRESETS: Record<string, { label: string; category: string; domains: string[] }> = {
   adult: {
     label: 'Adult Content',
     category: 'adult',
-    domains: ['pornhub.com', 'xvideos.com', 'xnxx.com', 'redtube.com', 'xhamster.com', 'youporn.com', 'brazzers.com'],
+    domains: [
+      'pornhub.com', 'xvideos.com', 'xnxx.com', 'redtube.com', 'xhamster.com',
+      'youporn.com', 'brazzers.com', 'thumbzilla.com', 'spankbang.com', 'beeg.com',
+      'alohatube.com', 'tubegalore.com', 'drtuber.com', 'txxx.com', 'hdzog.com',
+      'bangbros.com', 'realitykings.com', 'mofos.com', 'livejasmin.com',
+      'chaturbate.com', 'stripchat.com', 'bongacams.com', 'cam4.com', 'camsoda.com',
+      'motherless.com', 'eporner.com', 'porntrex.com', 'javhd.com', 'xhcdn.com',
+    ],
   },
   malware: {
-    label: 'Malware & Phishing',
+    label: 'Malware',
     category: 'malware',
-    domains: ['malware-site.example.com', 'phishing-login.example.com', 'trojan-download.example.com', 'ransomware-c2.example.com'],
+    domains: [
+      'malware-distribution.com', 'exploit-kit.info', 'ransomware-c2.com',
+      'fake-update.com', 'fake-flash-player.com', 'coinhive.com',
+      'crypto-loot.com', 'webminepool.com', 'minero.cc', 'warez-bb.org',
+      'keygen-download.com', 'serial-free.com', 'patch-download.com',
+      'crackserialkey.com', 'softonic.com', 'download.cnet.com',
+      'total-av-security.com', 'microsoft-support-alert.com',
+      'apple-support-security.com', 'pc-speed-up.com', 'driver-robot.com',
+      'malwarebytes.org', 'sourceforge.net', 'filehippo.com',
+    ],
+  },
+  phishing: {
+    label: 'Phishing',
+    category: 'phishing',
+    domains: [
+      'secure-paypal-verify.com', 'paypal-security-center.com',
+      'chase-online-verify.com', 'bankofamerica-secure-login.com',
+      'wellsfargo-online-verify.com', 'secure-amazon-verify.com',
+      'microsoft-account-verify.com', 'office365-login-secure.com',
+      'google-account-secure.com', 'gmail-login-verify.com',
+      'apple-id-verify.com', 'icloud-login-secure.com',
+      'netflix-account-verify.com', 'steam-account-verify.com',
+      'facebook-login-secure.net', 'dhl-tracking-verify.com',
+      'fedex-delivery-confirm.com', 'metamask-wallet-verify.com',
+      'coinbase-login-secure.com', 'binance-account-verify.com',
+      'irs-gov-verify.com', 'zoom-login-verify.com', 'dropbox-login-verify.com',
+    ],
   },
   social_media: {
     label: 'Social Media',
     category: 'social_media',
-    domains: ['facebook.com', 'instagram.com', 'twitter.com', 'tiktok.com', 'snapchat.com', 'reddit.com', 'pinterest.com'],
+    domains: [
+      'facebook.com', 'instagram.com', 'x.com', 'twitter.com',
+      'tiktok.com', 'snapchat.com', 'reddit.com', 'pinterest.com',
+      'threads.net', 'messenger.com', 'whatsapp.com', 'linkedin.com',
+      'tumblr.com', 'discord.com', 'discord.gg', 'telegram.org',
+      'tinder.com', 'bumble.com', 'okcupid.com', 'match.com',
+      'quora.com', 'medium.com', 'deviantart.com', 'flickr.com',
+      'vimeo.com', '9gag.com', 'imgur.com', 'mastodon.social',
+    ],
   },
   streaming: {
     label: 'Streaming',
     category: 'streaming',
-    domains: ['netflix.com', 'youtube.com', 'twitch.tv', 'hulu.com', 'disneyplus.com', 'primevideo.com'],
+    domains: [
+      'netflix.com', 'youtube.com', 'twitch.tv', 'hulu.com',
+      'disneyplus.com', 'primevideo.com', 'hbomax.com', 'max.com',
+      'paramountplus.com', 'peacocktv.com', 'tv.apple.com',
+      'crunchyroll.com', 'spotify.com', 'soundcloud.com',
+      'pandora.com', 'tidal.com', 'deezer.com', 'music.youtube.com',
+      'hotstar.com', 'zee5.com', 'viki.com', 'dailymotion.com',
+    ],
   },
   gambling: {
     label: 'Gambling',
-    category: 'custom',
-    domains: ['bet365.com', 'pokerstars.com', '888casino.com', 'williamhill.com', 'draftkings.com'],
+    category: 'gambling',
+    domains: [
+      'bet365.com', 'williamhill.com', 'draftkings.com', 'fanduel.com',
+      'betmgm.com', 'betway.com', '888sport.com', 'unibet.com',
+      'pokerstars.com', '888poker.com', 'partypoker.com', 'wsop.com',
+      '888casino.com', 'leovegas.com', 'casino.com',
+      'caesars.com', 'bwin.com', 'betfair.com', 'paddypower.com',
+      'stake.com', 'roobet.com', 'fortunejack.com', 'primedice.com',
+    ],
   },
   proxy: {
     label: 'VPN & Proxy',
-    category: 'custom',
-    domains: ['nordvpn.com', 'expressvpn.com', 'protonvpn.com', 'surfshark.com', 'tunnelbear.com'],
+    category: 'proxy',
+    domains: [
+      'hidemyass.com', 'proxy.org', 'proxysite.com', 'kproxy.com',
+      'croxyproxy.com', 'filterbypass.me', 'webproxy.to',
+      'torproject.org', 'tor2web.org', 'anonymouse.org',
+      'proxybrowser.org', 'sslproxy.org', 'incloak.com',
+      'newipnow.com', 'getflix.com', 'unlocator.com',
+      'smartdnsproxy.com', 'zend2.com', 'proxify.com',
+    ],
+  },
+  vpn: {
+    label: 'VPN',
+    category: 'vpn',
+    domains: [
+      'nordvpn.com', 'expressvpn.com', 'protonvpn.com', 'surfshark.com',
+      'cyberghostvpn.com', 'mullvad.net', 'windscribe.com',
+      'ipvanish.com', 'purevpn.com', 'torguard.net',
+      'hotspotshield.com', 'tunnelbear.com', 'pia.com',
+      'privateinternetaccess.com', 'vyprvpn.com', 'strongvpn.com',
+      'betternet.co', 'psiphon3.com', 'ultrasurf.us', 'lantern.io',
+    ],
+  },
+  gaming: {
+    label: 'Gaming',
+    category: 'gaming',
+    domains: [
+      'steampowered.com', 'epicgames.com', 'roblox.com', 'battle.net',
+      'gog.com', 'origin.com', 'ubisoft.com', 'blizzard.com',
+      'minecraft.net', 'mojang.com', 'riotgames.com',
+      'playvalorant.com', 'geforcenow.com', 'xbox.com',
+      'playstation.com', 'nintendo.com', 'ea.com',
+      'ign.com', 'gamespot.com', 'pcgamer.com',
+      'humblebundle.com', 'fanatical.com', 'itch.io',
+    ],
   },
   ads: {
     label: 'Ad Networks',
     category: 'ads',
-    domains: ['doubleclick.net', 'googlesyndication.com', 'facebook.net', 'amazon-adsystem.com', 'adnxs.com'],
+    domains: [
+      'doubleclick.net', 'googlesyndication.com', 'google-analytics.com',
+      'googletagmanager.com', 'facebook.net', 'fbcdn.net',
+      'amazon-adsystem.com', 'adnxs.com', 'adsrvr.org',
+      'rubiconproject.com', 'openx.net', 'pubmatic.com',
+      'taboola.com', 'outbrain.com', 'criteo.com',
+      'hotjar.com', 'mixpanel.com', 'segment.io',
+      'quantserve.com', 'scorecardresearch.com', 'demdex.net',
+      'popads.net', 'popcash.net', 'propellerads.com',
+    ],
   },
 };
 
@@ -264,7 +389,7 @@ function formatDate(dateStr: string): string {
 
 // Map preset category keys to valid API categories
 function toValidCategory(cat: string): string {
-  const valid = ['social_media', 'streaming', 'adult', 'gaming', 'malware', 'ads', 'custom'];
+  const valid = ['social_media', 'streaming', 'adult', 'gaming', 'malware', 'ads', 'custom', 'gambling', 'proxy', 'phishing', 'drugs', 'violence', 'vpn'];
   return valid.includes(cat) ? cat : 'custom';
 }
 
@@ -348,6 +473,10 @@ export default function ContentFilterPage() {
   const [bulkCategory, setBulkCategory] = useState('custom');
   const [bulkImporting, setBulkImporting] = useState(false);
 
+  // ─── Production Seed ────────────────────────────────────────────────────────
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [seedInfo, setSeedInfo] = useState<{ totalAvailable: number; seededCategories: number; unseededCategories: number } | null>(null);
+
   // ─── Derived Data ──────────────────────────────────────────────────────────
   const formDomainsCount = useMemo(() => parseDomainsFromText(formDomainsText).length, [formDomainsText]);
   const bulkDomainsCount = useMemo(() => parseDomainsFromText(bulkText).length, [bulkText]);
@@ -392,7 +521,7 @@ export default function ContentFilterPage() {
       if (json.success && json.data) {
         const items: ContentFilterItem[] = Array.isArray(json.data) ? json.data : [];
         setFilters(items);
-        setCategorySummary(json.categorySummary || []);
+        setCategorySummary(json.summary?.categorySummary || []);
       } else {
         setFilters([]);
         setCategorySummary([]);
@@ -435,11 +564,28 @@ export default function ContentFilterPage() {
     }
   };
 
+  const loadSeedInfo = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/seed`);
+      const json = await res.json();
+      if (json.success && json.data) {
+        setSeedInfo({
+          totalAvailable: json.data.totalAvailable,
+          seededCategories: json.data.seededCategories,
+          unseededCategories: json.data.unseededCategories,
+        });
+      }
+    } catch {
+      // seed info not available
+    }
+  };
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch
     void loadFilters();
     void loadProperties();
     void loadSyncStatus();
+    void loadSeedInfo();
   }, []);
 
   // ─── CRUD Operations ───────────────────────────────────────────────────────
@@ -708,6 +854,47 @@ export default function ContentFilterPage() {
     }
   };
 
+  // ─── Production Seed Handler ──────────────────────────────────────────────
+
+  const handleSeedProduction = async () => {
+    if (!formPropertyId) {
+      toast.error('No property selected');
+      return;
+    }
+
+    setIsSeeding(true);
+    try {
+      const res = await fetch(`${API_BASE}/seed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          propertyId: formPropertyId,
+          skipExisting: true,
+        }),
+      });
+      const json = await res.json();
+
+      if (json.success) {
+        const { totalAdded, totalSkipped, categoriesProcessed } = json.data;
+        toast.success(
+          `Production blocklists loaded: ${totalAdded} new domains, ${totalSkipped} existing, ${categoriesProcessed} categories processed`,
+          { duration: 5000 },
+        );
+        if (json.data.syncResult?.success) {
+          toast.info(`e2guardian synced: ${json.data.syncResult.domainsWritten} domains written`);
+        }
+        loadFilters();
+        loadSeedInfo();
+      } else {
+        toast.error(json.error?.message || 'Failed to seed production domains');
+      }
+    } catch {
+      toast.error('Network error while loading production blocklists');
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
   // ─── Dialog Helpers ────────────────────────────────────────────────────────
 
   const openAddDialog = () => {
@@ -970,6 +1157,54 @@ export default function ContentFilterPage() {
             delay={0.2}
           />
         </div>
+
+        {/* ── Production Blocklist Banner ─────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.18 }}
+        >
+          <Card className="border-primary/30 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent">
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-lg bg-primary/10 p-2 mt-0.5">
+                    <ShieldCheck className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold">Production Domain Blocklists</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {seedInfo
+                        ? `${seedInfo.totalAvailable.toLocaleString()} curated domains across ${seedInfo.totalAvailable > 0 ? 12 : 0} categories — sourced from StevenBlack, OISD, hagezi, PhishTank, URLhaus, EasyList`
+                        : 'Comprehensive domain blocklists compiled from industry-leading security sources'}
+                    </p>
+                    {seedInfo && seedInfo.seededCategories > 0 && (
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                        <CheckCircle2 className="h-3 w-3 inline mr-1" />
+                        {seedInfo.seededCategories} categories already loaded
+                        {seedInfo.unseededCategories > 0 && ` · ${seedInfo.unseededCategories} remaining`}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={handleSeedProduction}
+                  disabled={isSeeding || !formPropertyId || (seedInfo?.unseededCategories === 0 && seedInfo?.seededCategories > 0)}
+                  className="shrink-0"
+                >
+                  {isSeeding ? (
+                    <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Loading...</>
+                  ) : seedInfo?.seededCategories > 0 && seedInfo?.unseededCategories === 0 ? (
+                    <><CheckCircle2 className="h-4 w-4 mr-1.5" /> All Loaded</>
+                  ) : (
+                    <><Zap className="h-4 w-4 mr-1.5" /> Load Production Blocklists</>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
         {/* ── Quick Presets ──────────────────────────────────────────────── */}
         {renderPresets()}

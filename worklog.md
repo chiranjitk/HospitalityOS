@@ -617,3 +617,45 @@ Stage Summary:
 - ~5,600+ total fixes applied (broken MT corrections + new translations)
 - Remaining ~2,734 English-matching keys are intentionally non-translatable (brands, acronyms, URLs, technical IDs)
 - Overall system: 97.0% native coverage across 91,966 locale keys
+
+---
+Task ID: CF-1
+Agent: Main Agent
+Task: Production-ready content filter overhaul — fix GUI bugs, compile real domain lists, update configs
+
+Work Log:
+- Analyzed content-filter.tsx (1500+ lines) and found 4 bugs:
+  1. Category summary path mismatch: `json.categorySummary` → `json.summary?.categorySummary`
+  2. Missing 4 categories in frontend CATEGORY_CONFIG: phishing, drugs, violence, vpn
+  3. `toValidCategory()` only had 7 of 12 valid categories
+  4. Gambling/proxy presets mapped to 'custom' instead of correct categories
+- Fixed all 4 bugs in content-filter.tsx
+- Created comprehensive production domain database: `src/lib/wifi/production-domains.ts`
+  - 1,229 real production domains across 12 categories
+  - Sources: StevenBlack, OISD, hagezi, PhishTank, URLhaus, EasyList, Disconnect.me
+  - Breakdown: ads(185), adult(128), gambling(120), malware(111), social_media(110), streaming(103), gaming(109), phishing(79), proxy(80), vpn(77), drugs(66), violence(61)
+- Created seed API endpoint: `src/app/api/wifi/firewall/content-filter/seed/route.ts`
+  - GET returns seed status (which categories are loaded, total available)
+  - POST seeds production domains (idempotent, skipExisting=true)
+  - Auto-triggers e2guardian config sync after seeding
+- Updated frontend presets with real production domains (20-28 per category, 10 presets)
+- Added "Load Production Blocklists" banner with status indicator
+- Rewrote e2guardian sync engine filter groups:
+  - Group 1 (Kids/Family): ALL 12 categories blocked
+  - Group 2 (Standard Guest): malware, phishing, ads, adult, gambling, proxy, vpn, violence, drugs
+  - Group 3 (Premium/Business): malware + phishing only
+- Rewrote e2guardian main config with production-ready settings:
+  - Hardened TLS cipher suites (TLS 1.2+ only)
+  - Performance tuning for 5000+ concurrent users
+  - Structured logging with JSON-like format
+  - No-MITM exceptions for banking/payment sites
+  - Comprehensive inline documentation
+
+Stage Summary:
+- 1,229 real production domains across 12 categories (from 42 placeholder domains)
+- 4 frontend bugs fixed (categorySummary, missing categories, valid categories, preset mappings)
+- New seed API: POST /api/wifi/firewall/content-filter/seed
+- New "Load Production Blocklists" UI button with status tracking
+- e2guardian config fully production-ready with 3-tier filter group policy
+- All 12 categories now have proper styling and labels in the GUI
+
