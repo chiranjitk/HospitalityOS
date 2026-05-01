@@ -102,6 +102,7 @@ import dynamic from 'next/dynamic';
 
 const PrintCard = dynamic(() => import('@/components/wifi/print-card').then(m => ({ default: m.PrintCard as any })), { ssr: false });
 const PortalWhitelist = dynamic(() => import('@/components/wifi/portal-whitelist'), { ssr: false });
+const PortalMappings = dynamic(() => import('@/components/wifi/portal-mappings-tab'), { ssr: false });
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Static Config — Credential Format Mapping
@@ -308,6 +309,7 @@ const AMENITY_ICONS: Record<string, typeof Wifi> = {
 
 const TABS = [
   { id: 'portals', label: 'Portal Instances', icon: Monitor },
+  { id: 'mappings', label: 'Pool Mappings', icon: ArrowRightLeft },
   { id: 'designer', label: 'Portal Designer', icon: Palette },
   { id: 'vouchers', label: 'Voucher Designer', icon: Ticket },
   { id: 'print-cards', label: 'Print Cards', icon: Printer },
@@ -434,6 +436,7 @@ export default function PortalPage() {
       </div>
       <div className="mt-4">
         {activeTab === 'portals' && <PortalListTab onPortalsChanged={fetchPortalOptions} />}
+        {activeTab === 'mappings' && <PoolMappingsTab />}
         {activeTab === 'designer' && <PortalDesignerTab portalOptions={portalOptions} />}
         {activeTab === 'vouchers' && <VoucherDesignerTab portalOptions={portalOptions} />}
         {activeTab === 'print-cards' && <PrintCardsTab />}
@@ -1883,6 +1886,10 @@ function VoucherDesignerTab({ portalOptions }: { portalOptions: Array<{ id: stri
 // ═══════════════════════════════════════════════════════════════════════════════
 // Tab 5: Walled Garden / Portal Whitelist
 // ═══════════════════════════════════════════════════════════════════════════════
+
+function PoolMappingsTab() {
+  return <PortalMappings />;
+}
 
 function WhitelistTab() {
   return <PortalWhitelist />;
