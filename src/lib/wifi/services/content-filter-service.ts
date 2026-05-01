@@ -9,6 +9,7 @@
  */
 
 import { db } from '@/lib/db';
+import { PRODUCTION_DOMAINS, getDomainsForCategory } from '@/lib/wifi/production-domains';
 
 export interface ContentFilterCreate {
   tenantId: string;
@@ -164,7 +165,8 @@ class ContentFilterService {
 
   /**
    * Get preset content filter categories
-   * Returns pre-built filter category lists for common hotel use cases
+   * Returns pre-built filter category lists from StaySuite Production Blocklist v2.1
+   * Sources: StevenBlack, OISD, hagezi, PhishTank, URLhaus, EasyList
    */
   getPresetCategories(): Array<{
     category: string;
@@ -172,64 +174,30 @@ class ContentFilterService {
     description: string;
     domains: string[];
   }> {
-    return [
-      {
-        category: 'adult',
-        name: 'Adult Content',
-        description: 'Block adult/explicit content',
-        domains: [
-          'pornhub.com', 'xvideos.com', 'xnxx.com', 'xhamster.com',
-          'redtube.com', 'youporn.com', 'tube8.com', 'spankbang.com',
-        ],
-      },
-      {
-        category: 'streaming',
-        name: 'Video Streaming (High Bandwidth)',
-        description: 'Limit streaming services to reduce bandwidth usage',
-        domains: [
-          'netflix.com', 'youtube.com', 'twitch.tv', 'amazon.com',
-          'hulu.com', 'disneyplus.com', 'hbomax.com', 'peacocktv.com',
-          'primevideo.com', 'dailymotion.com', 'vimeo.com',
-        ],
-      },
-      {
-        category: 'gaming',
-        name: 'Gaming Services',
-        description: 'Block gaming platforms and services',
-        domains: [
-          'steam.com', 'epicgames.com', 'origin.com', 'battle.net',
-          'playstation.com', 'xbox.com', 'nintendo.com', 'roblox.com',
-        ],
-      },
-      {
-        category: 'social_media',
-        name: 'Social Media',
-        description: 'Block social media platforms',
-        domains: [
-          'facebook.com', 'instagram.com', 'twitter.com', 'x.com',
-          'tiktok.com', 'snapchat.com', 'reddit.com', 'linkedin.com',
-          'pinterest.com', 'tumblr.com',
-        ],
-      },
-      {
-        category: 'malware',
-        name: 'Malware & Phishing',
-        description: 'Block known malicious domains',
-        domains: [
-          'malware-site.example.com', 'phishing-site.example.com',
-        ],
-      },
-      {
-        category: 'ads',
-        name: 'Ad Networks',
-        description: 'Block advertising and tracking networks',
-        domains: [
-          'doubleclick.net', 'googlesyndication.com', 'googleadservices.com',
-          'facebook.net', 'ads.yahoo.com', 'adnxs.com',
-          'amazon-adsystem.com', 'taboola.com', 'outbrain.com',
-        ],
-      },
-    ];
+    const categoryMeta: Record<string, { name: string; description: string }> = {
+      adult: { name: 'Adult Content', description: 'Block adult/explicit content — 120+ domains from StevenBlack, OISD' },
+      malware: { name: 'Malware & Exploits', description: 'Block malware distribution, exploit kits, ransomware C2 — from URLhaus, VirusTotal' },
+      phishing: { name: 'Phishing & Scams', description: 'Block credential harvesting, spoofed logins — from PhishTank, OpenPhish' },
+      social_media: { name: 'Social Media', description: 'Block social networks, dating apps, forums, messaging platforms' },
+      streaming: { name: 'Streaming', description: 'Block video/music streaming to reduce bandwidth usage' },
+      gambling: { name: 'Gambling', description: 'Block online casinos, sports betting, poker, DFS, crypto gambling' },
+      drugs: { name: 'Drugs', description: 'Block illegal drug marketplaces, unverified pharmacies, drug content' },
+      violence: { name: 'Violence & Weapons', description: 'Block weapons sales, graphic content, hate groups, extremism' },
+      proxy: { name: 'Proxy & Anonymizer', description: 'Block web proxy services, CGI proxies, TOR access points' },
+      vpn: { name: 'VPN Services', description: 'Block commercial VPN providers and tunnel services' },
+      ads: { name: 'Ad & Tracking Networks', description: 'Block advertising, analytics, retargeting, tracking beacons — 220+ domains' },
+      gaming: { name: 'Gaming Platforms', description: 'Block game stores, gaming social networks, esports, game streaming' },
+      custom: { name: 'Custom', description: 'User-defined custom blocklist' },
+    };
+
+    return Object.entries(PRODUCTION_DOMAINS)
+      .filter(([_, domains]) => domains.length > 0)
+      .map(([category, domains]) => ({
+        category,
+        name: categoryMeta[category]?.name || category,
+        description: categoryMeta[category]?.description || `${domains.length} domains`,
+        domains,
+      }));
   }
 
   /**

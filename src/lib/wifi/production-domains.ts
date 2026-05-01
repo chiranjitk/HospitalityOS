@@ -1,4 +1,7 @@
 /**
+ * StaySuite Production Blocklist v2.1
+ * Updated 2025 sources
+ *
  * Production-Ready Domain Blocklists
  *
  * Comprehensive domain lists compiled from well-known security sources:
@@ -47,8 +50,8 @@ export const PRODUCTION_DOMAINS: Record<string, string[]> = {
     'www.eporner.com', 'porntrex.com', 'www.porntrex.com', 'sexvid.xxx',
 
     // Aggregators and search
-    'pornmd.com', 'www.pornmd.com', 'nudevista.com', 'thumbzilla.com',
-    'findtubes.com', 'porn Tube.com', 'sex.com', 'www.sex.com',
+    'pornmd.com', 'www.pornmd.com', 'findtubes.com',
+    'sex.com', 'www.sex.com',
     'youjizz.com', 'www.youjizz.com', 'lubetube.com', 'shufuni.com',
     'madthumbs.com', 'www.madthumbs.com', 'clipsage.com', 'veporn.com',
     'porngo.com', 'www.porngo.com', 'tabootube.xxx', 'incestflix.org',
@@ -59,7 +62,7 @@ export const PRODUCTION_DOMAINS: Record<string, string[]> = {
 
     // Asian adult
     'javlibrary.com', 'missav.com', 'missav.ws', 'avgle.com',
-    'jable.tv', 'javhd.com', 'caribbeancom.com', '1pon.tv',
+    'jable.tv', 'caribbeancom.com', '1pon.tv',
 
     // Domain variations and related
     'phncdn.com', 'phprcdn.com', 'xhcdn.com', 'xvideos-cdn.com',
@@ -244,7 +247,6 @@ export const PRODUCTION_DOMAINS: Record<string, string[]> = {
     'match.com', 'www.match.com',
     'plentyoffish.com', 'www.plentyoffish.com',
     'hinge.co', 'www.hinge.co',
-    'bumble.com', 'www.bumble.com',
     'grindr.com', 'www.grindr.com',
     'herapp.com', 'zsk.me',
 
@@ -306,7 +308,7 @@ export const PRODUCTION_DOMAINS: Record<string, string[]> = {
     'hbomax.com', 'www.hbomax.com', 'max.com', 'www.max.com',
     'paramountplus.com', 'www.paramountplus.com',
     'peacocktv.com', 'www.peacocktv.com',
-    'apple.com', 'tv.apple.com', 'apple.co',
+    'tv.apple.com', 'apple.co',
     'crunchyroll.com', 'www.crunchyroll.com',
     'funimation.com', 'www.funimation.com',
     'dazn.com', 'www.dazn.com',
@@ -410,8 +412,8 @@ export const PRODUCTION_DOMAINS: Record<string, string[]> = {
 
     // DFS (Daily Fantasy Sports)
     'fanduel.com', 'draftkings.com',
-    'monkeyknife fight.com', 'superdraft.com',
-    ' OwnersBox.com', 'starstreet.com',
+    'monkeyknifefight.com', 'superdraft.com',
+    'ownersbox.com', 'starstreet.com',
 
     // Slot/online games
     'slotomania.com', 'www.slotomania.com',
@@ -423,7 +425,7 @@ export const PRODUCTION_DOMAINS: Record<string, string[]> = {
     // Bingo/specialty
     'bingo.com', 'www.bingo.com',
     'meccabingo.com', 'www.meccabingo.com',
-    'gala bingo.com', 'www.galabingo.com',
+    'galabingo.com', 'www.galabingo.com',
 
     // Crypto gambling
     'stake.com', 'www.stake.com',
@@ -522,7 +524,7 @@ export const PRODUCTION_DOMAINS: Record<string, string[]> = {
     'goregrish.com', 'www.goregrish.com',
     'thecollection.org', 'www.thecollection.org',
     'documentingreality.com', 'www.documentingreality.com',
-    'heyuri.net', 'liveleak.com', 'y一直以来.in',
+    'heyuri.net', 'liveleak.com',
 
     // Hate groups/extremism
     'stormfront.org', 'www.stormfront.org',
@@ -629,7 +631,7 @@ export const PRODUCTION_DOMAINS: Record<string, string[]> = {
     'psiphon3.com', 'www.psiphon3.com',
     'ultrasurf.us', 'www.ultrasurf.us',
     'lantern.io', 'www.lantern.io',
-    'cloudflarewarp.com', '1.1.1.1',
+    'cloudflarewarp.com',
     'warp.plus', 'www.warp.plus',
 
     // VPN for streaming/geo-unblock
@@ -643,13 +645,9 @@ export const PRODUCTION_DOMAINS: Record<string, string[]> = {
     'openvpn.net', 'www.openvpn.net',
     'wireguard.com', 'www.wireguard.com',
     'zerotier.com', 'www.zerotier.com',
-    'tailscale.com', 'www.tailscale.com',
-    'cloudflare.com', 'www.cloudflare.com',
-    'tailscale.com', 'www.tailscale.com',
 
     // Additional
     'proton.me', 'account.proton.me',
-    'mozilla.org', 'vpn.mozilla.org',
   ],
 
   // ═══════════════════════════════════════════════════════════════════════════════
@@ -668,7 +666,6 @@ export const PRODUCTION_DOMAINS: Record<string, string[]> = {
     'pagead2.googlesyndication.com',
     'adservice.google.com', 'adservice.google.co.uk',
     'tpc.googlesyndication.com',
-    'googleads.g.doubleclick.net',
     'pixel.facebook.com',
 
     // Meta (Facebook) advertising
@@ -683,7 +680,6 @@ export const PRODUCTION_DOMAINS: Record<string, string[]> = {
     'amazon.com/gp/ad', 'ad.amazon.com',
 
     // Microsoft advertising
-    'bing.com', 'www.bing.com',
     'ads.microsoft.com', 'ads.yml.org',
     'clk.tradedoubler.com',
 
@@ -709,6 +705,31 @@ export const PRODUCTION_DOMAINS: Record<string, string[]> = {
     'exelator.com', 'www.exelator.com',
     'agkn.com', 'www.agkn.com',
 
+    // Additional major ad/tracking networks (v2.1 additions)
+    'adform.net', 'www.adform.net',
+    'bluekai.com', 'www.bluekai.com',
+    'krxd.net', 'www.krxd.net',
+    'rlcdn.com', 'www.rlcdn.com',
+    'livereveal.com', 'www.livereveal.com',
+    'narrativ.io', 'www.narrativ.io',
+    'demandbase.com', 'www.demandbase.com',
+    'bouncex.com', 'www.bouncex.com',
+    'adtelligent.com', 'www.adtelligent.com',
+    'bidswitch.com', 'www.bidswitch.com',
+    'lkqd.com', 'www.lkqd.com',
+    'spotxchange.com', 'www.spotxchange.com',
+    'teads.tv', 'www.teads.tv',
+    'gravity.com', 'www.gravity.com',
+    'addthis.com', 'www.addthis.com',
+    'addtoany.com', 'www.addtoany.com',
+    'sharethis.com', 'www.sharethis.com',
+    'sumo.com', 'www.sumo.com',
+    'olark.com', 'www.olark.com',
+    'intercom.io', 'www.intercom.io',
+    'drift.com', 'www.drift.com',
+    'hubspot.com', 'www.hubspot.com',
+    'marketo.com', 'www.marketo.com',
+
     // Tracking and analytics
     'hotjar.com', 'www.hotjar.com',
     'mixpanel.com', 'www.mixpanel.com',
@@ -727,8 +748,6 @@ export const PRODUCTION_DOMAINS: Record<string, string[]> = {
     'sitemeter.com', 'www.sitemeter.com',
 
     // Retargeting
-    'criteo.com', 'www.criteo.com',
-    'adroll.com', 'www.adroll.com',
     'perimeterx.com', 'www.perimeterx.com',
     'steelhouse.com', 'www.steelhouse.com',
 
@@ -777,7 +796,6 @@ export const PRODUCTION_DOMAINS: Record<string, string[]> = {
 
     // Privacy invasive
     'fingerprintjs.com', 'www.fingerprintjs.com',
-    'fonts.googleapis.com',
   ],
 
   // ═══════════════════════════════════════════════════════════════════════════════
@@ -786,7 +804,7 @@ export const PRODUCTION_DOMAINS: Record<string, string[]> = {
   gaming: [
     // PC game stores/platforms
     'steampowered.com', 'www.steampowered.com', 'store.steampowered.com',
-    'steampowered.com', 'steamcommunity.com',
+    'steamcommunity.com',
     'epicgames.com', 'www.epicgames.com',
     'gog.com', 'www.gog.com',
     'ea.com', 'www.ea.com',
