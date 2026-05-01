@@ -29,5 +29,29 @@ module.exports = {
       },
       max_memory_restart: '2G',
     },
+    {
+      name: 'staysuite-captive-redirect',
+      script: '/usr/local/bin/bun',
+      args: '--hot index.ts',
+      cwd: '/home/z/my-project/mini-services/captive-redirect',
+      watch: false,
+      autorestart: true,
+      env: {
+        PORT: 8888,
+        PORTAL_PORT: 3000,
+      },
+    },
+    {
+      name: 'staysuite-realtime',
+      script: '/usr/local/bin/bun',
+      args: 'index.ts',
+      cwd: '/home/z/my-project/mini-services/realtime-service',
+      watch: false,
+      autorestart: true,
+      env: {
+        PORT: 3003,
+        DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/staysuite',
+      },
+    },
   ],
 };
