@@ -199,8 +199,8 @@ function resolveHostname(hostname: string): string {
     }
   } catch {}
 
-  log.warn(`Could not resolve hostname "${hostname}" — keeping as-is (dnsmasq may reject this)`);
-  return hostname;
+  log.warn(`Could not resolve hostname "${hostname}" — returning empty (dnsmasq requires IP addresses)`);
+  return ''; // Return empty — caller must skip this value
 }
 
 /**
@@ -238,7 +238,7 @@ function sanitizeDhcpOptionValue(value: string, optionName: string): string {
     // Anything that looks like a hostname — resolve it
     if (looksLikeHostname(p)) return resolveHostname(p);
     return p;
-  });
+  }).filter(Boolean); // Filter out empty strings (failed DNS resolutions)
   return resolved.join(',');
 }
 
@@ -617,7 +617,9 @@ async function generateConfig(): Promise<{ success: boolean; message: string; li
         // Gateway (router option) — resolve hostnames to IPs
         if (sub.gateway) {
           const gatewayIp = resolveHostname(sub.gateway.trim());
-          config += `dhcp-option=option:router,${gatewayIp}\n`;
+          if (gatewayIp) {
+            config += `dhcp-option=option:router,${gatewayIp}\n`;
+          }
         }
 
         // DNS servers — resolve hostnames to IPs (dnsmasq requires IPs)
@@ -646,7 +648,9 @@ async function generateConfig(): Promise<{ success: boolean; message: string; li
         // Next server (PXE/TFTP boot server IP)
         if (sub.nextServer) {
           const nextServerIp = resolveHostname(sub.nextServer.trim());
-          config += `dhcp-option=option:tftp-server,${nextServerIp}\n`;
+          if (nextServerIp) {
+            config += `dhcp-option=option:tftp-server,${nextServerIp}\n`;
+          }
         }
 
         // Boot file name
