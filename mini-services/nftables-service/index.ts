@@ -753,12 +753,16 @@ function ensureGuiChainsExist(): { created: string[]; existing: string[]; errors
       existing.push(chain);
       log.debug(`Chain exists: ${meta.table} ${chain}`);
     } else {
-      const result = nftExec(`add chain ${meta.table} ${chain} { comment "StaySuite GUI Chain: ${meta.description}" }`);
-      if (result.success) {
+      // Use plain `add chain` — the { comment "..." } inline syntax
+      // requires nftables >= 1.0.2 and fails on older versions.
+      const addResult = nftExec(`add chain ${meta.table} ${chain}`);
+      if (addResult.success) {
+        // Add a no-op meta rule as the comment (compatible with all versions)
+        nftExec(`add rule ${meta.table} ${chain} meta mark set 0x00000000 comment "StaySuite GUI Chain: ${meta.description}"`);
         created.push(chain);
         log.info(`Created GUI chain: ${meta.table} ${chain}`);
       } else {
-        errors.push(result);
+        errors.push(addResult);
       }
     }
   }
