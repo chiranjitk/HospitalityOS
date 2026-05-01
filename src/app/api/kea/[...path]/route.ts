@@ -177,6 +177,25 @@ function parsePathSegments(path: string): string[] {
   return path.split('/').filter(Boolean);
 }
 
+const DHCP_SERVICE_URL = process.env.DHCP_SERVICE_URL || 'http://localhost:3011';
+
+/** Proxy a request to the real dhcp-service mini-service on port 3011 */
+async function proxyToDhcpService(path: string, method: string, body?: Record<string, unknown> | null): Promise<Response | null> {
+  try {
+    const url = `${DHCP_SERVICE_URL}${path}`;
+    const opts: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body && ['POST', 'PUT', 'PATCH'].includes(method)) {
+      opts.body = JSON.stringify(body);
+    }
+    const res = await fetch(url, { ...opts, signal: AbortSignal.timeout(8000) });
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
+  } catch {
+    // Mini-service not reachable — caller should fall back to stub
+    return null;
+  }
+}
+
 // ─── Route Handlers ───────────────────────────────────────────────────────────
 
 async function handleRequest(request: NextRequest, method: string) {
@@ -197,8 +216,13 @@ async function handleRequest(request: NextRequest, method: string) {
 
     const propertyId = await getDefaultPropertyId(tenantId);
 
-    // ─── Status ─────────────────────────────────────────────────────────────
+    // ─── Status — proxy to real dhcp-service, fall back to DB-only stub ───
     if (segments[0] === 'status' && method === 'GET') {
+      // Try real mini-service first (has actual dnsmasq process status)
+      const proxied = await proxyToDhcpService('/api/status', 'GET');
+      if (proxied) return proxied;
+
+      // Fallback: DB-only counts (mini-service not running)
       const [subnetCount, leaseCount, activeLeases, reservationCount] = await Promise.all([
         db.dhcpSubnet.count({ where: { tenantId } }),
         db.dhcpLease.count({ where: { tenantId } }),
@@ -214,20 +238,27 @@ async function handleRequest(request: NextRequest, method: string) {
           currentInterfaces: [], systemInterfaces: [],
           configFile: '/etc/dnsmasq.d/staysuite-dhcp.conf',
           leasesFile: '/var/lib/misc/dnsmasq.leases',
+          _warning: 'dhcp-service mini-service not reachable — showing DB-only status',
         },
       });
     }
 
-    // ─── Service Control ────────────────────────────────────────────────────
+    // ─── Service Control — proxy to real dhcp-service for actual start/stop ─
     if (segments[0] === 'service' && segments.length === 2 && method === 'POST') {
       const action = segments[1];
       if (!['start', 'stop', 'restart', 'reload'].includes(action)) {
         return NextResponse.json({ success: false, error: `Invalid action: ${action}` }, { status: 400 });
       }
+
+      // Try real mini-service (actual systemctl / pkill control)
+      const proxied = await proxyToDhcpService(`/api/service/${action}`, 'POST', body);
+      if (proxied) return proxied;
+
+      // Fallback: stub response (mini-service not running)
       return NextResponse.json({
-        success: true,
-        message: `Service ${action} triggered via dnsmasq`,
-        running: action !== 'stop',
+        success: false,
+        error: `dhcp-service mini-service not reachable on port 3011. Cannot ${action} dnsmasq.`,
+        running: false,
       });
     }
 
