@@ -90,7 +90,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     language: createNsProxy(tLanguageFn),
     settings: createNsProxy(tSettingsFn),
     auth: createNsProxy(tAuthFn),
-  }), [locale]); // eslint-disable-line react-hooks/exhaustive-deps
+  }), [locale]);  
 
   // Set locale: save to cookie + full page reload
   const setLocale = useCallback(async (newLocale: Locale) => {

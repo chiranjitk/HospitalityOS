@@ -35,7 +35,7 @@ export function AttachmentPreview({ attachment }: { attachment: ChatAttachment }
   if (isImageFile(attachment.mimeType) && !error) {
     return (
       <div className="relative inline-block max-w-[200px] rounded-lg overflow-hidden border">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
+        { }
         <img
           src={attachment.fileUrl}
           alt={attachment.fileName}

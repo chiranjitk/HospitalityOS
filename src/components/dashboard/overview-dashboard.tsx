@@ -76,6 +76,7 @@ import { ActivityTimelineWidget } from './widgets/activity-timeline';
 import { StaffDutyRosterWidget } from './widgets/staff-duty-roster';
 import { RevenueForecastWidget } from './widgets/revenue-forecast';
 import { GuestDemographicsWidget } from './widgets/guest-demographics';
+import { LazySection } from './lazy-section';
 
 const OccupancyHeatmap = React.lazy(() => import('./occupancy-heatmap').then(m => ({ default: m.OccupancyHeatmap })));
 
@@ -630,25 +631,29 @@ export default function OverviewDashboard() {
         </div>
 
         {/* ── Operations Center ── */}
-        <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
-          <SectionLabel icon={Radio} title={t('operationsCenter')} />
-          <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
-            <ShiftSummaryWidget />
-            <OperationsBoardWidget />
-            <QuickNotesWidget />
-            <TaskRemindersWidget />
+        <LazySection>
+          <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
+            <SectionLabel icon={Radio} title={t('operationsCenter')} />
+            <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
+              <ShiftSummaryWidget />
+              <OperationsBoardWidget />
+              <QuickNotesWidget />
+              <TaskRemindersWidget />
+            </div>
           </div>
-        </div>
+        </LazySection>
 
         {/* ── Network & Connectivity ── */}
-        <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
-          <SectionLabel icon={Wifi} title={t('networkConnectivity')} />
-          <div className="grid gap-5 grid-cols-1 lg:grid-cols-3">
-            <WiFiLiveStatsWidget />
-            <SystemHealthStatusWidget />
-            <WeatherWidget />
+        <LazySection>
+          <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
+            <SectionLabel icon={Wifi} title={t('networkConnectivity')} />
+            <div className="grid gap-5 grid-cols-1 lg:grid-cols-3">
+              <WiFiLiveStatsWidget />
+              <SystemHealthStatusWidget />
+              <WeatherWidget />
+            </div>
           </div>
-        </div>
+        </LazySection>
 
         {/* ── Front Desk & Rooms ── */}
         <div className="relative z-10 space-y-2">
@@ -666,99 +671,121 @@ export default function OverviewDashboard() {
         </div>
 
         {/* ── Alerts, Activity & Staff ── */}
-        <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
-          <SectionLabel icon={Bell} title={t('alertsActivity')} />
-          <div className="grid gap-5 grid-cols-1 md:grid-cols-3">
-            <AlertsWidget alerts={summary?.alerts || []} isLoading={isLoading} />
-            <RecentActivityFeed />
-            <StaffOnDutyWidget />
-          </div>
-        </div>
-
-        {/* ── Activity Timeline ── */}
-        <div className="relative z-10">
-          <ActivityTimelineWidget />
-        </div>
-
-        {/* ── Staff Duty Roster ── */}
-        <div className="relative z-10">
-          <StaffDutyRosterWidget />
-        </div>
-
-        {/* ── Maintenance & Guest Insights ── */}
-        <div className="relative z-10 space-y-2">
-          <SectionLabel icon={Wrench} title={t('maintenanceInsights')} />
-          <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
-            <MaintenanceTrackerWidget />
-            <GuestSegmentsWidget />
-          </div>
-        </div>
-
-        {/* ── Revenue & Performance ── */}
-        <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
-          <SectionLabel icon={Zap} title={t('revenuePerformance')} />
-          <div className="grid gap-5 grid-cols-1 lg:grid-cols-3">
-            <DailyPerformanceScoreWidget />
-            <div className="lg:col-span-2">
-              <RevenueTrendWidget />
+        <LazySection>
+          <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
+            <SectionLabel icon={Bell} title={t('alertsActivity')} />
+            <div className="grid gap-5 grid-cols-1 md:grid-cols-3">
+              <AlertsWidget alerts={summary?.alerts || []} isLoading={isLoading} />
+              <RecentActivityFeed />
+              <StaffOnDutyWidget />
             </div>
           </div>
-          <div className="grid gap-5 grid-cols-1 md:grid-cols-2">
-            <PerformanceScoreWidget />
-            <RevenueBreakdownWidget />
+        </LazySection>
+
+        {/* ── Activity Timeline ── */}
+        <LazySection>
+          <div className="relative z-10">
+            <ActivityTimelineWidget />
           </div>
-          <RatePlanComparisonWidget />
-          <RevenueForecastWidget />
-        </div>
+        </LazySection>
+
+        {/* ── Staff Duty Roster ── */}
+        <LazySection>
+          <div className="relative z-10">
+            <StaffDutyRosterWidget />
+          </div>
+        </LazySection>
+
+        {/* ── Maintenance & Guest Insights ── */}
+        <LazySection>
+          <div className="relative z-10 space-y-2">
+            <SectionLabel icon={Wrench} title={t('maintenanceInsights')} />
+            <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
+              <MaintenanceTrackerWidget />
+              <GuestSegmentsWidget />
+            </div>
+          </div>
+        </LazySection>
+
+        {/* ── Revenue & Performance ── */}
+        <LazySection>
+          <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
+            <SectionLabel icon={Zap} title={t('revenuePerformance')} />
+            <div className="grid gap-5 grid-cols-1 lg:grid-cols-3">
+              <DailyPerformanceScoreWidget />
+              <div className="lg:col-span-2">
+                <RevenueTrendWidget />
+              </div>
+            </div>
+            <div className="grid gap-5 grid-cols-1 md:grid-cols-2">
+              <PerformanceScoreWidget />
+              <RevenueBreakdownWidget />
+            </div>
+            <RatePlanComparisonWidget />
+            <RevenueForecastWidget />
+          </div>
+        </LazySection>
 
         {/* ── Guest Intelligence ── */}
-        <div className="relative z-10 space-y-2">
-          <SectionLabel icon={Crown} title={t('guestIntelligence')} />
-          <div className="grid gap-5 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-            <LoyaltyWidget />
-            <StaffPerformanceWidget />
-            <GuestSatisfactionWidget />
-            <GuestDemographicsWidget />
+        <LazySection>
+          <div className="relative z-10 space-y-2">
+            <SectionLabel icon={Crown} title={t('guestIntelligence')} />
+            <div className="grid gap-5 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+              <LoyaltyWidget />
+              <StaffPerformanceWidget />
+              <GuestSatisfactionWidget />
+              <GuestDemographicsWidget />
+            </div>
           </div>
-        </div>
+        </LazySection>
 
         {/* ── Channel & Communication ── */}
-        <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
-          <SectionLabel icon={MessageSquare} title={t('channelCommunication')} />
-          <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
-            <ChannelPerformanceWidget />
-            <GuestCommunicationWidget />
+        <LazySection>
+          <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
+            <SectionLabel icon={MessageSquare} title={t('channelCommunication')} />
+            <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
+              <ChannelPerformanceWidget />
+              <GuestCommunicationWidget />
+            </div>
           </div>
-        </div>
+        </LazySection>
 
         {/* ── Upcoming ── */}
-        <div className="relative z-10 space-y-2">
-          <SectionLabel icon={Calendar} title={t('upcomingSection')} />
-          <div className="grid gap-5 grid-cols-1 lg:grid-cols-3">
-            <UpcomingArrivals />
-            <MiniCalendarWidget />
-            <UpcomingEventsWidget />
+        <LazySection>
+          <div className="relative z-10 space-y-2">
+            <SectionLabel icon={Calendar} title={t('upcomingSection')} />
+            <div className="grid gap-5 grid-cols-1 lg:grid-cols-3">
+              <UpcomingArrivals />
+              <MiniCalendarWidget />
+              <UpcomingEventsWidget />
+            </div>
           </div>
-        </div>
+        </LazySection>
 
         {/* ── Guest Feedback ── */}
-        <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
-          <SectionLabel icon={Users} title={t('guestFeedbackSection')} />
-          <GuestFeedbackWidget />
-        </div>
+        <LazySection>
+          <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
+            <SectionLabel icon={Users} title={t('guestFeedbackSection')} />
+            <GuestFeedbackWidget />
+          </div>
+        </LazySection>
 
         {/* ── Analytics ── */}
-        <div className="relative z-10 space-y-2">
-          <SectionLabel icon={BarChart3} title={t('analytics')} />
-          <DashboardCharts />
-        </div>
+        <LazySection>
+          <div className="relative z-10 space-y-2">
+            <SectionLabel icon={BarChart3} title={t('analytics')} />
+            <DashboardCharts />
+          </div>
+        </LazySection>
 
         {/* ── Occupancy Heatmap ── */}
-        <div className="relative z-10">
-          <Suspense fallback={<div className="h-48 bg-muted/50 rounded-2xl animate-pulse" />}>
-            <OccupancyHeatmap />
-          </Suspense>
-        </div>
+        <LazySection skeletonHeight="h-48">
+          <div className="relative z-10">
+            <Suspense fallback={<div className="h-48 bg-muted/50 rounded-2xl animate-pulse" />}>
+              <OccupancyHeatmap />
+            </Suspense>
+          </div>
+        </LazySection>
 
       </div>
     </>

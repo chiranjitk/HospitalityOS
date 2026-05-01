@@ -167,7 +167,7 @@ export default function LoginPage() {
     const message = searchParams.get('message');
 
     if (oauthError) {
-      setError(decodeURIComponent(oauthError));
+      setTimeout(() => setError(decodeURIComponent(oauthError)), 0);
     } else if (message === 'google_linked') {
       toast({
         title: 'Google Account Linked',
@@ -284,13 +284,38 @@ export default function LoginPage() {
   // Demo credentials are only available in development mode
   const showDemoCredentials = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production';
   const demoCredentials = showDemoCredentials ? [
-    { role: 'Admin', email: 'admin@royalstay.in', password: 'admin123', color: 'bg-gradient-to-br from-violet-600 to-purple-600', ring: 'ring-violet-500/30', icon: Shield },
-    { role: 'Front Desk', email: 'frontdesk@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-teal-500 to-emerald-500', ring: 'ring-teal-500/30', icon: ConciergeBell },
-    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-amber-500 to-orange-500', ring: 'ring-amber-500/30', icon: Bath },
+    { role: 'Admin', email: 'admin@royalstay.in', password: 'admin123', color: 'bg-gradient-to-br from-violet-600 to-purple-600', ring: 'ring-violet-500/30', icon: Shield, barColor: 'bg-amber-400' },
+    { role: 'Front Desk', email: 'frontdesk@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-teal-500 to-emerald-500', ring: 'ring-teal-500/30', icon: ConciergeBell, barColor: 'bg-teal-400' },
+    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-amber-500 to-orange-500', ring: 'ring-amber-500/30', icon: Bath, barColor: 'bg-violet-400' },
   ] : [];
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden">
+      {/* ── Inline Keyframe Animations ── */}
+      <style jsx>{`
+        @keyframes floatOrb1 {
+          0%, 100% { transform: translate(0, 0); }
+          25% { transform: translate(20px, -15px); }
+          50% { transform: translate(-10px, 10px); }
+          75% { transform: translate(15px, -5px); }
+        }
+        @keyframes floatOrb2 {
+          0%, 100% { transform: translate(0, 0); }
+          25% { transform: translate(-15px, 20px); }
+          50% { transform: translate(10px, -10px); }
+          75% { transform: translate(-5px, 15px); }
+        }
+        @keyframes floatOrb3 {
+          0%, 100% { transform: translate(0, 0); }
+          25% { transform: translate(15px, 10px); }
+          50% { transform: translate(-20px, -15px); }
+          75% { transform: translate(10px, -10px); }
+        }
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+      `}</style>
       <div className="flex flex-1 min-h-0">
         {/* ═══════════════════════════════════════════
             LEFT SIDE - Brand with AI Image Slideshow
@@ -557,6 +582,29 @@ export default function LoginPage() {
             />
           </div>
 
+          {/* ══ Animated floating orbs with float keyframes ══ */}
+          <div
+            className="absolute -top-20 -left-20 w-72 h-72 rounded-full blur-3xl pointer-events-none opacity-50"
+            style={{
+              background: 'linear-gradient(135deg, rgba(16,185,129,0.35), rgba(20,184,166,0.25))',
+              animation: 'floatOrb1 8s ease-in-out infinite',
+            }}
+          />
+          <div
+            className="absolute -bottom-16 -right-16 w-80 h-80 rounded-full blur-3xl pointer-events-none opacity-45"
+            style={{
+              background: 'linear-gradient(135deg, rgba(245,158,11,0.35), rgba(249,115,22,0.25))',
+              animation: 'floatOrb2 10s ease-in-out infinite',
+            }}
+          />
+          <div
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full blur-3xl pointer-events-none opacity-30"
+            style={{
+              background: 'linear-gradient(135deg, rgba(139,92,246,0.30), rgba(167,139,250,0.20))',
+              animation: 'floatOrb3 12s ease-in-out infinite',
+            }}
+          />
+
           {/* Decorative grid pattern */}
           <svg
             className="absolute inset-0 w-full h-full opacity-[0.035] pointer-events-none"
@@ -672,7 +720,7 @@ export default function LoginPage() {
 
               {/* ── Glassmorphism Card ── */}
               <motion.div
-                className="rounded-2xl border border-white/60 dark:border-white/[0.08] bg-white/70 dark:bg-slate-950/60 backdrop-blur-2xl shadow-[0_8px_40px_-12px_rgba(0,0,0,0.10),0_0_80px_-20px_rgba(20,184,166,0.08)] dark:shadow-[0_8px_40px_-12px_rgba(0,0,0,0.5),0_0_80px_-20px_rgba(20,184,166,0.10)] relative overflow-hidden"
+                className="rounded-2xl border border-border/40 dark:border-white/[0.08] bg-card/80 dark:bg-slate-950/60 backdrop-blur-xl shadow-2xl shadow-primary/5 dark:shadow-[0_8px_40px_-12px_rgba(0,0,0,0.5),0_0_80px_-20px_rgba(20,184,166,0.10)] relative overflow-hidden"
                 variants={cardVariants}
                 initial="hidden"
                 animate="visible"
@@ -682,8 +730,15 @@ export default function LoginPage() {
                   transition: { duration: 0.4, ease: 'easeOut' },
                 }}
               >
-                {/* Animated gradient border on top edge */}
-                <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-teal-500 via-emerald-400 via-cyan-400 to-violet-500 bg-[length:200%_100%]" style={{ animation: 'loginGradientShift 4s ease infinite' }} />
+                {/* Animated gradient border on top edge with shimmer */}
+                <div
+                  className="absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl"
+                  style={{
+                    background: 'linear-gradient(90deg, #10b981, #14b8a6, #06b6d4, #10b981)',
+                    backgroundSize: '300% 100%',
+                    animation: 'shimmer 3s ease-in-out infinite',
+                  }}
+                />
                 {/* Subtle animated border glow on top edge */}
                 <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-emerald-400/30 to-transparent" style={{ animation: 'loginGlowPulse 4s ease-in-out infinite' }} />
 
@@ -873,12 +928,13 @@ export default function LoginPage() {
                             type="submit"
                             className={cn(
                               "w-full h-12 rounded-xl font-semibold text-sm transition-all duration-300",
-                              "bg-gradient-to-r from-orange-600 via-amber-500 to-orange-500 bg-[length:200%_100%]",
-                              "hover:bg-right hover:shadow-[0_8px_30px_-8px_rgba(249,115,22,0.35)]",
-                              "dark:from-orange-500 dark:via-amber-400 dark:to-orange-400",
-                              "text-white",
-                              "hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]",
-                              "disabled:opacity-70 disabled:hover:translate-y-0 disabled:shadow-lg disabled:active:scale-100",
+                              "bg-gradient-to-r from-primary to-primary/80",
+                              "hover:shadow-lg hover:shadow-primary/25 hover:scale-[1.02]",
+                              "active:scale-95",
+                              "dark:from-primary dark:to-primary/70",
+                              "text-primary-foreground",
+                              "hover:-translate-y-0.5 active:translate-y-0",
+                              "disabled:opacity-70 disabled:hover:translate-y-0 disabled:shadow-none disabled:active:scale-100 disabled:hover:scale-100",
                               "relative overflow-hidden group"
                             )}
                             disabled={isLoading}
@@ -1084,9 +1140,12 @@ export default function LoginPage() {
                                   "hover:bg-white/60 dark:hover:bg-slate-900/60",
                                   "hover:border-teal-300/60 dark:hover:border-teal-600/40",
                                   "hover:shadow-[0_8px_24px_-8px_rgba(20,184,166,0.08)]",
-                                  "group"
+                                  "group",
+                                  "relative overflow-hidden"
                                 )}
                               >
+                                {/* Subtle left color bar */}
+                                <div className={cn("absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full", cred.barColor)} />
                                 <motion.div
                                   className={cn(
                                     "h-9 w-9 rounded-xl flex items-center justify-center shadow-md",
@@ -1140,7 +1199,10 @@ export default function LoginPage() {
               {/* ── Mobile footer (sticky at bottom when content is short) ── */}
               <div className="flex-1" />
               <div className="lg:hidden text-center text-xs text-muted-foreground/60 pt-4 mt-4 border-t border-border/50">
-                <p>&copy; 2026 Cryptsk Pvt Ltd &middot; All rights reserved</p>
+                <p className="flex items-center justify-center gap-1">
+                  <Zap className="h-3 w-3 text-amber-500" />
+                  Powered by StaySuite HospitalityOS
+                </p>
               </div>
             </div>
           </div>
@@ -1149,16 +1211,16 @@ export default function LoginPage() {
 
       {/* ═══ Sticky footer for desktop (below the flex row) ═══ */}
       <div className="hidden lg:flex items-center justify-center py-3 px-4 bg-background/80 dark:bg-background/40 backdrop-blur-sm border-t border-border/30 text-xs text-muted-foreground/60">
+        <span className="flex items-center gap-1">
+          <Zap className="h-3 w-3 text-amber-500" />
+          <span>Powered by StaySuite HospitalityOS</span>
+        </span>
+        <span className="mx-2">&middot;</span>
         <span>&copy; 2026 Cryptsk Pvt Ltd</span>
         <span className="mx-2">&middot;</span>
         <span className="hover:text-muted-foreground/80 transition-colors cursor-pointer">Privacy</span>
         <span className="mx-2">&middot;</span>
         <span className="hover:text-muted-foreground/80 transition-colors cursor-pointer">Terms</span>
-        <span className="mx-2">&middot;</span>
-        <span className="flex items-center gap-1">
-          <Hotel className="h-3 w-3 text-teal-500" />
-          StaySuite Hospitality OS
-        </span>
       </div>
     </div>
   );
