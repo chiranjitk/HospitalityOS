@@ -3,17 +3,17 @@
    Each theme transforms sidebar, cards, backgrounds, header
    ============================================ */
 
-/* --- 1. GRADIENT MODERN: Purple gradient sidebar, vibrant card borders --- */
+/* --- 1. GRADIENT MODERN: Clean light sidebar, vibrant card borders --- */
 [data-theme="gradient-modern"] aside {
   background: var(--sidebar) !important;
-  border-right: 1px solid oklch(0.40 0.10 275 / 0.3) !important;
+  border-right: 1px solid oklch(0.88 0.02 275 / 0.6) !important;
 }
 [data-theme="gradient-modern"] aside::before {
   content: '';
   position: absolute;
   top: 0; right: 0;
   width: 3px; height: 100%;
-  background: linear-gradient(180deg, oklch(0.60 0.20 275), oklch(0.50 0.18 290), oklch(0.60 0.16 310));
+  background: linear-gradient(180deg, oklch(0.50 0.20 275 / 0.6), oklch(0.45 0.18 290 / 0.4), oklch(0.55 0.16 310 / 0.2));
 }
 [data-theme="gradient-modern"] [data-slot="card"] {
   border: 1px solid oklch(0.85 0.03 275) !important;
