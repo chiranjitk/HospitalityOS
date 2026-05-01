@@ -59,20 +59,59 @@ error()   { echo -e "${RED}  XX ${NC}$*"; }
 step()    { echo -e "\n${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"; echo -e "${BOLD}${CYAN}  STEP $1/$STEPS │ $2${NC}"; echo -e "${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"; }
 die()     { error "$@"; exit 1; }
 
-# ── PostgreSQL restart helper (avoids systemd rate-limit) ─────────────────────
+# ── Robust wait helpers (eliminates all race conditions) ─────────────────
+# Wait for pg_isready to succeed (up to $1 seconds, default 30)
+wait_for_pg() {
+  local timeout="${1:-30}"
+  local host="${2:-127.0.0.1}"
+  local port="${3:-5432}"
+  local i
+  for i in $(seq 1 "$timeout"); do
+    if pg_isready -h "$host" -p "$port" -q 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+# Wait for a systemd service to be active (up to $1 seconds, default 30)
+wait_for_service() {
+  local service="${1:?service name required}"
+  local timeout="${2:-30}"
+  local i
+  for i in $(seq 1 "$timeout"); do
+    if systemctl is-active --quiet "$service" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+# Wait for a TCP port to be listening (up to $1=port $2=timeout $3=host)
+wait_for_tcp() {
+  local port="${1:?port required}"
+  local host="${3:-127.0.0.1}"
+  local timeout="${2:-30}"
+  local i
+  for i in $(seq 1 "$timeout"); do
+    if ss -tlnp 2>/dev/null | grep -q ":${port} "; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+# ── PostgreSQL restart helper (now with TCP verification) ────────────────────
 restart_pg() {
-  # Reset systemd's failed state so we don't hit "Start request repeated too quickly"
   systemctl reset-failed "postgresql-${PG_MAJOR}" 2>/dev/null || true
   systemctl restart "postgresql-${PG_MAJOR}"
-  sleep 2
-  if ! systemctl is-active --quiet "postgresql-${PG_MAJOR}"; then
-    error "PostgreSQL ${PG_MAJOR} failed to start! Showing log:"
-    PG_LOG="${PG_DATA}/log"
-    if [[ -d "$PG_LOG" ]]; then
-      cat "$(ls -t "$PG_LOG"/*.log 2>/dev/null | head -1)" 2>/dev/null | tail -30
-    else
-      journalctl -u "postgresql-${PG_MAJOR}" -n 30 --no-pager 2>&1
-    fi
+  systemctl enable "postgresql-${PG_MAJOR}" 2>/dev/null || true
+  if ! wait_for_pg 30; then
+    error "PostgreSQL ${PG_MAJOR} failed to become TCP-ready after restart!"
+    journalctl -u "postgresql-${PG_MAJOR}" -n 20 --no-pager 2>&1
     die "Fix the error above and re-run the script."
   fi
 }
@@ -448,14 +487,14 @@ sql {
   radius_db = "staysuite"
 
   pool {
-    start = 5
-    min = 3
-    max = 20
-    spare = 5
+    start = 1
+    min = 1
+    max = 10
+    spare = 3
     uses = 0
     lifetime = 0
     idle_timeout = 60
-    connect_timeout = 3.0
+    connect_timeout = 5.0
   }
 
   read_clients = no
@@ -702,14 +741,11 @@ RADIUS_TEST=$(radiusd -XC 2>&1) || {
 systemctl enable radiusd
 systemctl reset-failed radiusd 2>/dev/null || true
 systemctl restart radiusd
-# Wait up to 60s for radiusd to become active
-for i in $(seq 1 30); do
-  if systemctl is-active --quiet radiusd 2>/dev/null; then
-    break
-  fi
-  sleep 2
-done
-systemctl is-active --quiet radiusd || die "FreeRADIUS failed to start! Check: journalctl -u radiusd -n 30"
+if ! wait_for_service radiusd 90; then
+  error "FreeRADIUS failed to start within 90s!"
+  journalctl -u radiusd -n 30 --no-pager 2>&1
+  die "Check logs above."
+fi
 success "FreeRADIUS installed, configured, and running"
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -810,16 +846,9 @@ EOF
 chown postgres:postgres "${PG_DATA}/pg_hba.conf"
 restart_pg
 
-# Verify TCP connectivity
-for i in $(seq 1 10); do
-  if psql -h 127.0.0.1 -U staysuite -d staysuite -c "SELECT 1" >/dev/null 2>&1; then
-    break
-  fi
-  warn "PostgreSQL not ready yet... ($i/10)"
-  sleep 2
-done
+# restart_pg already verified TCP readiness — confirm with actual query
 psql -h 127.0.0.1 -U staysuite -d staysuite -c "SELECT 1" >/dev/null 2>&1 \
-  || die "PostgreSQL TCP connection failed — check listen_addresses and pg_hba.conf"
+  || die "PostgreSQL connection failed after restart — check listen_addresses and pg_hba.conf"
 
 # Ensure citext exists before prisma push
 sudo -u postgres psql -d staysuite -c "CREATE EXTENSION IF NOT EXISTS citext;" 2>/dev/null
@@ -1044,7 +1073,12 @@ echo "$TMP_FILE" > "${APP_DIR}/ecosystem.config.js"
 pm2 delete all 2>/dev/null || true
 cd "$APP_DIR"
 pm2 start ecosystem.config.js 2>&1 | tail -15
-sleep 3
+# Wait for Next.js to be ready on port 3000
+if wait_for_tcp 3000 127.0.0.1 60 2>/dev/null; then
+  info "Next.js is listening on port 3000"
+else
+  warn "Next.js not yet listening on port 3000 (may still be starting)"
+fi
 
 # Save for auto-restart on reboot
 pm2 save
@@ -1075,28 +1109,27 @@ fi
 # Restart FreeRADIUS with final config
 info "Testing FreeRADIUS configuration..."
 RADIUS_TEST2=$(radiusd -XC 2>&1) && {
-  sleep 1
   systemctl reset-failed radiusd 2>/dev/null || true
   systemctl restart radiusd
-  sleep 1
-  if systemctl is-active --quiet radiusd; then
+  if wait_for_service radiusd 90; then
     success "FreeRADIUS restarted with CoA + post-auth config"
   else
-    warn "FreeRADIUS restart failed — trying stop/start..."
+    warn "FreeRADIUS restart timed out — trying stop/start..."
     systemctl stop radiusd 2>/dev/null || true
     sleep 2
     systemctl start radiusd
-    sleep 1
-    systemctl is-active --quiet radiusd \
-      && success "FreeRADIUS started with CoA + post-auth config" \
-      || warn "FreeRADIUS not running — run: systemctl start radiusd"
+    if wait_for_service radiusd 90; then
+      success "FreeRADIUS started with CoA + post-auth config"
+    else
+      warn "FreeRADIUS not running — check: journalctl -u radiusd -n 30"
+    fi
   fi
 } || {
   warn "FreeRADIUS config check issues (non-fatal):"
   echo "$RADIUS_TEST2" | tail -10
   systemctl reset-failed radiusd 2>/dev/null || true
   systemctl restart radiusd 2>/dev/null || true
-  if systemctl is-active --quiet radiusd 2>/dev/null; then
+  if wait_for_service radiusd 90; then
     success "FreeRADIUS restarted (running with warnings)"
   else
     warn "FreeRADIUS not running — check: journalctl -u radiusd -n 30"
