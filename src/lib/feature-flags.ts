@@ -179,7 +179,7 @@ export const FEATURES: Record<string, FeatureConfig> = {
     description: 'Sessions, vouchers, plans, gateway, AAA config, network management, DHCP, DNS, captive portal, firewall, bandwidth, and reports',
     category: 'addons',
     subcategory: 'Connectivity',
-    menuItems: ['wifi-access', 'wifi-sessions', 'wifi-vouchers', 'wifi-plans', 'wifi-logs', 'wifi-gateway-radius', 'wifi-gateway', 'wifi-aaa', 'wifi-network', 'wifi-dhcp', 'wifi-dns', 'wifi-portal', 'wifi-firewall', 'wifi-reports'],
+    menuItems: ['wifi-access', 'wifi-sessions', 'wifi-vouchers', 'wifi-plans', 'wifi-logs', 'wifi-gateway-radius', 'wifi-gateway', 'wifi-aaa', 'wifi-network', 'wifi-dhcp', 'wifi-dns', 'wifi-portal', 'wifi-firewall', 'wifi-content-filter', 'wifi-reports'],
     apiRoutes: ['/api/wifi', '/api/wifi/sessions', '/api/wifi/vouchers'],
   },
 

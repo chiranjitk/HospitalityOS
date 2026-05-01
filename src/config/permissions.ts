@@ -481,6 +481,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['wifi.manage', 'wifi.*', '*'],
     description: 'Configure WiFi AAA'
   },
+  'wifi-content-filter': {
+    permissions: ['wifi.manage', 'wifi.*', '*'],
+    description: 'Manage content filtering rules (e2guardian)'
+  },
 
   // ---- Revenue Management ----
   'revenue-pricing': {
