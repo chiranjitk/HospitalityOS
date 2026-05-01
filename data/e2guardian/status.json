@@ -1,0 +1,13 @@
+{
+  "lastSyncAt": "2026-05-01T06:47:58.511Z",
+  "tenantId": "444017d5-e022-4c5f-ac07-ea0d51f4609b",
+  "totalDomains": 768,
+  "categoriesCount": 12,
+  "filtersActive": 15,
+  "configFiles": [
+    "e2guardianf1.conf",
+    "e2guardianf2.conf",
+    "e2guardianf3.conf",
+    "e2guardian.conf"
+  ]
+}
