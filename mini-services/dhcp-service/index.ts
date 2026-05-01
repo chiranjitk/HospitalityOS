@@ -1920,4 +1920,4 @@ app.post('/api/dhcp/disable', (c) => {
 
 log.info(`DHCP service listening on port ${PORT} (PostgreSQL backend)`);
 
-Bun.serve({ port: PORT, fetch: app.fetch });
+Bun.serve({ port: PORT, hostname: '0.0.0.0', fetch: app.fetch });

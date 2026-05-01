@@ -1409,10 +1409,11 @@ log.info('DNS Service starting', {
 
 Bun.serve({
   port: PORT,
+  hostname: '0.0.0.0',
   fetch: app.fetch,
 });
 
-log.info('DNS Service HTTP server listening', { port: PORT });
+log.info('DNS Service HTTP server listening', { port: PORT, hostname: '0.0.0.0' });
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {

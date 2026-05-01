@@ -7591,10 +7591,11 @@ setupFreeRadiusSQL().then(result => {
 
 Bun.serve({
   port: PORT,
+  hostname: '0.0.0.0',
   fetch: app.fetch,
 });
 
-log.info('RADIUS Service HTTP server listening', { port: PORT });
+log.info('RADIUS Service HTTP server listening', { port: PORT, hostname: '0.0.0.0' });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
