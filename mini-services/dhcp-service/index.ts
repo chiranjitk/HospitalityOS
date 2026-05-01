@@ -44,15 +44,17 @@ const SYSTEM_DNSMASQ = (() => {
 const DNSMASQ_BIN = SYSTEM_DNSMASQ ? '/usr/sbin/dnsmasq' : (process.env.DNSMASQ_BIN || '/usr/sbin/dnsmasq');
 
 // Config directory and our managed file
+// IMPORTANT: When system dnsmasq is installed (Rocky 10 / production), ALWAYS use /etc/dnsmasq.d
+// The sandbox/dev path is only used when dnsmasq is NOT installed (no system dnsmasq to manage)
 const DNSMASQ_CONF_DIR = SYSTEM_DNSMASQ
-  ? (process.env.DNSMASQ_CONF_DIR || '/etc/dnsmasq.d')
-  : path.join(PROJECT_ROOT, 'dhcp-local');
+  ? '/etc/dnsmasq.d'                                                                    // production: system dnsmasq path
+  : (process.env.DNSMASQ_CONF_DIR || path.join(PROJECT_ROOT, 'dhcp-local'));            // sandbox/dev fallback
 const DNSMASQ_CONF_FILE = path.join(DNSMASQ_CONF_DIR, 'staysuite-dhcp.conf');
 
 // Leases file location
 const DNSMASQ_LEASES = SYSTEM_DNSMASQ
-  ? (process.env.DNSMASQ_LEASES || '/var/lib/dnsmasq/dnsmasq.leases')
-  : '/tmp/dnsmasq-dhcp.leases';
+  ? '/var/lib/dnsmasq/dnsmasq.leases'                                                    // production: system leases path
+  : (process.env.DNSMASQ_LEASES || '/tmp/dnsmasq-dhcp.leases');                         // sandbox/dev fallback
 
 // Ensure directories exist
 try { fs.mkdirSync(DNSMASQ_CONF_DIR, { recursive: true }); } catch {}
