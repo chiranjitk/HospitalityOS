@@ -745,6 +745,12 @@ EOF
 systemctl daemon-reload
 
 # ── 5i: Test and start FreeRADIUS ───────────────────────────────────────────
+# Ensure PG is accepting TCP connections before FreeRADIUS tries to connect
+info "Verifying PostgreSQL is ready for FreeRADIUS..."
+if ! pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null; then
+  warn "PostgreSQL not accepting connections — restarting..."
+  restart_pg
+fi
 info "Testing FreeRADIUS configuration..."
 RADIUS_TEST=$(timeout 15 radiusd -XC 2>&1)
 RC=$?
@@ -1122,6 +1128,16 @@ else
 fi
 
 # Restart FreeRADIUS with final config
+# Ensure PG is still accepting connections after heavy schema/seed/PM2 steps
+info "Verifying PostgreSQL is still ready before FreeRADIUS restart..."
+if ! pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null; then
+  warn "PostgreSQL stopped responding — restarting..."
+  restart_pg
+fi
+# Also verify PG actually accepts queries (not just TCP)
+psql -h 127.0.0.1 -U staysuite -d staysuite -c "SELECT 1" >/dev/null 2>&1 \
+  || { warn "PG not queryable — full restart"; restart_pg; }
+
 info "Testing FreeRADIUS configuration..."
 RADIUS_TEST2=$(timeout 15 radiusd -XC 2>&1)
 if [[ $? -eq 0 ]]; then {
