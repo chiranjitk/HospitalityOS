@@ -34,6 +34,7 @@ const PUBLIC_PATHS = [
   '/api/v1/properties',     // property listing
   '/api/v1/rooms/available', // room availability
   '/api/v1/wifi/',          // FreeRADIUS proxy + guest portal auth (public)
+  '/api/wifi/portal/resolve-zone', // Zone resolution for captive portal (no auth)
   // Tenant listing (for signup flow)
   '/api/tenants',
   // Registration (public, license key based)
