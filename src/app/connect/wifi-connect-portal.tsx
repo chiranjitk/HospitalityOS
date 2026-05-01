@@ -1037,6 +1037,22 @@ function PortalContent() {
     bgStyle.background = `linear-gradient(135deg, ${design.gradientFrom}, ${design.gradientTo})`;
   }
 
+  // ── Determine if the design uses a dark background (gradient/image) with light text ──
+  const isDarkBackground = design.backgroundType === 'gradient' || design.backgroundType === 'image';
+
+  // ── Card text color: dark text inside the card (since card is near-white) ──
+  const cardTextColor = '#1f2937';
+
+  // ── Card style: glass-morphism on dark backgrounds, clean white on light backgrounds ──
+  const cardStyle = isDarkBackground
+    ? 'bg-white/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-6 space-y-5'
+    : 'bg-white rounded-2xl shadow-2xl p-6 space-y-5';
+  const cardShadow = design.cardShadow === 'large'
+    ? '0 25px 50px -12px rgba(0,0,0,0.25)'
+    : design.cardShadow === 'none'
+      ? 'none'
+      : '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)';
+
   const overlayStyle: React.CSSProperties = {};
   if (design.backgroundType === 'image' || design.backgroundOverlay > 0) {
     overlayStyle.backgroundColor = `rgba(0,0,0,${design.backgroundOverlay / 100})`;
@@ -1080,7 +1096,7 @@ function PortalContent() {
           <VoucherForm
             initialCode={isVoucherPrefill ? codeParam : ''}
             accentColor={accentColor}
-            textColor={textColor}
+            textColor={cardTextColor}
             onSubmit={(code) =>
               authenticate('voucher', { voucherCode: code, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
             }
@@ -1092,7 +1108,7 @@ function PortalContent() {
         return (
           <RoomNumberForm
             accentColor={accentColor}
-            textColor={textColor}
+            textColor={cardTextColor}
             onSubmit={(room, name) =>
               authenticate('room_number', { roomNumber: room, lastName: name, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
             }
@@ -1103,7 +1119,7 @@ function PortalContent() {
         return (
           <PmsCredentialsForm
             accentColor={accentColor}
-            textColor={textColor}
+            textColor={cardTextColor}
             onSubmit={(username, password) =>
               authenticate('pms_credentials', { username, password, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
             }
@@ -1114,7 +1130,7 @@ function PortalContent() {
         return (
           <SmsOtpForm
             accentColor={accentColor}
-            textColor={textColor}
+            textColor={cardTextColor}
             onAuthenticate={(method, payload) => {
               const gi = buildGuestInfoPayload();
               authenticate(method, gi ? { ...payload, guestInfo: gi } : payload);
@@ -1135,7 +1151,7 @@ function PortalContent() {
           <VoucherForm
             initialCode={isVoucherPrefill ? codeParam : ''}
             accentColor={accentColor}
-            textColor={textColor}
+            textColor={cardTextColor}
             onSubmit={(code) =>
               authenticate('voucher', { voucherCode: code, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
             }
@@ -1377,21 +1393,14 @@ function PortalContent() {
             {/* Form Panel */}
             <div className="w-full md:w-[420px]">
               <div
-                className="bg-white rounded-2xl shadow-2xl p-6 space-y-5"
-                style={{
-                  boxShadow:
-                    design.cardShadow === 'large'
-                      ? '0 25px 50px -12px rgba(0,0,0,0.25)'
-                      : design.cardShadow === 'none'
-                        ? 'none'
-                        : '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
-                }}
+                className={cardStyle}
+                style={{ boxShadow: cardShadow }}
               >
                 {state === 'success' && authResult ? (
                   <SuccessScreen
                     authResult={authResult}
                     accentColor={accentColor}
-                    textColor={textColor}
+                    textColor={cardTextColor}
                     design={design}
                   />
                 ) : (
@@ -1507,17 +1516,8 @@ function PortalContent() {
             )}
 
             <div
-              className={`bg-white rounded-2xl p-6 space-y-5 ${
-                design.layoutType === 'card' ? 'shadow-2xl' : 'shadow-lg'
-              }`}
-              style={{
-                boxShadow:
-                  design.cardShadow === 'large'
-                    ? '0 25px 50px -12px rgba(0,0,0,0.25)'
-                    : design.cardShadow === 'none'
-                      ? 'none'
-                      : '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
-              }}
+              className={cardStyle}
+              style={{ boxShadow: cardShadow }}
             >
               {/* Header */}
               <div className="text-center space-y-2">
@@ -1584,7 +1584,7 @@ function PortalContent() {
                 <SuccessScreen
                   authResult={authResult}
                   accentColor={accentColor}
-                  textColor={textColor}
+                  textColor={cardTextColor}
                   design={design}
                 />
               ) : (
