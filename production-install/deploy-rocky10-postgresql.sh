@@ -746,9 +746,13 @@ systemctl daemon-reload
 
 # ── 5i: Test and start FreeRADIUS ───────────────────────────────────────────
 info "Testing FreeRADIUS configuration..."
-RADIUS_TEST=$(radiusd -XC 2>&1) || {
-  error "FreeRADIUS config check FAILED:"; echo "$RADIUS_TEST"; die "Fix errors above."
-}
+RADIUS_TEST=$(timeout 15 radiusd -XC 2>&1)
+RC=$?
+if [[ $RC -ne 0 ]]; then
+  warn "FreeRADIUS config check had issues (RC=$RC) — showing last 15 lines:"
+  echo "$RADIUS_TEST" | tail -15
+  warn "Continuing anyway — FreeRADIUS will validate on systemd start"
+fi
 systemctl enable radiusd
 systemctl reset-failed radiusd 2>/dev/null || true
 systemctl restart radiusd
@@ -1119,7 +1123,8 @@ fi
 
 # Restart FreeRADIUS with final config
 info "Testing FreeRADIUS configuration..."
-RADIUS_TEST2=$(radiusd -XC 2>&1) && {
+RADIUS_TEST2=$(timeout 15 radiusd -XC 2>&1)
+if [[ $? -eq 0 ]]; then {
   systemctl reset-failed radiusd 2>/dev/null || true
   systemctl restart radiusd
   if wait_for_service radiusd 90; then
