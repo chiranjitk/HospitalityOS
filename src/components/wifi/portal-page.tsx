@@ -456,6 +456,7 @@ interface PortalZone {
   name: string;
   slug: string;
   enabled: boolean;
+  isDefault: boolean;
   authMethod: string;
   roamingMode: string;
   allowsRoamingFrom: string[];
@@ -632,7 +633,7 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
     const data = await apiFetch<any[]>('/api/wifi/portal/instances');
     if (data) {
       setZones(data.map((p: any) => ({
-        id: p.id, name: p.name, slug: p.slug || '', enabled: p.enabled ?? true,
+        id: p.id, name: p.name, slug: p.slug || '', enabled: p.enabled ?? true, isDefault: p.isDefault ?? false,
         authMethod: p.authMethod || 'voucher', roamingMode: p.roamingMode || 'auth_origin',
         allowsRoamingFrom: JSON.parse(p.allowsRoamingFrom || '[]'),
         maxBandwidthDown: Math.round((p.maxBandwidthDown || 5242880) / 1048576),
@@ -658,6 +659,18 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
     if (!error) {
       setZones(prev => prev.map(z => z.id === id ? { ...z, enabled: !z.enabled } : z));
       toast({ title: 'Zone updated', description: `${zone.name} ${!zone.enabled ? 'enabled' : 'disabled'}` });
+      onPortalsChanged?.();
+    } else { toast({ title: 'Error', description: error, variant: 'destructive' }); }
+  };
+
+  const toggleDefault = async (id: string) => {
+    const zone = zones.find(z => z.id === id);
+    if (!zone) return;
+    const { error } = await apiMutate(`/api/wifi/portal/instances/${id}`, { method: 'PUT', body: JSON.stringify({ isDefault: !zone.isDefault }) });
+    if (!error) {
+      // Setting as default unsets others — update all zones locally
+      setZones(prev => prev.map(z => ({ ...z, isDefault: z.id === id ? !z.isDefault : false })));
+      toast({ title: 'Default portal updated', description: `${zone.name} ${!zone.isDefault ? 'set as' : 'removed from'} default` });
       onPortalsChanged?.();
     } else { toast({ title: 'Error', description: error, variant: 'destructive' }); }
   };
@@ -825,9 +838,37 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
 
                 {/* Actions */}
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Label className="text-xs text-muted-foreground">Active</Label>
-                    <Switch checked={zone.enabled} onCheckedChange={() => toggleEnabled(zone.id)} />
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <Label className="text-xs text-muted-foreground">Active</Label>
+                      <Switch checked={zone.enabled} onCheckedChange={() => toggleEnabled(zone.id)} />
+                    </div>
+                    <Separator orientation="vertical" className="h-4" />
+                    <div className="flex items-center gap-1.5">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={cn(
+                              'h-7 px-2 text-xs gap-1',
+                              zone.isDefault
+                                ? 'text-amber-600 dark:text-amber-400 font-medium'
+                                : 'text-muted-foreground'
+                            )}
+                            onClick={() => toggleDefault(zone.id)}
+                          >
+                            <Star className={cn('h-3.5 w-3.5', zone.isDefault && 'fill-amber-400 text-amber-400')} />
+                            Default
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {zone.isDefault
+                            ? 'This portal is shown when no IP subnet matches'
+                            : 'Set as default fallback portal'}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                   </div>
                   <div className="flex gap-1">
                     <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(zone)}><Edit2 className="h-3.5 w-3.5" /></Button></TooltipTrigger><TooltipContent>Edit</TooltipContent></Tooltip>

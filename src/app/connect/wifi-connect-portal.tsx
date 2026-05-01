@@ -906,40 +906,27 @@ function PortalContent() {
     let cancelled = false;
     const fetchPortal = async () => {
       try {
-        // Step 1: Call resolve-zone API to auto-detect portal from client IP
-        // This matches the user's IP against PortalMapping subnets
+        // Single call to resolve-zone API:
+        //   1. Detects client IP
+        //   2. Matches IP against PortalMapping subnets (IP Pool → Portal mapping)
+        //   3. If match found → returns that portal's config
+        //   4. If no match → falls back to the portal marked isDefault=true
+        //   5. If no default → returns null (client renders voucher fallback)
         const resolveRes = await fetch('/api/wifi/portal/resolve-zone');
         if (cancelled) return;
         const resolveResult = await resolveRes.json();
 
         if (resolveResult.success && resolveResult.data?.config) {
-          // IP matched a subnet → use the mapped portal directly
+          const isDefault = resolveResult.data.isDefault;
           console.log(
-            '[Portal] IP-resolved zone:',
+            '[Portal] Resolved zone:',
             resolveResult.data.zone,
-            'subnet:',
-            resolveResult.data.matchedSubnet
+            isDefault ? '(default fallback)' : `subnet: ${resolveResult.data.matchedSubnet}`
           );
           applyPortalConfig(resolveResult.data.config as PortalConfig);
-          return;
-        }
-
-        // Step 2: No IP match (or no client IP detectable) → fall back to default-zone
-        console.log('[Portal] No IP subnet match, falling back to default-zone');
-        const fallbackRes = await fetch(
-          '/api/v1/wifi/portal?slug=default-zone'
-        );
-        if (cancelled) return;
-        const fallbackResult = await fallbackRes.json();
-
-        if (fallbackResult.success && fallbackResult.data) {
-          applyPortalConfig(fallbackResult.data);
         } else {
-          // Even default-zone not found — render with voucher fallback
-          console.warn(
-            '[Portal] Config not found, using fallback:',
-            fallbackResult.error?.message
-          );
+          // No portal configured at all — render with voucher fallback
+          console.warn('[Portal] No portal config available, using voucher fallback');
           setState('auth_form');
         }
       } catch {
@@ -955,7 +942,7 @@ function PortalContent() {
   }, [applyPortalConfig]);
 
   // ── Authentication handler ──
-  const portalSlug = portalConfig?.slug || 'default-zone';
+  const portalSlug = portalConfig?.slug || 'default';
   const authenticate = useCallback(
     async (method: string, payload: Record<string, string>) => {
       setState('authenticating');

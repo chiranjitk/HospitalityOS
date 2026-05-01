@@ -69,7 +69,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const {
-      name, description, enabled, maxConcurrent,
+      name, description, enabled, isDefault, maxConcurrent,
       sessionTimeout, idleTimeout, redirectUrl,
       successMessage, failMessage,
       // Zone-based fields
@@ -160,6 +160,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    // If setting as default, unset all other defaults first (only one default per tenant)
+    if (isDefault === true) {
+      await db.captivePortal.updateMany({
+        where: { tenantId: user.tenantId, isDefault: true, id: { not: id } },
+        data: { isDefault: false },
+      });
+    }
+
     const instance = await db.captivePortal.update({
       where: { id },
       data: {
@@ -167,6 +175,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         ...(name !== undefined && { name }),
         ...(description !== undefined && { description }),
         ...(enabled !== undefined && { enabled }),
+        ...(isDefault !== undefined && { isDefault }),
         ...(maxConcurrent !== undefined && { maxConcurrent: parseInt(maxConcurrent, 10) }),
         ...(sessionTimeout !== undefined && { sessionTimeout: parseInt(sessionTimeout, 10) }),
         ...(idleTimeout !== undefined && { idleTimeout: parseInt(idleTimeout, 10) }),

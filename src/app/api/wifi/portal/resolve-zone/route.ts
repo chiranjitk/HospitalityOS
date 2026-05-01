@@ -218,15 +218,26 @@ export async function GET(request: NextRequest) {
     const clientIp = normalizeIp(rawIp);
 
     if (!clientIp) {
-      // Cannot determine client IP — return no-match
+      // Cannot determine client IP — fall back to the default portal
+      const defaultPortal = await db.captivePortal.findFirst({
+        where: { isDefault: true, enabled: true },
+      });
+      if (defaultPortal) {
+        const config = await buildPortalConfig(defaultPortal.id);
+        return NextResponse.json({
+          success: true,
+          data: {
+            zone: config?.slug ?? defaultPortal.slug,
+            portalId: defaultPortal.id,
+            matchedSubnet: null,
+            isDefault: true,
+            config,
+          },
+        });
+      }
       return NextResponse.json({
         success: true,
-        data: {
-          zone: null,
-          portalId: null,
-          matchedSubnet: null,
-          config: null,
-        },
+        data: { zone: null, portalId: null, matchedSubnet: null, config: null },
       });
     }
 
@@ -251,16 +262,28 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 4. No match → return null config
+    // 4. No subnet match → fall back to the default portal (isDefault=true)
     if (!matchedMapping) {
+      const defaultPortal = await db.captivePortal.findFirst({
+        where: { isDefault: true, enabled: true },
+      });
+      if (defaultPortal) {
+        const config = await buildPortalConfig(defaultPortal.id);
+        return NextResponse.json({
+          success: true,
+          data: {
+            zone: config?.slug ?? defaultPortal.slug,
+            portalId: defaultPortal.id,
+            matchedSubnet: null,
+            isDefault: true,
+            config,
+          },
+        });
+      }
+      // No default portal configured → return null
       return NextResponse.json({
         success: true,
-        data: {
-          zone: null,
-          portalId: null,
-          matchedSubnet: null,
-          config: null,
-        },
+        data: { zone: null, portalId: null, matchedSubnet: null, config: null },
       });
     }
 

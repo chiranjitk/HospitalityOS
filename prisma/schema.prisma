@@ -772,6 +772,7 @@ model CaptivePortal {
   sslCertPath       String?
   sslKeyPath        String?
   enabled           Boolean                @default(true)
+  isDefault         Boolean                @default(false) // Fallback portal when no IP subnet match
   maxConcurrent     Int                    @default(1000)
   sessionTimeout    Int                    @default(86400)
   idleTimeout       Int                    @default(3600)
