@@ -199,21 +199,16 @@ done
 info "Installing PostgreSQL ${PG_MAJOR}..."
 dnf install -y --quiet "postgresql${PG_MAJOR}-server" "postgresql${PG_MAJOR}-contrib"
 
-# Initialize
+# Initialize (always fresh — wipe and re-init on every run)
 PG_DATA="/var/lib/pgsql/${PG_MAJOR}/data"
-STAYSUITE_INIT_MARKER="${PG_DATA}/.staysuite-initialized"
-if [[ -f "$STAYSUITE_INIT_MARKER" ]]; then
-  info "PostgreSQL ${PG_MAJOR} data already initialized by StaySuite — skipping initdb"
-else
-  info "Initializing PostgreSQL ${PG_MAJOR}..."
-  systemctl stop "postgresql-${PG_MAJOR}" 2>/dev/null || true
-  sleep 1
-  if [[ -d "${PG_DATA}" ]]; then
-    warn "Wiping existing PG data: ${PG_DATA}"
-    rm -rf "${PG_DATA}"
-  fi
-  "/usr/pgsql-${PG_MAJOR}/bin/postgresql-${PG_MAJOR}-setup" initdb
+info "Initializing PostgreSQL ${PG_MAJOR}..."
+systemctl stop "postgresql-${PG_MAJOR}" 2>/dev/null || true
+sleep 1
+if [[ -d "${PG_DATA}" ]]; then
+  warn "Wiping existing PG data: ${PG_DATA}"
+  rm -rf "${PG_DATA}"
 fi
+"/usr/pgsql-${PG_MAJOR}/bin/postgresql-${PG_MAJOR}-setup" initdb
 chown -R postgres:postgres "${PG_DATA}"
 chmod 700 "${PG_DATA}"
 restorecon -R "${PG_DATA}" 2>/dev/null || true
@@ -303,12 +298,12 @@ systemctl start "postgresql-${PG_MAJOR}" || {
 systemctl is-active --quiet "postgresql-${PG_MAJOR}" || die "PostgreSQL not running."
 systemctl enable "postgresql-${PG_MAJOR}"
 
-# Verify TCP connectivity — use a single robust loop
+# Verify TCP connectivity — wait up to 30s for fresh initdb to fully start
 PG_READY=0
-for i in $(seq 1 20); do
+for i in $(seq 1 30); do
   if pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null; then
     PG_READY=1
-    info "PostgreSQL TCP ready (attempt $i/20)"
+    info "PostgreSQL TCP ready (attempt $i/30)"
     break
   fi
   sleep 1
@@ -329,8 +324,6 @@ if [[ $PG_READY -eq 0 ]]; then
   die "Check listen_addresses and conf.d/ overrides above."
 fi
 
-# Mark as initialized so re-runs don't wipe data
-sudo -u postgres touch "$STAYSUITE_INIT_MARKER"
 success "PostgreSQL ${PG_MAJOR} installed, tuned, and running (TCP verified)"
 
 # ════════════════════════════════════════════════════════════════════════════════
