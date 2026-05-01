@@ -747,6 +747,21 @@ function ensureGuiChainsExist(): { created: string[]; existing: string[]; errors
   const existing: string[] = [];
   const errors: NftResult[] = [];
 
+  // Collect unique tables that our chains belong to
+  const tablesNeeded = new Set(GUI_CHAINS.map(c => GUI_CHAIN_DESCRIPTIONS[c].table));
+  for (const table of tablesNeeded) {
+    const tableResult = nftExec(`list table ${table}`);
+    if (!tableResult.success) {
+      // Table doesn't exist — create it first
+      const addTableResult = nftExec(`add table ${table}`);
+      if (!addTableResult.success) {
+        log.warn(`Failed to create table ${table}`, { error: addTableResult.error });
+      } else {
+        log.info(`Created nftables table: ${table}`);
+      }
+    }
+  }
+
   for (const chain of GUI_CHAINS) {
     const meta = GUI_CHAIN_DESCRIPTIONS[chain];
     if (chainExists(meta.table, chain)) {
