@@ -54,7 +54,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
       <Card className="w-full max-w-md shadow-xl border-0">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <div className="rounded-full bg-gradient-to-br from-slate-700 to-slate-800 p-3">
+            <div className="rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 p-3">
               <Hotel className="h-8 w-8 text-white" />
             </div>
           </div>
@@ -84,7 +84,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
             <button
               type="button"
               onClick={() => setIsSuccess(false)}
-              className="text-slate-600 dark:text-slate-400 hover:text-slate-700 font-medium"
+              className="text-teal-600 dark:text-teal-400 hover:text-teal-700 font-medium"
             >
               try another email address
             </button>
@@ -107,7 +107,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
     <Card className="w-full max-w-md shadow-xl border-0">
       <CardHeader className="space-y-1 text-center">
         <div className="flex justify-center mb-4">
-          <div className="rounded-full bg-gradient-to-br from-slate-700 to-slate-800 p-3">
+          <div className="rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 p-3">
             <Hotel className="h-8 w-8 text-white" />
           </div>
         </div>
@@ -140,7 +140,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
 
           <Button
             type="submit"
-            className="w-full bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600"
+            className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700"
             disabled={isLoading}
           >
             {isLoading ? (

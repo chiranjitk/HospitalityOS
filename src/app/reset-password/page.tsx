@@ -180,8 +180,8 @@ function ResetPasswordContent() {
 
         <Card className="shadow-lg border-slate-200 dark:border-slate-800">
           <CardHeader className="text-center pb-2">
-            <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800/50 flex items-center justify-center">
-              <KeyRound className="h-8 w-8 text-slate-600 dark:text-slate-400" />
+            <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-teal-50 dark:bg-teal-950/50 flex items-center justify-center">
+              <KeyRound className="h-8 w-8 text-teal-600 dark:text-teal-400" />
             </div>
             <CardTitle className="text-xl">Reset Your Password</CardTitle>
             <CardDescription>
@@ -326,7 +326,7 @@ export default function ResetPasswordPage() {
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
           <div className="text-center">
-            <Loader2 className="h-8 w-8 text-slate-600 dark:text-slate-400 animate-spin mx-auto" />
+            <Loader2 className="h-8 w-8 text-teal-600 dark:text-teal-400 animate-spin mx-auto" />
             <p className="text-muted-foreground mt-3">Loading...</p>
           </div>
         </div>

@@ -272,7 +272,7 @@ export default function LoginPage() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ type: 'spring', stiffness: 200, damping: 20 }}
         >
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center shadow-lg shadow-slate-500/20">
+          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-500/30">
             <Hotel className="h-6 w-6 text-white" />
           </div>
           <div className="h-4 w-24 bg-slate-800 rounded animate-pulse" />
@@ -284,9 +284,9 @@ export default function LoginPage() {
   // Demo credentials are only available in development mode
   const showDemoCredentials = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production';
   const demoCredentials = showDemoCredentials ? [
-    { role: 'Admin', email: 'admin@royalstay.in', password: 'admin123', color: 'bg-slate-700', ring: 'ring-slate-500/30', icon: Shield },
-    { role: 'Front Desk', email: 'frontdesk@royalstay.in', password: 'staff123', color: 'bg-slate-600', ring: 'ring-slate-500/30', icon: ConciergeBell },
-    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'staff123', color: 'bg-slate-500', ring: 'ring-slate-400/30', icon: Bath },
+    { role: 'Admin', email: 'admin@royalstay.in', password: 'admin123', color: 'bg-teal-500', ring: 'ring-teal-500/30', icon: Shield },
+    { role: 'Front Desk', email: 'frontdesk@royalstay.in', password: 'staff123', color: 'bg-cyan-500', ring: 'ring-cyan-500/30', icon: ConciergeBell },
+    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'staff123', color: 'bg-emerald-500', ring: 'ring-emerald-500/30', icon: Bath },
   ] : [];
 
   return (
@@ -315,13 +315,13 @@ export default function LoginPage() {
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-transparent to-slate-950/50" />
           <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-slate-950/95 to-transparent" />
 
-          {/* Animated glow orbs - neutral */}
+          {/* Animated glow orbs - teal/emerald */}
           <div
-            className="absolute top-1/4 left-1/3 w-72 h-72 rounded-full bg-white/8 blur-[100px]"
+            className="absolute top-1/4 left-1/3 w-72 h-72 rounded-full bg-teal-400/10 blur-[100px]"
             style={{ animation: 'loginGlowPulse 6s ease-in-out infinite' }}
           />
           <div
-            className="absolute bottom-1/3 right-1/4 w-56 h-56 rounded-full bg-white/6 blur-[80px]"
+            className="absolute bottom-1/3 right-1/4 w-56 h-56 rounded-full bg-emerald-400/10 blur-[80px]"
             style={{ animation: 'loginGlowPulse 8s ease-in-out infinite 2s' }}
           />
 
@@ -334,11 +334,11 @@ export default function LoginPage() {
           >
             {/* Logo */}
             <motion.div className="flex items-center gap-3" variants={headerVariants}>
-              <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center shadow-lg shadow-slate-500/20 transition-transform hover:scale-110 duration-300">
+              <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-500/25 transition-transform hover:scale-110 duration-300">
                 <Hotel className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-300 bg-clip-text text-transparent">
+                <h1 className="text-xl font-bold bg-gradient-to-r from-white via-teal-200 to-emerald-300 bg-clip-text text-transparent">
                   StaySuite
                 </h1>
                 <p className="text-slate-300/80 text-xs font-medium">by Cryptsk Pvt Ltd</p>
@@ -366,7 +366,7 @@ export default function LoginPage() {
                   <h2 className="text-3xl xl:text-4xl font-bold text-white leading-tight">
                     Manage your property
                     <br />
-                    <span className="bg-gradient-to-r from-slate-200 via-slate-300 to-slate-100 bg-clip-text text-transparent">
+                    <span className="bg-gradient-to-r from-teal-400 via-emerald-400 to-teal-300 bg-clip-text text-transparent">
                       with intelligence.
                     </span>
                   </h2>
@@ -418,7 +418,7 @@ export default function LoginPage() {
                         className={cn(
                           'rounded-full transition-all duration-500',
                           currentSlide === index
-                            ? 'w-8 h-2 bg-white/70'
+                            ? 'w-8 h-2 bg-teal-400'
                             : 'w-2 h-2 bg-white/40 group-hover:bg-white/60'
                         )}
                       />
@@ -438,7 +438,7 @@ export default function LoginPage() {
                 {/* Progress bar */}
                 <div className="ml-2 w-16 h-1 rounded-full bg-white/15 overflow-hidden">
                   <motion.div
-                    className="h-full bg-white/50 rounded-full"
+                    className="h-full bg-teal-400/70 rounded-full"
                     initial={{ width: '0%' }}
                     animate={{ width: '100%' }}
                     transition={{ duration: SLIDE_INTERVAL / 1000, ease: 'linear' }}
@@ -474,7 +474,7 @@ export default function LoginPage() {
           <div
             className="absolute inset-0 lg:hidden"
             style={{
-              background: 'linear-gradient(160deg, #f8fafc, #f1f5f9 40%, #f8fafc 70%, #f1f5f9)',
+              background: 'linear-gradient(160deg, #f0fdfa, #ccfbf1 40%, #f0fdf4 70%, #f0fdfa)',
             }}
           />
           {/* Mesh gradient base layer */}
@@ -483,33 +483,33 @@ export default function LoginPage() {
             style={{
               background: `
                 linear-gradient(-45deg,
-                  #f8fafc, #f1f5f9, #f8fafc, #f1f5f9,
-                  #f8fafc, #f8fafc, #f8fafc, #f8fafc)
+                  #f0fdfa, #ccfbf1, #f0fdfa, #ecfdf5,
+                  #f0fdfa, #fff7ed, #f0fdfa, #f0fdfa)
               `,
               backgroundSize: '400% 400%',
               animation: 'loginGradientShift 20s ease infinite',
             }}
           />
 
-          {/* Mesh gradient orbs - neutral theme */}
+          {/* Mesh gradient orbs - teal/emerald theme */}
           <div
             className="absolute top-[10%] left-[20%] w-[500px] h-[500px] rounded-full opacity-30 blur-[120px]"
             style={{
-              background: 'radial-gradient(circle, rgba(100,116,139,0.12) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, rgba(20,184,166,0.15) 0%, transparent 70%)',
               animation: 'loginGlowPulse 10s ease-in-out infinite',
             }}
           />
           <div
             className="absolute bottom-[10%] right-[15%] w-[400px] h-[400px] rounded-full opacity-25 blur-[100px]"
             style={{
-              background: 'radial-gradient(circle, rgba(148,163,184,0.10) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, rgba(16,185,129,0.12) 0%, transparent 70%)',
               animation: 'loginGlowPulse 12s ease-in-out infinite 3s',
             }}
           />
           <div
             className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-20 blur-[140px]"
             style={{
-              background: 'radial-gradient(circle, rgba(71,85,105,0.08) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, rgba(6,182,212,0.10) 0%, transparent 70%)',
               animation: 'loginGlowPulse 14s ease-in-out infinite 6s',
             }}
           />
@@ -519,14 +519,14 @@ export default function LoginPage() {
             <div
               className="absolute top-[10%] left-[20%] w-[500px] h-[500px] rounded-full opacity-15 blur-[120px]"
               style={{
-                background: 'radial-gradient(circle, rgba(100,116,139,0.10) 0%, transparent 70%)',
+                background: 'radial-gradient(circle, rgba(20,184,166,0.12) 0%, transparent 70%)',
                 animation: 'loginGlowPulse 10s ease-in-out infinite',
               }}
             />
             <div
               className="absolute bottom-[10%] right-[15%] w-[400px] h-[400px] rounded-full opacity-10 blur-[100px]"
               style={{
-                background: 'radial-gradient(circle, rgba(148,163,184,0.08) 0%, transparent 70%)',
+                background: 'radial-gradient(circle, rgba(16,185,129,0.10) 0%, transparent 70%)',
                 animation: 'loginGlowPulse 12s ease-in-out infinite 3s',
               }}
             />
@@ -542,7 +542,7 @@ export default function LoginPage() {
                 <path d="M 48 0 L 0 0 0 48" fill="none" stroke="currentColor" strokeWidth="0.5" />
               </pattern>
             </defs>
-            <rect width="100%" height="100%" fill="url(#loginGridPattern)" style={{ color: '#64748b' }} />
+            <rect width="100%" height="100%" fill="url(#loginGridPattern)" style={{ color: '#0d9488' }} />
           </svg>
 
           {/* Dot pattern overlay */}
@@ -556,7 +556,7 @@ export default function LoginPage() {
                 <circle cx="2" cy="2" r="1" fill="currentColor" />
               </pattern>
             </defs>
-            <rect width="100%" height="100%" fill="url(#loginDotPattern)" style={{ color: '#94a3b8' }} />
+            <rect width="100%" height="100%" fill="url(#loginDotPattern)" style={{ color: '#14b8a6' }} />
           </svg>
 
           {/* Floating hotel-themed icons */}
@@ -581,7 +581,7 @@ export default function LoginPage() {
                 }}
               >
                 <Icon
-                  className="text-slate-400/50 dark:text-slate-500/20"
+                  className="text-teal-500/70 dark:text-teal-400/30"
                   style={{ width: size, height: size }}
                 />
               </motion.div>
@@ -600,12 +600,12 @@ export default function LoginPage() {
                   left: `${6 + (i * 6.5) % 88}%`,
                   top: `${8 + (i * 12) % 80}%`,
                   background: i % 4 === 0
-                    ? 'rgba(100, 116, 139, 0.20)'
+                    ? 'rgba(20, 184, 166, 0.25)'
                     : i % 4 === 1
-                      ? 'rgba(148, 163, 184, 0.18)'
+                      ? 'rgba(16, 185, 129, 0.20)'
                       : i % 4 === 2
-                        ? 'rgba(71, 85, 105, 0.15)'
-                        : 'rgba(203, 213, 225, 0.12)',
+                        ? 'rgba(6, 182, 212, 0.22)'
+                        : 'rgba(245, 158, 11, 0.12)',
                   animation: `loginParticle ${5 + (i % 5) * 1.5}s ease-out infinite`,
                   animationDelay: `${i * 0.6}s`,
                 }}
@@ -617,7 +617,7 @@ export default function LoginPage() {
           <div
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, rgba(100,116,139,0.06) 0%, rgba(148,163,184,0.03) 40%, transparent 70%)',
+              background: 'radial-gradient(circle, rgba(20,184,166,0.06) 0%, rgba(16,185,129,0.03) 40%, transparent 70%)',
               animation: 'loginGlowPulse 8s ease-in-out infinite',
             }}
           />
@@ -632,11 +632,11 @@ export default function LoginPage() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: 'spring', stiffness: 200, damping: 20 }}
               >
-                <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center shadow-lg shadow-slate-500/20">
+                <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-500/25">
                   <Hotel className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold bg-gradient-to-r from-slate-800 via-slate-700 to-slate-600 bg-clip-text text-transparent">
+                  <h1 className="text-lg font-bold bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-500 bg-clip-text text-transparent">
                     StaySuite
                   </h1>
                   <p className="text-muted-foreground text-[11px] tracking-wide font-medium">Hospitality OS</p>
@@ -645,20 +645,20 @@ export default function LoginPage() {
 
               {/* ── Glassmorphism Card ── */}
               <motion.div
-                className="rounded-2xl border border-white/50 dark:border-white/[0.08] bg-white/60 dark:bg-slate-950/60 backdrop-blur-2xl shadow-[0_8px_40px_-12px_rgba(0,0,0,0.10),0_0_80px_-20px_rgba(100,116,139,0.04)] dark:shadow-[0_8px_40px_-12px_rgba(0,0,0,0.5),0_0_80px_-20px_rgba(100,116,139,0.06)] relative overflow-hidden"
+                className="rounded-2xl border border-white/50 dark:border-white/[0.08] bg-white/60 dark:bg-slate-950/60 backdrop-blur-2xl shadow-[0_8px_40px_-12px_rgba(0,0,0,0.10),0_0_80px_-20px_rgba(20,184,166,0.06)] dark:shadow-[0_8px_40px_-12px_rgba(0,0,0,0.5),0_0_80px_-20px_rgba(20,184,166,0.08)] relative overflow-hidden"
                 variants={cardVariants}
                 initial="hidden"
                 animate="visible"
                 whileHover={{
-                  boxShadow: '0_20px_60px_-12px_rgba(0,0,0,0.15),0_0_100px_-20px_rgba(100,116,139,0.06)',
+                  boxShadow: '0_20px_60px_-12px_rgba(0,0,0,0.15),0_0_100px_-20px_rgba(20,184,166,0.10)',
                   y: -2,
                   transition: { duration: 0.4, ease: 'easeOut' },
                 }}
               >
                 {/* Animated gradient border on top edge */}
-                <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-slate-600 via-slate-400 via-slate-300 to-slate-500 bg-[length:200%_100%]" style={{ animation: 'loginGradientShift 4s ease infinite' }} />
+                <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-teal-500 via-emerald-400 via-cyan-400 to-amber-400 bg-[length:200%_100%]" style={{ animation: 'loginGradientShift 4s ease infinite' }} />
                 {/* Subtle animated border glow on top edge */}
-                <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-slate-400/20 to-transparent" style={{ animation: 'loginGlowPulse 4s ease-in-out infinite' }} />
+                <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-teal-400/30 to-transparent" style={{ animation: 'loginGlowPulse 4s ease-in-out infinite' }} />
 
                 {/* Inner glass highlight */}
                 <div className="absolute inset-0 bg-gradient-to-b from-white/[0.08] to-transparent dark:from-white/[0.03] pointer-events-none" />
@@ -673,7 +673,7 @@ export default function LoginPage() {
                       initial="hidden"
                       animate="visible"
                     >
-                      <div className="h-8 w-1 rounded-full bg-gradient-to-b from-slate-600 via-slate-500 to-slate-700" />
+                      <div className="h-8 w-1 rounded-full bg-gradient-to-b from-teal-500 via-emerald-500 to-cyan-600" />
                       <h2 className="text-xl font-bold text-foreground tracking-tight">
                         {requireTwoFactor ? 'Two-factor authentication' : t('signIn')}
                       </h2>
@@ -725,15 +725,15 @@ export default function LoginPage() {
                             {t('email')}
                           </Label>
                           <div className="relative group/input">
-                            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30 transition-all duration-300 group-focus-within/input:text-slate-500 group-focus-within/input:scale-110" />
-                            <div className="absolute inset-0 rounded-xl bg-slate-500/0 blur-sm transition-all duration-300 group-focus-within/input:bg-slate-500/5 group-focus-within/input:blur-md pointer-events-none" />
+                            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30 transition-all duration-300 group-focus-within/input:text-teal-500 dark:text-teal-400 group-focus-within/input:scale-110" />
+                            <div className="absolute inset-0 rounded-xl bg-teal-500/0 blur-sm transition-all duration-300 group-focus-within/input:bg-teal-500/5 group-focus-within/input:blur-md pointer-events-none" />
                             <Input
                               id="email"
                               type="email"
                               placeholder="you@company.com"
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
-                              className="relative pl-11 h-12 bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-700/50 rounded-xl transition-all duration-300 focus:bg-white/80 dark:focus:bg-slate-900/80 focus:border-slate-400 focus:ring-2 focus:ring-slate-500/15 hover:border-slate-300/70 dark:hover:border-slate-600/70 hover:shadow-sm text-[15px] placeholder:text-foreground/35"
+                              className="relative pl-11 h-12 bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-700/50 rounded-xl transition-all duration-300 focus:bg-white/80 dark:focus:bg-slate-900/80 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/15 hover:border-slate-300/70 dark:hover:border-slate-600/70 hover:shadow-sm text-[15px] placeholder:text-foreground/35"
                               required
                               disabled={isLoading}
                               autoComplete="email"
@@ -755,7 +755,7 @@ export default function LoginPage() {
                             </Label>
                             <button
                               type="button"
-                              className="ml-auto text-xs text-muted-foreground hover:text-slate-600 dark:hover:text-slate-400 transition-colors duration-200 font-medium"
+                              className="ml-auto text-xs text-muted-foreground hover:text-teal-600 dark:hover:text-teal-400 transition-colors duration-200 font-medium"
                               onClick={async () => {
                                 if (!email) {
                                   toast({
@@ -788,15 +788,15 @@ export default function LoginPage() {
                             </button>
                           </div>
                           <div className="mt-1 relative group/input">
-                            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30 transition-all duration-300 group-focus-within/input:text-slate-500 group-focus-within/input:scale-110" />
-                            <div className="absolute inset-0 rounded-xl bg-slate-500/0 blur-sm transition-all duration-300 group-focus-within/input:bg-slate-500/5 group-focus-within/input:blur-md pointer-events-none" />
+                            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30 transition-all duration-300 group-focus-within/input:text-teal-500 dark:text-teal-400 group-focus-within/input:scale-110" />
+                            <div className="absolute inset-0 rounded-xl bg-teal-500/0 blur-sm transition-all duration-300 group-focus-within/input:bg-teal-500/5 group-focus-within/input:blur-md pointer-events-none" />
                             <Input
                               id="password"
                               type={showPassword ? 'text' : 'password'}
                               placeholder="Enter password"
                               value={password}
                               onChange={(e) => setPassword(e.target.value)}
-                              className="relative pl-11 pr-11 h-12 bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-700/50 rounded-xl transition-all duration-300 focus:bg-white/80 dark:focus:bg-slate-900/80 focus:border-slate-400 focus:ring-2 focus:ring-slate-500/15 hover:border-slate-300/70 dark:hover:border-slate-600/70 hover:shadow-sm text-[15px] placeholder:text-foreground/35"
+                              className="relative pl-11 pr-11 h-12 bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-700/50 rounded-xl transition-all duration-300 focus:bg-white/80 dark:focus:bg-slate-900/80 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/15 hover:border-slate-300/70 dark:hover:border-slate-600/70 hover:shadow-sm text-[15px] placeholder:text-foreground/35"
                               required
                               disabled={isLoading}
                               autoComplete="current-password"
@@ -826,7 +826,7 @@ export default function LoginPage() {
                                 id="remember"
                                 checked={rememberMe}
                                 onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                                className="h-[18px] w-[18px] rounded-md border-slate-300/80 data-[state=checked]:bg-slate-800 data-[state=checked]:border-slate-800 data-[state=checked]:text-white transition-all duration-300 focus-visible:ring-2 focus-visible:ring-slate-500/30 focus-visible:ring-offset-1 hover:border-slate-400/80"
+                                className="h-[18px] w-[18px] rounded-md border-slate-300/80 data-[state=checked]:bg-gradient-to-br data-[state=checked]:from-teal-500 data-[state=checked]:to-emerald-500 data-[state=checked]:border-teal-500 data-[state=checked]:text-white transition-all duration-300 focus-visible:ring-2 focus-visible:ring-teal-500/30 focus-visible:ring-offset-1 hover:border-teal-300/80"
                               />
                             </div>
                             <Label htmlFor="remember" className="text-sm text-muted-foreground/80 font-medium cursor-pointer select-none hover:text-muted-foreground transition-colors duration-200">
@@ -846,9 +846,9 @@ export default function LoginPage() {
                             type="submit"
                             className={cn(
                               "w-full h-12 rounded-xl font-semibold text-sm transition-all duration-300",
-                              "bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 bg-[length:200%_100%]",
-                              "hover:bg-right hover:shadow-[0_8px_30px_-8px_rgba(15,23,42,0.35)]",
-                              "dark:from-slate-700 dark:via-slate-600 dark:to-slate-700",
+                              "bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-600 bg-[length:200%_100%]",
+                              "hover:bg-right hover:shadow-[0_8px_30px_-8px_rgba(20,184,166,0.45)]",
+                              "dark:from-teal-500 dark:via-emerald-500 dark:to-teal-500",
                               "text-white",
                               "hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]",
                               "disabled:opacity-70 disabled:hover:translate-y-0 disabled:shadow-lg disabled:active:scale-100",
@@ -877,7 +877,7 @@ export default function LoginPage() {
                               }}
                             />
                             {/* Bottom glow */}
-                            <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-3/4 h-6 bg-slate-800/20 blur-xl rounded-full pointer-events-none" />
+                            <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-3/4 h-6 bg-teal-500/30 blur-xl rounded-full pointer-events-none" />
                           </Button>
                         </motion.div>
 
@@ -896,12 +896,12 @@ export default function LoginPage() {
                               disabled={isQuickLogin || isLoading}
                               className={cn(
                                 "w-full h-10 rounded-xl font-medium text-sm transition-all duration-300",
-                                "border-slate-200/60 dark:border-slate-700/40",
-                                "bg-slate-50/50 dark:bg-slate-800/20",
-                                "text-slate-700 dark:text-slate-300",
-                                "hover:bg-slate-100/70 dark:hover:bg-slate-700/30",
-                                "hover:border-slate-300/60 dark:hover:border-slate-600/50",
-                                "hover:shadow-[0_4px_20px_-6px_rgba(15,23,42,0.12)]",
+                                "border-teal-200/60 dark:border-teal-800/40",
+                                "bg-teal-50/50 dark:bg-teal-950/20",
+                                "text-teal-700 dark:text-teal-300",
+                                "hover:bg-teal-100/70 dark:hover:bg-teal-900/30",
+                                "hover:border-teal-300/60 dark:hover:border-teal-700/50",
+                                "hover:shadow-[0_4px_20px_-6px_rgba(20,184,166,0.20)]",
                                 "active:scale-[0.98]",
                                 "disabled:opacity-60"
                               )}
@@ -955,8 +955,8 @@ export default function LoginPage() {
                         </AnimatePresence>
 
                         <div className="flex justify-center py-4">
-                          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800/40 dark:to-slate-700/40 flex items-center justify-center shadow-md">
-                            <Shield className="h-6 w-6 text-slate-600 dark:text-slate-400" />
+                          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-teal-100 to-emerald-100 dark:from-teal-900/40 dark:to-emerald-900/40 flex items-center justify-center shadow-md">
+                            <Shield className="h-6 w-6 text-teal-600 dark:text-teal-400" />
                           </div>
                         </div>
 
@@ -972,7 +972,7 @@ export default function LoginPage() {
                             placeholder="000000"
                             value={twoFactorCode}
                             onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            className="text-center text-xl tracking-[0.3em] font-mono h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200/80 dark:border-slate-700/80 transition-all duration-300 focus:border-slate-400 focus:ring-2 focus:ring-slate-500/20"
+                            className="text-center text-xl tracking-[0.3em] font-mono h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200/80 dark:border-slate-700/80 transition-all duration-300 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20"
                             maxLength={6}
                             disabled={isLoading}
                             autoFocus
@@ -981,7 +981,7 @@ export default function LoginPage() {
 
                         <Button
                           type="submit"
-                          className="w-full h-11 rounded-xl font-semibold text-sm transition-all duration-300 bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-white shadow-lg shadow-slate-500/20 hover:shadow-xl hover:shadow-slate-500/25 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0 relative overflow-hidden"
+                          className="w-full h-11 rounded-xl font-semibold text-sm transition-all duration-300 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white shadow-lg shadow-teal-500/25 hover:shadow-xl hover:shadow-teal-500/30 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0 relative overflow-hidden"
                           disabled={isLoading || twoFactorCode.length < 6}
                         >
                           {isLoading ? (
@@ -1021,7 +1021,7 @@ export default function LoginPage() {
                           </div>
                           <div className="relative flex justify-center">
                             <span className="bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl px-3 text-xs text-muted-foreground/70 flex items-center gap-1.5 font-medium">
-                              <Sparkles className="h-3 w-3 text-slate-500 dark:text-slate-400" />
+                              <Sparkles className="h-3 w-3 text-teal-500 dark:text-teal-400" />
                               {t('demoAccounts')}
                             </span>
                           </div>
@@ -1055,8 +1055,8 @@ export default function LoginPage() {
                                   "backdrop-blur-sm",
                                   "transition-all duration-300",
                                   "hover:bg-white/60 dark:hover:bg-slate-900/60",
-                                  "hover:border-slate-300/60 dark:hover:border-slate-600/40",
-                                  "hover:shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)]",
+                                  "hover:border-teal-200/60 dark:hover:border-teal-700/40",
+                                  "hover:shadow-[0_8px_24px_-8px_rgba(20,184,166,0.12)]",
                                   "group"
                                 )}
                               >
@@ -1101,7 +1101,7 @@ export default function LoginPage() {
                 <p className="text-sm text-muted-foreground">
                   Don&apos;t have an account?{' '}
                   <button
-                    className="text-slate-700 dark:text-slate-400 font-semibold hover:text-slate-800 dark:hover:text-slate-300 transition-colors duration-200 underline-offset-4 hover:underline inline-flex items-center gap-1"
+                    className="text-teal-600 dark:text-teal-400 font-semibold hover:text-teal-700 dark:hover:text-teal-300 transition-colors duration-200 underline-offset-4 hover:underline inline-flex items-center gap-1"
                     onClick={() => router.push('/signup')}
                   >
                     Start free trial
@@ -1129,7 +1129,7 @@ export default function LoginPage() {
         <span className="hover:text-muted-foreground/80 transition-colors cursor-pointer">Terms</span>
         <span className="mx-2">&middot;</span>
         <span className="flex items-center gap-1">
-          <Hotel className="h-3 w-3 text-slate-500" />
+          <Hotel className="h-3 w-3 text-teal-500" />
           StaySuite Hospitality OS
         </span>
       </div>
