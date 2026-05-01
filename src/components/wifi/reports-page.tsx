@@ -901,16 +901,66 @@ function UserBandwidthTab() {
 // ==================== TAB 3: WEB SURFING ====================
 
 function WebSurfingTab() {
-  const [dateFilter, setDateFilter] = useState('all');
   const [domainSearch, setDomainSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [surfingLogs, setSurfingLogs] = useState<any[]>([]);
+  const [summary, setSummary] = useState<any>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [dataSource, setDataSource] = useState<string>('demo');
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
+  const ALL_CATEGORIES = [
+    { value: 'social_media', label: 'Social Media' },
+    { value: 'video', label: 'Video' },
+    { value: 'streaming', label: 'Streaming' },
+    { value: 'shopping', label: 'Shopping' },
+    { value: 'tech', label: 'Technology' },
+    { value: 'communication', label: 'Communication' },
+    { value: 'news', label: 'News' },
+    { value: 'food', label: 'Food & Dining' },
+    { value: 'entertainment', label: 'Entertainment' },
+    { value: 'education', label: 'Education' },
+    { value: 'travel', label: 'Travel' },
+    { value: 'gaming', label: 'Gaming' },
+    { value: 'other', label: 'Other' },
+  ];
+
+  const catColors: Record<string, string> = {
+    social_media: 'text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30',
+    video: 'text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-900/30',
+    streaming: 'text-pink-600 dark:text-pink-400 bg-pink-100 dark:bg-pink-900/30',
+    shopping: 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30',
+    tech: 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30',
+    communication: 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30',
+    news: 'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30',
+    food: 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
+    entertainment: 'text-fuchsia-600 dark:text-fuchsia-400 bg-fuchsia-100 dark:bg-fuchsia-900/30',
+    education: 'text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-900/30',
+    travel: 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30',
+    gaming: 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30',
+    other: 'text-gray-600 bg-gray-100 dark:bg-gray-800/30',
+  };
+
+  const catGradient: Record<string, string> = {
+    social_media: '#8b5cf6',
+    video: '#f43f5e',
+    streaming: '#ec4899',
+    shopping: '#f59e0b',
+    tech: '#0ea5e9',
+    communication: '#3b82f6',
+    news: '#14b8a6',
+    food: '#f97316',
+    entertainment: '#d946ef',
+    education: '#06b6d4',
+    travel: '#10b981',
+    gaming: '#ef4444',
+    other: '#6b7280',
+  };
+
   const handleExportCSV = useCallback(() => {
-    const headers = 'Domain,Source IP,Category,Total Bytes,Connections,Last Accessed';
-    const rows = surfingLogs.map(l => `${l.domain},${l.sourceIp},${l.category},${l.totalBytes},${l.connections},${l.lastAccessed}`);
+    const headers = 'Domain,Source IP,Guest Name,Category,Total Bytes,Connections,Last Accessed';
+    const rows = surfingLogs.map(l => `${l.domain},${l.sourceIp || l.source_ip},${l.guestName || ''},${l.category},${l.totalBytes},${l.connections},${l.lastAccess || l.last_access}`);
     const csv = [headers, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -932,8 +982,9 @@ function WebSurfingTab() {
       const result = await res.json();
       if (result.success) {
         setSurfingLogs(result.data || []);
-      } else {
-        toast({ title: 'Error', description: typeof result.error === 'string' ? result.error : result.error?.message || 'Failed to fetch web surfing logs', variant: 'destructive' });
+        setSummary(result.summary || null);
+        setCategories(result.categories || []);
+        setDataSource(result.dataSource || 'demo');
       }
     } catch (e) {
       console.error(e);
@@ -951,7 +1002,7 @@ function WebSurfingTab() {
     let logs = [...surfingLogs];
     if (domainSearch) {
       const q = domainSearch.toLowerCase();
-      logs = logs.filter(l => l.domain.includes(q) || l.sourceIp.includes(q));
+      logs = logs.filter(l => l.domain.includes(q) || (l.sourceIp || l.source_ip || '').includes(q) || (l.guestName || '').toLowerCase().includes(q));
     }
     if (categoryFilter !== 'all') {
       logs = logs.filter(l => l.category === categoryFilter);
@@ -973,38 +1024,17 @@ function WebSurfingTab() {
 
   const categoryBreakdown = useMemo(() => {
     const cats: Record<string, number> = {};
-    surfingLogs.forEach(l => {
-      cats[l.category] = (cats[l.category] || 0) + l.totalBytes;
-    });
+    surfingLogs.forEach(l => { cats[l.category] = (cats[l.category] || 0) + l.totalBytes; });
     const total = Object.values(cats).reduce((s, v) => s + v, 0);
     return Object.entries(cats).map(([name, bytes]) => ({ name, bytes, pct: total > 0 ? (bytes / total) * 100 : 0 })).sort((a, b) => b.bytes - a.bytes);
   }, [surfingLogs]);
-
-  const catColors: Record<string, string> = {
-    social_media: 'text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30',
-    streaming: 'text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-900/30',
-    news: 'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30',
-    gaming: 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30',
-    other: 'text-gray-600 bg-gray-100 dark:bg-gray-800/30',
-  };
-
-  const catGradient: Record<string, string> = {
-    social_media: '#8b5cf6',
-    streaming: '#f43f5e',
-    news: '#14b8a6',
-    gaming: '#10b981',
-    other: '#6b7280',
-  };
 
   const pieGradient = useMemo(() => {
     return categoryBreakdown.reduce<{ result: string; cumulative: number }>((acc, c) => {
       const start = acc.cumulative;
       const end = start + c.pct;
       const segment = `${catGradient[c.name] || '#6b7280'} ${start.toFixed(1)}% ${end.toFixed(1)}%`;
-      return {
-        result: acc.result ? `${acc.result}, ${segment}` : segment,
-        cumulative: end,
-      };
+      return { result: acc.result ? `${acc.result}, ${segment}` : segment, cumulative: end };
     }, { result: '', cumulative: 0 }).result;
   }, [categoryBreakdown]);
 
@@ -1012,11 +1042,27 @@ function WebSurfingTab() {
 
   return (
     <div className="space-y-4">
-      {/* Privacy Notice */}
+      {/* Privacy Notice + Data Source */}
       <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3">
         <Eye className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-        <p className="text-sm text-muted-foreground">This report shows domain-level access logs only. Full URL tracking is disabled for guest privacy compliance (GDPR/PIPL).</p>
+        <div className="flex-1">
+          <p className="text-sm text-muted-foreground">Domain-level access logs only. Full URL tracking disabled for guest privacy (GDPR/PIPL).</p>
+          <Badge variant={dataSource === 'clickhouse' ? 'default' : 'secondary'} className={cn('mt-1 text-xs', dataSource === 'clickhouse' && 'bg-emerald-600')}>
+            <Database className="h-3 w-3 mr-1" />
+            {dataSource === 'clickhouse' ? 'ClickHouse Live' : 'Demo Data'}
+          </Badge>
+        </div>
       </div>
+
+      {/* 4 Summary Cards */}
+      {summary && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="p-4"><div className="flex items-center gap-3"><Globe className="h-8 w-8 text-violet-500" /><div><p className="text-xs text-muted-foreground">Total Domains</p><p className="text-xl font-bold">{(summary.totalDomains || 0).toLocaleString()}</p></div></div></Card>
+          <Card className="p-4"><div className="flex items-center gap-3"><Activity className="h-8 w-8 text-teal-500" /><div><p className="text-xs text-muted-foreground">Total Traffic</p><p className="text-xl font-bold">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
+          <Card className="p-4"><div className="flex items-center gap-3"><Users className="h-8 w-8 text-amber-500" /><div><p className="text-xs text-muted-foreground">Unique Users</p><p className="text-xl font-bold">{(summary.uniqueUsers || 0).toLocaleString()}</p></div></div></Card>
+          <Card className="p-4"><div className="flex items-center gap-3"><TrendingUp className="h-8 w-8 text-rose-500" /><div><p className="text-xs text-muted-foreground">Top Category</p><p className="text-xl font-bold capitalize">{(summary.topCategory || 'other').replace('_', ' ')}</p></div></div></Card>
+        </div>
+      )}
 
       {/* Filters */}
       <Card>
@@ -1024,25 +1070,13 @@ function WebSurfingTab() {
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Filter by domain or IP..." value={domainSearch} onChange={(e) => setDomainSearch(e.target.value)} className="pl-9" />
+              <Input placeholder="Search domain, IP, or guest name..." value={domainSearch} onChange={(e) => setDomainSearch(e.target.value)} className="pl-9" />
             </div>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="social_media">Social Media</SelectItem>
-                <SelectItem value="streaming">Streaming</SelectItem>
-                <SelectItem value="news">News</SelectItem>
-                <SelectItem value="gaming">Gaming</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={dateFilter} onValueChange={setDateFilter}>
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Time</SelectItem>
-                <SelectItem value="today">Today</SelectItem>
-                <SelectItem value="7d">7 Days</SelectItem>
+                {ALL_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
             <Button variant="outline" size="sm" onClick={handleExportCSV}><FileDown className="h-3.5 w-3.5 mr-1.5" /> Export</Button>
@@ -1053,9 +1087,7 @@ function WebSurfingTab() {
       {/* Top Domains + Category Pie */}
       <div className="grid md:grid-cols-3 gap-4">
         <Card className="md:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Top 20 Most Visited Domains</CardTitle>
-          </CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Top 20 Most Visited Domains</CardTitle></CardHeader>
           <CardContent>
             <ScrollArea className="max-h-64">
               <div className="space-y-1">
@@ -1074,15 +1106,14 @@ function WebSurfingTab() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Category Distribution</CardTitle>
-          </CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Category Distribution</CardTitle></CardHeader>
           <CardContent>
             <div className="flex flex-col items-center">
-              <div
-                className="w-32 h-32 rounded-full"
-                style={{ background: `conic-gradient(${pieGradient})` }}
-              />
+              {categoryBreakdown.length > 0 ? (
+                <div className="w-32 h-32 rounded-full" style={{ background: `conic-gradient(${pieGradient})` }} />
+              ) : (
+                <div className="w-32 h-32 rounded-full bg-muted flex items-center justify-center"><span className="text-xs text-muted-foreground">No data</span></div>
+              )}
               <div className="mt-4 space-y-2 w-full">
                 {categoryBreakdown.map(c => (
                   <div key={c.name} className="flex items-center justify-between text-xs">
@@ -1099,43 +1130,39 @@ function WebSurfingTab() {
         </Card>
       </div>
 
-      {/* Logs Table */}
+      {/* Domain Access Logs Table */}
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Domain Access Logs</CardTitle>
-        </CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-base">Domain Access Logs</CardTitle></CardHeader>
         <CardContent className="p-0">
           <ScrollArea className="max-h-96">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Timestamp</TableHead>
-                  <TableHead>Source IP</TableHead>
                   <TableHead>Domain</TableHead>
+                  <TableHead>Source IP</TableHead>
+                  <TableHead>Guest Name</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead className="text-right">Connections</TableHead>
                   <TableHead className="text-right">Total Bytes</TableHead>
-                  <TableHead>Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredLogs.slice(0, 50).map((log, idx) => (
-                  <TableRow key={log.id || `${log.domain}-${log.sourceIp}-${idx}`} className="hover:bg-muted/30">
-                    <TableCell className="text-xs text-muted-foreground">{new Date(log.timestamp || log.lastAccess).toLocaleString()}</TableCell>
-                    <TableCell className="font-mono text-xs">{log.sourceIp}</TableCell>
+                {filteredLogs.length === 0 ? (
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No web surfing data available. Data will appear once the DNS logging pipeline is active.</TableCell></TableRow>
+                ) : filteredLogs.slice(0, 200).map((log, idx) => (
+                  <TableRow key={log.id || `${log.domain}-${log.sourceIp || log.source_ip}-${idx}`} className="hover:bg-muted/30">
+                    <TableCell className="text-xs text-muted-foreground">{new Date(log.timestamp || log.lastAccess || log.last_access).toLocaleString()}</TableCell>
                     <TableCell className="font-mono text-sm">{log.domain}</TableCell>
+                    <TableCell className="font-mono text-xs text-teal-600 dark:text-teal-400">{log.sourceIp || log.source_ip}</TableCell>
+                    <TableCell className="text-xs">{log.guestName || <span className="text-muted-foreground">—</span>}</TableCell>
                     <TableCell>
                       <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', catColors[log.category] || catColors.other)}>
-                        {log.category.replace('_', ' ')}
+                        {(log.category || 'other').replace('_', ' ')}
                       </span>
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm">{log.connections}</TableCell>
                     <TableCell className="text-right font-mono text-sm">{formatBytes(log.totalBytes)}</TableCell>
-                    <TableCell>
-                      <Badge variant={(log.action || 'allowed') === 'allowed' ? 'default' : 'destructive'} className={cn('text-xs', (log.action || 'allowed') === 'allowed' && 'bg-emerald-600')}>
-                        {log.action || 'allowed'}
-                      </Badge>
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -1151,19 +1178,17 @@ function WebSurfingTab() {
 
 function NATLogsTab() {
   const [logs, setLogs] = useState<any[]>([]);
-  const [autoScroll, setAutoScroll] = useState(true);
-  const [isPaused, setIsPaused] = useState(false);
+  const [summary, setSummary] = useState<any>(null);
+  const [dataSource, setDataSource] = useState<string>('demo');
   const [searchQuery, setSearchQuery] = useState('');
   const [protocolFilter, setProtocolFilter] = useState('all');
   const [actionFilter, setActionFilter] = useState('all');
   const [loading, setLoading] = useState(true);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { toast } = useToast();
 
   const handleExportCSV = useCallback(() => {
-    const headers = 'Timestamp,Source IP:Port,Dest IP:Port,Protocol,Domain,Bytes,Action,Session ID';
-    const rows = logs.map(l => `${l.timestamp},${l.sourceIp}:${l.sourcePort},${l.destIp}:${l.destPort},${l.protocol},${l.domain},${l.bytes},${l.action},${l.sessionId}`);
+    const headers = 'Timestamp,Source IP:Port,Dest IP:Port,Proto,Event Type,Download,Upload,Packets,Duration(s),Domain,Guest Name,Action';
+    const rows = logs.map(l => `${l.timestamp},${l.source_ip}:${l.src_port},${l.dest_ip}:${l.dst_port},${l.proto},${l.event_type || '-'},${l.bytes_orig || 0},${l.bytes_reply || 0},${l.packets || 0},${l.duration || 0},${l.domain || ''},${l.guestName || ''},${l.action || 'allow'}`);
     const csv = [headers, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1181,15 +1206,13 @@ function NATLogsTab() {
       const params = new URLSearchParams();
       if (searchQuery) params.set('sourceIp', searchQuery);
       if (protocolFilter !== 'all') params.set('protocol', protocolFilter);
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 7);
-      params.set('startDate', startDate.toISOString().split('T')[0]);
+      if (actionFilter !== 'all') params.set('action', actionFilter);
       const res = await fetch(`/api/wifi/reports/nat-logs?${params.toString()}`);
       const result = await res.json();
       if (result.success) {
         setLogs(result.data || []);
-      } else {
-        toast({ title: 'Error', description: typeof result.error === 'string' ? result.error : result.error?.message || 'Failed to fetch NAT logs', variant: 'destructive' });
+        setSummary(result.summary || null);
+        setDataSource(result.dataSource || 'demo');
       }
     } catch (e) {
       console.error(e);
@@ -1197,48 +1220,17 @@ function NATLogsTab() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, protocolFilter, toast]);
+  }, [searchQuery, protocolFilter, actionFilter, toast]);
 
-  useEffect(() => {
-    fetchNATLogs();
-  }, [fetchNATLogs]);
-
-  // Poll for real NAT log updates from API
-  useEffect(() => {
-    if (isPaused) return;
-    timerRef.current = setInterval(async () => {
-      try {
-        const params = new URLSearchParams();
-        if (searchQuery) params.set('search', searchQuery);
-        if (protocolFilter !== 'all') params.set('protocol', protocolFilter);
-        params.set('limit', '500');
-        const res = await fetch(`/api/wifi/reports/nat-logs?${params.toString()}`);
-        const result = await res.json();
-        if (result.success) {
-          setLogs(result.data || []);
-        }
-      } catch {
-        // Silently fail on polling - don't spam error toasts
-      }
-    }, 5000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [isPaused, searchQuery, protocolFilter]);
-
-  useEffect(() => {
-    if (autoScroll && scrollRef.current) {
-      scrollRef.current.scrollTop = 0;
-    }
-  }, [logs.length, autoScroll]);
+  useEffect(() => { fetchNATLogs(); }, [fetchNATLogs]);
 
   const filteredLogs = useMemo(() => {
     let result = logs;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(l =>
-        l.sourceIp.includes(q) || l.destIp.includes(q) || l.domain.toLowerCase().includes(q) || l.sessionId.includes(q)
-      );
+      result = result.filter(l => (l.source_ip || l.sourceIp || '').includes(q) || (l.dest_ip || l.destIp || '').includes(q) || (l.guestName || '').toLowerCase().includes(q));
     }
-    if (protocolFilter !== 'all') result = result.filter(l => l.protocol === protocolFilter);
+    if (protocolFilter !== 'all') result = result.filter(l => (l.proto || l.protocol) === protocolFilter);
     if (actionFilter !== 'all') result = result.filter(l => l.action === actionFilter);
     return result;
   }, [logs, searchQuery, protocolFilter, actionFilter]);
@@ -1247,29 +1239,30 @@ function NATLogsTab() {
 
   return (
     <div className="space-y-4">
-      {/* Live Counter & Controls */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className={cn('w-2 h-2 rounded-full', isPaused ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse')} />
-              <span className="text-sm font-medium">
-                Showing <span className="text-teal-600 dark:text-teal-400 font-bold">{filteredLogs.length.toLocaleString()}</span> of <span className="font-bold">{logs.length.toLocaleString()}</span> total entries
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setIsPaused(!isPaused)}>
-                {isPaused ? <Play className="h-3.5 w-3.5 mr-1.5" /> : <Pause className="h-3.5 w-3.5 mr-1.5" />}
-                {isPaused ? 'Resume' : 'Pause'}
-              </Button>
-              <div className="flex items-center gap-1.5">
-                <Switch checked={autoScroll} onCheckedChange={setAutoScroll} id="auto-scroll" />
-                <Label htmlFor="auto-scroll" className="text-xs">Auto-scroll</Label>
-              </div>
-            </div>
+      {/* IPDR Badge + Data Source */}
+      <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3">
+        <Shield className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+        <div className="flex-1">
+          <p className="text-sm text-muted-foreground">NAT connection logs for IPDR compliance (TRAI). Data retained for minimum 1 year.</p>
+          <div className="flex gap-2 mt-1">
+            <Badge variant={dataSource === 'clickhouse' ? 'default' : 'secondary'} className={cn('text-xs', dataSource === 'clickhouse' && 'bg-emerald-600')}>
+              <Database className="h-3 w-3 mr-1" />
+              {dataSource === 'clickhouse' ? 'ClickHouse Live' : 'Demo Data'}
+            </Badge>
+            <Badge variant="outline" className="text-xs"><Shield className="h-3 w-3 mr-1" />IPDR Compliant</Badge>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      {/* 4 Summary Cards */}
+      {summary && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="p-4"><div className="flex items-center gap-3"><Activity className="h-8 w-8 text-sky-500" /><div><p className="text-xs text-muted-foreground">Total Connections</p><p className="text-xl font-bold">{(summary.totalConnections || 0).toLocaleString()}</p></div></div></Card>
+          <Card className="p-4"><div className="flex items-center gap-3"><Download className="h-8 w-8 text-teal-500" /><div><p className="text-xs text-muted-foreground">Total Traffic</p><p className="text-xl font-bold">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
+          <Card className="p-4"><div className="flex items-center gap-3"><Users className="h-8 w-8 text-amber-500" /><div><p className="text-xs text-muted-foreground">Unique Sources</p><p className="text-xl font-bold">{(summary.uniqueSources || 0).toLocaleString()}</p></div></div></Card>
+          <Card className="p-4"><div className="flex items-center gap-3"><Network className="h-8 w-8 text-violet-500" /><div><p className="text-xs text-muted-foreground">Top Protocol</p><p className="text-xl font-bold uppercase">{summary.topProtocol || 'tcp'}</p></div></div></Card>
+        </div>
+      )}
 
       {/* Filters */}
       <Card>
@@ -1277,7 +1270,7 @@ function NATLogsTab() {
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search IP, domain, session ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
+              <Input placeholder="Search IP, domain, or guest name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
             </div>
             <Select value={protocolFilter} onValueChange={setProtocolFilter}>
               <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
@@ -1285,6 +1278,7 @@ function NATLogsTab() {
                 <SelectItem value="all">All Proto</SelectItem>
                 <SelectItem value="tcp">TCP</SelectItem>
                 <SelectItem value="udp">UDP</SelectItem>
+                <SelectItem value="icmp">ICMP</SelectItem>
               </SelectContent>
             </Select>
             <Select value={actionFilter} onValueChange={setActionFilter}>
@@ -1303,7 +1297,7 @@ function NATLogsTab() {
       {/* NAT Logs Table */}
       <Card>
         <CardContent className="p-0">
-          <div ref={scrollRef} className="max-h-[500px] overflow-y-auto">
+          <ScrollArea className="max-h-[500px]">
             <Table>
               <TableHeader className="sticky top-0 bg-background z-10">
                 <TableRow>
@@ -1311,42 +1305,50 @@ function NATLogsTab() {
                   <TableHead className="text-xs">Source IP:Port</TableHead>
                   <TableHead className="text-xs">Dest IP:Port</TableHead>
                   <TableHead className="text-xs">Proto</TableHead>
+                  <TableHead className="text-xs">Event</TableHead>
+                  <TableHead className="text-xs text-right">Download ↓</TableHead>
+                  <TableHead className="text-xs text-right">Upload ↑</TableHead>
+                  <TableHead className="text-xs text-right">Packets</TableHead>
                   <TableHead className="text-xs">Domain</TableHead>
-                  <TableHead className="text-xs text-right">Bytes</TableHead>
-                  <TableHead className="text-xs">Action</TableHead>
-                  <TableHead className="text-xs">Session ID</TableHead>
+                  <TableHead className="text-xs">Guest</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredLogs.slice(0, 100).map((log) => (
-                  <TableRow key={log.id} className={cn('hover:bg-muted/30', log.action === 'deny' && 'bg-red-50/50 dark:bg-red-950/10')}>
+                {filteredLogs.length === 0 ? (
+                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No NAT log data available. Data will appear once the conntrack logging pipeline is active.</TableCell></TableRow>
+                ) : filteredLogs.slice(0, 200).map((log, idx) => (
+                  <TableRow key={log.id || `nat-${idx}`} className={cn('hover:bg-muted/30', (log.action === 'deny') && 'bg-red-50/50 dark:bg-red-950/10')}>
                     <TableCell className="text-xs text-muted-foreground font-mono whitespace-nowrap">
                       {new Date(log.timestamp).toLocaleTimeString()}
                     </TableCell>
                     <TableCell className="font-mono text-xs">
-                      <span className="text-teal-600 dark:text-teal-400">{log.sourceIp}</span>:<span className="text-muted-foreground">{log.sourcePort}</span>
+                      <span className="text-teal-600 dark:text-teal-400">{log.source_ip || log.sourceIp}</span>:<span className="text-muted-foreground">{log.src_port || log.sourcePort}</span>
                     </TableCell>
                     <TableCell className="font-mono text-xs">
-                      <span className="text-amber-600 dark:text-amber-400">{log.destIp}</span>:<span className="text-muted-foreground">{log.destPort}</span>
+                      <span className="text-amber-600 dark:text-amber-400">{log.dest_ip || log.destIp}</span>:<span className="text-muted-foreground">{log.dst_port || log.destPort}</span>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={log.protocol === 'tcp' ? 'default' : 'outline'} className="text-xs uppercase font-mono">
-                        {log.protocol}
+                      <Badge variant={(log.proto || log.protocol) === 'tcp' ? 'default' : 'outline'} className="text-xs uppercase font-mono">
+                        {log.proto || log.protocol}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-xs font-mono max-w-[140px] truncate">{log.domain}</TableCell>
-                    <TableCell className="text-right text-xs font-mono">{formatBytes(log.bytes)}</TableCell>
                     <TableCell>
-                      <Badge variant={log.action === 'allow' ? 'default' : 'destructive'} className={cn('text-xs', log.action === 'allow' && 'bg-emerald-600')}>
-                        {log.action}
-                      </Badge>
+                      {(log.event_type || log.eventType) && (
+                        <Badge variant="outline" className={cn('text-xs font-mono', (log.event_type || log.eventType) === 'DESTROY' && 'text-red-500 border-red-200 dark:border-red-800', (log.event_type || log.eventType) === 'NEW' && 'text-emerald-500 border-emerald-200 dark:border-emerald-800')}>
+                          {log.event_type || log.eventType}
+                        </Badge>
+                      )}
                     </TableCell>
-                    <TableCell className="text-xs font-mono text-muted-foreground">{log.sessionId}</TableCell>
+                    <TableCell className="text-right text-xs font-mono text-teal-600 dark:text-teal-400">{formatBytes(log.bytes_orig || 0)}</TableCell>
+                    <TableCell className="text-right text-xs font-mono text-amber-600 dark:text-amber-400">{formatBytes(log.bytes_reply || 0)}</TableCell>
+                    <TableCell className="text-right text-xs font-mono">{(log.packets || 0).toLocaleString()}</TableCell>
+                    <TableCell className="text-xs font-mono max-w-[120px] truncate">{log.domain || '—'}</TableCell>
+                    <TableCell className="text-xs">{log.guestName || <span className="text-muted-foreground">—</span>}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </div>
+          </ScrollArea>
         </CardContent>
       </Card>
     </div>

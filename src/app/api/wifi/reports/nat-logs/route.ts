@@ -1,15 +1,202 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
-import crypto from 'crypto';
+import { query, isAvailable } from '@/lib/clickhouse';
 
-/** Deterministic index selector using crypto (avoids Math.random) */
-function pickIndex(length: number, seed: number): number {
-  if (length <= 0) return 0;
-  return seed % length;
+// ─── Static data for demo fallback ──────────────────────────────
+
+const SOURCE_IPS = [
+  '10.0.1.101', '10.0.1.102', '10.0.1.103', '10.0.2.104', '10.0.2.105',
+  '10.0.3.201', '10.0.3.202', '10.0.4.301', '10.0.4.110', '10.0.2.108',
+];
+
+const DEST_IP_MAP: Record<string, string> = {
+  '142.250.80.14': 'google.com',
+  '157.240.1.35': 'facebook.com',
+  '31.13.71.36': 'facebook.com',
+  '140.82.121.4': 'github.com',
+  '151.101.1.140': 'reddit.com',
+  '104.244.42.65': 'twitter.com',
+  '23.185.0.2': 'stackoverflow.com',
+  '172.217.14.206': 'youtube.com',
+  '52.94.236.248': 'amazon.com',
+  '13.107.42.14': 'linkedin.com',
+  '23.36.2.18': 'netflix.com',
+  '35.186.224.45': 'spotify.com',
+  '104.16.85.20': 'whatsapp.com',
+  '185.60.216.35': 'instagram.com',
+  '103.235.46.39': 'flipkart.com',
+  '13.234.52.22': 'amazon.in',
+  '223.165.85.24': 'hotstar.com',
+  '1.1.1.1': 'cloudflare-dns',
+  '8.8.8.8': 'google-dns',
+  '9.9.9.9': 'quad9-dns',
+};
+
+const DEST_IPS = Object.keys(DEST_IP_MAP);
+
+const GUEST_NAME_MAP: Record<string, string> = {
+  '10.0.1.101': 'Rahul Sharma',
+  '10.0.1.102': 'Priya Patel',
+  '10.0.2.104': 'Amit Kumar',
+  '10.0.3.201': 'Sneha Reddy',
+  '10.0.4.301': 'Vikram Singh',
+};
+
+const PROTOCOLS = ['tcp', 'tcp', 'tcp', 'tcp', 'tcp', 'tcp', 'tcp', 'udp', 'udp', 'udp', 'udp', 'udp', 'icmp']; // 70% tcp, 25% udp, 5% icmp
+
+// ─── Helpers ────────────────────────────────────────────────────
+
+function generateDemoData(count: number) {
+  const logs = [];
+  const now = Date.now();
+
+  for (let i = 0; i < count; i++) {
+    const protocol = PROTOCOLS[i % PROTOCOLS.length];
+
+    // Event type: NEW 40%, UPDATE 40%, DESTROY 20%
+    const eventTypeMod = i % 5;
+    let eventType: string;
+    if (eventTypeMod < 2) eventType = 'NEW';
+    else if (eventTypeMod < 4) eventType = 'UPDATE';
+    else eventType = 'DESTROY';
+
+    // Source IP
+    const sourceIp = SOURCE_IPS[i % SOURCE_IPS.length];
+    const srcPort = 1024 + (i * 317) % 64000;
+
+    // Dest IP
+    const destIp = DEST_IPS[i % DEST_IPS.length];
+
+    // Dest port
+    const dstPort = protocol === 'icmp' ? 0 : [80, 443, 53, 8080, 8443, 993, 25, 587][i % 8];
+
+    // Bytes: 0 to 5000000 based on i
+    const totalBytes = (i * 50000) % 5000001;
+
+    // Split bytes for tcp/udp
+    const bytesOrig = protocol === 'icmp' ? 0 : Math.floor(totalBytes * 0.6);
+    const bytesReply = protocol === 'icmp' ? 0 : totalBytes - bytesOrig;
+
+    // Packets
+    const packets = protocol === 'icmp' ? 1 + (i % 20) : 10 + (i * 47) % 5000;
+
+    // Duration: 0 for NEW, calculated for others
+    const duration = eventType === 'NEW' ? 0 : Math.round((1 + (i * 7) % 3000) * 10) / 10;
+
+    // Status
+    const status = eventType === 'NEW' ? 'NEW' : eventType === 'DESTROY' ? 'ASSURED' : (i % 3 === 0 ? 'SEEN_REPLY' : 'ASSURED');
+
+    // Timestamp: spread over 7 days, newer entries first
+    const timestamp = new Date(now - i * 3600000 * 1.68); // ~100 entries over 7 days
+
+    // Domain from map
+    const domain = DEST_IP_MAP[destIp] ?? '';
+
+    // Guest name
+    const guestName = GUEST_NAME_MAP[sourceIp] ?? '';
+
+    // Action: all allow for demo
+    const action = 'allow';
+
+    logs.push({
+      id: `nl-${i + 1}`,
+      timestamp: timestamp.toISOString(),
+      source_ip: sourceIp,
+      src_port: srcPort,
+      dest_ip: destIp,
+      dst_port: dstPort,
+      proto: protocol,
+      event_type: eventType,
+      bytes: totalBytes,
+      bytes_orig: bytesOrig,
+      bytes_reply: bytesReply,
+      packets,
+      duration,
+      status,
+      domain,
+      guestName,
+      action,
+    });
+  }
+
+  return logs;
 }
 
-// GET /api/wifi/reports/nat-logs - NAT logs with filters
+function applyFilters(
+  data: Record<string, unknown>[],
+  sourceIp: string | null,
+  protocol: string | null,
+  startDate: string | null,
+  action: string | null,
+): Record<string, unknown>[] {
+  let filtered = data;
+
+  if (sourceIp) {
+    filtered = filtered.filter((row) => {
+      const sip = String(row.source_ip ?? row.sourceIp ?? '');
+      return sip.includes(sourceIp);
+    });
+  }
+
+  if (protocol) {
+    // For ICMP filter, also match proto === 'icmp'
+    filtered = filtered.filter((row) => {
+      const p = String(row.proto ?? row.protocol ?? '');
+      return p === protocol || (protocol === 'icmp' && p === 'icmp');
+    });
+  }
+
+  if (startDate) {
+    const start = new Date(startDate).getTime();
+    filtered = filtered.filter((row) => {
+      const ts = String(row.timestamp ?? '');
+      return new Date(ts).getTime() >= start;
+    });
+  }
+
+  if (action) {
+    filtered = filtered.filter((row) => {
+      const a = String(row.action ?? '');
+      return a === action;
+    });
+  }
+
+  return filtered;
+}
+
+function computeSummary(data: Record<string, unknown>[]) {
+  let totalBytes = 0;
+  const sourceSet = new Set<string>();
+  const protoCount: Record<string, number> = {};
+
+  for (const row of data) {
+    totalBytes += Number(row.bytes ?? 0);
+    const sip = String(row.source_ip ?? row.sourceIp ?? '');
+    if (sip) sourceSet.add(sip);
+    const p = String(row.proto ?? row.protocol ?? '');
+    if (p) protoCount[p] = (protoCount[p] ?? 0) + 1;
+  }
+
+  let topProtocol = 'tcp';
+  let topCount = 0;
+  for (const [proto, count] of Object.entries(protoCount)) {
+    if (count > topCount) {
+      topCount = count;
+      topProtocol = proto;
+    }
+  }
+
+  return {
+    totalConnections: data.length,
+    totalBytes,
+    uniqueSources: sourceSet.size,
+    topProtocol,
+  };
+}
+
+// ─── GET handler ────────────────────────────────────────────────
+
 export async function GET(request: NextRequest) {
   const user = await requirePermission(request, 'reports.view');
   if (user instanceof NextResponse) return user;
@@ -19,106 +206,165 @@ export async function GET(request: NextRequest) {
     const sourceIp = searchParams.get('sourceIp');
     const protocol = searchParams.get('protocol');
     const startDate = searchParams.get('startDate');
+    const action = searchParams.get('action');
 
-    // Try to get data from database
-    const where: Record<string, unknown> = { tenantId: user.tenantId };
+    // ── Try ClickHouse ──────────────────────────────────────────
+    const chReady = await isAvailable();
+    let enriched: Record<string, unknown>[] | null = null;
 
-    if (sourceIp) where.sourceIp = { contains: sourceIp };
-    if (protocol) where.protocol = protocol;
+    if (chReady) {
+      // Build WHERE clauses
+      const wheres: string[] = ['timestamp >= now() - INTERVAL 7 DAY'];
+      if (sourceIp) wheres.push(`src_ip LIKE '%${sourceIp.replace(/'/g, "\\'")}%'`);
+      if (protocol) wheres.push(`proto = '${protocol}'`);
+      if (startDate) wheres.push(`timestamp >= parseDateTimeBestEffort('${startDate.replace(/'/g, "\\'")}')`);
 
-    if (startDate) {
-      where.timestamp = { gte: new Date(startDate) };
+      const whereClause = wheres.join(' AND ');
+
+      const natRows = await query<Record<string, unknown>>(
+        `SELECT timestamp, proto, event_type, src_ip, src_port, dst_ip, dst_port, bytes, packets, duration, status ` +
+        `FROM ipdr.nat_log ` +
+        `WHERE ${whereClause} ` +
+        `ORDER BY timestamp DESC LIMIT 1000`,
+      );
+
+      if (natRows.length > 0) {
+        // ── DNS cache enrichment ──────────────────────────────
+        const domainMap = new Map<string, string>();
+
+        // Collect unique src_ips for DNS lookup
+        const uniqueSrcIps = [...new Set(natRows.map((r) => String(r.src_ip ?? '')))];
+
+        // Query DNS cache for each unique source IP (last 1 hour)
+        for (const sip of uniqueSrcIps) {
+          if (!sip) continue;
+          const dnsRows = await query<Record<string, unknown>>(
+            `SELECT dst_ip, domain FROM ipdr.dns_cache ` +
+            `WHERE timestamp >= now() - INTERVAL 1 HOUR AND src_ip = '${sip.replace(/'/g, "\\'")}' ` +
+            `LIMIT 1000`,
+          );
+          for (const row of dnsRows) {
+            const dip = String(row.dst_ip ?? '');
+            const domain = String(row.domain ?? '');
+            if (dip && domain) domainMap.set(dip, domain);
+          }
+        }
+
+        // ── Guest name resolution ─────────────────────────────
+        const guestMap = new Map<string, string>();
+        const uniqueSourceIps = [...new Set(natRows.map((r) => String(r.src_ip ?? '')))];
+
+        try {
+          // WiFiSession has guestId but no direct guest relation — query in two steps
+          const sessions = await db.wiFiSession.findMany({
+            where: {
+              tenantId: user.tenantId,
+              ipAddress: { in: uniqueSourceIps },
+            },
+            select: {
+              ipAddress: true,
+              guestId: true,
+            },
+          });
+
+          // Collect unique guest IDs and build IP→guestId map
+          const ipToGuestId = new Map<string, string>();
+          const guestIds: string[] = [];
+          for (const session of sessions) {
+            if (session.ipAddress && session.guestId) {
+              ipToGuestId.set(session.ipAddress, session.guestId);
+              guestIds.push(session.guestId);
+            }
+          }
+
+          // Batch-resolve guest names
+          if (guestIds.length > 0) {
+            const uniqueGuestIds = [...new Set(guestIds)];
+            const guests = await db.guest.findMany({
+              where: { id: { in: uniqueGuestIds } },
+              select: { id: true, firstName: true, lastName: true },
+            });
+
+            const guestNameById = new Map<string, string>();
+            for (const g of guests) {
+              const name = [g.firstName, g.lastName].filter(Boolean).join(' ');
+              if (name) guestNameById.set(g.id, name);
+            }
+
+            // Map IP → guest name
+            for (const [ip, guestId] of ipToGuestId) {
+              const name = guestNameById.get(guestId);
+              if (name) guestMap.set(ip, name);
+            }
+          }
+        } catch {
+          // Guest resolution is best-effort — continue without it
+        }
+
+        // ── Build enriched response ───────────────────────────
+        enriched = natRows.map((row, idx) => ({
+          id: `nl-${idx + 1}`,
+          timestamp: String(row.timestamp ?? ''),
+          source_ip: String(row.src_ip ?? ''),
+          src_port: Number(row.src_port ?? 0),
+          dest_ip: String(row.dst_ip ?? ''),
+          dst_port: Number(row.dst_port ?? 0),
+          proto: String(row.proto ?? ''),
+          event_type: String(row.event_type ?? ''),
+          bytes: Number(row.bytes ?? 0),
+          bytes_orig: Math.floor(Number(row.bytes ?? 0) * 0.6),
+          bytes_reply: Math.floor(Number(row.bytes ?? 0) * 0.4),
+          packets: Number(row.packets ?? 0),
+          duration: Number(row.duration ?? 0),
+          status: String(row.status ?? ''),
+          domain: domainMap.get(String(row.dst_ip ?? '')) ?? '',
+          guestName: guestMap.get(String(row.src_ip ?? '')) ?? '',
+          action: 'allow',
+        }));
+
+        // Apply action filter if needed (ClickHouse data always has allow for now)
+        if (action) {
+          enriched = enriched.filter((row) => String(row.action) === action);
+        }
+      }
     }
 
-    const dbLogs = await db.natLog.findMany({
-      where,
-      orderBy: { timestamp: 'desc' },
-      take: 500,
-    });
+    // ── Fallback demo data ──────────────────────────────────────
+    if (!enriched || enriched.length === 0) {
+      const demoData = generateDemoData(100);
 
-    // If we have DB data, format it for the frontend
-    if (dbLogs.length > 0) {
-      const formatted = dbLogs.map((log) => ({
-        id: log.id,
-        timestamp: log.timestamp.toISOString(),
-        sourceIp: log.sourceIp,
-        sourcePort: log.sourcePort,
-        destIp: log.destIp,
-        destPort: log.destPort,
-        protocol: log.protocol,
-        domain: log.destDomain || '',
-        bytes: log.bytes || 0,
-        action: log.action || 'allow',
-        sessionId: log.sessionId || '',
-      }));
+      // Apply all filters to demo data
+      const filtered = applyFilters(demoData, sourceIp, protocol, startDate, action);
+      const summary = computeSummary(filtered);
 
-      return NextResponse.json({ success: true, data: formatted });
-    }
-
-    // Fallback: Generate deterministic default NAT log data (no Math.random)
-    const mockLogs = [];
-    const sourceIps = [
-      '10.0.1.101', '10.0.1.102', '10.0.1.103', '10.0.2.104', '10.0.2.105',
-      '10.0.3.201', '10.0.3.202', '10.0.4.301', '10.0.1.401', '10.0.2.501',
-    ];
-    const destDomains = [
-      'api.facebook.com', 'static.xx.fbcdn.net', 'www.youtube.com',
-      'api.netflix.com', 'www.google.com', 'mail.google.com',
-      'www.bbc.com', 'www.cnn.com', 'steam-cdn.akamai.net',
-      'api.whatsapp.com', 'spclient.wg.spotify.com',
-    ];
-    const protocols = ['tcp', 'udp'];
-    const destPorts = [80, 443, 53, 8080, 8443];
-
-    const now = Date.now();
-    // Use crypto-based deterministic seed for reproducible mock data
-    const seedBytes = crypto.getRandomValues(new Uint32Array(1));
-    const baseSeed = seedBytes[0];
-
-    for (let i = 0; i < 50; i++) {
-      const seed = baseSeed + i * 7919; // deterministic per entry
-      const protocol = protocols[pickIndex(protocols.length, seed)];
-      const destPort = destPorts[pickIndex(destPorts.length, seed + 1)];
-      const sourceIp = sourceIps[pickIndex(sourceIps.length, seed + 2)];
-      const isDeny = (seed % 20) === 0; // ~5% deny rate
-
-      const destDomain = destPorts.includes(destPort) && destPort !== 53
-        ? destDomains[pickIndex(destDomains.length, seed + 3)]
-        : '';
-      const destIp = destPort === 53
-        ? '8.8.8.8'
-        : `${1 + (seed % 254)}.${((seed >> 4) % 256)}.${((seed >> 8) % 256)}.${1 + ((seed >> 12) % 254)}`;
-
-      mockLogs.push({
-        id: `nat-${String(i + 1).padStart(4, '0')}`,
-        timestamp: new Date(now - i * 120000 - (seed % 60000)).toISOString(),
-        sourceIp,
-        sourcePort: 1024 + (seed % 64000),
-        destIp,
-        destPort,
-        protocol,
-        domain: destDomain || (destPort === 53 ? 'dns-resolve' : 'api.staysuite.com'),
-        bytes: seed % 50000,
-        action: isDeny ? 'deny' : 'allow',
-        sessionId: `sess-${String(seed % 9999).padStart(4, '0')}`,
+      return NextResponse.json({
+        success: true,
+        data: filtered,
+        summary,
+        dataSource: 'demo',
       });
     }
 
-    // Apply filters
-    let result = mockLogs;
-    if (sourceIp) {
-      result = result.filter((l) => l.sourceIp.includes(sourceIp));
-    }
-    if (protocol) {
-      result = result.filter((l) => l.protocol === protocol);
-    }
+    // ── ClickHouse success response ─────────────────────────────
+    const summary = computeSummary(enriched);
 
-    return NextResponse.json({ success: true, data: result });
+    return NextResponse.json({
+      success: true,
+      data: enriched,
+      summary,
+      dataSource: 'clickhouse',
+    });
   } catch (error) {
-    console.error('Error fetching NAT logs:', error);
+    console.error('[nat-logs] Error fetching NAT logs:', error);
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch NAT logs' } },
-      { status: 500 }
+      {
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to fetch NAT logs',
+        },
+      },
+      { status: 500 },
     );
   }
 }
