@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Set PG paths
 export PATH="$SCRIPT_DIR/pgsql-runtime/bin:$PATH"
 export LD_LIBRARY_PATH="$SCRIPT_DIR/pgsql-runtime/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-export DATABASE_URL="postgresql://z@localhost:5432/staysuite"
+export DATABASE_URL="postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite"
 
 # Start PG if not running
 if ! pg_isready -h localhost -p 5432 > /dev/null 2>&1; then

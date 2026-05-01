@@ -7,7 +7,7 @@ module.exports = {
       cwd: __dirname,
       env: {
         NODE_ENV: 'development',
-        DATABASE_URL: 'postgresql://z@localhost:5432/staysuite',
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
         NEXT_DISABLE_TURBOPACK: '1',
         PORT: '3000',
         PATH: __dirname + '/pgsql-runtime/bin:' + process.env.PATH,

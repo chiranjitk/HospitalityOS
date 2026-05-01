@@ -47,7 +47,7 @@ const RADIUS_CONFIG_PATH = process.env.RADIUS_CONFIG_PATH ||
 const RADIUS_CLIENTS_PATH = path.join(RADIUS_CONFIG_PATH, 'clients.conf');
 
 // Database connection (sandbox uses local PG, production uses system PG)
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/staysuite';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite';
 
 // RADIUS SQL module credentials — extract from DATABASE_URL or use defaults
 const DB_URL_PARSED = new URL(DATABASE_URL);

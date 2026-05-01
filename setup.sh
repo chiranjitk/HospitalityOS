@@ -105,7 +105,7 @@ log_ok "Dependencies installed"
 log_info "Generating Prisma client..."
 export PATH="$PROJECT_DIR/pgsql-runtime/bin:$PATH"
 export LD_LIBRARY_PATH="$PROJECT_DIR/pgsql-runtime/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-DATABASE_URL="postgresql://z@localhost:5432/staysuite" bunx prisma generate
+DATABASE_URL="postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite" bunx prisma generate
 log_ok "Prisma client generated"
 
 # ---- Step 4: Start PostgreSQL ----
@@ -125,7 +125,7 @@ log_info "Verifying database..."
 TABLE_COUNT=$("$PROJECT_DIR/pgsql-runtime/bin/psql" -h localhost -p 5432 -d staysuite -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';" 2>/dev/null || echo "0")
 if [ "$TABLE_COUNT" -lt 100 ]; then
   log_warn "Database appears empty ($TABLE_COUNT tables). Running schema push..."
-  DATABASE_URL="postgresql://z@localhost:5432/staysuite" bunx prisma db push --accept-data-loss
+  DATABASE_URL="postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite" bunx prisma db push --accept-data-loss
 fi
 log_ok "Database ready ($TABLE_COUNT tables)"
 

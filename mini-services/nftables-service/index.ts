@@ -35,7 +35,7 @@ const startTime = Date.now();
 
 // Database — use NFTABLES_DB_URL > DATABASE_URL > fallback PostgreSQL URL.
 // In production, DATABASE_URL is injected by PM2 ecosystem.config.js.
-const DB_URL = process.env.NFTABLES_DB_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/staysuite';
+const DB_URL = process.env.NFTABLES_DB_URL || process.env.DATABASE_URL || 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite';
 const pool = new pg.Pool({
   connectionString: DB_URL,
   max: 10,

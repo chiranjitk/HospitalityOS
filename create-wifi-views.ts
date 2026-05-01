@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://z@localhost:5432/staysuite';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite';
 
 async function main() {
   const pool = new Pool({ connectionString: DATABASE_URL });

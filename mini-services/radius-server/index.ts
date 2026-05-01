@@ -37,7 +37,7 @@ import {
 const CONFIG = {
   authPort: 1812,
   acctPort: 1813,
-  databaseUrl: process.env.DATABASE_URL || "postgresql://postgres:postgres@127.0.0.1:5432/staysuite",
+  databaseUrl: process.env.DATABASE_URL || "postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite",
   secret: "testing123", // Default shared secret for test NAS
   logLevel: "info" as "debug" | "info" | "warn" | "error",
 };

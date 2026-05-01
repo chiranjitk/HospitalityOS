@@ -11,7 +11,7 @@
 const APP_DIR = '/home/z/my-project/StaySuite-HospitalityOS';
 const LOG_DIR = `${APP_DIR}/logs`;
 const BUN_PATH = '/usr/local/bin/bun';
-const DATABASE_URL = 'postgresql://z@localhost:5432/staysuite';
+const DATABASE_URL = 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite';
 
 module.exports = {
   apps: [

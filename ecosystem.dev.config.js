@@ -22,7 +22,7 @@ module.exports = {
         NODE_ENV: 'development',
         NEXT_DISABLE_TURBOPACK: '1',
         PORT: 3000,
-        DATABASE_URL: 'postgresql://z@localhost:5432/staysuite',
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       },
       max_memory_restart: '2G',
       error_file: `${LOG_DIR}/next-error.log`,
@@ -43,7 +43,7 @@ module.exports = {
       env: {
         NODE_ENV: 'development',
         PORT: 3002,
-        DATABASE_URL: 'postgresql://z@localhost:5432/staysuite',
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       },
       error_file: `${LOG_DIR}/availability-service-error.log`,
       out_file: `${LOG_DIR}/availability-service-out.log`,
@@ -59,7 +59,7 @@ module.exports = {
       env: {
         NODE_ENV: 'development',
         PORT: 3003,
-        DATABASE_URL: 'postgresql://z@localhost:5432/staysuite',
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       },
       error_file: `${LOG_DIR}/realtime-service-error.log`,
       out_file: `${LOG_DIR}/realtime-service-out.log`,
@@ -90,7 +90,7 @@ module.exports = {
       env: {
         NODE_ENV: 'development',
         PORT: 3012,
-        DATABASE_URL: 'postgresql://z@localhost:5432/staysuite',
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       },
       error_file: `${LOG_DIR}/dns-service-error.log`,
       out_file: `${LOG_DIR}/dns-service-out.log`,

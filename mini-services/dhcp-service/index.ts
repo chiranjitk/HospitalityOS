@@ -31,7 +31,7 @@ const log = createLogger('dhcp-service');
 const startTime = Date.now();
 
 const PROJECT_ROOT = process.env.PROJECT_ROOT || path.resolve(__dirname, '..', '..');
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://z@127.0.0.1:5432/staysuite';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Paths — detect Rocky Linux vs Debian

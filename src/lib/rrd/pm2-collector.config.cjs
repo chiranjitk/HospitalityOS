@@ -16,7 +16,7 @@ module.exports = {
       cwd: APP_DIR,
       env: {
         NODE_ENV: 'production',
-        DATABASE_URL: process.env.DATABASE_URL || 'postgresql://z@localhost:5432/staysuite',
+        DATABASE_URL: process.env.DATABASE_URL || 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       },
       error_file: `${APP_DIR}/logs/rrd-collector-error.log`,
       out_file: `${APP_DIR}/logs/rrd-collector-out.log`,

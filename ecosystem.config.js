@@ -71,7 +71,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3002,
-        DATABASE_URL: 'postgresql://z@localhost:5432/staysuite',
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       },
     },
     {
@@ -86,7 +86,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3003,
-        DATABASE_URL: 'postgresql://z@localhost:5432/staysuite',
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       },
     },
     {
@@ -101,7 +101,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3011,
-        DATABASE_URL: 'postgresql://z@localhost:5432/staysuite',
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       },
     },
     {
@@ -116,7 +116,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3012,
-        DATABASE_URL: 'postgresql://z@localhost:5432/staysuite',
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       },
     },
     {

@@ -211,7 +211,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     // Database
     database: {
       type: dbType,
-      url: process.env.DATABASE_URL || 'postgresql://localhost:5432/staysuite',
+      url: process.env.DATABASE_URL || 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       isPostgreSQL: true,
     },
     
