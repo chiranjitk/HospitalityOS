@@ -337,7 +337,8 @@ maintenance_work_mem = 256MB
 checkpoint_completion_target = 0.9
 wal_buffers = 16MB
 work_mem = 8MB
-max_connections = 500
+max_connections = 1000
+superuser_reserved_connections = 5
 log_min_duration_statement = 500
 log_line_prefix = '%t [%p]: db=%d,user=%u,app=%a,client=%h '
 # End StaySuite Tuning
@@ -821,7 +822,7 @@ cat > "${APP_DIR}/.env" <<EOENV
 # StaySuite HospitalityOS — Production Environment
 # Generated: $(date -Iseconds)
 
-DATABASE_URL=postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=50&pool_timeout=120
+DATABASE_URL=postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10&pool_timeout=120
 RADIUS_DB_URL=postgresql://radius:${DB_PASSWORD}@127.0.0.1:5432/staysuite
 NODE_ENV=production
 PORT=3000
@@ -854,7 +855,7 @@ success "All dependencies installed"
 step 10 "Prisma" "Pushing schema (~231 PMS tables)"
 
 cd "$APP_DIR"
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=50&pool_timeout=120"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10&pool_timeout=120"
 
 # Ensure pg_hba.conf is trust (something may have changed it since Step 4)
 cat > "${PG_DATA}/pg_hba.conf" <<'EOF'
@@ -924,7 +925,7 @@ success "All permissions re-granted"
 step 12 "Seed" "Inserting demo data"
 
 cd "$APP_DIR"
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=50&pool_timeout=120"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10&pool_timeout=120"
 
 if [[ -f "prisma/seed.ts" ]]; then
   info "Running seed script..."
@@ -944,7 +945,7 @@ step 13 "Build" "Building Next.js application (standalone)"
 
 cd "$APP_DIR"
 export NODE_OPTIONS='--max-old-space-size=8192'
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=50&pool_timeout=120"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10&pool_timeout=120"
 
 info "Building Next.js (this may take a few minutes)..."
 bun run build 2>&1 | tail -10
@@ -979,7 +980,7 @@ cat > "${APP_DIR}/ecosystem.config.js" <<'JSEOF'
 const BUN_PATH = '__BUN_PATH__';
 const APP_DIR  = '__APP_DIR__';
 
-const DB_URL = 'postgresql://staysuite:__DBPASS__@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=50&pool_timeout=120';
+const DB_URL = 'postgresql://staysuite:__DBPASS__@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10&pool_timeout=120';
 
 module.exports = {
   apps: [
