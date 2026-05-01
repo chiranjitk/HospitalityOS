@@ -1228,3 +1228,24 @@ Stage Summary:
 - Dark mode sidebar remains unchanged (appropriately dark)
 - Text colors properly inverted: `sidebarForeground` is now dark for readability on light bg
 - Dev server responding 200, page loads correctly (305KB HTML)
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Audit and optimize all 15 themes for light/dark mode sidebar consistency
+
+Work Log:
+- Audited all 15 themes' sidebar lightness values in config.ts
+- Found 14/15 themes already have proper light/dark sidebar contrast
+- Only neumorphism had a dark sidebar in light mode (L=0.35)
+- Fixed neumorphism light sidebar: L=0.35→0.93, foreground L=0.95→0.22
+- Fixed neumorphism sidebarAccent: L=0.42→0.87, sidebarBorder: L=0.40→0.88
+- Synced themes-a.css neumorphism CSS variables to match config.ts
+- themes-b.css uses `var(--sidebar)` so it auto-picks up new values
+- Pushed as commit a8b8edf
+
+Stage Summary:
+- All 15 themes now have proper light/dark mode sidebar contrast
+- Theme audit results: 12 already correct, 2 fixed previously (gradient-modern), 1 fixed now (neumorphism)
+- Neumorphism sidebar now has a clean raised-surface feel (L=0.93) instead of dark gray (L=0.35)
+- All CSS files (config.ts, themes-a.css, themes-b.css) are synchronized
