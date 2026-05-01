@@ -109,7 +109,8 @@ restart_pg() {
   systemctl reset-failed "postgresql-${PG_MAJOR}" 2>/dev/null || true
   systemctl restart "postgresql-${PG_MAJOR}"
   systemctl enable "postgresql-${PG_MAJOR}" 2>/dev/null || true
-  if ! wait_for_pg 30; then
+  info "Waiting for PostgreSQL to become TCP-ready..."
+  if ! wait_for_pg 10; then
     error "PostgreSQL ${PG_MAJOR} failed to become TCP-ready after restart!"
     journalctl -u "postgresql-${PG_MAJOR}" -n 20 --no-pager 2>&1
     die "Fix the error above and re-run the script."
@@ -354,17 +355,9 @@ systemctl start "postgresql-${PG_MAJOR}" || {
 systemctl is-active --quiet "postgresql-${PG_MAJOR}" || die "PostgreSQL not running."
 systemctl enable "postgresql-${PG_MAJOR}"
 
-# Verify TCP connectivity — wait up to 30s for fresh initdb to fully start
-PG_READY=0
-for i in $(seq 1 30); do
-  if pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null; then
-    PG_READY=1
-    info "PostgreSQL TCP ready (attempt $i/30)"
-    break
-  fi
-  sleep 3
-done
-if [[ $PG_READY -eq 0 ]]; then
+# Verify TCP connectivity — wait up to 60s for fresh initdb to fully start
+info "Waiting for PostgreSQL TCP readiness (up to 60s)..."
+if ! wait_for_pg 20; then
   error "PostgreSQL not accepting TCP connections on 127.0.0.1:5432"
   echo "--- Diagnostic info ---"
   echo "listen_addresses in postgresql.conf:"
@@ -379,6 +372,7 @@ if [[ $PG_READY -eq 0 ]]; then
   journalctl -u "postgresql-${PG_MAJOR}" -n 20 --no-pager 2>&1
   die "Check listen_addresses and conf.d/ overrides above."
 fi
+info "PostgreSQL TCP ready"
 
 success "PostgreSQL ${PG_MAJOR} installed, tuned, and running (TCP verified)"
 
