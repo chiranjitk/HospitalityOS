@@ -21,7 +21,7 @@ module.exports = {
       autorestart: true,
       env: {
         PORT: 3000,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+        DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/staysuite',
         NEXTAUTH_SECRET: 'staysecret-dev-key-2024',
         NEXTAUTH_URL: 'http://localhost:3000',
         NEXT_DISABLE_TURBOPACK: '1',
