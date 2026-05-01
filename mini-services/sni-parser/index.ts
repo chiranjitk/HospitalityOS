@@ -1,0 +1,593 @@
+/**
+ * sni-parser — TLS SNI log parser for StaySuite IPDR pipeline
+ *
+ * Tails a JSON-lines log file of TLS ClientHello SNI events,
+ * parses and aggregates them, and batches them into ClickHouse ipdr.sni_log.
+ *
+ * Port: 3022 (env PORT)
+ * Log file: env SNI_LOG_FILE (default /var/log/sni-queries.log)
+ * ClickHouse: env CLICKHOUSE_URL (default http://127.0.0.1:8123)
+ */
+
+// ─── Configuration ──────────────────────────────────────────────────────────
+const PORT = parseInt(process.env.PORT || "3022", 10);
+const CLICKHOUSE_URL = process.env.CLICKHOUSE_URL || "http://127.0.0.1:8123";
+const SNI_LOG_FILE = process.env.SNI_LOG_FILE || "/var/log/sni-queries.log";
+const RING_BUFFER_SIZE = 5000;
+const BATCH_INTERVAL_MS = 2000;
+const BATCH_MAX_SIZE = 500;
+const FILE_POLL_INTERVAL_MS = 500;
+const SERVICE_NAME = "sni-parser";
+
+// ─── TLS version map ────────────────────────────────────────────────────────
+const TLS_VERSION_MAP: Record<number, string> = {
+  0x0300: "SSLv3",
+  0x0301: "TLSv1.0",
+  0x0302: "TLSv1.1",
+  0x0303: "TLSv1.2",
+  0x0304: "TLSv1.3",
+};
+
+function normalizeTlsVersion(v: number): string {
+  return TLS_VERSION_MAP[v] || `0x${v.toString(16).padStart(4, "0")}`;
+}
+
+// ─── TLS ClientHello SNI parser (for future PCAP mode) ─────────────────────
+function extractTlsVersion(buf: Uint8Array): string {
+  if (buf.length < 44) return "unknown";
+
+  // Skip: ETH(14) + IP(20) + TCP(20) = 54 bytes to reach TLS record
+  // But some packets may not have ETH header, try both offsets
+  const offsets = [42, 54]; // with/without ETH header
+
+  for (const offset of offsets) {
+    if (offset + 3 > buf.length) continue;
+
+    // TLS Content Type
+    if (buf[offset] !== 0x16) continue;
+
+    // TLS Version in record header
+    const version = (buf[offset + 1] << 8) | buf[offset + 2];
+    return normalizeTlsVersion(version);
+  }
+
+  return "unknown";
+}
+
+function extractSni(buf: Uint8Array): string {
+  if (buf.length < 60) return "";
+
+  // Skip: ETH(14) + IP(20) + TCP(20) = 54 bytes to reach TLS record
+  // Also try offset 42 for packets without ETH header
+  const offsets = [42, 54];
+
+  for (const baseOffset of offsets) {
+    if (baseOffset + 5 > buf.length) continue;
+
+    // Check TLS Content-Type = 0x16 (Handshake)
+    if (buf[baseOffset] !== 0x16) continue;
+
+    // Skip TLS Record header: type(1) + version(2) + length(2) = 5 bytes
+    const hsOffset = baseOffset + 5;
+    if (hsOffset + 1 > buf.length) continue;
+
+    // Check Handshake Type = 0x01 (ClientHello)
+    if (buf[hsOffset] !== 0x01) continue;
+
+    // Skip handshake header: type(1) + length(3) = 4 bytes
+    let pos = hsOffset + 4;
+
+    // Check we have enough room for version(2) + random(32)
+    if (pos + 34 > buf.length) continue;
+
+    // Skip client version (2) and random (32)
+    pos += 34;
+
+    // Session ID length
+    if (pos >= buf.length) continue;
+    const sessionIdLen = buf[pos];
+    pos += 1 + sessionIdLen;
+
+    // Cipher suites length (2 bytes)
+    if (pos + 2 > buf.length) continue;
+    const cipherSuitesLen = (buf[pos] << 8) | buf[pos + 1];
+    pos += 2 + cipherSuitesLen;
+
+    // Compression methods length
+    if (pos + 1 > buf.length) continue;
+    const compMethodsLen = buf[pos];
+    pos += 1 + compMethodsLen;
+
+    // Extensions length (2 bytes)
+    if (pos + 2 > buf.length) continue;
+    const extensionsLen = (buf[pos] << 8) | buf[pos + 1];
+    pos += 2;
+
+    const extensionsEnd = pos + extensionsLen;
+
+    // Walk through extensions looking for SNI (type 0x0000)
+    while (pos + 4 <= extensionsEnd && pos + 4 <= buf.length) {
+      const extType = (buf[pos] << 8) | buf[pos + 1];
+      const extLen = (buf[pos + 2] << 8) | buf[pos + 3];
+      pos += 4;
+
+      if (extType === 0x0000 && pos + 5 <= buf.length) {
+        // SNI extension found
+        // Server Name List Length (2 bytes)
+        // Server Name Type (1 byte) — 0 = hostname
+        // Server Name Length (2 bytes)
+        // Server Name (variable)
+
+        const sniListLen = (buf[pos] << 8) | buf[pos + 1];
+        if (sniListLen < 5) continue;
+
+        const nameType = buf[pos + 2];
+        if (nameType !== 0x00) continue; // only hostname
+
+        const nameLen = (buf[pos + 3] << 8) | buf[pos + 4];
+        const nameStart = pos + 5;
+
+        if (nameStart + nameLen > buf.length) continue;
+
+        return new TextDecoder().decode(buf.slice(nameStart, nameStart + nameLen));
+      }
+
+      pos += extLen;
+    }
+  }
+
+  return "";
+}
+
+// ─── Ring Buffer ────────────────────────────────────────────────────────────
+class RingBuffer<T> {
+  private buffer: T[] = [];
+  private size: number;
+
+  constructor(size: number) {
+    this.size = size;
+  }
+
+  push(item: T): void {
+    if (this.buffer.length >= this.size) {
+      this.buffer.shift();
+    }
+    this.buffer.push(item);
+  }
+
+  getLast(n: number): T[] {
+    if (n >= this.buffer.length) return [...this.buffer];
+    return this.buffer.slice(-n);
+  }
+
+  get length(): number {
+    return this.buffer.length;
+  }
+
+  clear(): void {
+    this.buffer = [];
+  }
+}
+
+// ─── State ──────────────────────────────────────────────────────────────────
+const ringBuffer = new RingBuffer<any>(RING_BUFFER_SIZE);
+let batch: any[] = [];
+let batchTimer: ReturnType<typeof setInterval> | null = null;
+let fileWatcher: ReturnType<typeof setInterval> | null = null;
+let currentFilePos = 0;
+let currentInode = "";
+let totalEvents = 0;
+let totalBatches = 0;
+let totalClickHouseErrors = 0;
+let totalParseErrors = 0;
+
+// Aggregates
+const topDomains = new Map<string, number>();
+const topDestinations = new Map<string, number>();
+const topSources = new Map<string, number>();
+const topPorts = new Map<number, number>();
+
+// ─── SNI record parser ─────────────────────────────────────────────────────
+function parseSniRecord(line: string): any | null {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("#")) return null;
+
+  try {
+    const obj = JSON.parse(trimmed);
+
+    const record = {
+      timestamp: obj.timestamp || new Date().toISOString(),
+      src_ip: obj.src_ip || "",
+      dst_ip: obj.dst_ip || "",
+      dst_port: parseInt(String(obj.dst_port), 10) || 443,
+      sni_domain: obj.sni_domain || "",
+      tls_version: obj.tls_version || "unknown",
+      ja3_hash: obj.ja3_hash || "",
+    };
+
+    // Update aggregates
+    if (record.sni_domain) {
+      topDomains.set(
+        record.sni_domain,
+        (topDomains.get(record.sni_domain) || 0) + 1
+      );
+    }
+    if (record.dst_ip) {
+      topDestinations.set(
+        record.dst_ip,
+        (topDestinations.get(record.dst_ip) || 0) + 1
+      );
+    }
+    if (record.src_ip) {
+      topSources.set(
+        record.src_ip,
+        (topSources.get(record.src_ip) || 0) + 1
+      );
+    }
+    topPorts.set(record.dst_port, (topPorts.get(record.dst_port) || 0) + 1);
+
+    return record;
+  } catch {
+    totalParseErrors++;
+    return null;
+  }
+}
+
+// ─── ClickHouse helpers ─────────────────────────────────────────────────────
+async function ensureClickHouseTable(): Promise<void> {
+  const sql = `
+    CREATE TABLE IF NOT EXISTS ipdr.sni_log (
+      timestamp DateTime,
+      src_ip String,
+      dst_ip String,
+      dst_port UInt16,
+      sni_domain String,
+      tls_version String,
+      ja3_hash String DEFAULT ''
+    )
+    ENGINE = MergeTree()
+    PARTITION BY toYYYYMMDD(timestamp)
+    ORDER BY (timestamp, src_ip, sni_domain)
+    TTL timestamp + INTERVAL 7 DAY
+  `;
+
+  try {
+    const res = await fetch(CLICKHOUSE_URL, {
+      method: "POST",
+      body: sql,
+    });
+    if (res.ok) {
+      console.log(`[${SERVICE_NAME}] ClickHouse table ipdr.sni_log ensured`);
+    } else {
+      console.error(
+        `[${SERVICE_NAME}] ClickHouse table creation error: ${await res.text()}`
+      );
+    }
+  } catch (err: any) {
+    console.error(
+      `[${SERVICE_NAME}] ClickHouse connection error (table creation): ${err.message}`
+    );
+  }
+}
+
+async function flushBatch(): Promise<void> {
+  if (batch.length === 0) return;
+
+  const items = [...batch];
+  batch = [];
+  totalBatches++;
+
+  const values = items
+    .map(
+      (e) =>
+        `('${e.timestamp}', '${e.src_ip}', '${e.dst_ip}', ${e.dst_port}, ` +
+        `'${escapeSql(e.sni_domain)}', '${escapeSql(e.tls_version)}', '${escapeSql(e.ja3_hash)}')`
+    )
+    .join(",");
+
+  const sql = `INSERT INTO ipdr.sni_log (timestamp, src_ip, dst_ip, dst_port, sni_domain, tls_version, ja3_hash) VALUES ${values}`;
+
+  try {
+    const res = await fetch(CLICKHOUSE_URL, {
+      method: "POST",
+      body: sql,
+    });
+    if (!res.ok) {
+      totalClickHouseErrors++;
+      console.error(
+        `[${SERVICE_NAME}] ClickHouse INSERT error: ${await res.text()}`
+      );
+    } else {
+      console.log(
+        `[${SERVICE_NAME}] Flushed ${items.length} events to ClickHouse`
+      );
+    }
+  } catch (err: any) {
+    totalClickHouseErrors++;
+    console.error(
+      `[${SERVICE_NAME}] ClickHouse flush error: ${err.message}`
+    );
+  }
+}
+
+function escapeSql(str: string): string {
+  return str.replace(/'/g, "\\'");
+}
+
+// ─── File watcher ───────────────────────────────────────────────────────────
+async function checkLogFile(): Promise<void> {
+  try {
+    const stat = await Bun.file(SNI_LOG_FILE).stat();
+    const inode = `${stat.dev}:${stat.ino}`;
+
+    // Detect log rotation
+    if (currentInode && currentInode !== inode) {
+      console.log(`[${SERVICE_NAME}] Log rotation detected, resetting file position`);
+      currentFilePos = 0;
+    }
+    currentInode = inode;
+
+    if (stat.size <= currentFilePos) return;
+
+    const file = Bun.file(SNI_LOG_FILE);
+    const slice = (file as any).slice(currentFilePos, stat.size) as BunFile;
+    const text = await slice.text();
+
+    const lines = text.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      const record = parseSniRecord(trimmed);
+      if (record) {
+        ringBuffer.push(record);
+        batch.push(record);
+        totalEvents++;
+        if (batch.length >= BATCH_MAX_SIZE) {
+          flushBatch();
+        }
+      }
+    }
+
+    currentFilePos = stat.size;
+  } catch {
+    // File may not exist yet, silently ignore
+  }
+}
+
+// ─── CORS helper ────────────────────────────────────────────────────────────
+function corsHeaders(): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+}
+
+function json(data: any, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: corsHeaders(),
+  });
+}
+
+// ─── HTTP Server ────────────────────────────────────────────────────────────
+function startServer(): void {
+  const server = Bun.serve({
+    port: PORT,
+    fetch(req: Request): Response {
+      const url = new URL(req.url);
+
+      // CORS preflight
+      if (req.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: corsHeaders() });
+      }
+
+      // Health check
+      if (url.pathname === "/api/health") {
+        return json({
+          service: SERVICE_NAME,
+          status: "running",
+          port: PORT,
+          logFile: SNI_LOG_FILE,
+          uptime: process.uptime(),
+          eventsProcessed: totalEvents,
+          ringBufferSize: ringBuffer.length,
+          pendingBatch: batch.length,
+          batchesFlushed: totalBatches,
+          clickHouseErrors: totalClickHouseErrors,
+          parseErrors: totalParseErrors,
+          filePosition: currentFilePos,
+        });
+      }
+
+      // Ingest endpoint
+      if (url.pathname === "/api/ingest" && req.method === "POST") {
+        return handleIngest(req);
+      }
+
+      // Live events
+      if (url.pathname === "/api/live") {
+        const limit = Math.min(
+          parseInt(url.searchParams.get("limit") || "50", 10),
+          RING_BUFFER_SIZE
+        );
+        let events = ringBuffer.getLast(limit);
+
+        // Apply filters
+        const filterDomain = url.searchParams.get("domain");
+        const filterSrcIp = url.searchParams.get("src_ip");
+        const filterTlsVersion = url.searchParams.get("tls_version");
+
+        if (filterDomain) {
+          events = events.filter((e: any) =>
+            e.sni_domain.toLowerCase().includes(filterDomain.toLowerCase())
+          );
+        }
+        if (filterSrcIp) {
+          events = events.filter((e: any) => e.src_ip === filterSrcIp);
+        }
+        if (filterTlsVersion) {
+          events = events.filter((e: any) =>
+            e.tls_version.toLowerCase().includes(filterTlsVersion.toLowerCase())
+          );
+        }
+
+        return json({
+          count: events.length,
+          events,
+        });
+      }
+
+      // Stats
+      if (url.pathname === "/api/stats") {
+        return json({
+          totalEvents,
+          uniqueDomains: topDomains.size,
+          uniqueDestinations: topDestinations.size,
+          uniqueSources: topSources.size,
+          batchesFlushed: totalBatches,
+          clickHouseErrors: totalClickHouseErrors,
+          parseErrors: totalParseErrors,
+          topDomains: [...topDomains.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 20)
+            .map(([domain, count]) => ({ domain, count })),
+          topDestinations: [...topDestinations.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 20)
+            .map(([ip, count]) => ({ ip, count })),
+          topSources: [...topSources.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 20)
+            .map(([ip, count]) => ({ ip, count })),
+          topPorts: [...topPorts.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 20)
+            .map(([port, count]) => ({ port, count })),
+        });
+      }
+
+      return json({ error: "Not Found" }, 404);
+    },
+  });
+
+  console.log(`[${SERVICE_NAME}] HTTP server listening on port ${PORT}`);
+}
+
+// ─── Ingest handler ─────────────────────────────────────────────────────────
+async function handleIngest(req: Request): Promise<Response> {
+  try {
+    const contentType = req.headers.get("content-type") || "";
+    const body = await req.text();
+    let records: any[] = [];
+
+    if (contentType.includes("application/json")) {
+      const parsed = JSON.parse(body);
+      if (Array.isArray(parsed)) {
+        records = parsed;
+      } else {
+        records = [parsed];
+      }
+    } else {
+      // NDJSON
+      const lines = body.split("\n");
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          records.push(JSON.parse(trimmed));
+        } catch {
+          totalParseErrors++;
+        }
+      }
+    }
+
+    if (records.length === 0) {
+      return json({ error: "No records provided" }, 400);
+    }
+
+    let ingested = 0;
+    for (const rawRecord of records) {
+      const line = JSON.stringify(rawRecord);
+      const record = parseSniRecord(line);
+      if (record) {
+        ringBuffer.push(record);
+        batch.push(record);
+        totalEvents++;
+        ingested++;
+        if (batch.length >= BATCH_MAX_SIZE) {
+          flushBatch();
+        }
+      }
+    }
+
+    return json({
+      ingested,
+      total: records.length,
+      errors: records.length - ingested,
+    });
+  } catch (err: any) {
+    return json({ error: err.message }, 400);
+  }
+}
+
+// ─── Graceful shutdown ──────────────────────────────────────────────────────
+async function gracefulShutdown(signal: string): Promise<void> {
+  console.log(`\n[${SERVICE_NAME}] Received ${signal}, shutting down gracefully...`);
+
+  if (batchTimer) clearInterval(batchTimer);
+  if (fileWatcher) clearInterval(fileWatcher);
+
+  // Flush remaining batch
+  if (batch.length > 0) {
+    console.log(`[${SERVICE_NAME}] Flushing ${batch.length} pending events...`);
+    await flushBatch();
+  }
+
+  console.log(`[${SERVICE_NAME}] Shutdown complete. Total events: ${totalEvents}`);
+  process.exit(0);
+}
+
+// ─── Main ───────────────────────────────────────────────────────────────────
+async function main(): Promise<void> {
+  console.log(`[${SERVICE_NAME}] Starting sni-parser service...`);
+  console.log(`[${SERVICE_NAME}] Port: ${PORT}, Log: ${SNI_LOG_FILE}, ClickHouse: ${CLICKHOUSE_URL}`);
+
+  // Ensure ClickHouse table
+  await ensureClickHouseTable();
+
+  // Start batch flush timer
+  batchTimer = setInterval(() => {
+    flushBatch();
+  }, BATCH_INTERVAL_MS);
+
+  // Start file watcher
+  console.log(`[${SERVICE_NAME}] Watching log file: ${SNI_LOG_FILE}`);
+  fileWatcher = setInterval(checkLogFile, FILE_POLL_INTERVAL_MS);
+
+  // Initial file position
+  try {
+    const stat = await Bun.file(SNI_LOG_FILE).stat();
+    currentFilePos = stat.size;
+    currentInode = `${stat.dev}:${stat.ino}`;
+    console.log(`[${SERVICE_NAME}] Starting from file position: ${currentFilePos}`);
+  } catch {
+    console.log(
+      `[${SERVICE_NAME}] Log file not found yet, will start watching when it appears`
+    );
+  }
+
+  // Start HTTP server
+  startServer();
+
+  // Register shutdown handlers
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+}
+
+main().catch((err) => {
+  console.error(`[${SERVICE_NAME}] Fatal error: ${err.message}`);
+  process.exit(1);
+});

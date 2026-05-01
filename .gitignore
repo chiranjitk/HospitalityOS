@@ -99,3 +99,12 @@ agent-ctx/
 
 # nftables service generated data (JSON persistence in simulation mode)
 mini-services/nftables-service/data/
+
+# Compiled tools and source tarballs (too large for Git, compiled locally)
+tools/install/
+tools/src/
+tools/clickhouse/install/
+tools/clickhouse.tgz
+tools/*.tgz
+tools/ulogd*
+/core
