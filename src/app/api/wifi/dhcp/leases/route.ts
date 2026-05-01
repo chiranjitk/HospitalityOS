@@ -2,7 +2,7 @@
  * DHCP Leases API Route
  *
  * List and expire/release DHCP leases.
- * Leases are synced from the DHCP server (Kea) and are read-mostly.
+ * Leases are read from the database (synced from dnsmasq). Read-mostly.
  */
 
 import { NextRequest, NextResponse } from 'next/server';

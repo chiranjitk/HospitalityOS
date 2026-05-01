@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 
 /**
  * GET /api/network/os/nat/forwards - Get NAT port forwarding rules from nftables/iptables
- * Reads directly from OS, no kea-service dependency
+ * Reads directly from OS, no external service dependency
  */
 
 function safeExec(cmd: string, timeout = 5000): string {

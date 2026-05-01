@@ -51,9 +51,9 @@ const PUBLIC_PATHS = [
   '/api/vendors/portal',
   // Tutorial progress (self-service)
   '/api/tutorials/progress',
-  // Network service proxies (dhcp-service, dns-service, nftables-service, freeradius-service)
-  '/api/kea/',             // DHCP service proxy (dnsmasq backend, port 3011)
-  '/api/dns/',             // DNS service proxy
+  // Network service APIs (direct DB reads, no proxy needed)
+  '/api/kea/',             // DHCP API (direct Prisma, was kea-service proxy)
+  '/api/dns/',             // DNS API (direct Prisma, was dns-service proxy)
   '/api/nftables/',        // nftables service proxy
   '/api/network/os',       // Network interface data (used by DHCP/VLAN pages)
   '/api/kiosk/public-settings', // Kiosk public configuration
