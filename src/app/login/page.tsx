@@ -873,9 +873,9 @@ export default function LoginPage() {
                             type="submit"
                             className={cn(
                               "w-full h-12 rounded-xl font-semibold text-sm transition-all duration-300",
-                              "bg-gradient-to-r from-teal-600 via-emerald-500 to-cyan-600 bg-[length:200%_100%]",
-                              "hover:bg-right hover:shadow-[0_8px_30px_-8px_rgba(16,185,129,0.35)]",
-                              "dark:from-teal-500 dark:via-emerald-400 dark:to-cyan-500",
+                              "bg-gradient-to-r from-orange-600 via-amber-500 to-orange-500 bg-[length:200%_100%]",
+                              "hover:bg-right hover:shadow-[0_8px_30px_-8px_rgba(249,115,22,0.35)]",
+                              "dark:from-orange-500 dark:via-amber-400 dark:to-orange-400",
                               "text-white",
                               "hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]",
                               "disabled:opacity-70 disabled:hover:translate-y-0 disabled:shadow-lg disabled:active:scale-100",
@@ -904,7 +904,7 @@ export default function LoginPage() {
                               }}
                             />
                             {/* Bottom glow */}
-                            <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-3/4 h-6 bg-emerald-500/20 blur-xl rounded-full pointer-events-none" />
+                            <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-3/4 h-6 bg-orange-500/20 blur-xl rounded-full pointer-events-none" />
                           </Button>
                         </motion.div>
 
