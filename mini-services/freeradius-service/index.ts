@@ -49,6 +49,11 @@ const RADIUS_CLIENTS_PATH = path.join(RADIUS_CONFIG_PATH, 'clients.conf');
 // Database connection (sandbox uses local PG, production uses system PG)
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/staysuite';
 
+// RADIUS SQL module credentials — extract from DATABASE_URL or use defaults
+const DB_URL_PARSED = new URL(DATABASE_URL);
+const RADIUS_DB_USER = DB_URL_PARSED.username || 'postgres';
+const RADIUS_DB_PASS = DB_URL_PARSED.password || 'postgres';
+
 const pool = new pg.Pool({
   connectionString: DATABASE_URL,
   max: 3,
@@ -2309,8 +2314,8 @@ app.get('/api/config/sql-mod', async (c) => {
 
     server = "localhost"
     port = 5432
-    login = "postgres"
-    password = "postgres"
+    login = "${RADIUS_DB_USER}"
+    password = "${RADIUS_DB_PASS}"
     radius_db = "staysuite"
 
     # Read NAS clients from SQL (nas table)
@@ -2468,8 +2473,8 @@ sql {
 
     server = "localhost"
     port = 5432
-    login = "postgres"
-    password = "postgres"
+    login = "${RADIUS_DB_USER}"
+    password = "${RADIUS_DB_PASS}"
     radius_db = "staysuite"
 
     # Read NAS clients from SQL (nas table)
