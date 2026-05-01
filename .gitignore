@@ -111,3 +111,6 @@ tools/ulogd*
 # e2guardian: track configs and lists, exclude runtime logs and sensitive private keys
 data/e2guardian/logs/
 data/e2guardian/private/
+
+# Worklog
+worklog.md
