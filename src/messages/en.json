@@ -428,6 +428,7 @@
     "settings-features": "Feature Flags",
     "settings-gdpr": "GDPR Compliance",
     "settings-security": "Security Settings",
+    "settings-license-keys": "License Keys",
     "settings-integrations": "System Integrations",
     "settings": "Settings",
     "helpSupport": "Help & Support",
