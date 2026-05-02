@@ -1,0 +1,29 @@
+#!/bin/bash
+# nft-exec: Execute nft commands inside an isolated user+net namespace
+# Each call creates a FRESH namespace — use nft-exec -f file.nft for full rulesets
+#
+# Usage:
+#   nft-exec -f rules.nft                    Apply a full ruleset file
+#   nft-exec list tables                     List all tables
+#   nft-exec list table inet filter          List a specific table
+#   nft-exec add table inet mytable          Add a table
+#   nft-exec -e 'add chain inet mytable x'   Echo-expanded output
+#   nft-exec -j list ruleset                 JSON output
+#
+# Limitations:
+#   - Each invocation gets a fresh namespace (no state persists between calls)
+#   - Some kernel modules (conntrack, NAT) may not be available in namespace
+
+NFT_BIN="/home/z/my-project/nftables-install/sbin/nft"
+export LD_LIBRARY_PATH="/tmp/nft-deps/usr/lib/x86_64-linux-gnu:/home/z/my-project/nftables-install/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+if [ $# -eq 0 ]; then
+    echo "Usage: nft-exec <nft-args>"
+    echo "  nft-exec -f rules.nft       Apply ruleset from file"
+    echo "  nft-exec list ruleset        List full ruleset"
+    echo "  nft-exec -j list ruleset     List as JSON"
+    echo "  nft-exec add table inet foo  Add table"
+    exit 1
+fi
+
+exec unshare --user --map-root-user --net -- "$NFT_BIN" "$@"

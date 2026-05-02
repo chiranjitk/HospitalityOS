@@ -1,0 +1,18 @@
+#!/bin/bash
+# nft-test: Runs nft inside a user+net namespace for rule testing
+# Usage: nft-test <any nft args>
+# Examples:
+#   nft-test -f rules.nft          # Apply a ruleset file
+#   nft-test list ruleset          # List current ruleset
+#   nft-test -j list ruleset       # List as JSON
+#   nft-test add table inet filter # Add a table
+
+NFT_BIN="/home/z/my-project/nftables-install/sbin/nft"
+export LD_LIBRARY_PATH="/tmp/nft-deps/usr/lib/x86_64-linux-gnu:/home/z/my-project/nftables-install/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+# Create a wrapper script that runs all commands inside the same namespace
+if [ $# -eq 0 ]; then
+  exec unshare --user --map-root-user --net -- "$NFT_BIN" -j list ruleset
+else
+  exec unshare --user --map-root-user --net -- "$NFT_BIN" "$@"
+fi

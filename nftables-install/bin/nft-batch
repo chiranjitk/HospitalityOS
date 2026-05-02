@@ -1,0 +1,31 @@
+#!/bin/bash
+# nft-batch: Apply rules and run extra commands in a single namespace
+# Usage: nft-batch <rules.nft> [extra-cmd1] [extra-cmd2] ...
+#   First arg = rules file to apply, remaining args = extra commands to run after
+# Example: nft-batch rules.nft "list tables"
+#          nft-batch rules.nft "-j list ruleset" | python3 -m json.tool
+
+NFT_BIN="/home/z/my-project/nftables-install/sbin/nft"
+export LD_LIBRARY_PATH="/tmp/nft-deps/usr/lib/x86_64-linux-gnu:/home/z/my-project/nftables-install/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+RULES_FILE="$1"; shift
+if [ ! -f "$RULES_FILE" ]; then
+    echo "Error: File not found: $RULES_FILE" >&2; exit 1
+fi
+
+# Create a temp script that applies rules then runs extra commands
+TMPSCRIPT="/tmp/nft-batch-$$.sh"
+cat > "$TMPSCRIPT" << INNER
+#!/bin/bash
+export LD_LIBRARY_PATH="$LD_LIBRARY_PATH"
+# Apply ruleset (errors go to stderr)
+"$NFT_BIN" -f "$RULES_FILE" 2>&2
+# Run each extra command, stdout only
+for cmd in "$@"; do
+    "$NFT_BIN" \$cmd
+done
+INNER
+chmod +x "$TMPSCRIPT"
+
+unshare --user --map-root-user --net -- bash "$TMPSCRIPT" "$@"
+rm -f "$TMPSCRIPT"
