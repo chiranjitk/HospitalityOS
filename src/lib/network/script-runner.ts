@@ -193,15 +193,32 @@ export function runLogoutScript(params: LogoutScriptParams): ScriptResult {
 
 // ─── Internal Script Executor ──────────────────────────────────────
 
+// Detect nft binary location — needed by login/logout scripts.
+// Order: env override → sandbox build dir → system path
+function resolveNftDir(): string {
+  if (process.env.NFT_PATH) {
+    const idx = process.env.NFT_PATH.lastIndexOf('/');
+    return idx > 0 ? process.env.NFT_PATH!.substring(0, idx) : '';
+  }
+  // Sandbox: nft compiled from source lives here
+  const sandboxDir = `${process.cwd()}/nftables-install/sbin`;
+  try {
+    const { existsSync } = require('fs');
+    if (existsSync(`${sandboxDir}/nft`)) return sandboxDir;
+  } catch { /* ignore */ }
+  return '/usr/sbin'; // production default
+}
+
+const _nftDir = resolveNftDir();
+
 function runScript(scriptPath: string, args: string[], timeoutMs: number): ScriptResult {
   const startTime = Date.now();
 
   // Build environment for script execution:
-  // - PATH: ensure nft is discoverable (may be in /usr/local/sbin or custom build dir)
+  // - PATH: ensure nft + tc are discoverable
   // - LOGFILE: point logs to /tmp in sandbox (no write to /var/log)
   // - SS_STATEDIR / SS_PERSIST_STATEDIR: override state dirs for sandbox
   const isDev = process.env.NODE_ENV === 'development';
-  const nftPath = process.env.NFT_PATH || '/usr/sbin/nft';
   const baseDir = process.cwd();
 
   const scriptEnv: Record<string, string> = {};
@@ -209,10 +226,9 @@ function runScript(scriptPath: string, args: string[], timeoutMs: number): Scrip
   for (const [k, v] of Object.entries(process.env)) {
     if (v !== undefined) scriptEnv[k] = v;
   }
-  // Ensure nft is on PATH
-  const nftDir = nftPath.substring(0, nftPath.lastIndexOf('/'));
+  // Ensure nft is on PATH (sandbox build dir → system default)
   const existingPath = scriptEnv.PATH || '';
-  scriptEnv.PATH = `${nftDir}:${existingPath}`;
+  scriptEnv.PATH = `${_nftDir}:${existingPath}`;
 
   if (isDev) {
     scriptEnv.LOGFILE = '/tmp/staysuite_login.log';
