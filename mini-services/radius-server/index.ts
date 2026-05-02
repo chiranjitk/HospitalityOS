@@ -663,11 +663,12 @@ async function upsertPostAuth(username: string, reply: string, nasIp: string, ca
   const now = new Date().toISOString();
   
   // 1. Write to raw FreeRADIUS table (radpostauth)
+  // Include clientipaddress so the v_auth_logs view can show source IP for rejected auths
   try {
     await db.query(`
-      INSERT INTO radpostauth (username, pass, reply, authdate, nasipaddress, propertyId)
-      VALUES (?, '', ?, ?, ?, 'property-1')
-    `).run(username, reply, now, nasIp);
+      INSERT INTO radpostauth (username, pass, reply, authdate, nasipaddress, clientipaddress, propertyId)
+      VALUES (?, '', ?, ?, ?, ?, 'property-1')
+    `).run(username, reply, now, nasIp, extra?.clientIpAddress || nasIp);
   } catch (e: any) {
     log("error", `Failed to insert radpostauth: ${e.message}`);
   }
@@ -776,6 +777,7 @@ async function handleAuthPacket(data: Buffer, rinfo: { address: string; port: nu
     );
     
     // Log post-auth with full packet context
+    // rinfo.address is the NAS/AP source IP — useful for diagnosing rejected auths
     await upsertPostAuth(
       getAttributeString(packet, AttributeType.USER_NAME),
       result.accept ? "Accept" : "Reject",
@@ -785,6 +787,7 @@ async function handleAuthPacket(data: Buffer, rinfo: { address: string; port: nu
       {
         nasIdentifier: getAttributeString(packet, AttributeType.NAS_IDENTIFIER) || undefined,
         calledStationId: getAttributeString(packet, AttributeType.CALLED_STATION_ID) || undefined,
+        clientIpAddress: rinfo.address || nasIp,
       }
     );
     

@@ -342,7 +342,7 @@ export async function GET(request: NextRequest) {
 
           const authEvents = await db.$queryRawUnsafe<Record<string, unknown>[]>(`
             SELECT id, "username", auth_result, "timestamp",
-                   client_ip_address, nas_ip_address,
+                   client_ip_address, nas_ip_address, source_ip_address,
                    calling_station_id, called_station_id,
                    reply_message,
                    guest_first_name, guest_last_name, room_number, property_name
@@ -363,6 +363,8 @@ export async function GET(request: NextRequest) {
             clientIpAddress: stripCidr(e.client_ip_address as string),
             // NAS source IP (where auth request came from)
             nasIpAddress: stripCidr(e.nas_ip_address as string),
+            // Source IP — the client's real IP at time of auth (from HTTP headers or RADIUS packet)
+            sourceIpAddress: stripCidr(e.source_ip_address as string),
             // MAC addresses
             callingStationId: (e.calling_station_id as string) || '',
             calledStationId: (e.called_station_id as string) || '',

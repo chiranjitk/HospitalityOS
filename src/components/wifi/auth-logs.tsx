@@ -4,8 +4,9 @@
  * Auth Logs Component
  *
  * Real RADIUS authentication log viewer.
- * Queries radpostauth (real auth events — includes both Accept AND Reject).
- * Shows: timestamp, username, result, plan name, property, auth type.
+ * Queries v_auth_logs view (built on radpostauth).
+ * Shows: timestamp, username, result, source IP, reply message, MAC address.
+ * Reject messages now include username, source IP, and specific reason.
  * Auto-refreshes every 30s. Fetches from /api/wifi/radius?action=auth-logs
  */
 
@@ -50,6 +51,7 @@ import {
   Building2,
   Wifi,
   Monitor,
+  Globe,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -65,6 +67,7 @@ interface AuthLogEntry {
   authType: string;
   nasIpAddress?: string;
   clientIpAddress?: string;
+  sourceIpAddress?: string;
   callingStationId?: string;
   calledStationId?: string;
   replyMessage?: string;
@@ -171,9 +174,10 @@ export default function AuthLogs() {
       const q = searchQuery.toLowerCase();
       const matchesUsername = log.username.toLowerCase().includes(q);
       const matchesClientIp = (log.clientIpAddress || '').toLowerCase().includes(q);
+      const matchesSourceIp = (log.sourceIpAddress || '').toLowerCase().includes(q);
       const matchesNasIp = (log.nasIpAddress || '').toLowerCase().includes(q);
       const matchesMac = (log.callingStationId || '').toLowerCase().includes(q);
-      if (!matchesUsername && !matchesClientIp && !matchesNasIp && !matchesMac) return false;
+      if (!matchesUsername && !matchesClientIp && !matchesSourceIp && !matchesNasIp && !matchesMac) return false;
     }
     return true;
   });
@@ -198,16 +202,23 @@ export default function AuthLogs() {
     );
   };
 
-  const getReplyMessageBadge = (message: string | undefined, isReject: boolean) => {
-    if (!message) return <span className="text-xs text-muted-foreground">—</span>;
-    return (
-      <span className={cn(
-        'text-xs leading-tight',
-        isReject ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
-      )}>
-        {message}
-      </span>
-    );
+  /** Get the best source IP for display */
+  const getSourceIp = (log: AuthLogEntry) => {
+    return log.sourceIpAddress || log.clientIpAddress || log.nasIpAddress || '';
+  };
+
+  /** Get an enhanced reply message with username and source IP */
+  const getEnhancedReplyMessage = (log: AuthLogEntry) => {
+    if (log.replyMessage && log.replyMessage !== '—') return log.replyMessage;
+    // Build a fallback from available fields
+    const isReject = log.authResult?.toLowerCase().includes('reject');
+    const parts: string[] = [];
+    if (isReject) parts.push('Authentication rejected');
+    else parts.push('Authenticated');
+    if (log.username) parts.push(`user: ${log.username}`);
+    const ip = getSourceIp(log);
+    if (ip) parts.push(`from: ${ip}`);
+    return parts.join(' — ');
   };
 
   // ─── Render ──────────────────────────────────────────────────────────────
@@ -301,7 +312,7 @@ export default function AuthLogs() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by username, client IP, or NAS IP..."
+                placeholder="Search by username, IP, or MAC..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9"
@@ -374,27 +385,27 @@ export default function AuthLogs() {
                       {getResultBadge(log.authResult)}
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      {log.clientIpAddress ? (
-                        <div className="flex items-center gap-1.5">
-                          <Monitor className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-xs font-mono">{log.clientIpAddress}</span>
-                        </div>
-                      ) : (
-                        <span />
-                      )}
+                      {(() => {
+                        const ip = getSourceIp(log);
+                        return ip ? (
+                          <div className="flex items-center gap-1.5">
+                            <Globe className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs font-mono">{ip}</span>
+                          </div>
+                        ) : <span />;
+                      })()}
                       <span className="text-xs text-muted-foreground">{log.timestamp ? formatDistanceToNow(new Date(log.timestamp)) + ' ago' : '—'}</span>
                     </div>
-                    {log.replyMessage && (
-                      <div className="flex items-center gap-1.5">
-                        <Monitor className="h-3 w-3 text-muted-foreground" />
-                        <span className={cn(
-                          'text-xs',
-                          log.authResult?.toLowerCase().includes('reject')
-                            ? 'text-red-600 dark:text-red-400'
-                            : 'text-emerald-600 dark:text-emerald-400'
-                        )}>{log.replyMessage}</span>
-                      </div>
-                    )}
+                    {(() => {
+                      const msg = getEnhancedReplyMessage(log);
+                      const isReject = log.authResult?.toLowerCase().includes('reject');
+                      return msg ? (
+                        <div className={cn(
+                          'text-xs leading-tight',
+                          isReject ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
+                        )}>{msg}</div>
+                      ) : null;
+                    })()}
                     {log.propertyName && (
                       <div className="flex items-center gap-1">
                         <Building2 className="h-3 w-3 text-muted-foreground" />
@@ -412,16 +423,16 @@ export default function AuthLogs() {
                     <TableRow>
                       <TableHead className="w-[70px]">Result</TableHead>
                       <TableHead>Username</TableHead>
-                      <TableHead>Client IP</TableHead>
+                      <TableHead>Source IP</TableHead>
                       <TableHead>Reply</TableHead>
-                      <TableHead>MAC Address</TableHead>
+                      <TableHead>MAC</TableHead>
                       <TableHead className="w-[140px]">Time</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredLogs.map((log, index) => {
                       const isReject = log.authResult?.toLowerCase().includes('reject');
-                      const hasClientIp = !!log.clientIpAddress;
+                      const sourceIp = getSourceIp(log);
                       return (
                         <TableRow
                           key={`${index}-${log.id || ''}`}
@@ -439,10 +450,10 @@ export default function AuthLogs() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {hasClientIp ? (
+                            {sourceIp ? (
                               <Badge variant="outline" className="font-mono text-[11px] bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800 whitespace-nowrap">
                                 <Monitor className="h-2.5 w-2.5 mr-1" />
-                                {log.clientIpAddress}
+                                {sourceIp}
                               </Badge>
                             ) : (
                               <span className="text-xs text-muted-foreground">—</span>
@@ -450,10 +461,10 @@ export default function AuthLogs() {
                           </TableCell>
                           <TableCell>
                             <span className={cn(
-                              'text-xs truncate max-w-[180px] block',
+                              'text-xs leading-tight block',
                               isReject ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
                             )}>
-                              {log.replyMessage || '—'}
+                              {getEnhancedReplyMessage(log)}
                             </span>
                           </TableCell>
                           <TableCell>
@@ -503,18 +514,21 @@ export default function AuthLogs() {
                 <p className="text-xs font-medium text-muted-foreground mb-3">IP Addresses</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-muted-foreground">Client IP (Assigned)</p>
-                    {selectedLog.clientIpAddress ? (
-                      <Badge variant="outline" className="mt-1 font-mono text-xs bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800">
-                        <Monitor className="h-3 w-3 mr-1" />
-                        {selectedLog.clientIpAddress}
-                      </Badge>
-                    ) : (
-                      <p className="text-sm text-muted-foreground mt-1">—</p>
-                    )}
+                    <p className="text-xs text-muted-foreground">Source IP (Auth From)</p>
+                    {(() => {
+                      const ip = getSourceIp(selectedLog);
+                      return ip ? (
+                        <Badge variant="outline" className="mt-1 font-mono text-xs bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800">
+                          <Monitor className="h-3 w-3 mr-1" />
+                          {ip}
+                        </Badge>
+                      ) : (
+                        <p className="text-sm text-muted-foreground mt-1">—</p>
+                      );
+                    })()}
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">NAS IP (Source)</p>
+                    <p className="text-xs text-muted-foreground">NAS IP</p>
                     <p className="text-sm font-mono mt-1">{selectedLog.nasIpAddress || '—'}</p>
                   </div>
                   <div>
@@ -535,7 +549,7 @@ export default function AuthLogs() {
                     ? 'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400'
                     : 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400'
                 )}>
-                  {selectedLog.replyMessage || '—'}
+                  {getEnhancedReplyMessage(selectedLog)}
                 </div>
               </div>
               <div className="border-t pt-4">

@@ -460,6 +460,8 @@ CREATE VIEW v_active_sessions AS  SELECT session_id,
 -- VIEW: v_auth_logs
 -- Authentication attempt log based on FreeRADIUS radpostauth.
 -- Used by: Auth Logs tab, security audit reports.
+-- Enhanced: includes source_ip_address from clientipaddress column.
+-- Reject messages now include username, source IP, and specific reason.
 -- ---------------------------------------------------------------------------
 CREATE VIEW v_auth_logs AS  SELECT pa.id::text AS id,
     pa.username,
@@ -467,6 +469,7 @@ CREATE VIEW v_auth_logs AS  SELECT pa.id::text AS id,
     pa.authdate AS "timestamp",
     COALESCE(replace(acct.framedipaddress, '/32'::text, ''::text), ''::text) AS client_ip_address,
     COALESCE(pa."nasIpAddress", ''::text) AS nas_ip_address,
+    COALESCE(pa.clientipaddress, ''::text) AS source_ip_address,
     COALESCE(pa.callingstationid, ''::text) AS calling_station_id,
     COALESCE(pa.calledstationid, ''::text) AS called_station_id,
     'PAP'::text AS auth_type,
@@ -479,8 +482,28 @@ CREATE VIEW v_auth_logs AS  SELECT pa.id::text AS id,
             END
             ELSE
             CASE
-                WHEN wu.id IS NOT NULL THEN 'Authentication rejected — invalid password'::text
-                ELSE 'Authentication rejected — user not found'::text
+                WHEN pa.pass LIKE 'IP_NOT_IN_POOL:%%'::text THEN
+                    'Rejected — IP not in managed pool: '::text || replace(pa.pass, 'IP_NOT_IN_POOL:'::text, ''::text) ||
+                    COALESCE(' — user: '::text || pa.username, ''::text)
+                WHEN pa.pass LIKE 'IP_NOT_DETERMINED'::text THEN
+                    'Rejected — could not determine client IP'::text ||
+                    COALESCE(' — user: '::text || pa.username, ''::text)
+                WHEN pa.pass LIKE 'ACCOUNT_%%'::text THEN
+                    'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
+                    COALESCE(' — user: '::text || pa.username, ''::text) ||
+                    COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+                WHEN pa.pass LIKE 'INVALID_%%'::text OR pa.pass LIKE 'MISSING_%%'::text OR pa.pass LIKE 'VOUCHER_%%'::text THEN
+                    'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
+                    COALESCE(' — user: '::text || pa.username, ''::text) ||
+                    COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+                WHEN wu.id IS NOT NULL THEN
+                    'Rejected — invalid password'::text ||
+                    COALESCE(' — user: '::text || pa.username, ''::text) ||
+                    COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+                ELSE
+                    'Rejected — user not found'::text ||
+                    COALESCE(' — username: '::text || pa.username, ''::text) ||
+                    COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
             END
         END AS reply_message,
     COALESCE(g."firstName", ''::text) AS guest_first_name,

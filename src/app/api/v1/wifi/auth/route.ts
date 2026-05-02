@@ -843,6 +843,15 @@ function errorResponse(code: string, message: string, status = 400) {
 /**
  * Write an auth log to RadPostAuth table.
  * This feeds the v_auth_logs view → Auth Logs dashboard tab.
+ *
+ * IMPORTANT: We populate BOTH clientipaddress AND nasipaddress columns.
+ * - clientipaddress: the real client IP (from HTTP headers) — used by v_auth_logs
+ *   to show "Source IP" in reject messages and the source_ip_address column.
+ * - nasipaddress: also set to the client IP so the view's nas_ip_address column
+ *   is populated even for application-level rejects (not just RADIUS rejects).
+ * - pass: stores the rejection reason code (e.g., IP_NOT_IN_POOL:1.2.3.4,
+ *   INVALID_VOUCHER, ACCOUNT_EXPIRED) so v_auth_logs can build descriptive
+ *   reply_message strings.
  */
 async function logAuthAttempt(
   username: string,
@@ -856,12 +865,12 @@ async function logAuthAttempt(
       || '';
 
     await db.$executeRawUnsafe(
-      `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress)
-       VALUES ($1, $4, $2, NOW(), $3)`,
+      `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, nasipaddress)
+       VALUES ($1, $2, $3, NOW(), $4, $4)`,
       username,
+      extraInfo || '',
       reply,
       clientIp,
-      extraInfo || ''
     );
   } catch (err) {
     // Non-fatal — auth logging failure should not block authentication
