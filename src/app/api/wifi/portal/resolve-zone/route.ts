@@ -174,11 +174,35 @@ async function buildPortalConfig(portalId: string) {
       promotionTitle: (designSettings.promotionTitle as string) || '',
       promotionDesc: (designSettings.promotionDesc as string) || '',
       showPromotion: (designSettings.showPromotion as boolean) || false,
-      termsText: portalPage?.termsText || '',
-      termsUrl: portalPage?.termsUrl || '',
+      termsText: (designSettings.termsText as string) || portalPage?.termsText || '',
+      termsUrl: (designSettings.termsUrl as string) || portalPage?.termsUrl || '',
       showBranding: portalPage?.showBranding ?? true,
       title: portalPage?.title || 'Welcome',
       subtitle: portalPage?.subtitle || 'Connect to WiFi',
+
+      // ── Feature 1: Multi-Language Portal ──
+      languages: (designSettings.languages as string[]) || ['en'],
+      defaultLanguage: (designSettings.defaultLanguage as string) || 'en',
+
+      // ── Feature 2: Guest Marketing Opt-In ──
+      marketingOptIn: (designSettings.marketingOptIn as { enabled: boolean; emailConsent: boolean; phoneConsent: boolean; consentText: string }) || { enabled: false, emailConsent: false, phoneConsent: false, consentText: '' },
+
+      // ── Feature 3: Multi-Slide Promotion Carousel ──
+      customAmenities: (designSettings.customAmenities as Array<{ name: string; icon: string }>) || [],
+      showPromotions: (designSettings.showPromotions as boolean) || false,
+      promotions: (designSettings.promotions as Array<{ id: string; title: string; description: string; imageUrl: string; linkUrl: string; backgroundColor: string }>) || [],
+
+      // ── Feature 4: Post-Connect Guest Survey ──
+      surveyConfig: (designSettings.surveyConfig as { enabled: boolean; question: string; options: string[]; thankYouMessage: string }) || { enabled: false, question: '', options: [], thankYouMessage: '' },
+
+      // ── Feature 5: Weather Widget ──
+      weatherLocation: (designSettings.weatherLocation as string) || '',
+
+      // ── Feature 9: Content Block Reordering ──
+      contentBlockOrder: (designSettings.contentBlockOrder as string[]) || [],
+
+      // ── Feature 14: Portal Scheduling ──
+      scheduleConfig: (designSettings.scheduleConfig as { enabled: boolean; schedules: Array<{ id: string; name: string; days: number[]; startTime: string; endTime: string; designOverrides: Record<string, unknown> }> }) || { enabled: false, schedules: [] },
     },
     ssids: allSsids,
     termsRequired: !!(portalPage?.termsText || portalPage?.termsUrl),

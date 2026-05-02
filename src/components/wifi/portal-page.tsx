@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Palette,
   Plus,
@@ -97,6 +98,35 @@ import {
   Layers,
   Wand2,
   ShieldCheck,
+  Download,
+  Upload,
+  Undo2,
+  Redo2,
+  ChevronUp,
+  ChevronDown,
+  BarChart3,
+  ExternalLink,
+  PlusCircle,
+  MinusCircle,
+  Languages,
+  Megaphone,
+  MessageSquare,
+  Thermometer,
+  FileText,
+  GripVertical,
+  CalendarDays,
+  Linkedin,
+  Youtube,
+  MessageCircle,
+  Tv,
+  Wine,
+  Baby,
+  Plane,
+  Bath,
+  Shirt,
+  Music,
+  Camera,
+  Umbrella,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -189,6 +219,28 @@ interface DesignSettings {
   promotionTitle: string;
   promotionDesc: string;
   showPromotion: boolean;
+  // Feature 1: Multi-Language
+  enableMultiLanguage: boolean;
+  languages: string[];
+  defaultLanguage: string;
+  // Feature 2: Marketing Opt-In
+  marketingOptIn: { enabled: boolean; emailConsent: boolean; phoneConsent: boolean; consentText: string };
+  // Feature 3: Carousel
+  useCarouselMode: boolean;
+  promotions: Array<{ title: string; description: string; imageUrl: string; linkUrl: string; bgColor: string }>;
+  // Feature 4: Survey
+  surveyConfig: { enabled: boolean; question: string; options: string[]; thankYouMessage: string };
+  // Feature 5: Weather
+  weatherLocation: string;
+  // Feature 6: Terms
+  termsText: string;
+  termsUrl: string;
+  // Feature 7: Custom Amenities
+  customAmenities: Array<{ name: string; icon: string }>;
+  // Feature 9: Content Block Order
+  contentBlockOrder: string[];
+  // Feature 14: Scheduling
+  scheduleConfig: { enabled: boolean; schedules: Array<{ name: string; days: boolean[]; startTime: string; endTime: string }> };
 }
 
 const DEFAULT_SETTINGS: DesignSettings = {
@@ -202,9 +254,28 @@ const DEFAULT_SETTINGS: DesignSettings = {
   showHotelInfo: false,
   amenities: ['Free WiFi', 'Swimming Pool', 'Spa & Wellness', 'Restaurant', 'Fitness Center', 'Room Service'],
   showAmenities: false, showSocialMedia: false,
-  socialLinks: [{ platform: 'instagram', url: '' }, { platform: 'facebook', url: '' }, { platform: 'twitter', url: '' }],
+  socialLinks: [{ platform: 'instagram', url: '' }, { platform: 'facebook', url: '' }, { platform: 'twitter', url: '' },
+    { platform: 'linkedin', url: '' }, { platform: 'youtube', url: '' }, { platform: 'tripadvisor', url: '' }, { platform: 'whatsapp', url: '' }, { platform: 'tiktok', url: '' }],
   showClock: false, showWeather: false,
   promotionTitle: 'Special Offer', promotionDesc: 'Book 3 nights, get the 4th free!', showPromotion: false,
+  // Feature 1: Multi-Language
+  enableMultiLanguage: false, languages: ['en'], defaultLanguage: 'en',
+  // Feature 2: Marketing Opt-In
+  marketingOptIn: { enabled: false, emailConsent: true, phoneConsent: false, consentText: 'I agree to receive promotional offers and updates from the hotel' },
+  // Feature 3: Carousel
+  useCarouselMode: false, promotions: [{ title: 'Special Offer', description: 'Book 3 nights, get the 4th free!', imageUrl: '', linkUrl: '', bgColor: '#f59e0b' }],
+  // Feature 4: Survey
+  surveyConfig: { enabled: false, question: 'How was your stay?', options: ['Excellent', 'Good', 'Average', 'Poor'], thankYouMessage: 'Thank you for your feedback!' },
+  // Feature 5: Weather
+  weatherLocation: '',
+  // Feature 6: Terms
+  termsText: '', termsUrl: '',
+  // Feature 7: Custom Amenities
+  customAmenities: [],
+  // Feature 9: Content Block Order
+  contentBlockOrder: [...DEFAULT_CONTENT_BLOCKS],
+  // Feature 14: Scheduling
+  scheduleConfig: { enabled: false, schedules: [] },
 };
 
 interface PortalTemplate {
@@ -318,12 +389,80 @@ const AMENITY_ICONS: Record<string, typeof Wifi> = {
   'Parking': Car, 'Concierge': Star,
 };
 
+// ── New Feature Constants ──────────────────────────────────────────────────
+
+const LANGUAGE_OPTIONS = [
+  { value: 'en', label: 'English', flag: '🇬🇧' },
+  { value: 'es', label: 'Español', flag: '🇪🇸' },
+  { value: 'fr', label: 'Français', flag: '🇫🇷' },
+  { value: 'de', label: 'Deutsch', flag: '🇩🇪' },
+  { value: 'zh', label: '中文', flag: '🇨🇳' },
+  { value: 'ja', label: '日本語', flag: '🇯🇵' },
+  { value: 'ko', label: '한국어', flag: '🇰🇷' },
+  { value: 'ar', label: 'العربية', flag: '🇸🇦' },
+  { value: 'hi', label: 'हिन्दी', flag: '🇮🇳' },
+  { value: 'pt', label: 'Português', flag: '🇧🇷' },
+  { value: 'ru', label: 'Русский', flag: '🇷🇺' },
+  { value: 'it', label: 'Italiano', flag: '🇮🇹' },
+  { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
+  { value: 'th', label: 'ไทย', flag: '🇹🇭' },
+  { value: 'vi', label: 'Tiếng Việt', flag: '🇻🇳' },
+  { value: 'tr', label: 'Türkçe', flag: '🇹🇷' },
+];
+
+const CUSTOM_AMENITY_ICONS: Record<string, typeof Wifi> = {
+  Wifi, Waves, Sparkles, UtensilsCrossed, Dumbbell, Coffee, Car, Star,
+  Tv, Wine, Baby, Plane, Bath, Shirt, Music, Camera, Umbrella,
+};
+
+const CUSTOM_AMENITY_ICON_OPTIONS = [
+  { value: 'Wifi', label: 'WiFi' },
+  { value: 'Waves', label: 'Pool' },
+  { value: 'Sparkles', label: 'Spa' },
+  { value: 'UtensilsCrossed', label: 'Restaurant' },
+  { value: 'Dumbbell', label: 'Gym' },
+  { value: 'Coffee', label: 'Room Service' },
+  { value: 'Car', label: 'Parking' },
+  { value: 'Star', label: 'Concierge' },
+  { value: 'Tv', label: 'TV' },
+  { value: 'Wine', label: 'Wine Bar' },
+  { value: 'Baby', label: 'Kids Club' },
+  { value: 'Plane', label: 'Airport Shuttle' },
+  { value: 'Bath', label: 'Bathtub' },
+  { value: 'Shirt', label: 'Laundry' },
+  { value: 'Music', label: 'Music' },
+  { value: 'Camera', label: 'Photo' },
+  { value: 'Umbrella', label: 'Beach' },
+];
+
+const SOCIAL_PLATFORM_OPTIONS = [
+  { value: 'instagram', label: 'Instagram', icon: Instagram, color: 'text-pink-500 dark:text-pink-400' },
+  { value: 'facebook', label: 'Facebook', icon: Facebook, color: 'text-blue-600 dark:text-blue-400' },
+  { value: 'twitter', label: 'Twitter / X', icon: Twitter, color: 'text-sky-500 dark:text-sky-400' },
+  { value: 'linkedin', label: 'LinkedIn', icon: Linkedin, color: 'text-blue-700 dark:text-blue-300' },
+  { value: 'youtube', label: 'YouTube', icon: Youtube, color: 'text-red-500 dark:text-red-400' },
+  { value: 'tripadvisor', label: 'TripAdvisor', icon: MessageCircle, color: 'text-emerald-600 dark:text-emerald-400' },
+  { value: 'whatsapp', label: 'WhatsApp', icon: Smartphone, color: 'text-green-500 dark:text-green-400' },
+  { value: 'tiktok', label: 'TikTok', icon: Tv, color: 'text-gray-800 dark:text-gray-200' },
+];
+
+const DEFAULT_CONTENT_BLOCKS = ['promotion', 'logo', 'title', 'hotelInfo', 'form', 'amenities', 'social', 'clock', 'weather'];
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const CONTENT_BLOCK_LABELS: Record<string, string> = {
+  promotion: 'Promotion', logo: 'Logo', title: 'Title', hotelInfo: 'Hotel Info',
+  form: 'Login Form', amenities: 'Amenities', social: 'Social Media',
+  clock: 'Clock', weather: 'Weather',
+};
+
 // ── Tab Definitions ───────────────────────────────────────────────────────────
 
 const TABS = [
   { id: 'portals', label: 'Portal Instances', icon: Monitor },
   { id: 'mappings', label: 'Pool Mappings', icon: ArrowRightLeft },
   { id: 'designer', label: 'Portal Designer', icon: Palette },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'vouchers', label: 'Voucher Designer', icon: Ticket },
   { id: 'print-cards', label: 'Print Cards', icon: Printer },
   { id: 'whitelist', label: 'Walled Garden', icon: ShieldCheck },
@@ -452,6 +591,7 @@ export default function PortalPage() {
         {activeTab === 'portals' && <PortalListTab onPortalsChanged={fetchPortalOptions} />}
         {activeTab === 'mappings' && <PoolMappingsTab />}
         {activeTab === 'designer' && <PortalDesignerTab portalOptions={portalOptions} />}
+        {activeTab === 'analytics' && <AnalyticsTab />}
         {activeTab === 'vouchers' && <VoucherDesignerTab portalOptions={portalOptions} />}
         {activeTab === 'print-cards' && <PrintCardsTab />}
         {activeTab === 'whitelist' && <WhitelistTab />}
@@ -1028,6 +1168,101 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
   const [logoUploading, setLogoUploading] = useState(false);
   const bgInputRef = useRef<HTMLInputElement>(null);
   const [bgUploading, setBgUploading] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Design History for Undo/Redo (Feature 11) ──────────────────────────────
+  const [history, setHistory] = useState<PortalPageDesign[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const isUndoRedoRef = useRef(false);
+
+  const pushHistory = useCallback((snapshot: PortalPageDesign) => {
+    setHistory((prev) => {
+      const idx = historyIndex;
+      const newHistory = prev.slice(0, idx + 1).concat(JSON.parse(JSON.stringify(snapshot)));
+      if (newHistory.length > 20) newHistory.shift();
+      return newHistory;
+    });
+    setHistoryIndex((prev) => Math.min(prev + 1, 19));
+  }, [historyIndex]);
+
+  const undo = useCallback(() => {
+    if (historyIndex <= 0) return;
+    isUndoRedoRef.current = true;
+    const newIndex = historyIndex - 1;
+    setHistoryIndex(newIndex);
+    setDesign(JSON.parse(JSON.stringify(history[newIndex])));
+    setTimeout(() => { isUndoRedoRef.current = false; }, 50);
+  }, [historyIndex, history]);
+
+  const redo = useCallback(() => {
+    if (historyIndex >= history.length - 1) return;
+    isUndoRedoRef.current = true;
+    const newIndex = historyIndex + 1;
+    setHistoryIndex(newIndex);
+    setDesign(JSON.parse(JSON.stringify(history[newIndex])));
+    setTimeout(() => { isUndoRedoRef.current = false; }, 50);
+  }, [historyIndex, history]);
+
+  // Push initial design to history on first load
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      isUndoRedoRef.current = true;
+      setHistory([JSON.parse(JSON.stringify(design))]);
+      setHistoryIndex(0);
+      setTimeout(() => { isUndoRedoRef.current = false; }, 50);
+    }
+  }, [design]); // eslint-disable-line react-hooks/set-state-in-effect
+
+  // Push to history on design change (but not during undo/redo)
+  useEffect(() => {
+    if (!isUndoRedoRef.current && history.length > 0) {
+      pushHistory(design);
+    }
+  }, [design]); // eslint-disable-line react-hooks/set-state-in-effect
+
+  // ── Export/Import Handlers (Feature 12) ────────────────────────────────────
+  const handleExport = useCallback(() => {
+    const blob = new Blob([JSON.stringify(design, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `portal-design-${selectedPortalId || 'export'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: 'Design exported', description: 'Portal design downloaded as JSON' });
+  }, [design, selectedPortalId, toast]);
+
+  const handleImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const imported = JSON.parse(ev.target?.result as string);
+        if (imported && imported.settings) {
+          setDesign({ ...DEFAULT_DESIGN, ...imported, settings: { ...DEFAULT_SETTINGS, ...imported.settings } });
+          toast({ title: 'Design imported', description: 'Portal design loaded from JSON' });
+        } else {
+          toast({ title: 'Invalid file', description: 'The file does not contain a valid portal design', variant: 'destructive' });
+        }
+      } catch {
+        toast({ title: 'Import failed', description: 'Could not parse the JSON file', variant: 'destructive' });
+      }
+    };
+    reader.readAsText(file);
+    if (importInputRef.current) importInputRef.current.value = '';
+  }, [toast]);
+
+  // ── Actual Size Preview (Feature 13) ───────────────────────────────────────
+  const openActualSizePreview = useCallback(() => {
+    const win = window.open('', '_blank', 'width=device-width,height=device-height');
+    if (!win) return;
+    const bg = getBackgroundCSS(design);
+    win.document.write(`<!DOCTYPE html><html><head><title>Portal Preview</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;600;700&family=Playfair+Display:wght@400;600;700&family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600;700&family=Lato:wght@400;600;700&family=Roboto:wght@400;600;700&family=Merriweather:wght@400;600;700&display=swap" rel="stylesheet"></head><body style="margin:0;padding:0;background:${bg};color:${design.textColor};font-family:${design.settings.fontFamily}"><div style="text-align:center;padding:40px"><h1>${design.title}</h1><p>${design.subtitle}</p></div><p style="text-align:center;margin-top:40px;opacity:0.5;font-size:12px">Actual-size preview — close this tab to return</p></body></html>`);
+    win.document.close();
+  }, [design]);
 
   // ── Load data when portal changes ───────────────────────────────────────────
   useEffect(() => {
@@ -1189,6 +1424,11 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
         </div>
         <div className="flex gap-2">
           {isOverride && <Button variant="outline" size="sm" onClick={resetToPolicy}><RotateCcw className="h-4 w-4 mr-1.5" />Sync to Policy</Button>}
+          <Tooltip><TooltipTrigger asChild><Button variant="outline" size="icon" className="h-8 w-8" onClick={undo} disabled={historyIndex <= 0}><Undo2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Undo</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="outline" size="icon" className="h-8 w-8" onClick={redo} disabled={historyIndex >= history.length - 1}><Redo2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Redo</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="outline" size="icon" className="h-8 w-8" onClick={handleExport}><Download className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Export Design</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => importInputRef.current?.click()}><Upload className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Import Design</TooltipContent></Tooltip>
+          <input ref={importInputRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
           <Button size="sm" className="bg-teal-600 hover:bg-teal-700" onClick={handleSave} disabled={saving}><Save className="h-4 w-4 mr-1.5" />{saving ? 'Saving...' : 'Save'}</Button>
         </div>
       </div>
@@ -1202,12 +1442,15 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium flex items-center gap-2"><Eye className="h-4 w-4" />Live Preview</CardTitle>
-                <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
-                  {[{ v: 'phone' as const, icon: Smartphone }, { v: 'tablet' as const, icon: Tablet }, { v: 'desktop' as const, icon: Monitor }].map(({ v, icon: Ic }) => (
-                    <button key={v} onClick={() => setPreviewDevice(v)} className={cn('p-1.5 rounded-md transition-colors', previewDevice === v ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground')}>
-                      <Ic className="h-3.5 w-3.5" />
-                    </button>
-                  ))}
+                <div className="flex items-center gap-1">
+                  <Tooltip><TooltipTrigger asChild><button onClick={openActualSizePreview} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors"><ExternalLink className="h-3.5 w-3.5" /></button></TooltipTrigger><TooltipContent>Actual Size Preview</TooltipContent></Tooltip>
+                  <div className="bg-muted rounded-lg p-0.5">
+                    {[{ v: 'phone' as const, icon: Smartphone }, { v: 'tablet' as const, icon: Tablet }, { v: 'desktop' as const, icon: Monitor }].map(({ v, icon: Ic }) => (
+                      <button key={v} onClick={() => setPreviewDevice(v)} className={cn('p-1.5 rounded-md transition-colors', previewDevice === v ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground')}>
+                        <Ic className="h-3.5 w-3.5" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -1495,6 +1738,17 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                           )}>{l}</button>
                       ))}
                     </div>
+                    <Separator />
+                    {/* Feature 10: Card Shadow Control */}
+                    <div><h3 className="text-sm font-semibold">Card Shadow</h3></div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {(['none', 'small', 'medium', 'large'] as const).map((sz) => (
+                        <button key={sz} onClick={() => updateSettings({ cardShadow: sz })}
+                          className={cn('p-3 rounded-lg border-2 text-xs font-medium transition-all capitalize',
+                            design.settings.cardShadow === sz ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border hover:border-teal-300'
+                          )}>{sz}</button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -1502,6 +1756,36 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                 {subTab === 'content' && (
                   <div className="space-y-5">
                     <div><h3 className="text-sm font-semibold flex items-center gap-2"><Layers className="h-4 w-4" />Content Sections</h3><p className="text-xs text-muted-foreground mt-1">Add rich content to engage guests</p></div>
+
+                    {/* ── Feature 1: Multi-Language Portal ─────────────────────── */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between"><Label className="text-xs font-semibold flex items-center gap-1.5"><Languages className="h-3.5 w-3.5" />Multi-Language</Label><Switch checked={design.settings.enableMultiLanguage} onCheckedChange={(v) => updateSettings({ enableMultiLanguage: v })} /></div>
+                      {design.settings.enableMultiLanguage && (<>
+                        <div className="space-y-2"><Label className="text-xs">Available Languages</Label>
+                          <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+                            {LANGUAGE_OPTIONS.map((lang) => (
+                              <div key={lang.value} className={cn('flex items-center gap-2 p-1.5 rounded-lg border text-xs cursor-pointer transition-all',
+                                design.settings.languages.includes(lang.value) ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border hover:border-teal-300'
+                              )} onClick={() => {
+                                const curr = design.settings.languages;
+                                updateSettings({ languages: curr.includes(lang.value) ? curr.filter((l) => l !== lang.value) : [...curr, lang.value] });
+                              }}>
+                                <span>{lang.flag}</span>
+                                <span className="truncate">{lang.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="space-y-2"><Label className="text-xs">Default Language</Label>
+                          <Select value={design.settings.defaultLanguage} onValueChange={(v) => updateSettings({ defaultLanguage: v })}>
+                            <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>{LANGUAGE_OPTIONS.filter((l) => design.settings.languages.includes(l.value)).map((l) => <SelectItem key={l.value} value={l.value}>{l.flag} {l.label}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                      </>)}
+                    </div>
+                    <Separator />
+
                     {/* Branding Content */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between"><Label className="text-xs font-semibold">Branding</Label></div>
@@ -1514,75 +1798,41 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                           {design.logoUrl ? (
                             <div className="relative group shrink-0">
                               <img src={design.logoUrl} alt="Logo preview" className="w-12 h-12 rounded-xl object-contain border border-border bg-muted/30" />
-                              <button
-                                type="button"
-                                onClick={() => updateDesign({ logoUrl: '' })}
-                                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
-                              >✕</button>
+                              <button type="button" onClick={() => updateDesign({ logoUrl: '' })} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
                             </div>
                           ) : (
-                            <div className="w-12 h-12 rounded-xl border-2 border-dashed border-muted-foreground/30 flex items-center justify-center shrink-0 bg-muted/10">
-                              <ImagePlus className="w-4 h-4 text-muted-foreground/50" />
-                            </div>
+                            <div className="w-12 h-12 rounded-xl border-2 border-dashed border-muted-foreground/30 flex items-center justify-center shrink-0 bg-muted/10"><ImagePlus className="w-4 h-4 text-muted-foreground/50" /></div>
                           )}
                           <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                             <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              setLogoUploading(true);
-                              try {
-                                const fd = new FormData();
-                                fd.append('file', file);
-                                fd.append('folder', 'portal-logos');
-                                const res = await fetch('/api/upload', { method: 'POST', body: fd });
-                                const json = await res.json();
-                                if (json.success) {
-                                  updateDesign({ logoUrl: json.data.url });
-                                  toast({ title: 'Logo uploaded' });
-                                } else {
-                                  toast({ title: 'Upload failed', description: json.error?.message || 'Please try again', variant: 'destructive' });
-                                }
-                              } catch {
-                                toast({ title: 'Upload failed', description: 'Network error', variant: 'destructive' });
-                              } finally {
-                                setLogoUploading(false);
-                                if (logoInputRef.current) logoInputRef.current.value = '';
-                              }
+                              const file = e.target.files?.[0]; if (!file) return; setLogoUploading(true);
+                              try { const fd = new FormData(); fd.append('file', file); fd.append('folder', 'portal-logos'); const res = await fetch('/api/upload', { method: 'POST', body: fd }); const json = await res.json(); if (json.success) { updateDesign({ logoUrl: json.data.url }); toast({ title: 'Logo uploaded' }); } else { toast({ title: 'Upload failed', description: json.error?.message || 'Please try again', variant: 'destructive' }); } } catch { toast({ title: 'Upload failed', description: 'Network error', variant: 'destructive' }); } finally { setLogoUploading(false); if (logoInputRef.current) logoInputRef.current.value = ''; }
                             }} />
                             <div className="flex gap-1.5">
-                              <Button type="button" size="sm" variant="outline" disabled={logoUploading} onClick={() => logoInputRef.current?.click()} className="text-xs h-7 px-2">
-                                {logoUploading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ImagePlus className="w-3 h-3 mr-1" />}
-                                {logoUploading ? 'Uploading…' : 'Upload'}
-                              </Button>
-                              <Button type="button" size="sm" variant="ghost" onClick={() => {
-                                const url = prompt('Enter logo URL:');
-                                if (url) updateDesign({ logoUrl: url });
-                              }} className="text-xs h-7 px-2 text-muted-foreground">
-                                Use URL
-                              </Button>
+                              <Button type="button" size="sm" variant="outline" disabled={logoUploading} onClick={() => logoInputRef.current?.click()} className="text-xs h-7 px-2">{logoUploading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ImagePlus className="w-3 h-3 mr-1" />}{logoUploading ? 'Uploading…' : 'Upload'}</Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => { const url = prompt('Enter logo URL:'); if (url) updateDesign({ logoUrl: url }); }} className="text-xs h-7 px-2 text-muted-foreground">Use URL</Button>
                             </div>
                           </div>
                         </div>
                       </div>
                       {/* Logo Size */}
-                      <div className="space-y-2">
-                        <Label className="text-xs">Logo Size</Label>
+                      <div className="space-y-2"><Label className="text-xs">Logo Size</Label>
                         <div className="grid grid-cols-3 gap-2">
                           {([['small', 'Small (40px)'], ['medium', 'Medium (56px)'], ['large', 'Large (72px)']] as const).map(([v, l]) => (
-                            <button key={v} onClick={() => updateSettings({ logoSize: v })}
-                              className={cn('p-2 rounded-lg border-2 text-xs font-medium transition-all text-center',
-                                design.settings.logoSize === v ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border hover:border-teal-300'
-                              )}>{l}</button>
+                            <button key={v} onClick={() => updateSettings({ logoSize: v })} className={cn('p-2 rounded-lg border-2 text-xs font-medium transition-all text-center', design.settings.logoSize === v ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border hover:border-teal-300')}>{l}</button>
                           ))}
                         </div>
                       </div>
                       <div className="space-y-2"><Label className="text-xs">Welcome Message</Label><Textarea value={design.settings.welcomeMessage} onChange={(e) => updateSettings({ welcomeMessage: e.target.value })} className="text-xs" rows={2} /></div>
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs">Show Clock</Label>
-                        <Switch checked={design.settings.showClock} onCheckedChange={(v) => updateSettings({ showClock: v })} />
-                      </div>
+                      <div className="flex items-center justify-between"><Label className="text-xs">Show Clock</Label><Switch checked={design.settings.showClock} onCheckedChange={(v) => updateSettings({ showClock: v })} /></div>
+                      {/* Feature 5: Weather Widget */}
+                      <div className="flex items-center justify-between"><Label className="text-xs flex items-center gap-1.5"><Thermometer className="h-3.5 w-3.5" />Show Weather</Label><Switch checked={design.settings.showWeather} onCheckedChange={(v) => updateSettings({ showWeather: v })} /></div>
+                      {design.settings.showWeather && (
+                        <div className="space-y-2"><Label className="text-xs">City / Location</Label><Input value={design.settings.weatherLocation} onChange={(e) => updateSettings({ weatherLocation: e.target.value })} placeholder="e.g. Paris, London, New York" className="text-xs" /><p className="text-[10px] text-muted-foreground">Used by the weather API to show current conditions</p></div>
+                      )}
                     </div>
                     <Separator />
+
                     {/* Hotel Info */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between"><Label className="text-xs font-semibold">Hotel Information</Label><Switch checked={design.settings.showHotelInfo} onCheckedChange={(v) => updateSettings({ showHotelInfo: v })} /></div>
@@ -1596,54 +1846,155 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                       </>)}
                     </div>
                     <Separator />
-                    {/* Amenities */}
+
+                    {/* Amenities + Feature 7: Custom Amenities */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between"><Label className="text-xs font-semibold">Amenities</Label><Switch checked={design.settings.showAmenities} onCheckedChange={(v) => updateSettings({ showAmenities: v })} /></div>
-                      {design.settings.showAmenities && (
+                      {design.settings.showAmenities && (<>
                         <div className="grid grid-cols-2 gap-2">
                           {Object.keys(AMENITY_ICONS).map((am) => (
-                            <div key={am} className={cn('flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer transition-all',
-                              design.settings.amenities.includes(am) ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border hover:border-teal-300'
-                            )} onClick={() => {
-                              const curr = design.settings.amenities;
-                              updateSettings({ amenities: curr.includes(am) ? curr.filter((a) => a !== am) : [...curr, am] });
-                            }}>
-                              {React.createElement(AMENITY_ICONS[am], { className: 'h-3.5 w-3.5 text-teal-500 dark:text-teal-400 flex-shrink-0' })}
-                              <span className="truncate">{am}</span>
+                            <div key={am} className={cn('flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer transition-all', design.settings.amenities.includes(am) ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border hover:border-teal-300')} onClick={() => { const curr = design.settings.amenities; updateSettings({ amenities: curr.includes(am) ? curr.filter((a) => a !== am) : [...curr, am] }); }}>
+                              {React.createElement(AMENITY_ICONS[am], { className: 'h-3.5 w-3.5 text-teal-500 dark:text-teal-400 flex-shrink-0' })}<span className="truncate">{am}</span>
                             </div>
                           ))}
+                          {/* Custom Amenities */}
+                          {design.settings.customAmenities.map((ca, i) => {
+                            const CIcon = CUSTOM_AMENITY_ICONS[ca.icon] || Star;
+                            return (
+                              <div key={`custom-${i}`} className="flex items-center gap-2 p-2 rounded-lg border border-teal-500 bg-teal-50/50 dark:bg-teal-950/20 text-xs">
+                                {React.createElement(CIcon, { className: 'h-3.5 w-3.5 text-teal-500 dark:text-teal-400 flex-shrink-0' })}
+                                <span className="truncate flex-1">{ca.name}</span>
+                                <button onClick={() => updateSettings({ customAmenities: design.settings.customAmenities.filter((_, idx) => idx !== i) })} className="text-destructive hover:text-destructive/80 flex-shrink-0"><XCircle className="h-3 w-3" /></button>
+                              </div>
+                            );
+                          })}
+                          <button onClick={() => updateSettings({ customAmenities: [...design.settings.customAmenities, { name: 'Custom Amenity', icon: 'Star' }] })} className="flex items-center justify-center gap-1 p-2 rounded-lg border-2 border-dashed text-xs text-muted-foreground hover:text-foreground hover:border-teal-300 transition-all"><PlusCircle className="h-3.5 w-3.5" />Add Custom</button>
                         </div>
-                      )}
-                    </div>
-                    <Separator />
-                    {/* Promotion */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between"><Label className="text-xs font-semibold">Promotion Banner</Label><Switch checked={design.settings.showPromotion} onCheckedChange={(v) => updateSettings({ showPromotion: v })} /></div>
-                      {design.settings.showPromotion && (<>
-                        <div className="space-y-2"><Label className="text-xs">Promotion Title</Label><Input value={design.settings.promotionTitle} onChange={(e) => updateSettings({ promotionTitle: e.target.value })} className="text-xs" /></div>
-                        <div className="space-y-2"><Label className="text-xs">Description</Label><Textarea value={design.settings.promotionDesc} onChange={(e) => updateSettings({ promotionDesc: e.target.value })} className="text-xs" rows={2} /></div>
+                        {/* Edit custom amenity names */}
+                        {design.settings.customAmenities.map((ca, i) => (
+                          <div key={`edit-custom-${i}`} className="flex items-center gap-2">
+                            <Input value={ca.name} onChange={(e) => {
+                              const updated = [...design.settings.customAmenities]; updated[i] = { ...updated[i], name: e.target.value };
+                              updateSettings({ customAmenities: updated });
+                            }} className="text-xs flex-1" placeholder="Amenity name" />
+                            <Select value={ca.icon} onValueChange={(v) => {
+                              const updated = [...design.settings.customAmenities]; updated[i] = { ...updated[i], icon: v };
+                              updateSettings({ customAmenities: updated });
+                            }}><SelectTrigger className="text-xs w-32"><SelectValue /></SelectTrigger><SelectContent>{CUSTOM_AMENITY_ICON_OPTIONS.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent></Select>
+                          </div>
+                        ))}
                       </>)}
                     </div>
                     <Separator />
-                    {/* Social Links */}
+
+                    {/* Feature 6: Terms & Conditions Editor */}
+                    <div className="space-y-3">
+                      <Label className="text-xs font-semibold flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" />Terms & Conditions</Label>
+                      <div className="space-y-2"><Label className="text-xs">Terms Text</Label><Textarea value={design.settings.termsText} onChange={(e) => updateSettings({ termsText: e.target.value })} className="text-xs" rows={3} placeholder="Enter your terms and conditions text..." /></div>
+                      <div className="space-y-2"><Label className="text-xs">Terms URL</Label><Input value={design.settings.termsUrl} onChange={(e) => updateSettings({ termsUrl: e.target.value })} className="text-xs" placeholder="https://hotel.com/terms" /></div>
+                      <p className="text-[10px] text-muted-foreground">Enable the &quot;Show Terms Checkbox&quot; in the Fields tab to display a terms agreement on the portal.</p>
+                    </div>
+                    <Separator />
+
+                    {/* Feature 3: Promotions (Single + Carousel) */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between"><Label className="text-xs font-semibold">Promotions</Label><Switch checked={design.settings.showPromotion} onCheckedChange={(v) => updateSettings({ showPromotion: v })} /></div>
+                      {design.settings.showPromotion && (<>
+                        <div className="flex items-center justify-between"><Label className="text-xs">Carousel Mode</Label><Switch checked={design.settings.useCarouselMode} onCheckedChange={(v) => updateSettings({ useCarouselMode: v })} /></div>
+                        {!design.settings.useCarouselMode ? (
+                          <>
+                            <div className="space-y-2"><Label className="text-xs">Promotion Title</Label><Input value={design.settings.promotionTitle} onChange={(e) => updateSettings({ promotionTitle: e.target.value })} className="text-xs" /></div>
+                            <div className="space-y-2"><Label className="text-xs">Description</Label><Textarea value={design.settings.promotionDesc} onChange={(e) => updateSettings({ promotionDesc: e.target.value })} className="text-xs" rows={2} /></div>
+                          </>
+                        ) : (
+                          <>
+                            {design.settings.promotions.map((slide, i) => (
+                              <div key={i} className="rounded-lg border p-3 space-y-2 relative">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-xs font-semibold">Slide {i + 1}</p>
+                                  <button onClick={() => updateSettings({ promotions: design.settings.promotions.filter((_, idx) => idx !== i) })} className="text-destructive hover:text-destructive/80"><MinusCircle className="h-3.5 w-3.5" /></button>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Input value={slide.title} onChange={(e) => { const updated = [...design.settings.promotions]; updated[i] = { ...updated[i], title: e.target.value }; updateSettings({ promotions: updated }); }} className="text-xs" placeholder="Title" />
+                                  <Textarea value={slide.description} onChange={(e) => { const updated = [...design.settings.promotions]; updated[i] = { ...updated[i], description: e.target.value }; updateSettings({ promotions: updated }); }} className="text-xs" rows={2} placeholder="Description" />
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <Input value={slide.imageUrl} onChange={(e) => { const updated = [...design.settings.promotions]; updated[i] = { ...updated[i], imageUrl: e.target.value }; updateSettings({ promotions: updated }); }} className="text-xs" placeholder="Image URL" />
+                                    <Input value={slide.linkUrl} onChange={(e) => { const updated = [...design.settings.promotions]; updated[i] = { ...updated[i], linkUrl: e.target.value }; updateSettings({ promotions: updated }); }} className="text-xs" placeholder="Link URL" />
+                                  </div>
+                                  <div className="flex items-center gap-2"><Label className="text-[10px] text-muted-foreground">BG Color</Label><input type="color" value={slide.bgColor} onChange={(e) => { const updated = [...design.settings.promotions]; updated[i] = { ...updated[i], bgColor: e.target.value }; updateSettings({ promotions: updated }); }} className="w-6 h-6 rounded cursor-pointer border-0" /></div>
+                                </div>
+                              </div>
+                            ))}
+                            <Button variant="outline" size="sm" onClick={() => updateSettings({ promotions: [...design.settings.promotions, { title: '', description: '', imageUrl: '', linkUrl: '', bgColor: '#f59e0b' }] })} className="text-xs w-full"><PlusCircle className="h-3.5 w-3.5 mr-1.5" />Add Slide</Button>
+                          </>
+                        )}
+                      </>)}
+                    </div>
+                    <Separator />
+
+                    {/* Feature 2: Marketing Opt-In */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between"><Label className="text-xs font-semibold flex items-center gap-1.5"><Megaphone className="h-3.5 w-3.5" />Marketing Consent</Label><Switch checked={design.settings.marketingOptIn.enabled} onCheckedChange={(v) => updateSettings({ marketingOptIn: { ...design.settings.marketingOptIn, enabled: v } })} /></div>
+                      {design.settings.marketingOptIn.enabled && (<>
+                        <div className="flex items-center justify-between"><Label className="text-xs">Email Marketing</Label><Switch checked={design.settings.marketingOptIn.emailConsent} onCheckedChange={(v) => updateSettings({ marketingOptIn: { ...design.settings.marketingOptIn, emailConsent: v } })} /></div>
+                        <div className="flex items-center justify-between"><Label className="text-xs">SMS Marketing</Label><Switch checked={design.settings.marketingOptIn.phoneConsent} onCheckedChange={(v) => updateSettings({ marketingOptIn: { ...design.settings.marketingOptIn, phoneConsent: v } })} /></div>
+                        <div className="space-y-2"><Label className="text-xs">Consent Text (GDPR-style)</Label><Textarea value={design.settings.marketingOptIn.consentText} onChange={(e) => updateSettings({ marketingOptIn: { ...design.settings.marketingOptIn, consentText: e.target.value } })} className="text-xs" rows={2} /></div>
+                      </>)}
+                    </div>
+                    <Separator />
+
+                    {/* Feature 8: More Social Platforms */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between"><Label className="text-xs font-semibold">Social Media</Label><Switch checked={design.settings.showSocialMedia} onCheckedChange={(v) => updateSettings({ showSocialMedia: v })} /></div>
                       {design.settings.showSocialMedia && (
                         <div className="space-y-2">
-                          {['instagram', 'facebook', 'twitter'].map((platform) => (
-                            <div key={platform} className="flex items-center gap-2">
-                              {platform === 'instagram' && <Instagram className="h-4 w-4 text-pink-500 dark:text-pink-400" />}
-                              {platform === 'facebook' && <Facebook className="h-4 w-4 text-blue-500 dark:text-blue-400" />}
-                              {platform === 'twitter' && <Twitter className="h-4 w-4 text-sky-500 dark:text-sky-400" />}
-                              <Input placeholder={`${platform}.com/yourhotel`} value={design.settings.socialLinks.find((s) => s.platform === platform)?.url || ''} onChange={(e) => {
-                                const links = design.settings.socialLinks.filter((s) => s.platform !== platform);
-                                links.push({ platform, url: e.target.value });
-                                updateSettings({ socialLinks: links });
-                              }} className="text-xs" />
-                            </div>
-                          ))}
+                          {SOCIAL_PLATFORM_OPTIONS.map((sp) => {
+                            const SIcon = sp.icon;
+                            return (
+                              <div key={sp.value} className="flex items-center gap-2">
+                                <SIcon className={cn('h-4 w-4 flex-shrink-0', sp.color)} />
+                                <Input placeholder={`${sp.label} URL`} value={design.settings.socialLinks.find((s) => s.platform === sp.value)?.url || ''} onChange={(e) => {
+                                  const links = design.settings.socialLinks.filter((s) => s.platform !== sp.value);
+                                  links.push({ platform: sp.value, url: e.target.value });
+                                  updateSettings({ socialLinks: links });
+                                }} className="text-xs" />
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
+                    </div>
+                    <Separator />
+
+                    {/* Feature 4: Guest Survey */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between"><Label className="text-xs font-semibold flex items-center gap-1.5"><MessageSquare className="h-3.5 w-3.5" />Guest Survey</Label><Switch checked={design.settings.surveyConfig.enabled} onCheckedChange={(v) => updateSettings({ surveyConfig: { ...design.settings.surveyConfig, enabled: v } })} /></div>
+                      {design.settings.surveyConfig.enabled && (<>
+                        <div className="space-y-2"><Label className="text-xs">Survey Question</Label><Input value={design.settings.surveyConfig.question} onChange={(e) => updateSettings({ surveyConfig: { ...design.settings.surveyConfig, question: e.target.value } })} className="text-xs" /></div>
+                        <div className="space-y-2"><Label className="text-xs">Rating Options (one per line)</Label><Textarea value={design.settings.surveyConfig.options.join('\n')} onChange={(e) => updateSettings({ surveyConfig: { ...design.settings.surveyConfig, options: e.target.value.split('\n').filter(Boolean) } })} className="text-xs" rows={3} /></div>
+                        <div className="space-y-2"><Label className="text-xs">Thank You Message</Label><Input value={design.settings.surveyConfig.thankYouMessage} onChange={(e) => updateSettings({ surveyConfig: { ...design.settings.surveyConfig, thankYouMessage: e.target.value } })} className="text-xs" /></div>
+                      </>)}
+                    </div>
+                    <Separator />
+
+                    {/* Feature 9: Content Block Reordering */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-semibold flex items-center gap-1.5"><GripVertical className="h-3.5 w-3.5" />Content Block Order</Label>
+                        <Button variant="ghost" size="sm" className="text-[10px] h-6 px-2" onClick={() => updateSettings({ contentBlockOrder: [...DEFAULT_CONTENT_BLOCKS] })}>Reset to Default</Button>
+                      </div>
+                      <div className="space-y-1">
+                        {design.settings.contentBlockOrder.map((block, i) => (
+                          <div key={block} className="flex items-center gap-2 p-2 rounded-lg border text-xs">
+                            <GripVertical className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <span className="flex-1 font-medium">{CONTENT_BLOCK_LABELS[block] || block}</span>
+                            <div className="flex gap-0.5">
+                              <button onClick={() => { const arr = [...design.settings.contentBlockOrder]; if (i > 0) { [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]; updateSettings({ contentBlockOrder: arr }); } }} className="p-0.5 rounded hover:bg-muted disabled:opacity-30" disabled={i === 0}><ChevronUp className="h-3.5 w-3.5" /></button>
+                              <button onClick={() => { const arr = [...design.settings.contentBlockOrder]; if (i < arr.length - 1) { [arr[i], arr[i + 1]] = [arr[i + 1], arr[i]]; updateSettings({ contentBlockOrder: arr }); } }} className="p-0.5 rounded hover:bg-muted disabled:opacity-30" disabled={i === design.settings.contentBlockOrder.length - 1}><ChevronDown className="h-3.5 w-3.5" /></button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1704,6 +2055,33 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                     <div className="flex items-center justify-between p-3 rounded-lg border">
                       <div><p className="text-xs font-medium">Show Hotel Branding</p><p className="text-[10px] text-muted-foreground">Powered by branding at bottom</p></div>
                       <Switch checked={true} disabled />
+                    </div>
+                    <Separator />
+                    {/* Feature 14: Portal Scheduling */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between"><Label className="text-xs font-semibold flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" />Portal Scheduling</Label><Switch checked={design.settings.scheduleConfig.enabled} onCheckedChange={(v) => updateSettings({ scheduleConfig: { ...design.settings.scheduleConfig, enabled: v } })} /></div>
+                      {design.settings.scheduleConfig.enabled && (<>
+                        <p className="text-[10px] text-muted-foreground">Define time-based schedules for different portal content or designs.</p>
+                        {design.settings.scheduleConfig.schedules.map((sched, i) => (
+                          <div key={i} className="rounded-lg border p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1"><Input value={sched.name} onChange={(e) => { const updated = [...design.settings.scheduleConfig.schedules]; updated[i] = { ...updated[i], name: e.target.value }; updateSettings({ scheduleConfig: { ...design.settings.scheduleConfig, schedules: updated } }); }} className="text-xs" placeholder="Schedule name" /></div>
+                              <button onClick={() => updateSettings({ scheduleConfig: { ...design.settings.scheduleConfig, schedules: design.settings.scheduleConfig.schedules.filter((_, idx) => idx !== i) } })} className="text-destructive hover:text-destructive/80 ml-2"><MinusCircle className="h-3.5 w-3.5" /></button>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {DAY_LABELS.map((day, di) => (
+                                <button key={day} onClick={() => { const updated = [...design.settings.scheduleConfig.schedules]; const newDays = [...updated[i].days]; newDays[di] = !newDays[di]; updated[i] = { ...updated[i], days: newDays }; updateSettings({ scheduleConfig: { ...design.settings.scheduleConfig, schedules: updated } }); }}
+                                  className={cn('px-2 py-1 rounded text-[10px] font-medium border transition-all', sched.days[di] ? 'bg-teal-500 text-white border-teal-500' : 'border-border text-muted-foreground hover:border-teal-300')}>{day}</button>
+                              ))}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1"><Label className="text-[10px] text-muted-foreground">Start Time</Label><Input type="time" value={sched.startTime} onChange={(e) => { const updated = [...design.settings.scheduleConfig.schedules]; updated[i] = { ...updated[i], startTime: e.target.value }; updateSettings({ scheduleConfig: { ...design.settings.scheduleConfig, schedules: updated } }); }} className="text-xs" /></div>
+                              <div className="space-y-1"><Label className="text-[10px] text-muted-foreground">End Time</Label><Input type="time" value={sched.endTime} onChange={(e) => { const updated = [...design.settings.scheduleConfig.schedules]; updated[i] = { ...updated[i], endTime: e.target.value }; updateSettings({ scheduleConfig: { ...design.settings.scheduleConfig, schedules: updated } }); }} className="text-xs" /></div>
+                            </div>
+                          </div>
+                        ))}
+                        <Button variant="outline" size="sm" onClick={() => { const newSched = { name: '', days: [true, true, true, true, true, true, true], startTime: '09:00', endTime: '18:00' }; updateSettings({ scheduleConfig: { ...design.settings.scheduleConfig, schedules: [...design.settings.scheduleConfig.schedules, newSched] } }); }} className="text-xs w-full"><PlusCircle className="h-3.5 w-3.5 mr-1.5" />Add Schedule</Button>
+                      </>)}
                     </div>
                   </div>
                 )}
@@ -1865,6 +2243,34 @@ function PortalPreviewContent({ design, visibleFields }: { design: PortalPageDes
         <div className="flex items-center gap-1 text-[10px] opacity-50">
           <Clock className="h-3 w-3" />
           <span>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+      )}
+
+      {/* Weather */}
+      {s.showWeather && (
+        <div className="flex items-center gap-1 text-[10px] opacity-50">
+          <Thermometer className="h-3 w-3" />
+          <span>{s.weatherLocation ? `${s.weatherLocation} — 22°C` : 'Weather — set location'}</span>
+        </div>
+      )}
+
+      {/* Survey */}
+      {s.surveyConfig?.enabled && (
+        <div className={cn('w-full max-w-[240px] rounded-lg p-2.5 space-y-1.5', isGlass ? 'bg-white/10 border border-white/20' : 'bg-black/5 border')}>
+          <p className="text-[9px] font-semibold opacity-70">{s.surveyConfig.question}</p>
+          <div className="flex gap-1 flex-wrap">
+            {s.surveyConfig.options.slice(0, 4).map((opt) => (
+              <span key={opt} className="text-[7px] px-1.5 py-0.5 rounded-full border opacity-50">{opt}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Marketing Opt-In */}
+      {s.marketingOptIn?.enabled && (
+        <div className="w-full max-w-[240px] flex items-center gap-1.5 text-[8px] opacity-50">
+          <Megaphone className="h-2.5 w-2.5 flex-shrink-0" />
+          <span>{s.marketingOptIn.consentText || 'Receive promotional offers'}</span>
         </div>
       )}
 
@@ -2097,6 +2503,142 @@ function PoolMappingsTab() {
 
 function WhitelistTab() {
   return <PortalWhitelist />;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Feature 15: Analytics Tab — Guest Data Analytics Dashboard
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function AnalyticsTab() {
+  // Mock data for analytics (real data would come from an analytics backend API)
+  const mockStats = {
+    totalToday: 284, totalWeek: 1856, totalMonth: 7842,
+    avgSession: '32 min',
+    peakHour: 19,
+    authMethods: [
+      { method: 'Room Number', count: 142, pct: 50 },
+      { method: 'Voucher', count: 68, pct: 24 },
+      { method: 'PMS Credentials', count: 48, pct: 17 },
+      { method: 'Open Access', count: 18, pct: 6 },
+      { method: 'SMS OTP', count: 8, pct: 3 },
+    ],
+    peakHours: [
+      { hour: 0, count: 5 }, { hour: 3, count: 2 }, { hour: 6, count: 12 },
+      { hour: 8, count: 45 }, { hour: 9, count: 78 }, { hour: 10, count: 92 },
+      { hour: 11, count: 85 }, { hour: 12, count: 70 }, { hour: 13, count: 55 },
+      { hour: 14, count: 48 }, { hour: 15, count: 42 }, { hour: 16, count: 58 },
+      { hour: 17, count: 82 }, { hour: 18, count: 95 }, { hour: 19, count: 108 },
+      { hour: 20, count: 98 }, { hour: 21, count: 88 }, { hour: 22, count: 62 },
+      { hour: 23, count: 28 },
+    ],
+    marketingOptInRate: 67,
+    surveyResponses: { Excellent: 42, Good: 35, Average: 15, Poor: 8 },
+  };
+
+  const maxHourCount = Math.max(...mockStats.peakHours.map((h) => h.count));
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold flex items-center gap-2"><BarChart3 className="h-4 w-4 text-teal-500" />Guest Analytics Dashboard</h3>
+          <p className="text-xs text-muted-foreground mt-1">Track portal usage, authentication methods, and guest engagement</p>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+            <AlertTriangle className="h-3 w-3 mr-1" />Mock Data
+          </Badge>
+        </div>
+      </div>
+
+      <div className="p-4 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30">
+        <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center gap-1.5"><Settings className="h-3.5 w-3.5" />Connect your analytics backend for live data. These metrics are currently showing placeholder values.</p>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Today', value: mockStats.totalToday, icon: Wifi, color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300' },
+          { label: 'This Week', value: mockStats.totalWeek, icon: Calendar, color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+          { label: 'This Month', value: mockStats.totalMonth, icon: CalendarDays, color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+          { label: 'Avg Session', value: mockStats.avgSession, icon: Clock, color: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' },
+        ].map((kpi) => (
+          <Card key={kpi.label}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div><p className="text-xs text-muted-foreground">{kpi.label}</p><p className="text-2xl font-bold mt-1">{kpi.value}</p></div>
+                <div className={cn('p-2.5 rounded-xl', kpi.color)}><kpi.icon className="h-5 w-5" /></div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Auth Methods */}
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Authentication Methods</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {mockStats.authMethods.map((am) => (
+              <div key={am.method} className="space-y-1">
+                <div className="flex items-center justify-between text-xs"><span className="font-medium">{am.method}</span><span className="text-muted-foreground">{am.count} ({am.pct}%)</span></div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden"><div className="h-full bg-teal-500 rounded-full" style={{ width: `${am.pct}%` }} /></div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* Peak Usage Hours */}
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Peak Usage Hours (Today)</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex items-end gap-[2px] h-32">
+              {mockStats.peakHours.filter((h) => h.hour >= 6 && h.hour <= 23).map((h) => (
+                <div key={h.hour} className="flex-1 flex flex-col items-center gap-1">
+                  <div className="w-full bg-teal-500/80 rounded-t-sm transition-all hover:bg-teal-500" style={{ height: `${(h.count / maxHourCount) * 100}%` }} />
+                  <span className="text-[8px] text-muted-foreground">{h.hour}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Marketing Opt-In */}
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium flex items-center gap-1.5"><Megaphone className="h-4 w-4" />Marketing Opt-In Rate</CardTitle></CardHeader>
+          <CardContent className="flex flex-col items-center py-4">
+            <div className="relative w-28 h-28">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
+                <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8" strokeDasharray={`${mockStats.marketingOptInRate * 2.51} 251`} strokeLinecap="round" className="text-teal-500" />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center"><span className="text-xl font-bold">{mockStats.marketingOptInRate}%</span></div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">{Math.round(mockStats.totalToday * mockStats.marketingOptInRate / 100)} guests opted in today</p>
+          </CardContent>
+        </Card>
+
+        {/* Survey Distribution */}
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium flex items-center gap-1.5"><MessageSquare className="h-4 w-4" />Survey Responses</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {Object.entries(mockStats.surveyResponses).map(([rating, count]) => {
+              const total = Object.values(mockStats.surveyResponses).reduce((a, b) => a + b, 0);
+              const pct = Math.round((count / total) * 100);
+              const color = rating === 'Excellent' ? 'bg-emerald-500' : rating === 'Good' ? 'bg-teal-500' : rating === 'Average' ? 'bg-amber-500' : 'bg-rose-500';
+              return (
+                <div key={rating} className="flex items-center gap-2">
+                  <span className="text-xs w-16 font-medium">{rating}</span>
+                  <div className="flex-1 h-4 bg-muted rounded-full overflow-hidden"><div className={cn('h-full rounded-full', color)} style={{ width: `${pct}%` }} /></div>
+                  <span className="text-xs text-muted-foreground w-12 text-right">{count} ({pct}%)</span>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -30,7 +30,7 @@
  * States: loading → auth_form → authenticating → success → error
  */
 
-import { useState, useEffect, Suspense, useCallback } from 'react';
+import { useState, useEffect, Suspense, useCallback, Fragment } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Wifi,
@@ -65,6 +65,10 @@ import {
   Lock,
   ScanLine,
   Calendar,
+  Tv, Wine, Baby, Plane, Bath, Shirt, Music, Camera, Umbrella,
+  Languages,
+  Check,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -86,6 +90,8 @@ import {
   getAnimationClasses,
   getSocialIconLabel,
   mergeDesignConfig,
+  getLanguageLabel,
+  getSocialPlatformColor,
 } from '@/lib/wifi/portal-design-utils';
 
 // ────────────────────────────────────────────────────────────
@@ -186,6 +192,19 @@ const AMENITY_ICONS: Record<string, typeof Wifi> = {
   'Concierge': Star,
 };
 
+// ── Custom amenity icons mapping (Feature 7) ──
+const CUSTOM_AMENITY_ICONS: Record<string, typeof Wifi> = {
+  tv: Tv,
+  wine: Wine,
+  baby: Baby,
+  plane: Plane,
+  bath: Bath,
+  shirt: Shirt,
+  music: Music,
+  camera: Camera,
+  umbrella: Umbrella,
+};
+
 // ────────────────────────────────────────────────────────────
 // Live Clock Component
 // ────────────────────────────────────────────────────────────
@@ -215,6 +234,330 @@ function LiveClock({ design }: { design: PortalDesignConfig }) {
     <div className="flex items-center justify-center gap-2 text-sm">
       <Clock className="w-4 h-4" style={{ color }} />
       <span style={{ color }}>{time}</span>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Weather Widget (Feature 5)
+// ────────────────────────────────────────────────────────────
+
+const weatherCache = new Map<string, { temp: string; condition: string }>();
+
+function WeatherWidget({ design }: { design: PortalDesignConfig }) {
+  const location = design.weatherLocation;
+  const [weather, setWeather] = useState<{ temp: string; condition: string } | null>(
+    () => (location ? weatherCache.get(location) ?? null : null)
+  );
+  const [loading, setLoading] = useState(!weather && !!location);
+  const color = getMutedTextColor(design);
+
+  useEffect(() => {
+    if (!location) return;
+    if (weatherCache.has(location)) return;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    fetch(`https://wttr.in/${encodeURIComponent(location)}?format=%t+%C`, {
+      signal: controller.signal,
+    })
+      .then((res) => res.text())
+      .then((text) => {
+        const trimmed = text.trim();
+        const parts = trimmed.split(/\s+/);
+        const data = { temp: parts[0] || '', condition: parts.slice(1).join(' ') || 'Clear' };
+        weatherCache.set(location, data);
+        setWeather(data);
+      })
+      .catch(() => {
+        const fallback = { temp: '--°', condition: location };
+        weatherCache.set(location, fallback);
+        setWeather(fallback);
+      })
+      .finally(() => setLoading(false));
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [location]);
+
+  if (!location) return null;
+
+  return (
+    <div className="flex items-center justify-center gap-1.5 text-sm">
+      {loading ? (
+        <Loader2 className="w-4 h-4 animate-spin" style={{ color }} />
+      ) : weather ? (
+        <>
+          <span aria-hidden="true">🌤️</span>
+          <span style={{ color }}>{weather.temp} {weather.condition}</span>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Multi-Slide Promotion Carousel (Feature 3)
+// ────────────────────────────────────────────────────────────
+
+function PromotionCarousel({ design }: { design: PortalDesignConfig }) {
+  const [current, setCurrent] = useState(0);
+  const promotions = (design.promotions || []).filter((p) => p.title || p.description);
+  const dark = isDarkBackground(design);
+
+  useEffect(() => {
+    if (promotions.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrent((prev) => (prev + 1) % promotions.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [promotions.length]);
+
+  if (promotions.length === 0) return null;
+
+  const promo = promotions[current];
+
+  return (
+    <div className="w-full relative">
+      <div
+        className="flex items-start gap-3 rounded-xl p-3 transition-all duration-500 ease-in-out"
+        key={current}
+        style={{
+          backgroundColor: promo.backgroundColor || (dark ? 'rgba(255,255,255,0.12)' : design.accentColor + '10'),
+          backdropFilter: dark ? 'blur(8px)' : undefined,
+          border: dark ? '1px solid rgba(255,255,255,0.15)' : 'none',
+          borderRadius: design.formStyle === 'pill' ? '1.5rem' : design.formStyle === 'square' ? '0' : '0.75rem',
+        }}
+      >
+        <Gift className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: design.accentColor }} />
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm" style={{ color: dark ? '#ffffff' : getCardTextColor(design) }}>
+            {promo.title}
+          </p>
+          {promo.description && (
+            <p className="text-xs mt-1" style={{ color: dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}>
+              {promo.description}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Dot indicators */}
+      {promotions.length > 1 && (
+        <div className="flex justify-center gap-1.5 mt-2">
+          {promotions.map((_, i) => (
+            <button
+              key={promo.id || i}
+              onClick={() => setCurrent(i)}
+              className="w-1.5 h-1.5 rounded-full transition-all duration-300"
+              style={{
+                backgroundColor: i === current ? design.accentColor : (dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)'),
+                transform: i === current ? 'scale(1.4)' : 'scale(1)',
+              }}
+              aria-label={`Go to slide ${i + 1}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Language Switcher (Feature 1)
+// ────────────────────────────────────────────────────────────
+
+function LanguageSwitcher({ design, selectedLanguage, setSelectedLanguage }: {
+  design: PortalDesignConfig;
+  selectedLanguage: string;
+  setSelectedLanguage: (lang: string) => void;
+}) {
+  const languages = (design.languages || []).filter(Boolean);
+  if (languages.length <= 1) return null;
+
+  const mutedColor = getMutedTextColor(design);
+
+  return (
+    <div className="flex items-center justify-center gap-1.5">
+      <Languages className="w-3.5 h-3.5" style={{ color: mutedColor }} />
+      <select
+        value={selectedLanguage}
+        onChange={(e) => setSelectedLanguage(e.target.value)}
+        className="text-xs bg-transparent border-none outline-none cursor-pointer appearance-auto"
+        style={{ color: mutedColor }}
+        aria-label="Select language"
+      >
+        {languages.map((lang) => (
+          <option key={lang} value={lang}>
+            {getLanguageLabel(lang)}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Marketing Consent Checkboxes (Feature 2)
+// ────────────────────────────────────────────────────────────
+
+function MarketingConsent({ design, emailConsent, setEmailConsent, phoneConsent, setPhoneConsent }: {
+  design: PortalDesignConfig;
+  emailConsent: boolean;
+  setEmailConsent: (v: boolean) => void;
+  phoneConsent: boolean;
+  setPhoneConsent: (v: boolean) => void;
+}) {
+  const optIn = design.marketingOptIn;
+  if (!optIn?.enabled) return null;
+
+  const mutedColor = getMutedTextColor(design);
+
+  return (
+    <div className="space-y-2">
+      {optIn.consentText && (
+        <p className="text-xs" style={{ color: mutedColor }}>
+          {optIn.consentText}
+        </p>
+      )}
+      <div className="space-y-1.5">
+        {optIn.emailConsent && (
+          <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={emailConsent}
+              onChange={(e) => setEmailConsent(e.target.checked)}
+              className="rounded"
+              style={{ accentColor: design.accentColor }}
+            />
+            <span style={{ color: mutedColor }}>I agree to receive email marketing</span>
+          </label>
+        )}
+        {optIn.phoneConsent && (
+          <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={phoneConsent}
+              onChange={(e) => setPhoneConsent(e.target.checked)}
+              className="rounded"
+              style={{ accentColor: design.accentColor }}
+            />
+            <span style={{ color: mutedColor }}>I agree to receive SMS marketing</span>
+          </label>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Post-Connect Guest Survey (Feature 4)
+// ────────────────────────────────────────────────────────────
+
+function GuestSurvey({ design }: { design: PortalDesignConfig }) {
+  const surveyConfig = design.surveyConfig;
+  const [selected, setSelected] = useState<string | null>(null);
+
+  if (!surveyConfig?.enabled || !surveyConfig.question || !surveyConfig.options?.length) return null;
+
+  const mutedColor = getMutedTextColor(design);
+  const textColor = getCardTextColor(design);
+  const accent = design.accentColor;
+
+  if (selected) {
+    return (
+      <div className="text-center space-y-2 mt-4">
+        <div
+          className="inline-flex items-center justify-center w-12 h-12 rounded-full"
+          style={{ backgroundColor: accent + '15' }}
+        >
+          <Check className="w-6 h-6" style={{ color: accent }} />
+        </div>
+        <p className="text-sm font-medium" style={{ color: textColor }}>
+          {surveyConfig.thankYouMessage || 'Thank you for your feedback!'}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 mt-4 pt-4" style={{ borderTop: `1px solid ${accent}15` }}>
+      <p className="text-sm font-medium text-center" style={{ color: textColor }}>
+        {surveyConfig.question}
+      </p>
+      <div className="flex flex-wrap gap-2 justify-center">
+        {surveyConfig.options.map((option) => (
+          <button
+            key={option}
+            onClick={() => setSelected(option)}
+            className="px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
+            style={{
+              backgroundColor: accent + '15',
+              color: accent,
+              border: `1px solid ${accent}30`,
+            }}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Terms & Conditions Modal (Feature 6)
+// ────────────────────────────────────────────────────────────
+
+function TermsModal({ design, open, onClose }: { design: PortalDesignConfig; open: boolean; onClose: () => void }) {
+  if (!open) return null;
+
+  const textColor = getCardTextColor(design);
+  const mutedColor = getMutedTextColor(design);
+  const dark = isDarkBackground(design);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div
+        className="relative max-w-md w-full max-h-[80vh] overflow-y-auto rounded-2xl p-6 shadow-2xl"
+        style={{
+          backgroundColor: dark ? 'rgba(30,30,30,0.95)' : '#ffffff',
+          color: textColor,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold" style={{ color: textColor }}>Terms &amp; Conditions</h3>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-full transition-colors hover:opacity-80"
+            style={{ backgroundColor: mutedColor + '20' }}
+            aria-label="Close terms"
+          >
+            <X className="w-4 h-4" style={{ color: mutedColor }} />
+          </button>
+        </div>
+        <div className="text-sm whitespace-pre-wrap leading-relaxed" style={{ color: mutedColor }}>
+          {design.termsText || 'Terms and conditions content will appear here.'}
+        </div>
+        {design.termsUrl && (
+          <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${mutedColor}15` }}>
+            <a
+              href={design.termsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium inline-flex items-center gap-1"
+              style={{ color: design.accentColor }}
+            >
+              View full terms <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -719,6 +1062,9 @@ function UnifiedDesignerForm({
   const [otpStep, setOtpStep] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpCountdown, setOtpCountdown] = useState(0);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
+  const [emailConsent, setEmailConsent] = useState(false);
+  const [phoneConsent, setPhoneConsent] = useState(false);
 
   // OTP countdown timer
   useEffect(() => {
@@ -826,8 +1172,14 @@ function UnifiedDesignerForm({
         });
     }
 
+    // Include marketing consent data in payload
+    if (design.marketingOptIn?.enabled) {
+      if (emailConsent) payload.marketingEmailConsent = 'true';
+      if (phoneConsent) payload.marketingSmsConsent = 'true';
+    }
+
     authenticate(authMethod, payload);
-  }, [formData, authMethod, enabledFields, termsAccepted, termsRequired, showTerms, otpStep, otpCode, authenticate]);
+  }, [formData, authMethod, enabledFields, termsAccepted, termsRequired, showTerms, otpStep, otpCode, authenticate, design.marketingOptIn, emailConsent, phoneConsent]);
 
   const handleResendOtp = () => {
     if (otpCountdown > 0) return;
@@ -996,7 +1348,16 @@ function UnifiedDesignerForm({
       {/* Error display */}
       {error && <ErrorDisplay message={error} />}
 
-      {/* Terms checkbox */}
+      {/* Marketing Consent (Feature 2) */}
+      <MarketingConsent
+        design={design}
+        emailConsent={emailConsent}
+        setEmailConsent={setEmailConsent}
+        phoneConsent={phoneConsent}
+        setPhoneConsent={setPhoneConsent}
+      />
+
+      {/* Terms checkbox (Feature 6 — enhanced with modal link) */}
       {showTerms && termsRequired && (
         <label className="flex items-start gap-2 text-sm cursor-pointer">
           <input
@@ -1008,9 +1369,29 @@ function UnifiedDesignerForm({
           />
           <span style={{ color: getMutedTextColor(design) }}>
             I agree to the{' '}
-            <span style={{ color: design.accentColor }} className="font-medium underline cursor-pointer">
-              Terms & Conditions
-            </span>
+            {design.termsUrl ? (
+              <a
+                href={design.termsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium underline"
+                style={{ color: design.accentColor }}
+              >
+                Terms &amp; Conditions
+              </a>
+            ) : design.termsText ? (
+              <span
+                style={{ color: design.accentColor }}
+                className="font-medium underline cursor-pointer"
+                onClick={() => setTermsModalOpen(true)}
+              >
+                Terms &amp; Conditions
+              </span>
+            ) : (
+              <span style={{ color: design.accentColor }} className="font-medium">
+                Terms &amp; Conditions
+              </span>
+            )}
           </span>
         </label>
       )}
@@ -1027,6 +1408,9 @@ function UnifiedDesignerForm({
           {isSmsOtp ? 'Send Verification Code' : isOpenAccess ? 'Connect Now' : 'Connect'}
         </>
       </DynamicButton>
+
+      {/* Terms Modal */}
+      <TermsModal design={design} open={termsModalOpen} onClose={() => setTermsModalOpen(false)} />
     </div>
   );
 }
@@ -1134,6 +1518,9 @@ function SuccessScreen({
         <RefreshCw className="w-3 h-3" />
         Connect another device
       </button>
+
+      {/* Post-Connect Guest Survey (Feature 4) */}
+      <GuestSurvey design={design} />
     </div>
   );
 }
@@ -1172,16 +1559,25 @@ function HotelInfoBlock({ design, dark }: { design: PortalDesignConfig; dark: bo
 // ────────────────────────────────────────────────────────────
 
 function AmenitiesBlock({ design, dark }: { design: PortalDesignConfig; dark: boolean }) {
-  if (!design.showAmenities || design.amenities.length === 0) return null;
+  const presetAmenities = (design.amenities || []).filter(Boolean);
+  const customAmenities = (design.customAmenities || []).filter((a) => a.name);
+  const allAmenities = [
+    ...presetAmenities.map((name) => ({ name, icon: '' })),
+    ...customAmenities,
+  ];
+
+  if (!design.showAmenities || allAmenities.length === 0) return null;
   const iconColor = dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)';
 
   return (
     <div className="flex flex-wrap gap-1.5 justify-center">
-      {design.amenities.map((a, i) => {
-        const AmIcon = AMENITY_ICONS[a] || Star;
+      {allAmenities.map((a, i) => {
+        const AmIcon = AMENITY_ICONS[a.name]
+          || (a.icon ? CUSTOM_AMENITY_ICONS[a.icon.toLowerCase()] : null)
+          || Star;
         return (
           <span
-            key={i}
+            key={`${a.name}-${i}`}
             className="px-2.5 py-1 text-xs rounded-full font-medium backdrop-blur-sm"
             style={{
               backgroundColor: dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.05)',
@@ -1189,7 +1585,7 @@ function AmenitiesBlock({ design, dark }: { design: PortalDesignConfig; dark: bo
             }}
           >
             <AmIcon className="w-3 h-3 inline mr-1" style={{ color: iconColor }} />
-            {a}
+            {a.name}
           </span>
         );
       })}
@@ -1238,24 +1634,30 @@ function SocialLinksBlock({ design }: { design: PortalDesignConfig }) {
   const activeLinks = design.socialLinks.filter((l) => l.url);
 
   if (activeLinks.length === 0) return null;
+  const dark = isDarkBackground(design);
 
   return (
     <div className="flex items-center justify-center gap-3">
-      {activeLinks.map((l) => (
-        <a
-          key={l.platform}
-          href={l.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300 hover:scale-110 hover:opacity-80"
-          style={{
-            backgroundColor: 'rgba(255,255,255,0.1)',
-            color: '#ffffff',
-          }}
-        >
-          <span className="text-xs font-bold">{getSocialIconLabel(l.platform)}</span>
-        </a>
-      ))}
+      {activeLinks.map((l) => {
+        const brandColor = getSocialPlatformColor(l.platform);
+        return (
+          <a
+            key={l.platform}
+            href={l.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300 hover:scale-110"
+            style={{
+              backgroundColor: brandColor,
+              color: '#ffffff',
+              boxShadow: `0 2px 8px ${brandColor}40`,
+            }}
+            aria-label={l.platform}
+          >
+            <span className="text-xs font-bold">{getSocialIconLabel(l.platform)}</span>
+          </a>
+        );
+      })}
     </div>
   );
 }
@@ -1318,6 +1720,7 @@ function PortalContent() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState('');
   const [guestInfo, setGuestInfo] = useState({ firstName: '', lastName: '', email: '', phone: '' });
+  const [selectedLanguage, setSelectedLanguage] = useState('');
 
   // ── Apply portal config to state ──
   const applyPortalConfig = useCallback((data: PortalConfig) => {
@@ -1664,6 +2067,12 @@ function PortalContent() {
   const formCls = getFormContainerClasses(design);
   const cardShadowStyle = getCardShadowCSS(design);
 
+  // ── Content Block Ordering (Feature 9) ──
+  const DEFAULT_BLOCK_ORDER = ['promotion', 'logo', 'language', 'title', 'hotelInfo', 'amenities', 'form', 'social', 'clock', 'weather'];
+  const blockOrder = (design.contentBlockOrder?.length || 0) > 0 ? design.contentBlockOrder : DEFAULT_BLOCK_ORDER;
+
+  const effectiveLanguage = selectedLanguage || design.defaultLanguage || 'en';
+
   // ── Render the card content (shared across layouts) ──
   const renderCardContent = () => {
     if (state === 'success' && authResult) {
@@ -1742,6 +2151,66 @@ function PortalContent() {
     );
   };
 
+  // ── Block renderer — returns JSX for each named block ──
+  const renderBlock = (block: string): React.ReactNode => {
+    switch (block) {
+      case 'promotion':
+        if (state === 'success') return null;
+        if (design.showPromotions && design.promotions?.length > 0) return <PromotionCarousel design={design} />;
+        if (design.showPromotion && design.promotionTitle) return <PromotionBlock design={design} />;
+        return null;
+      case 'clock':
+        if (!design.showClock) return null;
+        return <div className="mb-3 flex justify-center"><LiveClock design={design} /></div>;
+      case 'weather':
+        if (!design.showWeather || !design.weatherLocation) return null;
+        return <div className="mb-3 flex justify-center"><WeatherWidget design={design} /></div>;
+      case 'logo':
+        return <PortalLogo design={design} size="large" />;
+      case 'language':
+        return <LanguageSwitcher design={design} selectedLanguage={effectiveLanguage} setSelectedLanguage={setSelectedLanguage} />;
+      case 'title':
+        return (
+          <div className="text-center mb-2">
+            <h1
+              className="text-2xl md:text-3xl font-bold drop-shadow-sm"
+              style={{ fontFamily: design.headingFontFamily, color: dark ? '#ffffff' : design.textColor }}
+            >
+              {design.title}
+            </h1>
+            <p className="text-sm md:text-base mt-1" style={{ color: getSubtitleColor(design) }}>
+              {design.subtitle}
+            </p>
+            {design.welcomeMessage && (
+              <p className="text-xs mt-2 italic" style={{ color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}>
+                {design.welcomeMessage}
+              </p>
+            )}
+          </div>
+        );
+      case 'hotelInfo':
+        return <div className="mb-4"><HotelInfoBlock design={design} dark={dark} /></div>;
+      case 'amenities':
+        return <div className="mb-5"><AmenitiesBlock design={design} dark={dark} /></div>;
+      case 'form':
+        return (
+          <div
+            className={cn('w-full animate-in fade-in-0 slide-in-from-bottom-4 duration-500 transition-all', formCls)}
+            style={{
+              ...cardShadowStyle,
+              ...(design.formStyle === 'glass' && dark ? { boxShadow: `0 0 30px -5px ${design.accentColor}40, 0 0 60px -10px ${design.accentColor}20` } : {}),
+            }}
+          >
+            {renderCardContent()}
+          </div>
+        );
+      case 'social':
+        return <div className="mt-4"><SocialLinksBlock design={design} /></div>;
+      default:
+        return null;
+    }
+  };
+
   // ── Main Layout ──
   return (
     <div
@@ -1803,69 +2272,14 @@ function PortalContent() {
           </div>
         ) : (
           // ══════════════════════════════════════════════════════════
-          // CENTERED / CARD / FULL-BLEED LAYOUT
+          // CENTERED / CARD / FULL-BLEED LAYOUT — with Content Block Ordering (Feature 9)
           // ══════════════════════════════════════════════════════════
           <div className="w-full max-w-md flex flex-col items-center">
-            {/* ── ABOVE THE CARD (on background) ── */}
-
-            {/* Promotion banner */}
-            {design.showPromotion && design.promotionTitle && state !== 'success' && (
-              <PromotionBlock design={design} />
-            )}
-
-            {/* Clock */}
-            {design.showClock && (
-              <div className="mb-3 flex justify-center">
-                <LiveClock design={design} />
-              </div>
-            )}
-
-            {/* Logo */}
-            <PortalLogo design={design} size="large" />
-
-            {/* Title & Subtitle */}
-            <div className="text-center mb-2">
-              <h1
-                className="text-2xl md:text-3xl font-bold drop-shadow-sm"
-                style={{ fontFamily: design.headingFontFamily, color: dark ? '#ffffff' : design.textColor }}
-              >
-                {design.title}
-              </h1>
-              <p className="text-sm md:text-base mt-1" style={{ color: getSubtitleColor(design) }}>
-                {design.subtitle}
-              </p>
-              {design.welcomeMessage && (
-                <p className="text-xs mt-2 italic" style={{ color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}>
-                  {design.welcomeMessage}
-                </p>
-              )}
-            </div>
-
-            {/* Hotel info */}
-            <div className="mb-4">
-              <HotelInfoBlock design={design} dark={dark} />
-            </div>
-
-            {/* Amenities */}
-            <div className="mb-5">
-              <AmenitiesBlock design={design} dark={dark} />
-            </div>
-
-            {/* ── THE FORM CARD ── */}
-            <div
-              className={cn('w-full animate-in fade-in-0 slide-in-from-bottom-4 duration-500 transition-all', formCls)}
-              style={{
-                ...cardShadowStyle,
-                ...(design.formStyle === 'glass' && dark ? { boxShadow: `0 0 30px -5px ${design.accentColor}40, 0 0 60px -10px ${design.accentColor}20` } : {}),
-              }}
-            >
-              {renderCardContent()}
-            </div>
-
-            {/* Social Links (below card) */}
-            <div className="mt-4">
-              <SocialLinksBlock design={design} />
-            </div>
+            {blockOrder.map((block, i) => (
+              <Fragment key={`${block}-${i}`}>
+                {renderBlock(block)}
+              </Fragment>
+            ))}
 
             {/* Branding footer */}
             {design.showBranding && (

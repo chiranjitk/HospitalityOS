@@ -50,6 +50,66 @@ export interface DesignSettings {
   promotionTitle: string;
   promotionDesc: string;
   showPromotion: boolean;
+
+  // ── Feature 1: Multi-Language Portal ──
+  languages: string[];
+  defaultLanguage: string;
+
+  // ── Feature 2: Guest Marketing Opt-In ──
+  marketingOptIn: {
+    enabled: boolean;
+    emailConsent: boolean;
+    phoneConsent: boolean;
+    consentText: string;
+  };
+
+  // ── Feature 3: Multi-Slide Promotion Carousel ──
+  promotions: Array<{
+    id: string;
+    title: string;
+    description: string;
+    imageUrl: string;
+    linkUrl: string;
+    backgroundColor: string;
+  }>;
+  showPromotions: boolean;
+
+  // ── Feature 4: Post-Connect Guest Survey ──
+  surveyConfig: {
+    enabled: boolean;
+    question: string;
+    options: string[];
+    thankYouMessage: string;
+  };
+
+  // ── Feature 5: Weather Widget ──
+  weatherLocation: string;
+
+  // ── Feature 6: Terms & Conditions Editor ──
+  termsText: string;
+  termsUrl: string;
+
+  // ── Feature 7: Custom Amenities ──
+  customAmenities: Array<{
+    name: string;
+    icon: string;
+  }>;
+
+  // ── Feature 9: Content Block Reordering ──
+  contentBlockOrder: string[];
+
+  // ── Feature 14: Portal Scheduling ──
+  scheduleConfig: {
+    enabled: boolean;
+    schedules: Array<{
+      id: string;
+      name: string;
+      days: number[];
+      startTime: string;
+      endTime: string;
+      designOverrides: Record<string, unknown>;
+    }>;
+  };
 }
 
 export const DEFAULT_DESIGN_SETTINGS: DesignSettings = {
@@ -82,6 +142,49 @@ export const DEFAULT_DESIGN_SETTINGS: DesignSettings = {
   promotionTitle: '',
   promotionDesc: '',
   showPromotion: false,
+
+  // Multi-Language
+  languages: ['en'],
+  defaultLanguage: 'en',
+
+  // Marketing Opt-In
+  marketingOptIn: {
+    enabled: false,
+    emailConsent: false,
+    phoneConsent: false,
+    consentText: '',
+  },
+
+  // Multi-Slide Carousel
+  promotions: [],
+  showPromotions: false,
+
+  // Post-Connect Survey
+  surveyConfig: {
+    enabled: false,
+    question: '',
+    options: [],
+    thankYouMessage: '',
+  },
+
+  // Weather Widget
+  weatherLocation: '',
+
+  // Terms & Conditions
+  termsText: '',
+  termsUrl: '',
+
+  // Custom Amenities
+  customAmenities: [],
+
+  // Content Block Order
+  contentBlockOrder: [],
+
+  // Portal Scheduling
+  scheduleConfig: {
+    enabled: false,
+    schedules: [],
+  },
 };
 
 // ────────────────────────────────────────────────────────────
@@ -129,6 +232,62 @@ export interface PortalDesignConfig {
   title: string;
   subtitle: string;
   gradientAngle?: number;
+
+  // ── Feature 1: Multi-Language Portal ──
+  languages: string[];
+  defaultLanguage: string;
+
+  // ── Feature 2: Guest Marketing Opt-In ──
+  marketingOptIn: {
+    enabled: boolean;
+    emailConsent: boolean;
+    phoneConsent: boolean;
+    consentText: string;
+  };
+
+  // ── Feature 3: Multi-Slide Promotion Carousel ──
+  promotions: Array<{
+    id: string;
+    title: string;
+    description: string;
+    imageUrl: string;
+    linkUrl: string;
+    backgroundColor: string;
+  }>;
+  showPromotions: boolean;
+
+  // ── Feature 4: Post-Connect Guest Survey ──
+  surveyConfig: {
+    enabled: boolean;
+    question: string;
+    options: string[];
+    thankYouMessage: string;
+  };
+
+  // ── Feature 5: Weather Widget ──
+  weatherLocation: string;
+
+  // ── Feature 7: Custom Amenities ──
+  customAmenities: Array<{
+    name: string;
+    icon: string;
+  }>;
+
+  // ── Feature 9: Content Block Reordering ──
+  contentBlockOrder: string[];
+
+  // ── Feature 14: Portal Scheduling ──
+  scheduleConfig: {
+    enabled: boolean;
+    schedules: Array<{
+      id: string;
+      name: string;
+      days: number[];
+      startTime: string;
+      endTime: string;
+      designOverrides: Record<string, unknown>;
+    }>;
+  };
 }
 
 export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
@@ -172,6 +331,45 @@ export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
   title: 'Welcome',
   subtitle: 'Connect to WiFi',
   gradientAngle: 135,
+
+  // Multi-Language
+  languages: ['en'],
+  defaultLanguage: 'en',
+
+  // Marketing Opt-In
+  marketingOptIn: {
+    enabled: false,
+    emailConsent: false,
+    phoneConsent: false,
+    consentText: '',
+  },
+
+  // Multi-Slide Carousel
+  promotions: [],
+  showPromotions: false,
+
+  // Post-Connect Survey
+  surveyConfig: {
+    enabled: false,
+    question: '',
+    options: [],
+    thankYouMessage: '',
+  },
+
+  // Weather Widget
+  weatherLocation: '',
+
+  // Custom Amenities
+  customAmenities: [],
+
+  // Content Block Order
+  contentBlockOrder: [],
+
+  // Portal Scheduling
+  scheduleConfig: {
+    enabled: false,
+    schedules: [],
+  },
 };
 
 // ────────────────────────────────────────────────────────────
@@ -561,4 +759,65 @@ export function getSocialIconLabel(platform: string): string {
 
 export function mergeDesignConfig(partial: Partial<PortalDesignConfig>): PortalDesignConfig {
   return { ...DEFAULT_PORTAL_DESIGN, ...partial };
+}
+
+// ────────────────────────────────────────────────────────────
+// Logo size helper (Feature 10: Card Shadow Control)
+// ────────────────────────────────────────────────────────────
+
+/** Convert logo size label to pixel value */
+export function getLogoSizePx(logoSize: string): number {
+  switch (logoSize) {
+    case 'small': return 40;
+    case 'medium': return 56;
+    case 'large': return 72;
+    case 'xlarge': return 96;
+    default: return 72;
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// Language label helper (Feature 1: Multi-Language)
+// ────────────────────────────────────────────────────────────
+
+/** Get a human-readable label for a language code */
+export function getLanguageLabel(code: string): string {
+  const labels: Record<string, string> = {
+    en: 'English',
+    es: 'Español',
+    fr: 'Français',
+    de: 'Deutsch',
+    zh: '中文',
+    ja: '日本語',
+    ko: '한국어',
+    ar: 'العربية',
+    hi: 'हिन्दी',
+    pt: 'Português',
+    ru: 'Русский',
+    it: 'Italiano',
+    nl: 'Nederlands',
+    th: 'ไทย',
+    vi: 'Tiếng Việt',
+    tr: 'Türkçe',
+  };
+  return labels[code] || code.toUpperCase();
+}
+
+// ────────────────────────────────────────────────────────────
+// Social platform brand color (Feature 8: More Social Platforms)
+// ────────────────────────────────────────────────────────────
+
+/** Get the official brand color for a social media platform */
+export function getSocialPlatformColor(platform: string): string {
+  switch (platform.toLowerCase()) {
+    case 'instagram': return '#E4405F';
+    case 'facebook': return '#1877F2';
+    case 'twitter': return '#1DA1F2';
+    case 'linkedin': return '#0A66C2';
+    case 'youtube': return '#FF0000';
+    case 'tripadvisor': return '#34E0A1';
+    case 'whatsapp': return '#25D366';
+    case 'tiktok': return '#000000';
+    default: return '#6B7280';
+  }
 }
