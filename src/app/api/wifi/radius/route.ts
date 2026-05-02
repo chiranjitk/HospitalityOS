@@ -217,7 +217,10 @@ export async function GET(request: NextRequest) {
                    CASE WHEN up.name IS NOT NULL THEN 'User Override'
                         WHEN pp.name IS NOT NULL THEN 'Plan'
                         WHEN dp.name IS NOT NULL THEN 'Default'
-                        ELSE NULL END as ip_pool_source
+                        ELSE NULL END as ip_pool_source,
+                   (SELECT rr.value FROM radreply rr
+                    WHERE rr.username = vw.username AND rr.attribute = 'Session-Timeout'
+                    LIMIT 1) AS radius_session_timeout
             FROM v_wifi_users vw
             LEFT JOIN "WiFiUser" u ON u.id = vw.id
             LEFT JOIN "IpPool" up ON up.id = u."ipPoolId"
@@ -227,19 +230,24 @@ export async function GET(request: NextRequest) {
             ORDER BY vw."createdAt" DESC
           `, ...sqlParams);
 
-          const users = rows.map((row) => ({
+          const users = rows.map((row) => {
+            // Resolve Session-Timeout from radreply (seconds → minutes)
+            const radiusSessionTimeoutSec = row.radius_session_timeout ? Number(row.radius_session_timeout) : 0;
+            const sessionTimeoutMin = radiusSessionTimeoutSec > 0 ? Math.round(radiusSessionTimeoutSec / 60) : 0;
+
+            return {
             id: row.id,
             username: row.username || '',
             password: row.radius_password || '',
             group: row.radius_group || '',
-            attributes: row.planId ? {
+            attributes: {
               'WISPr-Bandwidth-Max-Down': String(row.plan_download_speed || 0),
               'WISPr-Bandwidth-Max-Up': String(row.plan_upload_speed || 0),
-              'Session-Timeout': '',
-            } : {},
+              'Session-Timeout': radiusSessionTimeoutSec > 0 ? String(radiusSessionTimeoutSec) : '',
+            },
             downloadSpeed: Number(row.plan_download_speed || 0),
             uploadSpeed: Number(row.plan_upload_speed || 0),
-            sessionTimeout: 0,
+            sessionTimeout: sessionTimeoutMin,
             dataLimit: row.plan_data_limit ? Number(row.plan_data_limit) : 0,
             createdAt: row.createdAt ? String(row.createdAt) : '',
             updatedAt: row.updatedAt ? String(row.updatedAt) : '',
@@ -261,7 +269,8 @@ export async function GET(request: NextRequest) {
             totalBytesIn: Number(row.totalBytesIn || 0),
             totalBytesOut: Number(row.totalBytesOut || 0),
             sessionCount: Number(row.sessionCount || 0),
-          }));
+          };
+          });
 
           const safeUsers = JSON.parse(JSON.stringify(users, (_, v) => typeof v === 'bigint' ? Number(v) : v));
           return NextResponse.json({ success: true, data: safeUsers });
