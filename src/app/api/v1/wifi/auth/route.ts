@@ -69,9 +69,24 @@ function normalizeIp(raw: string | null): string | null {
  * 1. IP must fall within an IpPoolRange (startIp–endIp)
  * 2. The pool must be enabled
  * 3. The pool must have captivePortal = true (managed network)
+ * 4. If allowedPoolIds is provided, the matched pool must be in that list
+ *    (enforces plan→pool binding so users can't login from wrong VLANs)
  */
-async function validateClientIpInPool(clientIp: string): Promise<MatchedPool | null> {
+async function validateClientIpInPool(
+  clientIp: string,
+  allowedPoolIds?: string[] | null
+): Promise<MatchedPool | null> {
   try {
+    // Build pool restriction clause when plan is bound to specific pools
+    const poolFilter = (allowedPoolIds && allowedPoolIds.length > 0)
+      ? `AND ip.id = ANY($2::uuid[])`
+      : '';
+
+    const params: unknown[] = [clientIp];
+    if (allowedPoolIds && allowedPoolIds.length > 0) {
+      params.push(allowedPoolIds);
+    }
+
     const result = await db.$queryRawUnsafe<Array<{
       id: string;
       name: string;
@@ -87,9 +102,10 @@ async function validateClientIpInPool(clientIp: string): Promise<MatchedPool | n
       JOIN "IpPool" ip ON ip.id = r."poolId"
       WHERE $1::inet BETWEEN r."startIp" AND r."endIp"
         AND ip.enabled = true
+        ${poolFilter}
       ORDER BY ip.id, ip."isDefault" DESC
       LIMIT 1
-    `, clientIp);
+    `, ...params);
 
     if (result.length === 0) return null;
 
@@ -111,6 +127,26 @@ async function validateClientIpInPool(clientIp: string): Promise<MatchedPool | n
 /** Get client IP string for logging/accounting */
 function getClientIpString(request: NextRequest): string {
   return extractClientIp(request) || request.headers.get('x-real-ip') || '0.0.0.0';
+}
+
+/**
+ * Resolve allowed IP pool IDs for a user based on their plan binding.
+ *
+ * Priority:
+ * 1. WiFiPlan.ipPoolId — plan explicitly bound to a pool
+ * 2. WiFiUser.ipPoolId — user-level override
+ * 3. null — no restriction, any captive portal pool allowed
+ *
+ * Returns an array of pool UUIDs, or null if unrestricted.
+ */
+function resolveAllowedPoolIds(
+  planIpPoolId?: string | null,
+  userIpPoolId?: string | null
+): string[] | null {
+  // User-level override takes priority over plan-level
+  if (userIpPoolId) return [userIpPoolId];
+  if (planIpPoolId) return [planIpPoolId];
+  return null; // No restriction
 }
 
 /**
@@ -266,6 +302,24 @@ export async function POST(request: NextRequest) {
         })
       : null;
 
+    // Pre-resolve the plan's ipPoolId for pool-restricted validation.
+    // Used by SMS OTP and Open Access where no existing user/plan is available.
+    // Voucher and PMS Credentials resolve their own plan from user/voucher data.
+    let portalPlanIpPoolId: string | null = null;
+    if (portal?.propertyId) {
+      const aaaConfig = await db.wiFiAAAConfig.findUnique({
+        where: { propertyId: portal.propertyId },
+        select: { defaultPlanId: true },
+      });
+      if (aaaConfig?.defaultPlanId) {
+        const portalPlan = await db.wiFiPlan.findUnique({
+          where: { id: aaaConfig.defaultPlanId },
+          select: { ipPoolId: true },
+        });
+        portalPlanIpPoolId = portalPlan?.ipPoolId ?? null;
+      }
+    }
+
     const sessionTimeout = portal?.sessionTimeout ?? 1440; // minutes
     const bwDown = portal
       ? Math.round((portal.maxBandwidthDown || 5242880) / 1000000)
@@ -308,7 +362,8 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Credentials valid — now check IP pool ──
-        const pool = await getValidatedPool(request);
+        const allowedPools = resolveAllowedPoolIds(voucher.plan?.ipPoolId);
+        const pool = await getValidatedPool(request, allowedPools);
         if (!pool) {
           await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
           return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
@@ -388,7 +443,7 @@ export async function POST(request: NextRequest) {
 
         const bookings = await db.booking.findMany({
           where: { room: { roomNumber: roomNumber.trim().toUpperCase() }, status: 'in_house' },
-          include: { primaryGuest: true, room: true },
+          include: { primaryGuest: true, room: true, roomType: { select: { wifiPlanId: true } } },
           take: 10,
         });
 
@@ -402,7 +457,16 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Credentials valid — now check IP pool ──
-        const pool = await getValidatedPool(request);
+        // Resolve plan ipPoolId from room type's WiFi plan binding
+        let roomPlanIpPoolId: string | null = null;
+        if (match.roomType?.wifiPlanId) {
+          const roomPlan = await db.wiFiPlan.findUnique({
+            where: { id: match.roomType.wifiPlanId },
+            select: { ipPoolId: true },
+          });
+          roomPlanIpPoolId = roomPlan?.ipPoolId ?? null;
+        }
+        const pool = await getValidatedPool(request, resolveAllowedPoolIds(roomPlanIpPoolId));
         if (!pool) {
           await logAuthAttempt(`room-${roomNumber.trim().toLowerCase()}`, 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
           return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
@@ -464,6 +528,10 @@ export async function POST(request: NextRequest) {
 
         const wifiUser = await db.wiFiUser.findUnique({
           where: { username: username.trim() },
+          include: {
+            plan: { select: { ipPoolId: true } },
+            ipPool: { select: { id: true } },
+          },
         });
 
         if (!wifiUser) {
@@ -488,7 +556,8 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Credentials valid — now check IP pool ──
-        const pool = await getValidatedPool(request);
+        const allowedPools = resolveAllowedPoolIds(wifiUser.plan?.ipPoolId, wifiUser.ipPoolId);
+        const pool = await getValidatedPool(request, allowedPools);
         if (!pool) {
           await logAuthAttempt(username.trim(), 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
           return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
@@ -556,7 +625,7 @@ export async function POST(request: NextRequest) {
           }
 
           // ── OTP verified — check IP pool ──
-          const pool = await getValidatedPool(request);
+          const pool = await getValidatedPool(request, resolveAllowedPoolIds(portalPlanIpPoolId));
           if (!pool) {
             await logAuthAttempt(`sms-${normalizedPhone.replace(/[^a-z0-9]/gi, '')}`, 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
             return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
@@ -642,7 +711,7 @@ export async function POST(request: NextRequest) {
       // ─── Open Access ──────────────────────────────────────
       // No credential validation needed — only IP pool check
       case 'open_access': {
-        const pool = await getValidatedPool(request);
+        const pool = await getValidatedPool(request, resolveAllowedPoolIds(portalPlanIpPoolId));
         if (!pool) {
           await logAuthAttempt('open-access', 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
           return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
@@ -737,8 +806,14 @@ function errorResponse(code: string, message: string, status = 400) {
  * Validate client IP and check it belongs to an allocated pool.
  * Called AFTER credential validation, BEFORE RADIUS auth.
  * Returns the matched pool or null.
+ *
+ * @param request - Next.js request object
+ * @param allowedPoolIds - Optional list of pool IDs the user is allowed to use.
+ *   Derived from WiFiPlan.ipPoolId or WiFiUser.ipPoolId.
+ *   If provided and non-empty, the client IP must belong to one of these pools.
+ *   If null/empty, any captive portal pool is allowed (backward compatible).
  */
-async function getValidatedPool(request: NextRequest): Promise<MatchedPool | null> {
+async function getValidatedPool(request: NextRequest, allowedPoolIds?: string[] | null): Promise<MatchedPool | null> {
   const rawIp = extractClientIp(request);
   const clientIp = normalizeIp(rawIp);
 
@@ -747,13 +822,17 @@ async function getValidatedPool(request: NextRequest): Promise<MatchedPool | nul
     return null;
   }
 
-  const pool = await validateClientIpInPool(clientIp);
+  const pool = await validateClientIpInPool(clientIp, allowedPoolIds);
   if (!pool) {
-    console.warn(`[Guest Auth] IP pool check REJECTED: ${clientIp} is not in any allocated IP pool`);
+    if (allowedPoolIds && allowedPoolIds.length > 0) {
+      console.warn(`[Guest Auth] IP pool check REJECTED: ${clientIp} is not in any allowed pool (allowed: [${allowedPoolIds.join(', ')}])`);
+    } else {
+      console.warn(`[Guest Auth] IP pool check REJECTED: ${clientIp} is not in any allocated IP pool`);
+    }
     return null;
   }
 
-  console.log(`[Guest Auth] IP pool check PASSED: ${clientIp} → pool "${pool.poolName}" (${pool.subnet || 'no subnet'})`);
+  console.log(`[Guest Auth] IP pool check PASSED: ${clientIp} → pool "${pool.poolName}" (${pool.subnet || 'no subnet'})${allowedPoolIds?.length ? ' [plan-restricted]' : ''}`);
   return pool;
 }
 
