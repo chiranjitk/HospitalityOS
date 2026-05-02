@@ -110,20 +110,23 @@ function getClientIpString(request: NextRequest): string {
 // ────────────────────────────────────────────────────────────
 // POST /api/v1/wifi/auth — Guest WiFi authentication
 //
-// SECURITY: Client IP must belong to an allocated IP pool before
-// any authentication is allowed. External/unmanaged IPs are rejected.
+// Validation order (changed per requirement):
+//   1. Parse request body → extract username/method
+//   2. Validate credentials (username, password, voucher, room, OTP)
+//      → if invalid, log and return credential-specific error
+//   3. Validate client IP against allocated IP pools
+//      → if invalid, log and return IP error
+//   4. Authenticate via FreeRADIUS
+//   5. Log success + create accounting session
 //
-// After successful authentication, this route:
-// 1. Provisions RADIUS credentials (RadCheck, RadReply, RadUserGroup)
-//    via wifiUserService — FreeRADIUS reads these tables directly.
-// 2. Writes an auth log to RadPostAuth (for Auth Logs dashboard tab).
-// 3. Creates an accounting session in RadAcct (for Active Users tab).
+// This ensures auth logs show the CORRECT rejection reason:
+//   Wrong password → "Rejected — invalid credentials"
+//   Wrong network  → "Rejected — IP not in managed pool"
 // ────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
     // ════════════════════════════════════════════════════════════
-    // STEP 0: Parse request body FIRST so we know the username
-    // for auth logging, even if IP pool check fails later.
+    // STEP 1: Parse request body — extract username & method first
     // ════════════════════════════════════════════════════════════
     const body = await request.json();
     const {
@@ -151,42 +154,6 @@ export async function POST(request: NextRequest) {
       guestInfo?: { firstName?: string; lastName?: string; email?: string; phone?: string };
       macAddress?: string;
     };
-
-    // Derive a best-effort username for logging (used even if IP pool check fails)
-    const logUsername = username || (method === 'room_number' ? `room-${roomNumber?.trim().toLowerCase()}` : null) || (method === 'voucher' ? `voucher-${voucherCode?.trim()}` : null) || 'unknown';
-
-    // ════════════════════════════════════════════════════════════
-    // STEP 1: Validate client IP against allocated IP pools
-    // This prevents authentication from external/unmanaged networks.
-    // Only IPs assigned from managed DHCP pools can authenticate.
-    // ════════════════════════════════════════════════════════════
-    const rawIp = extractClientIp(request);
-    const clientIp = normalizeIp(rawIp);
-
-    if (!clientIp) {
-      console.warn('[Guest Auth] IP pool check FAILED: cannot determine client IP');
-      // Log the rejected attempt with actual username for audit trail
-      await logAuthAttempt(logUsername, 'Access-Reject', request, `IP_NOT_DETERMINED`);
-      return errorResponse(
-        'IP_NOT_DETERMINED',
-        'Unable to determine your IP address. Please ensure you are connected to the hotel WiFi network and try again.',
-        403
-      );
-    }
-
-    const matchedPool = await validateClientIpInPool(clientIp);
-    if (!matchedPool) {
-      console.warn(`[Guest Auth] IP pool check REJECTED: ${clientIp} is not in any allocated IP pool`);
-      // Log the rejected attempt for audit trail with actual username
-      await logAuthAttempt(logUsername, 'Access-Reject', request, `IP_NOT_IN_POOL:${clientIp}`);
-      return errorResponse(
-        'IP_NOT_IN_POOL',
-        'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.',
-        403
-      );
-    }
-
-    console.log(`[Guest Auth] IP pool check PASSED: ${clientIp} → pool "${matchedPool.poolName}" (${matchedPool.subnet || 'no subnet'})`);
 
     if (!method) {
       return errorResponse('MISSING_METHOD', 'Authentication method is required');
@@ -222,14 +189,16 @@ export async function POST(request: NextRequest) {
       ? Math.round((portal.maxBandwidthUp || 1048576) / 1000000)
       : 1;
 
+    // ════════════════════════════════════════════════════════════
+    // STEP 2: Validate credentials FIRST
+    // Each method validates its own credentials here.
+    // If invalid, we log and return immediately — NO IP check yet.
+    // ════════════════════════════════════════════════════════════
     switch (method) {
       // ─── Voucher ──────────────────────────────────────────
       case 'voucher': {
         if (!voucherCode?.trim()) {
-          return errorResponse(
-            'MISSING_VOUCHER',
-            'Please enter a voucher code'
-          );
+          return errorResponse('MISSING_VOUCHER', 'Please enter a voucher code');
         }
 
         const voucher = await db.wiFiVoucher.findUnique({
@@ -238,272 +207,155 @@ export async function POST(request: NextRequest) {
         });
 
         if (!voucher) {
-          // Log failed auth attempt
-          await logAuthAttempt(voucherCode.trim(), 'Access-Reject', request);
-          return errorResponse(
-            'INVALID_VOUCHER',
-            'Invalid or expired voucher code'
-          );
+          await logAuthAttempt(voucherCode.trim(), 'Access-Reject', request, 'INVALID_VOUCHER');
+          return errorResponse('INVALID_VOUCHER', 'Invalid or expired voucher code');
         }
 
         if (voucher.status !== 'active' || voucher.isUsed) {
-          await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request);
-          return errorResponse(
-            'VOUCHER_USED',
-            'This voucher has already been used'
-          );
+          await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request, 'VOUCHER_USED');
+          return errorResponse('VOUCHER_USED', 'This voucher has already been used');
         }
 
         const now = new Date();
         if (voucher.validUntil < now) {
-          await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request);
-          return errorResponse(
-            'VOUCHER_EXPIRED',
-            'This voucher has expired. Please contact front desk for a new one.'
-          );
+          await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request, 'VOUCHER_EXPIRED');
+          return errorResponse('VOUCHER_EXPIRED', 'This voucher has expired. Please contact front desk for a new one.');
+        }
+
+        // ── Credentials valid — now check IP pool ──
+        const pool = await getValidatedPool(request);
+        if (!pool) {
+          await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
+          return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
         }
 
         // Mark voucher as used
         await db.wiFiVoucher.update({
           where: { id: voucher.id },
-          data: {
-            status: 'used',
-            isUsed: true,
-            usedAt: now,
-          },
+          data: { status: 'used', isUsed: true, usedAt: now },
         });
 
-        // Resolve a valid propertyId (required FK — must exist in Property table)
+        // Resolve propertyId
         const resolvedPropertyId = voucher.plan?.propertyId
-          || await db.property.findFirst({
-              where: { tenantId: voucher.tenantId },
-              select: { id: true },
-            }).then(p => p?.id);
+          || await db.property.findFirst({ where: { tenantId: voucher.tenantId }, select: { id: true } }).then(p => p?.id);
 
         if (!resolvedPropertyId) {
-          return errorResponse(
-            'NO_PROPERTY',
-            'No property configured. Please contact front desk.'
-          );
+          return errorResponse('NO_PROPERTY', 'No property configured. Please contact front desk.');
         }
 
         const wifiUsername = `voucher-${voucher.code.toLowerCase()}`;
-        const validUntil = new Date(
-          now.getTime() + sessionTimeout * 60 * 1000
-        );
-
-        // ── Provision RADIUS credentials ──
+        const validUntil = new Date(now.getTime() + sessionTimeout * 60 * 1000);
         const downloadBps = bwDown * 1000000;
         const uploadBps = bwUp * 1000000;
         const dataLimitMb = voucher.plan?.dataLimit ?? undefined;
 
-        try {
-          await wifiUserService.provisionUser({
-            tenantId: voucher.tenantId,
-            propertyId: resolvedPropertyId,
-            guestId: voucher.guestId ?? undefined,
-            bookingId: voucher.bookingId ?? undefined,
-            username: wifiUsername,
-            password: voucher.code,
-            planId: voucher.planId ?? undefined,
-            planName: voucher.plan?.name,
-            validFrom: now,
-            validUntil,
-            userType: 'guest',
-            downloadSpeed: downloadBps,
-            uploadSpeed: uploadBps,
-            sessionTimeoutMinutes: sessionTimeout,
-            idleTimeoutSeconds: portal?.idleTimeout,
-            sessionLimit: voucher.plan?.maxDevices,
-            dataLimit: dataLimitMb,
-          });
-        } catch (provisionErr) {
-          console.error('[Guest Auth] RADIUS provisioning failed:', provisionErr);
-          // User may already exist — try to update
-          try {
-            const existingUser = await db.wiFiUser.findUnique({
-              where: { username: wifiUsername },
-            });
-            if (existingUser) {
-              await db.wiFiUser.update({
-                where: { id: existingUser.id },
-                data: {
-                  status: 'active',
-                  validFrom: now,
-                  validUntil,
-                  radiusSynced: true,
-                  radiusSyncedAt: now,
-                },
-              });
-            }
-          } catch {
-            // Best effort
-          }
-        }
+        await provisionOrResumeUser(wifiUsername, now, validUntil, {
+          tenantId: voucher.tenantId,
+          propertyId: resolvedPropertyId,
+          guestId: voucher.guestId ?? undefined,
+          bookingId: voucher.bookingId ?? undefined,
+          username: wifiUsername,
+          password: voucher.code,
+          planId: voucher.planId ?? undefined,
+          planName: voucher.plan?.name,
+          downloadSpeed: downloadBps,
+          uploadSpeed: uploadBps,
+          sessionTimeoutMinutes: sessionTimeout,
+          idleTimeoutSeconds: portal?.idleTimeout,
+          sessionLimit: voucher.plan?.maxDevices,
+          dataLimit: dataLimitMb,
+        });
 
-        // ── Authenticate via FreeRADIUS ──
         const radiusResult = await radiusAuth(wifiUsername, voucher.code);
         if (!radiusResult.accepted) {
-          await logAuthAttempt(wifiUsername, 'Access-Reject', request);
-          return errorResponse(
-            radiusResult.rejectReason || 'AUTH_FAILED',
-            getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED')
-          );
+          await logAuthAttempt(wifiUsername, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
+          return errorResponse(radiusResult.rejectReason || 'AUTH_FAILED', getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED'));
         }
 
-        // ── Log auth attempt (for Auth Logs tab) ──
-        await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${matchedPool.poolName}`);
-
-        // ── Create accounting session (for Active Users tab) ──
-        await createAccountingSession(wifiUsername, request, 'portal', macAddress, matchedPool);
+        await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
+        await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
 
         return successResponse({
-          authenticated: true,
-          method: 'voucher',
-          username: wifiUsername,
-          sessionTimeout,
-          bandwidthDown: bwDown,
-          bandwidthUp: bwUp,
-          poolName: matchedPool.poolName,
-          message: 'Connected successfully!',
+          authenticated: true, method: 'voucher', username: wifiUsername,
+          sessionTimeout, bandwidthDown: bwDown, bandwidthUp: bwUp,
+          poolName: pool.poolName, message: 'Connected successfully!',
         });
       }
 
       // ─── Room Number ──────────────────────────────────────
       case 'room_number': {
         if (!roomNumber?.trim()) {
-          return errorResponse(
-            'MISSING_ROOM',
-            'Please enter your room number'
-          );
+          return errorResponse('MISSING_ROOM', 'Please enter your room number');
         }
         if (!lastName?.trim()) {
-          return errorResponse(
-            'MISSING_NAME',
-            'Please enter your last name'
-          );
+          return errorResponse('MISSING_NAME', 'Please enter your last name');
         }
 
-        // Find an active booking for this room with matching guest last name
         const bookings = await db.booking.findMany({
-          where: {
-            room: {
-              roomNumber: roomNumber.trim().toUpperCase(),
-            },
-            status: 'in_house',
-          },
-          include: {
-            primaryGuest: true,
-            room: true,
-          },
+          where: { room: { roomNumber: roomNumber.trim().toUpperCase() }, status: 'in_house' },
+          include: { primaryGuest: true, room: true },
           take: 10,
         });
 
         const match = bookings.find(
-          (b) =>
-            b.primaryGuest.lastName.toLowerCase() ===
-            lastName.trim().toLowerCase()
+          (b) => b.primaryGuest.lastName.toLowerCase() === lastName.trim().toLowerCase()
         );
 
         if (!match) {
-          await logAuthAttempt(`room-${roomNumber.trim().toLowerCase()}`, 'Access-Reject', request);
-          return errorResponse(
-            'ROOM_NOT_FOUND',
-            'No active guest found for this room number and last name. Please verify and try again.'
-          );
+          await logAuthAttempt(`room-${roomNumber.trim().toLowerCase()}`, 'Access-Reject', request, 'INVALID_CREDENTIALS');
+          return errorResponse('ROOM_NOT_FOUND', 'No active guest found for this room number and last name. Please verify and try again.');
+        }
+
+        // ── Credentials valid — now check IP pool ──
+        const pool = await getValidatedPool(request);
+        if (!pool) {
+          await logAuthAttempt(`room-${roomNumber.trim().toLowerCase()}`, 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
+          return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
         }
 
         const now = new Date();
-        const validUntil = new Date(
-          now.getTime() + sessionTimeout * 60 * 1000
-        );
-
+        const validUntil = new Date(now.getTime() + sessionTimeout * 60 * 1000);
         const wifiUsername = `room-${match.room?.roomNumber?.toLowerCase() || roomNumber.trim().toLowerCase()}`;
         const userPassword = `${match.primaryGuest.lastName.toLowerCase()}-${match.id.slice(0, 8)}`;
         const downloadBps = bwDown * 1000000;
         const uploadBps = bwUp * 1000000;
 
-        // ── Provision RADIUS credentials ──
-        try {
-          await wifiUserService.provisionUser({
-            tenantId: match.tenantId,
-            propertyId: match.propertyId,
-            guestId: match.primaryGuestId,
-            bookingId: match.id,
-            username: wifiUsername,
-            password: userPassword,
-            validFrom: now,
-            validUntil,
-            userType: 'guest',
-            downloadSpeed: downloadBps,
-            uploadSpeed: uploadBps,
-            sessionTimeoutMinutes: sessionTimeout,
-            idleTimeoutSeconds: portal?.idleTimeout,
-          });
-        } catch (provisionErr) {
-          console.error('[Guest Auth] RADIUS provisioning failed:', provisionErr);
-          try {
-            const existingUser = await db.wiFiUser.findUnique({
-              where: { username: wifiUsername },
-            });
-            if (existingUser) {
-              await db.wiFiUser.update({
-                where: { id: existingUser.id },
-                data: {
-                  status: 'active',
-                  validFrom: now,
-                  validUntil,
-                  radiusSynced: true,
-                  radiusSyncedAt: now,
-                },
-              });
-            }
-          } catch {
-            // Best effort
-          }
-        }
+        await provisionOrResumeUser(wifiUsername, now, validUntil, {
+          tenantId: match.tenantId,
+          propertyId: match.propertyId,
+          guestId: match.primaryGuestId,
+          bookingId: match.id,
+          username: wifiUsername,
+          password: userPassword,
+          downloadSpeed: downloadBps,
+          uploadSpeed: uploadBps,
+          sessionTimeoutMinutes: sessionTimeout,
+          idleTimeoutSeconds: portal?.idleTimeout,
+        });
 
-        // ── Authenticate via FreeRADIUS ──
         const radiusResult = await radiusAuth(wifiUsername, userPassword);
         if (!radiusResult.accepted) {
-          await logAuthAttempt(wifiUsername, 'Access-Reject', request);
-          return errorResponse(
-            radiusResult.rejectReason || 'AUTH_FAILED',
-            getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED')
-          );
+          await logAuthAttempt(wifiUsername, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
+          return errorResponse(radiusResult.rejectReason || 'AUTH_FAILED', getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED'));
         }
 
-        // ── Log auth attempt ──
-        await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${matchedPool.poolName}`);
-
-        // ── Create accounting session ──
-        await createAccountingSession(wifiUsername, request, 'portal', macAddress, matchedPool);
+        await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
+        await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
 
         return successResponse({
-          authenticated: true,
-          method: 'room_number',
-          username: wifiUsername,
-          sessionTimeout,
-          bandwidthDown: bwDown,
-          bandwidthUp: bwUp,
-          poolName: matchedPool.poolName,
-          message: 'Connected successfully!',
+          authenticated: true, method: 'room_number', username: wifiUsername,
+          sessionTimeout, bandwidthDown: bwDown, bandwidthUp: bwUp,
+          poolName: pool.poolName, message: 'Connected successfully!',
         });
       }
 
       // ─── PMS Credentials ──────────────────────────────────
       case 'pms_credentials': {
         if (!username?.trim()) {
-          return errorResponse(
-            'MISSING_USERNAME',
-            'Please enter your username'
-          );
+          return errorResponse('MISSING_USERNAME', 'Please enter your username');
         }
         if (!password?.trim()) {
-          return errorResponse(
-            'MISSING_PASSWORD',
-            'Please enter your password'
-          );
+          return errorResponse('MISSING_PASSWORD', 'Please enter your password');
         }
 
         const wifiUser = await db.wiFiUser.findUnique({
@@ -511,39 +363,34 @@ export async function POST(request: NextRequest) {
         });
 
         if (!wifiUser) {
-          await logAuthAttempt(username.trim(), 'Access-Reject', request);
-          return errorResponse(
-            'INVALID_CREDENTIALS',
-            'Invalid username or password'
-          );
+          await logAuthAttempt(username.trim(), 'Access-Reject', request, 'INVALID_CREDENTIALS');
+          return errorResponse('INVALID_CREDENTIALS', 'Invalid username or password');
         }
 
         if (wifiUser.password !== password.trim()) {
-          await logAuthAttempt(username.trim(), 'Access-Reject', request);
-          return errorResponse(
-            'INVALID_CREDENTIALS',
-            'Invalid username or password'
-          );
+          await logAuthAttempt(username.trim(), 'Access-Reject', request, 'INVALID_CREDENTIALS');
+          return errorResponse('INVALID_CREDENTIALS', 'Invalid username or password');
         }
 
         if (wifiUser.status !== 'active') {
-          await logAuthAttempt(username.trim(), 'Access-Reject', request);
-          return errorResponse(
-            'ACCOUNT_INACTIVE',
-            'Your WiFi account is not active. Please contact front desk.'
-          );
+          await logAuthAttempt(username.trim(), 'Access-Reject', request, 'ACCOUNT_INACTIVE');
+          return errorResponse('ACCOUNT_INACTIVE', 'Your WiFi account is not active. Please contact front desk.');
         }
 
         const now = new Date();
         if (wifiUser.validUntil < now) {
-          await logAuthAttempt(username.trim(), 'Access-Reject', request);
-          return errorResponse(
-            'ACCOUNT_EXPIRED',
-            'Your WiFi session has expired. Please contact front desk to renew.'
-          );
+          await logAuthAttempt(username.trim(), 'Access-Reject', request, 'ACCOUNT_EXPIRED');
+          return errorResponse('ACCOUNT_EXPIRED', 'Your WiFi session has expired. Please contact front desk to renew.');
         }
 
-        // Ensure RADIUS credentials exist (user might not have been provisioned)
+        // ── Credentials valid — now check IP pool ──
+        const pool = await getValidatedPool(request);
+        if (!pool) {
+          await logAuthAttempt(username.trim(), 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
+          return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
+        }
+
+        // Ensure RADIUS credentials exist
         const existingCheck = await db.radCheck.findFirst({
           where: { username: wifiUser.username },
         });
@@ -551,203 +398,136 @@ export async function POST(request: NextRequest) {
           try {
             await wifiUserService.resumeUser(wifiUser.id);
           } catch {
-            // Best effort — user already has valid WiFiUser record
+            // Best effort
           }
         }
 
-        // ── Authenticate via FreeRADIUS ──
         const radiusResult = await radiusAuth(username.trim(), password.trim());
         if (!radiusResult.accepted) {
-          await logAuthAttempt(username.trim(), 'Access-Reject', request);
-          return errorResponse(
-            radiusResult.rejectReason || 'AUTH_FAILED',
-            getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED')
-          );
+          await logAuthAttempt(username.trim(), 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
+          return errorResponse(radiusResult.rejectReason || 'AUTH_FAILED', getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED'));
         }
 
-        // ── Log auth attempt ──
-        await logAuthAttempt(username.trim(), 'Access-Accept', request, `pool:${matchedPool.poolName}`);
-
-        // ── Create accounting session ──
-        await createAccountingSession(username.trim(), request, 'portal', macAddress, matchedPool);
+        await logAuthAttempt(username.trim(), 'Access-Accept', request, `pool:${pool.poolName}`);
+        await createAccountingSession(username.trim(), request, 'portal', macAddress, pool);
 
         return successResponse({
-          authenticated: true,
-          method: 'pms_credentials',
-          username: wifiUser.username,
-          sessionTimeout,
-          bandwidthDown: bwDown,
-          bandwidthUp: bwUp,
-          poolName: matchedPool.poolName,
-          message: 'Connected successfully!',
+          authenticated: true, method: 'pms_credentials', username: wifiUser.username,
+          sessionTimeout, bandwidthDown: bwDown, bandwidthUp: bwUp,
+          poolName: pool.poolName, message: 'Connected successfully!',
         });
       }
 
       // ─── SMS OTP ──────────────────────────────────────────
       case 'sms_otp': {
         if (otpCode) {
-          // ── Step 2: Verify OTP ──
+          // ── Step 2: Verify OTP (credential check) ──
           if (!phoneNumber?.trim()) {
-            return errorResponse(
-              'MISSING_PHONE',
-              'Phone number is required for OTP verification'
-            );
+            return errorResponse('MISSING_PHONE', 'Phone number is required for OTP verification');
           }
 
           const normalizedPhone = phoneNumber.trim().replace(/\s+/g, '');
           const stored = otpStore.get(normalizedPhone);
 
           if (!stored) {
-            return errorResponse(
-              'OTP_NOT_FOUND',
-              'No OTP found. Please request a new one.'
-            );
+            return errorResponse('OTP_NOT_FOUND', 'No OTP found. Please request a new one.');
           }
 
           if (Date.now() > stored.expiresAt) {
             otpStore.delete(normalizedPhone);
-            return errorResponse(
-              'OTP_EXPIRED',
-              'Your OTP has expired. Please request a new one.'
-            );
+            return errorResponse('OTP_EXPIRED', 'Your OTP has expired. Please request a new one.');
           }
 
           if (stored.code !== otpCode.trim()) {
-            return errorResponse(
-              'OTP_INVALID',
-              'Invalid OTP code. Please try again.'
-            );
+            return errorResponse('OTP_INVALID', 'Invalid OTP code. Please try again.');
           }
 
-          // OTP verified — clean up
+          // ── OTP verified — check IP pool ──
+          const pool = await getValidatedPool(request);
+          if (!pool) {
+            await logAuthAttempt(`sms-${normalizedPhone.replace(/[^a-z0-9]/gi, '')}`, 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
+            return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
+          }
+
           otpStore.delete(normalizedPhone);
 
           const now = new Date();
-          const validUntil = new Date(
-            now.getTime() + sessionTimeout * 60 * 1000
-          );
-
+          const validUntil = new Date(now.getTime() + sessionTimeout * 60 * 1000);
           const wifiUsername = `sms-${normalizedPhone.replace(/[^a-z0-9]/gi, '')}`;
           const downloadBps = bwDown * 1000000;
           const uploadBps = bwUp * 1000000;
 
-          // Get any property from the portal
           const fallbackPropertyId = portal?.propertyId
             || await (portal?.tenantId
               ? db.property.findFirst({ where: { tenantId: portal.tenantId }, select: { id: true } }).then(p => p?.id)
               : Promise.resolve(undefined));
 
           if (fallbackPropertyId) {
-            // ── Provision RADIUS credentials ──
-            try {
-              await wifiUserService.provisionUser({
-                tenantId: portal?.tenantId || '',
-                propertyId: fallbackPropertyId,
-                username: wifiUsername,
-                password: stored.code,
-                validFrom: now,
-                validUntil,
-                userType: 'guest',
-                downloadSpeed: downloadBps,
-                uploadSpeed: uploadBps,
-                sessionTimeoutMinutes: sessionTimeout,
-                idleTimeoutSeconds: portal?.idleTimeout,
-              });
-            } catch (provisionErr) {
-              console.error('[Guest Auth] RADIUS provisioning failed:', provisionErr);
-              try {
-                const existingUser = await db.wiFiUser.findUnique({
-                  where: { username: wifiUsername },
-                });
-                if (existingUser) {
-                  await db.wiFiUser.update({
-                    where: { id: existingUser.id },
-                    data: {
-                      status: 'active',
-                      validFrom: now,
-                      validUntil,
-                      radiusSynced: true,
-                      radiusSyncedAt: now,
-                    },
-                  });
-                }
-              } catch {
-                // Best effort
-              }
-            }
+            await provisionOrResumeUser(wifiUsername, now, validUntil, {
+              tenantId: portal?.tenantId || '',
+              propertyId: fallbackPropertyId,
+              username: wifiUsername,
+              password: stored.code,
+              downloadSpeed: downloadBps,
+              uploadSpeed: uploadBps,
+              sessionTimeoutMinutes: sessionTimeout,
+              idleTimeoutSeconds: portal?.idleTimeout,
+            });
 
-            // ── Authenticate via FreeRADIUS ──
             const radiusResult = await radiusAuth(wifiUsername, stored.code);
             if (!radiusResult.accepted) {
-              await logAuthAttempt(wifiUsername, 'Access-Reject', request);
-              return errorResponse(
-                radiusResult.rejectReason || 'AUTH_FAILED',
-                getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED')
-              );
+              await logAuthAttempt(wifiUsername, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
+              return errorResponse(radiusResult.rejectReason || 'AUTH_FAILED', getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED'));
             }
 
-            // ── Log auth attempt ──
-            await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${matchedPool.poolName}`);
-
-            // ── Create accounting session ──
-            await createAccountingSession(wifiUsername, request, 'portal', macAddress, matchedPool);
+            await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
+            await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
           }
 
           return successResponse({
-            authenticated: true,
-            method: 'sms_otp',
-            username: wifiUsername,
-            sessionTimeout,
-            bandwidthDown: bwDown,
-            bandwidthUp: bwUp,
-            poolName: matchedPool.poolName,
-            message: 'Connected successfully!',
+            authenticated: true, method: 'sms_otp', username: wifiUsername,
+            sessionTimeout, bandwidthDown: bwDown, bandwidthUp: bwUp,
+            poolName: pool.poolName, message: 'Connected successfully!',
           });
         } else {
-          // ── Step 1: Send OTP ──
+          // ── Step 1: Send OTP (no credential check needed) ──
           if (!phoneNumber?.trim()) {
-            return errorResponse(
-              'MISSING_PHONE',
-              'Please enter your phone number'
-            );
+            return errorResponse('MISSING_PHONE', 'Please enter your phone number');
           }
 
           const normalizedPhone = phoneNumber.trim().replace(/\s+/g, '');
           const code = generateOtp();
 
-          // Store OTP with 5-minute expiry
           otpStore.set(normalizedPhone, {
             code,
             expiresAt: Date.now() + 5 * 60 * 1000,
             phone: normalizedPhone,
           });
 
-          // In production, send the OTP via SMS here.
-          // For the sandbox, we just return success (OTP is logged).
-          console.log(
-            `[SMS OTP] Code for ${normalizedPhone}: ${code} (expires in 5 min)`
-          );
+          console.log(`[SMS OTP] Code for ${normalizedPhone}: ${code} (expires in 5 min)`);
 
           return NextResponse.json({
             success: true,
             data: {
               otpSent: true,
               message: 'OTP sent to your phone',
-              // In sandbox, include the code for testing convenience
-              ...(process.env.NODE_ENV === 'development' && {
-                _debugOtp: code,
-              }),
+              ...(process.env.NODE_ENV === 'development' && { _debugOtp: code }),
             },
           });
         }
       }
 
       // ─── Open Access ──────────────────────────────────────
+      // No credential validation needed — only IP pool check
       case 'open_access': {
+        const pool = await getValidatedPool(request);
+        if (!pool) {
+          await logAuthAttempt('open-access', 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
+          return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
+        }
+
         const now = new Date();
-        const validUntil = new Date(
-          now.getTime() + sessionTimeout * 60 * 1000
-        );
+        const validUntil = new Date(now.getTime() + sessionTimeout * 60 * 1000);
         let wifiUsername: string | null = null;
 
         if (portal) {
@@ -758,15 +538,10 @@ export async function POST(request: NextRequest) {
           const uploadBps = bwUp * 1000000;
 
           try {
-            // Resolve a valid propertyId (portal.propertyId may be null)
             const resolvedPropertyId = portal.propertyId
-              || await db.property.findFirst({
-                  where: { tenantId: portal.tenantId },
-                  select: { id: true },
-                }).then(p => p?.id);
+              || await db.property.findFirst({ where: { tenantId: portal.tenantId }, select: { id: true } }).then(p => p?.id);
 
             if (resolvedPropertyId) {
-              // ── Provision RADIUS credentials ──
               await wifiUserService.provisionUser({
                 tenantId: portal.tenantId,
                 propertyId: resolvedPropertyId,
@@ -781,52 +556,34 @@ export async function POST(request: NextRequest) {
                 idleTimeoutSeconds: portal?.idleTimeout,
               });
 
-              // ── Authenticate via FreeRADIUS ──
               const radiusResult = await radiusAuth(wifiUsername, openPassword);
               if (!radiusResult.accepted) {
-                await logAuthAttempt(wifiUsername, 'Access-Reject', request);
-                return errorResponse(
-                  radiusResult.rejectReason || 'AUTH_FAILED',
-                  getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED')
-                );
+                await logAuthAttempt(wifiUsername, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
+                return errorResponse(radiusResult.rejectReason || 'AUTH_FAILED', getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED'));
               }
 
-              // ── Log auth attempt ──
-              await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${matchedPool.poolName}`);
-
-              // ── Create accounting session ──
-              await createAccountingSession(wifiUsername, request, 'portal', macAddress, matchedPool);
+              await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
+              await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
             }
           } catch {
-            // Ignore — best effort for open access
+            // Best effort for open access
           }
         }
 
         return successResponse({
-          authenticated: true,
-          method: 'open_access',
-          username: wifiUsername,
-          sessionTimeout,
-          bandwidthDown: bwDown,
-          bandwidthUp: bwUp,
-          poolName: matchedPool?.poolName,
-          message: 'Connected successfully!',
+          authenticated: true, method: 'open_access', username: wifiUsername,
+          sessionTimeout, bandwidthDown: bwDown, bandwidthUp: bwUp,
+          poolName: pool.poolName, message: 'Connected successfully!',
         });
       }
 
       default: {
-        return errorResponse(
-          'INVALID_METHOD',
-          'Unsupported authentication method'
-        );
+        return errorResponse('INVALID_METHOD', 'Unsupported authentication method');
       }
     }
   } catch (error) {
     console.error('[Guest Auth API] Error:', error);
-    return errorResponse(
-      'INTERNAL_ERROR',
-      'An unexpected error occurred. Please try again or contact front desk.'
-    );
+    return errorResponse('INTERNAL_ERROR', 'An unexpected error occurred. Please try again or contact front desk.');
   }
 }
 
@@ -840,25 +597,95 @@ function successResponse(data: Record<string, unknown>) {
 
 function errorResponse(code: string, message: string, status = 400) {
   return NextResponse.json(
-    {
-      success: false,
-      error: { code, message },
-    },
+    { success: false, error: { code, message } },
     { status }
   );
+}
+
+/**
+ * Validate client IP and check it belongs to an allocated pool.
+ * Called AFTER credential validation, BEFORE RADIUS auth.
+ * Returns the matched pool or null.
+ */
+async function getValidatedPool(request: NextRequest): Promise<MatchedPool | null> {
+  const rawIp = extractClientIp(request);
+  const clientIp = normalizeIp(rawIp);
+
+  if (!clientIp) {
+    console.warn('[Guest Auth] IP pool check: cannot determine client IP');
+    return null;
+  }
+
+  const pool = await validateClientIpInPool(clientIp);
+  if (!pool) {
+    console.warn(`[Guest Auth] IP pool check REJECTED: ${clientIp} is not in any allocated IP pool`);
+    return null;
+  }
+
+  console.log(`[Guest Auth] IP pool check PASSED: ${clientIp} → pool "${pool.poolName}" (${pool.subnet || 'no subnet'})`);
+  return pool;
+}
+
+/**
+ * Provision a RADIUS user, or resume an existing one if provisioning fails.
+ * Reduces code duplication across auth methods.
+ */
+async function provisionOrResumeUser(
+  wifiUsername: string,
+  now: Date,
+  validUntil: Date,
+  params: {
+    tenantId: string;
+    propertyId: string;
+    guestId?: string;
+    bookingId?: string;
+    username: string;
+    password: string;
+    planId?: string;
+    planName?: string;
+    downloadSpeed: number;
+    uploadSpeed: number;
+    sessionTimeoutMinutes: number;
+    idleTimeoutSeconds?: number;
+    sessionLimit?: number;
+    dataLimit?: number;
+  }
+) {
+  try {
+    await wifiUserService.provisionUser(params);
+  } catch (provisionErr) {
+    console.error('[Guest Auth] RADIUS provisioning failed:', provisionErr);
+    try {
+      const existingUser = await db.wiFiUser.findUnique({ where: { username: wifiUsername } });
+      if (existingUser) {
+        await db.wiFiUser.update({
+          where: { id: existingUser.id },
+          data: {
+            status: 'active',
+            validFrom: now,
+            validUntil,
+            radiusSynced: true,
+            radiusSyncedAt: now,
+          },
+        });
+      }
+    } catch {
+      // Best effort
+    }
+  }
 }
 
 /**
  * Write an auth log to RadPostAuth table.
  * This feeds the v_auth_logs view → Auth Logs dashboard tab.
  *
- * IMPORTANT: We populate BOTH clientipaddress AND nasipaddress columns.
+ * IMPORTANT: We populate BOTH clientipaddress AND "nasIpAddress" columns.
  * - clientipaddress: the real client IP (from HTTP headers) — used by v_auth_logs
  *   to show "Source IP" in reject messages and the source_ip_address column.
- * - nasipaddress: also set to the client IP so the view's nas_ip_address column
+ * - "nasIpAddress": also set to the client IP so the view's nas_ip_address column
  *   is populated even for application-level rejects (not just RADIUS rejects).
  * - pass: stores the rejection reason code (e.g., IP_NOT_IN_POOL:1.2.3.4,
- *   INVALID_VOUCHER, ACCOUNT_EXPIRED) so v_auth_logs can build descriptive
+ *   INVALID_CREDENTIALS, ACCOUNT_EXPIRED) so v_auth_logs can build descriptive
  *   reply_message strings.
  */
 async function logAuthAttempt(
