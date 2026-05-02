@@ -1476,6 +1476,84 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(result);
       }
 
+      // ─── Test RADIUS Authentication (admin only, no IP pool check) ────
+      // Tests a WiFi user's RADIUS credentials directly via radclient.
+      // Always logs the attempt to radpostauth for the Auth Logs tab.
+      case 'test-auth': {
+        try {
+          const { username: testUsername, password: testPassword } = data;
+          if (!testUsername || !testPassword) {
+            return NextResponse.json({ success: false, error: 'Username and password are required' }, { status: 400 });
+          }
+
+          // Import radiusAuth dynamically to avoid issues
+          const { radiusAuth, getRejectMessage } = await import('@/lib/wifi/utils/radius-auth');
+
+          const startTime = Date.now();
+          const radiusResult = await radiusAuth(String(testUsername), String(testPassword));
+          const latency = Date.now() - startTime;
+
+          // Determine the rejection reason for logging
+          const reply = radiusResult.accepted ? 'Access-Accept' : 'Access-Reject';
+          let passValue = '';
+          if (!radiusResult.accepted) {
+            passValue = radiusResult.rejectReason || 'AUTH_FAILED';
+          }
+
+          // Capture operator IP from request headers
+          const forwardedFor = request.headers.get('x-forwarded-for');
+          const realIp = request.headers.get('x-real-ip');
+          const operatorIp = forwardedFor?.split(',')[0]?.trim() || realIp || '';
+
+          // Always log the auth attempt to radpostauth
+          try {
+            await db.$executeRawUnsafe(
+              `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, "nasIpAddress")
+               VALUES ($1, $2, $3, NOW(), $4, $4)`,
+              String(testUsername),
+              passValue,
+              reply,
+              operatorIp,
+            );
+          } catch (logErr) {
+            console.error('[test-auth] Failed to write auth log:', logErr);
+          }
+
+          // Enrich response with user info from WiFiUser table
+          let userInfo = null;
+          try {
+            userInfo = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(`
+              SELECT u.status, u."validUntil", u."propertyId",
+                     g."firstName" as "guestFirstName", g."lastName" as "guestLastName",
+                     r.number as "roomNumber", p.name as "propertyName"
+              FROM "WiFiUser" u
+              LEFT JOIN "Guest" g ON u."guestId" = g.id
+              LEFT JOIN "Booking" b ON u."bookingId" = b.id
+              LEFT JOIN "Room" r ON b."roomId" = r.id
+              LEFT JOIN "Property" p ON u."propertyId" = p.id
+              WHERE u.username = $1
+            `, String(testUsername));
+          } catch {}
+
+          return NextResponse.json({
+            success: true,
+            data: {
+              accepted: radiusResult.accepted,
+              reply,
+              rejectReason: radiusResult.rejectReason || null,
+              rejectMessage: radiusResult.accepted ? null : getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED'),
+              replyAttrs: radiusResult.replyAttrs,
+              latency,
+              user: userInfo?.[0] || null,
+              logged: true,
+            },
+          });
+        } catch (error) {
+          console.error('[test-auth] Error:', error);
+          return NextResponse.json({ success: false, error: 'Failed to test authentication' }, { status: 500 });
+        }
+      }
+
       case 'import': {
         const result = await freeradiusRequest('/api/config/import', {
           method: 'POST',

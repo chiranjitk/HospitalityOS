@@ -101,6 +101,8 @@ SELECT *
 -- actual client IP from the HTTP auth request or RADIUS packet source).
 -- For rejected auths, reply_message now includes username, source IP, and
 -- specific rejection reason so operators can diagnose issues quickly.
+-- Updated: handles MAX_SESSIONS_REACHED, RADIUS_UNREACHABLE, AUTH_FAILED
+-- rejection reason codes from test-auth action.
 -- ---------------------------------------------------------------------------
 CREATE VIEW v_auth_logs AS
 SELECT pa.id::text AS id,
@@ -128,11 +130,18 @@ SELECT pa.id::text AS id,
             WHEN pa.pass LIKE 'IP_NOT_DETERMINED'::text THEN
                 'Rejected — could not determine client IP'::text ||
                 COALESCE(' — user: '::text || pa.username, ''::text)
+            WHEN pa.pass LIKE 'MAX_SESSION%%'::text THEN
+                'Rejected — max concurrent sessions reached'::text ||
+                COALESCE(' — user: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+            WHEN pa.pass LIKE 'RADIUS_UNREACHABLE'::text THEN
+                'Rejected — RADIUS server unreachable'::text ||
+                COALESCE(' — user: '::text || pa.username, ''::text)
             WHEN pa.pass LIKE 'ACCOUNT_%%'::text THEN
                 'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
                 COALESCE(' — user: '::text || pa.username, ''::text) ||
                 COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
-            WHEN pa.pass LIKE 'INVALID_%%'::text OR pa.pass LIKE 'MISSING_%%'::text OR pa.pass LIKE 'VOUCHER_%%'::text THEN
+            WHEN pa.pass LIKE 'INVALID_%%'::text OR pa.pass LIKE 'MISSING_%%'::text OR pa.pass LIKE 'VOUCHER_%%'::text OR pa.pass LIKE 'AUTH_%%'::text THEN
                 'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
                 COALESCE(' — user: '::text || pa.username, ''::text) ||
                 COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)

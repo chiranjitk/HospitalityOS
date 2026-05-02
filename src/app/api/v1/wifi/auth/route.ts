@@ -122,37 +122,9 @@ function getClientIpString(request: NextRequest): string {
 export async function POST(request: NextRequest) {
   try {
     // ════════════════════════════════════════════════════════════
-    // STEP 0: Validate client IP against allocated IP pools
-    // This prevents authentication from external/unmanaged networks.
-    // Only IPs assigned from managed DHCP pools can authenticate.
+    // STEP 0: Parse request body FIRST so we know the username
+    // for auth logging, even if IP pool check fails later.
     // ════════════════════════════════════════════════════════════
-    const rawIp = extractClientIp(request);
-    const clientIp = normalizeIp(rawIp);
-
-    if (!clientIp) {
-      console.warn('[Guest Auth] IP pool check FAILED: cannot determine client IP');
-      return errorResponse(
-        'IP_NOT_DETERMINED',
-        'Unable to determine your IP address. Please ensure you are connected to the hotel WiFi network and try again.',
-        403
-      );
-    }
-
-    const matchedPool = await validateClientIpInPool(clientIp);
-    if (!matchedPool) {
-      console.warn(`[Guest Auth] IP pool check REJECTED: ${clientIp} is not in any allocated IP pool`);
-      // Log the rejected attempt for audit trail
-      await logAuthAttempt('unknown', 'Access-Reject', request, `IP_NOT_IN_POOL:${clientIp}`);
-      return errorResponse(
-        'IP_NOT_IN_POOL',
-        'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.',
-        403
-      );
-    }
-
-    console.log(`[Guest Auth] IP pool check PASSED: ${clientIp} → pool "${matchedPool.poolName}" (${matchedPool.subnet || 'no subnet'})`);
-
-    // Parse request body
     const body = await request.json();
     const {
       method,
@@ -179,6 +151,42 @@ export async function POST(request: NextRequest) {
       guestInfo?: { firstName?: string; lastName?: string; email?: string; phone?: string };
       macAddress?: string;
     };
+
+    // Derive a best-effort username for logging (used even if IP pool check fails)
+    const logUsername = username || (method === 'room_number' ? `room-${roomNumber?.trim().toLowerCase()}` : null) || (method === 'voucher' ? `voucher-${voucherCode?.trim()}` : null) || 'unknown';
+
+    // ════════════════════════════════════════════════════════════
+    // STEP 1: Validate client IP against allocated IP pools
+    // This prevents authentication from external/unmanaged networks.
+    // Only IPs assigned from managed DHCP pools can authenticate.
+    // ════════════════════════════════════════════════════════════
+    const rawIp = extractClientIp(request);
+    const clientIp = normalizeIp(rawIp);
+
+    if (!clientIp) {
+      console.warn('[Guest Auth] IP pool check FAILED: cannot determine client IP');
+      // Log the rejected attempt with actual username for audit trail
+      await logAuthAttempt(logUsername, 'Access-Reject', request, `IP_NOT_DETERMINED`);
+      return errorResponse(
+        'IP_NOT_DETERMINED',
+        'Unable to determine your IP address. Please ensure you are connected to the hotel WiFi network and try again.',
+        403
+      );
+    }
+
+    const matchedPool = await validateClientIpInPool(clientIp);
+    if (!matchedPool) {
+      console.warn(`[Guest Auth] IP pool check REJECTED: ${clientIp} is not in any allocated IP pool`);
+      // Log the rejected attempt for audit trail with actual username
+      await logAuthAttempt(logUsername, 'Access-Reject', request, `IP_NOT_IN_POOL:${clientIp}`);
+      return errorResponse(
+        'IP_NOT_IN_POOL',
+        'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.',
+        403
+      );
+    }
+
+    console.log(`[Guest Auth] IP pool check PASSED: ${clientIp} → pool "${matchedPool.poolName}" (${matchedPool.subnet || 'no subnet'})`);
 
     if (!method) {
       return errorResponse('MISSING_METHOD', 'Authentication method is required');
@@ -865,7 +873,7 @@ async function logAuthAttempt(
       || '';
 
     await db.$executeRawUnsafe(
-      `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, nasipaddress)
+      `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, "nasIpAddress")
        VALUES ($1, $2, $3, NOW(), $4, $4)`,
       username,
       extraInfo || '',
