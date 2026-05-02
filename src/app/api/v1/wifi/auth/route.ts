@@ -3,6 +3,12 @@ import { db } from '@/lib/db';
 import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
 import { randomUUID } from 'crypto';
 import { radiusAuth, getRejectMessage } from '@/lib/wifi/utils/radius-auth';
+import {
+  runLoginScript,
+  generateClassIds,
+  lookupBandwidthPool,
+  type LoginScriptParams,
+} from '@/lib/network/script-runner';
 
 // ────────────────────────────────────────────────────────────
 // In-memory OTP store (sandbox — use Redis in production)
@@ -105,6 +111,85 @@ async function validateClientIpInPool(clientIp: string): Promise<MatchedPool | n
 /** Get client IP string for logging/accounting */
 function getClientIpString(request: NextRequest): string {
   return extractClientIp(request) || request.headers.get('x-real-ip') || '0.0.0.0';
+}
+
+/**
+ * Activate firewall + bandwidth shaping for a user after successful RADIUS auth.
+ * Calls staysuite_login.sh which:
+ *   - Adds IP to nft loggedinusers set (unblocks traffic)
+ *   - Inserts fwmark rules in prerouting
+ *   - Adds NAT masquerade rule
+ *   - Creates TC HTB classes + fw filters on ifb0/ifb1
+ *
+ * Runs synchronously but with a 15s timeout.
+ * Errors are logged but do NOT block the auth response —
+ * the user is authenticated regardless of firewall state.
+ * The recovery script will catch up if this fails.
+ */
+async function activateUserFirewall(params: {
+  username: string;
+  clientIp: string;
+  propertyId: string;
+  sessionId?: string;
+  macAddress?: string;
+  userId?: string;
+  maxBandwidthDownBytes?: number;
+  maxBandwidthUpBytes?: number;
+  subnet?: string | null;
+}) {
+  try {
+    const clientIp = normalizeIp(params.clientIp);
+    if (!clientIp || clientIp === '0.0.0.0') {
+      console.warn('[Firewall] Skipping activation — no valid client IP');
+      return;
+    }
+
+    // Generate deterministic class IDs from username
+    const classIds = generateClassIds(params.username);
+
+    // Convert bytes/sec → kbps for the login script
+    const dnKbps = params.maxBandwidthDownBytes
+      ? Math.round(params.maxBandwidthDownBytes * 8 / 1000)
+      : 0;
+    const upKbps = params.maxBandwidthUpBytes
+      ? Math.round(params.maxBandwidthUpBytes * 8 / 1000)
+      : 0;
+
+    // Look up BandwidthPool for pool-level rate limiting
+    const poolBw = await lookupBandwidthPool(params.propertyId, params.subnet);
+
+    const scriptParams: LoginScriptParams = {
+      ip: clientIp,
+      action: 'masq',
+      poolId: poolBw.poolId,
+      poolRateDn: poolBw.poolRateDn,
+      poolCeilDn: poolBw.poolCeilDn,
+      poolRateUp: poolBw.poolRateUp,
+      poolCeilUp: poolBw.poolCeilUp,
+      dnClassid: classIds.dn,
+      upClassid: classIds.up,
+      dnKbps,
+      upKbps,
+      sessionId: params.sessionId,
+      macAddress: params.macAddress,
+      userId: params.userId,
+    };
+
+    const result = runLoginScript(scriptParams);
+
+    if (result.success) {
+      console.log(
+        `[Firewall] Login OK: ${params.username} ip=${clientIp} cls=${classIds.dn}/${classIds.up} pool=${poolBw.poolId} dn=${dnKbps}k up=${upKbps}k (${result.durationMs}ms)`
+      );
+    } else {
+      console.error(
+        `[Firewall] Login FAIL: ${params.username} exit=${result.exitCode} stderr=${result.stderr || '(none)'} (${result.durationMs}ms)`
+      );
+    }
+  } catch (err) {
+    // Non-fatal — firewall activation failure should not block authentication
+    console.error('[Firewall] Exception activating firewall:', err);
+  }
 }
 
 // ────────────────────────────────────────────────────────────
@@ -273,7 +358,17 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
-        await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
+        const sessionId = await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
+
+        // Activate nftables + TC bandwidth shaping
+        await activateUserFirewall({
+          username: wifiUsername, clientIp: getClientIpString(request),
+          propertyId: resolvedPropertyId, sessionId,
+          macAddress,
+          maxBandwidthDownBytes: portal?.maxBandwidthDown,
+          maxBandwidthUpBytes: portal?.maxBandwidthUp,
+          subnet: pool.subnet,
+        });
 
         return successResponse({
           authenticated: true, method: 'voucher', username: wifiUsername,
@@ -340,7 +435,16 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
-        await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
+        const sessionId = await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
+
+        await activateUserFirewall({
+          username: wifiUsername, clientIp: getClientIpString(request),
+          propertyId: match.propertyId, sessionId,
+          macAddress,
+          maxBandwidthDownBytes: portal?.maxBandwidthDown,
+          maxBandwidthUpBytes: portal?.maxBandwidthUp,
+          subnet: pool.subnet,
+        });
 
         return successResponse({
           authenticated: true, method: 'room_number', username: wifiUsername,
@@ -409,7 +513,16 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(username.trim(), 'Access-Accept', request, `pool:${pool.poolName}`);
-        await createAccountingSession(username.trim(), request, 'portal', macAddress, pool);
+        const sessionId = await createAccountingSession(username.trim(), request, 'portal', macAddress, pool);
+
+        await activateUserFirewall({
+          username: username.trim(), clientIp: getClientIpString(request),
+          propertyId: wifiUser.propertyId, sessionId,
+          macAddress, userId: wifiUser.id,
+          maxBandwidthDownBytes: portal?.maxBandwidthDown,
+          maxBandwidthUpBytes: portal?.maxBandwidthUp,
+          subnet: pool.subnet,
+        });
 
         return successResponse({
           authenticated: true, method: 'pms_credentials', username: wifiUser.username,
@@ -481,7 +594,16 @@ export async function POST(request: NextRequest) {
             }
 
             await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
-            await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
+            const sessionId = await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
+
+            await activateUserFirewall({
+              username: wifiUsername, clientIp: getClientIpString(request),
+              propertyId: fallbackPropertyId, sessionId,
+              macAddress,
+              maxBandwidthDownBytes: portal?.maxBandwidthDown,
+              maxBandwidthUpBytes: portal?.maxBandwidthUp,
+              subnet: pool.subnet,
+            });
           }
 
           return successResponse({
@@ -563,7 +685,16 @@ export async function POST(request: NextRequest) {
               }
 
               await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
-              await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
+              const sessionId = await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
+
+              await activateUserFirewall({
+                username: wifiUsername, clientIp: getClientIpString(request),
+                propertyId: resolvedPropertyId, sessionId,
+                macAddress,
+                maxBandwidthDownBytes: portal?.maxBandwidthDown,
+                maxBandwidthUpBytes: portal?.maxBandwidthUp,
+                subnet: pool.subnet,
+              });
             }
           } catch {
             // Best effort for open access
@@ -730,7 +861,7 @@ async function createAccountingSession(
   loginType: string = 'portal',
   macAddress?: string,
   pool?: MatchedPool | null
-) {
+): Promise<string> {
   try {
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       || request.headers.get('x-real-ip')
@@ -780,8 +911,12 @@ async function createAccountingSession(
       formattedMac,
       connectInfoStart
     );
+
+    // Return the session ID so it can be passed to the login script
+    return acctSessionId;
   } catch (err) {
     // Non-fatal — accounting failure should not block authentication
     console.error('[Guest Auth] Failed to create accounting session:', err);
+    return '';
   }
 }
