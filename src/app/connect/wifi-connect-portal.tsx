@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Public WiFi Captive Portal — Multi-Method Authentication
+ * Public WiFi Captive Portal — Designer-Driven Single Form + Multi-Method Fallback
  *
  * URL: /connect  (or /connect?code=<voucher> for QR scan)
  *
@@ -9,12 +9,23 @@
  *   1. User connects to WiFi → gets IP from DHCP → redirected to /connect
  *   2. /connect calls resolve-zone API → server checks client IP against
  *      PortalMapping subnets → returns the correct portal config
- *   3. If no IP match, falls back to default-zone
+ *   3. If no IP match, falls back to default portal
  *
- * CRITICAL: ALL visual styling is driven by the portal's design config.
- *           NO hardcoded colors, borders, shadows, or border-radii.
- *           What the admin designs in the Portal Designer tab is exactly
- *           what renders here.
+ * TWO RENDERING MODES:
+ *
+ *   A) UNIFIED FORM (when formFields is configured):
+ *      - Renders a SINGLE form with only the fields the admin toggled ON
+ *      - No tabs — matches the designer preview exactly
+ *      - Uses portalConfig.authMethod to determine submit handler
+ *      - Supports ALL field types: roomNumber, username, password, phone, email,
+ *        firstName, lastName, passport, bookingId, voucherCode, terms
+ *
+ *   B) FALLBACK TAB MODE (when formFields is null/empty):
+ *      - Shows all auth methods as tabs with their respective hardcoded forms
+ *      - Keeps backward compatibility
+ *
+ * ALL visual styling is driven by the portal's design config.
+ * NO hardcoded colors, borders, shadows, or border-radii.
  *
  * States: loading → auth_form → authenticating → success → error
  */
@@ -50,6 +61,10 @@ import {
   Dumbbell,
   Coffee,
   Car,
+  Building,
+  Lock,
+  ScanLine,
+  Calendar,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -129,6 +144,32 @@ const METHOD_ICONS: Record<string, React.ReactNode> = {
   sms_otp: <Smartphone className="w-4 h-4" />,
   open_access: <Globe className="w-4 h-4" />,
 };
+
+// ────────────────────────────────────────────────────────────
+// Unified form field definitions — matches the designer's FIELD_DEFINITIONS
+// ────────────────────────────────────────────────────────────
+
+const UNIFIED_FIELD_DEFS: Array<{
+  key: string;
+  label: string;
+  placeholder: string;
+  icon: React.ReactNode;
+  type: string;
+  inputMode?: 'text' | 'tel' | 'numeric';
+  maxLength?: number;
+  className?: string;
+}> = [
+  { key: 'firstName', label: 'First Name', placeholder: 'John', icon: <User className="w-4 h-4" />, type: 'text' },
+  { key: 'lastName', label: 'Last Name', placeholder: 'Smith', icon: <User className="w-4 h-4" />, type: 'text' },
+  { key: 'roomNumber', label: 'Room Number', placeholder: 'e.g. 101', icon: <Building className="w-4 h-4" />, type: 'text' },
+  { key: 'phone', label: 'Phone Number', placeholder: '+1 555 123 4567', icon: <Phone className="w-4 h-4" />, type: 'tel', inputMode: 'tel' },
+  { key: 'email', label: 'Email Address', placeholder: 'guest@example.com', icon: <Mail className="w-4 h-4" />, type: 'email' },
+  { key: 'passport', label: 'Passport / ID', placeholder: 'Passport or ID number', icon: <ScanLine className="w-4 h-4" />, type: 'text' },
+  { key: 'bookingId', label: 'Booking ID', placeholder: 'Booking reference', icon: <Calendar className="w-4 h-4" />, type: 'text' },
+  { key: 'username', label: 'Username', placeholder: 'Enter username', icon: <User className="w-4 h-4" />, type: 'text' },
+  { key: 'password', label: 'Password', placeholder: 'Enter password', icon: <Lock className="w-4 h-4" />, type: 'password' },
+  { key: 'voucherCode', label: 'Voucher Code', placeholder: 'XXXXX-XXXXX', icon: <QrCode className="w-4 h-4" />, type: 'text', className: 'text-center text-lg font-mono font-bold tracking-wider uppercase' },
+];
 
 // ────────────────────────────────────────────────────────────
 // Amenity icons mapping
@@ -293,7 +334,7 @@ function ErrorDisplay({ message }: { message: string }) {
 }
 
 // ────────────────────────────────────────────────────────────
-// Voucher Form
+// Voucher Form (fallback mode)
 // ────────────────────────────────────────────────────────────
 
 function VoucherForm({
@@ -363,7 +404,7 @@ function VoucherForm({
 }
 
 // ────────────────────────────────────────────────────────────
-// Room Number Form
+// Room Number Form (fallback mode)
 // ────────────────────────────────────────────────────────────
 
 function RoomNumberForm({
@@ -420,7 +461,7 @@ function RoomNumberForm({
 }
 
 // ────────────────────────────────────────────────────────────
-// PMS Credentials Form
+// PMS Credentials Form (fallback mode)
 // ────────────────────────────────────────────────────────────
 
 function PmsCredentialsForm({
@@ -478,7 +519,7 @@ function PmsCredentialsForm({
 }
 
 // ────────────────────────────────────────────────────────────
-// SMS OTP Form (2-step)
+// SMS OTP Form (2-step, fallback mode)
 // ────────────────────────────────────────────────────────────
 
 function SmsOtpForm({
@@ -608,7 +649,7 @@ function SmsOtpForm({
 }
 
 // ────────────────────────────────────────────────────────────
-// Open Access Form
+// Open Access Form (fallback mode)
 // ────────────────────────────────────────────────────────────
 
 function OpenAccessForm({
@@ -631,6 +672,359 @@ function OpenAccessForm({
         <>
           <Globe className="w-5 h-5" />
           Connect Now
+        </>
+      </DynamicButton>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Unified Designer-Driven Form (NEW — matches PortalPreviewContent)
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Renders a SINGLE form with only the fields configured in formFields.
+ * This matches exactly what the admin sees in the Portal Designer preview.
+ * No tabs — just a clean form with the toggled-on fields.
+ */
+function UnifiedDesignerForm({
+  design,
+  formFields,
+  authMethod,
+  codeParam,
+  authenticate,
+  loading,
+  termsRequired,
+  termsAccepted,
+  setTermsAccepted,
+}: {
+  design: PortalDesignConfig;
+  formFields: FormFieldsConfig;
+  authMethod: string;
+  codeParam: string;
+  authenticate: (method: string, payload: Record<string, string>) => void;
+  loading: boolean;
+  termsRequired: boolean;
+  termsAccepted: boolean;
+  setTermsAccepted: (v: boolean) => void;
+}) {
+  // Initialize formData with pre-filled voucher code from QR scan
+  const [formData, setFormData] = useState<Record<string, string>>(() => {
+    if (codeParam && formFields['voucherCode']) {
+      return { voucherCode: codeParam };
+    }
+    return {};
+  });
+  const [error, setError] = useState('');
+  const [otpStep, setOtpStep] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpCountdown, setOtpCountdown] = useState(0);
+
+  // OTP countdown timer
+  useEffect(() => {
+    if (otpCountdown > 0) {
+      const timer = setTimeout(() => setOtpCountdown((c) => c - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [otpCountdown]);
+
+  // Field helpers
+  const isFieldEnabled = (key: string): boolean => {
+    const val = formFields[key];
+    if (typeof val === 'boolean') return val;
+    if (typeof val === 'object' && val !== null) return (val as FormFieldConfig).visible ?? false;
+    return false;
+  };
+
+  const getFieldLabel = (key: string, fallback: string): string => {
+    const val = formFields[key];
+    if (typeof val === 'object' && val !== null) return (val as FormFieldConfig).label || fallback;
+    return fallback;
+  };
+
+  const isFieldRequired = (key: string): boolean => {
+    const val = formFields[key];
+    if (typeof val === 'object' && val !== null) return (val as FormFieldConfig).required ?? false;
+    return val === true;
+  };
+
+  const showTerms = isFieldEnabled('terms') || isFieldEnabled('termsCheckbox');
+
+  // Get only the enabled input fields (not terms/voucherCode which are special)
+  const enabledFields = UNIFIED_FIELD_DEFS.filter((f) => isFieldEnabled(f.key));
+  const hasInputFields = enabledFields.length > 0;
+  const isSmsOtp = authMethod === 'sms_otp';
+  const isOpenAccess = authMethod === 'open_access';
+
+  // QR prefill notice for voucher
+  const hasQrPrefill = !!(codeParam && isFieldEnabled('voucherCode'));
+
+  // Build auth payload and submit
+  const handleSubmit = useCallback(() => {
+    setError('');
+
+    // Validate required fields
+    for (const fieldDef of enabledFields) {
+      const key = fieldDef.key;
+      if (isFieldRequired(key) && !formData[key]?.trim()) {
+        setError(`Please enter ${getFieldLabel(key, fieldDef.label).toLowerCase()}`);
+        return;
+      }
+    }
+
+    // Terms validation
+    if (showTerms && termsRequired && !termsAccepted) {
+      setError('Please accept the terms and conditions');
+      return;
+    }
+
+    // Build payload based on authMethod
+    const payload: Record<string, string> = {};
+
+    switch (authMethod) {
+      case 'pms_credentials':
+        if (formData.username?.trim()) payload.username = formData.username.trim();
+        if (formData.password?.trim()) payload.password = formData.password.trim();
+        break;
+      case 'room_number':
+        if (formData.roomNumber?.trim()) payload.roomNumber = formData.roomNumber.trim();
+        // lastName can come from form or guest info
+        if (formData.lastName?.trim()) payload.lastName = formData.lastName.trim();
+        break;
+      case 'voucher':
+        if (formData.voucherCode?.trim()) payload.voucherCode = formData.voucherCode.trim();
+        break;
+      case 'sms_otp': {
+        if (!formData.phone?.trim()) {
+          setError('Please enter your phone number');
+          return;
+        }
+        if (otpStep) {
+          if (!otpCode.trim()) {
+            setError('Please enter the verification code');
+            return;
+          }
+          payload.phoneNumber = formData.phone.trim();
+          payload.otpCode = otpCode.trim();
+          authenticate('sms_otp', payload);
+          return;
+        }
+        // First step: send OTP
+        payload.phoneNumber = formData.phone.trim();
+        authenticate('sms_otp', payload);
+        setOtpStep(true);
+        setOtpCountdown(60);
+        return;
+      }
+      case 'open_access':
+        // No payload needed
+        break;
+      default:
+        // Generic: include all form data
+        Object.entries(formData).forEach(([k, v]) => {
+          if (v?.trim()) payload[k] = v.trim();
+        });
+    }
+
+    authenticate(authMethod, payload);
+  }, [formData, authMethod, enabledFields, termsAccepted, termsRequired, showTerms, otpStep, otpCode, authenticate]);
+
+  const handleResendOtp = () => {
+    if (otpCountdown > 0) return;
+    setOtpCode('');
+    setError('');
+    authenticate('sms_otp', { phoneNumber: formData.phone?.trim() || '' });
+    setOtpCountdown(60);
+  };
+
+  // Open access: just a connect button
+  if (isOpenAccess && !hasInputFields) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-center" style={{ color: getMutedTextColor(design) }}>
+          Click below to connect to the WiFi network
+        </p>
+        {showTerms && termsRequired && (
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              className="mt-0.5"
+              style={{ accentColor: design.accentColor }}
+            />
+            <span style={{ color: getMutedTextColor(design) }}>
+              I agree to the{' '}
+              <span style={{ color: design.accentColor }} className="font-medium underline cursor-pointer">
+                terms and conditions
+              </span>
+            </span>
+          </label>
+        )}
+        {error && <ErrorDisplay message={error} />}
+        <DynamicButton design={design} onClick={handleSubmit} disabled={termsRequired && !termsAccepted} loading={loading}>
+          <>
+            <Globe className="w-5 h-5" />
+            Connect Now
+          </>
+        </DynamicButton>
+      </div>
+    );
+  }
+
+  const mutedColor = getMutedTextColor(design);
+  const labelColor = getCardTextColor(design);
+
+  // SMS OTP step 2: show OTP input
+  if (isSmsOtp && otpStep) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-center" style={{ color: mutedColor }}>
+          Enter the 6-digit code sent to{' '}
+          <span className="font-medium" style={{ color: labelColor }}>{formData.phone}</span>
+        </p>
+        <DynamicInput
+          design={design}
+          label="Verification Code"
+          value={otpCode}
+          onChange={(v) => setOtpCode(v.replace(/\D/g, '').slice(0, 6))}
+          placeholder="000000"
+          disabled={loading}
+          autoFocus
+          maxLength={6}
+          inputMode="numeric"
+          className="text-center text-2xl font-mono font-bold tracking-[0.5em]"
+        />
+        {error && <ErrorDisplay message={error} />}
+        <DynamicButton design={design} onClick={handleSubmit} disabled={otpCode.length < 6} loading={loading}>
+          <>
+            <CheckCircle className="w-5 h-5" />
+            Verify & Connect
+          </>
+        </DynamicButton>
+        <div className="flex items-center justify-between text-sm">
+          <button
+            onClick={() => { setOtpStep(false); setOtpCode(''); setError(''); }}
+            className="hover:underline flex items-center gap-1"
+            style={{ color: mutedColor }}
+          >
+            <span>&larr;</span> Change number
+          </button>
+          <button
+            onClick={handleResendOtp}
+            disabled={otpCountdown > 0}
+            className="flex items-center gap-1 disabled:opacity-40"
+            style={{ color: design.accentColor }}
+          >
+            <RefreshCw className="w-3 h-3" />
+            {otpCountdown > 0 ? `Resend in ${otpCountdown}s` : 'Resend code'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Auth flow indicator
+  const flowLabel = authMethod === 'room_number' ? 'Enter Room'
+    : authMethod === 'voucher' ? 'Enter Voucher'
+    : authMethod === 'sms_otp' ? 'OTP Login'
+    : authMethod === 'open_access' ? 'Free Access'
+    : 'Sign In';
+
+  return (
+    <div className="space-y-4">
+      {/* Auth Flow Indicator */}
+      <div className="flex items-center gap-1.5">
+        <Wifi className="w-3.5 h-3.5" style={{ color: mutedColor }} />
+        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: mutedColor }}>
+          {flowLabel}
+        </span>
+      </div>
+
+      {/* QR prefill notice */}
+      {hasQrPrefill && (
+        <div
+          className="flex items-center gap-2 rounded-lg p-3"
+          style={{ backgroundColor: design.accentColor + '15' }}
+        >
+          <QrCode className="w-4 h-4 flex-shrink-0" style={{ color: design.accentColor }} />
+          <p className="text-sm" style={{ color: design.accentColor }}>
+            <span className="font-medium">QR Code scanned</span> — your
+            voucher code has been pre-filled
+          </p>
+        </div>
+      )}
+
+      {/* SMS OTP hint */}
+      {isSmsOtp && (
+        <p className="text-sm text-center" style={{ color: mutedColor }}>
+          We&apos;ll send a verification code to your phone
+        </p>
+      )}
+
+      {/* Dynamic fields from designer config */}
+      {enabledFields.map((fieldDef, index) => {
+        const label = getFieldLabel(fieldDef.key, fieldDef.label);
+        const reqSuffix = isFieldRequired(fieldDef.key) ? ' *' : '';
+
+        return (
+          <DynamicInput
+            key={fieldDef.key}
+            design={design}
+            label={label + reqSuffix}
+            type={fieldDef.type}
+            value={formData[fieldDef.key] || ''}
+            onChange={(v) => {
+              if (fieldDef.key === 'voucherCode') {
+                setFormData((prev) => ({ ...prev, [fieldDef.key]: v.toUpperCase() }));
+              } else {
+                setFormData((prev) => ({ ...prev, [fieldDef.key]: v }));
+              }
+            }}
+            placeholder={fieldDef.placeholder}
+            disabled={loading}
+            autoFocus={index === 0}
+            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            icon={fieldDef.icon}
+            inputMode={fieldDef.inputMode}
+            maxLength={fieldDef.maxLength}
+            className={fieldDef.className || ''}
+          />
+        );
+      })}
+
+      {/* Error display */}
+      {error && <ErrorDisplay message={error} />}
+
+      {/* Terms checkbox */}
+      {showTerms && termsRequired && (
+        <label className="flex items-start gap-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={termsAccepted}
+            onChange={(e) => setTermsAccepted(e.target.checked)}
+            className="mt-0.5"
+            style={{ accentColor: design.accentColor }}
+          />
+          <span style={{ color: getMutedTextColor(design) }}>
+            I agree to the{' '}
+            <span style={{ color: design.accentColor }} className="font-medium underline cursor-pointer">
+              Terms & Conditions
+            </span>
+          </span>
+        </label>
+      )}
+
+      {/* Submit button */}
+      <DynamicButton
+        design={design}
+        onClick={handleSubmit}
+        disabled={termsRequired && !termsAccepted}
+        loading={loading}
+      >
+        <>
+          <Wifi className="w-5 h-5" />
+          {isSmsOtp ? 'Send Verification Code' : isOpenAccess ? 'Connect Now' : 'Connect'}
         </>
       </DynamicButton>
     </div>
@@ -780,7 +1174,6 @@ function HotelInfoBlock({ design, dark }: { design: PortalDesignConfig; dark: bo
 function AmenitiesBlock({ design, dark }: { design: PortalDesignConfig; dark: boolean }) {
   if (!design.showAmenities || design.amenities.length === 0) return null;
   const iconColor = dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)';
-  const badgeBg = dark ? 'bg-white/12 text-white/90 backdrop-blur-sm' : 'bg-black/5 text-gray-700';
 
   return (
     <div className="flex flex-wrap gap-1.5 justify-center">
@@ -892,7 +1285,6 @@ function PortalLogo({ design, size = 'large' }: { design: PortalDesignConfig; si
         'inline-flex items-center justify-center mx-auto',
         containerClasses,
         dark ? 'bg-white/15 backdrop-blur-sm' : 'bg-black/5',
-        dark && 'border border-white/20'
       )}
       style={dark ? { border: '1px solid rgba(255,255,255,0.2)' } : {}}
     >
@@ -982,6 +1374,7 @@ function PortalContent() {
         });
         const result = await res.json();
 
+        // SMS OTP first step: just sending phone, don't transition state
         if (method === 'sms_otp' && !payload.otpCode && result.success) return;
 
         if (result.success && result.data?.authenticated) {
@@ -1008,7 +1401,39 @@ function PortalContent() {
   const dark = isDarkBackground(design);
   const animCls = getAnimationClasses(design);
 
-  // ── Form field helpers ──
+  // ════════════════════════════════════════════════════════════
+  // KEY LOGIC: Determine which rendering mode to use
+  // ════════════════════════════════════════════════════════════
+
+  /**
+   * hasConfiguredFormFields: Checks if formFields has ANY auth-related
+   * field set to true. This determines whether we render the unified
+   * designer-driven form or fall back to the tab-based approach.
+   *
+   * The keys we check include ALL designer field keys plus backward-compat
+   * keys (termsCheckbox, voucherCode).
+   */
+  const hasConfiguredFormFields = (): boolean => {
+    if (!formFields || typeof formFields !== 'object') return false;
+    const designerKeys = [
+      'firstName', 'lastName', 'roomNumber', 'phone', 'email',
+      'passport', 'bookingId', 'username', 'password',
+      'terms', 'termsCheckbox', 'voucherCode',
+    ];
+    return designerKeys.some((key) => {
+      const val = formFields[key];
+      if (typeof val === 'boolean') return val;
+      if (typeof val === 'object' && val !== null) return (val as FormFieldConfig).visible ?? false;
+      return false;
+    });
+  };
+
+  const useUnifiedForm = hasConfiguredFormFields();
+  const effectiveAuthMethod = useUnifiedForm
+    ? (portalConfig?.authMethod || 'voucher')
+    : activeMethod;
+
+  // ── Form field helpers (for fallback mode) ──
   const isFieldVisible = (key: string): boolean => {
     if (!formFields) return false;
     const val = formFields[key];
@@ -1031,7 +1456,7 @@ function PortalContent() {
     return fallback;
   };
 
-  const hasVisibleFormFields = (): boolean => {
+  const hasVisibleGuestFields = (): boolean => {
     return ['firstName', 'lastName', 'email', 'phone'].some(isFieldVisible);
   };
 
@@ -1068,12 +1493,12 @@ function PortalContent() {
     );
   }
 
-  const isVoucherPrefill = codeParam && activeMethod === 'voucher';
+  const isVoucherPrefill = codeParam && effectiveAuthMethod === 'voucher';
   const canSubmit = !portalConfig?.termsRequired || termsAccepted;
 
-  // ── Guest info payload ──
+  // ── Guest info payload (fallback mode only) ──
   const buildGuestInfoPayload = (): Record<string, unknown> | undefined => {
-    if (!hasVisibleFormFields()) return undefined;
+    if (!hasVisibleGuestFields()) return undefined;
     const info: Record<string, string> = {};
     if (isFieldVisible('firstName') && guestInfo.firstName.trim()) info.firstName = guestInfo.firstName.trim();
     if (isFieldVisible('lastName') && guestInfo.lastName.trim()) info.lastName = guestInfo.lastName.trim();
@@ -1082,9 +1507,9 @@ function PortalContent() {
     return Object.keys(info).length > 0 ? info : undefined;
   };
 
-  // ── Render auth form by method ──
-  const renderAuthForm = () => {
-    switch (activeMethod) {
+  // ── Render auth form by method (FALLBACK MODE) ──
+  const renderFallbackAuthForm = () => {
+    switch (effectiveAuthMethod) {
       case 'voucher':
         return (
           <VoucherForm
@@ -1151,8 +1576,9 @@ function PortalContent() {
     }
   };
 
-  // ── Method selector tabs ──
+  // ── Method selector tabs (FALLBACK MODE only) ──
   const renderMethodTabs = () => {
+    if (useUnifiedForm) return null; // No tabs in unified mode
     if (authMethods.length <= 1) return null;
     return (
       <div className="flex gap-1 p-1 rounded-xl mb-1" role="tablist" aria-label="Authentication methods"
@@ -1161,7 +1587,7 @@ function PortalContent() {
           <button
             key={am.method}
             role="tab"
-            aria-selected={activeMethod === am.method}
+            aria-selected={effectiveAuthMethod === am.method}
             onClick={() => {
               setSelectedMethod(am.method);
               setState('auth_form');
@@ -1170,7 +1596,7 @@ function PortalContent() {
             }}
             className={cn(
               'flex-1 text-sm font-medium py-2.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1.5 min-w-0',
-              activeMethod === am.method
+              effectiveAuthMethod === am.method
                 ? (dark ? 'bg-white/20 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm')
                 : (dark ? 'text-white/60 hover:text-white/80' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50')
             )}
@@ -1184,10 +1610,10 @@ function PortalContent() {
     );
   };
 
-  // ── Guest info fields section ──
+  // ── Guest info fields section (FALLBACK MODE only) ──
   const renderGuestInfoFields = () => {
-    if (!hasVisibleFormFields()) return null;
-    const labelColor = getCardTextColor(design);
+    if (useUnifiedForm) return null; // Guest fields are part of the unified form
+    if (!hasVisibleGuestFields()) return null;
 
     return (
       <div className="space-y-3 mb-4 pb-4" style={{ borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'}` }}>
@@ -1256,9 +1682,33 @@ function PortalContent() {
       return <SuccessScreen authResult={authResult} design={design} />;
     }
 
+    if (useUnifiedForm && formFields) {
+      // ══════════════════════════════════════════════════════════
+      // UNIFIED DESIGNER FORM — matches PortalPreviewContent
+      // ══════════════════════════════════════════════════════════
+      return (
+        <>
+          {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
+          <UnifiedDesignerForm
+            design={design}
+            formFields={formFields}
+            authMethod={effectiveAuthMethod}
+            codeParam={codeParam}
+            authenticate={authenticate}
+            loading={state === 'authenticating'}
+            termsRequired={portalConfig?.termsRequired ?? false}
+            termsAccepted={termsAccepted}
+            setTermsAccepted={setTermsAccepted}
+          />
+        </>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // FALLBACK MODE — tabs + hardcoded forms
+    // ══════════════════════════════════════════════════════════
     return (
       <>
-        {/* Error display */}
         {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
 
         {/* Auth Method Tabs */}
@@ -1270,10 +1720,10 @@ function PortalContent() {
           style={{ opacity: canSubmit ? 1 : 0.5, pointerEvents: canSubmit ? 'auto' : 'none' }}
         >
           {renderGuestInfoFields()}
-          {renderAuthForm()}
+          {renderFallbackAuthForm()}
         </div>
 
-        {/* Terms checkbox */}
+        {/* Terms checkbox (fallback mode, when terms not in formFields) */}
         {portalConfig?.termsRequired && (
           <label className="flex items-start gap-2 text-sm cursor-pointer">
             <input
