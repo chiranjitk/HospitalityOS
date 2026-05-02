@@ -783,7 +783,7 @@ async function provisionOrResumeUser(
   }
 ) {
   try {
-    await wifiUserService.provisionUser(params);
+    await wifiUserService.provisionUser({ ...params, validFrom: now, validUntil });
   } catch (provisionErr) {
     console.error('[Guest Auth] RADIUS provisioning failed:', provisionErr);
     try {
