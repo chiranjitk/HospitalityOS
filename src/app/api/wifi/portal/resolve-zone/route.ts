@@ -157,6 +157,7 @@ async function buildPortalConfig(portalId: string) {
       buttonSize: (designSettings.buttonSize as string) || 'medium',
       cardShadow: (designSettings.cardShadow as string) || 'medium',
       animationType: (designSettings.animationType as string) || 'fade',
+      logoSize: (designSettings.logoSize as string) || 'large',
       welcomeMessage: (designSettings.welcomeMessage as string) || '',
       hotelName: (designSettings.hotelName as string) || '',
       hotelAddress: (designSettings.hotelAddress as string) || '',

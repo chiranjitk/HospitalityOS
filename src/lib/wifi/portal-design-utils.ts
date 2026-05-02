@@ -106,6 +106,7 @@ export interface PortalDesignConfig {
   buttonSize: string;
   cardShadow: string;
   animationType: string;
+  logoSize: string;
   welcomeMessage: string;
   hotelName: string;
   hotelAddress: string;
@@ -148,6 +149,7 @@ export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
   buttonSize: 'medium',
   cardShadow: 'medium',
   animationType: 'fade',
+  logoSize: 'large',
   welcomeMessage: 'Enjoy your stay',
   hotelName: '',
   hotelAddress: '',

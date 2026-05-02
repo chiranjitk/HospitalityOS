@@ -1264,10 +1264,12 @@ function SocialLinksBlock({ design }: { design: PortalDesignConfig }) {
 // Logo Component
 // ────────────────────────────────────────────────────────────
 
-function PortalLogo({ design, size = 'large' }: { design: PortalDesignConfig; size?: 'large' | 'medium' | 'small' }) {
+function PortalLogo({ design, size }: { design: PortalDesignConfig; size?: 'large' | 'medium' | 'small' }) {
   const dark = isDarkBackground(design);
-  const sizeClasses = size === 'large' ? 'h-16 mb-4' : size === 'medium' ? 'h-12' : 'h-10';
-  const containerClasses = size === 'large' ? 'w-16 h-16 rounded-2xl mb-4' : size === 'medium' ? 'w-12 h-12 rounded-xl' : 'w-10 h-10 rounded-xl';
+  const sz = size || (design.logoSize as 'large' | 'medium' | 'small') || 'large';
+  const sizeClasses = sz === 'large' ? 'h-[72px] mb-4' : sz === 'medium' ? 'h-[56px]' : 'h-[40px]';
+  const containerClasses = sz === 'large' ? 'w-[72px] h-[72px] rounded-2xl mb-4' : sz === 'medium' ? 'w-[56px] h-[56px] rounded-xl' : 'w-[40px] h-[40px] rounded-xl';
+  const iconSize = sz === 'large' ? 'w-8 h-8' : sz === 'medium' ? 'w-6 h-6' : 'w-5 h-5';
 
   if (design.logoUrl) {
     return (
@@ -1288,7 +1290,7 @@ function PortalLogo({ design, size = 'large' }: { design: PortalDesignConfig; si
       )}
       style={dark ? { border: '1px solid rgba(255,255,255,0.2)' } : {}}
     >
-      <Wifi className={size === 'large' ? 'w-8 h-8' : size === 'medium' ? 'w-6 h-6' : 'w-5 h-5'} style={{ color: dark ? '#ffffff' : design.accentColor }} />
+      <Wifi className={iconSize} style={{ color: dark ? '#ffffff' : design.accentColor }} />
     </div>
   );
 }

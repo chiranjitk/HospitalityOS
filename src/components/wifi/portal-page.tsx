@@ -173,6 +173,7 @@ interface DesignSettings {
   buttonSize: 'small' | 'medium' | 'large';
   cardShadow: 'none' | 'small' | 'medium' | 'large';
   animationType: 'none' | 'fade' | 'slide_up' | 'zoom';
+  logoSize: 'small' | 'medium' | 'large';
   welcomeMessage: string;
   hotelName: string;
   hotelAddress: string;
@@ -195,7 +196,7 @@ const DEFAULT_SETTINGS: DesignSettings = {
   gradientFrom: '#0f766e', gradientTo: '#134e4a', gradientAngle: 135,
   backgroundOverlay: 40, fontFamily: 'Inter', headingFontFamily: 'Inter',
   formStyle: 'rounded', inputStyle: 'rounded', buttonStyle: 'filled',
-  buttonSize: 'medium', cardShadow: 'medium', animationType: 'fade',
+  buttonSize: 'medium', cardShadow: 'medium', animationType: 'fade', logoSize: 'large',
   welcomeMessage: 'Enjoy your stay with us',
   hotelName: 'StaySuite Hotel', hotelAddress: '123 Hospitality Ave', hotelPhone: '+1-555-0100', hotelWebsite: 'www.staysuite.com',
   showHotelInfo: false,
@@ -1563,6 +1564,18 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                           </div>
                         </div>
                       </div>
+                      {/* Logo Size */}
+                      <div className="space-y-2">
+                        <Label className="text-xs">Logo Size</Label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {([['small', 'Small (40px)'], ['medium', 'Medium (56px)'], ['large', 'Large (72px)']] as const).map(([v, l]) => (
+                            <button key={v} onClick={() => updateSettings({ logoSize: v })}
+                              className={cn('p-2 rounded-lg border-2 text-xs font-medium transition-all text-center',
+                                design.settings.logoSize === v ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border hover:border-teal-300'
+                              )}>{l}</button>
+                          ))}
+                        </div>
+                      </div>
                       <div className="space-y-2"><Label className="text-xs">Welcome Message</Label><Textarea value={design.settings.welcomeMessage} onChange={(e) => updateSettings({ welcomeMessage: e.target.value })} className="text-xs" rows={2} /></div>
                       <div className="flex items-center justify-between">
                         <Label className="text-xs">Show Clock</Label>
@@ -1726,13 +1739,16 @@ function PortalPreviewContent({ design, visibleFields }: { design: PortalPageDes
       )}
 
       {/* Logo */}
-      {design.logoUrl ? (
-        <img src={design.logoUrl} alt="Logo" className="w-12 h-12 rounded-xl object-cover bg-white/20 shadow-lg" />
-      ) : (
-        <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center', isGlass ? 'bg-white/10' : 'bg-white/20')}>
-          <Building className="h-5 w-5 opacity-70" />
-        </div>
-      )}
+      {(() => {
+        const logoPx = s.logoSize === 'small' ? 'w-8 h-8' : s.logoSize === 'medium' ? 'w-10 h-10' : 'w-12 h-12';
+        return design.logoUrl ? (
+          <img src={design.logoUrl} alt="Logo" className={cn(logoPx, 'rounded-xl object-cover bg-white/20 shadow-lg')} />
+        ) : (
+          <div className={cn(logoPx, 'rounded-xl flex items-center justify-center', isGlass ? 'bg-white/10' : 'bg-white/20')}>
+            <Building className={cn(s.logoSize === 'small' ? 'h-3 w-3' : s.logoSize === 'medium' ? 'h-4 w-4' : 'h-5 w-5', 'opacity-70')} />
+          </div>
+        );
+      })()}
 
       {/* Title & Subtitle */}
       <div className="text-center">
