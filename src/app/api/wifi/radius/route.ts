@@ -2211,11 +2211,169 @@ export async function POST(request: NextRequest) {
       }
 
       case 'create-user': {
-        const result = await freeradiusRequest('/api/users', {
-          method: 'POST',
-          body: JSON.stringify(data),
-        });
-        return NextResponse.json(result);
+        // ─── Direct DB creation — does NOT depend on freeradius-service ────
+        try {
+          const { username, password, userType, planId, ipPoolId, group, downloadSpeed, uploadSpeed, sessionTimeout, dataLimit, validUntil } = data;
+
+          if (!username || !username.trim()) {
+            return NextResponse.json({ success: false, error: 'Username is required' }, { status: 400 });
+          }
+          if (!password || !password.trim()) {
+            return NextResponse.json({ success: false, error: 'Password is required' }, { status: 400 });
+          }
+
+          // Check for duplicate username
+          const existingUser = await db.wiFiUser.findUnique({ where: { username: username.trim() } });
+          if (existingUser) {
+            return NextResponse.json({ success: false, error: `Username "${username}" already exists` }, { status: 409 });
+          }
+
+          // Resolve propertyId — use tenant's first property as default
+          const tenantProperties = await db.property.findMany({
+            where: { tenantId: context.tenantId },
+            select: { id: true },
+            take: 1,
+          });
+          const propertyId = tenantProperties[0]?.id;
+          if (!propertyId) {
+            return NextResponse.json({ success: false, error: 'No property found for this tenant. Create a property first.' }, { status: 400 });
+          }
+
+          // Resolve plan details (if plan selected)
+          let effectivePlan: { name: string; downloadSpeed: number; uploadSpeed: number } | null = null;
+          if (planId) {
+            try {
+              effectivePlan = await db.wiFiPlan.findUnique({
+                where: { id: planId },
+                select: { name: true, downloadSpeed: true, uploadSpeed: true },
+              });
+            } catch {
+              console.warn('[create-user] Plan lookup failed, using form values');
+            }
+          }
+
+          const validFromDate = new Date();
+          const validUntilDate = validUntil ? new Date(validUntil) : new Date(Date.now() + (sessionTimeout || 1440) * 60 * 1000);
+
+          // Create WiFiUser + RADIUS records in transaction
+          const wifiUser = await db.$transaction(async (tx) => {
+            // 1. Create WiFiUser
+            const user = await tx.wiFiUser.create({
+              data: {
+                tenantId: context.tenantId,
+                propertyId,
+                username: username.trim(),
+                password: password.trim(),
+                userType: userType || 'guest',
+                planId: planId || null,
+                ipPoolId: (ipPoolId && ipPoolId !== 'none') ? ipPoolId : null,
+                validFrom: validFromDate,
+                validUntil: validUntilDate,
+                status: 'active',
+                radiusSynced: true,
+                radiusSyncedAt: new Date(),
+              },
+            });
+
+            // 2. Create radcheck — Cleartext-Password
+            await tx.radCheck.create({
+              data: {
+                wifiUserId: user.id,
+                username: user.username,
+                attribute: 'Cleartext-Password',
+                op: ':=',
+                value: password.trim(),
+                isActive: true,
+              },
+            });
+
+            // 3. Create radreply — Bandwidth
+            const dlMbps = downloadSpeed ?? effectivePlan?.downloadSpeed ?? 10;
+            const ulMbps = uploadSpeed ?? effectivePlan?.uploadSpeed ?? 5;
+            const dlBps = dlMbps * 1000000;
+            const ulBps = ulMbps * 1000000;
+
+            await tx.radReply.create({
+              data: {
+                wifiUserId: user.id,
+                username: user.username,
+                attribute: 'WISPr-Bandwidth-Max-Down',
+                op: ':=',
+                value: String(dlBps),
+              },
+            });
+            await tx.radReply.create({
+              data: {
+                wifiUserId: user.id,
+                username: user.username,
+                attribute: 'WISPr-Bandwidth-Max-Up',
+                op: ':=',
+                value: String(ulBps),
+              },
+            });
+
+            // 4. Create radreply — Session-Timeout (seconds)
+            const timeoutSec = (sessionTimeout || 1440) * 60;
+            if (timeoutSec > 0) {
+              await tx.radReply.create({
+                data: {
+                  wifiUserId: user.id,
+                  username: user.username,
+                  attribute: 'Session-Timeout',
+                  op: ':=',
+                  value: String(timeoutSec),
+                },
+              });
+            }
+
+            // 5. Create radreply — Data limit (Framed-Filter-Id for reference)
+            if (dataLimit && dataLimit > 0) {
+              const limitBytes = dataLimit * 1024 * 1024;
+              await tx.radReply.create({
+                data: {
+                  wifiUserId: user.id,
+                  username: user.username,
+                  attribute: 'Framed-Filter-Id',
+                  op: ':=',
+                  value: String(limitBytes),
+                },
+              });
+            }
+
+            // 6. Create radusergroup — group/plan assignment
+            const effectiveGroup = group || (effectivePlan
+              ? `plan_${effectivePlan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}` || 'default'
+              : 'standard-guests');
+            await tx.radUserGroup.create({
+              data: {
+                username: user.username,
+                groupname: effectiveGroup,
+                priority: 0,
+              },
+            });
+
+            return user;
+          });
+
+          return NextResponse.json({
+            success: true,
+            data: {
+              id: wifiUser.id,
+              username: wifiUser.username,
+              password: wifiUser.password,
+              group: group || (effectivePlan
+                ? `plan_${effectivePlan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}` || 'default'
+                : 'standard-guests'),
+            },
+            message: `User "${username}" created successfully`,
+          });
+        } catch (createError) {
+          console.error('[create-user] Direct DB creation error:', createError);
+          return NextResponse.json(
+            { success: false, error: createError instanceof Error ? createError.message : 'Failed to create user' },
+            { status: 500 }
+          );
+        }
       }
 
       case 'update-user': {
@@ -2404,19 +2562,53 @@ export async function POST(request: NextRequest) {
         if (!userId) {
           return NextResponse.json({ success: false, error: 'User id is required' }, { status: 400 });
         }
-        // Resolve username before deleting for the log
-        const delUser = await db.wiFiUser.findUnique({ where: { id: userId }, select: { username: true, propertyId: true } }).catch(() => null);
-        const result = await freeradiusRequest(`/api/users/${userId}`, { method: 'DELETE' });
-        if (delUser) {
-          wifiUserService.logProvisioning({
-            action: 'deprovision',
-            username: delUser.username,
-            propertyId: delUser.propertyId,
-            result: result?.success ? 'success' : 'failed',
-            details: result?.success ? `Deleted WiFi user ${delUser.username}` : (result?.error || 'Failed to delete user'),
-          }).catch(() => {});
+        try {
+          // Resolve username before deleting for the log
+          const delUser = await db.wiFiUser.findUnique({
+            where: { id: userId },
+            select: { username: true, propertyId: true },
+          }).catch(() => null);
+
+          // Delete RADIUS records + WiFiUser in transaction
+          await db.$transaction(async (tx) => {
+            // Delete radcheck entries
+            if (delUser) {
+              await tx.radCheck.deleteMany({ where: { username: delUser.username } });
+              await tx.radReply.deleteMany({ where: { username: delUser.username } });
+              await tx.radUserGroup.deleteMany({ where: { username: delUser.username } });
+            }
+            await tx.wiFiUser.delete({ where: { id: userId } });
+          });
+
+          if (delUser) {
+            wifiUserService.logProvisioning({
+              action: 'deprovision',
+              username: delUser.username,
+              propertyId: delUser.propertyId,
+              result: 'success',
+              details: `Deleted WiFi user ${delUser.username}`,
+            }).catch(() => {});
+          }
+
+          return NextResponse.json({ success: true, message: `User deleted successfully` });
+        } catch (deleteError) {
+          console.error('[delete-user] Direct DB deletion error:', deleteError);
+          // Fallback: try to log the failure
+          const delUser = await db.wiFiUser.findUnique({ where: { id: userId }, select: { username: true, propertyId: true } }).catch(() => null);
+          if (delUser) {
+            wifiUserService.logProvisioning({
+              action: 'deprovision',
+              username: delUser.username,
+              propertyId: delUser.propertyId,
+              result: 'failed',
+              details: deleteError instanceof Error ? deleteError.message : 'Failed to delete user',
+            }).catch(() => {});
+          }
+          return NextResponse.json(
+            { success: false, error: deleteError instanceof Error ? deleteError.message : 'Failed to delete user' },
+            { status: 500 }
+          );
         }
-        return NextResponse.json(result);
       }
 
       case 'provision': {
