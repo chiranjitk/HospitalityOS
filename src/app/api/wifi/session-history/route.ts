@@ -328,7 +328,8 @@ export async function GET(request: NextRequest) {
                room_number, room_name, room_floor,
                property_name, plan_name,
                downloadSpeed, uploadSpeed, dataLimit,
-               wifi_user_status, wifi_mac, session_status
+               wifi_user_status, wifi_mac, session_status,
+               "sessionTimeoutSec", "idleTimeoutSec"
         FROM v_session_history ${whereClause}
         ORDER BY acctstarttime DESC
         LIMIT $${params.length + 1} OFFSET $${params.length + 2}

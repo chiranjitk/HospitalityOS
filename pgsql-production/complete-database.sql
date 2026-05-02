@@ -290,6 +290,8 @@ CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS
     wp."uploadSpeed" AS plan_upload_speed,
     wp."dataLimit" AS datalimit,
     wp."dataLimit" AS plan_data_limit,
+    wp."sessionTimeoutSec",
+    wp."idleTimeoutSec",
     COALESCE(b."confirmationCode", ''::text) AS booking_code,
     COALESCE(b.status, ''::text) AS booking_status,
     COALESCE(s.id::text, r.acctuniqueid) AS acctuniqueid,
@@ -452,7 +454,10 @@ CREATE VIEW v_active_sessions AS  SELECT session_id,
     "loginType",
     "userAgent",
     "dp_macAddress",
-    "dp_authCount"
+    "dp_authCount",
+    -- Timeout columns from WiFiPlan
+    "sessionTimeoutSec",
+    "idleTimeoutSec"
    FROM v_session_history
   WHERE session_status = 'active'::text;;
 

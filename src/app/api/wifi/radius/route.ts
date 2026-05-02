@@ -678,6 +678,8 @@ export async function GET(request: NextRequest) {
             userAgent: string | null;
             dp_macAddress: string | null;
             dp_authCount: number | null;
+            sessionTimeoutSec: number | null;
+            idleTimeoutSec: number | null;
           }[]>(`
             SELECT DISTINCT ON (acctuniqueid)
                    acctuniqueid, acctsessionid, username, framedipaddress,
@@ -687,7 +689,8 @@ export async function GET(request: NextRequest) {
                    guest_first_name, guest_last_name, room_number,
                    property_name, plan_name, downloadspeed, uploadspeed,
                    "loginType", "deviceName", "deviceType", "userAgent",
-                   "dp_macAddress", "dp_authCount"
+                   "dp_macAddress", "dp_authCount",
+                   "sessionTimeoutSec", "idleTimeoutSec"
             FROM v_active_sessions ${whereClause}
             ORDER BY acctuniqueid, acctstarttime DESC
           `, ...sqlParams);
@@ -744,8 +747,8 @@ export async function GET(request: NextRequest) {
               status: 'active' as const,
               startedAt: s.acctstarttime || '',
               lastSeenAt: s.acctupdatetime || '',
-              sessionTimeout: null,
-              idleTimeout: null,
+              sessionTimeout: s.sessionTimeoutSec,
+              idleTimeout: s.idleTimeoutSec,
               planName: s.plan_name || '',
               roomId: s.room_number || '',
               // Enriched fields from view

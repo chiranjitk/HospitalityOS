@@ -6565,9 +6565,11 @@ model WiFiPlan {
   description   String?
   downloadSpeed Int
   uploadSpeed   Int
-  dataLimit     Int?
-  sessionLimit  Int?
-  maxDevices    Int               @default(1)
+  dataLimit          Int?
+  sessionLimit       Int?
+  sessionTimeoutSec  Int?
+  idleTimeoutSec     Int?
+  maxDevices         Int               @default(1)
   fupPolicyId   String?           @db.Uuid
   ipPoolId      String?           @db.Uuid
   price         Float             @default(0)

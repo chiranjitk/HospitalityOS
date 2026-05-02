@@ -90,6 +90,8 @@ interface AccountingSession {
   nasporttype: string | null;
   connectinfo_start: string | null;
   connectinfo_stop: string | null;
+  sessionTimeoutSec?: number | null;
+  idleTimeoutSec?: number | null;
 }
 
 interface SessionSummary {
@@ -767,6 +769,8 @@ export default function SessionHistory() {
                   </div>
                   <div><p className="text-xs text-muted-foreground">Duration</p><div className="flex items-center gap-1.5 mt-0.5"><Clock className="h-3.5 w-3.5 text-muted-foreground" /><p className="text-sm font-medium">{formatDuration(selectedSession.acctsessiontime)}</p></div></div>
                   <div><p className="text-xs text-muted-foreground">Terminate Cause</p><div className="mt-1">{getTerminateBadge(selectedSession.acctterminatecause)}</div></div>
+                  <div><p className="text-xs text-muted-foreground">Session Timeout</p><p className="text-sm">{selectedSession.sessionTimeoutSec ? formatDuration(selectedSession.sessionTimeoutSec) : '—'}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Idle Timeout</p><p className="text-sm">{selectedSession.idleTimeoutSec ? formatDuration(selectedSession.idleTimeoutSec) : '—'}</p></div>
                 </div>
               </div>
               <div className="border-t pt-4">
