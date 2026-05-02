@@ -460,45 +460,61 @@ export async function seedWiFiData() {
   console.log('✓ RadCheck records seeded');
 
   // RadReply — authorization attributes (bandwidth, data limits)
+  // Uses Cryptsk VSA attributes (Vendor ID 64179) — device IS the NAS gateway.
+  // WISPr attrs kept for cross-platform compatibility (RFC 5416).
   await prisma.radReply.createMany({
     data: [
       // guest.amit.mukherjee — Premium (50Mbps/25Mbps)
       { wifiUserId: uuid('wifiuser-1'), username: 'guest.amit.mukherjee', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '50000000', isActive: true },
       { wifiUserId: uuid('wifiuser-1'), username: 'guest.amit.mukherjee', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '25000000', isActive: true },
-      { wifiUserId: uuid('wifiuser-1'), username: 'guest.amit.mukherjee', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '50M/25M', isActive: true },
-      { wifiUserId: uuid('wifiuser-1'), username: 'guest.amit.mukherjee', attribute: 'Mikrotik-Total-Limit', op: ':=', value: '16106127360', isActive: true },
+      { wifiUserId: uuid('wifiuser-1'), username: 'guest.amit.mukherjee', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '50M/25M', isActive: true },
+      { wifiUserId: uuid('wifiuser-1'), username: 'guest.amit.mukherjee', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '50000000', isActive: true },
+      { wifiUserId: uuid('wifiuser-1'), username: 'guest.amit.mukherjee', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '25000000', isActive: true },
+      { wifiUserId: uuid('wifiuser-1'), username: 'guest.amit.mukherjee', attribute: 'Cryptsk-Total-Limit', op: ':=', value: '16106127360', isActive: true },
 
       // guest.rahul.banerjee — VIP (100Mbps/50Mbps, unlimited data)
       { wifiUserId: uuid('wifiuser-2'), username: 'guest.rahul.banerjee', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '100000000', isActive: true },
       { wifiUserId: uuid('wifiuser-2'), username: 'guest.rahul.banerjee', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '50000000', isActive: true },
-      { wifiUserId: uuid('wifiuser-2'), username: 'guest.rahul.banerjee', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '100M/50M', isActive: true },
+      { wifiUserId: uuid('wifiuser-2'), username: 'guest.rahul.banerjee', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '100M/50M', isActive: true },
+      { wifiUserId: uuid('wifiuser-2'), username: 'guest.rahul.banerjee', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '100000000', isActive: true },
+      { wifiUserId: uuid('wifiuser-2'), username: 'guest.rahul.banerjee', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '50000000', isActive: true },
 
       // guest.sneha.gupta — Standard (25Mbps/10Mbps)
       { wifiUserId: uuid('wifiuser-3'), username: 'guest.sneha.gupta', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '25000000', isActive: true },
       { wifiUserId: uuid('wifiuser-3'), username: 'guest.sneha.gupta', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '10000000', isActive: true },
-      { wifiUserId: uuid('wifiuser-3'), username: 'guest.sneha.gupta', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '25M/10M', isActive: true },
-      { wifiUserId: uuid('wifiuser-3'), username: 'guest.sneha.gupta', attribute: 'Mikrotik-Total-Limit', op: ':=', value: '5368709120', isActive: true },
+      { wifiUserId: uuid('wifiuser-3'), username: 'guest.sneha.gupta', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '25M/10M', isActive: true },
+      { wifiUserId: uuid('wifiuser-3'), username: 'guest.sneha.gupta', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '25000000', isActive: true },
+      { wifiUserId: uuid('wifiuser-3'), username: 'guest.sneha.gupta', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '10000000', isActive: true },
+      { wifiUserId: uuid('wifiuser-3'), username: 'guest.sneha.gupta', attribute: 'Cryptsk-Total-Limit', op: ':=', value: '5368709120', isActive: true },
 
       // guest.vikram.singh — VIP (100Mbps/50Mbps)
       { wifiUserId: uuid('wifiuser-4'), username: 'guest.vikram.singh', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '100000000', isActive: true },
       { wifiUserId: uuid('wifiuser-4'), username: 'guest.vikram.singh', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '50000000', isActive: true },
-      { wifiUserId: uuid('wifiuser-4'), username: 'guest.vikram.singh', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '100M/50M', isActive: true },
+      { wifiUserId: uuid('wifiuser-4'), username: 'guest.vikram.singh', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '100M/50M', isActive: true },
+      { wifiUserId: uuid('wifiuser-4'), username: 'guest.vikram.singh', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '100000000', isActive: true },
+      { wifiUserId: uuid('wifiuser-4'), username: 'guest.vikram.singh', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '50000000', isActive: true },
 
       // staff.priya.das — Premium (50Mbps/25Mbps)
       { wifiUserId: uuid('wifiuser-5'), username: 'staff.priya.das', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '50000000', isActive: true },
       { wifiUserId: uuid('wifiuser-5'), username: 'staff.priya.das', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '25000000', isActive: true },
-      { wifiUserId: uuid('wifiuser-5'), username: 'staff.priya.das', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '50M/25M', isActive: true },
+      { wifiUserId: uuid('wifiuser-5'), username: 'staff.priya.das', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '50M/25M', isActive: true },
+      { wifiUserId: uuid('wifiuser-5'), username: 'staff.priya.das', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '50000000', isActive: true },
+      { wifiUserId: uuid('wifiuser-5'), username: 'staff.priya.das', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '25000000', isActive: true },
 
       // staff.anita.roy — Standard (25Mbps/10Mbps)
       { wifiUserId: uuid('wifiuser-6'), username: 'staff.anita.roy', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '25000000', isActive: true },
       { wifiUserId: uuid('wifiuser-6'), username: 'staff.anita.roy', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '10000000', isActive: true },
-      { wifiUserId: uuid('wifiuser-6'), username: 'staff.anita.roy', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '25M/10M', isActive: true },
+      { wifiUserId: uuid('wifiuser-6'), username: 'staff.anita.roy', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '25M/10M', isActive: true },
+      { wifiUserId: uuid('wifiuser-6'), username: 'staff.anita.roy', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '25000000', isActive: true },
+      { wifiUserId: uuid('wifiuser-6'), username: 'staff.anita.roy', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '10000000', isActive: true },
 
       // conference.room1 — Conference (30Mbps/15Mbps)
       { wifiUserId: uuid('wifiuser-8'), username: 'conference.room1', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '30000000', isActive: true },
       { wifiUserId: uuid('wifiuser-8'), username: 'conference.room1', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '15000000', isActive: true },
-      { wifiUserId: uuid('wifiuser-8'), username: 'conference.room1', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '30M/15M', isActive: true },
-      { wifiUserId: uuid('wifiuser-8'), username: 'conference.room1', attribute: 'Mikrotik-Total-Limit', op: ':=', value: '10737418240', isActive: true },
+      { wifiUserId: uuid('wifiuser-8'), username: 'conference.room1', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '30M/15M', isActive: true },
+      { wifiUserId: uuid('wifiuser-8'), username: 'conference.room1', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '30000000', isActive: true },
+      { wifiUserId: uuid('wifiuser-8'), username: 'conference.room1', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '15000000', isActive: true },
+      { wifiUserId: uuid('wifiuser-8'), username: 'conference.room1', attribute: 'Cryptsk-Total-Limit', op: ':=', value: '10737418240', isActive: true },
     ],
   });
   console.log('✓ RadReply records seeded');
@@ -517,54 +533,68 @@ export async function seedWiFiData() {
   });
   console.log('✓ RadUserGroup records seeded');
 
-  // RadGroupCheck — group-level authentication checks (bandwidth limits, session limits)
+  // RadGroupCheck — group-level authentication checks (Cryptsk VSA bandwidth + session limits)
+  // Uses Cryptsk VSA attributes (Vendor ID 64179) — device IS the NAS gateway.
   await prisma.radGroupCheck.createMany({
     data: [
-      // free_plan group
-      { groupname: 'free_plan', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '5M/2M', priority: 0 },
-      { groupname: 'free_plan', attribute: 'Session-Timeout', op: ':=', value: '86400', priority: 1 },
-      // basic_plan group
-      { groupname: 'basic_plan', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '10M/5M', priority: 0 },
-      { groupname: 'basic_plan', attribute: 'Mikrotik-Total-Limit', op: ':=', value: '2147483648', priority: 1 },
-      { groupname: 'basic_plan', attribute: 'Session-Timeout', op: ':=', value: '86400', priority: 2 },
-      // standard_plan group
-      { groupname: 'standard_plan', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '25M/10M', priority: 0 },
-      { groupname: 'standard_plan', attribute: 'Mikrotik-Total-Limit', op: ':=', value: '5368709120', priority: 1 },
-      { groupname: 'standard_plan', attribute: 'Session-Timeout', op: ':=', value: '259200', priority: 2 },
-      // premium_plan group
-      { groupname: 'premium_plan', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '50M/25M', priority: 0 },
-      { groupname: 'premium_plan', attribute: 'Mikrotik-Total-Limit', op: ':=', value: '16106127360', priority: 1 },
-      { groupname: 'premium_plan', attribute: 'Session-Timeout', op: ':=', value: '432000', priority: 2 },
-      // vip_suite_plan group
-      { groupname: 'vip_suite_plan', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '100M/50M', priority: 0 },
-      { groupname: 'vip_suite_plan', attribute: 'Session-Timeout', op: ':=', value: '604800', priority: 1 },
-      // conference_plan group
-      { groupname: 'conference_plan', attribute: 'Mikrotik-Rate-Limit', op: ':=', value: '30M/15M', priority: 0 },
-      { groupname: 'conference_plan', attribute: 'Mikrotik-Total-Limit', op: ':=', value: '10737418240', priority: 1 },
-      { groupname: 'conference_plan', attribute: 'Simultaneous-Use', op: ':=', value: '25', priority: 2 },
+      // free_plan group: 5M/2M
+      { groupname: 'free_plan', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '5M/2M', priority: 0 },
+      { groupname: 'free_plan', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '5000000', priority: 1 },
+      { groupname: 'free_plan', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '2000000', priority: 2 },
+      { groupname: 'free_plan', attribute: 'Session-Timeout', op: ':=', value: '86400', priority: 3 },
+      // basic_plan group: 10M/5M, 2GB data limit
+      { groupname: 'basic_plan', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '10M/5M', priority: 0 },
+      { groupname: 'basic_plan', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '10000000', priority: 1 },
+      { groupname: 'basic_plan', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '5000000', priority: 2 },
+      { groupname: 'basic_plan', attribute: 'Cryptsk-Total-Limit', op: ':=', value: '2147483648', priority: 3 },
+      { groupname: 'basic_plan', attribute: 'Session-Timeout', op: ':=', value: '86400', priority: 4 },
+      // standard_plan group: 25M/10M, 5GB data limit
+      { groupname: 'standard_plan', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '25M/10M', priority: 0 },
+      { groupname: 'standard_plan', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '25000000', priority: 1 },
+      { groupname: 'standard_plan', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '10000000', priority: 2 },
+      { groupname: 'standard_plan', attribute: 'Cryptsk-Total-Limit', op: ':=', value: '5368709120', priority: 3 },
+      { groupname: 'standard_plan', attribute: 'Session-Timeout', op: ':=', value: '259200', priority: 4 },
+      // premium_plan group: 50M/25M, 15GB data limit
+      { groupname: 'premium_plan', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '50M/25M', priority: 0 },
+      { groupname: 'premium_plan', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '50000000', priority: 1 },
+      { groupname: 'premium_plan', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '25000000', priority: 2 },
+      { groupname: 'premium_plan', attribute: 'Cryptsk-Total-Limit', op: ':=', value: '16106127360', priority: 3 },
+      { groupname: 'premium_plan', attribute: 'Session-Timeout', op: ':=', value: '432000', priority: 4 },
+      // vip_suite_plan group: 100M/50M, unlimited data
+      { groupname: 'vip_suite_plan', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '100M/50M', priority: 0 },
+      { groupname: 'vip_suite_plan', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '100000000', priority: 1 },
+      { groupname: 'vip_suite_plan', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '50000000', priority: 2 },
+      { groupname: 'vip_suite_plan', attribute: 'Session-Timeout', op: ':=', value: '604800', priority: 3 },
+      // conference_plan group: 30M/15M, 10GB data limit, 25 sessions
+      { groupname: 'conference_plan', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '30M/15M', priority: 0 },
+      { groupname: 'conference_plan', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '30000000', priority: 1 },
+      { groupname: 'conference_plan', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '15000000', priority: 2 },
+      { groupname: 'conference_plan', attribute: 'Cryptsk-Total-Limit', op: ':=', value: '10737418240', priority: 3 },
+      { groupname: 'conference_plan', attribute: 'Simultaneous-Use', op: ':=', value: '25', priority: 4 },
     ],
   });
-  console.log('✓ RadGroupCheck records seeded (6 plan groups)');
+  console.log('✓ RadGroupCheck records seeded (6 plan groups with Cryptsk VSA)');
 
   // RadGroupReply — group-level reply attributes
+  // WISPr attrs kept for cross-platform compatibility; values in bps per RFC spec.
   await prisma.radGroupReply.createMany({
     data: [
-      // free_plan
+      // free_plan: 5Mbps/2Mbps
       { groupname: 'free_plan', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '5000000', priority: 0 },
       { groupname: 'free_plan', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '2000000', priority: 1 },
-      // basic_plan
+      // basic_plan: 10Mbps/5Mbps
       { groupname: 'basic_plan', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '10000000', priority: 0 },
       { groupname: 'basic_plan', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '5000000', priority: 1 },
-      // standard_plan
+      // standard_plan: 25Mbps/10Mbps
       { groupname: 'standard_plan', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '25000000', priority: 0 },
       { groupname: 'standard_plan', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '10000000', priority: 1 },
-      // premium_plan
+      // premium_plan: 50Mbps/25Mbps
       { groupname: 'premium_plan', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '50000000', priority: 0 },
       { groupname: 'premium_plan', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '25000000', priority: 1 },
-      // vip_suite_plan
+      // vip_suite_plan: 100Mbps/50Mbps
       { groupname: 'vip_suite_plan', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '100000000', priority: 0 },
       { groupname: 'vip_suite_plan', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '50000000', priority: 1 },
-      // conference_plan
+      // conference_plan: 30Mbps/15Mbps
       { groupname: 'conference_plan', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '30000000', priority: 0 },
       { groupname: 'conference_plan', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '15000000', priority: 1 },
     ],

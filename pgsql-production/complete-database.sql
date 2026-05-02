@@ -47,6 +47,13 @@
 --   [12] RadiusCoaLog + CoaSessionDetail added to Prisma schema (CoA audit)
 --       RadiusCoaLog: real CoA operation log (bandwidth, disconnect actions)
 --       CoaSessionDetail: detailed before/after per-session CoA audit
+--   [13] radacct.loginType column added (text, default 'portal')
+--       Tracks whether session was created via portal login or auto-reauth
+--   [14] v_session_history + v_active_sessions: added DeviceProfile LATERAL join
+--       New columns: loginType, userAgent, dp_macAddress, dp_authCount
+--       deviceName/deviceType now COALESCE DeviceProfile data over WiFiSession
+--   [15] radreply/radgroupcheck: replaced Mikrotik-* attrs with Cryptsk VSA attrs
+--       Cryptsk-Rate-Limit, Cryptsk-Total-Limit, Cryptsk-Bandwidth-Max-Down/Up
 -- ============================================================================
 
 SET client_encoding = 'UTF8';
@@ -127,6 +134,16 @@ CREATE INDEX IF NOT EXISTS idx_fup_switch_log_created_at ON fup_switch_log(creat
 -- ============================================================================
 DO $$
 BEGIN
+    -- radacct: add loginType column (portal | auto_reauth)
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'radacct') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'radacct' AND column_name = 'loginType'
+        ) THEN
+            ALTER TABLE radacct ADD COLUMN "loginType" text DEFAULT 'portal';
+        END IF;
+    END IF;
+
     -- Only attempt ALTER TABLE if the table exists
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'radpostauth') THEN
         IF NOT EXISTS (
@@ -212,8 +229,8 @@ CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS
     COALESCE(s."macAddress", r.callingstationid) AS wifi_mac,
     COALESCE(s."ipAddress", r.framedipaddress) AS "ipAddress",
     COALESCE(s."ipAddress", r.framedipaddress) AS framedipaddress,
-    s."deviceName",
-    s."deviceType",
+    COALESCE(dp."deviceName", s."deviceName") AS "deviceName",
+    COALESCE(dp."deviceType", s."deviceType") AS "deviceType",
     COALESCE(s."startTime", r.acctstarttime) AS acctstarttime,
     COALESCE(s."startTime", r.acctupdatetime) AS acctupdatetime,
     COALESCE(s."endTime", r.acctstoptime) AS acctstoptime,
@@ -283,7 +300,12 @@ CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS
     COALESCE(r.nasporttype, 'Wireless-802.11'::text) AS nasporttype,
     COALESCE(r.calledstationid, ''::text) AS calledstationid,
     r.connectinfo_start,
-    r.connectinfo_stop
+    r.connectinfo_stop,
+    -- DeviceProfile enrichment columns
+    COALESCE(r."loginType", 'portal') AS "loginType",
+    dp."userAgent" AS "userAgent",
+    dp."macAddress" AS "dp_macAddress",
+    COALESCE(dp."authCount", 0) AS "dp_authCount"
    FROM "WiFiSession" s
      FULL JOIN ( SELECT DISTINCT ON (radacct.username, radacct.acctsessionid) radacct.radacctid,
             radacct.acctsessionid,
@@ -320,7 +342,8 @@ CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS
             radacct.acctstatus,
             radacct."createdAt",
             radacct."updatedAt",
-            radacct.class
+            radacct.class,
+            radacct."loginType"
            FROM radacct
           ORDER BY radacct.username, radacct.acctsessionid, radacct.radacctid DESC) r ON s.id::text = r.acctuniqueid
      LEFT JOIN LATERAL ( SELECT "WiFiUser".id,
@@ -348,6 +371,16 @@ CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS
            FROM "WiFiUser"
           WHERE "WiFiUser".username = r.username OR r.username IS NULL AND "WiFiUser"."guestId" IS NOT NULL AND "WiFiUser"."guestId" = s."guestId"
          LIMIT 1) wu ON true
+     LEFT JOIN LATERAL ( SELECT "DeviceProfile"."deviceName",
+            "DeviceProfile"."deviceType",
+            "DeviceProfile"."macAddress",
+            "DeviceProfile"."userAgent",
+            "DeviceProfile"."authCount",
+            "DeviceProfile"."wifiUserId"
+           FROM "DeviceProfile"
+          WHERE "DeviceProfile"."wifiUserId" = wu.id AND "DeviceProfile"."isActive" = true
+         ORDER BY "DeviceProfile"."lastSeenAt" DESC
+         LIMIT 1) dp ON true
      LEFT JOIN "Guest" g ON COALESCE(wu."guestId", s."guestId") IS NOT NULL AND COALESCE(wu."guestId", s."guestId") = g.id
      LEFT JOIN "Booking" b ON COALESCE(wu."bookingId", s."bookingId") IS NOT NULL AND COALESCE(wu."bookingId", s."bookingId") = b.id
      LEFT JOIN "Room" rm ON b."roomId" = rm.id
@@ -414,7 +447,12 @@ CREATE VIEW v_active_sessions AS  SELECT session_id,
     nasporttype,
     calledstationid,
     connectinfo_start,
-    connectinfo_stop
+    connectinfo_stop,
+    -- DeviceProfile enrichment columns (from v_session_history)
+    "loginType",
+    "userAgent",
+    "dp_macAddress",
+    "dp_authCount"
    FROM v_session_history
   WHERE session_status = 'active'::text;;
 
