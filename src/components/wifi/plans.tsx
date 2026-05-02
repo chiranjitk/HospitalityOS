@@ -127,6 +127,15 @@ const parseBestUnit = (totalMinutes: number): string => {
   return 'minutes';
 };
 
+/** Convert total minutes back to a display value for the chosen unit */
+const convertMinutesToDisplay = (totalMinutes: number, unit: string): number => {
+  switch (unit) {
+    case 'days': return totalMinutes / 1440;
+    case 'hours': return totalMinutes / 60;
+    default: return totalMinutes;
+  }
+};
+
 export default function WifiPlans() {
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
@@ -418,6 +427,7 @@ export default function WifiPlans() {
 
   const openEditDialog = (plan: WiFiPlan) => {
     setSelectedPlan(plan);
+    const unit = parseBestUnit(plan.validityMinutes || plan.validityDays * 1440);
     setFormData({
       name: plan.name,
       description: plan.description || '',
@@ -431,8 +441,8 @@ export default function WifiPlans() {
       price: plan.price.toString(),
       currency: plan.currency,
       priority: plan.priority.toString(),
-      validityValue: plan.validityMinutes.toString(),
-      validityUnit: parseBestUnit(plan.validityMinutes),
+      validityValue: convertMinutesToDisplay(plan.validityMinutes || plan.validityDays * 1440, unit).toString(),
+      validityUnit: unit,
       status: plan.status,
       unlimitedData: !plan.dataLimit,
       unlimitedSession: !plan.sessionLimit,
