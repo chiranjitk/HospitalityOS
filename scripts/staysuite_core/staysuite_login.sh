@@ -1,28 +1,51 @@
 #!/bin/bash
 ###########################################################################
-#       Script : StaySuite User Login (nftables + HTB)
+#       Script : StaySuite User Login (nftables + HTB + fw filter)
 #       OS     : Rocky Linux 10 (nftables v1.1.1, kernel 5.x+)
 #       Reason : Single-user firewall + bandwidth activation
 #
-#  Flow:
+#  ARCHITECTURE:
+#    ┌──────────────────────────────────────────────────────────────┐
+#    │  nft mangle prerouting                                       │
+#    │    ip saddr $IP → meta mark set 0xIP_HEX                   │
+#    │    ip daddr $IP → meta mark set 0xIP_HEX                   │
+#    │    (mark persists through routing → available to TC)        │
+#    └──────────────┬───────────────────────────────────────────────┘
+#                   │
+#    ┌──────────────▼───────────────────────────────────────────────┐
+#    │  TC HTB on ifb0 (download) / ifb1 (upload)                  │
+#    │                                                              │
+#    │  1:1  (root, 10gbit — from initialization.sh)                │
+#    │  ├── 1:<pool_id>  (pool root: rate/ceil from BandwidthPool) │
+#    │  │   ├── 1:<dn_classid>  (user leaf, rate=plan down)        │
+#    │  │   └── ...                                                 │
+#    │  └── ... (other pools)                                       │
+#    │                                                              │
+#    │  filter parent 1: pref 100 fw handle 0xIP_HEX → classid    │
+#    │    (TC reads the nft mark set by prerouting)                 │
+#    └──────────────────────────────────────────────────────────────┘
+#
+#  FLOW:
 #    1. Validate parameters
-#    2. Check duplicate login (IP already in loggedinusers set)
-#    3. Add IP to nft "loggedinusers" set  → unblocks prerouting
-#    4. Insert NAT POSTROUTING rule         → accept / SNAT / masquerade
-#    5. Create HTB leaf class on ifb0/ifb1  → download/upload shaping
-#    6. Attach u32 filter to classify traffic by IP
-#    7. (Optional) Multi-gateway fwmark + ipset
+#    2. Check duplicate (IP in loggedinusers set)
+#    3. Add IP → loggedinusers nft set (unblocks traffic flow)
+#    4. Insert nft mark rules (IP → 0xIP_HEX in prerouting)
+#    5. Insert NAT POSTROUTING rule (masq/snat/accept)
+#    6. Ensure pool root class exists on ifb0/ifb1
+#    7. Create user leaf HTB class under pool root
+#    8. Add TC fw filter: mark 0xIP_HEX → user classid
+#    9. (Optional) Gateway ipset, security policy, heartbeat
+#   10. Save session state + backup nft elements
 #
 #  Called by: Next.js credential-engine / provisioning-service
 #  One invocation per user session.
 #
 #  EXIT CODES:
-#    0  Success
+#    0  Success (or already logged in — idempotent)
 #    1  Invalid parameters / usage error
-#    2  User already logged in
 #    3  nft rule failed
-#    4  tc (HTB / filter) failed
-#    5  Partial failure (some rules applied, rollback attempted)
+#    4  tc (HTB/filter) failed
+#    5  Partial failure (rollback attempted)
 ###########################################################################
 
 set -euo pipefail
@@ -32,32 +55,36 @@ LOGFILE="${LOGFILE:-/var/log/staysuite_login.log}"
 log_msg()  { echo "$(date '+%Y-%m-%d %H:%M:%S') [LOGIN] $*" >> "$LOGFILE" 2>/dev/null; }
 log_err()  { echo "$(date '+%Y-%m-%d %H:%M:%S') [LOGIN][ERR] $*" >> "$LOGFILE" 2>/dev/null; }
 
-# ─── State directory (runtime session state) ──────────────────────────
-STATEDIR="/var/run/staysuite/sessions"
-mkdir -p "$STATEDIR" 2>/dev/null
+# ─── State directories ───────────────────────────────────────────────
+STATEDIR="/var/run/staysuite/sessions"          # tmpfs — fast logout lookup
+PERSIST_STATEDIR="/var/lib/staysuite/sessions"  # persistent — survives reboot (for recovery)
+mkdir -p "$STATEDIR" "$PERSIST_STATEDIR" 2>/dev/null
 
 # ─── Defaults ─────────────────────────────────────────────────────────
 IP=""
-ACTION="masq"            # accept | snat | masq
+ACTION="masq"
 SNAT_IP=""
-DOWN_CLASSID=0
+POOL_ID=0
+POOL_RATE_DN=0
+POOL_CEIL_DN=0
+POOL_RATE_UP=0
+POOL_CEIL_UP=0
+DN_CLASSID=0
 UP_CLASSID=0
-DOWN_KBPS=0
+DN_KBPS=0
 UP_KBPS=0
-DOWN_GUARANTEED=0
-UP_GUARANTEED=0
-REST_TYPE=0
+DN_GUAR=0
+UP_GUAR=0
 GATEWAY_ID=""
 SESSION_ID=""
 MAC_ADDR=""
 USER_ID=""
 POLICY_ID=""
 MAP_LIVE=0
-PRIORITY=1
+FW_PREF=100
 
 NFT_FAILED=0
 TC_FAILED=0
-ROLLBACK=false
 
 # ─── Usage ────────────────────────────────────────────────────────────
 usage() {
@@ -68,308 +95,346 @@ REQUIRED:
   -i <ip>              Client IPv4 address
 
 NAT:
-  -a <action>          NAT action: accept | snat | masq  (default: masq)
+  -a <action>          NAT: accept | snat | masq  (default: masq)
   -s <snat_ip>         SNAT target IP  (required when -a snat)
-  -L <0|1>             Map-with-live / DNAT hairpin  (default: 0, only with -a snat)
+  -L <0|1>             DNAT hairpin  (default: 0, only with -a snat)
 
-BANDWIDTH (TC/HTB on ifb0 download, ifb1 upload):
-  -d <classid>         Download HTB class minor ID  (e.g. 1001)
-  -u <classid>         Upload HTB class minor ID    (e.g. 2001)
-  -D <kbps>            Download rate in kbps
-  -U <kbps>            Upload rate in kbps
-  -g <kbps>            Guaranteed (min) download in kbps
-  -G <kbps>            Guaranteed (min) upload in kbps
+POOL (IP pool root class — creates if not exists):
+  -P <pool_id>         BandwidthPool ID  (REQUIRED for bandwidth shaping)
+  -R <kbps>            Pool total download rate
+  -C <kbps>            Pool total download ceil
+  -r <kbps>            Pool total upload rate   (default: same as -R)
+  -c <kbps>            Pool total upload ceil   (default: same as -C)
+
+USER BANDWIDTH (leaf class under pool root):
+  -d <classid>         Download HTB class minor ID  (e.g. 2001)
+  -u <classid>         Upload HTB class minor ID    (e.g. 3001)
+  -D <kbps>            User download rate in kbps
+  -U <kbps>            User upload rate in kbps
+  -g <kbps>            Guaranteed download (default: 0)
+  -G <kbps>            Guaranteed upload   (default: 0)
 
 GATEWAY:
-  -W <id>              Multi-gateway ID (adds to gw<N>_ipset + fwmark)
+  -W <id>              Multi-gateway ID
 
 SESSION:
-  -S <id>              Session ID  (for logging / state file name)
-  -m <mac>             Client MAC address  (AA:BB:CC:DD:EE:FF)
+  -S <id>              Session ID  (for state file / recovery)
+  -m <mac>             MAC address  (AA:BB:CC:DD:EE:FF)
   -X <user_id>         StaySuite user ID
 
 SECURITY:
-  -o <policy_id>       Firewall policy chain  (inserts into filter input)
+  -o <policy_id>       Firewall policy chain ID
 
-PRIORITY:
-  -p <prio>            TC filter priority  (default: 1)
+TC:
+  -f <pref>            fw filter priority  (default: 100)
 
 EXIT CODES:
   0  Success
   1  Invalid parameters
-  2  Already logged in
-  3  nft command failed
-  4  tc command failed
-  5  Partial failure (rollback attempted)
+  3  nft failed
+  4  tc failed
+  5  Partial failure
 EOF
     exit 1
 }
 
 # ─── Parse arguments ──────────────────────────────────────────────────
-while getopts "i:a:s:L:d:u:D:U:g:G:W:S:m:X:o:p:t:" opt; do
+while getopts "i:a:s:L:P:R:C:r:c:d:u:D:U:g:G:W:S:m:X:o:f:t:" opt; do
     case "$opt" in
         i) IP="$OPTARG" ;;
         a) ACTION="$OPTARG" ;;
         s) SNAT_IP="$OPTARG" ;;
         L) MAP_LIVE="$OPTARG" ;;
-        d) DOWN_CLASSID="$OPTARG" ;;
+        P) POOL_ID="$OPTARG" ;;
+        R) POOL_RATE_DN="$OPTARG" ;;
+        C) POOL_CEIL_DN="$OPTARG" ;;
+        r) POOL_RATE_UP="$OPTARG" ;;
+        c) POOL_CEIL_UP="$OPTARG" ;;
+        d) DN_CLASSID="$OPTARG" ;;
         u) UP_CLASSID="$OPTARG" ;;
-        D) DOWN_KBPS="$OPTARG" ;;
+        D) DN_KBPS="$OPTARG" ;;
         U) UP_KBPS="$OPTARG" ;;
-        g) DOWN_GUARANTEED="$OPTARG" ;;
-        G) UP_GUARANTEED="$OPTARG" ;;
+        g) DN_GUAR="$OPTARG" ;;
+        G) UP_GUAR="$OPTARG" ;;
         W) GATEWAY_ID="$OPTARG" ;;
         S) SESSION_ID="$OPTARG" ;;
         m) MAC_ADDR="$OPTARG" ;;
         X) USER_ID="$OPTARG" ;;
         o) POLICY_ID="$OPTARG" ;;
-        p) PRIORITY="$OPTARG" ;;
-        t) REST_TYPE="$OPTARG" ;;
+        f) FW_PREF="$OPTARG" ;;
+        t) ;;  # resttype compat, ignored
         \?) usage ;;
         *) usage ;;
     esac
 done
 
 # ─── Validate required ───────────────────────────────────────────────
-if [[ -z "$IP" ]]; then
-    log_err "Missing required parameter: -i <ip>"
-    exit 1
+[[ -z "$IP" ]] && { log_err "Missing: -i <ip>"; exit 1; }
+[[ "$IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]] || { log_err "Bad IP: $IP"; exit 1; }
+[[ "$ACTION" != "accept" && "$ACTION" != "snat" && "$ACTION" != "masq" ]] && { log_err "Bad action: $ACTION"; exit 1; }
+[[ "$ACTION" == "snat" && -z "$SNAT_IP" ]] && { log_err "SNAT requires -s"; exit 1; }
+if [[ "$POOL_ID" -gt 0 ]]; then
+    [[ "$DN_KBPS" -gt 0 && "$DN_CLASSID" -eq 0 ]] && { log_err "Bandwidth without -d classid"; exit 1; }
+    [[ "$UP_KBPS" -gt 0 && "$UP_CLASSID" -eq 0 ]] && { log_err "Bandwidth without -u classid"; exit 1; }
 fi
 
-# Validate IP format (basic IPv4 check)
-if ! [[ "$IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-    log_err "Invalid IP address format: $IP"
-    exit 1
-fi
+# Upload pool defaults to download values if not specified
+[[ "$POOL_RATE_UP" -eq 0 ]] && POOL_RATE_UP="$POOL_RATE_DN"
+[[ "$POOL_CEIL_UP" -eq 0 ]]  && POOL_CEIL_UP="$POOL_CEIL_DN"
 
-# Validate NAT action
-if [[ "$ACTION" != "accept" && "$ACTION" != "snat" && "$ACTION" != "masq" ]]; then
-    log_err "Invalid NAT action: $ACTION (must be accept|snat|masq)"
-    exit 1
-fi
-
-# SNAT requires -s
-if [[ "$ACTION" == "snat" && -z "$SNAT_IP" ]]; then
-    log_err "SNAT action requires -s <snat_ip>"
-    exit 1
-fi
-
-# Bandwidth class IDs must be non-zero if bandwidth is specified
-if [[ "$DOWN_KBPS" -gt 0 && "$DOWN_CLASSID" -eq 0 ]]; then
-    log_err "Download bandwidth specified but no class ID (-d)"
-    exit 1
-fi
-if [[ "$UP_KBPS" -gt 0 && "$UP_CLASSID" -eq 0 ]]; then
-    log_err "Upload bandwidth specified but no class ID (-u)"
-    exit 1
-fi
-
-# ─── File locking (prevent concurrent login for same IP) ─────────────
-ME="staysuite_login"
-LCK="/tmp/${ME}_${IP}.LCK"
+# ─── File locking ────────────────────────────────────────────────────
+LCK="/tmp/staysuite_login_${IP}.LCK"
 exec 8>"$LCK"
 flock -n 8 2>/dev/null || {
-    log_err "Lock contention for IP $IP — another login in progress, waiting..."
-    flock -w 10 8 2>/dev/null || {
-        log_err "Lock timeout for IP $IP — aborting"
-        exit 1
-    }
+    flock -w 10 8 2>/dev/null || { log_err "Lock timeout for $IP"; exit 1; }
 }
 
-# ─── Helper: IPv4 validation (each octet ≤ 255) ─────────────────────
-valid_ip() {
+# ─── Helpers ─────────────────────────────────────────────────────────
+# Convert IPv4 to hex mark: 192.168.1.100 → 0xC0A80164
+ip_to_hex() {
     local IFS='.'
-    read -ra octets <<< "$1"
-    for o in "${octets[@]}"; do
-        [[ "$o" -le 255 ]] || return 1
-    done
-    return 0
+    read -ra o <<< "$1"
+    printf "0x%02X%02X%02X%02X" "${o[0]}" "${o[1]}" "${o[2]}" "${o[3]}"
 }
-valid_ip "$IP" || { log_err "Invalid IP octets: $IP"; exit 1; }
 
-# ─── Tag for nft rule comments (enables precise removal on logout) ───
-COMMENT_TAG="ss_${IP//./_}"
+# Comment tag for nft rules (enables precise removal on logout)
+TAG="ss_${IP//./_}"
+MARK=$(ip_to_hex "$IP")
 
-# ─── Step 1: Check duplicate login ───────────────────────────────────
+# ─── Step 1: Check duplicate ────────────────────────────────────────
 if nft get element inet mangle loggedinusers "{ ${IP} }" >/dev/null 2>&1; then
-    log_msg "DUPLICATE: IP $IP already in loggedinusers set (session: $SESSION_ID, user: $USER_ID)"
-    # Still exit success — idempotent is better than failing
+    log_msg "DUPLICATE: $IP already in loggedinusers (session=$SESSION_ID)"
     exit 0
 fi
 
-log_msg "LOGIN START: ip=$IP action=$ACTION down=${DOWN_KBPS}kbps up=${UP_KBPS}kbps session=$SESSION_ID mac=$MAC_ADDR user=$USER_ID gateway=$GATEWAY_ID"
+log_msg "LOGIN: ip=$IP mark=$MARK action=$ACTION pool=$POOL_ID dn=${DN_KBPS}k up=${UP_KBPS}k session=$SESSION_ID"
 
-# ─── Step 2: Add IP to loggedinusers nft set ─────────────────────────
-# This is the master key — once in this set, the prerouting rules in
-# defaultchains_cryptsk.sh allow traffic to flow through the accounting
-# and firewall chains.
+# ─── Step 2: Add IP → loggedinusers nft set ─────────────────────────
 if ! nft add element inet mangle loggedinusers "{ ${IP} }" 2>/dev/null; then
-    log_err "nft: failed to add $IP to loggedinusers set"
+    log_err "nft: failed to add $IP to loggedinusers"
     exit 3
 fi
-log_msg "nft: added $IP → loggedinusers"
+log_msg "nft: +loggedinusers $IP"
 
-# ─── Step 3: NAT POSTROUTING rule ────────────────────────────────────
-# Uses comment tag so staysuite_logout.sh can find and delete it precisely.
+# ─── Step 3: Insert nft fwmark rules in prerouting ──────────────────
+# Insert at position 5 (after icmp + 3×syn rules, before usersset checks).
+# Sets meta mark = IP hex so TC fw filter can match it.
+# Both saddr (upload from user) and daddr (download to user) are marked.
+#
+# IMPORTANT: position 5 is RELATIVE to first login. Subsequent logins
+# also insert at position 5, which pushes previous marks down. This is
+# intentional — all mark rules execute since none accept/drop.
+if ! nft insert rule inet mangle prerouting position 5 \
+    ip saddr "${IP}" meta mark set "${MARK}" \
+    comment "\"${TAG}_mark\"" 2>/dev/null; then
+    NFT_FAILED=1
+    log_err "nft: failed to insert saddr mark rule"
+else
+    log_msg "nft: prerouting saddr $IP → mark $MARK"
+fi
+
+if ! nft insert rule inet mangle prerouting position 5 \
+    ip daddr "${IP}" meta mark set "${MARK}" \
+    comment "\"${TAG}_mark_dn\"" 2>/dev/null; then
+    NFT_FAILED=1
+    log_err "nft: failed to insert daddr mark rule"
+else
+    log_msg "nft: prerouting daddr $IP → mark $MARK"
+fi
+
+# ─── Step 4: NAT POSTROUTING ───────────────────────────────────────
 case "$ACTION" in
     accept)
-        if ! nft add rule inet nat postrouting ip saddr "${IP}" counter accept comment "\"${COMMENT_TAG}\"" 2>/dev/null; then
-            NFT_FAILED=1
-            log_err "nft: failed to add POSTROUTING accept for $IP"
-        else
-            log_msg "nft: POSTROUTING accept for $IP"
-        fi
+        nft add rule inet nat postrouting ip saddr "${IP}" counter accept \
+            comment "\"${TAG}_nat\"" 2>/dev/null && log_msg "nft: postrouting accept $IP"
         ;;
     snat)
-        # Also add SNAT IP to loggedinuserssnatip set (used by prerouting for reply traffic)
         nft add element inet mangle loggedinuserssnatip "{ ${SNAT_IP} }" 2>/dev/null \
-            && log_msg "nft: added $SNAT_IP → loggedinuserssnatip"
-
-        if ! nft add rule inet nat postrouting ip saddr "${IP}" counter snat to "${SNAT_IP}" comment "\"${COMMENT_TAG}\"" 2>/dev/null; then
-            NFT_FAILED=1
-            log_err "nft: failed to add POSTROUTING snat $SNAT_IP for $IP"
-        else
-            log_msg "nft: POSTROUTING snat to $SNAT_IP for $IP"
-        fi
-
-        # DNAT hairpin (map-with-live): traffic from LAN destined for SNAT IP → forward to user IP
+            && log_msg "nft: +loggedinuserssnatip $SNAT_IP"
+        nft add rule inet nat postrouting ip saddr "${IP}" counter snat to "${SNAT_IP}" \
+            comment "\"${TAG}_nat\"" 2>/dev/null && log_msg "nft: postrouting snat $IP → $SNAT_IP"
         if [[ "$MAP_LIVE" == "1" ]]; then
-            if ! nft add rule inet nat prerouting ip daddr "${SNAT_IP}" counter dnat to "${IP}" comment "\"${COMMENT_TAG}_hairpin\"" 2>/dev/null; then
-                log_err "nft: failed to add DNAT hairpin (non-critical)"
-            else
-                log_msg "nft: PREROUTING dnat hairpin $SNAT_IP → $IP"
-            fi
+            nft add rule inet nat prerouting ip daddr "${SNAT_IP}" counter dnat to "${IP}" \
+                comment "\"${TAG}_hairpin\"" 2>/dev/null && log_msg "nft: prerouting hairpin $SNAT_IP → $IP"
         fi
         ;;
     masq)
-        if ! nft add rule inet nat postrouting ip saddr "${IP}" counter masquerade comment "\"${COMMENT_TAG}\"" 2>/dev/null; then
-            NFT_FAILED=1
-            log_err "nft: failed to add POSTROUTING masq for $IP"
-        else
-            log_msg "nft: POSTROUTING masquerade for $IP"
-        fi
+        nft add rule inet nat postrouting ip saddr "${IP}" counter masquerade \
+            comment "\"${TAG}_nat\"" 2>/dev/null && log_msg "nft: postrouting masq $IP"
         ;;
 esac
 
-# ─── Step 4: Multi-gateway support ───────────────────────────────────
+# ─── Step 5: Multi-gateway ─────────────────────────────────────────
 if [[ -n "$GATEWAY_ID" && "$GATEWAY_ID" != "-1" ]]; then
-    # Add IP to gateway's ipset so the prerouting fwmark rule applies
     nft add element inet nat "gw${GATEWAY_ID}_ipset" "{ ${IP} }" 2>/dev/null \
-        && log_msg "nft: added $IP → gw${GATEWAY_ID}_ipset"
+        && log_msg "nft: +gw${GATEWAY_ID}_ipset $IP"
 fi
 
-# ─── Step 5: Security policy (filter input chain) ───────────────────
+# ─── Step 6: Security policy ───────────────────────────────────────
 if [[ -n "$POLICY_ID" && "$POLICY_ID" != "0" ]]; then
-    if ! nft add rule inet filter input ip saddr "${IP}" counter jump "${POLICY_ID}" comment "\"${COMMENT_TAG}_policy\"" 2>/dev/null; then
-        log_err "nft: failed to add filter policy $POLICY_ID for $IP (non-critical)"
-    else
-        log_msg "nft: filter input policy $POLICY_ID for $IP"
-    fi
+    nft add rule inet filter input ip saddr "${IP}" counter jump "${POLICY_ID}" \
+        comment "\"${TAG}_policy\"" 2>/dev/null && log_msg "nft: filter policy $POLICY_ID $IP"
 fi
 
-# ─── Step 6: HTB bandwidth classes + filters ─────────────────────────
-# initialization.sh creates the base HTB root on ifb0/ifb1:
-#   tc qdisc add dev ifb0 root handle 1: htb default 1
-#   tc class add dev ifb0 parent 1:0 classid 1:1 htb rate 10gbit ceil 10gbit
+# ─── Step 7: Heartbeat ──────────────────────────────────────────────
+nft add rule inet filter intranetuploadaccounting ip saddr "${IP}" udp dport 6060 counter accept \
+    comment "\"${TAG}_heartbeat\"" 2>/dev/null && log_msg "nft: heartbeat $IP:6060"
+
+# ═══════════════════════════════════════════════════════════════════
+#  TC / HTB BANDWIDTH SHAPING
+# ═══════════════════════════════════════════════════════════════════
+# initialization.sh creates the base:
+#   ifb0: qdisc 1: htb → class 1:1 rate 10gbit  (download)
+#   ifb1: qdisc 1: htb → class 1:1 rate 10gbit  (upload)
 #
-# Login adds leaf classes under 1:1 and u32 filters to classify by IP.
+# Login adds:
+#   1. Pool root class:   1:<pool_id>   parent 1:1
+#   2. User leaf class:   1:<classid>   parent 1:<pool_id>
+#   3. fw filter:  handle 0xIP_HEX → classid 1:<classid>
+# ═══════════════════════════════════════════════════════════════════
 
-if [[ "$DOWN_KBPS" -gt 0 && "$DOWN_CLASSID" -gt 0 ]]; then
-    # ── Download class on ifb0 (LAN egress → client) ──
-    # Match by destination IP (traffic heading to the client)
-    DOWN_CEIL="${DOWN_KBPS}kbit"
-    DOWN_GUAR="${DOWN_KBPS}kbit"
-    [[ "$DOWN_GUARANTEED" -gt 0 ]] && { DOWN_CEIL="${DOWN_GUARANTEED}kbit"; DOWN_GUAR="${DOWN_GUARANTEED}kbit"; }
+if [[ "$POOL_ID" -gt 0 ]]; then
 
-    if ! tc class add dev ifb0 parent 1:1 classid "1:${DOWN_CLASSID}" htb \
-        rate "$DOWN_GUAR" ceil "$DOWN_CEIL" quantum 1500 2>/dev/null; then
-        TC_FAILED=1
-        log_err "tc: failed to add download class 1:${DOWN_CLASSID} on ifb0"
-    else
-        log_msg "tc: download class 1:${DOWN_CLASSID} on ifb0 (rate=$DOWN_GUAR ceil=$DOWN_CEIL)"
-
-        # u32 filter: match dst IP on ifb0 → assign to download class
-        if ! tc filter add dev ifb0 parent 1: protocol ip prio "${PRIORITY:-1}" u32 \
-            match ip dst "${IP}/32" flowid "1:${DOWN_CLASSID}" 2>/dev/null; then
-            TC_FAILED=1
-            log_err "tc: failed to add download filter for $IP on ifb0"
+    # ─── Step 8: Ensure pool root class exists ───────────────────────
+    # classid 1:<pool_id> under parent 1:1 on both ifb0 and ifb1
+    for dev in ifb0 ifb1; do
+        # Determine rate/ceil for this device
+        if [[ "$dev" == "ifb0" ]]; then
+            prate="$POOL_RATE_DN"; pceil="$POOL_CEIL_DN"
         else
-            log_msg "tc: download filter dst=$IP → 1:${DOWN_CLASSID} on ifb0"
+            prate="$POOL_RATE_UP"; pceil="$POOL_CEIL_UP"
+        fi
+
+        # Skip if pool has no bandwidth configured
+        if [[ "$prate" -eq 0 ]]; then
+            continue
+        fi
+
+        # Check if pool class already exists
+        if tc class show dev "$dev" classid "1:${POOL_ID}" >/dev/null 2>&1; then
+            log_msg "tc: pool root 1:${POOL_ID} already exists on $dev (rate=$prate ceil=$pceil)"
+        else
+            if tc class add dev "$dev" parent 1:1 classid "1:${POOL_ID}" htb \
+                rate "${prate}kbit" ceil "${pceil}kbit" quantum 1500 2>/dev/null; then
+                log_msg "tc: pool root 1:${POOL_ID} created on $dev (rate=${prate}kbit ceil=${pceil}kbit)"
+            else
+                TC_FAILED=1
+                log_err "tc: failed to create pool root 1:${POOL_ID} on $dev"
+            fi
+        fi
+    done
+
+    # ─── Step 9: User leaf class on ifb0 (download) ─────────────────
+    if [[ "$DN_KBPS" -gt 0 && "$DN_CLASSID" -gt 0 ]]; then
+        DN_RATE="${DN_KBPS}kbit"
+        DN_CEIL="${DN_KBPS}kbit"
+        DN_GUAR_RATE="${DN_KBPS}kbit"
+        [[ "$DN_GUAR" -gt 0 ]] && { DN_GUAR_RATE="${DN_GUAR}kbit"; DN_CEIL="${DN_GUAR}kbit"; }
+
+        # Parent is pool root class: 1:<pool_id>
+        # If pool has no download rate, fall back to root 1:1
+        local_parent="1:${POOL_ID}"
+        if [[ "$POOL_RATE_DN" -eq 0 ]]; then
+            local_parent="1:1"
+        fi
+
+        if ! tc class add dev ifb0 parent "$local_parent" classid "1:${DN_CLASSID}" htb \
+            rate "$DN_GUAR_RATE" ceil "$DN_CEIL" quantum 1500 2>/dev/null; then
+            TC_FAILED=1
+            log_err "tc: failed download class 1:${DN_CLASSID} on ifb0"
+        else
+            log_msg "tc: download 1:${DN_CLASSID} under $local_parent on ifb0 (rate=$DN_GUAR_RATE ceil=$DN_CEIL)"
+
+            # fw filter: match mark set by nft → assign to user class
+            if ! tc filter add dev ifb0 parent 1: protocol ip pref "$FW_PREF" fw \
+                handle "${MARK}" classid "1:${DN_CLASSID}" 2>/dev/null; then
+                TC_FAILED=1
+                log_err "tc: failed download fw filter $MARK → 1:${DN_CLASSID}"
+            else
+                log_msg "tc: fw filter ifb0 handle $MARK → 1:${DN_CLASSID}"
+            fi
+        fi
+    fi
+
+    # ─── Step 10: User leaf class on ifb1 (upload) ──────────────────
+    if [[ "$UP_KBPS" -gt 0 && "$UP_CLASSID" -gt 0 ]]; then
+        UP_RATE="${UP_KBPS}kbit"
+        UP_CEIL="${UP_KBPS}kbit"
+        UP_GUAR_RATE="${UP_KBPS}kbit"
+        [[ "$UP_GUAR" -gt 0 ]] && { UP_GUAR_RATE="${UP_GUAR}kbit"; UP_CEIL="${UP_GUAR}kbit"; }
+
+        local_parent="1:${POOL_ID}"
+        if [[ "$POOL_RATE_UP" -eq 0 ]]; then
+            local_parent="1:1"
+        fi
+
+        if ! tc class add dev ifb1 parent "$local_parent" classid "1:${UP_CLASSID}" htb \
+            rate "$UP_GUAR_RATE" ceil "$UP_CEIL" quantum 1500 2>/dev/null; then
+            TC_FAILED=1
+            log_err "tc: failed upload class 1:${UP_CLASSID} on ifb1"
+        else
+            log_msg "tc: upload 1:${UP_CLASSID} under $local_parent on ifb1 (rate=$UP_GUAR_RATE ceil=$UP_CEIL)"
+
+            if ! tc filter add dev ifb1 parent 1: protocol ip pref "$FW_PREF" fw \
+                handle "${MARK}" classid "1:${UP_CLASSID}" 2>/dev/null; then
+                TC_FAILED=1
+                log_err "tc: failed upload fw filter $MARK → 1:${UP_CLASSID}"
+            else
+                log_msg "tc: fw filter ifb1 handle $MARK → 1:${UP_CLASSID}"
+            fi
         fi
     fi
 fi
 
-if [[ "$UP_KBPS" -gt 0 && "$UP_CLASSID" -gt 0 ]]; then
-    # ── Upload class on ifb1 (WAN egress → internet) ──
-    # Match by source IP (traffic coming from the client)
-    UP_RATE="${UP_KBPS}kbit"
-    UP_CEIL="${UP_KBPS}kbit"
-    UP_GUAR="${UP_GUARANTEED}kbit"
-    [[ "$UP_GUARANTEED" -gt 0 ]] || UP_GUAR="${UP_KBPS}kbit"
-
-    if ! tc class add dev ifb1 parent 1:1 classid "1:${UP_CLASSID}" htb \
-        rate "$UP_GUAR" ceil "$UP_CEIL" quantum 1500 2>/dev/null; then
-        TC_FAILED=1
-        log_err "tc: failed to add upload class 1:${UP_CLASSID} on ifb1"
-    else
-        log_msg "tc: upload class 1:${UP_CLASSID} on ifb1 (rate=$UP_GUAR ceil=$UP_CEIL)"
-
-        # u32 filter: match src IP on ifb1 → assign to upload class
-        if ! tc filter add dev ifb1 parent 1: protocol ip prio "${PRIORITY:-1}" u32 \
-            match ip src "${IP}/32" flowid "1:${UP_CLASSID}" 2>/dev/null; then
-            TC_FAILED=1
-            log_err "tc: failed to add upload filter for $IP on ifb1"
-        else
-            log_msg "tc: upload filter src=$IP → 1:${UP_CLASSID} on ifb1"
-        fi
-    fi
-fi
-
-# ─── Step 7: Idle timeout / heartbeat rule ──────────────────────────
-# Allow heartbeat UDP on port 6060 through the intranetuploadaccounting chain
-# (same as old 24online script for CYBEROAM/HTTPCLIENT client types)
-if ! nft add rule inet filter intranetuploadaccounting ip saddr "${IP}" udp dport 6060 counter accept \
-    comment "\"${COMMENT_TAG}_heartbeat\"" 2>/dev/null; then
-    log_err "nft: failed to add heartbeat rule (non-critical)"
-else
-    log_msg "nft: heartbeat rule for $IP on port 6060"
-fi
-
-# ─── Step 8: Save session state ─────────────────────────────────────
-# Writes a state file so logout can clean up even without all parameters
+# ─── Step 11: Save session state ────────────────────────────────────
 if [[ -n "$SESSION_ID" ]]; then
-    cat > "${STATEDIR}/${SESSION_ID}.state" <<STATE
-IP=${IP}
+    STATE_CONTENT="IP=${IP}
+MARK=${MARK}
 ACTION=${ACTION}
 SNAT_IP=${SNAT_IP}
-DOWN_CLASSID=${DOWN_CLASSID}
+POOL_ID=${POOL_ID}
+POOL_RATE_DN=${POOL_RATE_DN}
+POOL_CEIL_DN=${POOL_CEIL_DN}
+POOL_RATE_UP=${POOL_RATE_UP}
+POOL_CEIL_UP=${POOL_CEIL_UP}
+DN_CLASSID=${DN_CLASSID}
 UP_CLASSID=${UP_CLASSID}
-DOWN_KBPS=${DOWN_KBPS}
+DN_KBPS=${DN_KBPS}
 UP_KBPS=${UP_KBPS}
+DN_GUAR=${DN_GUAR}
+UP_GUAR=${UP_GUAR}
 GATEWAY_ID=${GATEWAY_ID}
 POLICY_ID=${POLICY_ID}
 MAC_ADDR=${MAC_ADDR}
 USER_ID=${USER_ID}
 MAP_LIVE=${MAP_LIVE}
-PRIORITY=${PRIORITY}
-TIMESTAMP=$(date +%s)
-STATE
-    log_msg "state saved: ${STATEDIR}/${SESSION_ID}.state"
+FW_PREF=${FW_PREF}
+TIMESTAMP=$(date +%s)"
+
+    # Save to tmpfs (fast lookup for logout)
+    echo "$STATE_CONTENT" > "${STATEDIR}/${SESSION_ID}.state"
+    # Save to persistent storage (survives reboot for recovery)
+    echo "$STATE_CONTENT" > "${PERSIST_STATEDIR}/${SESSION_ID}.state"
+    log_msg "state saved: $SESSION_ID"
 fi
+
+# ─── Step 12: Backup nft set elements (for reboot recovery) ────────
+# Save loggedinusers elements to persistent file
+nft list elements inet mangle loggedinusers 2>/dev/null > /var/lib/staysuite/nft_loggedinusers.set 2>/dev/null || true
+nft list elements inet mangle loggedinuserssnatip 2>/dev/null > /var/lib/staysuite/nft_loggedinuserssnatip.set 2>/dev/null || true
 
 # ─── Final result ────────────────────────────────────────────────────
 if [[ "$NFT_FAILED" -eq 1 && "$TC_FAILED" -eq 1 ]]; then
-    log_err "LOGIN PARTIAL FAILURE for $IP: nft and tc both failed — cleanup needed"
-    # Remove from loggedinusers since we can't fully activate
+    log_err "PARTIAL FAIL $IP: nft+tc both failed — cleanup"
     nft delete element inet mangle loggedinusers "{ ${IP} }" 2>/dev/null
     exit 5
 elif [[ "$NFT_FAILED" -eq 1 ]]; then
-    log_err "LOGIN PARTIAL FAILURE for $IP: nft failed but tc OK"
+    log_err "PARTIAL FAIL $IP: nft failed, tc OK"
     exit 3
 elif [[ "$TC_FAILED" -eq 1 ]]; then
-    log_err "LOGIN PARTIAL FAILURE for $IP: tc failed but nft OK"
+    log_err "PARTIAL FAIL $IP: tc failed, nft OK"
     exit 4
 fi
 
-log_msg "LOGIN SUCCESS: ip=$IP session=$SESSION_ID"
+log_msg "OK: ip=$IP mark=$MARK session=$SESSION_ID"
 exit 0
