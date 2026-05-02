@@ -1783,12 +1783,6 @@ function PortalContent() {
                 className={formCls}
                 style={{
                   ...cardShadowStyle,
-                  // Ensure card is distinguishable on light backgrounds
-                  ...(dark ? {} : {
-                    border: design.formStyle === 'glass' || design.formStyle === 'minimal'
-                      ? undefined
-                      : '1px solid rgba(0,0,0,0.08)',
-                  }),
                 }}
               >
                 {/* Mobile-only header */}
@@ -1859,12 +1853,6 @@ function PortalContent() {
               className={cn('w-full', formCls)}
               style={{
                 ...cardShadowStyle,
-                // Ensure card is distinguishable on light backgrounds
-                ...(dark ? {} : {
-                  border: design.formStyle === 'glass' || design.formStyle === 'minimal'
-                    ? undefined
-                    : '1px solid rgba(0,0,0,0.08)',
-                }),
               }}
             >
               {renderCardContent()}

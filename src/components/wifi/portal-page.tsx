@@ -122,11 +122,11 @@ const CREDENTIAL_FORMAT_MAP: Record<string, CredentialCategory> = {
 interface AutoFields {
   firstName: boolean; lastName: boolean; roomNumber: boolean;
   phone: boolean; email: boolean; passport: boolean; bookingId: boolean;
-  username: boolean; password: boolean; terms: boolean;
+  username: boolean; password: boolean; voucherCode: boolean; terms: boolean;
 }
 
 function getAutoFields(category: CredentialCategory): AutoFields {
-  const base: AutoFields = { firstName: false, lastName: false, roomNumber: false, phone: false, email: false, passport: false, bookingId: false, username: true, password: true, terms: true };
+  const base: AutoFields = { firstName: false, lastName: false, roomNumber: false, phone: false, email: false, passport: false, bookingId: false, username: true, password: true, voucherCode: false, terms: true };
   switch (category) {
     case 'room': return { ...base, roomNumber: true };
     case 'name': return { ...base, firstName: true, lastName: true };
@@ -137,6 +137,15 @@ function getAutoFields(category: CredentialCategory): AutoFields {
     default: return base;
   }
 }
+
+// Auth flow → default field configuration (auto-suggests when admin changes auth flow)
+const AUTH_FLOW_FIELD_DEFAULTS: Record<string, AutoFields> = {
+  pms_credentials: { firstName: false, lastName: false, roomNumber: false, phone: false, email: false, passport: false, bookingId: false, username: true, password: true, voucherCode: false, terms: true },
+  room_number:     { firstName: false, lastName: true,  roomNumber: true,  phone: false, email: false, passport: false, bookingId: false, username: false, password: false, voucherCode: false, terms: true },
+  voucher:         { firstName: false, lastName: false, roomNumber: false, phone: false, email: false, passport: false, bookingId: false, username: false, password: false, voucherCode: true, terms: true },
+  sms_otp:         { firstName: false, lastName: false, roomNumber: false, phone: true,  email: false, passport: false, bookingId: false, username: false, password: false, voucherCode: false, terms: true },
+  open_access:     { firstName: false, lastName: false, roomNumber: false, phone: false, email: false, passport: false, bookingId: false, username: false, password: false, voucherCode: false, terms: true },
+};
 
 const CREDENTIAL_CATEGORY_LABELS: Record<CredentialCategory, string> = {
   room: 'Room-Based', name: 'Name-Based', contact: 'Contact-Based',
@@ -361,6 +370,7 @@ const FIELD_DEFINITIONS: Array<{ key: keyof AutoFields; label: string; icon: typ
   { key: 'bookingId', label: 'Booking ID', icon: Calendar, group: 'Guest Identity' },
   { key: 'username', label: 'Username', icon: User, group: 'Credentials' },
   { key: 'password', label: 'Password', icon: Lock, group: 'Credentials' },
+  { key: 'voucherCode', label: 'Voucher Code', icon: Ticket, group: 'Credentials' },
   { key: 'terms', label: 'Terms & Conditions', icon: Settings, group: 'Legal' },
 ];
 
@@ -1062,6 +1072,14 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
   const updateDesign = useCallback((partial: Partial<PortalPageDesign>) => {
     setDesign((prev) => {
       const next = { ...prev, ...partial };
+      // When auth flow changes, auto-populate recommended fields
+      if (partial.authFlow && partial.authFlow !== prev.authFlow) {
+        const flowDefaults = AUTH_FLOW_FIELD_DEFAULTS[partial.authFlow];
+        if (flowDefaults) {
+          next.fields = { ...flowDefaults };
+          setIsOverride(false);
+        }
+      }
       if (partial.fields) setIsOverride(!fieldsAreEqual(partial.fields, autoFields));
       return next;
     });
@@ -1291,7 +1309,10 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                       {AUTH_FLOW_OPTIONS.map((af) => {
                         const Icon = af.icon;
                         return (
-                          <button key={af.value} onClick={() => updateDesign({ authFlow: af.value })}
+                          <button key={af.value} onClick={() => {
+                            updateDesign({ authFlow: af.value });
+                            toast({ title: `${af.label} selected`, description: 'Form fields auto-configured. Customize in the Fields tab.', duration: 3000 });
+                          }}
                             className={cn('flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left',
                               design.authFlow === af.value ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border hover:border-teal-300'
                             )}>
@@ -1497,7 +1518,10 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                 {/* ── Fields Sub-Tab ─────────────────────────────────────────── */}
                 {subTab === 'fields' && (
                   <div className="space-y-5">
-                    <div><h3 className="text-sm font-semibold flex items-center gap-2"><Settings className="h-4 w-4" />Form Fields</h3><p className="text-xs text-muted-foreground mt-1">Toggle fields shown on the guest login form</p></div>
+                    <div>
+                      <h3 className="text-sm font-semibold flex items-center gap-2"><Settings className="h-4 w-4" />Form Fields</h3>
+                      <p className="text-xs text-muted-foreground mt-1">Toggle fields shown on the guest login form. Changing auth flow auto-configures defaults.</p>
+                    </div>
                     {isOverride && (
                       <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-300">
                         <AlertTriangle className="h-4 w-4 flex-shrink-0" />
@@ -1627,8 +1651,10 @@ function PortalPreviewContent({ design, visibleFields }: { design: PortalPageDes
         {visibleFields.map((f) => {
           const Icon = f.icon;
           const isCredential = f.key === 'username' || f.key === 'password';
+          const isVoucher = f.key === 'voucherCode';
           const placeholder = isCredential
             ? f.key === 'username' ? 'Username' : 'Password'
+            : isVoucher ? 'XXXXX-XXXXX'
             : f.key === 'roomNumber' ? 'Room Number'
             : f.key === 'phone' ? 'Phone Number'
             : f.key === 'email' ? 'Email Address'
@@ -1645,9 +1671,13 @@ function PortalPreviewContent({ design, visibleFields }: { design: PortalPageDes
           }
           return (
             <div key={f.key} className="relative">
-              {f.key !== 'username' && f.key !== 'password' && <Icon className={cn('absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 opacity-40', isGlass ? 'text-white/50' : 'text-gray-400')} />}
-              <div className={cn(isCredential ? '' : f.key !== 'username' && f.key !== 'password' ? 'pl-7' : '', inputCls, isGlass ? 'text-white placeholder:text-white/40' : 'text-gray-800 placeholder:text-gray-400', 'w-full outline-none flex items-center')}>
-                <span className="text-[10px] opacity-50">{placeholder}</span>
+              {!isCredential && !isVoucher && <Icon className={cn('absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 opacity-40', isGlass ? 'text-white/50' : 'text-gray-400')} />}
+              <div className={cn(
+                isCredential ? '' : !isCredential && !isVoucher ? 'pl-7' : '',
+                isVoucher ? 'text-center font-mono font-bold tracking-wider uppercase text-[10px]' : '',
+                inputCls, isGlass ? 'text-white placeholder:text-white/40' : 'text-gray-800 placeholder:text-gray-400', 'w-full outline-none flex items-center'
+              )}>
+                <span className="opacity-50">{placeholder}</span>
               </div>
             </div>
           );

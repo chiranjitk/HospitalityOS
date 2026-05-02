@@ -248,29 +248,28 @@ export function getOverlayStyle(design: PortalDesignConfig): React.CSSProperties
 // ────────────────────────────────────────────────────────────
 
 export function getFormContainerClasses(design: PortalDesignConfig): string {
-  const glass = isCardTransparent(design);
   const dark = isDarkBackground(design);
   let cls = 'p-6 space-y-5';
 
-  // Background — glass/minimal are transparent; others are white/light
+  // Background — MUST match admin preview getFormClasses() exactly:
+  //   glass     → bg-white/10 backdrop-blur-xl border
+  //   minimal   → transparent
+  //   rounded/square/pill → bg-white/10 backdrop-blur-md (semi-transparent on dark)
+  // On light backgrounds, use opaque white for non-transparent styles
   if (design.formStyle === 'glass') {
-    cls += ' bg-white/10 backdrop-blur-xl border border-white/20';
+    cls += dark
+      ? ' bg-white/10 backdrop-blur-xl border border-white/20'
+      : ' bg-white/95 backdrop-blur-xl border border-gray-200';
   } else if (design.formStyle === 'minimal') {
     cls += ' bg-transparent';
-  } else if (design.formStyle === 'pill') {
-    cls += dark
-      ? ' bg-white/95 backdrop-blur-xl'
-      : ' bg-white';
-    cls += ' border border-gray-200';
-  } else if (design.formStyle === 'square') {
-    cls += dark
-      ? ' bg-white/95 backdrop-blur-xl'
-      : ' bg-white';
   } else {
-    // rounded (default)
+    // rounded, square, pill — match preview: semi-transparent on dark, solid on light
     cls += dark
-      ? ' bg-white/95 backdrop-blur-xl'
+      ? ' bg-white/10 backdrop-blur-md'
       : ' bg-white';
+    if (design.formStyle === 'pill') {
+      cls += ' border border-white/20';
+    }
   }
 
   // Border radius
@@ -310,13 +309,14 @@ export function getCardShadowCSS(design: PortalDesignConfig): React.CSSPropertie
 
 /**
  * Card text color for labels, headings inside the form card.
- * - Glass/minimal on dark page → white text
- * - All other card styles → dark text (card has white/light background)
+ * - Dark page background → white text (all form styles are semi-transparent on dark)
+ * - Light page background + glass/minimal → dark text
+ * - Light page background + others → dark text (card has white background)
  */
 export function getCardTextColor(design: PortalDesignConfig): string {
   const dark = isDarkBackground(design);
-  if (isCardTransparent(design) && dark) return '#ffffff';
-  // Non-transparent cards always have white/light backgrounds → dark text
+  if (dark) return '#ffffff';
+  // Light page backgrounds — all cards are white-ish → dark text
   return '#1f2937';
 }
 
@@ -329,13 +329,12 @@ export function getSubtitleColor(design: PortalDesignConfig): string {
 
 /**
  * Muted text color inside the form card.
- * - Glass/minimal on dark page → light muted
- * - All other cards → dark muted (card is white)
+ * - Dark page background → light muted (all form styles are semi-transparent)
+ * - Light page background → dark muted (card is white)
  */
 export function getMutedTextColor(design: PortalDesignConfig): string {
   const dark = isDarkBackground(design);
-  if (isCardTransparent(design) && dark) return 'rgba(255,255,255,0.7)';
-  // Non-transparent cards always have white/light backgrounds
+  if (dark) return 'rgba(255,255,255,0.7)';
   return 'rgba(0,0,0,0.5)';
 }
 
@@ -344,15 +343,14 @@ export function getMutedTextColor(design: PortalDesignConfig): string {
 // ────────────────────────────────────────────────────────────
 
 /**
- * Input classes. Text and border colors depend on CARD background.
- * - Glass/minimal on dark page → white text, white/20 borders
- * - All other cards → dark text, gray borders (card is white)
+ * Input classes. Text and border colors depend on PAGE background.
+ * - Dark page → white text, white/20 borders (all form styles are semi-transparent)
+ * - Light page → dark text, gray borders (card is white)
  */
 export function getInputClasses(design: PortalDesignConfig): string {
-  const glass = isCardTransparent(design);
   const dark = isDarkBackground(design);
-  // "use light colors" = glass/minimal on dark page background
-  const useLight = glass && dark;
+  // On dark backgrounds, ALL form styles are semi-transparent → use light colors
+  const useLight = dark;
 
   let cls = 'w-full focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed';
 
@@ -504,13 +502,12 @@ export function getButtonClasses(
 
 /**
  * Icon color for input icons.
- * - Glass/minimal on dark page → white/low-opacity icons
- * - All other cards → gray icons (card is white)
+ * - Dark page background → white/low-opacity icons (all styles semi-transparent)
+ * - Light page background → gray icons (card is white)
  */
 export function getIconColor(design: PortalDesignConfig): string {
-  const glass = isCardTransparent(design);
   const dark = isDarkBackground(design);
-  if (glass && dark) return 'rgba(255,255,255,0.4)';
+  if (dark) return 'rgba(255,255,255,0.4)';
   return '#9ca3af'; // gray-400
 }
 
