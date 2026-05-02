@@ -1,0 +1,84 @@
+#!/bin/bash
+# Mock tc command for sandbox testing
+# Logs all invocations and simulates responses
+
+MOCK_LOG="/tmp/tc_mock.log"
+MOCK_STATE_DIR="/tmp/tc_mock_state"
+mkdir -p "$MOCK_STATE_DIR"
+
+echo "$(date '+%H:%M:%S') tc $*" >> "$MOCK_LOG"
+
+CMD="$1"
+shift
+
+case "$CMD" in
+    qdisc)
+        echo "[MOCK tc] qdisc $* (simulated)"
+        ;;
+    class)
+        case "$1" in
+            add)
+                shift
+                # Extract dev, parent, classid
+                DEV=$(echo "$*" | grep -oP 'dev \K\S+')
+                CLASSID=$(echo "$*" | grep -oP 'classid \K\S+')
+                PARENT=$(echo "$*" | grep -oP 'parent \K\S+')
+                STATE_FILE="$MOCK_STATE_DIR/tc_class_${DEV}_${CLASSID//:/_}"
+                echo "parent=$PARENT" > "$STATE_FILE"
+                echo "[MOCK tc] class add dev=$DEV classid=$CLASSID parent=$PARENT"
+                ;;
+            show)
+                shift
+                DEV=$(echo "$*" | grep -oP 'dev \K\S+')
+                CLASSID=$(echo "$*" | grep -oP 'classid \K\S+')
+                if [[ -n "$CLASSID" ]]; then
+                    STATE_FILE="$MOCK_STATE_DIR/tc_class_${DEV}_${CLASSID//:/_}"
+                    if [[ -f "$STATE_FILE" ]]; then
+                        echo "[MOCK tc] class $CLASSID exists on $DEV"
+                        exit 0
+                    else
+                        echo "[MOCK tc] class $CLASSID not found on $DEV" >&2
+                        exit 1
+                    fi
+                else
+                    echo "[MOCK tc] class show dev=$DEV (simulated - empty)"
+                fi
+                ;;
+            del)
+                shift
+                DEV=$(echo "$*" | grep -oP 'dev \K\S+')
+                CLASSID=$(echo "$*" | grep -oP 'classid \K\S+')
+                STATE_FILE="$MOCK_STATE_DIR/tc_class_${DEV}_${CLASSID//:/_}"
+                rm -f "$STATE_FILE" 2>/dev/null
+                echo "[MOCK tc] class del dev=$DEV classid=$CLASSID"
+                ;;
+            *)
+                echo "[MOCK tc] class $* (simulated)"
+                ;;
+        esac
+        ;;
+    filter)
+        case "$1" in
+            add)
+                shift
+                echo "[MOCK tc] filter add $*"
+                ;;
+            show)
+                shift
+                echo "[MOCK tc] filter show $* (simulated - empty)"
+                ;;
+            del)
+                shift
+                echo "[MOCK tc] filter del $*"
+                ;;
+            *)
+                echo "[MOCK tc] filter $* (simulated)"
+                ;;
+        esac
+        ;;
+    *)
+        echo "[MOCK tc] Unknown: $CMD $* (simulated)"
+        ;;
+esac
+
+exit 0
