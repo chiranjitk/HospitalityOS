@@ -86,6 +86,10 @@ data/rrd/state/counter-state.json
 # PostgreSQL runtime data (tracked structure, not runtime data)
 pgsql-runtime/data/
 
+# PostgreSQL data directory (binary runtime data, never track)
+pgsql-data/
+pgsql-runtime/logfile
+
 # FreeRADIUS dependencies and runtime
 freeradius-deps/
 freeradius/
