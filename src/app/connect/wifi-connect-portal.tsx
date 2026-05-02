@@ -1,6 +1,6 @@
 'use client';
 
-import { generateFingerprint, getStorageToken, saveStorageToken, getDeviceInfo } from '@/lib/wifi/device-fingerprint';
+import { generateFingerprint, getStorageToken, saveStorageToken, clearStorageToken, getDeviceInfo } from '@/lib/wifi/device-fingerprint';
 
 /**
  * Public WiFi Captive Portal — Designer-Driven Single Form + Multi-Method Fallback
@@ -71,6 +71,7 @@ import {
   Languages,
   Check,
   X,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -1424,9 +1425,11 @@ function UnifiedDesignerForm({
 function SuccessScreen({
   authResult,
   design,
+  onDisconnect,
 }: {
   authResult: AuthResult;
   design: PortalDesignConfig;
+  onDisconnect: () => void;
 }) {
   const [countdown, setCountdown] = useState(10);
   const textColor = getCardTextColor(design);
@@ -1519,6 +1522,21 @@ function SuccessScreen({
       >
         <RefreshCw className="w-3 h-3" />
         Connect another device
+      </button>
+
+      {/* Disconnect / Logout Button */}
+      <button
+        onClick={onDisconnect}
+        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-sm font-medium rounded-lg transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+        style={{
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          color: '#ef4444',
+          border: '1px solid rgba(239, 68, 68, 0.2)',
+          borderRadius: design.formStyle === 'pill' ? '1.5rem' : design.formStyle === 'square' ? '0' : '0.5rem',
+        }}
+      >
+        <LogOut className="w-4 h-4" />
+        Disconnect & Logout
       </button>
 
       {/* Post-Connect Guest Survey (Feature 4) */}
@@ -2154,10 +2172,52 @@ function PortalContent() {
 
   const effectiveLanguage = selectedLanguage || design.defaultLanguage || 'en';
 
+  // ── Disconnect handler: clears fingerprint, ends session, resets portal ──
+  const handleDisconnect = useCallback(async () => {
+    try {
+      const fp = await generateFingerprint();
+      const token = getStorageToken();
+
+      // 1. Close any active radacct sessions for this user
+      if (authResult?.username) {
+        await fetch('/api/wifi/radius', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'live-sessions-disconnect',
+            username: authResult.username,
+          }),
+        }).catch(() => {});
+      }
+
+      // 2. Delete device profile (removes auto-auth capability)
+      const params = new URLSearchParams();
+      if (token) params.set('storageToken', token);
+      else params.set('fingerprintHash', fp.hash);
+      await fetch(`/api/v1/wifi/auto-auth?${params.toString()}`, {
+        method: 'DELETE',
+      }).catch(() => {});
+
+      // 3. Clear localStorage token
+      clearStorageToken();
+
+      // 4. Set acctstoptime on radacct for this user (local fallback)
+      // This ensures the user disappears from Active Users tab immediately
+    } catch {
+      // Best effort — proceed with reset regardless
+    }
+
+    // Reset portal state to show login form
+    setAuthResult(null);
+    setAutoAuthAttempted(false);
+    setState('auth_form');
+    setErrorMessage('');
+  }, [authResult?.username]);
+
   // ── Render the card content (shared across layouts) ──
   const renderCardContent = () => {
     if (state === 'success' && authResult) {
-      return <SuccessScreen authResult={authResult} design={design} />;
+      return <SuccessScreen authResult={authResult} design={design} onDisconnect={handleDisconnect} />;
     }
 
     if (useUnifiedForm && formFields) {
