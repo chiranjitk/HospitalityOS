@@ -2023,13 +2023,13 @@ export async function POST(request: NextRequest) {
             try {
               // Find active sessions for this user
               const activeSessions = await db.$queryRawUnsafe<{ acctuniqueid: string; acctsessionid: string; nasipaddress: string }[]>(
-                `SELECT acctuniqueid, acctsessionid, nasipaddress FROM radacct WHERE username = $1 AND acctstoptime IS NULL LIMIT 10`,
+                'SELECT acctuniqueid, acctsessionid, nasipaddress FROM radacct WHERE username = $1 AND acctstoptime IS NULL LIMIT 10',
                 user.username
               );
 
               if (activeSessions.length > 0) {
                 const nasIps = [...new Set(activeSessions.map(s => s.nasipaddress?.replace(/\/\d+$/, '')).filter(Boolean))];
-                console.log(`[change-user-status] User ${user.username} has ${activeSessions.length} active sessions on ${nasIps.join(', ')}. Disconnecting...`);
+                console.log('[change-user-status] User ' + user.username + ' has ' + activeSessions.length + ' active sessions on ' + nasIps.join(', ') + '. Disconnecting...');
 
                 // Send RADIUS Disconnect-Message to each NAS and close sessions in DB
                 for (const session of activeSessions) {
@@ -2041,7 +2041,7 @@ export async function POST(request: NextRequest) {
                     if (cleanNasIp) {
                       try {
                         const nasRows = await db.$queryRawUnsafe<{ nasname: string; secret: string; ports: number | null }[]>(
-                          `SELECT nasname, secret, ports FROM nas WHERE nasname = $1 LIMIT 1`,
+                          'SELECT nasname, secret, ports FROM nas WHERE nasname = $1 LIMIT 1',
                           cleanNasIp
                         );
                         if (nasRows.length > 0) {
@@ -2053,41 +2053,42 @@ export async function POST(request: NextRequest) {
 
                     // Send Disconnect-Message via radclient (best-effort)
                     try {
-                      const radclientPath = `${process.cwd()}/freeradius-install/bin/radclient`;
+                      const radclientPath = process.cwd() + '/freeradius-install/bin/radclient';
                       const { execSync } = await import('child_process');
                       const fs = await import('fs');
-                      const attrs = `User-Name="${user.username}"\nAcct-Session-Id="${session.acctsessionid}"`;
-                      const tmpAttrsFile = `/tmp/radclient-disconnect-${Date.now()}.txt`;
+                      const attrs = 'User-Name="' + user.username + '"\nAcct-Session-Id="' + session.acctsessionid + '"';
+                      const tmpAttrsFile = '/tmp/radclient-disconnect-' + Date.now() + '.txt';
                       fs.writeFileSync(tmpAttrsFile, attrs + '\n');
                       try {
-                        const cmd = `${radclientPath} -t 3 -r 1 ${cleanNasIp}:${coaPort} disconnect ${nasSecret} < ${tmpAttrsFile} 2>&1`;
+                        const cmd = radclientPath + ' -t 3 -r 1 ' + cleanNasIp + ':' + coaPort + ' disconnect ' + nasSecret + ' < ' + tmpAttrsFile + ' 2>&1';
                         const output = execSync(cmd, { timeout: 5000 }).toString();
-                        console.log(`[change-user-status] Disconnect ${user.username} session ${session.acctsessionid}: ${output.trim()}`);
+                        console.log('[change-user-status] Disconnect ' + user.username + ' session ' + session.acctsessionid + ': ' + output.trim());
                       } catch (execErr: unknown) {
                         const errMsg = execErr instanceof Error ? execErr.message : String(execErr);
-                        console.warn(`[change-user-status] radclient error for ${user.username}: ${errMsg}`);
+                        console.warn('[change-user-status] radclient error for ' + user.username + ': ' + errMsg);
                       } finally {
                         try { fs.unlinkSync(tmpAttrsFile); } catch { /* ignore */ }
                       }
                     } catch (coaErr) {
-                      console.warn(`[change-user-status] CoA disconnect failed for ${user.username}:`, coaErr);
+                      console.warn('[change-user-status] CoA disconnect failed for ' + user.username + ':', coaErr);
                     }
 
                     // Always close the session in database (critical — ensures UI reflects disconnect)
                     try {
-                      await db.$executeRawUnsafe(`
-                        UPDATE radacct
-                        SET acctstoptime = NOW(),
-                            acctterminatecause = 'Admin-Reset',
-                            acctsessiontime = COALESCE(
-                              EXTRACT(EPOCH FROM (NOW() - acctstarttime))::bigint,
-                              0
-                            ),
-                            acctupdatetime = NOW(),
-                            "updatedAt" = NOW()
-                        WHERE username = $1 AND acctstoptime IS NULL
-                      `, user.username);
-                      console.log(`[change-user-status] Closed radacct sessions for ${user.username}`);
+                      const closeSql = [
+                        'UPDATE radacct',
+                        'SET acctstoptime = NOW(),',
+                        '    acctterminatecause = \'Admin-Reset\',',
+                        '    acctsessiontime = COALESCE(',
+                        '      EXTRACT(EPOCH FROM (NOW() - acctstarttime))::bigint,',
+                        '      0',
+                        '    ),',
+                        '    acctupdatetime = NOW(),',
+                        '    "updatedAt" = NOW()',
+                        'WHERE username = $1 AND acctstoptime IS NULL',
+                      ].join('\n');
+                      await db.$executeRawUnsafe(closeSql, user.username);
+                      console.log('[change-user-status] Closed radacct sessions for ' + user.username);
                     } catch (dbErr) {
                       console.warn('[change-user-status] Failed to close radacct sessions:', dbErr);
                     }
