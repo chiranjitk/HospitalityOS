@@ -7,8 +7,13 @@ import React from 'react';
 //   - Design Preview (admin panel designer tab)
 //   - Live Captive Portal (/connect page)
 //
-// Every visual element on the captive portal MUST use these helpers.
-// NO hardcoded colors, borders, shadows, or border-radii anywhere.
+// KEY PRINCIPLE: Card text/icon/input colors depend on the CARD background,
+// NOT the page background. Non-glass/non-minimal form styles (rounded, square, pill)
+// always render a white/light card background even on dark pages. So text inside
+// those cards must always be dark for readability.
+//
+// Only glass and minimal form styles have transparent/dark card backgrounds,
+// so they can use white text on dark pages.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ────────────────────────────────────────────────────────────
@@ -130,8 +135,8 @@ export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
   backgroundType: 'gradient',
   gradientFrom: '#0ea5e9',
   gradientTo: '#065f46',
-  backgroundColor: '#ffffff',
-  textColor: '#ffffff',
+  backgroundColor: '#0f766e',
+  textColor: '#fafafa',
   accentColor: '#14b8a6',
   backgroundImage: '',
   backgroundOverlay: 40,
@@ -168,6 +173,32 @@ export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
 };
 
 // ────────────────────────────────────────────────────────────
+// Background & Card Detection Helpers
+// ────────────────────────────────────────────────────────────
+
+/** Is the PAGE background dark? (gradient, image, or dark solid) */
+export function isDarkBackground(design: PortalDesignConfig): boolean {
+  if (design.backgroundType === 'gradient') return true;
+  if (design.backgroundType === 'image') return true;
+  const bg = design.backgroundColor || '#0f766e';
+  const r = parseInt(bg.slice(1, 3), 16);
+  const g = parseInt(bg.slice(3, 5), 16);
+  const b = parseInt(bg.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance < 0.5;
+}
+
+/**
+ * Is the FORM CARD background transparent/dark?
+ * Only glass and minimal styles have transparent card backgrounds.
+ * All other styles (rounded, square, pill) render white/light card backgrounds
+ * even when the page background is dark.
+ */
+export function isCardTransparent(design: PortalDesignConfig): boolean {
+  return design.formStyle === 'glass' || design.formStyle === 'minimal';
+}
+
+// ────────────────────────────────────────────────────────────
 // Background CSS Generation
 // ────────────────────────────────────────────────────────────
 
@@ -185,7 +216,6 @@ export function getBackgroundStyle(design: PortalDesignConfig): React.CSSPropert
       backgroundPosition: 'center',
     };
   }
-  // solid (or fallback)
   return {
     backgroundColor: design.backgroundColor || design.gradientFrom || '#0f766e',
   };
@@ -200,23 +230,6 @@ export function getBackgroundCSSValue(design: PortalDesignConfig): string {
     return `url(${design.backgroundImage}) center/cover`;
   }
   return design.backgroundColor || design.gradientFrom || '#0f766e';
-}
-
-// ────────────────────────────────────────────────────────────
-// Dark Background Detection
-// ────────────────────────────────────────────────────────────
-
-export function isDarkBackground(design: PortalDesignConfig): boolean {
-  if (design.backgroundType === 'gradient') return true;
-  if (design.backgroundType === 'image') return true;
-  // For solid: check if backgroundColor is dark
-  const bg = design.backgroundColor || '#0f766e';
-  const r = parseInt(bg.slice(1, 3), 16);
-  const g = parseInt(bg.slice(3, 5), 16);
-  const b = parseInt(bg.slice(5, 7), 16);
-  // Relative luminance
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance < 0.5;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -235,27 +248,27 @@ export function getOverlayStyle(design: PortalDesignConfig): React.CSSProperties
 // ────────────────────────────────────────────────────────────
 
 export function getFormContainerClasses(design: PortalDesignConfig): string {
-  const isGlass = design.formStyle === 'glass' || design.formStyle === 'minimal';
-  const isDark = isDarkBackground(design);
+  const glass = isCardTransparent(design);
+  const dark = isDarkBackground(design);
   let cls = 'p-6 space-y-5';
 
-  // Background
+  // Background — glass/minimal are transparent; others are white/light
   if (design.formStyle === 'glass') {
     cls += ' bg-white/10 backdrop-blur-xl border border-white/20';
   } else if (design.formStyle === 'minimal') {
     cls += ' bg-transparent';
   } else if (design.formStyle === 'pill') {
-    cls += isDark
+    cls += dark
       ? ' bg-white/95 backdrop-blur-xl'
       : ' bg-white';
     cls += ' border border-gray-200';
   } else if (design.formStyle === 'square') {
-    cls += isDark
+    cls += dark
       ? ' bg-white/95 backdrop-blur-xl'
       : ' bg-white';
   } else {
     // rounded (default)
-    cls += isDark
+    cls += dark
       ? ' bg-white/95 backdrop-blur-xl'
       : ' bg-white';
   }
@@ -292,27 +305,37 @@ export function getCardShadowCSS(design: PortalDesignConfig): React.CSSPropertie
 }
 
 // ────────────────────────────────────────────────────────────
-// Text Color — adapts based on form style + background
+// Text Color — depends on CARD background, NOT page background
 // ────────────────────────────────────────────────────────────
 
+/**
+ * Card text color for labels, headings inside the form card.
+ * - Glass/minimal on dark page → white text
+ * - All other card styles → dark text (card has white/light background)
+ */
 export function getCardTextColor(design: PortalDesignConfig): string {
-  const isGlass = design.formStyle === 'glass' || design.formStyle === 'minimal';
   const dark = isDarkBackground(design);
-  if (dark && isGlass) return '#ffffff';
-  return design.textColor || '#1f2937';
+  if (isCardTransparent(design) && dark) return '#ffffff';
+  // Non-transparent cards always have white/light backgrounds → dark text
+  return '#1f2937';
 }
 
+/** Subtitle color — this is OUTSIDE the card, on the page background */
 export function getSubtitleColor(design: PortalDesignConfig): string {
   const dark = isDarkBackground(design);
   if (dark) return 'rgba(255,255,255,0.8)';
   return 'rgba(0,0,0,0.6)';
 }
 
+/**
+ * Muted text color inside the form card.
+ * - Glass/minimal on dark page → light muted
+ * - All other cards → dark muted (card is white)
+ */
 export function getMutedTextColor(design: PortalDesignConfig): string {
-  const isGlass = design.formStyle === 'glass' || design.formStyle === 'minimal';
   const dark = isDarkBackground(design);
-  if (dark && isGlass) return 'rgba(255,255,255,0.7)';
-  if (dark) return 'rgba(255,255,255,0.6)';
+  if (isCardTransparent(design) && dark) return 'rgba(255,255,255,0.7)';
+  // Non-transparent cards always have white/light backgrounds
   return 'rgba(0,0,0,0.5)';
 }
 
@@ -320,43 +343,49 @@ export function getMutedTextColor(design: PortalDesignConfig): string {
 // Input Field Classes (based on inputStyle + formStyle)
 // ────────────────────────────────────────────────────────────
 
+/**
+ * Input classes. Text and border colors depend on CARD background.
+ * - Glass/minimal on dark page → white text, white/20 borders
+ * - All other cards → dark text, gray borders (card is white)
+ */
 export function getInputClasses(design: PortalDesignConfig): string {
-  const isGlass = design.formStyle === 'glass' || design.formStyle === 'minimal';
+  const glass = isCardTransparent(design);
   const dark = isDarkBackground(design);
+  // "use light colors" = glass/minimal on dark page background
+  const useLight = glass && dark;
 
-  // Base input classes
   let cls = 'w-full focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed';
 
   // Border styling
   if (design.inputStyle === 'underline') {
-    if (isGlass || dark) {
+    if (useLight) {
       cls += ' border-0 border-b-2 px-1 py-3 bg-transparent border-white/30';
     } else {
       cls += ' border-0 border-b-2 px-1 py-3 bg-transparent border-gray-300';
     }
   } else if (design.inputStyle === 'pill') {
-    if (isGlass || dark) {
+    if (useLight) {
       cls += ' bg-white/10 border border-white/20 rounded-full px-4 py-3';
     } else {
       cls += ' bg-white/90 border-2 border-gray-200 rounded-full px-4 py-3';
     }
   } else if (design.inputStyle === 'square') {
-    if (isGlass || dark) {
+    if (useLight) {
       cls += ' bg-white/10 border border-white/20 rounded-none px-3 py-3';
     } else {
       cls += ' bg-white/90 border-2 border-gray-200 rounded-none px-3 py-3';
     }
   } else {
     // rounded (default)
-    if (isGlass || dark) {
+    if (useLight) {
       cls += ' bg-white/10 border border-white/20 rounded-xl px-4 py-3';
     } else {
       cls += ' bg-white/90 border-2 border-gray-200 rounded-xl px-4 py-3';
     }
   }
 
-  // Text color for inputs
-  if (isGlass || dark) {
+  // Text color
+  if (useLight) {
     cls += ' text-white placeholder:text-white/40';
   } else {
     cls += ' text-gray-800 placeholder:text-gray-400';
@@ -367,8 +396,6 @@ export function getInputClasses(design: PortalDesignConfig): string {
 
 /** Input classes with left icon padding */
 export function getInputWithIconClasses(design: PortalDesignConfig): string {
-  const isGlass = design.formStyle === 'glass' || design.formStyle === 'minimal';
-  const dark = isDarkBackground(design);
   const base = getInputClasses(design);
 
   if (design.inputStyle === 'underline') {
@@ -380,7 +407,6 @@ export function getInputWithIconClasses(design: PortalDesignConfig): string {
   } else if (design.inputStyle === 'square') {
     return base.replace('px-3', 'pl-10 pr-3');
   } else {
-    // rounded
     return base.replace('px-4', 'pl-10 pr-4');
   }
 }
@@ -399,7 +425,7 @@ export function getButtonClasses(
   accentColor?: string
 ): ButtonStyleResult {
   const color = accentColor || design.accentColor || '#14b8a6';
-  const isGlass = design.formStyle === 'glass' || design.formStyle === 'minimal';
+  const glass = isCardTransparent(design);
   const dark = isDarkBackground(design);
 
   let className = 'w-full font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98]';
@@ -413,7 +439,7 @@ export function getButtonClasses(
     case 'small':
       className += ' px-4 py-2.5 text-sm';
       break;
-    default: // medium
+    default:
       className += ' px-5 py-3 text-sm';
       break;
   }
@@ -428,7 +454,8 @@ export function getButtonClasses(
       break;
     }
     case 'outlined': {
-      if (isGlass || dark) {
+      // Outlined button: always use accent color, text adapts to card bg
+      if (glass && dark) {
         className += ' border-2 border-white/40 text-white hover:bg-white/10 bg-transparent';
         style = {};
       } else {
@@ -455,13 +482,13 @@ export function getButtonClasses(
     }
   }
 
-  // Border radius from button style (except pill which is already set)
+  // Border radius from form style (except pill/rounded which are already set)
   if (design.buttonStyle !== 'pill' && design.buttonStyle !== 'rounded') {
     if (design.formStyle === 'pill') {
       style.borderRadius = '9999px';
     } else if (design.formStyle === 'square') {
       style.borderRadius = '0';
-    } else if (design.formStyle === 'glass' || design.formStyle === 'minimal') {
+    } else if (glass) {
       // Keep default from buttonStyle
     } else {
       style.borderRadius = '0.75rem';
@@ -472,13 +499,18 @@ export function getButtonClasses(
 }
 
 // ────────────────────────────────────────────────────────────
-// Icon color inside inputs (dynamic based on context)
+// Icon color inside inputs
 // ────────────────────────────────────────────────────────────
 
+/**
+ * Icon color for input icons.
+ * - Glass/minimal on dark page → white/low-opacity icons
+ * - All other cards → gray icons (card is white)
+ */
 export function getIconColor(design: PortalDesignConfig): string {
-  const isGlass = design.formStyle === 'glass' || design.formStyle === 'minimal';
+  const glass = isCardTransparent(design);
   const dark = isDarkBackground(design);
-  if (isGlass || dark) return 'rgba(255,255,255,0.4)';
+  if (glass && dark) return 'rgba(255,255,255,0.4)';
   return '#9ca3af'; // gray-400
 }
 
@@ -508,7 +540,7 @@ export function getAnimationClasses(design: PortalDesignConfig): string {
   }
 }
 
-// ────────────────────────────────────────────────────────────
+// ─�───────────────────────────────────────────────────────────
 // Social media icon helper
 // ────────────────────────────────────────────────────────────
 

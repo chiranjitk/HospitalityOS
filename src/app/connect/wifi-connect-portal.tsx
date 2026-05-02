@@ -1319,6 +1319,15 @@ function PortalContent() {
 
   // ── Apply portal config to state ──
   const applyPortalConfig = useCallback((data: PortalConfig) => {
+    console.log('[Portal] Applying config:', {
+      name: data.name,
+      authMethod: data.authMethod,
+      formFields: data.formFields ? Object.keys(data.formFields).length + ' fields' : 'null',
+      bgType: data.design?.backgroundType,
+      bgColor: data.design?.backgroundColor,
+      formStyle: data.design?.formStyle,
+      title: data.design?.title,
+    });
     setPortalConfig(data);
     setDesign(mergeDesignConfig(data.design));
     const methods = data.authMethods?.length
@@ -1335,6 +1344,11 @@ function PortalContent() {
       try {
         const resolveRes = await fetch('/api/wifi/portal/resolve-zone');
         if (cancelled) return;
+        if (!resolveRes.ok) {
+          console.error('[Portal] resolve-zone HTTP error:', resolveRes.status, resolveRes.statusText);
+          setState('auth_form');
+          return;
+        }
         const resolveResult = await resolveRes.json();
 
         if (resolveResult.success && resolveResult.data?.config) {
@@ -1348,9 +1362,9 @@ function PortalContent() {
           console.warn('[Portal] No portal config available, using voucher fallback');
           setState('auth_form');
         }
-      } catch {
+      } catch (err) {
         if (cancelled) return;
-        console.warn('[Portal] Failed to fetch config, using fallback');
+        console.error('[Portal] Failed to fetch config:', err);
         setState('auth_form');
       }
     };
