@@ -55,3 +55,44 @@ module.exports = {
     },
   ],
 };
+  },
+  {
+    name: 'staysuite-realtime',
+    script: 'bun',
+    args: 'run index.ts',
+    cwd: '/home/z/my-project/mini-services/realtime-service',
+    interpreter: 'none',
+    watch: false,
+    autorestart: true,
+    env: {
+      DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/staysuite',
+      PORT: '3003',
+    },
+  },
+  {
+    name: 'staysuite-captive-redirect',
+    script: 'bun',
+    args: 'run index.ts',
+    cwd: '/home/z/my-project/mini-services/captive-redirect',
+    interpreter: 'none',
+    watch: false,
+    autorestart: true,
+    env: {
+      PORT: '8888',
+      PORTAL_PORT: '3000',
+    },
+  },
+  {
+    name: 'staysuite-captive-redirect',
+    script: 'bun',
+    args: 'index.ts',
+    cwd: '/home/z/my-project/mini-services/captive-redirect',
+    interpreter: 'none',
+    watch: false,
+    autorestart: true,
+    env: {
+      PORT: '8888',
+      PORTAL_PORT: '3000',
+    },
+  }
+];
