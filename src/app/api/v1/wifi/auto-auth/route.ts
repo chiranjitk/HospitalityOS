@@ -541,8 +541,8 @@ async function logAuthAttempt(
       || '';
 
     await db.$executeRawUnsafe(
-      `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress)
-       VALUES ($1, '', $2, NOW(), $3)`,
+      `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, "nasIpAddress")
+       VALUES ($1, '', $2, NOW(), $3, $3)`,
       username,
       reply,
       clientIp
