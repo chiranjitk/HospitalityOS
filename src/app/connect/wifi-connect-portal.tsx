@@ -355,9 +355,9 @@ function PromotionCarousel({ design }: { design: PortalDesignConfig }) {
       {/* Dot indicators */}
       {promotions.length > 1 && (
         <div className="flex justify-center gap-1.5 mt-2">
-          {promotions.map((_, i) => (
+          {promotions.map((p, i) => (
             <button
-              key={promo.id || i}
+              key={p.id || `dot-${i}`}
               onClick={() => setCurrent(i)}
               className="w-1.5 h-1.5 rounded-full transition-all duration-300"
               style={{
