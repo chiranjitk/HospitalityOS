@@ -223,6 +223,7 @@ interface DesignSettings {
   enableMultiLanguage: boolean;
   languages: string[];
   defaultLanguage: string;
+  translations: Record<string, Record<string, string>>;
   // Feature 2: Marketing Opt-In
   marketingOptIn: { enabled: boolean; emailConsent: boolean; phoneConsent: boolean; consentText: string };
   // Feature 3: Carousel
@@ -261,7 +262,7 @@ const DEFAULT_SETTINGS: DesignSettings = {
   showClock: false, showWeather: false,
   promotionTitle: 'Special Offer', promotionDesc: 'Book 3 nights, get the 4th free!', showPromotion: false,
   // Feature 1: Multi-Language
-  enableMultiLanguage: false, languages: ['en'], defaultLanguage: 'en',
+  enableMultiLanguage: false, languages: ['en'], defaultLanguage: 'en', translations: {},
   // Feature 2: Marketing Opt-In
   marketingOptIn: { enabled: false, emailConsent: true, phoneConsent: false, consentText: 'I agree to receive promotional offers and updates from the hotel' },
   // Feature 3: Carousel
@@ -1782,6 +1783,29 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                             <SelectContent>{LANGUAGE_OPTIONS.filter((l) => design.settings.languages.includes(l.value)).map((l) => <SelectItem key={l.value} value={l.value}>{l.flag} {l.label}</SelectItem>)}</SelectContent>
                           </Select>
                         </div>
+                        {/* Translation inputs for each non-default language */}
+                        {design.settings.languages.filter((l) => l !== design.settings.defaultLanguage).map((langCode) => {
+                          const langOpt = LANGUAGE_OPTIONS.find((l) => l.value === langCode);
+                          if (!langOpt) return null;
+                          const langTranslations = design.settings.translations?.[langCode] || {};
+                          const updateTranslation = (key: string, value: string) => {
+                            const current = { ...(design.settings.translations || {}) };
+                            current[langCode] = { ...(current[langCode] || {}), [key]: value };
+                            updateSettings({ translations: current });
+                          };
+                          return (
+                            <div key={langCode} className="space-y-2 p-3 rounded-xl border border-border bg-muted/20">
+                              <p className="text-xs font-semibold flex items-center gap-1.5">{langOpt.flag} {langOpt.label} <span className="text-muted-foreground font-normal">translations</span></p>
+                              <div className="space-y-1.5">
+                                <div className="space-y-1"><Label className="text-[11px] text-muted-foreground">Title</Label><Input value={langTranslations.title || ''} onChange={(e) => updateTranslation('title', e.target.value)} placeholder={design.title || 'Welcome'} className="text-xs h-8" /></div>
+                                <div className="space-y-1"><Label className="text-[11px] text-muted-foreground">Subtitle</Label><Input value={langTranslations.subtitle || ''} onChange={(e) => updateTranslation('subtitle', e.target.value)} placeholder={design.subtitle || 'Connect to WiFi'} className="text-xs h-8" /></div>
+                                <div className="space-y-1"><Label className="text-[11px] text-muted-foreground">Welcome Message</Label><Input value={langTranslations.welcomeMessage || ''} onChange={(e) => updateTranslation('welcomeMessage', e.target.value)} placeholder={design.welcomeMessage || 'Enjoy your stay'} className="text-xs h-8" /></div>
+                                <div className="space-y-1"><Label className="text-[11px] text-muted-foreground">Hotel Name</Label><Input value={langTranslations.hotelName || ''} onChange={(e) => updateTranslation('hotelName', e.target.value)} placeholder={design.hotelName} className="text-xs h-8" /></div>
+                                <div className="space-y-1"><Label className="text-[11px] text-muted-foreground">Hotel Address</Label><Input value={langTranslations.hotelAddress || ''} onChange={(e) => updateTranslation('hotelAddress', e.target.value)} placeholder={design.hotelAddress} className="text-xs h-8" /></div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </>)}
                     </div>
                     <Separator />

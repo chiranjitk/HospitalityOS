@@ -30,7 +30,7 @@
  * States: loading → auth_form → authenticating → success → error
  */
 
-import { useState, useEffect, Suspense, useCallback, Fragment } from 'react';
+import { useState, useEffect, Suspense, useCallback, Fragment, createContext, useContext } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Wifi,
@@ -92,7 +92,16 @@ import {
   mergeDesignConfig,
   getLanguageLabel,
   getSocialPlatformColor,
+  getUIString,
+  getLocalizedText,
 } from '@/lib/wifi/portal-design-utils';
+
+// ────────────────────────────────────────────────────────────
+// Portal Language Context (Feature 1: Multi-Language)
+// ────────────────────────────────────────────────────────────
+
+const PortalLanguageContext = createContext('en');
+function usePortalLang() { return useContext(PortalLanguageContext); }
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -245,6 +254,7 @@ function LiveClock({ design }: { design: PortalDesignConfig }) {
 const weatherCache = new Map<string, { temp: string; condition: string }>();
 
 function WeatherWidget({ design }: { design: PortalDesignConfig }) {
+  const lang = usePortalLang();
   const location = design.weatherLocation;
   const [weather, setWeather] = useState<{ temp: string; condition: string } | null>(
     () => (location ? weatherCache.get(location) ?? null : null)
@@ -287,7 +297,7 @@ function WeatherWidget({ design }: { design: PortalDesignConfig }) {
     return (
       <div className="flex items-center justify-center gap-1.5 text-xs" style={{ color }}>
         <span aria-hidden="true">🌤️</span>
-        <span style={{ color, fontStyle: 'italic' }}>Weather — set location in designer</span>
+        <span style={{ color, fontStyle: 'italic' }}>{getUIString(lang, 'weatherSetLocation')}</span>
       </div>
     );
   }
@@ -429,6 +439,7 @@ function MarketingConsent({ design, emailConsent, setEmailConsent, phoneConsent,
   phoneConsent: boolean;
   setPhoneConsent: (v: boolean) => void;
 }) {
+  const lang = usePortalLang();
   const optIn = design.marketingOptIn;
   if (!optIn?.enabled) return null;
 
@@ -451,7 +462,7 @@ function MarketingConsent({ design, emailConsent, setEmailConsent, phoneConsent,
               className="rounded"
               style={{ accentColor: design.accentColor }}
             />
-            <span style={{ color: mutedColor }}>I agree to receive email marketing</span>
+            <span style={{ color: mutedColor }}>{getUIString(lang, 'emailMarketing')}</span>
           </label>
         )}
         {optIn.phoneConsent && (
@@ -463,7 +474,7 @@ function MarketingConsent({ design, emailConsent, setEmailConsent, phoneConsent,
               className="rounded"
               style={{ accentColor: design.accentColor }}
             />
-            <span style={{ color: mutedColor }}>I agree to receive SMS marketing</span>
+            <span style={{ color: mutedColor }}>{getUIString(lang, 'smsMarketing')}</span>
           </label>
         )}
       </div>
@@ -476,6 +487,7 @@ function MarketingConsent({ design, emailConsent, setEmailConsent, phoneConsent,
 // ────────────────────────────────────────────────────────────
 
 function MarketingConsentPlaceholder({ design }: { design: PortalDesignConfig }) {
+  const lang = usePortalLang();
   const optIn = design.marketingOptIn;
   if (!optIn?.enabled) return null;
 
@@ -493,13 +505,13 @@ function MarketingConsentPlaceholder({ design }: { design: PortalDesignConfig })
         {optIn.emailConsent && (
           <label className="flex items-center gap-2 text-xs cursor-pointer">
             <input type="checkbox" className="rounded" style={{ accentColor: accent }} defaultChecked={false} />
-            <span style={{ color: mutedColor }}>Email marketing</span>
+            <span style={{ color: mutedColor }}>{getUIString(lang, 'emailMarketing')}</span>
           </label>
         )}
         {optIn.phoneConsent && (
           <label className="flex items-center gap-2 text-xs cursor-pointer">
             <input type="checkbox" className="rounded" style={{ accentColor: accent }} defaultChecked={false} />
-            <span style={{ color: mutedColor }}>SMS marketing</span>
+            <span style={{ color: mutedColor }}>{getUIString(lang, 'smsMarketing')}</span>
           </label>
         )}
       </div>
@@ -512,6 +524,7 @@ function MarketingConsentPlaceholder({ design }: { design: PortalDesignConfig })
 // ────────────────────────────────────────────────────────────
 
 function GuestSurvey({ design }: { design: PortalDesignConfig }) {
+  const lang = usePortalLang();
   const surveyConfig = design.surveyConfig;
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -531,7 +544,7 @@ function GuestSurvey({ design }: { design: PortalDesignConfig }) {
           <Check className="w-6 h-6" style={{ color: accent }} />
         </div>
         <p className="text-sm font-medium" style={{ color: textColor }}>
-          {surveyConfig.thankYouMessage || 'Thank you for your feedback!'}
+          {surveyConfig.thankYouMessage || getUIString(lang, 'thankYouForFeedback')}
         </p>
       </div>
     );
@@ -567,6 +580,7 @@ function GuestSurvey({ design }: { design: PortalDesignConfig }) {
 // ────────────────────────────────────────────────────────────
 
 function TermsModal({ design, open, onClose }: { design: PortalDesignConfig; open: boolean; onClose: () => void }) {
+  const lang = usePortalLang();
   if (!open) return null;
 
   const textColor = getCardTextColor(design);
@@ -585,7 +599,7 @@ function TermsModal({ design, open, onClose }: { design: PortalDesignConfig; ope
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold" style={{ color: textColor }}>Terms &amp; Conditions</h3>
+          <h3 className="text-lg font-bold" style={{ color: textColor }}>{getUIString(lang, 'termsAndConditions')}</h3>
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-full transition-colors hover:opacity-80"
@@ -596,7 +610,7 @@ function TermsModal({ design, open, onClose }: { design: PortalDesignConfig; ope
           </button>
         </div>
         <div className="text-sm whitespace-pre-wrap leading-relaxed" style={{ color: mutedColor }}>
-          {design.termsText || 'Terms and conditions content will appear here.'}
+          {getLocalizedText(design, 'termsText', lang) || 'Terms and conditions content will appear here.'}
         </div>
         {design.termsUrl && (
           <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${mutedColor}15` }}>
@@ -747,12 +761,13 @@ function VoucherForm({
   loading: boolean;
   hasQrPrefill: boolean;
 }) {
+  const lang = usePortalLang();
   const [code, setCode] = useState(initialCode);
   const [error, setError] = useState('');
 
   const handleSubmit = () => {
     if (!code.trim()) {
-      setError('Please enter a voucher code');
+      setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'voucherCode').toLowerCase());
       return;
     }
     setError('');
@@ -768,15 +783,14 @@ function VoucherForm({
         >
           <QrCode className="w-4 h-4 flex-shrink-0" style={{ color: design.accentColor }} />
           <p className="text-sm" style={{ color: design.accentColor }}>
-            <span className="font-medium">QR Code scanned</span> — your
-            voucher code has been pre-filled
+            <span className="font-medium">{getUIString(lang, 'qrCodeScanned')}</span> — {getUIString(lang, 'qrCodePrefilled')}
           </p>
         </div>
       )}
 
       <DynamicInput
         design={design}
-        label="Voucher Code"
+        label={getUIString(lang, 'voucherCode')}
         type="text"
         value={code}
         onChange={(v) => setCode(v.toUpperCase())}
@@ -793,7 +807,7 @@ function VoucherForm({
       <DynamicButton design={design} onClick={handleSubmit} disabled={!code.trim()} loading={loading}>
         <>
           <Wifi className="w-5 h-5" />
-          Connect to WiFi
+          {getUIString(lang, 'connectToWiFi')}
         </>
       </DynamicButton>
     </div>
@@ -813,13 +827,14 @@ function RoomNumberForm({
   onSubmit: (roomNumber: string, lastName: string) => void;
   loading: boolean;
 }) {
+  const lang = usePortalLang();
   const [room, setRoom] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = () => {
-    if (!room.trim()) { setError('Please enter your room number'); return; }
-    if (!name.trim()) { setError('Please enter your last name'); return; }
+    if (!room.trim()) { setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'roomNumber').toLowerCase()); return; }
+    if (!name.trim()) { setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'lastName').toLowerCase()); return; }
     setError('');
     onSubmit(room.trim(), name.trim());
   };
@@ -828,7 +843,7 @@ function RoomNumberForm({
     <div className="space-y-4">
       <DynamicInput
         design={design}
-        label="Room Number"
+        label={getUIString(lang, 'roomNumber')}
         value={room}
         onChange={setRoom}
         placeholder="e.g. 101"
@@ -838,7 +853,7 @@ function RoomNumberForm({
       />
       <DynamicInput
         design={design}
-        label="Last Name"
+        label={getUIString(lang, 'lastName')}
         value={name}
         onChange={setName}
         placeholder="e.g. Smith"
@@ -850,7 +865,7 @@ function RoomNumberForm({
       <DynamicButton design={design} onClick={handleSubmit} disabled={!room.trim() || !name.trim()} loading={loading}>
         <>
           <Key className="w-5 h-5" />
-          Sign In with Room
+          {getUIString(lang, 'signInWithRoom')}
         </>
       </DynamicButton>
     </div>
@@ -870,13 +885,14 @@ function PmsCredentialsForm({
   onSubmit: (username: string, password: string) => void;
   loading: boolean;
 }) {
+  const lang = usePortalLang();
   const [uname, setUname] = useState('');
   const [pass, setPass] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = () => {
-    if (!uname.trim()) { setError('Please enter your username'); return; }
-    if (!pass.trim()) { setError('Please enter your password'); return; }
+    if (!uname.trim()) { setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'username').toLowerCase()); return; }
+    if (!pass.trim()) { setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'password').toLowerCase()); return; }
     setError('');
     onSubmit(uname.trim(), pass.trim());
   };
@@ -885,7 +901,7 @@ function PmsCredentialsForm({
     <div className="space-y-4">
       <DynamicInput
         design={design}
-        label="Username"
+        label={getUIString(lang, 'username')}
         value={uname}
         onChange={setUname}
         placeholder="Enter username"
@@ -895,7 +911,7 @@ function PmsCredentialsForm({
       />
       <DynamicInput
         design={design}
-        label="Password"
+        label={getUIString(lang, 'password')}
         type="password"
         value={pass}
         onChange={setPass}
@@ -908,7 +924,7 @@ function PmsCredentialsForm({
       <DynamicButton design={design} onClick={handleSubmit} disabled={!uname.trim() || !pass.trim()} loading={loading}>
         <>
           <Key className="w-5 h-5" />
-          Sign In
+          {getUIString(lang, 'signIn')}
         </>
       </DynamicButton>
     </div>
@@ -928,6 +944,7 @@ function SmsOtpForm({
   onAuthenticate: (method: string, payload: Record<string, string>) => void;
   loading: boolean;
 }) {
+  const lang = usePortalLang();
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
@@ -942,7 +959,7 @@ function SmsOtpForm({
   }, [countdown]);
 
   const handleSendOtp = async () => {
-    if (!phone.trim()) { setError('Please enter your phone number'); return; }
+    if (!phone.trim()) { setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'phoneNumber').toLowerCase()); return; }
     setError('');
     onAuthenticate('sms_otp', { phoneNumber: phone.trim() });
     setStep('otp');
@@ -950,7 +967,7 @@ function SmsOtpForm({
   };
 
   const handleVerifyOtp = () => {
-    if (!otp.trim()) { setError('Please enter the OTP code'); return; }
+    if (!otp.trim()) { setError(getUIString(lang, 'pleaseEnter') + ' OTP code'); return; }
     setError('');
     onAuthenticate('sms_otp', {
       phoneNumber: phone.trim(),
@@ -973,11 +990,11 @@ function SmsOtpForm({
     return (
       <div className="space-y-4">
         <p className="text-sm text-center" style={{ color: mutedColor }}>
-          We&apos;ll send a verification code to your phone
+          {getUIString(lang, 'weWillSendCode')}
         </p>
         <DynamicInput
           design={design}
-          label="Phone Number"
+          label={getUIString(lang, 'phoneNumber')}
           type="tel"
           value={phone}
           onChange={setPhone}
@@ -991,7 +1008,7 @@ function SmsOtpForm({
         <DynamicButton design={design} onClick={handleSendOtp} disabled={!phone.trim()} loading={loading}>
           <>
             <Smartphone className="w-5 h-5" />
-            Send Verification Code
+            {getUIString(lang, 'sendVerificationCode')}
           </>
         </DynamicButton>
       </div>
@@ -1001,12 +1018,12 @@ function SmsOtpForm({
   return (
     <div className="space-y-4">
       <p className="text-sm text-center" style={{ color: mutedColor }}>
-        Enter the 6-digit code sent to{' '}
+        {getUIString(lang, 'enterCodeSentTo')}{' '}
         <span className="font-medium" style={{ color: labelColor }}>{phone}</span>
       </p>
       <DynamicInput
         design={design}
-        label="Verification Code"
+        label={getUIString(lang, 'verificationCode')}
         value={otp}
         onChange={(v) => setOtp(v.replace(/\D/g, '').slice(0, 6))}
         placeholder="000000"
@@ -1020,7 +1037,7 @@ function SmsOtpForm({
       <DynamicButton design={design} onClick={handleVerifyOtp} disabled={otp.length < 6} loading={loading}>
         <>
           <CheckCircle className="w-5 h-5" />
-          Verify & Connect
+          {getUIString(lang, 'verifyAndConnect')}
         </>
       </DynamicButton>
       <div className="flex items-center justify-between text-sm">
@@ -1029,7 +1046,7 @@ function SmsOtpForm({
           className="hover:underline flex items-center gap-1"
           style={{ color: mutedColor }}
         >
-          <span>&larr;</span> Change number
+          <span>&larr;</span> {getUIString(lang, 'changeNumber')}
         </button>
         <button
           onClick={handleResend}
@@ -1038,7 +1055,7 @@ function SmsOtpForm({
           style={{ color: design.accentColor }}
         >
           <RefreshCw className="w-3 h-3" />
-          {countdown > 0 ? `Resend in ${countdown}s` : 'Resend code'}
+          {countdown > 0 ? getUIString(lang, 'resendIn').replace('{0}', String(countdown)) : getUIString(lang, 'resendCode')}
         </button>
       </div>
     </div>
@@ -1058,17 +1075,18 @@ function OpenAccessForm({
   onConnect: () => void;
   loading: boolean;
 }) {
+  const lang = usePortalLang();
   const mutedColor = getMutedTextColor(design);
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-center" style={{ color: mutedColor }}>
-        Click below to connect to the WiFi network
+        {getUIString(lang, 'openAccessDesc')}
       </p>
       <DynamicButton design={design} onClick={onConnect} loading={loading}>
         <>
           <Globe className="w-5 h-5" />
-          Connect Now
+          {getUIString(lang, 'connectNow')}
         </>
       </DynamicButton>
     </div>
@@ -1105,6 +1123,8 @@ function UnifiedDesignerForm({
   termsAccepted: boolean;
   setTermsAccepted: (v: boolean) => void;
 }) {
+  const lang = usePortalLang();
+
   // Initialize formData with pre-filled voucher code from QR scan
   const [formData, setFormData] = useState<Record<string, string>>(() => {
     if (codeParam && formFields['voucherCode']) {
@@ -1142,6 +1162,28 @@ function UnifiedDesignerForm({
     return fallback;
   };
 
+  // Map field keys to UI string keys for translated fallback labels
+  const fieldKeyToUiKey: Record<string, string> = {
+    firstName: 'firstName',
+    lastName: 'lastName',
+    roomNumber: 'roomNumber',
+    phone: 'phoneNumber',
+    email: 'emailAddress',
+    passport: 'passport',
+    bookingId: 'bookingId',
+    username: 'username',
+    password: 'password',
+    voucherCode: 'voucherCode',
+  };
+
+  const getTranslatedFieldLabel = (key: string, fallback: string): string => {
+    const adminLabel = getFieldLabel(key, '');
+    if (adminLabel) return adminLabel;
+    const uiKey = fieldKeyToUiKey[key];
+    if (uiKey) return getUIString(lang, uiKey);
+    return fallback;
+  };
+
   const isFieldRequired = (key: string): boolean => {
     const val = formFields[key];
     if (typeof val === 'object' && val !== null) return (val as FormFieldConfig).required ?? false;
@@ -1167,14 +1209,15 @@ function UnifiedDesignerForm({
     for (const fieldDef of enabledFields) {
       const key = fieldDef.key;
       if (isFieldRequired(key) && !formData[key]?.trim()) {
-        setError(`Please enter ${getFieldLabel(key, fieldDef.label).toLowerCase()}`);
+        const label = getTranslatedFieldLabel(key, fieldDef.label);
+        setError(getUIString(lang, 'pleaseEnter') + ' ' + label.toLowerCase());
         return;
       }
     }
 
     // Terms validation
     if (showTerms && termsRequired && !termsAccepted) {
-      setError('Please accept the terms and conditions');
+      setError(getUIString(lang, 'pleaseEnter').replace(/Please enter/i, 'Please accept') + ' ' + getUIString(lang, 'termsAndConditions').toLowerCase());
       return;
     }
 
@@ -1196,12 +1239,12 @@ function UnifiedDesignerForm({
         break;
       case 'sms_otp': {
         if (!formData.phone?.trim()) {
-          setError('Please enter your phone number');
+          setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'phoneNumber').toLowerCase());
           return;
         }
         if (otpStep) {
           if (!otpCode.trim()) {
-            setError('Please enter the verification code');
+            setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'verificationCode').toLowerCase());
             return;
           }
           payload.phoneNumber = formData.phone.trim();
@@ -1233,7 +1276,7 @@ function UnifiedDesignerForm({
     }
 
     authenticate(authMethod, payload);
-  }, [formData, authMethod, enabledFields, termsAccepted, termsRequired, showTerms, otpStep, otpCode, authenticate, design.marketingOptIn, emailConsent, phoneConsent]);
+  }, [formData, authMethod, enabledFields, termsAccepted, termsRequired, showTerms, otpStep, otpCode, authenticate, design.marketingOptIn, emailConsent, phoneConsent, lang, getTranslatedFieldLabel]);
 
   const handleResendOtp = () => {
     if (otpCountdown > 0) return;
@@ -1248,7 +1291,7 @@ function UnifiedDesignerForm({
     return (
       <div className="space-y-4">
         <p className="text-sm text-center" style={{ color: getMutedTextColor(design) }}>
-          Click below to connect to the WiFi network
+          {getUIString(lang, 'openAccessDesc')}
         </p>
         {showTerms && termsRequired && (
           <label className="flex items-start gap-2 text-sm cursor-pointer">
@@ -1260,9 +1303,9 @@ function UnifiedDesignerForm({
               style={{ accentColor: design.accentColor }}
             />
             <span style={{ color: getMutedTextColor(design) }}>
-              I agree to the{' '}
+              {getUIString(lang, 'iAgreeToThe')}{' '}
               <span style={{ color: design.accentColor }} className="font-medium underline cursor-pointer">
-                terms and conditions
+                {getUIString(lang, 'termsAndConditions')}
               </span>
             </span>
           </label>
@@ -1271,7 +1314,7 @@ function UnifiedDesignerForm({
         <DynamicButton design={design} onClick={handleSubmit} disabled={termsRequired && !termsAccepted} loading={loading}>
           <>
             <Globe className="w-5 h-5" />
-            Connect Now
+            {getUIString(lang, 'connectNow')}
           </>
         </DynamicButton>
       </div>
@@ -1286,12 +1329,12 @@ function UnifiedDesignerForm({
     return (
       <div className="space-y-4">
         <p className="text-sm text-center" style={{ color: mutedColor }}>
-          Enter the 6-digit code sent to{' '}
+          {getUIString(lang, 'enterCodeSentTo')}{' '}
           <span className="font-medium" style={{ color: labelColor }}>{formData.phone}</span>
         </p>
         <DynamicInput
           design={design}
-          label="Verification Code"
+          label={getUIString(lang, 'verificationCode')}
           value={otpCode}
           onChange={(v) => setOtpCode(v.replace(/\D/g, '').slice(0, 6))}
           placeholder="000000"
@@ -1305,7 +1348,7 @@ function UnifiedDesignerForm({
         <DynamicButton design={design} onClick={handleSubmit} disabled={otpCode.length < 6} loading={loading}>
           <>
             <CheckCircle className="w-5 h-5" />
-            Verify & Connect
+            {getUIString(lang, 'verifyAndConnect')}
           </>
         </DynamicButton>
         <div className="flex items-center justify-between text-sm">
@@ -1314,7 +1357,7 @@ function UnifiedDesignerForm({
             className="hover:underline flex items-center gap-1"
             style={{ color: mutedColor }}
           >
-            <span>&larr;</span> Change number
+            <span>&larr;</span> {getUIString(lang, 'changeNumber')}
           </button>
           <button
             onClick={handleResendOtp}
@@ -1323,7 +1366,7 @@ function UnifiedDesignerForm({
             style={{ color: design.accentColor }}
           >
             <RefreshCw className="w-3 h-3" />
-            {otpCountdown > 0 ? `Resend in ${otpCountdown}s` : 'Resend code'}
+            {otpCountdown > 0 ? getUIString(lang, 'resendIn').replace('{0}', String(otpCountdown)) : getUIString(lang, 'resendCode')}
           </button>
         </div>
       </div>
@@ -1331,11 +1374,11 @@ function UnifiedDesignerForm({
   }
 
   // Auth flow indicator
-  const flowLabel = authMethod === 'room_number' ? 'Enter Room'
-    : authMethod === 'voucher' ? 'Enter Voucher'
-    : authMethod === 'sms_otp' ? 'OTP Login'
-    : authMethod === 'open_access' ? 'Free Access'
-    : 'Sign In';
+  const flowLabel = authMethod === 'room_number' ? getUIString(lang, 'enterRoom')
+    : authMethod === 'voucher' ? getUIString(lang, 'enterVoucher')
+    : authMethod === 'sms_otp' ? getUIString(lang, 'otpLogin')
+    : authMethod === 'open_access' ? getUIString(lang, 'freeAccess')
+    : getUIString(lang, 'signIn');
 
   return (
     <div className="space-y-4">
@@ -1355,8 +1398,7 @@ function UnifiedDesignerForm({
         >
           <QrCode className="w-4 h-4 flex-shrink-0" style={{ color: design.accentColor }} />
           <p className="text-sm" style={{ color: design.accentColor }}>
-            <span className="font-medium">QR Code scanned</span> — your
-            voucher code has been pre-filled
+            <span className="font-medium">{getUIString(lang, 'qrCodeScanned')}</span> — {getUIString(lang, 'qrCodePrefilled')}
           </p>
         </div>
       )}
@@ -1364,13 +1406,13 @@ function UnifiedDesignerForm({
       {/* SMS OTP hint */}
       {isSmsOtp && (
         <p className="text-sm text-center" style={{ color: mutedColor }}>
-          We&apos;ll send a verification code to your phone
+          {getUIString(lang, 'weWillSendCode')}
         </p>
       )}
 
       {/* Dynamic fields from designer config */}
       {enabledFields.map((fieldDef, index) => {
-        const label = getFieldLabel(fieldDef.key, fieldDef.label);
+        const label = getTranslatedFieldLabel(fieldDef.key, fieldDef.label);
         const reqSuffix = isFieldRequired(fieldDef.key) ? ' *' : '';
 
         return (
@@ -1422,7 +1464,7 @@ function UnifiedDesignerForm({
             style={{ accentColor: design.accentColor }}
           />
           <span style={{ color: getMutedTextColor(design) }}>
-            I agree to the{' '}
+            {getUIString(lang, 'iAgreeToThe')}{' '}
             {design.termsUrl ? (
               <a
                 href={design.termsUrl}
@@ -1431,7 +1473,7 @@ function UnifiedDesignerForm({
                 className="font-medium underline"
                 style={{ color: design.accentColor }}
               >
-                Terms &amp; Conditions
+                {getUIString(lang, 'termsAndConditions')}
               </a>
             ) : design.termsText ? (
               <span
@@ -1439,11 +1481,11 @@ function UnifiedDesignerForm({
                 className="font-medium underline cursor-pointer"
                 onClick={() => setTermsModalOpen(true)}
               >
-                Terms &amp; Conditions
+                {getUIString(lang, 'termsAndConditions')}
               </span>
             ) : (
               <span style={{ color: design.accentColor }} className="font-medium">
-                Terms &amp; Conditions
+                {getUIString(lang, 'termsAndConditions')}
               </span>
             )}
           </span>
@@ -1459,7 +1501,7 @@ function UnifiedDesignerForm({
       >
         <>
           <Wifi className="w-5 h-5" />
-          {isSmsOtp ? 'Send Verification Code' : isOpenAccess ? 'Connect Now' : 'Connect'}
+          {isSmsOtp ? getUIString(lang, 'sendVerificationCode') : isOpenAccess ? getUIString(lang, 'connectNow') : getUIString(lang, 'connect')}
         </>
       </DynamicButton>
 
@@ -1480,6 +1522,7 @@ function SuccessScreen({
   authResult: AuthResult;
   design: PortalDesignConfig;
 }) {
+  const lang = usePortalLang();
   const [countdown, setCountdown] = useState(10);
   const textColor = getCardTextColor(design);
   const mutedColor = getMutedTextColor(design);
@@ -1502,14 +1545,14 @@ function SuccessScreen({
       </div>
       <div>
         <h2 className="text-2xl font-bold" style={{ color: textColor }}>
-          Connected!
+          {getUIString(lang, 'connected')}
         </h2>
         <p className="text-sm mt-1" style={{ color: mutedColor }}>
           {authResult.message || 'You are now connected to hotel WiFi.'}
         </p>
         {design.welcomeMessage && (
           <p className="text-sm mt-2 italic" style={{ color: accent }}>
-            {design.welcomeMessage}
+            {getLocalizedText(design, 'welcomeMessage', lang)}
           </p>
         )}
       </div>
@@ -1524,13 +1567,13 @@ function SuccessScreen({
         }}
       >
         <h3 className="font-semibold text-left" style={{ color: textColor }}>
-          Session Details
+          {getUIString(lang, 'sessionDetails')}
         </h3>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4" style={{ color: accent }} />
             <div className="text-left">
-              <p className="text-xs" style={{ color: mutedColor }}>Duration</p>
+              <p className="text-xs" style={{ color: mutedColor }}>{getUIString(lang, 'duration')}</p>
               <p className="font-medium" style={{ color: textColor }}>
                 {authResult.sessionTimeout >= 60
                   ? `${Math.floor(authResult.sessionTimeout / 60)}h ${authResult.sessionTimeout % 60 > 0 ? `${authResult.sessionTimeout % 60}m` : ''}`
@@ -1541,21 +1584,21 @@ function SuccessScreen({
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4" style={{ color: accent }} />
             <div className="text-left">
-              <p className="text-xs" style={{ color: mutedColor }}>Download</p>
+              <p className="text-xs" style={{ color: mutedColor }}>{getUIString(lang, 'download')}</p>
               <p className="font-medium" style={{ color: textColor }}>{authResult.bandwidthDown} Mbps</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Wifi className="w-4 h-4" style={{ color: accent }} />
             <div className="text-left">
-              <p className="text-xs" style={{ color: mutedColor }}>Upload</p>
+              <p className="text-xs" style={{ color: mutedColor }}>{getUIString(lang, 'upload')}</p>
               <p className="font-medium" style={{ color: textColor }}>{authResult.bandwidthUp} Mbps</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4" style={{ color: accent }} />
             <div className="text-left">
-              <p className="text-xs" style={{ color: mutedColor }}>Method</p>
+              <p className="text-xs" style={{ color: mutedColor }}>{getUIString(lang, 'method')}</p>
               <p className="font-medium capitalize" style={{ color: textColor }}>
                 {authResult.method.replace('_', ' ')}
               </p>
@@ -1570,7 +1613,7 @@ function SuccessScreen({
         style={{ color: accent }}
       >
         <RefreshCw className="w-3 h-3" />
-        Connect another device
+        {getUIString(lang, 'connectAnotherDevice')}
       </button>
 
       {/* Post-Connect Guest Survey (Feature 4) */}
@@ -1584,17 +1627,21 @@ function SuccessScreen({
 // ────────────────────────────────────────────────────────────
 
 function HotelInfoBlock({ design, dark }: { design: PortalDesignConfig; dark: boolean }) {
+  const lang = usePortalLang();
   const hasContent = design.hotelName || design.hotelAddress || design.hotelPhone || design.hotelWebsite;
   if (!design.showHotelInfo && !hasContent) return null;
   const textColor = dark ? '#ffffff' : design.textColor;
   const mutedColor = dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
 
+  const hotelName = getLocalizedText(design, 'hotelName', lang);
+  const hotelAddress = getLocalizedText(design, 'hotelAddress', lang);
+
   return (
     <div className="w-full text-center space-y-1">
-      <p className="text-sm font-semibold" style={{ color: textColor }}>{design.hotelName}</p>
+      {hotelName && <p className="text-sm font-semibold" style={{ color: textColor }}>{hotelName}</p>}
       <div className="flex items-center justify-center gap-1 text-xs" style={{ color: mutedColor }}>
-        {design.hotelAddress && (
-          <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{design.hotelAddress}</span>
+        {hotelAddress && (
+          <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{hotelAddress}</span>
         )}
       </div>
       <div className="flex items-center justify-center gap-3 text-xs" style={{ color: mutedColor }}>
@@ -1653,8 +1700,12 @@ function AmenitiesBlock({ design, dark }: { design: PortalDesignConfig; dark: bo
 // ────────────────────────────────────────────────────────────
 
 function PromotionBlock({ design }: { design: PortalDesignConfig }) {
+  const lang = usePortalLang();
   if (!design.showPromotion && !design.promotionTitle) return null;
   const dark = isDarkBackground(design);
+
+  const promoTitle = getLocalizedText(design, 'promotionTitle', lang);
+  const promoDesc = getLocalizedText(design, 'promotionDesc', lang);
 
   return (
     <div
@@ -1667,12 +1718,14 @@ function PromotionBlock({ design }: { design: PortalDesignConfig }) {
     >
       <Gift className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: design.accentColor }} />
       <div>
-        <p className="font-semibold text-sm" style={{ color: dark ? '#ffffff' : getCardTextColor(design) }}>
-          {design.promotionTitle}
-        </p>
-        {design.promotionDesc && (
+        {promoTitle && (
+          <p className="font-semibold text-sm" style={{ color: dark ? '#ffffff' : getCardTextColor(design) }}>
+            {promoTitle}
+          </p>
+        )}
+        {promoDesc && (
           <p className="text-xs mt-1" style={{ color: dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}>
-            {design.promotionDesc}
+            {promoDesc}
           </p>
         )}
       </div>
@@ -1874,6 +1927,8 @@ function PortalContent() {
   const dark = isDarkBackground(design);
   const animCls = getAnimationClasses(design);
 
+  const effectiveLanguage = selectedLanguage || design.defaultLanguage || 'en';
+
   // ════════════════════════════════════════════════════════════
   // KEY LOGIC: Determine which rendering mode to use
   // ════════════════════════════════════════════════════════════
@@ -1955,14 +2010,16 @@ function PortalContent() {
   // ── Loading state ──
   if (state === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={bgStyle}>
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin" style={{ color: dark ? '#ffffff' : design.textColor }} />
-          <p className="text-sm" style={{ color: dark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)' }}>
-            Loading portal...
-          </p>
+      <PortalLanguageContext.Provider value={effectiveLanguage}>
+        <div className="min-h-screen flex items-center justify-center" style={bgStyle}>
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: dark ? '#ffffff' : design.textColor }} />
+            <p className="text-sm" style={{ color: dark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)' }}>
+              {getUIString(effectiveLanguage, 'loadingPortal')}
+            </p>
+          </div>
         </div>
-      </div>
+      </PortalLanguageContext.Provider>
     );
   }
 
@@ -2060,6 +2117,8 @@ function PortalContent() {
     if (useUnifiedForm) return null; // Guest fields are part of the unified form
     if (!hasVisibleGuestFields()) return null;
 
+    const lang = effectiveLanguage;
+
     return (
       <div className="space-y-3 mb-4 pb-4" style={{ borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'}` }}>
         <p className="text-xs font-medium uppercase tracking-wider" style={{ color: getMutedTextColor(design) }}>
@@ -2068,7 +2127,7 @@ function PortalContent() {
         {isFieldVisible('firstName') && (
           <DynamicInput
             design={design}
-            label={getFieldLabel('firstName', 'First Name') + (isFieldRequired('firstName') ? ' *' : '')}
+            label={getFieldLabel('firstName', getUIString(lang, 'firstName')) + (isFieldRequired('firstName') ? ' *' : '')}
             value={guestInfo.firstName}
             onChange={(v) => setGuestInfo((prev) => ({ ...prev, firstName: v }))}
             placeholder="John"
@@ -2079,7 +2138,7 @@ function PortalContent() {
         {isFieldVisible('lastName') && (
           <DynamicInput
             design={design}
-            label={getFieldLabel('lastName', 'Last Name') + (isFieldRequired('lastName') ? ' *' : '')}
+            label={getFieldLabel('lastName', getUIString(lang, 'lastName')) + (isFieldRequired('lastName') ? ' *' : '')}
             value={guestInfo.lastName}
             onChange={(v) => setGuestInfo((prev) => ({ ...prev, lastName: v }))}
             placeholder="Smith"
@@ -2090,7 +2149,7 @@ function PortalContent() {
         {isFieldVisible('email') && (
           <DynamicInput
             design={design}
-            label={getFieldLabel('email', 'Email') + (isFieldRequired('email') ? ' *' : '')}
+            label={getFieldLabel('email', getUIString(lang, 'emailAddress')) + (isFieldRequired('email') ? ' *' : '')}
             type="email"
             value={guestInfo.email}
             onChange={(v) => setGuestInfo((prev) => ({ ...prev, email: v }))}
@@ -2102,7 +2161,7 @@ function PortalContent() {
         {isFieldVisible('phone') && (
           <DynamicInput
             design={design}
-            label={getFieldLabel('phone', 'Phone') + (isFieldRequired('phone') ? ' *' : '')}
+            label={getFieldLabel('phone', getUIString(lang, 'phoneNumber')) + (isFieldRequired('phone') ? ' *' : '')}
             type="tel"
             value={guestInfo.phone}
             onChange={(v) => setGuestInfo((prev) => ({ ...prev, phone: v }))}
@@ -2128,8 +2187,6 @@ function PortalContent() {
   const blockOrder = savedOrder.length > 0
     ? [...savedOrder, ...DEFAULT_BLOCK_ORDER.filter(b => !savedOrder.includes(b))]
     : DEFAULT_BLOCK_ORDER;
-
-  const effectiveLanguage = selectedLanguage || design.defaultLanguage || 'en';
 
   // ── Render the card content (shared across layouts) ──
   const renderCardContent = () => {
@@ -2186,7 +2243,7 @@ function PortalContent() {
               style={{ accentColor: design.accentColor }}
             />
             <span style={{ color: getMutedTextColor(design) }}>
-              I agree to the{' '}
+              {getUIString(effectiveLanguage, 'iAgreeToThe')}{' '}
               {portalConfig.design.termsUrl ? (
                 <a
                   href={portalConfig.design.termsUrl}
@@ -2195,11 +2252,11 @@ function PortalContent() {
                   className="underline"
                   style={{ color: design.accentColor }}
                 >
-                  terms and conditions
+                  {getUIString(effectiveLanguage, 'termsAndConditions')}
                 </a>
               ) : (
                 <span style={{ color: design.accentColor }} className="font-medium">
-                  terms and conditions
+                  {getUIString(effectiveLanguage, 'termsAndConditions')}
                 </span>
               )}
             </span>
@@ -2261,14 +2318,14 @@ function PortalContent() {
               className="text-2xl md:text-3xl font-bold drop-shadow-sm"
               style={{ fontFamily: design.headingFontFamily, color: dark ? '#ffffff' : design.textColor }}
             >
-              {design.title}
+              {getLocalizedText(design, 'title', effectiveLanguage)}
             </h1>
             <p className="text-sm md:text-base mt-1" style={{ color: getSubtitleColor(design) }}>
-              {design.subtitle}
+              {getLocalizedText(design, 'subtitle', effectiveLanguage)}
             </p>
-            {design.welcomeMessage && (
+            {getLocalizedText(design, 'welcomeMessage', effectiveLanguage) && (
               <p className="text-xs mt-2 italic" style={{ color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}>
-                {design.welcomeMessage}
+                {getLocalizedText(design, 'welcomeMessage', effectiveLanguage)}
               </p>
             )}
           </div>
@@ -2306,148 +2363,157 @@ function PortalContent() {
     }
   };
 
+  // ── Localized strings for portal-level content ──
+  const localizedTitle = getLocalizedText(design, 'title', effectiveLanguage);
+  const localizedSubtitle = getLocalizedText(design, 'subtitle', effectiveLanguage);
+  const localizedWelcome = getLocalizedText(design, 'welcomeMessage', effectiveLanguage);
+  const localizedPoweredBy = getUIString(effectiveLanguage, 'poweredBy');
+
   // ── Main Layout ──
   return (
-    <div
-      className={cn('fixed inset-0 flex flex-col overflow-y-auto', animCls)}
-      style={{
-        ...bgStyle,
-        fontFamily: design.fontFamily,
-      }}
-    >
-      {/* Background overlay */}
-      <div className="fixed inset-0 pointer-events-none" style={overlayStyle} />
+    <PortalLanguageContext.Provider value={effectiveLanguage}>
+      <div
+        className={cn('fixed inset-0 flex flex-col overflow-y-auto', animCls)}
+        style={{
+          ...bgStyle,
+          fontFamily: design.fontFamily,
+        }}
+        dir={effectiveLanguage === 'ar' ? 'rtl' : 'ltr'}
+      >
+        {/* Background overlay */}
+        <div className="fixed inset-0 pointer-events-none" style={overlayStyle} />
 
-      {/* Main content */}
-      <main className="flex-1 flex items-center justify-center p-4 relative z-10">
-        {isSplit ? (
-          // ══════════════════════════════════════════════════════════
-          // SPLIT LAYOUT — Left info panel + Right form panel
-          // ══════════════════════════════════════════════════════════
-          <div className="w-full max-w-5xl flex flex-col md:flex-row gap-6">
-            {/* ── Left Panel: Hotel Info + Features ── */}
-            <div className="flex-1 flex flex-col justify-center p-6 md:p-10 space-y-5" style={{ color: dark ? '#ffffff' : design.textColor }}>
-              {/* Language Switcher (Feature 1) */}
-              {(design.languages?.length && design.languages.length > 0) && (
-                <div className="flex justify-end">
-                  <LanguageSwitcher design={design} selectedLanguage={effectiveLanguage} setSelectedLanguage={setSelectedLanguage} />
-                </div>
-              )}
+        {/* Main content */}
+        <main className="flex-1 flex items-center justify-center p-4 relative z-10">
+          {isSplit ? (
+            // ══════════════════════════════════════════════════════════
+            // SPLIT LAYOUT — Left info panel + Right form panel
+            // ══════════════════════════════════════════════════════════
+            <div className="w-full max-w-5xl flex flex-col md:flex-row gap-6">
+              {/* ── Left Panel: Hotel Info + Features ── */}
+              <div className="flex-1 flex flex-col justify-center p-6 md:p-10 space-y-5" style={{ color: dark ? '#ffffff' : design.textColor }}>
+                {/* Language Switcher (Feature 1) */}
+                {(design.languages?.length && design.languages.length > 0) && (
+                  <div className="flex justify-end">
+                    <LanguageSwitcher design={design} selectedLanguage={effectiveLanguage} setSelectedLanguage={setSelectedLanguage} />
+                  </div>
+                )}
 
-              <PortalLogo design={design} size="large" />
-              <h1 className="text-3xl md:text-4xl font-bold" style={{ fontFamily: design.headingFontFamily }}>
-                {design.title}
-              </h1>
-              <p style={{ color: dark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)' }} className="text-lg">
-                {design.subtitle}
-              </p>
-              {design.welcomeMessage && (
-                <p className="italic" style={{ color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}>
-                  {design.welcomeMessage}
+                <PortalLogo design={design} size="large" />
+                <h1 className="text-3xl md:text-4xl font-bold" style={{ fontFamily: design.headingFontFamily }}>
+                  {localizedTitle}
+                </h1>
+                <p style={{ color: dark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)' }} className="text-lg">
+                  {localizedSubtitle}
                 </p>
-              )}
+                {localizedWelcome && (
+                  <p className="italic" style={{ color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}>
+                    {localizedWelcome}
+                  </p>
+                )}
 
-              {/* Clock + Weather Row */}
-              <div className="flex items-center justify-center gap-4">
-                {design.showClock !== false && <LiveClock design={design} />}
-                {(design.showWeather || design.weatherLocation) && (
-                  <>
-                    <span style={{ color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)' }}>|</span>
-                    <WeatherWidget design={design} />
-                  </>
+                {/* Clock + Weather Row */}
+                <div className="flex items-center justify-center gap-4">
+                  {design.showClock !== false && <LiveClock design={design} />}
+                  {(design.showWeather || design.weatherLocation) && (
+                    <>
+                      <span style={{ color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)' }}>|</span>
+                      <WeatherWidget design={design} />
+                    </>
+                  )}
+                </div>
+
+                <HotelInfoBlock design={design} dark={dark} />
+                <AmenitiesBlock design={design} dark={dark} />
+
+                {/* Social Links (Feature 8: More Social Platforms) */}
+                {(design.showSocialMedia || design.socialLinks?.some(l => l.url)) && (
+                  <SocialLinksBlock design={design} />
+                )}
+
+                {/* Branding */}
+                {design.showBranding && (
+                  <div className="text-center pt-2" style={{ color: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)' }}>
+                    <p className="text-[10px]">{localizedPoweredBy}</p>
+                  </div>
                 )}
               </div>
 
-              <HotelInfoBlock design={design} dark={dark} />
-              <AmenitiesBlock design={design} dark={dark} />
+              {/* ── Right Panel: Form + Features ── */}
+              <div className="w-full md:w-[420px] animate-in fade-in-0 slide-in-from-bottom-4 duration-500 transition-all flex flex-col gap-4">
+                {/* Promotion Carousel (Feature 3) — above the form card */}
+                {state !== 'success' && (() => {
+                  const hasPromoContent = design.promotions?.some(p => p.title || p.description);
+                  const hasSinglePromo = design.promotionTitle || design.promotionDesc;
+                  if (hasPromoContent && (design.showPromotions || (design as any).useCarouselMode)) {
+                    return <PromotionCarousel design={design} />;
+                  }
+                  if (design.showPromotion || hasSinglePromo) {
+                    return <PromotionBlock design={design} />;
+                  }
+                  return null;
+                })()}
 
-              {/* Social Links (Feature 8: More Social Platforms) */}
-              {(design.showSocialMedia || design.socialLinks?.some(l => l.url)) && (
-                <SocialLinksBlock design={design} />
-              )}
+                {/* Form Card */}
+                <div
+                  className={formCls}
+                  style={{
+                    ...cardShadowStyle,
+                    ...(design.formStyle === 'glass' && dark ? { boxShadow: `0 0 30px -5px ${design.accentColor}40, 0 0 60px -10px ${design.accentColor}20` } : {}),
+                  }}
+                >
+                  {/* Mobile-only header */}
+                  <div className="md:hidden text-center space-y-2 mb-4">
+                    <PortalLogo design={design} size="small" />
+                    <h2 className="text-xl font-bold" style={{ color: getCardTextColor(design), fontFamily: design.headingFontFamily }}>
+                      {localizedTitle}
+                    </h2>
+                    <p className="text-sm" style={{ color: getMutedTextColor(design) }}>{localizedSubtitle}</p>
+                    {/* Mobile clock + weather */}
+                    <div className="flex items-center justify-center gap-3 pt-2">
+                      <LiveClock design={design} />
+                      <WeatherWidget design={design} />
+                    </div>
+                  </div>
 
-              {/* Branding */}
+                  {renderCardContent()}
+
+                  {/* Marketing Consent (Feature 2) — inside the form card, after form content */}
+                  {state !== 'success' && design.marketingOptIn?.enabled && (
+                    <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}` }}>
+                      <MarketingConsentPlaceholder design={design} />
+                    </div>
+                  )}
+
+                  {/* Post-Connect Survey (Feature 4) — inside the form card, after success */}
+                  {state === 'success' && design.surveyConfig?.enabled && (
+                    <GuestSurvey design={design} />
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            // ══════════════════════════════════════════════════════════
+            // CENTERED / CARD / FULL-BLEED LAYOUT — with Content Block Ordering (Feature 9)
+            // ══════════════════════════════════════════════════════════
+            <div className="w-full max-w-md flex flex-col items-center">
+              {blockOrder.map((block, i) => (
+                <Fragment key={`${block}-${i}`}>
+                  {renderBlock(block)}
+                </Fragment>
+              ))}
+
+              {/* Branding footer */}
               {design.showBranding && (
-                <div className="text-center pt-2" style={{ color: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)' }}>
-                  <p className="text-[10px]">Powered by StaySuite Hospitality OS</p>
+                <div className="text-center mt-4 animate-in fade-in-0 duration-700 delay-500" style={{ color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }}>
+                  <p className="text-[10px]">{localizedPoweredBy}</p>
                 </div>
               )}
             </div>
-
-            {/* ── Right Panel: Form + Features ── */}
-            <div className="w-full md:w-[420px] animate-in fade-in-0 slide-in-from-bottom-4 duration-500 transition-all flex flex-col gap-4">
-              {/* Promotion Carousel (Feature 3) — above the form card */}
-              {state !== 'success' && (() => {
-                const hasPromoContent = design.promotions?.some(p => p.title || p.description);
-                const hasSinglePromo = design.promotionTitle || design.promotionDesc;
-                if (hasPromoContent && (design.showPromotions || (design as any).useCarouselMode)) {
-                  return <PromotionCarousel design={design} />;
-                }
-                if (design.showPromotion || hasSinglePromo) {
-                  return <PromotionBlock design={design} />;
-                }
-                return null;
-              })()}
-
-              {/* Form Card */}
-              <div
-                className={formCls}
-                style={{
-                  ...cardShadowStyle,
-                  ...(design.formStyle === 'glass' && dark ? { boxShadow: `0 0 30px -5px ${design.accentColor}40, 0 0 60px -10px ${design.accentColor}20` } : {}),
-                }}
-              >
-                {/* Mobile-only header */}
-                <div className="md:hidden text-center space-y-2 mb-4">
-                  <PortalLogo design={design} size="small" />
-                  <h2 className="text-xl font-bold" style={{ color: getCardTextColor(design), fontFamily: design.headingFontFamily }}>
-                    {design.title}
-                  </h2>
-                  <p className="text-sm" style={{ color: getMutedTextColor(design) }}>{design.subtitle}</p>
-                  {/* Mobile clock + weather */}
-                  <div className="flex items-center justify-center gap-3 pt-2">
-                    <LiveClock design={design} />
-                    <WeatherWidget design={design} />
-                  </div>
-                </div>
-
-                {renderCardContent()}
-
-                {/* Marketing Consent (Feature 2) — inside the form card, after form content */}
-                {state !== 'success' && design.marketingOptIn?.enabled && (
-                  <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}` }}>
-                    <MarketingConsentPlaceholder design={design} />
-                  </div>
-                )}
-
-                {/* Post-Connect Survey (Feature 4) — inside the form card, after success */}
-                {state === 'success' && design.surveyConfig?.enabled && (
-                  <GuestSurvey design={design} />
-                )}
-              </div>
-            </div>
-          </div>
-        ) : (
-          // ══════════════════════════════════════════════════════════
-          // CENTERED / CARD / FULL-BLEED LAYOUT — with Content Block Ordering (Feature 9)
-          // ══════════════════════════════════════════════════════════
-          <div className="w-full max-w-md flex flex-col items-center">
-            {blockOrder.map((block, i) => (
-              <Fragment key={`${block}-${i}`}>
-                {renderBlock(block)}
-              </Fragment>
-            ))}
-
-            {/* Branding footer */}
-            {design.showBranding && (
-              <div className="text-center mt-4 animate-in fade-in-0 duration-700 delay-500" style={{ color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }}>
-                <p className="text-[10px]">Powered by StaySuite Hospitality OS</p>
-              </div>
-            )}
-          </div>
-        )}
-      </main>
-    </div>
+          )}
+        </main>
+      </div>
+    </PortalLanguageContext.Provider>
   );
 }
 
@@ -2459,12 +2525,14 @@ export function WifiConnectPortal() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0ea5e9, #065f46)' }}>
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-8 h-8 text-white animate-spin" />
-            <p className="text-white/80 text-sm">Loading portal...</p>
+        <PortalLanguageContext.Provider value="en">
+          <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0ea5e9, #065f46)' }}>
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="w-8 h-8 text-white animate-spin" />
+              <p className="text-white/80 text-sm">{getUIString('en', 'loadingPortal')}</p>
+            </div>
           </div>
-        </div>
+        </PortalLanguageContext.Provider>
       }
     >
       <PortalContent />

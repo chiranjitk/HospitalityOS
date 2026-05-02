@@ -187,6 +187,7 @@ async function buildPortalConfig(portalId: string) {
       languages: (designSettings.languages as string[]) || ['en'],
       defaultLanguage: (designSettings.defaultLanguage as string) || 'en',
       enableMultiLanguage: (designSettings.enableMultiLanguage as boolean) || false,
+      translations: (designSettings.translations as Record<string, Record<string, string>>) || {},
 
       // ── Feature 2: Guest Marketing Opt-In ──
       marketingOptIn: (designSettings.marketingOptIn as { enabled: boolean; emailConsent: boolean; phoneConsent: boolean; consentText: string }) || { enabled: false, emailConsent: false, phoneConsent: false, consentText: '' },
