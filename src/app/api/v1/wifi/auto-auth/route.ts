@@ -21,7 +21,7 @@ import { randomUUID } from 'crypto';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { fingerprintHash, storageToken, portalSlug } = body as {
+    const { fingerprintHash, storageToken, portalSlug, macAddress } = body as {
       fingerprintHash?: string;
       storageToken?: string;
       portalSlug?: string;
@@ -441,20 +441,20 @@ async function createAccountingSession(
          nasipaddress, nasporttype, acctstarttime, acctupdatetime,
          acctauthentic, framedipaddress, acctstatus,
          acctinputoctets, acctoutputoctets, acctsessiontime,
-         callingstationid,
+         calledstationid, callingstationid,
          "loginType", "createdAt", "updatedAt"
        ) VALUES (
          $1, $2, $3,
          $4, 'Wireless-802.11', $5, $5,
          'PAP', $6, 'start',
          0, 0, 0,
-         $8,
+         '00:00:00:00:00:01', $8,
          $7, NOW(), NOW()
        )`,
       acctUniqueId,
       acctSessionId,
       username,
-      '10.0.1.1', // NAS IP (captive portal NAS)
+      '127.0.0.1', // NAS IP (this device is the gateway)
       now,
       clientIp,
       loginType,

@@ -73,12 +73,14 @@ export interface WiFiUserCreateInput {
   username?: string;
   password?: string;
   planId?: string;
+  planName?: string; // Plan name for Cryptsk-Plan-Name and Cryptsk-User-Profile VSA
   validFrom: Date;
   validUntil: Date;
   userType?: 'guest' | 'staff' | 'admin' | 'service';
   downloadSpeed?: number;
   uploadSpeed?: number;
   sessionTimeoutMinutes?: number; // RADIUS Session-Timeout in minutes (from plan validityDays)
+  idleTimeoutSeconds?: number; // Cryptsk-Idle-Timeout in seconds (from CaptivePortal.idleTimeout)
   sessionLimit?: number; // Max concurrent sessions (Simultaneous-Use RADIUS attribute)
   dataLimit?: number; // Data cap in MB (from plan dataLimit)
 }
@@ -174,6 +176,26 @@ export class WiFiUserService {
 
       // Merge all reply attributes
       const replies = [...bwAttrs, ...sessionAttrs];
+
+      // ── Cryptsk VSA attributes (Vendor ID 64179) ──
+      // Cryptsk-Session-Timeout: mirrors Session-Timeout (integer, seconds)
+      const sessionTimeoutSec = input.sessionTimeoutMinutes ? input.sessionTimeoutMinutes * 60 : 0;
+      if (sessionTimeoutSec > 0) {
+        replies.push({ attribute: 'Cryptsk-Session-Timeout', value: String(sessionTimeoutSec) });
+      }
+
+      // Cryptsk-Idle-Timeout: idle timeout (integer, seconds) from portal config
+      if (input.idleTimeoutSeconds && input.idleTimeoutSeconds > 0) {
+        replies.push({ attribute: 'Cryptsk-Idle-Timeout', value: String(input.idleTimeoutSeconds) });
+      }
+
+      // Cryptsk-User-Profile: plan group name (string) — for policy matching
+      replies.push({ attribute: 'Cryptsk-User-Profile', value: groupName });
+
+      // Cryptsk-Plan-Name: human-readable plan name (string) — for display/audit
+      replies.push({ attribute: 'Cryptsk-Plan-Name', value: input.planName || groupName });
+
+      // Cryptsk-Max-Sessions: already handled via Simultaneous-Use in radcheck (step 5 below)
 
       // Create all replies
       for (const reply of replies) {
