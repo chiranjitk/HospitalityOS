@@ -150,6 +150,29 @@ function resolveAllowedPoolIds(
 }
 
 /**
+ * Check if a user has reached their concurrent session limit.
+ * Counts active (non-stopped) radacct sessions for the username.
+ * Returns true if the limit is reached (should reject login).
+ */
+async function isSessionLimitReached(username: string, maxSessions: number): Promise<boolean> {
+  if (maxSessions <= 0) return false; // 0 or negative = unlimited
+
+  try {
+    const result = await db.$queryRawUnsafe<Array<{ count: bigint }>>(`
+      SELECT COUNT(*)::bigint as count
+      FROM radacct
+      WHERE username = $1 AND acctstoptime IS NULL
+    `, username);
+
+    const activeCount = Number(result[0]?.count ?? 0);
+    return activeCount >= maxSessions;
+  } catch (err) {
+    console.error('[Session Limit] Failed to count active sessions:', err);
+    return false; // On error, allow login (don't block on DB failure)
+  }
+}
+
+/**
  * Activate firewall + bandwidth shaping for a user after successful RADIUS auth.
  * Calls staysuite_login.sh which:
  *   - Adds IP to nft loggedinusers set (unblocks traffic)
@@ -406,6 +429,13 @@ export async function POST(request: NextRequest) {
           dataLimit: dataLimitMb,
         });
 
+        // Check concurrent session limit
+        const maxSessions = voucher.plan?.maxDevices || 1;
+        if (await isSessionLimitReached(wifiUsername, maxSessions)) {
+          await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
+          return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
+        }
+
         const radiusResult = await radiusAuth(wifiUsername, voucher.code);
         if (!radiusResult.accepted) {
           await logAuthAttempt(wifiUsername, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
@@ -492,6 +522,15 @@ export async function POST(request: NextRequest) {
           idleTimeoutSeconds: portal?.idleTimeout,
         });
 
+        // Check concurrent session limit (default 1 for room users)
+        const roomMaxSessions = match.roomType?.wifiPlanId
+          ? (await db.wiFiPlan.findUnique({ where: { id: match.roomType.wifiPlanId }, select: { maxDevices: true } }))?.maxDevices ?? 1
+          : 1;
+        if (await isSessionLimitReached(wifiUsername, roomMaxSessions)) {
+          await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
+          return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
+        }
+
         const radiusResult = await radiusAuth(wifiUsername, userPassword);
         if (!radiusResult.accepted) {
           await logAuthAttempt(wifiUsername, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
@@ -529,7 +568,7 @@ export async function POST(request: NextRequest) {
         const wifiUser = await db.wiFiUser.findUnique({
           where: { username: username.trim() },
           include: {
-            plan: { select: { ipPoolId: true } },
+            plan: { select: { ipPoolId: true, maxDevices: true } },
             ipPool: { select: { id: true } },
           },
         });
@@ -573,6 +612,13 @@ export async function POST(request: NextRequest) {
           } catch {
             // Best effort
           }
+        }
+
+        // Check concurrent session limit
+        const pmsMaxSessions = wifiUser.maxSessions || wifiUser.plan?.maxDevices || 1;
+        if (await isSessionLimitReached(username.trim(), pmsMaxSessions)) {
+          await logAuthAttempt(username.trim(), 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
+          return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
         }
 
         const radiusResult = await radiusAuth(username.trim(), password.trim());
@@ -655,6 +701,12 @@ export async function POST(request: NextRequest) {
               sessionTimeoutMinutes: sessionTimeout,
               idleTimeoutSeconds: portal?.idleTimeout,
             });
+
+            // Check concurrent session limit (SMS users get default 1)
+            if (await isSessionLimitReached(wifiUsername, 1)) {
+              await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
+              return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
+            }
 
             const radiusResult = await radiusAuth(wifiUsername, stored.code);
             if (!radiusResult.accepted) {
@@ -746,6 +798,12 @@ export async function POST(request: NextRequest) {
                 sessionTimeoutMinutes: sessionTimeout,
                 idleTimeoutSeconds: portal?.idleTimeout,
               });
+
+              // Check concurrent session limit (open access users get default 1)
+              if (await isSessionLimitReached(wifiUsername, 1)) {
+                await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
+                return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
+              }
 
               const radiusResult = await radiusAuth(wifiUsername, openPassword);
               if (!radiusResult.accepted) {
