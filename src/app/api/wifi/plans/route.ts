@@ -129,6 +129,10 @@ export async function POST(request: NextRequest) {    const user = await require
       );
     }
 
+    // Sanitize validity values
+    const sanitizedValidityDays = Math.max(1, parseInt(validityDays, 10) || 1);
+    const sanitizedValidityMinutes = Math.max(1, parseInt(String(validityMinutes), 10) || 1440);
+
     // Check for duplicate name
     const existingPlan = await db.wiFiPlan.findFirst({
       where: {
@@ -159,8 +163,8 @@ export async function POST(request: NextRequest) {    const user = await require
         price: parseFloat(price),
         currency,
         priority: parseInt(priority, 10),
-        validityDays: parseInt(validityDays, 10),
-        validityMinutes: parseInt(validityMinutes, 10),
+        validityDays: sanitizedValidityDays,
+        validityMinutes: sanitizedValidityMinutes,
         status,
       },
     });
@@ -243,8 +247,8 @@ export async function PUT(request: NextRequest) {    const user = await requireP
         ...(updateData.price !== undefined && { price: parseFloat(updateData.price) }),
         ...(updateData.currency && { currency: updateData.currency }),
         ...(updateData.priority !== undefined && { priority: parseInt(updateData.priority, 10) }),
-        ...(updateData.validityDays !== undefined && { validityDays: parseInt(updateData.validityDays, 10) }),
-        ...(updateData.validityMinutes !== undefined && { validityMinutes: parseInt(updateData.validityMinutes, 10) }),
+        ...(updateData.validityDays !== undefined && { validityDays: Math.max(1, parseInt(updateData.validityDays, 10) || 1) }),
+        ...(updateData.validityMinutes !== undefined && { validityMinutes: Math.max(1, parseInt(updateData.validityMinutes, 10) || 1440) }),
         ...(updateData.status && { status: updateData.status }),
       },
     });
