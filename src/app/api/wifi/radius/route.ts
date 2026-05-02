@@ -669,6 +669,13 @@ export async function GET(request: NextRequest) {
             plan_name: string | null;
             downloadspeed: number | null;
             uploadspeed: number | null;
+            // New fields from DeviceProfile join
+            loginType: string | null;
+            deviceName: string | null;
+            deviceType: string | null;
+            userAgent: string | null;
+            dp_macAddress: string | null;
+            dp_authCount: number | null;
           }[]>(`
             SELECT DISTINCT ON (acctuniqueid)
                    acctuniqueid, acctsessionid, username, framedipaddress,
@@ -676,17 +683,41 @@ export async function GET(request: NextRequest) {
                    acctstarttime, acctupdatetime, acctsessiontime,
                    acctinputoctets, acctoutputoctets, nasporttype,
                    guest_first_name, guest_last_name, room_number,
-                   property_name, plan_name, downloadspeed, uploadspeed
+                   property_name, plan_name, downloadspeed, uploadspeed,
+                   "loginType", "deviceName", "deviceType", "userAgent",
+                   dp_macAddress, dp_authCount
             FROM v_active_sessions ${whereClause}
             ORDER BY acctuniqueid, acctstarttime DESC
           `, ...sqlParams);
 
           // Strip /32 CIDR suffix from PostgreSQL inet columns
           const stripCidr = (v: string | null) => (v || '').replace(/\/\d+$/, '');
+
+          // Parse device info from User-Agent string (supplement DeviceProfile data)
+          const parseDeviceFromUA = (ua: string | null): { os: string; browser: string } => {
+            if (!ua) return { os: '', browser: '' };
+            let os = 'Unknown';
+            if (/iPhone|iPad/i.test(ua)) os = 'iOS';
+            else if (/Android/i.test(ua)) os = 'Android';
+            else if (/Windows/i.test(ua)) os = 'Windows';
+            else if (/Macintosh/i.test(ua)) os = 'macOS';
+            else if (/CrOS/i.test(ua)) os = 'Chrome OS';
+            else if (/Linux/i.test(ua)) os = 'Linux';
+            let browser = 'Unknown';
+            if (/CriOS/i.test(ua)) browser = 'Chrome (iOS)';
+            else if (/Edg\//i.test(ua)) browser = 'Edge';
+            else if (/OPR|Opera/i.test(ua)) browser = 'Opera';
+            else if (/Firefox/i.test(ua)) browser = 'Firefox';
+            else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) browser = 'Safari';
+            else if (/Chrome/i.test(ua)) browser = 'Chrome';
+            return { os, browser };
+          };
+
           const sessionsMap = new Map<string, ReturnType<typeof Object>>();
           for (const s of activeSessions) {
             const sessionId = `ls_${s.acctuniqueid}`;
             if (sessionsMap.has(sessionId)) continue; // Deduplicate by acctuniqueid
+            const { os, browser } = parseDeviceFromUA(s.userAgent);
             sessionsMap.set(sessionId, {
               id: sessionId,
               username: s.username || '',
@@ -694,9 +725,15 @@ export async function GET(request: NextRequest) {
               macAddress: s.callingstationid || '',
               nasIp: stripCidr(s.nasipaddress),
               nasIdentifier: s.calledstationid || '',
-              deviceType: '',
-              operatingSystem: '',
-              manufacturer: '',
+              // Device info from DeviceProfile (enriched by browser fingerprint)
+              deviceType: s.deviceType || '',
+              deviceName: s.deviceName || '',
+              operatingSystem: os,
+              browser,
+              userAgent: s.userAgent || '',
+              // Login tracking
+              loginType: s.loginType || 'portal',
+              authCount: Number(s.dp_authCount || 0),
               bandwidthDown: s.downloadspeed != null ? `${Number(s.downloadspeed)} Mbps` : null,
               bandwidthUp: s.uploadspeed != null ? `${Number(s.uploadspeed)} Mbps` : null,
               sessionTime: Number(s.acctsessiontime || 0),

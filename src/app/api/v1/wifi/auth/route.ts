@@ -679,10 +679,13 @@ async function logAuthAttempt(
  *
  * The session is marked as 'start' with no stop time (acctstoptime = NULL),
  * which is how FreeRADIUS represents an active session.
+ *
+ * @param loginType - 'portal' for manual login, 'auto_reauth' for silent re-auth
  */
 async function createAccountingSession(
   username: string,
-  request: NextRequest
+  request: NextRequest,
+  loginType: string = 'portal'
 ) {
   try {
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
@@ -699,20 +702,21 @@ async function createAccountingSession(
          nasipaddress, nasporttype, acctstarttime, acctupdatetime,
          acctauthentic, framedipaddress, acctstatus,
          acctinputoctets, acctoutputoctets, acctsessiontime,
-         "createdAt", "updatedAt"
+         "loginType", "createdAt", "updatedAt"
        ) VALUES (
          $1, $2, $3,
          $4, 'Wireless-802.11', $5, $5,
          'PAP', $6, 'start',
          0, 0, 0,
-         NOW(), NOW()
+         $7, NOW(), NOW()
        )`,
       acctUniqueId,
       acctSessionId,
       username,
       '10.0.1.1', // NAS IP (captive portal NAS)
       now,
-      clientIp
+      clientIp,
+      loginType
     );
   } catch (err) {
     // Non-fatal — accounting failure should not block authentication

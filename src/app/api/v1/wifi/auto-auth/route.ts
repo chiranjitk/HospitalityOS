@@ -294,7 +294,7 @@ export async function POST(request: NextRequest) {
     // The v_active_sessions view shows rows where acctstoptime IS NULL.
     // Without this, auto-auth users appear "connected" on the portal
     // but never show up in the admin Active Users dashboard.
-    await createAccountingSession(wifiUser.username, clientIp, request);
+    await createAccountingSession(wifiUser.username, clientIp, request, 'auto_reauth');
 
     // ── Calculate remaining time ──
     const validUntil = new Date(wifiUser.validUntil);
@@ -406,7 +406,8 @@ function parseDeviceName(ua: string): string {
 async function createAccountingSession(
   username: string,
   clientIp: string,
-  request: NextRequest
+  request: NextRequest,
+  loginType: string = 'portal'
 ) {
   try {
     const acctSessionId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
@@ -419,23 +420,24 @@ async function createAccountingSession(
          nasipaddress, nasporttype, acctstarttime, acctupdatetime,
          acctauthentic, framedipaddress, acctstatus,
          acctinputoctets, acctoutputoctets, acctsessiontime,
-         "createdAt", "updatedAt"
+         "loginType", "createdAt", "updatedAt"
        ) VALUES (
          $1, $2, $3,
          $4, 'Wireless-802.11', $5, $5,
          'PAP', $6, 'start',
          0, 0, 0,
-         NOW(), NOW()
+         $7, NOW(), NOW()
        )`,
       acctUniqueId,
       acctSessionId,
       username,
       '10.0.1.1', // NAS IP (captive portal NAS)
       now,
-      clientIp
+      clientIp,
+      loginType
     );
 
-    console.log(`[AutoAuth] radacct session created for ${username} (IP: ${clientIp})`);
+    console.log(`[AutoAuth] radacct session created for ${username} (loginType: ${loginType}, IP: ${clientIp})`);
   } catch (err) {
     // Non-fatal — accounting failure should not block auto-auth
     console.error('[AutoAuth] Failed to create accounting session:', err);

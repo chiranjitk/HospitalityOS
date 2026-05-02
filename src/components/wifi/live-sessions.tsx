@@ -55,6 +55,7 @@ import {
   Zap,
   Unplug,
   Smartphone,
+  Tablet,
   XCircle,
   Eye,
   AlertTriangle,
@@ -72,7 +73,10 @@ interface LiveSession {
   nasIp: string;
   nasIdentifier?: string;
   deviceType?: string;
+  deviceName?: string;
   operatingSystem?: string;
+  browser?: string;
+  userAgent?: string;
   manufacturer?: string;
   bandwidthDown?: string;
   bandwidthUp?: string;
@@ -86,6 +90,11 @@ interface LiveSession {
   idleTimeout?: number;
   planName?: string;
   roomId?: string;
+  guestName?: string;
+  propertyName?: string;
+  // Login type tracking
+  loginType?: string;   // 'portal' | 'auto_reauth'
+  authCount?: number;    // Total times this device has authenticated
 }
 
 interface LiveSessionStats {
@@ -372,7 +381,25 @@ export default function LiveSessions() {
 
   const getDeviceIcon = (deviceType?: string) => {
     if (deviceType === 'mobile' || deviceType === 'phone') return <Smartphone className="h-4 w-4" />;
+    if (deviceType === 'tablet') return <Tablet className="h-4 w-4" />;
     return <Monitor className="h-4 w-4" />;
+  };
+
+  const getLoginTypeBadge = (loginType?: string) => {
+    if (loginType === 'auto_reauth') {
+      return (
+        <Badge className="bg-violet-500 hover:bg-violet-600 text-white border-0 text-[10px] px-1.5 py-0">
+          <RefreshCw className="h-2.5 w-2.5 mr-0.5" />
+          Auto ReAuth
+        </Badge>
+      );
+    }
+    return (
+      <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-0 text-[10px] px-1.5 py-0">
+        <Wifi className="h-2.5 w-2.5 mr-0.5" />
+        Portal
+      </Badge>
+    );
   };
 
   // Unique NAS list for filter
@@ -388,24 +415,28 @@ export default function LiveSessions() {
       session.status === 'idle' && !selectedIds.has(session.id) && 'border-amber-200 dark:border-amber-800'
     )}>
       <CardContent className="p-4 space-y-3">
-        {/* Row 0: Select checkbox */}
-        <div className="flex items-center justify-end">
+        {/* Row 0: Select checkbox + Login Type badge */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            {getStatusBadge(session.status)}
+            {getLoginTypeBadge(session.loginType)}
+          </div>
           <Checkbox
             checked={selectedIds.has(session.id)}
             onCheckedChange={() => toggleSelect(session.id)}
             aria-label={`Select ${session.username}`}
           />
         </div>
-        {/* Row 1: User info + Status */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <UserCircle className="h-5 w-5 text-muted-foreground shrink-0" />
-            <div className="min-w-0">
-              <p className="font-medium text-sm truncate">{session.username}</p>
-              <p className="font-mono text-xs text-muted-foreground">{session.ipAddress || '—'}</p>
-            </div>
+        {/* Row 1: User info */}
+        <div className="flex items-start gap-2">
+          <UserCircle className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-sm truncate">{session.username}</p>
+            <p className="font-mono text-xs text-muted-foreground">{session.ipAddress || '—'}</p>
+            {session.guestName && (
+              <p className="text-xs text-muted-foreground mt-0.5">{session.guestName}{session.roomId ? ` · Room ${session.roomId}` : ''}</p>
+            )}
           </div>
-          {getStatusBadge(session.status)}
         </div>
 
         {/* Row 2: Key info grid */}
@@ -418,7 +449,7 @@ export default function LiveSessions() {
             <p className="text-muted-foreground mb-0.5">Device</p>
             <div className="flex items-center gap-1">
               {getDeviceIcon(session.deviceType)}
-              <span className="truncate">{session.deviceType || '—'}</span>
+              <span className="truncate">{session.deviceName || session.deviceType || '—'}</span>
             </div>
           </div>
           <div>
@@ -429,6 +460,21 @@ export default function LiveSessions() {
             </p>
           </div>
         </div>
+
+        {/* Row 2b: OS / Browser info (when available) */}
+        {(session.operatingSystem || session.browser) && (
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            {session.operatingSystem && <span>{session.operatingSystem}</span>}
+            {session.operatingSystem && session.browser && <span>·</span>}
+            {session.browser && <span>{session.browser}</span>}
+            {session.authCount ? (
+              <>
+                <span>·</span>
+                <span className="text-violet-600 dark:text-violet-400">{session.authCount}x auth</span>
+              </>
+            ) : null}
+          </div>
+        )}
 
         {/* Row 3: Bandwidth + Data */}
         <div className="grid grid-cols-2 gap-2 text-xs">
@@ -464,9 +510,6 @@ export default function LiveSessions() {
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Router className="h-3 w-3" />
           <span>{session.nasIdentifier || session.nasIp}</span>
-          {session.roomId && (
-            <span className="ml-auto text-muted-foreground">Room {session.roomId}</span>
-          )}
         </div>
 
         {/* Row 5: Action buttons */}
@@ -711,9 +754,9 @@ export default function LiveSessions() {
                           />
                         </TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Login</TableHead>
                         <TableHead>User / IP</TableHead>
                         <TableHead>MAC</TableHead>
-                        <TableHead>NAS</TableHead>
                         <TableHead>Device</TableHead>
                         <TableHead>BW Down / Up</TableHead>
                         <TableHead>Time</TableHead>
@@ -736,6 +779,7 @@ export default function LiveSessions() {
                             />
                           </TableCell>
                           <TableCell>{getStatusBadge(session.status)}</TableCell>
+                          <TableCell>{getLoginTypeBadge(session.loginType)}</TableCell>
                           <TableCell>
                             <div className="space-y-0.5">
                               <div className="flex items-center gap-1.5">
@@ -747,26 +791,28 @@ export default function LiveSessions() {
                               <p className="font-mono text-xs text-muted-foreground pl-5">
                                 {session.ipAddress || '—'}
                               </p>
+                              {session.guestName && (
+                                <p className="text-[10px] text-muted-foreground pl-5">
+                                  {session.guestName}{session.roomId ? ` · Room ${session.roomId}` : ''}
+                                </p>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>
                             <p className="font-mono text-xs text-muted-foreground">{session.macAddress || '—'}</p>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-1.5">
-                              <Router className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                              <div className="min-w-0">
-                                <p className="text-xs font-medium truncate max-w-[105px]" title={session.nasIdentifier || session.nasIp}>
-                                  {session.nasIdentifier || session.nasIp}
-                                </p>
-                                <p className="text-[10px] text-muted-foreground font-mono">{session.nasIp}</p>
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                {getDeviceIcon(session.deviceType)}
+                                <span className="truncate max-w-[80px]">{session.deviceName || session.deviceType || '—'}</span>
                               </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              {getDeviceIcon(session.deviceType)}
-                              <span className="truncate max-w-[60px]">{session.deviceType || '—'}</span>
+                              <div className="text-[10px] text-muted-foreground pl-5">
+                                {session.operatingSystem || ''}{session.browser ? ` · ${session.browser}` : ''}
+                              </div>
+                              {session.authCount ? (
+                                <p className="text-[10px] text-violet-600 dark:text-violet-400 pl-5">{session.authCount}x auth</p>
+                              ) : null}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -852,7 +898,10 @@ export default function LiveSessions() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Status</p>
-                  <div className="mt-1">{getStatusBadge(selectedSession.status)}</div>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    {getStatusBadge(selectedSession.status)}
+                    {getLoginTypeBadge(selectedSession.loginType)}
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -865,20 +914,57 @@ export default function LiveSessions() {
                   <p className="text-sm font-mono">{selectedSession.macAddress || '—'}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">Device</p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {getDeviceIcon(selectedSession.deviceType)}
-                    <span className="text-sm">{selectedSession.deviceType || 'Unknown'}</span>
+              {/* Guest info */}
+              {(selectedSession.guestName || selectedSession.roomId || selectedSession.propertyName) && (
+                <div className="grid grid-cols-3 gap-4">
+                  {selectedSession.guestName && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Guest</p>
+                      <p className="text-sm">{selectedSession.guestName}</p>
+                    </div>
+                  )}
+                  {selectedSession.roomId && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Room</p>
+                      <p className="text-sm">{selectedSession.roomId}</p>
+                    </div>
+                  )}
+                  {selectedSession.propertyName && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Property</p>
+                      <p className="text-sm truncate">{selectedSession.propertyName}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Device info from DeviceProfile */}
+              <div className="border-t pt-4">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Device & Browser</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Device</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {getDeviceIcon(selectedSession.deviceType)}
+                      <span className="text-sm">{selectedSession.deviceName || selectedSession.deviceType || 'Unknown'}</span>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">{selectedSession.operatingSystem || ''} {selectedSession.manufacturer || ''}</p>
+                  <div>
+                    <p className="text-xs text-muted-foreground">OS</p>
+                    <p className="text-sm">{selectedSession.operatingSystem || 'Unknown'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Browser</p>
+                    <p className="text-sm">{selectedSession.browser || 'Unknown'}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">NAS</p>
-                  <p className="text-sm font-mono">{selectedSession.nasIp || '—'}</p>
-                  <p className="text-xs text-muted-foreground">{selectedSession.nasIdentifier || ''}</p>
-                </div>
+                {selectedSession.userAgent && (
+                  <p className="text-[10px] text-muted-foreground mt-1.5 font-mono break-all" title={selectedSession.userAgent}>
+                    UA: {selectedSession.userAgent.length > 100 ? selectedSession.userAgent.slice(0, 100) + '…' : selectedSession.userAgent}
+                  </p>
+                )}
+                {selectedSession.authCount ? (
+                  <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">Total authentications: {selectedSession.authCount}</p>
+                ) : null}
               </div>
               <div className="border-t pt-4">
                 <p className="text-xs font-medium text-muted-foreground mb-2">Bandwidth & Plan</p>
