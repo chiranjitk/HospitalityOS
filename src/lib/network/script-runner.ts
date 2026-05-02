@@ -6,18 +6,21 @@ import { execSync } from 'child_process';
  * Calls staysuite_login.sh / staysuite_logout.sh after RADIUS auth
  * to configure nftables rules + TC HTB bandwidth shaping.
  *
- * In production (Rocky 10 with root/CAP_NET_ADMIN), these scripts:
- *   - Add/remove IPs from nft sets (loggedinusers, etc.)
- *   - Insert/delete fwmark rules in prerouting chain
- *   - Add/remove NAT masquerade/SNAT rules
- *   - Create/delete TC HTB classes + fw filters on ifb0/ifb1
- *   - Save/restore session state for crash recovery
+ * Production (Rocky 10, root):
+ *   Scripts at /usr/local/scripts/staysuite_core/ (default)
+ *   nft at /usr/sbin/nft (installed via dnf, already in PATH)
+ *   State dirs at /var/run/staysuite/sessions and /var/lib/staysuite/sessions
  *
- * In sandbox/dev, nft/tc commands fail silently (no CAP_NET_ADMIN).
- * The auth still succeeds — firewall is a separate concern.
+ * Environment overrides (for dev/testing):
+ *   STAYSUITE_SCRIPTS_DIR  — script directory
+ *   STAYSUITE_NAT_ACTION    — default NAT action (masq | snat | accept)
+ *   SS_STATEDIR            — runtime state directory override
+ *   SS_PERSIST_STATEDIR    — persistent state directory override
+ *   LOGFILE                — login/logout log file path
  */
 
-// Script directory — production path, overridable via env
+// ─── Configuration (production defaults, overridable via env) ────────
+
 const SCRIPTS_DIR = process.env.STAYSUITE_SCRIPTS_DIR || '/usr/local/scripts/staysuite_core';
 const LOGIN_SCRIPT = `${SCRIPTS_DIR}/staysuite_login.sh`;
 const LOGOUT_SCRIPT = `${SCRIPTS_DIR}/staysuite_logout.sh`;
@@ -193,47 +196,16 @@ export function runLogoutScript(params: LogoutScriptParams): ScriptResult {
 
 // ─── Internal Script Executor ──────────────────────────────────────
 
-// Detect nft binary location — needed by login/logout scripts.
-// Order: env override → sandbox build dir → system path
-function resolveNftDir(): string {
-  if (process.env.NFT_PATH) {
-    const idx = process.env.NFT_PATH.lastIndexOf('/');
-    return idx > 0 ? process.env.NFT_PATH!.substring(0, idx) : '';
-  }
-  // Sandbox: nft compiled from source lives here
-  const sandboxDir = `${process.cwd()}/nftables-install/sbin`;
-  try {
-    const { existsSync } = require('fs');
-    if (existsSync(`${sandboxDir}/nft`)) return sandboxDir;
-  } catch { /* ignore */ }
-  return '/usr/sbin'; // production default
-}
-
-const _nftDir = resolveNftDir();
-
 function runScript(scriptPath: string, args: string[], timeoutMs: number): ScriptResult {
   const startTime = Date.now();
 
-  // Build environment for script execution:
-  // - PATH: ensure nft + tc are discoverable
-  // - LOGFILE: point logs to /tmp in sandbox (no write to /var/log)
-  // - SS_STATEDIR / SS_PERSIST_STATEDIR: override state dirs for sandbox
-  const isDev = process.env.NODE_ENV === 'development';
-  const baseDir = process.cwd();
-
+  // Build environment: inherit process env, pass through any overrides.
+  // Scripts call nft/tc/flock — they must be on PATH (standard on Rocky 10).
+  // State dirs default to /var/run and /var/lib inside the scripts themselves;
+  // override via SS_STATEDIR / SS_PERSIST_STATEDIR env vars if needed.
   const scriptEnv: Record<string, string> = {};
-  // Inherit current process env
   for (const [k, v] of Object.entries(process.env)) {
     if (v !== undefined) scriptEnv[k] = v;
-  }
-  // Ensure nft is on PATH (sandbox build dir → system default)
-  const existingPath = scriptEnv.PATH || '';
-  scriptEnv.PATH = `${_nftDir}:${existingPath}`;
-
-  if (isDev) {
-    scriptEnv.LOGFILE = '/tmp/staysuite_login.log';
-    scriptEnv.SS_STATEDIR = `${baseDir}/.staysuite/sessions`;
-    scriptEnv.SS_PERSIST_STATEDIR = `${baseDir}/.staysuite/sessions`;
   }
 
   try {
