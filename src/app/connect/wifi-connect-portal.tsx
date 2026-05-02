@@ -1590,39 +1590,11 @@ function PortalContent() {
     }
   };
 
-  // ── Method selector tabs (FALLBACK MODE only) ──
-  const renderMethodTabs = () => {
-    if (useUnifiedForm) return null; // No tabs in unified mode
-    if (authMethods.length <= 1) return null;
-    return (
-      <div className="flex gap-1 p-1 rounded-xl mb-1" role="tablist" aria-label="Authentication methods"
-        style={{ backgroundColor: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }}>
-        {authMethods.map((am) => (
-          <button
-            key={am.method}
-            role="tab"
-            aria-selected={effectiveAuthMethod === am.method}
-            onClick={() => {
-              setSelectedMethod(am.method);
-              setState('auth_form');
-              setErrorMessage('');
-              setGuestInfo({ firstName: '', lastName: '', email: '', phone: '' });
-            }}
-            className={cn(
-              'flex-1 text-sm font-medium py-2.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1.5 min-w-0',
-              effectiveAuthMethod === am.method
-                ? (dark ? 'bg-white/20 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm')
-                : (dark ? 'text-white/60 hover:text-white/80' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50')
-            )}
-            title={am.description || am.label}
-          >
-            {METHOD_ICONS[am.method] || <Key className="w-4 h-4" />}
-            <span className="truncate">{am.label}</span>
-          </button>
-        ))}
-      </div>
-    );
-  };
+  // ── Method selector tabs (DISABLED) ──
+  // Tabs have been removed. When formFields is configured we use the unified
+  // designer form. When formFields is null we use a simple single-method
+  // fallback — no tabs, no method switching.
+  const renderMethodTabs = () => null;
 
   // ── Guest info fields section (FALLBACK MODE only) ──
   const renderGuestInfoFields = () => {
@@ -1719,16 +1691,13 @@ function PortalContent() {
     }
 
     // ══════════════════════════════════════════════════════════
-    // FALLBACK MODE — tabs + hardcoded forms
+    // FALLBACK MODE — simple single-method form (NO tabs)
     // ══════════════════════════════════════════════════════════
     return (
       <>
         {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
 
-        {/* Auth Method Tabs */}
-        {renderMethodTabs()}
-
-        {/* Auth Form */}
+        {/* Auth Form — no tabs, just the default method's form */}
         <div
           className="transition-opacity duration-200"
           style={{ opacity: canSubmit ? 1 : 0.5, pointerEvents: canSubmit ? 'auto' : 'none' }}
@@ -1810,7 +1779,18 @@ function PortalContent() {
 
             {/* Form Panel */}
             <div className="w-full md:w-[420px]">
-              <div className={formCls} style={cardShadowStyle}>
+              <div
+                className={formCls}
+                style={{
+                  ...cardShadowStyle,
+                  // Ensure card is distinguishable on light backgrounds
+                  ...(dark ? {} : {
+                    border: design.formStyle === 'glass' || design.formStyle === 'minimal'
+                      ? undefined
+                      : '1px solid rgba(0,0,0,0.08)',
+                  }),
+                }}
+              >
                 {/* Mobile-only header */}
                 <div className="md:hidden text-center space-y-2 mb-4">
                   <PortalLogo design={design} size="small" />
@@ -1875,7 +1855,18 @@ function PortalContent() {
             </div>
 
             {/* ── THE FORM CARD ── */}
-            <div className={cn('w-full', formCls)} style={cardShadowStyle}>
+            <div
+              className={cn('w-full', formCls)}
+              style={{
+                ...cardShadowStyle,
+                // Ensure card is distinguishable on light backgrounds
+                ...(dark ? {} : {
+                  border: design.formStyle === 'glass' || design.formStyle === 'minimal'
+                    ? undefined
+                    : '1px solid rgba(0,0,0,0.08)',
+                }),
+              }}
+            >
               {renderCardContent()}
             </div>
 

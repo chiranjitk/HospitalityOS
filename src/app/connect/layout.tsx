@@ -5,8 +5,8 @@
  * the admin dashboard styling (sidebar, header, etc.) or providers.
  * This layout ensures the portal renders as a standalone fullscreen page.
  *
- * We reset ALL CSS variables and body styles to prevent the admin theme
- * (light/dark mode, background colors, fonts) from leaking into the portal.
+ * We reset body margin/padding but let the portal component manage
+ * its own full-screen background, fonts, and colors dynamically.
  */
 
 import type { Metadata } from 'next';
@@ -23,22 +23,14 @@ export default function ConnectLayout({
 }) {
   return (
     <>
-      {/* Reset ALL inherited theme styles so the portal renders standalone */}
+      {/* Reset body margin/padding — portal manages its own full-screen background */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
-            /* Reset body background — portal manages its own full-screen background */
             body {
-              background-color: #0f766e !important;
-              background-image: none !important;
               margin: 0 !important;
               padding: 0 !important;
               min-height: 100vh;
-            }
-            /* Prevent Next.js theme variables from overriding portal styles */
-            :root {
-              --background: #0f766e;
-              --foreground: #fafafa;
             }
           `,
         }}
