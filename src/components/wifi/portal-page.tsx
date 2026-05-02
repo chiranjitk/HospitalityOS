@@ -243,6 +243,8 @@ interface DesignSettings {
   scheduleConfig: { enabled: boolean; schedules: Array<{ name: string; days: boolean[]; startTime: string; endTime: string }> };
 }
 
+const DEFAULT_CONTENT_BLOCKS = ['promotion', 'logo', 'title', 'hotelInfo', 'form', 'amenities', 'social', 'clock', 'weather'];
+
 const DEFAULT_SETTINGS: DesignSettings = {
   layoutType: 'centered', backgroundType: 'solid',
   gradientFrom: '#0f766e', gradientTo: '#134e4a', gradientAngle: 135,
@@ -445,8 +447,6 @@ const SOCIAL_PLATFORM_OPTIONS = [
   { value: 'whatsapp', label: 'WhatsApp', icon: Smartphone, color: 'text-green-500 dark:text-green-400' },
   { value: 'tiktok', label: 'TikTok', icon: Tv, color: 'text-gray-800 dark:text-gray-200' },
 ];
-
-const DEFAULT_CONTENT_BLOCKS = ['promotion', 'logo', 'title', 'hotelInfo', 'form', 'amenities', 'social', 'clock', 'weather'];
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
