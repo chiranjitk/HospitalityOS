@@ -685,7 +685,7 @@ export async function GET(request: NextRequest) {
                    guest_first_name, guest_last_name, room_number,
                    property_name, plan_name, downloadspeed, uploadspeed,
                    "loginType", "deviceName", "deviceType", "userAgent",
-                   dp_macAddress, dp_authCount
+                   "dp_macAddress", "dp_authCount"
             FROM v_active_sessions ${whereClause}
             ORDER BY acctuniqueid, acctstarttime DESC
           `, ...sqlParams);
