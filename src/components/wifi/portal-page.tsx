@@ -2510,133 +2510,328 @@ function WhitelistTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function AnalyticsTab() {
-  // Mock data for analytics (real data would come from an analytics backend API)
-  const mockStats = {
-    totalToday: 284, totalWeek: 1856, totalMonth: 7842,
-    avgSession: '32 min',
-    peakHour: 19,
-    authMethods: [
-      { method: 'Room Number', count: 142, pct: 50 },
-      { method: 'Voucher', count: 68, pct: 24 },
-      { method: 'PMS Credentials', count: 48, pct: 17 },
-      { method: 'Open Access', count: 18, pct: 6 },
-      { method: 'SMS OTP', count: 8, pct: 3 },
-    ],
-    peakHours: [
-      { hour: 0, count: 5 }, { hour: 3, count: 2 }, { hour: 6, count: 12 },
-      { hour: 8, count: 45 }, { hour: 9, count: 78 }, { hour: 10, count: 92 },
-      { hour: 11, count: 85 }, { hour: 12, count: 70 }, { hour: 13, count: 55 },
-      { hour: 14, count: 48 }, { hour: 15, count: 42 }, { hour: 16, count: 58 },
-      { hour: 17, count: 82 }, { hour: 18, count: 95 }, { hour: 19, count: 108 },
-      { hour: 20, count: 98 }, { hour: 21, count: 88 }, { hour: 22, count: 62 },
-      { hour: 23, count: 28 },
-    ],
-    marketingOptInRate: 67,
-    surveyResponses: { Excellent: 42, Good: 35, Average: 15, Poor: 8 },
+  const { propertyId } = usePropertyId();
+  const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<{
+    summary: {
+      totalSessions: number;
+      activeSessions: number;
+      uniqueDevices: number;
+      avgDurationMin: number;
+      growthPercent: number;
+      totalDataMB: number;
+      totalVouchersUsed: number;
+    };
+    authDistribution: Array<{ method: string; count: number; pct: number }>;
+    peakHours: Array<{ hour: number; sessions: number }>;
+  } | null>(null);
+
+  const fetchAnalytics = useCallback(async (p: 'today' | 'week' | 'month') => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ period: p });
+      if (propertyId && propertyId !== 'default') params.set('propertyId', propertyId);
+      const res = await fetch(`/api/wifi/portal/analytics?${params.toString()}`);
+      const result = await res.json();
+      if (result.success && result.data) {
+        setData(result.data);
+      } else {
+        setError(result.error?.message || 'Failed to load analytics');
+      }
+    } catch (e) {
+      console.error('Analytics fetch error:', e);
+      setError('Network error — please try again');
+    } finally {
+      setLoading(false);
+    }
+  }, [propertyId]);
+
+  useEffect(() => {
+    void fetchAnalytics(period); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [period, fetchAnalytics]);
+
+  const periodLabels: Array<{ value: 'today' | 'week' | 'month'; label: string }> = [
+    { value: 'today', label: 'Today' },
+    { value: 'week', label: 'This Week' },
+    { value: 'month', label: 'This Month' },
+  ];
+
+  const authMethodLabels: Record<string, string> = {
+    voucher: 'Voucher Code',
+    room_number: 'Room Number',
+    pms_credentials: 'PMS Credentials',
+    sms_otp: 'SMS OTP',
+    open_access: 'Open Access',
+    social: 'Social Login',
+    mac_auth: 'MAC Auth',
   };
 
-  const maxHourCount = Math.max(...mockStats.peakHours.map((h) => h.count));
+  // ── Loading skeleton ──────────────────────────────────────────────────────
+  if (loading && !data) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-3 w-64 mt-2" />
+          </div>
+          <div className="flex gap-2"><Skeleton className="h-8 w-20" /><Skeleton className="h-8 w-20" /><Skeleton className="h-8 w-24" /></div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}><CardContent className="p-4"><Skeleton className="h-16 w-full rounded-lg" /></CardContent></Card>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card><CardContent className="p-4 space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-6 w-full" />)}</CardContent></Card>
+          <Card><CardContent className="p-4"><Skeleton className="h-36 w-full rounded-lg" /></CardContent></Card>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Error state ───────────────────────────────────────────────────────────
+  if (error && !data) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold flex items-center gap-2"><BarChart3 className="h-4 w-4 text-teal-500" />Guest Analytics Dashboard</h3>
+            <p className="text-xs text-muted-foreground mt-1">Track portal usage, authentication methods, and guest engagement</p>
+          </div>
+        </div>
+        <Card className="border-destructive/50">
+          <CardContent className="p-6 flex flex-col items-center gap-3 text-center">
+            <AlertTriangle className="h-8 w-8 text-destructive" />
+            <p className="text-sm font-medium text-destructive">{error}</p>
+            <Button variant="outline" size="sm" onClick={() => void fetchAnalytics(period)}>
+              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const summary = data?.summary;
+  const peakHoursFiltered = (data?.peakHours || []).filter(h => h.hour >= 6 && h.hour <= 23);
+  const maxHourCount = Math.max(...peakHoursFiltered.map(h => h.sessions), 1);
+  const hasData = summary && summary.totalSessions > 0;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header with period selector */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold flex items-center gap-2"><BarChart3 className="h-4 w-4 text-teal-500" />Guest Analytics Dashboard</h3>
-          <p className="text-xs text-muted-foreground mt-1">Track portal usage, authentication methods, and guest engagement</p>
+          <p className="text-xs text-muted-foreground mt-1">Real-time WiFi portal usage, authentication patterns, and bandwidth insights</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-            <AlertTriangle className="h-3 w-3 mr-1" />Mock Data
-          </Badge>
+        <div className="flex gap-1 bg-muted rounded-lg p-1">
+          {periodLabels.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setPeriod(p.value)}
+              className={cn(
+                'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                period === p.value
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="p-4 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30">
-        <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center gap-1.5"><Settings className="h-3.5 w-3.5" />Connect your analytics backend for live data. These metrics are currently showing placeholder values.</p>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Today', value: mockStats.totalToday, icon: Wifi, color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300' },
-          { label: 'This Week', value: mockStats.totalWeek, icon: Calendar, color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
-          { label: 'This Month', value: mockStats.totalMonth, icon: CalendarDays, color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
-          { label: 'Avg Session', value: mockStats.avgSession, icon: Clock, color: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' },
-        ].map((kpi) => (
-          <Card key={kpi.label}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div><p className="text-xs text-muted-foreground">{kpi.label}</p><p className="text-2xl font-bold mt-1">{kpi.value}</p></div>
-                <div className={cn('p-2.5 rounded-xl', kpi.color)}><kpi.icon className="h-5 w-5" /></div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Auth Methods */}
+      {/* No data state */}
+      {!hasData && !loading && (
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Authentication Methods</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            {mockStats.authMethods.map((am) => (
-              <div key={am.method} className="space-y-1">
-                <div className="flex items-center justify-between text-xs"><span className="font-medium">{am.method}</span><span className="text-muted-foreground">{am.count} ({am.pct}%)</span></div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden"><div className="h-full bg-teal-500 rounded-full" style={{ width: `${am.pct}%` }} /></div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Peak Usage Hours */}
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Peak Usage Hours (Today)</CardTitle></CardHeader>
-          <CardContent>
-            <div className="flex items-end gap-[2px] h-32">
-              {mockStats.peakHours.filter((h) => h.hour >= 6 && h.hour <= 23).map((h) => (
-                <div key={h.hour} className="flex-1 flex flex-col items-center gap-1">
-                  <div className="w-full bg-teal-500/80 rounded-t-sm transition-all hover:bg-teal-500" style={{ height: `${(h.count / maxHourCount) * 100}%` }} />
-                  <span className="text-[8px] text-muted-foreground">{h.hour}</span>
-                </div>
-              ))}
+          <CardContent className="p-8 flex flex-col items-center gap-3 text-center">
+            <div className="p-3 rounded-full bg-muted"><Wifi className="h-6 w-6 text-muted-foreground" /></div>
+            <div>
+              <p className="text-sm font-medium">No data yet</p>
+              <p className="text-xs text-muted-foreground mt-1">WiFi sessions will appear here once guests connect through the captive portal.</p>
             </div>
           </CardContent>
         </Card>
+      )}
 
-        {/* Marketing Opt-In */}
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium flex items-center gap-1.5"><Megaphone className="h-4 w-4" />Marketing Opt-In Rate</CardTitle></CardHeader>
-          <CardContent className="flex flex-col items-center py-4">
-            <div className="relative w-28 h-28">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
-                <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8" strokeDasharray={`${mockStats.marketingOptInRate * 2.51} 251`} strokeLinecap="round" className="text-teal-500" />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center"><span className="text-xl font-bold">{mockStats.marketingOptInRate}%</span></div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">{Math.round(mockStats.totalToday * mockStats.marketingOptInRate / 100)} guests opted in today</p>
-          </CardContent>
-        </Card>
-
-        {/* Survey Distribution */}
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium flex items-center gap-1.5"><MessageSquare className="h-4 w-4" />Survey Responses</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {Object.entries(mockStats.surveyResponses).map(([rating, count]) => {
-              const total = Object.values(mockStats.surveyResponses).reduce((a, b) => a + b, 0);
-              const pct = Math.round((count / total) * 100);
-              const color = rating === 'Excellent' ? 'bg-emerald-500' : rating === 'Good' ? 'bg-teal-500' : rating === 'Average' ? 'bg-amber-500' : 'bg-rose-500';
-              return (
-                <div key={rating} className="flex items-center gap-2">
-                  <span className="text-xs w-16 font-medium">{rating}</span>
-                  <div className="flex-1 h-4 bg-muted rounded-full overflow-hidden"><div className={cn('h-full rounded-full', color)} style={{ width: `${pct}%` }} /></div>
-                  <span className="text-xs text-muted-foreground w-12 text-right">{count} ({pct}%)</span>
+      {hasData && (
+        <>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Sessions</p>
+                    <p className="text-2xl font-bold mt-1">{summary!.totalSessions.toLocaleString()}</p>
+                    <div className={cn('flex items-center gap-1 text-[10px] mt-1', summary!.growthPercent >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}>
+                      {summary!.growthPercent >= 0 ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      {Math.abs(summary!.growthPercent)}% vs prev {period === 'today' ? 'day' : period}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300"><Wifi className="h-5 w-5" /></div>
                 </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Active Now</p>
+                    <p className="text-2xl font-bold mt-1">{summary!.activeSessions.toLocaleString()}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Currently online</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"><User className="h-5 w-5" /></div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Unique Devices</p>
+                    <p className="text-2xl font-bold mt-1">{summary!.uniqueDevices.toLocaleString()}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Distinct MAC addresses</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"><Smartphone className="h-5 w-5" /></div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Avg Duration</p>
+                    <p className="text-2xl font-bold mt-1">{summary!.avgDurationMin > 0 ? `${summary!.avgDurationMin}m` : '—'}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">{summary!.totalDataMB > 0 ? `${summary!.totalDataMB.toLocaleString()} MB used` : 'No data'}</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"><Clock className="h-5 w-5" /></div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Auth Methods Distribution */}
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Authentication Methods</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                {data!.authDistribution.length === 0 && (
+                  <p className="text-xs text-muted-foreground italic">No authentication data available for this period.</p>
+                )}
+                {data!.authDistribution.map((am) => (
+                  <div key={am.method} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium">{authMethodLabels[am.method] || am.method}</span>
+                      <span className="text-muted-foreground">{am.count} ({am.pct}%)</span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="h-full bg-teal-500 rounded-full transition-all duration-500" style={{ width: `${am.pct}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Peak Usage Hours */}
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Peak Usage Hours</CardTitle></CardHeader>
+              <CardContent>
+                {peakHoursFiltered.every(h => h.sessions === 0) ? (
+                  <p className="text-xs text-muted-foreground italic py-8 text-center">No hourly data available for this period.</p>
+                ) : (
+                  <div className="flex items-end gap-[2px] h-32">
+                    {peakHoursFiltered.map((h) => (
+                      <div key={h.hour} className="flex-1 flex flex-col items-center gap-1 group">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div
+                              className="w-full bg-teal-500/80 rounded-t-sm transition-all hover:bg-teal-500 cursor-default min-h-[2px]"
+                              style={{ height: `${(h.sessions / maxHourCount) * 100}%` }}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-[10px]">
+                            <p>{h.hour}:00 — {h.sessions} sessions</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        <span className="text-[8px] text-muted-foreground">{h.hour}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Bandwidth Summary */}
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium flex items-center gap-1.5"><Zap className="h-4 w-4" />Bandwidth Usage</CardTitle></CardHeader>
+              <CardContent className="flex flex-col items-center py-4 gap-3">
+                <div className="text-center">
+                  <p className="text-3xl font-bold">{summary!.totalDataMB.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Total data consumed</p>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-2 gap-4 w-full text-center">
+                  <div>
+                    <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground mb-1">
+                      <Download className="h-3.5 w-3.5 text-teal-500" />Sessions
+                    </div>
+                    <p className="text-lg font-semibold">{summary!.totalSessions.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground mb-1">
+                      <Ticket className="h-3.5 w-3.5 text-amber-500" />Vouchers Used
+                    </div>
+                    <p className="text-lg font-semibold">{summary!.totalVouchersUsed.toLocaleString()}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Auth method breakdown as donut-like visual */}
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium flex items-center gap-1.5"><ShieldCheck className="h-4 w-4" />Session Status</CardTitle></CardHeader>
+              <CardContent className="space-y-3 py-2">
+                <div className="flex items-center gap-3">
+                  <div className="relative w-20 h-20 flex-shrink-0">
+                    <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted" />
+                      {summary!.totalSessions > 0 && (
+                        <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8"
+                          strokeDasharray={`${(summary!.activeSessions / summary!.totalSessions) * 251} 251`}
+                          strokeLinecap="round" className="text-teal-500" />
+                      )}
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-sm font-bold">{summary!.activeSessions}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-xs">
+                      <div className="w-2.5 h-2.5 rounded-full bg-teal-500" />
+                      <span>Active: <span className="font-semibold">{summary!.activeSessions}</span></span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <div className="w-2.5 h-2.5 rounded-full bg-muted" />
+                      <span>Completed: <span className="font-semibold">{summary!.totalSessions - summary!.activeSessions}</span></span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1">{summary!.totalSessions.toLocaleString()} total sessions this {period}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
 }

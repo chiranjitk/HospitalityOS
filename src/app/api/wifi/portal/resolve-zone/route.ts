@@ -183,14 +183,24 @@ async function buildPortalConfig(portalId: string) {
       // ── Feature 1: Multi-Language Portal ──
       languages: (designSettings.languages as string[]) || ['en'],
       defaultLanguage: (designSettings.defaultLanguage as string) || 'en',
+      enableMultiLanguage: (designSettings.enableMultiLanguage as boolean) || false,
 
       // ── Feature 2: Guest Marketing Opt-In ──
       marketingOptIn: (designSettings.marketingOptIn as { enabled: boolean; emailConsent: boolean; phoneConsent: boolean; consentText: string }) || { enabled: false, emailConsent: false, phoneConsent: false, consentText: '' },
 
       // ── Feature 3: Multi-Slide Promotion Carousel ──
       customAmenities: (designSettings.customAmenities as Array<{ name: string; icon: string }>) || [],
-      showPromotions: (designSettings.showPromotions as boolean) || false,
-      promotions: (designSettings.promotions as Array<{ id: string; title: string; description: string; imageUrl: string; linkUrl: string; backgroundColor: string }>) || [],
+      // Derive showPromotions from useCarouselMode + having slides with content
+      showPromotions: ((designSettings.useCarouselMode as boolean) && ((designSettings.promotions as Array<Record<string, string>>) || []).some((p: Record<string, string>) => p.title || p.description)) || (designSettings.showPromotions as boolean) || false,
+      useCarouselMode: (designSettings.useCarouselMode as boolean) || false,
+      promotions: ((designSettings.promotions as Array<Record<string, string>>) || []).map((p: Record<string, string>) => ({
+        id: p.id || `promo-${Math.random().toString(36).slice(2, 8)}`,
+        title: p.title || '',
+        description: p.description || '',
+        imageUrl: p.imageUrl || '',
+        linkUrl: p.linkUrl || '',
+        backgroundColor: p.backgroundColor || p.bgColor || '#f59e0b',
+      })),
 
       // ── Feature 4: Post-Connect Guest Survey ──
       surveyConfig: (designSettings.surveyConfig as { enabled: boolean; question: string; options: string[]; thankYouMessage: string }) || { enabled: false, question: '', options: [], thankYouMessage: '' },

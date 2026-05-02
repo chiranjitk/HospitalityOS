@@ -283,7 +283,14 @@ function WeatherWidget({ design }: { design: PortalDesignConfig }) {
     };
   }, [location]);
 
-  if (!location) return null;
+  if (!location) {
+    return (
+      <div className="flex items-center justify-center gap-1.5 text-xs" style={{ color }}>
+        <span aria-hidden="true">🌤️</span>
+        <span style={{ color, fontStyle: 'italic' }}>Weather — set location in designer</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center gap-1.5 text-sm">
@@ -386,7 +393,7 @@ function LanguageSwitcher({ design, selectedLanguage, setSelectedLanguage }: {
       <select
         value={selectedLanguage}
         onChange={(e) => setSelectedLanguage(e.target.value)}
-        className="text-xs bg-transparent border-none outline-none cursor-pointer appearance-auto"
+        className="text-xs bg-transparent border border-current/20 rounded-md px-2 py-1 outline-none cursor-pointer appearance-auto"
         style={{ color: mutedColor }}
         aria-label="Select language"
       >
@@ -2156,14 +2163,23 @@ function PortalContent() {
     switch (block) {
       case 'promotion':
         if (state === 'success') return null;
-        if (design.showPromotions && design.promotions?.length > 0) return <PromotionCarousel design={design} />;
+        // Carousel mode: show if carousel enabled with valid slides
+        if (design.showPromotions && design.promotions?.length > 0) {
+          const validSlides = design.promotions.filter(p => p.title || p.description);
+          if (validSlides.length > 0) return <PromotionCarousel design={design} />;
+        }
+        // Single promotion mode: show if enabled with title
         if (design.showPromotion && design.promotionTitle) return <PromotionBlock design={design} />;
+        // useCarouselMode fallback: check if useCarouselMode is set and promotions exist
+        if ((design as any).useCarouselMode && design.promotions?.length > 0) {
+          return <PromotionCarousel design={design} />;
+        }
         return null;
       case 'clock':
         if (!design.showClock) return null;
         return <div className="mb-3 flex justify-center"><LiveClock design={design} /></div>;
       case 'weather':
-        if (!design.showWeather || !design.weatherLocation) return null;
+        if (!design.showWeather) return null;
         return <div className="mb-3 flex justify-center"><WeatherWidget design={design} /></div>;
       case 'logo':
         return <PortalLogo design={design} size="large" />;
