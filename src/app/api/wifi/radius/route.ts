@@ -1675,7 +1675,7 @@ export async function POST(request: NextRequest) {
               if (plan) {
                 const sessionTimeout = plan.sessionLimit
                   ? plan.sessionLimit * 3600
-                  : plan.validityDays * 86400;
+                  : (plan.validityMinutes || plan.validityDays * 1440) * 60;
 
                 // Clear old plan attributes for this user
                 await db.radReply.deleteMany({

@@ -241,7 +241,7 @@ export default function RadiusUsersTab() {
         group: groupName,
         downloadSpeed: plan.downloadSpeed,
         uploadSpeed: plan.uploadSpeed,
-        sessionTimeout: plan.validityDays * 24 * 60,
+        sessionTimeout: (plan.validityMinutes || plan.validityDays * 1440),
         dataLimit: plan.dataLimit || 0,
       }));
     } else {

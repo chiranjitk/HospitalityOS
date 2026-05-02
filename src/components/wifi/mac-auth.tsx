@@ -78,6 +78,7 @@ interface WiFiPlan {
   downloadSpeed?: number;
   uploadSpeed?: number;
   validityDays?: number;
+  validityMinutes?: number;
   dataLimitMB?: number;
   status: string;
 }
@@ -200,10 +201,11 @@ export default function MacAuth() {
     }
     const plan = plans.find(p => p.id === planId);
     if (plan) {
-      const validUntil = plan.validityDays
-        ? new Date(Date.now() + plan.validityDays * 86400000).toISOString().split('T')[0]
+      const minutes = plan.validityMinutes || plan.validityDays * 1440;
+      const validUntil = minutes
+        ? new Date(Date.now() + minutes * 60 * 1000).toISOString().split('T')[0]
         : '';
-      const sessionTimeout = plan.validityDays ? String(plan.validityDays * 1440) : '';
+      const sessionTimeout = minutes ? String(minutes) : '';
       setForm(prev => ({
         ...prev,
         bandwidthDown: plan.downloadSpeed ? String(plan.downloadSpeed) : '',

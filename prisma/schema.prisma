@@ -6575,7 +6575,8 @@ model WiFiPlan {
   price         Float             @default(0)
   currency      String            @default("USD")
   priority      Int               @default(0)
-  validityDays  Int               @default(1)
+  validityDays   Int               @default(1)
+  validityMinutes Int              @default(1440) // Fine-grained validity (minutes). Used when set; validityDays kept for backward compat.
   status        String            @default("active")
   createdAt     DateTime          @default(now()) @db.Timestamptz
   updatedAt     DateTime          @updatedAt @db.Timestamptz

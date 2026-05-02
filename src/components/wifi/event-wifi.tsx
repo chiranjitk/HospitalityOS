@@ -87,7 +87,7 @@ interface EventWifiPlan {
   uploadSpeed?: number;
   dataLimit?: number;
   validityDays?: number;
-  sessionLimit?: number;
+  validityMinutes?: number;
 }
 
 interface EventUser {
@@ -301,6 +301,7 @@ export default function EventWifi() {
           uploadSpeed: p.uploadSpeed,
           dataLimit: p.dataLimit,
           validityDays: p.validityDays,
+          validityMinutes: p.validityMinutes,
           sessionLimit: p.sessionLimit,
         })));
       }
@@ -996,9 +997,11 @@ export default function EventWifi() {
                     planId: v,
                     bandwidth: selectedPlan.downloadSpeed || prev.bandwidth,
                     dataLimit: selectedPlan.dataLimit ?? prev.dataLimit,
-                    validHours: selectedPlan.validityDays
-                      ? selectedPlan.validityDays * 24
-                      : prev.validHours,
+                    validHours: selectedPlan.validityMinutes
+                      ? selectedPlan.validityMinutes / 60
+                      : selectedPlan.validityDays
+                        ? selectedPlan.validityDays * 24
+                        : prev.validHours,
                   }));
                 } else {
                   setEventForm(prev => ({ ...prev, planId: v }));

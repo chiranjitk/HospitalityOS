@@ -63,6 +63,7 @@ interface WiFiPlan {
   currency: string;
   priority: number;
   validityDays: number;
+  validityMinutes: number;
   status: string;
   _count?: {
     vouchers: number;
@@ -101,6 +102,29 @@ const formatDuration = (minutes: number | null | undefined): string => {
   if (minutes >= 1440) return `${(minutes / 1440).toFixed(minutes % 1440 === 0 ? 0 : 1)} day${(minutes / 1440) >= 2 ? 's' : ''}`;
   if (minutes >= 60) return `${(minutes / 60).toFixed(minutes % 60 === 0 ? 0 : 1)} hr${(minutes / 60) >= 2 ? 's' : ''}`;
   return `${minutes} min`;
+};
+
+/** Convert a numeric value + unit (minutes|hours|days) to total minutes */
+const calcValidityMinutes = (value: number, unit: string): number => {
+  switch (unit) {
+    case 'minutes': return value;
+    case 'hours': return value * 60;
+    case 'days': return value * 1440;
+    default: return value * 1440;
+  }
+};
+
+/** Convert a numeric value + unit (minutes|hours|days) to days (ceiling) */
+const calcValidityDays = (value: number, unit: string): number => {
+  const minutes = calcValidityMinutes(value, unit);
+  return Math.max(1, Math.ceil(minutes / 1440));
+};
+
+/** Pick the best human-friendly unit for a given number of minutes */
+const parseBestUnit = (totalMinutes: number): string => {
+  if (totalMinutes >= 1440 && totalMinutes % 1440 === 0) return 'days';
+  if (totalMinutes >= 60 && totalMinutes % 60 === 0) return 'hours';
+  return 'minutes';
 };
 
 export default function WifiPlans() {
@@ -143,7 +167,8 @@ export default function WifiPlans() {
     price: '0',
     currency: 'USD',
     priority: '0',
-    validityDays: '1',
+    validityValue: '1',
+    validityUnit: 'days',
     status: 'active',
     unlimitedData: true,
     unlimitedSession: true,
@@ -259,7 +284,8 @@ export default function WifiPlans() {
           price: parseFloat(formData.price),
           currency: formData.currency,
           priority: parseInt(formData.priority),
-          validityDays: parseInt(formData.validityDays),
+          validityDays: calcValidityDays(parseInt(formData.validityValue) || 1, formData.validityUnit),
+          validityMinutes: calcValidityMinutes(parseInt(formData.validityValue) || 1, formData.validityUnit),
           status: formData.status,
         }),
       });
@@ -316,7 +342,8 @@ export default function WifiPlans() {
           price: parseFloat(formData.price),
           currency: formData.currency,
           priority: parseInt(formData.priority),
-          validityDays: parseInt(formData.validityDays),
+          validityDays: calcValidityDays(parseInt(formData.validityValue) || 1, formData.validityUnit),
+          validityMinutes: calcValidityMinutes(parseInt(formData.validityValue) || 1, formData.validityUnit),
           status: formData.status,
         }),
       });
@@ -404,7 +431,8 @@ export default function WifiPlans() {
       price: plan.price.toString(),
       currency: plan.currency,
       priority: plan.priority.toString(),
-      validityDays: plan.validityDays.toString(),
+      validityValue: plan.validityMinutes.toString(),
+      validityUnit: parseBestUnit(plan.validityMinutes),
       status: plan.status,
       unlimitedData: !plan.dataLimit,
       unlimitedSession: !plan.sessionLimit,
@@ -431,7 +459,8 @@ export default function WifiPlans() {
       price: '0',
       currency: 'USD',
       priority: '0',
-      validityDays: '1',
+      validityValue: '1',
+      validityUnit: 'days',
       status: 'active',
       unlimitedData: true,
       unlimitedSession: true,
@@ -669,7 +698,7 @@ export default function WifiPlans() {
                       {tier.label} Tier
                     </span>
                     <span className="text-[11px] text-muted-foreground">
-                      {plan.validityDays} day{plan.validityDays > 1 ? 's' : ''} validity
+                      {formatDuration(plan.validityMinutes)} validity
                     </span>
                   </div>
 
@@ -968,14 +997,30 @@ export default function WifiPlans() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="validityDays">Validity (Days)</Label>
-                <Input
-                  id="validityDays"
-                  type="number"
-                  min="1"
-                  value={formData.validityDays}
-                  onChange={(e) => setFormData(prev => ({ ...prev, validityDays: e.target.value }))}
-                />
+                <Label>Validity Period</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    min="1"
+                    value={formData.validityValue}
+                    onChange={(e) => setFormData(prev => ({ ...prev, validityValue: e.target.value }))}
+                    className="flex-1"
+                    placeholder="Enter value"
+                  />
+                  <Select value={formData.validityUnit} onValueChange={(v) => setFormData(prev => ({ ...prev, validityUnit: v }))}>
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="minutes">Minutes</SelectItem>
+                      <SelectItem value="hours">Hours</SelectItem>
+                      <SelectItem value="days">Days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  = {formatDuration(calcValidityMinutes(parseInt(formData.validityValue) || 1, formData.validityUnit))} total
+                </p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">

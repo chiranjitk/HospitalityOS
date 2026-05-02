@@ -263,6 +263,7 @@ class WiFiProvisioningService {
       // ─────────────────────────────────────────────────────────────────────
       let planId: string | undefined;
       let planValidityDays = 1;
+      let planValidityMinutes = 1440;
       let planDataLimit: number | undefined;
       let planSessionLimit: number | undefined;
       let bandwidth = { ...DEFAULT_BANDWIDTH }; // fallback
@@ -282,12 +283,13 @@ class WiFiProvisioningService {
             where: { id: roomType.wifiPlanId, status: 'active' },
             select: {
               id: true, downloadSpeed: true, uploadSpeed: true,
-              validityDays: true, dataLimit: true, sessionLimit: true, name: true,
+              validityDays: true, validityMinutes: true, dataLimit: true, sessionLimit: true, name: true,
             },
           });
           if (roomTypePlan) {
             planId = roomTypePlan.id;
             planValidityDays = roomTypePlan.validityDays || 1;
+            planValidityMinutes = roomTypePlan.validityMinutes || roomTypePlan.validityDays * 1440;
             planDataLimit = roomTypePlan.dataLimit;
             planSessionLimit = roomTypePlan.sessionLimit;
             bandwidth = {
@@ -331,12 +333,13 @@ class WiFiProvisioningService {
             where: { id: effectivePlanId, status: 'active' },
             select: {
               id: true, downloadSpeed: true, uploadSpeed: true,
-              validityDays: true, dataLimit: true, sessionLimit: true, name: true,
+              validityDays: true, validityMinutes: true, dataLimit: true, sessionLimit: true, name: true,
             },
           });
           if (defaultPlan) {
             planId = defaultPlan.id;
             planValidityDays = defaultPlan.validityDays || 1;
+            planValidityMinutes = defaultPlan.validityMinutes || defaultPlan.validityDays * 1440;
             planDataLimit = defaultPlan.dataLimit;
             planSessionLimit = defaultPlan.sessionLimit;
             bandwidth = {
@@ -374,7 +377,7 @@ class WiFiProvisioningService {
       }
 
       // ─── PLAN SELECTION SUMMARY ─────────────────────────────────────────
-      console.log(`[WiFi Provisioning] ✓ Plan resolved for booking ${input.bookingId}: source=${planSource}, planId=${planId || 'none'}, bandwidth=${bandwidth.download / 1000000}M/${bandwidth.upload / 1000000}M, validity=${planValidityDays}d`);
+      console.log(`[WiFi Provisioning] ✓ Plan resolved for booking ${input.bookingId}: source=${planSource}, planId=${planId || 'none'}, bandwidth=${bandwidth.download / 1000000}M/${bandwidth.upload / 1000000}M, validity=${planValidityMinutes}m`);
       if (!planId) {
         console.warn(`[WiFi Provisioning] ⚠ No WiFi plan assigned — user will get raw bandwidth only (no plan tracking, no data limits). Set a default plan in AAA Configuration > Auth tab.`);
       }
@@ -401,15 +404,15 @@ class WiFiProvisioningService {
 
       console.log(`[WiFi Provisioning] Generated credentials for booking ${input.bookingId}: username=${username}`);
 
-      // Calculate validity: use the LATER of (checkout + 12h) or (now + plan validityDays)
+      // Calculate validity: use the LATER of (checkout + 12h) or (now + plan validityMinutes)
       // This ensures the guest always gets WiFi for their full stay AND at least the plan's validity period
       const checkoutValidity = new Date(input.checkOut.getTime() + 12 * 60 * 60 * 1000);
-      const planValidity = new Date(Date.now() + planValidityDays * 24 * 60 * 60 * 1000);
+      const planValidity = new Date(Date.now() + planValidityMinutes * 60 * 1000);
       const validUntil = new Date(Math.max(checkoutValidity.getTime(), planValidity.getTime()));
 
-      // Session timeout in minutes based on the plan's validity days
+      // Session timeout in minutes based on the plan's validity
       // This tells the NAS/AP to force re-auth after this many minutes
-      const sessionTimeoutMinutes = planValidityDays * 24 * 60; // days → minutes
+      const sessionTimeoutMinutes = planValidityMinutes;
 
       // Create WiFi user with RADIUS credentials
       const result = await wifiUserService.provisionUser({

@@ -5,6 +5,13 @@ import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import crypto from 'crypto';
 
+function formatPlanDuration(plan: { validityMinutes?: number | null; validityDays?: number | null }): string {
+  const minutes = plan.validityMinutes || (plan.validityDays || 1) * 1440;
+  if (minutes >= 1440 && minutes % 1440 === 0) return `${minutes / 1440} day${minutes / 1440 > 1 ? 's' : ''}`;
+  if (minutes >= 60 && minutes % 60 === 0) return `${minutes / 60} hr${minutes / 60 > 1 ? 's' : ''}`;
+  return `${minutes} min`;
+}
+
 // Helper function to generate voucher code using cryptographically secure random bytes
 function generateVoucherCode(): string {
   const bytes = crypto.randomBytes(8).toString('hex').toUpperCase();
@@ -76,6 +83,7 @@ export async function GET(request: NextRequest) {    const user = await requireP
             dataLimit: true,
             sessionLimit: true,
             validityDays: true,
+            validityMinutes: true,
             price: true,
             currency: true,
           },
@@ -177,10 +185,12 @@ export async function POST(request: NextRequest) {    const user = await require
 
     // Calculate validity dates
     const voucherValidFrom = validFrom ? new Date(validFrom) : new Date();
-    const voucherValidityDays = validityDays || plan.validityDays || 1;
+    const voucherValidityMinutes = validityDays
+      ? validityDays * 1440
+      : (plan.validityMinutes || plan.validityDays * 1440);
     const voucherValidUntil = validUntil
       ? new Date(validUntil)
-      : new Date(voucherValidFrom.getTime() + voucherValidityDays * 24 * 60 * 60 * 1000);
+      : new Date(voucherValidFrom.getTime() + voucherValidityMinutes * 60 * 1000);
 
     // Generate unique voucher codes with retry on unique constraint violation
     const vouchers: any[] = [];
@@ -216,6 +226,7 @@ export async function POST(request: NextRequest) {    const user = await require
                   downloadSpeed: true,
                   uploadSpeed: true,
                   validityDays: true,
+                  validityMinutes: true,
                 },
               },
             },
@@ -404,6 +415,7 @@ export async function PUT(request: NextRequest) {    const user = await requireP
               dataLimit: true,
               sessionLimit: true,
               validityDays: true,
+              validityMinutes: true,
               price: true,
               currency: true,
             },
@@ -497,9 +509,9 @@ export async function PUT(request: NextRequest) {    const user = await requireP
         );
       }
 
-      // Calculate validFrom and validUntil based on plan's validityDays
+      // Calculate validFrom and validUntil based on plan's validityMinutes
       const wifiValidFrom = now;
-      const wifiValidUntil = new Date(now.getTime() + (plan.validityDays || 1) * 24 * 60 * 60 * 1000);
+      const wifiValidUntil = new Date(now.getTime() + (plan.validityMinutes || plan.validityDays * 1440) * 60 * 1000);
 
       // Provision WiFi user with credentials from plan
       let wifiCredentials: {
@@ -608,7 +620,7 @@ export async function PUT(request: NextRequest) {    const user = await requireP
             await db.folioLineItem.create({
               data: {
                 folioId: folio.id,
-                description: `WiFi - ${plan.name} (${plan.validityDays} days)`,
+                description: `WiFi - ${plan.name} (${formatPlanDuration(plan)})`,
                 category: 'wifi',
                 unitPrice: plan.price,
                 quantity: 1,

@@ -117,6 +117,7 @@ export async function POST(request: NextRequest) {    const user = await require
       currency = 'USD',
       priority = 0,
       validityDays = 1,
+      validityMinutes = 1440,
       status = 'active',
     } = body;
 
@@ -159,6 +160,7 @@ export async function POST(request: NextRequest) {    const user = await require
         currency,
         priority: parseInt(priority, 10),
         validityDays: parseInt(validityDays, 10),
+        validityMinutes: parseInt(validityMinutes, 10),
         status,
       },
     });
@@ -242,6 +244,7 @@ export async function PUT(request: NextRequest) {    const user = await requireP
         ...(updateData.currency && { currency: updateData.currency }),
         ...(updateData.priority !== undefined && { priority: parseInt(updateData.priority, 10) }),
         ...(updateData.validityDays !== undefined && { validityDays: parseInt(updateData.validityDays, 10) }),
+        ...(updateData.validityMinutes !== undefined && { validityMinutes: parseInt(updateData.validityMinutes, 10) }),
         ...(updateData.status && { status: updateData.status }),
       },
     });

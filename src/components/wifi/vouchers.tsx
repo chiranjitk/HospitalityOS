@@ -68,6 +68,7 @@ interface WiFiPlan {
   dataLimit: number | null;
   sessionLimit: number | null;
   validityDays: number;
+  validityMinutes?: number;
   price: number;
   currency: string;
 }
@@ -93,6 +94,13 @@ const voucherStatuses = [
   { value: 'expired', label: 'Expired', color: 'bg-gradient-to-r from-red-400 to-rose-500' },
   { value: 'revoked', label: 'Revoked', color: 'bg-gradient-to-r from-red-500 to-red-600' },
 ];
+
+function formatVoucherDuration(plan: { validityMinutes?: number; validityDays: number }): string {
+  const minutes = plan.validityMinutes || plan.validityDays * 1440;
+  if (minutes >= 1440 && minutes % 1440 === 0) return `${minutes / 1440} day${minutes / 1440 > 1 ? 's' : ''}`;
+  if (minutes >= 60 && minutes % 60 === 0) return `${minutes / 60} hr${minutes / 60 > 1 ? 's' : ''}`;
+  return `${minutes} min`;
+}
 
 export default function WifiVouchers() {
   const { toast } = useToast();
@@ -667,7 +675,7 @@ export default function WifiVouchers() {
                             {format(new Date(voucher.validFrom), 'MMM d')} - {format(new Date(voucher.validUntil), 'MMM d, yyyy')}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {voucher.plan.validityDays} day(s)
+                            {formatVoucherDuration(voucher.plan)}
                           </p>
                         </div>
                       </TableCell>
