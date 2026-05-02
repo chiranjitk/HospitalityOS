@@ -30,22 +30,56 @@ function normalizeIp(raw: string | null): string | null {
   return null;
 }
 
-async function validateClientIpInPool(clientIp: string): Promise<{ poolId: string; poolName: string } | null> {
+async function validateClientIpInPool(
+  clientIp: string,
+  allowedPoolIds?: string[] | null
+): Promise<{ poolId: string; poolName: string } | null> {
   try {
+    // Build pool restriction clause when plan is bound to specific pools
+    const poolFilter = (allowedPoolIds && allowedPoolIds.length > 0)
+      ? `AND ip.id = ANY($2::uuid[])`
+      : '';
+
+    const params: unknown[] = [clientIp];
+    if (allowedPoolIds && allowedPoolIds.length > 0) {
+      params.push(allowedPoolIds);
+    }
+
     const result = await db.$queryRawUnsafe<Array<{ id: string; name: string }>>(`
       SELECT ip.id, ip.name
       FROM "IpPoolRange" r
       JOIN "IpPool" ip ON ip.id = r."poolId"
       WHERE $1::inet BETWEEN r."startIp" AND r."endIp"
         AND ip.enabled = true
+        ${poolFilter}
       LIMIT 1
-    `, clientIp);
+    `, ...params);
     if (result.length === 0) return null;
     return { poolId: result[0].id, poolName: result[0].name };
   } catch (err) {
     console.error('[AutoAuth IP Pool Validation] Query failed:', err);
     return null;
   }
+}
+
+/**
+ * Resolve allowed IP pool IDs for a user based on their plan binding.
+ *
+ * Priority:
+ * 1. WiFiPlan.ipPoolId — plan explicitly bound to a pool
+ * 2. WiFiUser.ipPoolId — user-level override
+ * 3. null — no restriction, any captive portal pool allowed
+ *
+ * Returns an array of pool UUIDs, or null if unrestricted.
+ */
+function resolveAllowedPoolIds(
+  planIpPoolId?: string | null,
+  userIpPoolId?: string | null
+): string[] | null {
+  // User-level override takes priority over plan-level
+  if (userIpPoolId) return [userIpPoolId];
+  if (planIpPoolId) return [planIpPoolId];
+  return null; // No restriction
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -121,7 +155,8 @@ export async function POST(request: NextRequest) {
               validUntil: true,
               validFrom: true,
               password: true,
-              plan: { select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, validityDays: true } },
+              ipPoolId: true,
+              plan: { select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, validityDays: true, ipPoolId: true } },
               property: { select: { id: true, name: true, tenantId: true } },
             },
           },
@@ -146,7 +181,8 @@ export async function POST(request: NextRequest) {
               validUntil: true,
               validFrom: true,
               password: true,
-              plan: { select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, validityDays: true } },
+              ipPoolId: true,
+              plan: { select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, validityDays: true, ipPoolId: true } },
               property: { select: { id: true, name: true, tenantId: true } },
             },
           },
@@ -374,19 +410,27 @@ export async function POST(request: NextRequest) {
 
     // ── IP Pool Validation: reject auto-auth from unmanaged networks ──
     // Only devices on allocated pool IPs can silently re-authenticate.
+    // Also enforces plan→pool binding (same as manual auth route).
     const autoAuthRawIp = extractClientIp(request);
     const autoAuthClientIp = normalizeIp(autoAuthRawIp);
 
     if (autoAuthClientIp) {
-      const poolMatch = await validateClientIpInPool(autoAuthClientIp);
+      const allowedPools = resolveAllowedPoolIds(
+        wifiUser.plan?.ipPoolId,
+        wifiUser.ipPoolId as string | null | undefined
+      );
+      const poolMatch = await validateClientIpInPool(autoAuthClientIp, allowedPools);
       if (!poolMatch) {
-        console.warn(`[AutoAuth] IP pool check REJECTED: ${autoAuthClientIp} is not in any allocated IP pool`);
+        const poolInfo = allowedPools?.length
+          ? `allowed: [${allowedPools.join(', ')}]`
+          : 'any pool';
+        console.warn(`[AutoAuth] IP pool check REJECTED: ${autoAuthClientIp} is not in ${poolInfo}`);
         return NextResponse.json(
-          { success: false, error: { code: 'IP_NOT_IN_POOL', message: 'Your device is not on a managed WiFi network.' } },
+          { success: false, error: { code: 'IP_NOT_IN_POOL', message: 'Your device is not on the correct WiFi network for your plan. Please connect to the appropriate network.' } },
           { status: 403 }
         );
       }
-      console.log(`[AutoAuth] IP pool check PASSED: ${autoAuthClientIp} → pool "${poolMatch.poolName}"`);
+      console.log(`[AutoAuth] IP pool check PASSED: ${autoAuthClientIp} → pool "${poolMatch.poolName}"${allowedPools?.length ? ' [plan-restricted]' : ''}`);
     }
 
     // ── Close any existing active radacct session for this user ──
@@ -406,7 +450,7 @@ export async function POST(request: NextRequest) {
     if (!radiusResult.accepted) {
       console.warn(`[AutoAuth] RADIUS rejected ${wifiUser.username}: ${radiusResult.rejectReason}`);
       // Log failed auth attempt to radpostauth
-      await logAuthAttempt(wifiUser.username, 'Access-Reject', request);
+      await logAuthAttempt(wifiUser.username, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
       return NextResponse.json(
         {
           success: false,
@@ -420,7 +464,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Log successful auth attempt to radpostauth (for Auth Logs tab) ──
-    await logAuthAttempt(wifiUser.username, 'Access-Accept', request);
+    await logAuthAttempt(wifiUser.username, 'Access-Accept', request, 'auto_auth');
 
     // ── Create radacct accounting session (for Active Users tab) ──
     // The v_active_sessions view shows rows where acctstoptime IS NULL.
@@ -533,7 +577,8 @@ function parseDeviceName(ua: string): string {
 async function logAuthAttempt(
   username: string,
   reply: string,
-  request: NextRequest
+  request: NextRequest,
+  extraInfo?: string
 ) {
   try {
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
@@ -544,8 +589,9 @@ async function logAuthAttempt(
     // "nasIpAddress" = 127.0.0.1 for captive portal (the app itself IS the NAS)
     await db.$executeRawUnsafe(
       `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, "nasIpAddress")
-       VALUES ($1, '', $2, NOW(), $3, '127.0.0.1')`,
+       VALUES ($1, $2, $3, NOW(), $4, '127.0.0.1')`,
       username,
+      extraInfo || '',
       reply,
       clientIp
     );
