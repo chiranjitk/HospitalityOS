@@ -2249,20 +2249,26 @@ export async function POST(request: NextRequest) {
           }
 
           // Resolve plan details (if plan selected)
-          let effectivePlan: { name: string; downloadSpeed: number; uploadSpeed: number } | null = null;
+          let effectivePlan: { name: string; downloadSpeed: number; uploadSpeed: number; validityMinutes: number; validityDays: number } | null = null;
           if (planId) {
             try {
               effectivePlan = await db.wiFiPlan.findUnique({
                 where: { id: planId },
-                select: { name: true, downloadSpeed: true, uploadSpeed: true },
+                select: { name: true, downloadSpeed: true, uploadSpeed: true, validityMinutes: true, validityDays: true },
               });
             } catch {
               console.warn('[create-user] Plan lookup failed, using form values');
             }
           }
 
+          // validUntil = plan validity (account lifetime), NOT sessionTimeout (per-session limit).
+          // sessionTimeout controls how long a single WiFi session can last.
+          // validUntil controls when the user's account itself expires.
+          const planValidityMinutes = effectivePlan
+            ? (effectivePlan.validityMinutes || effectivePlan.validityDays * 1440)
+            : 30 * 1440; // Default: 30 days for manual users without a plan
           const validFromDate = new Date();
-          const validUntilDate = validUntil ? new Date(validUntil) : new Date(Date.now() + (sessionTimeout || 1440) * 60 * 1000);
+          const validUntilDate = new Date(Date.now() + planValidityMinutes * 60 * 1000);
 
           // Create WiFiUser + RADIUS records in transaction
           const wifiUser = await db.$transaction(async (tx) => {

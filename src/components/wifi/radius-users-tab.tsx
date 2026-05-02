@@ -309,15 +309,22 @@ export default function RadiusUsersTab() {
     setSavingUser(true);
     try {
       const action = editingUser ? 'update-user' : 'create-user';
-      // Calculate validUntil from sessionTimeout (minutes) so it stays in sync.
-      // When editing, only recalculate if sessionTimeout was explicitly changed.
-      let validUntil: string;
-      if (editingUser && form.sessionTimeout === originalSessionTimeout.current) {
-        validUntil = editingUser.validUntil || new Date(Date.now() + form.sessionTimeout * 60 * 1000).toISOString();
-      } else {
-        validUntil = new Date(Date.now() + form.sessionTimeout * 60 * 1000).toISOString();
+      // validUntil = account expiry (plan validity, managed by backend).
+      // sessionTimeout = per-session limit (how long each WiFi login lasts).
+      // For NEW users, backend computes validUntil from the plan's validityMinutes.
+      // For EDITING, preserve existing validUnless sessionTimeout was changed.
+      let validUntil: string | undefined;
+      if (editingUser) {
+        if (form.sessionTimeout !== originalSessionTimeout.current) {
+          validUntil = new Date(Date.now() + form.sessionTimeout * 60 * 1000).toISOString();
+        } else {
+          validUntil = editingUser.validUntil || new Date(Date.now() + form.sessionTimeout * 60 * 1000).toISOString();
+        }
       }
-      const body = editingUser ? { id: editingUser.id, ...form, validUntil } : { ...form, validUntil };
+      // For create-user, omit validUntil — backend derives it from plan validity.
+      const body = editingUser
+        ? { id: editingUser.id, ...form, validUntil }
+        : (({ validUntil: _, ...rest }) => rest)({ ...form, validUntil });
 
       const res = await fetch('/api/wifi/radius', {
         method: 'POST',
@@ -532,13 +539,13 @@ export default function RadiusUsersTab() {
       const uploadSpeed = parseInt(row['Upload (Mbps)'] || row['upload_speed'] || row['uploadSpeed'] || '5') || 5;
       const sessionTimeout = parseInt(row['Session Timeout (min)'] || row['session_timeout'] || row['sessionTimeout'] || '1440') || 1440;
       const dataLimit = parseInt(row['Data Limit (MB)'] || row['data_limit'] || row['dataLimit'] || '0') || 0;
-      const validUntil = new Date(Date.now() + sessionTimeout * 60 * 1000).toISOString();
+      // Omit validUntil — backend derives it from plan validity (not sessionTimeout).
 
       try {
         const res = await fetch('/api/wifi/radius', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'create-user', username, password, userType, group, downloadSpeed, uploadSpeed, sessionTimeout, dataLimit, validUntil }),
+          body: JSON.stringify({ action: 'create-user', username, password, userType, group, downloadSpeed, uploadSpeed, sessionTimeout, dataLimit }),
         });
         const data = await res.json();
         if (data.success) {
