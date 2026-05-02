@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { randomUUID } from 'crypto';
 
 // ────────────────────────────────────────────────────────────────
 // POST /api/v1/wifi/auto-auth
@@ -289,6 +290,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // ── Create radacct accounting session (for Active Users tab) ──
+    // The v_active_sessions view shows rows where acctstoptime IS NULL.
+    // Without this, auto-auth users appear "connected" on the portal
+    // but never show up in the admin Active Users dashboard.
+    await createAccountingSession(wifiUser.username, clientIp, request);
+
     // ── Calculate remaining time ──
     const validUntil = new Date(wifiUser.validUntil);
     const remainingMs = validUntil.getTime() - now.getTime();
@@ -385,4 +392,52 @@ function parseDeviceName(ua: string): string {
   if (/Linux/i.test(ua)) return 'Linux PC';
   if (/SmartTV/i.test(ua)) return 'Smart TV';
   return 'Unknown Device';
+}
+
+/**
+ * Create an accounting session in radacct.
+ * This feeds the v_active_sessions view → Active Users dashboard tab.
+ *
+ * The session is created with acctstoptime = NULL (no stop time),
+ * which is how FreeRADIUS represents an active session.
+ * The v_active_sessions view filters: WHERE session_status = 'active'
+ * which maps to: acctstoptime IS NULL.
+ */
+async function createAccountingSession(
+  username: string,
+  clientIp: string,
+  request: NextRequest
+) {
+  try {
+    const acctSessionId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
+    const acctUniqueId = randomUUID();
+    const now = new Date();
+
+    await db.$executeRawUnsafe(
+      `INSERT INTO radacct (
+         acctuniqueid, acctsessionid, username,
+         nasipaddress, nasporttype, acctstarttime, acctupdatetime,
+         acctauthentic, framedipaddress, acctstatus,
+         acctinputoctets, acctoutputoctets, acctsessiontime,
+         "createdAt", "updatedAt"
+       ) VALUES (
+         $1, $2, $3,
+         $4, 'Wireless-802.11', $5, $5,
+         'PAP', $6, 'start',
+         0, 0, 0,
+         NOW(), NOW()
+       )`,
+      acctUniqueId,
+      acctSessionId,
+      username,
+      '10.0.1.1', // NAS IP (captive portal NAS)
+      now,
+      clientIp
+    );
+
+    console.log(`[AutoAuth] radacct session created for ${username} (IP: ${clientIp})`);
+  } catch (err) {
+    // Non-fatal — accounting failure should not block auto-auth
+    console.error('[AutoAuth] Failed to create accounting session:', err);
+  }
 }
