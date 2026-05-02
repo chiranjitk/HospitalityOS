@@ -893,15 +893,11 @@ post-auth {
                 &Pool-Name := "%{sql:SELECT fn_get_pool_attr('%{User-Name}', 'pool_name')}"
         }
 
-        #  StaySuite: MikroTik FUP rate limit via PostgreSQL function
-        #  Used in EXTERNAL GATEWAY mode when NAS is MikroTik
-        update reply {
-                Mikrotik-Rate-Limit := "%{sql:SELECT fn_get_mikrotik_rate_limit('%{User-Name}')}"
-        }
-
         #  Cryptsk: Native FUP rate limit via PostgreSQL function
         #  Used in MULTIMODE when Cryptsk is the gateway (Vendor ID 64179)
         #  Cryptsk-Rate-Limit uses the same "D/U" format as MikroTik for compatibility
+        #  NOTE: Mikrotik-Rate-Limit block removed — this device IS the NAS gateway,
+        #  no external MikroTik exists. All attributes go through Cryptsk VSA.
         update reply {
                 Cryptsk-Rate-Limit := "%{sql:SELECT fn_get_mikrotik_rate_limit('%{User-Name}')}"
         }
