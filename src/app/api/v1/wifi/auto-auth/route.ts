@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { db } from '@/lib/db';
 
 // ────────────────────────────────────────────────────────────────
 // POST /api/v1/wifi/auto-auth
@@ -45,7 +43,7 @@ export async function POST(request: NextRequest) {
     let tenantId: string | null = null;
 
     if (portalSlug) {
-      const portal = await prisma.captivePortal.findUnique({
+      const portal = await db.captivePortal.findUnique({
         where: { slug: portalSlug },
         select: { propertyId: true, tenantId: true },
       });
@@ -60,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     // Strategy 1: Match by storageToken (most reliable — set via localStorage)
     if (storageToken) {
-      deviceProfile = await prisma.deviceProfile.findFirst({
+      deviceProfile = await db.deviceProfile.findFirst({
         where: {
           storageToken,
           isActive: true,
@@ -85,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     // Strategy 2: Match by fingerprintHash (fallback when storage cleared)
     if (!deviceProfile) {
-      deviceProfile = await prisma.deviceProfile.findFirst({
+      deviceProfile = await db.deviceProfile.findFirst({
         where: {
           fingerprintHash,
           isActive: true,
@@ -114,7 +112,7 @@ export async function POST(request: NextRequest) {
       if (_createProfile && _wifiUsername && propertyId && storageToken) {
         try {
           // Look up the WiFiUser that was just created by the auth flow
-          const wifiUser = await prisma.wiFiUser.findUnique({
+          const wifiUser = await db.wiFiUser.findUnique({
             where: { username: _wifiUsername },
             select: { id: true, tenantId: true, propertyId: true, guestId: true },
           });
@@ -128,7 +126,7 @@ export async function POST(request: NextRequest) {
 
             // Use upsert: if profile exists for this fingerprint+property, update it;
             // otherwise create a new one. This handles re-login after session expiry.
-            await prisma.deviceProfile.upsert({
+            await db.deviceProfile.upsert({
               where: {
                 fingerprintHash_propertyId: {
                   fingerprintHash,
@@ -181,7 +179,7 @@ export async function POST(request: NextRequest) {
     // ── Validate WiFiUser is still active and not expired ──
     if (wifiUser.status !== 'active') {
       // Deactivate the device profile — user was revoked/suspended
-      await prisma.deviceProfile.update({
+      await db.deviceProfile.update({
         where: { id: deviceProfile.id },
         data: { isActive: false },
       });
@@ -193,7 +191,7 @@ export async function POST(request: NextRequest) {
 
     if (new Date(wifiUser.validUntil) < now) {
       // WiFiUser expired — deactivate device profile
-      await prisma.deviceProfile.update({
+      await db.deviceProfile.update({
         where: { id: deviceProfile.id },
         data: { isActive: false },
       });
@@ -214,7 +212,7 @@ export async function POST(request: NextRequest) {
     const deviceType = parseDeviceType(userAgent || '');
     const deviceName = parseDeviceName(userAgent || '');
 
-    await prisma.deviceProfile.update({
+    await db.deviceProfile.update({
       where: { id: deviceProfile.id },
       data: {
         ipAddress: clientIp,
@@ -233,13 +231,13 @@ export async function POST(request: NextRequest) {
 
     // ── Ensure RADIUS credentials exist ──
     // If credentials were deleted (deprovision + reprovision cycle), re-create them
-    const radCheckCount = await prisma.radCheck.count({
+    const radCheckCount = await db.radCheck.count({
       where: { username: wifiUser.username, isActive: true },
     });
 
     if (radCheckCount === 0) {
       // Re-provision RADIUS credentials
-      await prisma.radCheck.create({
+      await db.radCheck.create({
         data: {
           wifiUserId: wifiUser.id,
           username: wifiUser.username,
@@ -254,7 +252,7 @@ export async function POST(request: NextRequest) {
       // Re-create session timeout from WiFiUser validity period
       const sessionTimeoutSec = Math.floor((new Date(wifiUser.validUntil).getTime() - now.getTime()) / 1000);
       if (sessionTimeoutSec > 0) {
-        await prisma.radReply.create({
+        await db.radReply.create({
           data: {
             wifiUserId: wifiUser.id,
             username: wifiUser.username,
@@ -271,7 +269,7 @@ export async function POST(request: NextRequest) {
       const downKbps = (wifiUser.plan?.downloadSpeed || 0) * 1000;
       const upKbps = (wifiUser.plan?.uploadSpeed || 0) * 1000;
       if (downKbps > 0) {
-        await prisma.radReply.create({
+        await db.radReply.create({
           data: {
             wifiUserId: wifiUser.id,
             username: wifiUser.username,
@@ -285,7 +283,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Mark as synced
-      await prisma.wiFiUser.update({
+      await db.wiFiUser.update({
         where: { id: wifiUser.id },
         data: { radiusSynced: true, radiusSyncedAt: now },
       });
@@ -342,7 +340,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const result = await prisma.deviceProfile.deleteMany({
+    const result = await db.deviceProfile.deleteMany({
       where: {
         ...(storageToken ? { storageToken } : {}),
         ...(fingerprintHash ? { fingerprintHash } : {}),

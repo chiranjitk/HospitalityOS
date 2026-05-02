@@ -210,6 +210,7 @@ export async function POST(request: NextRequest) {
         return successResponse({
           authenticated: true,
           method: 'voucher',
+          username: wifiUsername,
           sessionTimeout,
           bandwidthDown: bwDown,
           bandwidthUp: bwUp,
@@ -319,6 +320,7 @@ export async function POST(request: NextRequest) {
         return successResponse({
           authenticated: true,
           method: 'room_number',
+          username: wifiUsername,
           sessionTimeout,
           bandwidthDown: bwDown,
           bandwidthUp: bwUp,
@@ -399,6 +401,7 @@ export async function POST(request: NextRequest) {
         return successResponse({
           authenticated: true,
           method: 'pms_credentials',
+          username: wifiUser.username,
           sessionTimeout,
           bandwidthDown: bwDown,
           bandwidthUp: bwUp,
@@ -508,6 +511,7 @@ export async function POST(request: NextRequest) {
           return successResponse({
             authenticated: true,
             method: 'sms_otp',
+            username: wifiUsername,
             sessionTimeout,
             bandwidthDown: bwDown,
             bandwidthUp: bwUp,
@@ -601,6 +605,7 @@ export async function POST(request: NextRequest) {
         return successResponse({
           authenticated: true,
           method: 'open_access',
+          username: wifiUsername || null,
           sessionTimeout,
           bandwidthDown: bwDown,
           bandwidthUp: bwUp,
