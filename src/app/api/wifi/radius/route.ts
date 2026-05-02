@@ -722,7 +722,7 @@ export async function GET(request: NextRequest) {
               id: sessionId,
               username: s.username || '',
               ipAddress: stripCidr(s.framedipaddress),
-              macAddress: s.callingstationid || '',
+              macAddress: s.callingstationid || s.dp_macAddress || '',
               nasIp: stripCidr(s.nasipaddress),
               nasIdentifier: s.calledstationid || '',
               // Device info from DeviceProfile (enriched by browser fingerprint)
@@ -1337,7 +1337,7 @@ export async function GET(request: NextRequest) {
                 nasIp: s.nasipaddress || '',
                 nasIdentifier: null,
                 ipAddress: s.framedipaddress || '',
-                macAddress: s.callingstationid || '',
+                macAddress: s.callingstationid || s.dp_macAddress || '',
                 downloadBytes: Number(s.acctoutputoctets) || 0,
                 uploadBytes: Number(s.acctinputoctets) || 0,
                 sessionTime: Number(s.acctsessiontime) || 0,

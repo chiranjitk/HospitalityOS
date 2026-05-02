@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
       phoneNumber,
       otpCode,
       guestInfo,
+      macAddress,
     } = body as {
       method?: string;
       portalSlug?: string;
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
       phoneNumber?: string;
       otpCode?: string;
       guestInfo?: { firstName?: string; lastName?: string; email?: string; phone?: string };
+      macAddress?: string;
     };
 
     if (!method) {
@@ -205,7 +207,7 @@ export async function POST(request: NextRequest) {
         await logAuthAttempt(wifiUsername, 'Access-Accept', request);
 
         // ── Create accounting session (for Active Users tab) ──
-        await createAccountingSession(wifiUsername, request);
+        await createAccountingSession(wifiUsername, request, 'portal', macAddress);
 
         return successResponse({
           authenticated: true,
@@ -315,7 +317,7 @@ export async function POST(request: NextRequest) {
         await logAuthAttempt(wifiUsername, 'Access-Accept', request);
 
         // ── Create accounting session ──
-        await createAccountingSession(wifiUsername, request);
+        await createAccountingSession(wifiUsername, request, 'portal', macAddress);
 
         return successResponse({
           authenticated: true,
@@ -396,7 +398,7 @@ export async function POST(request: NextRequest) {
         await logAuthAttempt(username.trim(), 'Access-Accept', request);
 
         // ── Create accounting session ──
-        await createAccountingSession(username.trim(), request);
+        await createAccountingSession(username.trim(), request, 'portal', macAddress);
 
         return successResponse({
           authenticated: true,
@@ -505,7 +507,7 @@ export async function POST(request: NextRequest) {
             await logAuthAttempt(wifiUsername, 'Access-Accept', request);
 
             // ── Create accounting session ──
-            await createAccountingSession(wifiUsername, request);
+            await createAccountingSession(wifiUsername, request, 'portal', macAddress);
           }
 
           return successResponse({
@@ -595,7 +597,7 @@ export async function POST(request: NextRequest) {
               await logAuthAttempt(wifiUsername, 'Access-Accept', request);
 
               // ── Create accounting session ──
-              await createAccountingSession(wifiUsername, request);
+              await createAccountingSession(wifiUsername, request, 'portal', macAddress);
             }
           } catch {
             // Ignore — best effort for open access
@@ -685,7 +687,8 @@ async function logAuthAttempt(
 async function createAccountingSession(
   username: string,
   request: NextRequest,
-  loginType: string = 'portal'
+  loginType: string = 'portal',
+  macAddress?: string
 ) {
   try {
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
@@ -696,18 +699,29 @@ async function createAccountingSession(
     const acctSessionId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
     const acctUniqueId = randomUUID();
 
+    // Normalize MAC address format: strip separators, uppercase
+    const normalizedMac = macAddress
+      ? macAddress.replace(/[:\-\.\s]/g, '').toUpperCase()
+      : null;
+    // Reformat as AA:BB:CC:DD:EE:FF for RADIUS compatibility
+    const formattedMac = normalizedMac && normalizedMac.length === 12
+      ? normalizedMac.match(/.{2}/g)?.join(':') || null
+      : null;
+
     await db.$executeRawUnsafe(
       `INSERT INTO radacct (
          acctuniqueid, acctsessionid, username,
          nasipaddress, nasporttype, acctstarttime, acctupdatetime,
          acctauthentic, framedipaddress, acctstatus,
          acctinputoctets, acctoutputoctets, acctsessiontime,
+         callingstationid,
          "loginType", "createdAt", "updatedAt"
        ) VALUES (
          $1, $2, $3,
          $4, 'Wireless-802.11', $5, $5,
          'PAP', $6, 'start',
          0, 0, 0,
+         $8,
          $7, NOW(), NOW()
        )`,
       acctUniqueId,
@@ -716,7 +730,8 @@ async function createAccountingSession(
       '10.0.1.1', // NAS IP (captive portal NAS)
       now,
       clientIp,
-      loginType
+      loginType,
+      formattedMac
     );
   } catch (err) {
     // Non-fatal — accounting failure should not block authentication

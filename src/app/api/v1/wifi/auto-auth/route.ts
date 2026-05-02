@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
       fingerprintHash?: string;
       storageToken?: string;
       portalSlug?: string;
+      macAddress?: string;
     };
 
     // Internal flag: create a new DeviceProfile after successful manual auth
@@ -125,6 +126,14 @@ export async function POST(request: NextRequest) {
               'unknown';
             const userAgent = request.headers.get('user-agent') || null;
 
+            // Normalize MAC address: strip separators, format as AA:BB:CC:DD:EE:FF
+            const normalizedMac = macAddress
+              ? macAddress.replace(/[:\-\.\s]/g, '').toUpperCase()
+              : null;
+            const formattedMac = normalizedMac && normalizedMac.length === 12
+              ? normalizedMac.match(/.{2}/g)?.join(':') || null
+              : null;
+
             // Use upsert: if profile exists for this fingerprint+property, update it;
             // otherwise create a new one. This handles re-login after session expiry.
             await db.deviceProfile.upsert({
@@ -143,6 +152,7 @@ export async function POST(request: NextRequest) {
                 storageToken,
                 ipAddress: clientIp,
                 userAgent: userAgent?.substring(0, 500),
+                macAddress: formattedMac || undefined,
                 deviceType: parseDeviceType(userAgent || ''),
                 deviceName: parseDeviceName(userAgent || ''),
                 authCount: 1,
@@ -154,6 +164,7 @@ export async function POST(request: NextRequest) {
                 storageToken,
                 ipAddress: clientIp,
                 userAgent: userAgent?.substring(0, 500),
+                ...(formattedMac ? { macAddress: formattedMac } : {}), // Update MAC if provided
                 deviceType: parseDeviceType(userAgent || ''),
                 deviceName: parseDeviceName(userAgent || ''),
                 isActive: true,
@@ -220,7 +231,8 @@ export async function POST(request: NextRequest) {
         userAgent: userAgent?.substring(0, 500),
         deviceType,
         deviceName,
-        macAddress: deviceProfile.macAddress || null, // Keep existing MAC from RADIUS
+        // Update MAC from NAS if provided and profile doesn't have one yet
+        ...(macAddress && !deviceProfile.macAddress ? { macAddress: macAddress.replace(/[:\-\.\s]/g, '').toUpperCase().match(/.{2}/g)?.join(':') || null } : {}),
         authCount: { increment: 1 },
         lastAuthAt: now,
         // Update storageToken if we matched by fingerprint and token is different
@@ -294,7 +306,7 @@ export async function POST(request: NextRequest) {
     // The v_active_sessions view shows rows where acctstoptime IS NULL.
     // Without this, auto-auth users appear "connected" on the portal
     // but never show up in the admin Active Users dashboard.
-    await createAccountingSession(wifiUser.username, clientIp, request, 'auto_reauth');
+    await createAccountingSession(wifiUser.username, clientIp, request, 'auto_reauth', macAddress);
 
     // ── Calculate remaining time ──
     const validUntil = new Date(wifiUser.validUntil);
@@ -407,12 +419,21 @@ async function createAccountingSession(
   username: string,
   clientIp: string,
   request: NextRequest,
-  loginType: string = 'portal'
+  loginType: string = 'portal',
+  macAddress?: string
 ) {
   try {
     const acctSessionId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
     const acctUniqueId = randomUUID();
     const now = new Date();
+
+    // Normalize MAC address format
+    const normalizedMac = macAddress
+      ? macAddress.replace(/[:\-\.\s]/g, '').toUpperCase()
+      : null;
+    const formattedMac = normalizedMac && normalizedMac.length === 12
+      ? normalizedMac.match(/.{2}/g)?.join(':') || null
+      : null;
 
     await db.$executeRawUnsafe(
       `INSERT INTO radacct (
@@ -420,12 +441,14 @@ async function createAccountingSession(
          nasipaddress, nasporttype, acctstarttime, acctupdatetime,
          acctauthentic, framedipaddress, acctstatus,
          acctinputoctets, acctoutputoctets, acctsessiontime,
+         callingstationid,
          "loginType", "createdAt", "updatedAt"
        ) VALUES (
          $1, $2, $3,
          $4, 'Wireless-802.11', $5, $5,
          'PAP', $6, 'start',
          0, 0, 0,
+         $8,
          $7, NOW(), NOW()
        )`,
       acctUniqueId,
@@ -434,10 +457,11 @@ async function createAccountingSession(
       '10.0.1.1', // NAS IP (captive portal NAS)
       now,
       clientIp,
-      loginType
+      loginType,
+      formattedMac
     );
 
-    console.log(`[AutoAuth] radacct session created for ${username} (loginType: ${loginType}, IP: ${clientIp})`);
+    console.log(`[AutoAuth] radacct session created for ${username} (loginType: ${loginType}, IP: ${clientIp}, MAC: ${formattedMac || 'N/A'})`);
   } catch (err) {
     // Non-fatal — accounting failure should not block auto-auth
     console.error('[AutoAuth] Failed to create accounting session:', err);

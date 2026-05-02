@@ -1731,6 +1731,8 @@ type PortalState =
 function PortalContent() {
   const searchParams = useSearchParams();
   const codeParam = searchParams.get('code') || '';
+  // MAC address from NAS/AP — typically passed as ?mac=AA:BB:CC:DD:EE:FF in captive portal redirect URL
+  const clientMac = searchParams.get('mac') || searchParams.get('client_mac') || searchParams.get('id') || '';
 
   const [portalConfig, setPortalConfig] = useState<PortalConfig | null>(null);
   const [design, setDesign] = useState<PortalDesignConfig>(DEFAULT_PORTAL_DESIGN);
@@ -1789,6 +1791,7 @@ function PortalContent() {
             fingerprintHash: fp.hash,
             storageToken: storageToken || undefined,
             portalSlug: slug,
+            macAddress: clientMac || undefined,
           }),
         });
 
@@ -1864,6 +1867,7 @@ function PortalContent() {
 
       try {
         const body: Record<string, unknown> = { method, portalSlug, ...payload };
+        if (clientMac) body.macAddress = clientMac;
         const res = await fetch('/api/v1/wifi/auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1887,6 +1891,7 @@ function PortalContent() {
                 fingerprintHash: fp.hash,
                 storageToken: token,
                 portalSlug,
+                macAddress: clientMac || undefined,
                 // Extra context for initial profile creation
                 _createProfile: true,
                 _wifiUsername: result.data.username,
