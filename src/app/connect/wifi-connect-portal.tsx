@@ -492,13 +492,13 @@ function MarketingConsentPlaceholder({ design }: { design: PortalDesignConfig })
       <div className="flex flex-wrap gap-3">
         {optIn.emailConsent && (
           <label className="flex items-center gap-2 text-xs cursor-pointer">
-            <input type="checkbox" className="rounded" style={{ accentColor }} defaultChecked={false} />
+            <input type="checkbox" className="rounded" style={{ accentColor: accent }} defaultChecked={false} />
             <span style={{ color: mutedColor }}>Email marketing</span>
           </label>
         )}
         {optIn.phoneConsent && (
           <label className="flex items-center gap-2 text-xs cursor-pointer">
-            <input type="checkbox" className="rounded" style={{ accentColor }} defaultChecked={false} />
+            <input type="checkbox" className="rounded" style={{ accentColor: accent }} defaultChecked={false} />
             <span style={{ color: mutedColor }}>SMS marketing</span>
           </label>
         )}
