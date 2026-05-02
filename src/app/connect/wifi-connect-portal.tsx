@@ -472,6 +472,42 @@ function MarketingConsent({ design, emailConsent, setEmailConsent, phoneConsent,
 }
 
 // ────────────────────────────────────────────────────────────
+// Marketing Consent Placeholder (for block-based layouts)
+// ────────────────────────────────────────────────────────────
+
+function MarketingConsentPlaceholder({ design }: { design: PortalDesignConfig }) {
+  const optIn = design.marketingOptIn;
+  if (!optIn?.enabled) return null;
+
+  const mutedColor = getMutedTextColor(design);
+  const accent = design.accentColor;
+
+  return (
+    <div className="space-y-2 rounded-xl p-3" style={{ backgroundColor: accent + '08', border: `1px solid ${accent}15` }}>
+      {optIn.consentText && (
+        <p className="text-xs" style={{ color: mutedColor }}>
+          {optIn.consentText}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-3">
+        {optIn.emailConsent && (
+          <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <input type="checkbox" className="rounded" style={{ accentColor }} defaultChecked={false} />
+            <span style={{ color: mutedColor }}>Email marketing</span>
+          </label>
+        )}
+        {optIn.phoneConsent && (
+          <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <input type="checkbox" className="rounded" style={{ accentColor }} defaultChecked={false} />
+            <span style={{ color: mutedColor }}>SMS marketing</span>
+          </label>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
 // Post-Connect Guest Survey (Feature 4)
 // ────────────────────────────────────────────────────────────
 
@@ -2086,8 +2122,12 @@ function PortalContent() {
   const cardShadowStyle = getCardShadowCSS(design);
 
   // ── Content Block Ordering (Feature 9) ──
-  const DEFAULT_BLOCK_ORDER = ['promotion', 'logo', 'language', 'title', 'hotelInfo', 'amenities', 'form', 'social', 'clock', 'weather'];
-  const blockOrder = (design.contentBlockOrder?.length || 0) > 0 ? design.contentBlockOrder : DEFAULT_BLOCK_ORDER;
+  const DEFAULT_BLOCK_ORDER = ['promotion', 'logo', 'language', 'title', 'hotelInfo', 'amenities', 'form', 'social', 'clock', 'weather', 'survey'];
+  const savedOrder = design.contentBlockOrder?.length ? design.contentBlockOrder : [];
+  // Merge: saved order first (preserving admin's arrangement), then append any missing default blocks
+  const blockOrder = savedOrder.length > 0
+    ? [...savedOrder, ...DEFAULT_BLOCK_ORDER.filter(b => !savedOrder.includes(b))]
+    : DEFAULT_BLOCK_ORDER;
 
   const effectiveLanguage = selectedLanguage || design.defaultLanguage || 'en';
 
@@ -2164,6 +2204,18 @@ function PortalContent() {
               )}
             </span>
           </label>
+        )}
+
+        {/* Marketing Consent (Feature 2) — fallback mode, inside the card */}
+        {state !== 'success' && design.marketingOptIn?.enabled && (
+          <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}` }}>
+            <MarketingConsentPlaceholder design={design} />
+          </div>
+        )}
+
+        {/* Post-Connect Survey (Feature 4) — fallback mode */}
+        {state === 'success' && design.surveyConfig?.enabled && (
+          <GuestSurvey design={design} />
         )}
       </>
     );
@@ -2245,6 +2297,10 @@ function PortalContent() {
         // Render if flag enabled OR if socialLinks have items with URLs
         if (!design.showSocialMedia && !(design.socialLinks?.filter(l => l.url).length)) return null;
         return <div className="mt-4"><SocialLinksBlock design={design} /></div>;
+      case 'survey':
+        // Render survey after success or always if enabled (GuestSurvey handles its own state)
+        if (!design.surveyConfig?.enabled) return null;
+        return <div className="mt-2"><GuestSurvey design={design} /></div>;
       default:
         return null;
     }
@@ -2266,11 +2322,18 @@ function PortalContent() {
       <main className="flex-1 flex items-center justify-center p-4 relative z-10">
         {isSplit ? (
           // ══════════════════════════════════════════════════════════
-          // SPLIT LAYOUT
+          // SPLIT LAYOUT — Left info panel + Right form panel
           // ══════════════════════════════════════════════════════════
           <div className="w-full max-w-5xl flex flex-col md:flex-row gap-6">
-            {/* Info Panel */}
-            <div className="flex-1 flex flex-col justify-center p-6 md:p-10 space-y-6" style={{ color: dark ? '#ffffff' : design.textColor }}>
+            {/* ── Left Panel: Hotel Info + Features ── */}
+            <div className="flex-1 flex flex-col justify-center p-6 md:p-10 space-y-5" style={{ color: dark ? '#ffffff' : design.textColor }}>
+              {/* Language Switcher (Feature 1) */}
+              {(design.languages?.length && design.languages.length > 0) && (
+                <div className="flex justify-end">
+                  <LanguageSwitcher design={design} selectedLanguage={effectiveLanguage} setSelectedLanguage={setSelectedLanguage} />
+                </div>
+              )}
+
               <PortalLogo design={design} size="large" />
               <h1 className="text-3xl md:text-4xl font-bold" style={{ fontFamily: design.headingFontFamily }}>
                 {design.title}
@@ -2283,12 +2346,50 @@ function PortalContent() {
                   {design.welcomeMessage}
                 </p>
               )}
+
+              {/* Clock + Weather Row */}
+              <div className="flex items-center justify-center gap-4">
+                {design.showClock !== false && <LiveClock design={design} />}
+                {(design.showWeather || design.weatherLocation) && (
+                  <>
+                    <span style={{ color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)' }}>|</span>
+                    <WeatherWidget design={design} />
+                  </>
+                )}
+              </div>
+
               <HotelInfoBlock design={design} dark={dark} />
               <AmenitiesBlock design={design} dark={dark} />
+
+              {/* Social Links (Feature 8: More Social Platforms) */}
+              {(design.showSocialMedia || design.socialLinks?.some(l => l.url)) && (
+                <SocialLinksBlock design={design} />
+              )}
+
+              {/* Branding */}
+              {design.showBranding && (
+                <div className="text-center pt-2" style={{ color: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)' }}>
+                  <p className="text-[10px]">Powered by StaySuite Hospitality OS</p>
+                </div>
+              )}
             </div>
 
-            {/* Form Panel */}
-            <div className="w-full md:w-[420px] animate-in fade-in-0 slide-in-from-bottom-4 duration-500 transition-all">
+            {/* ── Right Panel: Form + Features ── */}
+            <div className="w-full md:w-[420px] animate-in fade-in-0 slide-in-from-bottom-4 duration-500 transition-all flex flex-col gap-4">
+              {/* Promotion Carousel (Feature 3) — above the form card */}
+              {state !== 'success' && (() => {
+                const hasPromoContent = design.promotions?.some(p => p.title || p.description);
+                const hasSinglePromo = design.promotionTitle || design.promotionDesc;
+                if (hasPromoContent && (design.showPromotions || (design as any).useCarouselMode)) {
+                  return <PromotionCarousel design={design} />;
+                }
+                if (design.showPromotion || hasSinglePromo) {
+                  return <PromotionBlock design={design} />;
+                }
+                return null;
+              })()}
+
+              {/* Form Card */}
               <div
                 className={formCls}
                 style={{
@@ -2303,9 +2404,26 @@ function PortalContent() {
                     {design.title}
                   </h2>
                   <p className="text-sm" style={{ color: getMutedTextColor(design) }}>{design.subtitle}</p>
+                  {/* Mobile clock + weather */}
+                  <div className="flex items-center justify-center gap-3 pt-2">
+                    <LiveClock design={design} />
+                    <WeatherWidget design={design} />
+                  </div>
                 </div>
 
                 {renderCardContent()}
+
+                {/* Marketing Consent (Feature 2) — inside the form card, after form content */}
+                {state !== 'success' && design.marketingOptIn?.enabled && (
+                  <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}` }}>
+                    <MarketingConsentPlaceholder design={design} />
+                  </div>
+                )}
+
+                {/* Post-Connect Survey (Feature 4) — inside the form card, after success */}
+                {state === 'success' && design.surveyConfig?.enabled && (
+                  <GuestSurvey design={design} />
+                )}
               </div>
             </div>
           </div>
