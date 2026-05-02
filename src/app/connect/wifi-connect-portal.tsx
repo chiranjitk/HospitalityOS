@@ -1247,7 +1247,7 @@ function SocialLinksBlock({ design }: { design: PortalDesignConfig }) {
           href={l.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="w-9 h-9 flex items-center justify-center rounded-full transition-opacity hover:opacity-80"
+          className="w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300 hover:scale-110 hover:opacity-80"
           style={{
             backgroundColor: 'rgba(255,255,255,0.1)',
             color: '#ffffff',
@@ -1274,7 +1274,7 @@ function PortalLogo({ design, size = 'large' }: { design: PortalDesignConfig; si
       <img
         src={design.logoUrl}
         alt="Hotel Logo"
-        className={cn('mx-auto object-contain drop-shadow-lg', sizeClasses)}
+        className={cn('mx-auto object-contain drop-shadow-lg transition-transform duration-300 hover:scale-105', sizeClasses)}
       />
     );
   }
@@ -1282,7 +1282,7 @@ function PortalLogo({ design, size = 'large' }: { design: PortalDesignConfig; si
   return (
     <div
       className={cn(
-        'inline-flex items-center justify-center mx-auto',
+        'inline-flex items-center justify-center mx-auto drop-shadow-md transition-transform duration-300 hover:scale-105',
         containerClasses,
         dark ? 'bg-white/15 backdrop-blur-sm' : 'bg-black/5',
       )}
@@ -1778,11 +1778,12 @@ function PortalContent() {
             </div>
 
             {/* Form Panel */}
-            <div className="w-full md:w-[420px]">
+            <div className="w-full md:w-[420px] animate-in fade-in-0 slide-in-from-bottom-4 duration-500 transition-all">
               <div
                 className={formCls}
                 style={{
                   ...cardShadowStyle,
+                  ...(design.formStyle === 'glass' && dark ? { boxShadow: `0 0 30px -5px ${design.accentColor}40, 0 0 60px -10px ${design.accentColor}20` } : {}),
                 }}
               >
                 {/* Mobile-only header */}
@@ -1850,9 +1851,10 @@ function PortalContent() {
 
             {/* ── THE FORM CARD ── */}
             <div
-              className={cn('w-full', formCls)}
+              className={cn('w-full animate-in fade-in-0 slide-in-from-bottom-4 duration-500 transition-all', formCls)}
               style={{
                 ...cardShadowStyle,
+                ...(design.formStyle === 'glass' && dark ? { boxShadow: `0 0 30px -5px ${design.accentColor}40, 0 0 60px -10px ${design.accentColor}20` } : {}),
               }}
             >
               {renderCardContent()}
@@ -1865,7 +1867,7 @@ function PortalContent() {
 
             {/* Branding footer */}
             {design.showBranding && (
-              <div className="text-center mt-4" style={{ color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }}>
+              <div className="text-center mt-4 animate-in fade-in-0 duration-700 delay-500" style={{ color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }}>
                 <p className="text-[10px]">Powered by StaySuite Hospitality OS</p>
               </div>
             )}

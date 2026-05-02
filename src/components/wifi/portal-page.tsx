@@ -4,7 +4,7 @@
 // Captive Portal — Powerful Portal Designer with Templates, Layouts & Live Preview
 // ═══════════════════════════════════════════════════════════════════════════════
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -75,6 +75,8 @@ import {
   Layout,
   Type,
   Image,
+  ImagePlus,
+  Loader2,
   FormInput,
   Sparkles,
   Tablet,
@@ -1021,6 +1023,8 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
   const [loading, setLoading] = useState(false);
   const [subTab, setSubTab] = useState<DesignerSubTab>('templates');
   const [previewDevice, setPreviewDevice] = useState<'phone' | 'tablet' | 'desktop'>('phone');
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   // ── Load data when portal changes ───────────────────────────────────────────
   useEffect(() => {
@@ -1446,8 +1450,68 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                       <div className="flex items-center justify-between"><Label className="text-xs font-semibold">Branding</Label></div>
                       <div className="space-y-2"><Label className="text-xs">Portal Title</Label><Input value={design.title} onChange={(e) => updateDesign({ title: e.target.value })} className="text-xs" /></div>
                       <div className="space-y-2"><Label className="text-xs">Subtitle</Label><Input value={design.subtitle} onChange={(e) => updateDesign({ subtitle: e.target.value })} className="text-xs" /></div>
-                      <div className="space-y-2"><Label className="text-xs">Logo URL</Label><Input placeholder="https://example.com/logo.png" value={design.logoUrl} onChange={(e) => updateDesign({ logoUrl: e.target.value })} className="text-xs" /></div>
+                      {/* Logo Upload */}
+                      <div className="space-y-2">
+                        <Label className="text-xs">Portal Logo</Label>
+                        <div className="flex items-start gap-3">
+                          {design.logoUrl ? (
+                            <div className="relative group shrink-0">
+                              <img src={design.logoUrl} alt="Logo preview" className="w-12 h-12 rounded-xl object-contain border border-border bg-muted/30" />
+                              <button
+                                type="button"
+                                onClick={() => updateDesign({ logoUrl: '' })}
+                                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                              >✕</button>
+                            </div>
+                          ) : (
+                            <div className="w-12 h-12 rounded-xl border-2 border-dashed border-muted-foreground/30 flex items-center justify-center shrink-0 bg-muted/10">
+                              <ImagePlus className="w-4 h-4 text-muted-foreground/50" />
+                            </div>
+                          )}
+                          <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                            <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              setLogoUploading(true);
+                              try {
+                                const fd = new FormData();
+                                fd.append('file', file);
+                                fd.append('folder', 'portal-logos');
+                                const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                                const json = await res.json();
+                                if (json.success) {
+                                  updateDesign({ logoUrl: json.data.url });
+                                  toast({ title: 'Logo uploaded' });
+                                } else {
+                                  toast({ title: 'Upload failed', description: json.error?.message || 'Please try again', variant: 'destructive' });
+                                }
+                              } catch {
+                                toast({ title: 'Upload failed', description: 'Network error', variant: 'destructive' });
+                              } finally {
+                                setLogoUploading(false);
+                                if (logoInputRef.current) logoInputRef.current.value = '';
+                              }
+                            }} />
+                            <div className="flex gap-1.5">
+                              <Button type="button" size="sm" variant="outline" disabled={logoUploading} onClick={() => logoInputRef.current?.click()} className="text-xs h-7 px-2">
+                                {logoUploading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <ImagePlus className="w-3 h-3 mr-1" />}
+                                {logoUploading ? 'Uploading…' : 'Upload'}
+                              </Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => {
+                                const url = prompt('Enter logo URL:');
+                                if (url) updateDesign({ logoUrl: url });
+                              }} className="text-xs h-7 px-2 text-muted-foreground">
+                                Use URL
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                       <div className="space-y-2"><Label className="text-xs">Welcome Message</Label><Textarea value={design.settings.welcomeMessage} onChange={(e) => updateSettings({ welcomeMessage: e.target.value })} className="text-xs" rows={2} /></div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs">Show Clock</Label>
+                        <Switch checked={design.settings.showClock} onCheckedChange={(v) => updateSettings({ showClock: v })} />
+                      </div>
                     </div>
                     <Separator />
                     {/* Hotel Info */}
@@ -1568,10 +1632,6 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                     <div className="space-y-2"><Label className="text-xs">Custom CSS</Label><Textarea value={design.customCSS} onChange={(e) => updateDesign({ customCSS: e.target.value })} className="font-mono text-xs min-h-[120px]" placeholder="/* Custom CSS */" /></div>
                     <div className="space-y-2"><Label className="text-xs">Custom HTML Injection</Label><Textarea value={design.customHTML} onChange={(e) => updateDesign({ customHTML: e.target.value })} className="font-mono text-xs min-h-[100px]" placeholder="<div>Custom HTML</div>" /></div>
                     <Separator />
-                    <div className="flex items-center justify-between p-3 rounded-lg border">
-                      <div><p className="text-xs font-medium">Show Clock</p><p className="text-[10px] text-muted-foreground">Display current local time</p></div>
-                      <Switch checked={design.settings.showClock} onCheckedChange={(v) => updateSettings({ showClock: v })} />
-                    </div>
                     <div className="flex items-center justify-between p-3 rounded-lg border">
                       <div><p className="text-xs font-medium">Show Hotel Branding</p><p className="text-[10px] text-muted-foreground">Powered by branding at bottom</p></div>
                       <Switch checked={true} disabled />
