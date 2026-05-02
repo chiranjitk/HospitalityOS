@@ -1025,6 +1025,8 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
   const [previewDevice, setPreviewDevice] = useState<'phone' | 'tablet' | 'desktop'>('phone');
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [logoUploading, setLogoUploading] = useState(false);
+  const bgInputRef = useRef<HTMLInputElement>(null);
+  const [bgUploading, setBgUploading] = useState(false);
 
   // ── Load data when portal changes ───────────────────────────────────────────
   useEffect(() => {
@@ -1355,7 +1357,61 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                     )}
                     {design.settings.backgroundType === 'image' && (
                       <div className="space-y-3">
-                        <div className="space-y-2"><Label className="text-xs">Image URL</Label><Input placeholder="https://example.com/hotel-bg.jpg" value={design.backgroundImageUrl} onChange={(e) => updateDesign({ backgroundImageUrl: e.target.value })} className="text-xs" /></div>
+                        {/* Upload area */}
+                        <div className="space-y-2">
+                          <Label className="text-xs">Background Image</Label>
+                          <div className="relative group">
+                            {design.backgroundImageUrl ? (
+                              <div className="relative rounded-lg overflow-hidden border">
+                                <img src={design.backgroundImageUrl} alt="Background preview" className="w-full h-32 object-cover" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                  <button type="button" onClick={() => bgInputRef.current?.click()} className="px-3 py-1.5 bg-white text-gray-800 rounded-md text-xs font-medium hover:bg-gray-100 transition-colors">
+                                    Replace
+                                  </button>
+                                  <button type="button" onClick={() => updateDesign({ backgroundImageUrl: '' })} className="px-3 py-1.5 bg-red-500 text-white rounded-md text-xs font-medium hover:bg-red-600 transition-colors">
+                                    Remove
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button type="button" onClick={() => bgInputRef.current?.click()} className="w-full h-32 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-1.5 text-muted-foreground hover:text-foreground hover:border-teal-400 transition-colors cursor-pointer">
+                                <ImagePlus className="w-5 h-5" />
+                                <span className="text-xs font-medium">Upload Background Image</span>
+                                <span className="text-[10px]">JPG, PNG, WebP up to 10MB</span>
+                              </button>
+                            )}
+                            <input ref={bgInputRef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              setBgUploading(true);
+                              try {
+                                const fd = new FormData();
+                                fd.append('file', file);
+                                fd.append('folder', 'portal-backgrounds');
+                                const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                                const result = await res.json();
+                                if (result.success && result.data?.url) {
+                                  updateDesign({ backgroundImageUrl: result.data.url });
+                                  toast({ title: 'Background uploaded', description: 'Image set as portal background' });
+                                } else {
+                                  toast({ title: 'Upload failed', description: result.error?.message || 'Failed to upload image', variant: 'destructive' });
+                                }
+                              } catch { toast({ title: 'Upload failed', description: 'Network error', variant: 'destructive' }); }
+                              setBgUploading(false);
+                              if (bgInputRef.current) bgInputRef.current.value = '';
+                            }} />
+                            {bgUploading && (
+                              <div className="absolute inset-0 rounded-lg bg-background/60 backdrop-blur-sm flex items-center justify-center">
+                                <Loader2 className="w-5 h-5 animate-spin text-teal-500" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {/* URL fallback */}
+                        <div className="space-y-2">
+                          <Label className="text-xs">Or paste Image URL</Label>
+                          <Input placeholder="https://example.com/hotel-bg.jpg" value={design.backgroundImageUrl} onChange={(e) => updateDesign({ backgroundImageUrl: e.target.value })} className="text-xs" />
+                        </div>
                         <div className="space-y-2"><Label className="text-xs">Overlay Opacity: {design.settings.backgroundOverlay}%</Label><input type="range" min="0" max="90" value={design.settings.backgroundOverlay} onChange={(e) => updateSettings({ backgroundOverlay: parseInt(e.target.value) })} className="w-full accent-teal-500" /></div>
                       </div>
                     )}
