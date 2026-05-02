@@ -1,5 +1,7 @@
 'use client';
 
+import { generateFingerprint, getStorageToken, saveStorageToken, getDeviceInfo } from '@/lib/wifi/device-fingerprint';
+
 /**
  * Public WiFi Captive Portal — Designer-Driven Single Form + Multi-Method Fallback
  *
@@ -1722,6 +1724,9 @@ function PortalContent() {
   const [guestInfo, setGuestInfo] = useState({ firstName: '', lastName: '', email: '', phone: '' });
   const [selectedLanguage, setSelectedLanguage] = useState('');
 
+  // Auto-auth state
+  const [autoAuthAttempted, setAutoAuthAttempted] = useState(false);
+
   // ── Apply portal config to state ──
   const applyPortalConfig = useCallback((data: PortalConfig) => {
     console.log('[Portal] Applying config:', {
@@ -1741,6 +1746,52 @@ function PortalContent() {
     setSelectedMethod(methods[0].method);
     setState('auth_form');
   }, []);
+
+  // ── Attempt silent auto-auth for returning devices ──
+  // Called after portal config is loaded. Checks if this device has a
+  // saved fingerprint/storageToken that matches a known DeviceProfile.
+  const attemptAutoAuth = useCallback(
+    async (slug: string) => {
+      try {
+        // Collect fingerprint (async SHA-256)
+        const fp = await generateFingerprint();
+        const storageToken = getStorageToken();
+
+        console.log('[Portal] Auto-auth attempt:', {
+          fingerprintPrefix: fp.hash.substring(0, 12) + '...',
+          hasStorageToken: !!storageToken,
+          signalsCollected: fp.signals.signalCount,
+          collectionTime: fp.collectionTimeMs + 'ms',
+        });
+
+        const res = await fetch('/api/v1/wifi/auto-auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fingerprintHash: fp.hash,
+            storageToken: storageToken || undefined,
+            portalSlug: slug,
+          }),
+        });
+
+        const result = await res.json();
+
+        if (result.success && result.data?.authenticated) {
+          console.log('[Portal] ✅ Auto-auth SUCCESS — silent re-authentication');
+          setAuthResult(result.data);
+          setState('success');
+          return true;
+        }
+
+        console.log('[Portal] Auto-auth no match:', result.error?.code || 'unknown');
+        return false;
+      } catch (err) {
+        console.warn('[Portal] Auto-auth failed:', err);
+        return false;
+      }
+    },
+    []
+  );
 
   // ── Fetch portal config on mount — IP-based auto-resolution ──
   useEffect(() => {
@@ -1777,6 +1828,15 @@ function PortalContent() {
     return () => { cancelled = true; };
   }, [applyPortalConfig]);
 
+  // ── After portal config loads, attempt auto-auth ──
+  useEffect(() => {
+    if (portalConfig?.slug && !autoAuthAttempted && state === 'auth_form') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAutoAuthAttempted(true);
+      attemptAutoAuth(portalConfig.slug);
+    }
+  }, [portalConfig?.slug, autoAuthAttempted, state, attemptAutoAuth]);
+
   // ── Authentication handler ──
   const portalSlug = portalConfig?.slug || 'default';
   const authenticate = useCallback(
@@ -1797,6 +1857,27 @@ function PortalContent() {
         if (method === 'sms_otp' && !payload.otpCode && result.success) return;
 
         if (result.success && result.data?.authenticated) {
+          // ── Save device profile for future auto-auth ──
+          try {
+            const fp = await generateFingerprint();
+            const token = saveStorageToken(); // Create/reuse localStorage token
+            // POST to auto-auth to create/update DeviceProfile (fire-and-forget)
+            fetch('/api/v1/wifi/auto-auth', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fingerprintHash: fp.hash,
+                storageToken: token,
+                portalSlug,
+                // Extra context for initial profile creation
+                _createProfile: true,
+                _wifiUsername: result.data.username,
+              }),
+            }).catch(() => {}); // Best effort
+          } catch {
+            // Fingerprint collection failed — silent fail, auth still succeeded
+          }
+
           setAuthResult(result.data);
           setState('success');
         } else {

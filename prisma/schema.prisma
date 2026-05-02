@@ -2162,6 +2162,7 @@ model Guest {
   vehicles            Vehicle[]
   loyaltyRedemptions  LoyaltyRedemption[]
   loyaltyTransactions LoyaltyPointTransaction[]
+  deviceProfiles     DeviceProfile[]
 
   @@index([tenantId])
   @@index([email])
@@ -4020,6 +4021,7 @@ model Property {
   surveillanceConfigs    SurveillanceConfig[]
   fromTransfers          InventoryTransfer[]  @relation("FromProperty")
   toTransfers            InventoryTransfer[]  @relation("ToProperty")
+  deviceProfiles         DeviceProfile[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -5840,6 +5842,7 @@ model Tenant {
   inventoryTransfers        InventoryTransfer[]
   campaignAbTests           CampaignAbTest[]
   competitorSyncLogs        CompetitorSyncLog[]
+  deviceProfiles            DeviceProfile[]
 }
 
 model Experience {
@@ -6638,6 +6641,7 @@ model WiFiUser {
   updatedAt        DateTime   @updatedAt @db.Timestamptz
   radCheck         RadCheck[]
   radReply         RadReply[]
+  deviceProfiles   DeviceProfile[]
   plan             WiFiPlan?  @relation(fields: [planId], references: [id])
   ipPool           IpPool?    @relation("UserIpPoolOverride", fields: [ipPoolId], references: [id])
   property         Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
@@ -7272,4 +7276,77 @@ model LicenseKey {
   @@index([batchId])
   @@index([activatedBy])
   @@index([tenantId])
+}
+
+/// DeviceProfile — Maps a browser device fingerprint / storage token to a WiFi user.
+/// Enables silent re-authentication: when a returning device opens the captive portal,
+/// the fingerprint matches a known profile and the user is auto-reconnected without
+/// showing the login form. This survives MAC address randomization because fingerprint
+/// signals are application-layer (Canvas, WebGL, screen, hardware), not L2 network.
+///
+/// Matching priority:
+///   1. storageToken  (localStorage cookie — most reliable, survives MAC change)
+///   2. fingerprintHash (hardware fingerprint — fallback when storage cleared)
+///   3. No match → show login form
+///
+/// Browser compatibility (HTTP captive portal):
+///   ✅ localStorage   — Chrome, Safari, Firefox, Edge, Android WebView
+///   ✅ Canvas         — All (Brave randomises — de-prioritised in hash)
+///   ✅ WebGL          — All (renderer/vendor strings NOT randomised by Brave)
+///   ✅ AudioContext   — All (needs user gesture on some — collected post-auth)
+///   ✅ Screen/CPU     — All
+///   ❌ deviceMemory   — Requires HTTPS (secure context)
+///   ❌ MediaDevices   — Requires HTTPS for enumeration
+///   ❌ iOS CNA        — Minimal WebKit, no APIs → always shows login form
+model DeviceProfile {
+  id              String     @id @default(uuid()) @db.Uuid
+  tenantId        String     @db.Uuid
+  propertyId      String     @db.Uuid
+  wifiUserId      String     @db.Uuid
+  guestId         String?    @db.Uuid
+
+  /// SHA-256 hash of combined hardware signals (Canvas + WebGL + screen + platform).
+  /// This is the PRIMARY matching key when storageToken is unavailable.
+  /// Scoped per-property (composite unique) so the same device can have profiles
+  /// at different hotels without collision.
+  fingerprintHash String
+
+  /// Opaque token stored in localStorage. Backup identifier — more reliable than
+  /// fingerprint alone because it never changes until the user clears site data.
+  /// Also scoped per-property for multi-hotel support.
+  storageToken    String?
+
+  /// RADIUS Calling-Station-Id (MAC address). Populated AFTER first RADIUS auth,
+  /// not from browser (browsers cannot read MAC). For admin reference only.
+  macAddress      String?
+
+  /// Last-known IP / UA / device info — for admin dashboard display only.
+  ipAddress       String?
+  userAgent       String?
+  deviceName      String?
+  deviceType      String?
+
+  /// Raw fingerprint signal JSON — debugging only, NOT used for matching.
+  fingerprintData String?
+
+  /// Usage stats
+  authCount       Int        @default(0)
+  lastAuthAt      DateTime?  @db.Timestamptz
+
+  firstSeenAt     DateTime   @default(now()) @db.Timestamptz
+  lastSeenAt      DateTime   @updatedAt @db.Timestamptz
+
+  isActive        Boolean    @default(true)
+
+  wifiUser        WiFiUser   @relation(fields: [wifiUserId], references: [id], onDelete: Cascade)
+  tenant          Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property        Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  guest           Guest?     @relation(fields: [guestId], references: [id])
+
+  @@unique([fingerprintHash, propertyId])
+  @@unique([storageToken, propertyId])
+  @@index([wifiUserId])
+  @@index([guestId])
+  @@index([tenantId, propertyId, lastSeenAt])
+  @@index([isActive])
 }

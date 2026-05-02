@@ -861,3 +861,42 @@ BEGIN
 END;
 $function$
 ;
+-- DeviceProfile — Maps browser device fingerprint / storage token to WiFi user.
+-- Enables silent re-authentication on captive portal (survives MAC randomization).
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS "DeviceProfile" (
+    "id"              UUID NOT NULL DEFAULT gen_random_uuid(),
+    "tenantId"        UUID NOT NULL,
+    "propertyId"      UUID NOT NULL,
+    "wifiUserId"      UUID NOT NULL,
+    "guestId"         UUID,
+    "fingerprintHash" TEXT NOT NULL,
+    "storageToken"    TEXT,
+    "macAddress"      TEXT,
+    "ipAddress"       TEXT,
+    "userAgent"       TEXT,
+    "deviceName"      TEXT,
+    "deviceType"      TEXT,
+    "fingerprintData" TEXT,
+    "authCount"       INTEGER NOT NULL DEFAULT 0,
+    "lastAuthAt"      TIMESTAMPTZ,
+    "firstSeenAt"     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "lastSeenAt"      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "isActive"        BOOLEAN NOT NULL DEFAULT TRUE,
+    "createdAt"       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updatedAt"       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT "DeviceProfile_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "DeviceProfile_fingerprintHash_propertyId_key" UNIQUE ("fingerprintHash", "propertyId"),
+    CONSTRAINT "DeviceProfile_storageToken_propertyId_key" UNIQUE ("storageToken", "propertyId")
+);
+
+CREATE INDEX IF NOT EXISTS "DeviceProfile_wifiUserId_idx" ON "DeviceProfile"("wifiUserId");
+CREATE INDEX IF NOT EXISTS "DeviceProfile_guestId_idx" ON "DeviceProfile"("guestId");
+CREATE INDEX IF NOT EXISTS "DeviceProfile_tenantId_propertyId_lastSeenAt_idx" ON "DeviceProfile"("tenantId", "propertyId", "lastSeenAt");
+CREATE INDEX IF NOT EXISTS "DeviceProfile_isActive_idx" ON "DeviceProfile"("isActive");
+
+ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_wifiUserId_fkey" FOREIGN KEY ("wifiUserId") REFERENCES "WiFiUser"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_propertyId_fkey" FOREIGN KEY ("propertyId") REFERENCES "Property"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_guestId_fkey" FOREIGN KEY ("guestId") REFERENCES "Guest"("id") ON DELETE SET NULL ON UPDATE CASCADE;
