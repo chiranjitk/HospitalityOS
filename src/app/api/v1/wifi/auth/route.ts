@@ -699,9 +699,11 @@ async function logAuthAttempt(
       || request.headers.get('x-real-ip')
       || '';
 
+    // clientipaddress = real client IP (from HTTP headers)
+    // "nasIpAddress" = 127.0.0.1 for captive portal (the app itself IS the NAS)
     await db.$executeRawUnsafe(
       `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, "nasIpAddress")
-       VALUES ($1, $2, $3, NOW(), $4, $4)`,
+       VALUES ($1, $2, $3, NOW(), $4, '127.0.0.1')`,
       username,
       extraInfo || '',
       reply,

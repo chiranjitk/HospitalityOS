@@ -522,7 +522,7 @@ export default function AuthLogs() {
                 <p className="text-xs font-medium text-muted-foreground mb-3">IP Addresses</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-muted-foreground">Source IP (Auth From)</p>
+                    <p className="text-xs text-muted-foreground">Source IP</p>
                     {(() => {
                       const ip = getSourceIp(selectedLog);
                       return ip ? (
@@ -534,10 +534,6 @@ export default function AuthLogs() {
                         <p className="text-sm text-muted-foreground mt-1">—</p>
                       );
                     })()}
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">NAS IP</p>
-                    <p className="text-sm font-mono mt-1">{selectedLog.nasIpAddress || '—'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Client MAC</p>

@@ -1511,10 +1511,11 @@ export async function POST(request: NextRequest) {
           const operatorIp = forwardedFor?.split(',')[0]?.trim() || realIp || '';
 
           // Always log the auth attempt to radpostauth
+          // clientipaddress = operator's IP, "nasIpAddress" = 127.0.0.1 (local test)
           try {
             await db.$executeRawUnsafe(
               `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, "nasIpAddress")
-               VALUES ($1, $2, $3, NOW(), $4, $4)`,
+               VALUES ($1, $2, $3, NOW(), $4, '127.0.0.1')`,
               String(testUsername),
               passValue,
               reply,
