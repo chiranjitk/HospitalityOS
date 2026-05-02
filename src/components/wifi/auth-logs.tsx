@@ -131,10 +131,18 @@ export default function AuthLogs() {
       const logsData = await logsRes.json();
       const statsData = await statsRes.json();
 
-      if (logsData.success && logsData.data) {
+      if (logsRes.ok && logsData.success && logsData.data) {
         setLogs(Array.isArray(logsData.data) ? logsData.data : []);
       } else {
         setLogs([]);
+        // Show meaningful error to user
+        const msg = logsData.error || `HTTP ${logsRes.status}`;
+        console.error('[auth-logs] API error:', msg);
+        if (logsRes.status === 401) {
+          toast({ title: 'Authentication required', description: 'Please log in again', variant: 'destructive' });
+        } else if (logsRes.status === 403) {
+          toast({ title: 'Permission denied', description: 'Requires wifi.manage or reports.view permission', variant: 'destructive' });
+        }
       }
 
       if (statsData.success && statsData.data) {

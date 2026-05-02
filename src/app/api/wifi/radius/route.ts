@@ -376,10 +376,15 @@ export async function GET(request: NextRequest) {
             roomNumber: e.room_number || '',
           }));
 
+          console.log(`[auth-logs] Returning ${mapped.length} entries`);
           return NextResponse.json({ success: true, data: mapped });
         } catch (error) {
           console.error('[auth-logs] Direct query error:', error);
-          return NextResponse.json({ success: true, data: [] });
+          return NextResponse.json({ 
+            success: false, 
+            data: [], 
+            error: error instanceof Error ? error.message : String(error) 
+          });
         }
       }
 
