@@ -194,7 +194,7 @@ async function buildPortalConfig(portalId: string) {
       // ── Feature 3: Multi-Slide Promotion Carousel ──
       customAmenities: (designSettings.customAmenities as Array<{ name: string; icon: string }>) || [],
       // Derive showPromotions from useCarouselMode + having slides with content
-      showPromotions: ((designSettings.useCarouselMode as boolean) && ((designSettings.promotions as Array<Record<string, string>>) || []).some((p: Record<string, string>) => p.title || p.description)) || (designSettings.showPromotions as boolean) ?? true,
+      showPromotions: (((designSettings.useCarouselMode as boolean) && (((designSettings.promotions as Array<Record<string, string>>) || []).some((p: Record<string, string>) => p.title || p.description))) || ((designSettings.showPromotions as boolean) ?? true)),
       useCarouselMode: (designSettings.useCarouselMode as boolean) || false,
       promotions: ((designSettings.promotions as Array<Record<string, string>>) || []).length > 0
         ? ((designSettings.promotions as Array<Record<string, string>>)).map((p: Record<string, string>) => ({
