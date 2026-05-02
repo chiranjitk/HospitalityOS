@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { randomUUID } from 'crypto';
+import { radiusAuth, getRejectMessage } from '@/lib/wifi/utils/radius-auth';
 
 // ────────────────────────────────────────────────────────────────
 // POST /api/v1/wifi/auto-auth
@@ -300,6 +301,34 @@ export async function POST(request: NextRequest) {
         where: { id: wifiUser.id },
         data: { radiusSynced: true, radiusSyncedAt: now },
       });
+    }
+
+    // ── Close any existing active radacct session for this user ──
+    // Must do this BEFORE calling radiusAuth so that the Simultaneous-Use
+    // check does not count the stale session against the user.
+    try {
+      await db.$executeRawUnsafe(
+        `UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'User-Request', acctstatus = 'stop', acctupdatetime = NOW(), "updatedAt" = NOW() WHERE username = $1 AND acctstoptime IS NULL`,
+        wifiUser.username
+      );
+    } catch (closeErr) {
+      console.warn('[AutoAuth] Failed to close existing sessions (non-critical):', closeErr);
+    }
+
+    // ── Authenticate via FreeRADIUS (validates Simultaneous-Use, expiration, etc.) ──
+    const radiusResult = await radiusAuth(wifiUser.username, wifiUser.password);
+    if (!radiusResult.accepted) {
+      console.warn(`[AutoAuth] RADIUS rejected ${wifiUser.username}: ${radiusResult.rejectReason}`);
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: radiusResult.rejectReason || 'AUTH_FAILED',
+            message: getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED'),
+          },
+        },
+        { status: 403 }
+      );
     }
 
     // ── Create radacct accounting session (for Active Users tab) ──
