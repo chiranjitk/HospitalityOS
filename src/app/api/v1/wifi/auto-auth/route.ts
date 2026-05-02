@@ -279,18 +279,42 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Re-create bandwidth limits from plan (downloadSpeed/uploadSpeed in Mbps → Kbps)
-      const downKbps = (wifiUser.plan?.downloadSpeed || 0) * 1000;
-      const upKbps = (wifiUser.plan?.uploadSpeed || 0) * 1000;
-      if (downKbps > 0) {
+      // Re-create bandwidth attributes from plan (downloadSpeed/uploadSpeed stored in Mbps)
+      const downMbps = wifiUser.plan?.downloadSpeed || 0;
+      const upMbps = wifiUser.plan?.uploadSpeed || 0;
+      if (downMbps > 0) {
+        // Cryptsk-Rate-Limit: human-readable "D/U" format in Mbps (e.g. "5M/2M")
         await db.radReply.create({
           data: {
             wifiUserId: wifiUser.id,
             username: wifiUser.username,
-            attribute: 'Mikrotik-Rate-Limit',
+            attribute: 'Cryptsk-Rate-Limit',
             op: ':=',
-            value: `${downKbps}k/${upKbps || downKbps}k`,
+            value: `${downMbps}M/${upMbps || downMbps}M`,
             priority: 20,
+            isActive: true,
+          },
+        });
+        // Cryptsk-Bandwidth-Max-Down/Up: numeric bps values for gateway enforcement
+        await db.radReply.create({
+          data: {
+            wifiUserId: wifiUser.id,
+            username: wifiUser.username,
+            attribute: 'Cryptsk-Bandwidth-Max-Down',
+            op: ':=',
+            value: String(downMbps * 1000000),
+            priority: 21,
+            isActive: true,
+          },
+        });
+        await db.radReply.create({
+          data: {
+            wifiUserId: wifiUser.id,
+            username: wifiUser.username,
+            attribute: 'Cryptsk-Bandwidth-Max-Up',
+            op: ':=',
+            value: String((upMbps || downMbps) * 1000000),
+            priority: 22,
             isActive: true,
           },
         });
@@ -319,6 +343,8 @@ export async function POST(request: NextRequest) {
     const radiusResult = await radiusAuth(wifiUser.username, wifiUser.password);
     if (!radiusResult.accepted) {
       console.warn(`[AutoAuth] RADIUS rejected ${wifiUser.username}: ${radiusResult.rejectReason}`);
+      // Log failed auth attempt to radpostauth
+      await logAuthAttempt(wifiUser.username, 'Access-Reject', request);
       return NextResponse.json(
         {
           success: false,
@@ -330,6 +356,9 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
+
+    // ── Log successful auth attempt to radpostauth (for Auth Logs tab) ──
+    await logAuthAttempt(wifiUser.username, 'Access-Accept', request);
 
     // ── Create radacct accounting session (for Active Users tab) ──
     // The v_active_sessions view shows rows where acctstoptime IS NULL.
@@ -433,6 +462,33 @@ function parseDeviceName(ua: string): string {
   if (/Linux/i.test(ua)) return 'Linux PC';
   if (/SmartTV/i.test(ua)) return 'Smart TV';
   return 'Unknown Device';
+}
+
+/**
+ * Write an auth log to radpostauth table.
+ * This feeds the Auth Logs dashboard tab.
+ */
+async function logAuthAttempt(
+  username: string,
+  reply: string,
+  request: NextRequest
+) {
+  try {
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || request.headers.get('x-real-ip')
+      || '';
+
+    await db.$executeRawUnsafe(
+      `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress)
+       VALUES ($1, '', $2, NOW(), $3)`,
+      username,
+      reply,
+      clientIp
+    );
+  } catch (err) {
+    // Non-fatal — auth logging failure should not block authentication
+    console.error('[AutoAuth] Failed to write auth log:', err);
+  }
 }
 
 /**
