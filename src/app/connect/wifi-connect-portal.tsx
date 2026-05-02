@@ -1910,6 +1910,45 @@ function PortalContent() {
     [portalSlug]
   );
 
+  // ── Disconnect handler: clears fingerprint, ends session, resets portal ──
+  const handleDisconnect = useCallback(async () => {
+    try {
+      const fp = await generateFingerprint();
+      const token = getStorageToken();
+
+      // 1. Close any active radacct sessions for this user
+      if (authResult?.username) {
+        await fetch('/api/wifi/radius', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'live-sessions-disconnect',
+            username: authResult.username,
+          }),
+        }).catch(() => {});
+      }
+
+      // 2. Delete device profile (removes auto-auth capability)
+      const params = new URLSearchParams();
+      if (token) params.set('storageToken', token);
+      else params.set('fingerprintHash', fp.hash);
+      await fetch(`/api/v1/wifi/auto-auth?${params.toString()}`, {
+        method: 'DELETE',
+      }).catch(() => {});
+
+      // 3. Clear localStorage token
+      clearStorageToken();
+    } catch {
+      // Best effort — proceed with reset regardless
+    }
+
+    // Reset portal state to show login form
+    setAuthResult(null);
+    setAutoAuthAttempted(false);
+    setState('auth_form');
+    setErrorMessage('');
+  }, [authResult?.username]);
+
   // ── Derived values ──
   const authMethods = portalConfig?.authMethods?.length
     ? portalConfig.authMethods
@@ -2171,48 +2210,6 @@ function PortalContent() {
   const blockOrder = (design.contentBlockOrder?.length || 0) > 0 ? design.contentBlockOrder : DEFAULT_BLOCK_ORDER;
 
   const effectiveLanguage = selectedLanguage || design.defaultLanguage || 'en';
-
-  // ── Disconnect handler: clears fingerprint, ends session, resets portal ──
-  const handleDisconnect = useCallback(async () => {
-    try {
-      const fp = await generateFingerprint();
-      const token = getStorageToken();
-
-      // 1. Close any active radacct sessions for this user
-      if (authResult?.username) {
-        await fetch('/api/wifi/radius', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'live-sessions-disconnect',
-            username: authResult.username,
-          }),
-        }).catch(() => {});
-      }
-
-      // 2. Delete device profile (removes auto-auth capability)
-      const params = new URLSearchParams();
-      if (token) params.set('storageToken', token);
-      else params.set('fingerprintHash', fp.hash);
-      await fetch(`/api/v1/wifi/auto-auth?${params.toString()}`, {
-        method: 'DELETE',
-      }).catch(() => {});
-
-      // 3. Clear localStorage token
-      clearStorageToken();
-
-      // 4. Set acctstoptime on radacct for this user (local fallback)
-      // This ensures the user disappears from Active Users tab immediately
-    } catch {
-      // Best effort — proceed with reset regardless
-    }
-
-    // Reset portal state to show login form
-    setAuthResult(null);
-    setAutoAuthAttempted(false);
-    setState('auth_form');
-    setErrorMessage('');
-  }, [authResult?.username]);
 
   // ── Render the card content (shared across layouts) ──
   const renderCardContent = () => {
