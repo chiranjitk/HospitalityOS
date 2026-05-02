@@ -315,16 +315,19 @@ export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
   hotelPhone: '',
   hotelWebsite: '',
   logoUrl: '',
-  showHotelInfo: false,
-  amenities: [],
-  showAmenities: false,
+  showHotelInfo: true,
+  amenities: ['WiFi', 'Pool', 'Spa', 'Gym'],
+  showAmenities: true,
   showSocialMedia: false,
-  socialLinks: [],
-  showClock: false,
-  showWeather: false,
-  promotionTitle: '',
-  promotionDesc: '',
-  showPromotion: false,
+  socialLinks: [
+    { platform: 'instagram', url: 'https://instagram.com' },
+    { platform: 'facebook', url: 'https://facebook.com' },
+  ],
+  showClock: true,
+  showWeather: true,
+  promotionTitle: 'Special Offer',
+  promotionDesc: 'Book 3 nights and get 20% off your stay!',
+  showPromotion: true,
   termsText: '',
   termsUrl: '',
   showBranding: true,
@@ -345,8 +348,17 @@ export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
   },
 
   // Multi-Slide Carousel
-  promotions: [],
-  showPromotions: false,
+  promotions: [
+    {
+      id: 'default-promo-1',
+      title: 'Special Offer',
+      description: 'Book 3 nights and get 20% off your stay!',
+      imageUrl: '',
+      linkUrl: '',
+      backgroundColor: '#f59e0b',
+    },
+  ],
+  showPromotions: true,
 
   // Post-Connect Survey
   surveyConfig: {
@@ -357,7 +369,7 @@ export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
   },
 
   // Weather Widget
-  weatherLocation: '',
+  weatherLocation: 'New York',
 
   // Custom Amenities
   customAmenities: [],

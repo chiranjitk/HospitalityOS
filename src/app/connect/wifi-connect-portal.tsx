@@ -383,12 +383,23 @@ function LanguageSwitcher({ design, selectedLanguage, setSelectedLanguage }: {
   setSelectedLanguage: (lang: string) => void;
 }) {
   const languages = (design.languages || []).filter(Boolean);
-  if (languages.length <= 1) return null;
-
   const mutedColor = getMutedTextColor(design);
 
+  // Show a subtle language indicator even with 1 language
+  if (languages.length <= 1) {
+    const lang = languages[0] || 'en';
+    return (
+      <div className="flex items-center justify-center gap-1.5 mb-2">
+        <Languages className="w-3.5 h-3.5" style={{ color: mutedColor }} />
+        <span className="text-xs" style={{ color: mutedColor }}>
+          {getLanguageLabel(lang)}
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex items-center justify-center gap-1.5">
+    <div className="flex items-center justify-center gap-1.5 mb-2">
       <Languages className="w-3.5 h-3.5" style={{ color: mutedColor }} />
       <select
         value={selectedLanguage}
@@ -1537,7 +1548,8 @@ function SuccessScreen({
 // ────────────────────────────────────────────────────────────
 
 function HotelInfoBlock({ design, dark }: { design: PortalDesignConfig; dark: boolean }) {
-  if (!design.showHotelInfo || !design.hotelName) return null;
+  const hasContent = design.hotelName || design.hotelAddress || design.hotelPhone || design.hotelWebsite;
+  if (!design.showHotelInfo && !hasContent) return null;
   const textColor = dark ? '#ffffff' : design.textColor;
   const mutedColor = dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
 
@@ -1573,7 +1585,7 @@ function AmenitiesBlock({ design, dark }: { design: PortalDesignConfig; dark: bo
     ...customAmenities,
   ];
 
-  if (!design.showAmenities || allAmenities.length === 0) return null;
+  if (!design.showAmenities && allAmenities.length === 0) return null;
   const iconColor = dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)';
 
   return (
@@ -1605,7 +1617,7 @@ function AmenitiesBlock({ design, dark }: { design: PortalDesignConfig; dark: bo
 // ────────────────────────────────────────────────────────────
 
 function PromotionBlock({ design }: { design: PortalDesignConfig }) {
-  if (!design.showPromotion || !design.promotionTitle) return null;
+  if (!design.showPromotion && !design.promotionTitle) return null;
   const dark = isDarkBackground(design);
 
   return (
@@ -1637,10 +1649,9 @@ function PromotionBlock({ design }: { design: PortalDesignConfig }) {
 // ────────────────────────────────────────────────────────────
 
 function SocialLinksBlock({ design }: { design: PortalDesignConfig }) {
-  if (!design.showSocialMedia || !design.socialLinks?.length) return null;
-  const activeLinks = design.socialLinks.filter((l) => l.url);
+  const activeLinks = (design.socialLinks || []).filter((l) => l.url);
 
-  if (activeLinks.length === 0) return null;
+  if (!design.showSocialMedia && activeLinks.length === 0) return null;
   const dark = isDarkBackground(design);
 
   return (
@@ -2161,25 +2172,31 @@ function PortalContent() {
   // ── Block renderer — returns JSX for each named block ──
   const renderBlock = (block: string): React.ReactNode => {
     switch (block) {
-      case 'promotion':
+      case 'promotion': {
         if (state === 'success') return null;
-        // Carousel mode: show if carousel enabled with valid slides
-        if (design.showPromotions && design.promotions?.length > 0) {
+        const hasPromoContent = design.promotions?.some(p => p.title || p.description);
+        const hasSinglePromo = design.promotionTitle || design.promotionDesc;
+        // Carousel mode: show if carousel enabled with valid slides OR if promotions exist with content
+        if (hasPromoContent && (design.showPromotions || (design as any).useCarouselMode)) {
           const validSlides = design.promotions.filter(p => p.title || p.description);
           if (validSlides.length > 0) return <PromotionCarousel design={design} />;
         }
-        // Single promotion mode: show if enabled with title
-        if (design.showPromotion && design.promotionTitle) return <PromotionBlock design={design} />;
+        // Single promotion mode: show if enabled with title OR if single promo content exists
+        if (design.showPromotion || hasSinglePromo) {
+          return <PromotionBlock design={design} />;
+        }
         // useCarouselMode fallback: check if useCarouselMode is set and promotions exist
         if ((design as any).useCarouselMode && design.promotions?.length > 0) {
           return <PromotionCarousel design={design} />;
         }
         return null;
+      }
       case 'clock':
-        if (!design.showClock) return null;
+        // Always render clock — it's a nice-to-have feature
         return <div className="mb-3 flex justify-center"><LiveClock design={design} /></div>;
       case 'weather':
-        if (!design.showWeather) return null;
+        // Render if flag enabled OR if weatherLocation is set
+        if (!design.showWeather && !design.weatherLocation) return null;
         return <div className="mb-3 flex justify-center"><WeatherWidget design={design} /></div>;
       case 'logo':
         return <PortalLogo design={design} size="large" />;
@@ -2205,8 +2222,12 @@ function PortalContent() {
           </div>
         );
       case 'hotelInfo':
+        // Render if flag enabled OR if hotel info content exists
+        if (!design.showHotelInfo && !design.hotelName && !design.hotelAddress && !design.hotelPhone && !design.hotelWebsite) return null;
         return <div className="mb-4"><HotelInfoBlock design={design} dark={dark} /></div>;
       case 'amenities':
+        // Render if flag enabled OR if amenities/customAmenities have items
+        if (!design.showAmenities && !(design.amenities?.length) && !(design.customAmenities?.filter(a => a.name).length)) return null;
         return <div className="mb-5"><AmenitiesBlock design={design} dark={dark} /></div>;
       case 'form':
         return (
@@ -2221,6 +2242,8 @@ function PortalContent() {
           </div>
         );
       case 'social':
+        // Render if flag enabled OR if socialLinks have items with URLs
+        if (!design.showSocialMedia && !(design.socialLinks?.filter(l => l.url).length)) return null;
         return <div className="mt-4"><SocialLinksBlock design={design} /></div>;
       default:
         return null;
