@@ -57,7 +57,19 @@ export async function radiusAuth(username: string, password: string): Promise<{
 
     return { accepted: false, replyAttrs: {}, rejectReason };
   } catch (err) {
-    console.error('[RADIUS Auth] radclient error:', err);
+    const error = err as { status?: number; stdout?: string; stderr?: string; message?: string };
+
+    // radclient exits with code 1 on Access-Reject — this is NOT unreachable
+    const stdout = (error.stdout || '') + (error.stderr || '');
+    if (stdout.includes('Received Access-Reject')) {
+      let rejectReason = 'INVALID_CREDENTIALS';
+      if (stdout.includes('Simultaneous-Use') || stdout.includes('simul_count')) rejectReason = 'MAX_SESSIONS_REACHED';
+      else if (stdout.includes('Expiration') || stdout.includes('expired')) rejectReason = 'ACCOUNT_EXPIRED';
+      return { accepted: false, replyAttrs: {}, rejectReason };
+    }
+
+    // Actual network/timeout failure
+    console.error('[RADIUS Auth] radclient error:', error.message);
     return { accepted: false, replyAttrs: {}, rejectReason: 'RADIUS_UNREACHABLE' };
   }
 }

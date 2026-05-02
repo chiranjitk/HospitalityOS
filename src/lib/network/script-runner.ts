@@ -196,12 +196,37 @@ export function runLogoutScript(params: LogoutScriptParams): ScriptResult {
 function runScript(scriptPath: string, args: string[], timeoutMs: number): ScriptResult {
   const startTime = Date.now();
 
+  // Build environment for script execution:
+  // - PATH: ensure nft is discoverable (may be in /usr/local/sbin or custom build dir)
+  // - LOGFILE: point logs to /tmp in sandbox (no write to /var/log)
+  // - SS_STATEDIR / SS_PERSIST_STATEDIR: override state dirs for sandbox
+  const isDev = process.env.NODE_ENV === 'development';
+  const nftPath = process.env.NFT_PATH || '/usr/sbin/nft';
+  const baseDir = process.cwd();
+
+  const scriptEnv: Record<string, string> = {};
+  // Inherit current process env
+  for (const [k, v] of Object.entries(process.env)) {
+    if (v !== undefined) scriptEnv[k] = v;
+  }
+  // Ensure nft is on PATH
+  const nftDir = nftPath.substring(0, nftPath.lastIndexOf('/'));
+  const existingPath = scriptEnv.PATH || '';
+  scriptEnv.PATH = `${nftDir}:${existingPath}`;
+
+  if (isDev) {
+    scriptEnv.LOGFILE = '/tmp/staysuite_login.log';
+    scriptEnv.SS_STATEDIR = `${baseDir}/.staysuite/sessions`;
+    scriptEnv.SS_PERSIST_STATEDIR = `${baseDir}/.staysuite/sessions`;
+  }
+
   try {
     const cmd = `${scriptPath} ${args.join(' ')}`;
     const stdout = execSync(cmd, {
       encoding: 'utf-8',
       timeout: timeoutMs,
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: scriptEnv,
     });
     const durationMs = Date.now() - startTime;
 

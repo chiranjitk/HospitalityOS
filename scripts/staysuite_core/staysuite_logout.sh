@@ -19,8 +19,8 @@ LOGFILE="${LOGFILE:-/var/log/staysuite_login.log}"
 log_msg()  { echo "$(date '+%Y-%m-%d %H:%M:%S') [LOGOUT] $*" >> "$LOGFILE" 2>/dev/null; }
 log_err()  { echo "$(date '+%Y-%m-%d %H:%M:%S') [LOGOUT][ERR] $*" >> "$LOGFILE" 2>/dev/null; }
 
-STATEDIR="/var/run/staysuite/sessions"
-PERSIST_STATEDIR="/var/lib/staysuite/sessions"
+STATEDIR="${SS_STATEDIR:-/var/run/staysuite/sessions}"
+PERSIST_STATEDIR="${SS_PERSIST_STATEDIR:-/var/lib/staysuite/sessions}"
 
 IP=""
 SESSION_ID=""
@@ -76,9 +76,9 @@ fi
 
 # Compute mark if not loaded from state
 if [[ -z "$MARK" ]]; then
-    local IFS='.'
-    read -ra o <<< "$IP"
+    IFS='.' read -ra o <<< "$IP"
     MARK=$(printf "0x%02X%02X%02X%02X" "${o[0]}" "${o[1]}" "${o[2]}" "${o[3]}")
+    unset IFS
 fi
 
 TAG="ss_${IP//./_}"

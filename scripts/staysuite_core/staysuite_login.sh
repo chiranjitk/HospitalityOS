@@ -55,10 +55,10 @@ LOGFILE="${LOGFILE:-/var/log/staysuite_login.log}"
 log_msg()  { echo "$(date '+%Y-%m-%d %H:%M:%S') [LOGIN] $*" >> "$LOGFILE" 2>/dev/null; }
 log_err()  { echo "$(date '+%Y-%m-%d %H:%M:%S') [LOGIN][ERR] $*" >> "$LOGFILE" 2>/dev/null; }
 
-# ─── State directories ───────────────────────────────────────────────
-STATEDIR="/var/run/staysuite/sessions"          # tmpfs — fast logout lookup
-PERSIST_STATEDIR="/var/lib/staysuite/sessions"  # persistent — survives reboot (for recovery)
-mkdir -p "$STATEDIR" "$PERSIST_STATEDIR" 2>/dev/null
+# ─── State directories (overridable via env for sandbox/testing) ─────
+STATEDIR="${SS_STATEDIR:-/var/run/staysuite/sessions}"          # tmpfs — fast logout lookup
+PERSIST_STATEDIR="${SS_PERSIST_STATEDIR:-/var/lib/staysuite/sessions}"  # persistent — survives reboot
+mkdir -p "$STATEDIR" "$PERSIST_STATEDIR" 2>/dev/null || true
 
 # ─── Defaults ─────────────────────────────────────────────────────────
 IP=""
