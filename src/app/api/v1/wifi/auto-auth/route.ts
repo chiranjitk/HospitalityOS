@@ -3,6 +3,51 @@ import { db } from '@/lib/db';
 import { randomUUID } from 'crypto';
 import { radiusAuth, getRejectMessage } from '@/lib/wifi/utils/radius-auth';
 
+// ────────────────────────────────────────────────────────────
+// IP Pool Validation Helpers (shared with wifi/auth)
+// ────────────────────────────────────────────────────────────
+
+function extractClientIp(request: NextRequest): string | null {
+  const xff = request.headers.get('x-forwarded-for');
+  if (xff) {
+    const firstIp = xff.split(',')[0].trim();
+    if (firstIp) return firstIp;
+  }
+  const xRealIp = request.headers.get('x-real-ip');
+  if (xRealIp) return xRealIp.trim();
+  return null;
+}
+
+function normalizeIp(raw: string | null): string | null {
+  if (!raw) return null;
+  let ip = raw.trim();
+  if (ip.startsWith('[') && ip.includes(']')) {
+    ip = ip.slice(1, ip.indexOf(']'));
+  }
+  const v4Match = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  if (v4Match) return v4Match[1];
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) return ip;
+  return null;
+}
+
+async function validateClientIpInPool(clientIp: string): Promise<{ poolId: string; poolName: string } | null> {
+  try {
+    const result = await db.$queryRawUnsafe<Array<{ id: string; name: string }>>(`
+      SELECT ip.id, ip.name
+      FROM "IpPoolRange" r
+      JOIN "IpPool" ip ON ip.id = r."poolId"
+      WHERE $1::inet BETWEEN r."startIp" AND r."endIp"
+        AND ip.enabled = true
+      LIMIT 1
+    `, clientIp);
+    if (result.length === 0) return null;
+    return { poolId: result[0].id, poolName: result[0].name };
+  } catch (err) {
+    console.error('[AutoAuth IP Pool Validation] Query failed:', err);
+    return null;
+  }
+}
+
 // ────────────────────────────────────────────────────────────────
 // POST /api/v1/wifi/auto-auth
 //
@@ -325,6 +370,23 @@ export async function POST(request: NextRequest) {
         where: { id: wifiUser.id },
         data: { radiusSynced: true, radiusSyncedAt: now },
       });
+    }
+
+    // ── IP Pool Validation: reject auto-auth from unmanaged networks ──
+    // Only devices on allocated pool IPs can silently re-authenticate.
+    const autoAuthRawIp = extractClientIp(request);
+    const autoAuthClientIp = normalizeIp(autoAuthRawIp);
+
+    if (autoAuthClientIp) {
+      const poolMatch = await validateClientIpInPool(autoAuthClientIp);
+      if (!poolMatch) {
+        console.warn(`[AutoAuth] IP pool check REJECTED: ${autoAuthClientIp} is not in any allocated IP pool`);
+        return NextResponse.json(
+          { success: false, error: { code: 'IP_NOT_IN_POOL', message: 'Your device is not on a managed WiFi network.' } },
+          { status: 403 }
+        );
+      }
+      console.log(`[AutoAuth] IP pool check PASSED: ${autoAuthClientIp} → pool "${poolMatch.poolName}"`);
     }
 
     // ── Close any existing active radacct session for this user ──

@@ -17,7 +17,101 @@ function generateOtp(): string {
 }
 
 // ────────────────────────────────────────────────────────────
+// IP Pool Validation Helpers
+// ────────────────────────────────────────────────────────────
+
+interface MatchedPool {
+  poolId: string;
+  poolName: string;
+  subnet: string | null;
+  gateway: string | null;
+  captivePortal: boolean;
+  isDefault: boolean;
+}
+
+/** Extract client IP from request headers (same logic as resolve-zone) */
+function extractClientIp(request: NextRequest): string | null {
+  const xff = request.headers.get('x-forwarded-for');
+  if (xff) {
+    const firstIp = xff.split(',')[0].trim();
+    if (firstIp) return firstIp;
+  }
+  const xRealIp = request.headers.get('x-real-ip');
+  if (xRealIp) return xRealIp.trim();
+  return null;
+}
+
+/** Strip IPv6-mapped prefix and normalize to plain IPv4 */
+function normalizeIp(raw: string | null): string | null {
+  if (!raw) return null;
+  let ip = raw.trim();
+  if (ip.startsWith('[') && ip.includes(']')) {
+    ip = ip.slice(1, ip.indexOf(']'));
+  }
+  const v4Match = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  if (v4Match) return v4Match[1];
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) return ip;
+  return null;
+}
+
+/**
+ * Validate that the client IP belongs to an allocated IP pool.
+ * Uses PostgreSQL inet range comparison for accurate matching.
+ * Returns the matched pool info or null if no pool found.
+ *
+ * Conditions checked:
+ * 1. IP must fall within an IpPoolRange (startIp–endIp)
+ * 2. The pool must be enabled
+ * 3. The pool must have captivePortal = true (managed network)
+ */
+async function validateClientIpInPool(clientIp: string): Promise<MatchedPool | null> {
+  try {
+    const result = await db.$queryRawUnsafe<Array<{
+      id: string;
+      name: string;
+      subnet: string | null;
+      gateway: string | null;
+      captivePortal: boolean;
+      "isDefault": boolean;
+    }>>(`
+      SELECT DISTINCT ON (ip.id)
+        ip.id, ip.name, ip.subnet::text as subnet, ip.gateway::text as gateway,
+        ip."captivePortal", ip."isDefault"
+      FROM "IpPoolRange" r
+      JOIN "IpPool" ip ON ip.id = r."poolId"
+      WHERE $1::inet BETWEEN r."startIp" AND r."endIp"
+        AND ip.enabled = true
+      ORDER BY ip.id, ip."isDefault" DESC
+      LIMIT 1
+    `, clientIp);
+
+    if (result.length === 0) return null;
+
+    const pool = result[0];
+    return {
+      poolId: pool.id,
+      poolName: pool.name,
+      subnet: pool.subnet,
+      gateway: pool.gateway,
+      captivePortal: pool.captivePortal,
+      isDefault: pool.isDefault,
+    };
+  } catch (err) {
+    console.error('[IP Pool Validation] Query failed:', err);
+    return null;
+  }
+}
+
+/** Get client IP string for logging/accounting */
+function getClientIpString(request: NextRequest): string {
+  return extractClientIp(request) || request.headers.get('x-real-ip') || '0.0.0.0';
+}
+
+// ────────────────────────────────────────────────────────────
 // POST /api/v1/wifi/auth — Guest WiFi authentication
+//
+// SECURITY: Client IP must belong to an allocated IP pool before
+// any authentication is allowed. External/unmanaged IPs are rejected.
 //
 // After successful authentication, this route:
 // 1. Provisions RADIUS credentials (RadCheck, RadReply, RadUserGroup)
@@ -27,6 +121,38 @@ function generateOtp(): string {
 // ────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    // ════════════════════════════════════════════════════════════
+    // STEP 0: Validate client IP against allocated IP pools
+    // This prevents authentication from external/unmanaged networks.
+    // Only IPs assigned from managed DHCP pools can authenticate.
+    // ════════════════════════════════════════════════════════════
+    const rawIp = extractClientIp(request);
+    const clientIp = normalizeIp(rawIp);
+
+    if (!clientIp) {
+      console.warn('[Guest Auth] IP pool check FAILED: cannot determine client IP');
+      return errorResponse(
+        'IP_NOT_DETERMINED',
+        'Unable to determine your IP address. Please ensure you are connected to the hotel WiFi network and try again.',
+        403
+      );
+    }
+
+    const matchedPool = await validateClientIpInPool(clientIp);
+    if (!matchedPool) {
+      console.warn(`[Guest Auth] IP pool check REJECTED: ${clientIp} is not in any allocated IP pool`);
+      // Log the rejected attempt for audit trail
+      await logAuthAttempt('unknown', 'Access-Reject', request, `IP_NOT_IN_POOL:${clientIp}`);
+      return errorResponse(
+        'IP_NOT_IN_POOL',
+        'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.',
+        403
+      );
+    }
+
+    console.log(`[Guest Auth] IP pool check PASSED: ${clientIp} → pool "${matchedPool.poolName}" (${matchedPool.subnet || 'no subnet'})`);
+
+    // Parse request body
     const body = await request.json();
     const {
       method,
@@ -218,10 +344,10 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Log auth attempt (for Auth Logs tab) ──
-        await logAuthAttempt(wifiUsername, 'Access-Accept', request);
+        await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${matchedPool.poolName}`);
 
         // ── Create accounting session (for Active Users tab) ──
-        await createAccountingSession(wifiUsername, request, 'portal', macAddress);
+        await createAccountingSession(wifiUsername, request, 'portal', macAddress, matchedPool);
 
         return successResponse({
           authenticated: true,
@@ -230,6 +356,7 @@ export async function POST(request: NextRequest) {
           sessionTimeout,
           bandwidthDown: bwDown,
           bandwidthUp: bwUp,
+          poolName: matchedPool.poolName,
           message: 'Connected successfully!',
         });
       }
@@ -339,10 +466,10 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Log auth attempt ──
-        await logAuthAttempt(wifiUsername, 'Access-Accept', request);
+        await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${matchedPool.poolName}`);
 
         // ── Create accounting session ──
-        await createAccountingSession(wifiUsername, request, 'portal', macAddress);
+        await createAccountingSession(wifiUsername, request, 'portal', macAddress, matchedPool);
 
         return successResponse({
           authenticated: true,
@@ -351,6 +478,7 @@ export async function POST(request: NextRequest) {
           sessionTimeout,
           bandwidthDown: bwDown,
           bandwidthUp: bwUp,
+          poolName: matchedPool.poolName,
           message: 'Connected successfully!',
         });
       }
@@ -430,10 +558,10 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Log auth attempt ──
-        await logAuthAttempt(username.trim(), 'Access-Accept', request);
+        await logAuthAttempt(username.trim(), 'Access-Accept', request, `pool:${matchedPool.poolName}`);
 
         // ── Create accounting session ──
-        await createAccountingSession(username.trim(), request, 'portal', macAddress);
+        await createAccountingSession(username.trim(), request, 'portal', macAddress, matchedPool);
 
         return successResponse({
           authenticated: true,
@@ -442,6 +570,7 @@ export async function POST(request: NextRequest) {
           sessionTimeout,
           bandwidthDown: bwDown,
           bandwidthUp: bwUp,
+          poolName: matchedPool.poolName,
           message: 'Connected successfully!',
         });
       }
@@ -550,10 +679,10 @@ export async function POST(request: NextRequest) {
             }
 
             // ── Log auth attempt ──
-            await logAuthAttempt(wifiUsername, 'Access-Accept', request);
+            await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${matchedPool.poolName}`);
 
             // ── Create accounting session ──
-            await createAccountingSession(wifiUsername, request, 'portal', macAddress);
+            await createAccountingSession(wifiUsername, request, 'portal', macAddress, matchedPool);
           }
 
           return successResponse({
@@ -563,6 +692,7 @@ export async function POST(request: NextRequest) {
             sessionTimeout,
             bandwidthDown: bwDown,
             bandwidthUp: bwUp,
+            poolName: matchedPool.poolName,
             message: 'Connected successfully!',
           });
         } else {
@@ -654,10 +784,10 @@ export async function POST(request: NextRequest) {
               }
 
               // ── Log auth attempt ──
-              await logAuthAttempt(wifiUsername, 'Access-Accept', request);
+              await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${matchedPool.poolName}`);
 
               // ── Create accounting session ──
-              await createAccountingSession(wifiUsername, request, 'portal', macAddress);
+              await createAccountingSession(wifiUsername, request, 'portal', macAddress, matchedPool);
             }
           } catch {
             // Ignore — best effort for open access
@@ -671,6 +801,7 @@ export async function POST(request: NextRequest) {
           sessionTimeout,
           bandwidthDown: bwDown,
           bandwidthUp: bwUp,
+          poolName: matchedPool?.poolName,
           message: 'Connected successfully!',
         });
       }
@@ -716,7 +847,8 @@ function errorResponse(code: string, message: string, status = 400) {
 async function logAuthAttempt(
   username: string,
   reply: string,
-  request: NextRequest
+  request: NextRequest,
+  extraInfo?: string
 ) {
   try {
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
@@ -725,10 +857,11 @@ async function logAuthAttempt(
 
     await db.$executeRawUnsafe(
       `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress)
-       VALUES ($1, '', $2, NOW(), $3)`,
+       VALUES ($1, $4, $2, NOW(), $3)`,
       username,
       reply,
-      clientIp
+      clientIp,
+      extraInfo || ''
     );
   } catch (err) {
     // Non-fatal — auth logging failure should not block authentication
@@ -749,7 +882,8 @@ async function createAccountingSession(
   username: string,
   request: NextRequest,
   loginType: string = 'portal',
-  macAddress?: string
+  macAddress?: string,
+  pool?: MatchedPool | null
 ) {
   try {
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
@@ -769,6 +903,11 @@ async function createAccountingSession(
       ? normalizedMac.match(/.{2}/g)?.join(':') || null
       : null;
 
+    // Build connect-info with pool details for audit trail
+    const connectInfoStart = pool
+      ? `pool_id=${pool.poolId}|pool_name=${pool.poolName}|subnet=${pool.subnet || 'none'}|gateway=${pool.gateway || 'none'}`
+      : '';
+
     await db.$executeRawUnsafe(
       `INSERT INTO radacct (
          acctuniqueid, acctsessionid, username,
@@ -776,14 +915,14 @@ async function createAccountingSession(
          acctauthentic, framedipaddress, acctstatus,
          acctinputoctets, acctoutputoctets, acctsessiontime,
          calledstationid, callingstationid,
-         "loginType", "createdAt", "updatedAt"
+         "loginType", connectinfo_start, "createdAt", "updatedAt"
        ) VALUES (
          $1, $2, $3,
          $4, 'Wireless-802.11', $5, $5,
          'PAP', $6, 'start',
          0, 0, 0,
          '00:00:00:00:00:01', $8,
-         $7, NOW(), NOW()
+         $7, $9, NOW(), NOW()
        )`,
       acctUniqueId,
       acctSessionId,
@@ -792,7 +931,8 @@ async function createAccountingSession(
       now,
       clientIp,
       loginType,
-      formattedMac
+      formattedMac,
+      connectInfoStart
     );
   } catch (err) {
     // Non-fatal — accounting failure should not block authentication
