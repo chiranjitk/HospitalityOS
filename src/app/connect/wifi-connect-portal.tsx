@@ -1910,33 +1910,29 @@ function PortalContent() {
     [portalSlug]
   );
 
-  // ── Disconnect handler: clears fingerprint, ends session, resets portal ──
+  // ── Disconnect handler: ends session, resets portal ──
+  // IMPORTANT: We do NOT delete the DeviceProfile — it must persist so that
+  // auto-auth can match this device by fingerprintHash on the next visit.
+  // We only clear the localStorage token so auto-auth creates a fresh one,
+  // and close the radacct session so the user disappears from Active Users.
   const handleDisconnect = useCallback(async () => {
     try {
-      const fp = await generateFingerprint();
       const token = getStorageToken();
 
-      // 1. Close any active radacct sessions for this user
+      // 1. Close any active radacct sessions for this user (sets acctstoptime)
       if (authResult?.username) {
-        await fetch('/api/wifi/radius', {
+        await fetch('/api/v1/wifi/disconnect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            action: 'live-sessions-disconnect',
             username: authResult.username,
           }),
         }).catch(() => {});
       }
 
-      // 2. Delete device profile (removes auto-auth capability)
-      const params = new URLSearchParams();
-      if (token) params.set('storageToken', token);
-      else params.set('fingerprintHash', fp.hash);
-      await fetch(`/api/v1/wifi/auto-auth?${params.toString()}`, {
-        method: 'DELETE',
-      }).catch(() => {});
-
-      // 3. Clear localStorage token
+      // 2. Clear localStorage token — on next visit, auto-auth will
+      //    generate a new token and match by fingerprintHash (Strategy 2),
+      //    then save the new token to the existing DeviceProfile.
       clearStorageToken();
     } catch {
       // Best effort — proceed with reset regardless
