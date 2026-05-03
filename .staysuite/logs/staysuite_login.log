@@ -10,3 +10,5 @@
 2026-05-03 03:26:19 [LOGOUT] DONE: ip=21.0.0.1
 2026-05-03 05:28:47 [LOGOUT] START: ip=21.0.0.1 mark=0x15000001 session= dn_cls=0 up_cls=0 pool=0
 2026-05-03 05:28:48 [LOGOUT] DONE: ip=21.0.0.1
+2026-05-03 06:04:41 [LOGIN] LOGIN: ip=21.0.0.1 mark=0x15000001 action=masq pool=1033 dn=819k up=410k session=1777788281479-1e41fdad
+2026-05-03 06:04:41 [LOGIN][ERR] nft: failed to add 21.0.0.1 to loggedinusers

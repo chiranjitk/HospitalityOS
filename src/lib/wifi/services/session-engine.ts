@@ -113,6 +113,12 @@ const lastActivityMap = new Map<string, number>();
 // Bug 7: Concurrency guard to prevent overlapping runs
 let isRunning = false;
 
+// ── nftables availability cache ──────────────────────────────────
+// When nft is not installed (e.g. dev/sandbox), the engine falls back
+// to using radacct timestamps for idle detection instead of nftables.
+let nftablesAvailable: boolean | null = null; // null = not yet checked
+let nftablesCheckedAt = 0;
+
 // ────────────────────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────────────────────
@@ -193,8 +199,16 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
     };
 
     try {
-      // ── Step 1: Ensure counter table exists ──
-      setupCounterTable();
+      // ── Step 0: Check nftables availability (cached for 5 min) ──
+      nftablesAvailable = checkNftablesAvailability();
+      if (!nftablesAvailable) {
+        SELog.warn('nftables not available — running in FALLBACK mode (radacct-based idle detection)');
+      }
+
+      // ── Step 1: Ensure counter table exists (skip in fallback mode) ──
+      if (nftablesAvailable) {
+        setupCounterTable();
+      }
 
       // ── Step 2: Get all active sessions from radacct ──
       const activeSessions = await getActiveSessions();
@@ -207,16 +221,19 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
         // Don't return early — still need to recordRunResult for status tracking
       } else {
 
-      // ── Step 3: Read all per-IP byte counters from nftables ──
-      const counterData = readAllCounters();
+      // ── Step 3: Read all per-IP byte counters from nftables (skip in fallback mode) ──
       const counterMap = new Map<string, IPByteCount>();
-      for (const c of counterData.counts) {
-        counterMap.set(c.ip, c);
+      if (nftablesAvailable) {
+        const counterData = readAllCounters();
+        for (const c of counterData.counts) {
+          counterMap.set(c.ip, c);
+        }
       }
 
       SELog.info(
         `Processing ${activeSessions.length} sessions, ` +
-        `${counterData.counts.length} counter rules found`
+        `${counterMap.size} counter rules found` +
+        (nftablesAvailable ? '' : ' [FALLBACK]')
       );
 
       // ── Step 4: Process each session ──
@@ -295,6 +312,169 @@ async function getActiveSessions(): Promise<ActiveSession[]> {
 }
 
 /**
+ * Check if nftables is available on this system.
+ * Result is cached for 5 minutes to avoid repeated execSync calls.
+ */
+function checkNftablesAvailability(): boolean {
+  const now = Date.now();
+  if (nftablesAvailable !== null && (now - nftablesCheckedAt) < 300_000) {
+    return nftablesAvailable;
+  }
+  try {
+    const { execSync } = require('child_process');
+    execSync('which nft 2>/dev/null', { encoding: 'utf-8', timeout: 3000 });
+    nftablesAvailable = true;
+  } catch {
+    nftablesAvailable = false;
+  }
+  nftablesCheckedAt = now;
+  return nftablesAvailable;
+}
+
+/**
+ * FALLBACK mode: Check idle timeout, session timeout, and data limit
+ * when nftables counters are not available.
+ *
+ * Idle detection strategy: Compare radacct byte totals between cycles.
+ * Since the session engine updates radacct each cycle, we track the
+ * previous total in lastActivityMap and compare. If bytes haven't
+ * changed, the user is idle.
+ */
+async function checkPoliciesFallback(
+  session: ActiveSession,
+  ip: string,
+  sessionTime: number,
+  result: SessionEngineResult
+): Promise<void> {
+  const newDownloadBytes = Number(session.acctinputoctets);
+  const newUploadBytes = Number(session.acctoutputoctets);
+  const newTotal = newDownloadBytes + newUploadBytes;
+
+  // ── Idle timeout check (fallback: track byte changes across cycles) ──
+  const idleTimeout = await getIdleTimeoutForUser(session.username);
+  if (idleTimeout > 0) {
+    // Retrieve previous total bytes for this IP
+    const prevTotalKey = `__prevTotal__${ip}`;
+    const prevTotal = lastActivityMap.get(prevTotalKey);
+
+    if (prevTotal !== undefined && newTotal <= prevTotal) {
+      // No new bytes since last cycle → increment idle counter
+      const idleStart = lastActivityMap.get(ip) || Date.now();
+      lastActivityMap.set(ip, idleStart);
+      const idleSeconds = Math.floor((Date.now() - idleStart) / 1000);
+
+      if (idleSeconds >= idleTimeout) {
+        SELog.info(
+          `[FALLBACK] IDLE TIMEOUT: ${session.username} (${ip}) — ` +
+          `idle for ${idleSeconds}s (limit: ${idleTimeout}s), bytes unchanged: ${newTotal}`
+        );
+        await disconnectSessionFallback(session, 'Idle-Timeout', newDownloadBytes, newUploadBytes);
+        lastActivityMap.delete(ip);
+        lastActivityMap.delete(prevTotalKey);
+        result.idleTimeoutDisconnected++;
+        result.disconnectedSessions.push({ username: session.username, ip, reason: 'Idle-Timeout' });
+        return;
+      }
+    } else {
+      // Bytes changed → user is active, reset idle timer
+      lastActivityMap.set(ip, Date.now());
+    }
+    // Store current total for next cycle comparison
+    lastActivityMap.set(prevTotalKey, newTotal);
+  }
+
+  // ── Session timeout check ──
+  const sessionTimeout = await getSessionTimeoutForUser(session.username);
+  if (sessionTimeout > 0 && sessionTime >= sessionTimeout) {
+    SELog.info(
+      `[FALLBACK] SESSION TIMEOUT: ${session.username} (${ip}) — ` +
+      `${sessionTime}s (limit: ${sessionTimeout}s)`
+    );
+    await disconnectSessionFallback(session, 'Session-Timeout', newDownloadBytes, newUploadBytes);
+    result.sessionTimeoutDisconnected++;
+    result.disconnectedSessions.push({ username: session.username, ip, reason: 'Session-Timeout' });
+    return;
+  }
+
+  // ── Data limit check ──
+  const dataLimitBytes = await getDataLimitForUser(session.username);
+  if (dataLimitBytes > 0 && newTotal >= dataLimitBytes) {
+    SELog.info(
+      `[FALLBACK] DATA LIMIT EXCEEDED: ${session.username} (${ip}) — ` +
+      `${Math.round(newTotal / (1024 * 1024))}MB used of ${Math.round(dataLimitBytes / (1024 * 1024))}MB limit`
+    );
+    await disconnectSessionFallback(session, 'Data-Limit-Exceeded', newDownloadBytes, newUploadBytes);
+    result.dataLimitDisconnected++;
+    result.disconnectedSessions.push({ username: session.username, ip, reason: 'Data-Limit-Exceeded' });
+    return;
+  }
+}
+
+/**
+ * FALLBACK mode: Disconnect a session without nftables.
+ * Uses CoA (Change of Authorization) to tell the NAS to terminate the session,
+ * then closes radacct and WiFiSession records.
+ */
+async function disconnectSessionFallback(
+  session: ActiveSession,
+  reason: string,
+  downloadBytes: number,
+  uploadBytes: number
+): Promise<void> {
+  SELog.info(`[FALLBACK] Disconnecting ${session.username}: ${reason}`);
+
+  // Close radacct record
+  await db.$executeRawUnsafe(`
+    UPDATE radacct SET
+      acctstoptime = NOW(),
+      acctterminatecause = $1,
+      acctsessiontime = $2,
+      acctinputoctets = $3,
+      acctoutputoctets = $4
+    WHERE radacctid = $5 AND acctstoptime IS NULL
+  `, reason, Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000), downloadBytes, uploadBytes, session.radacctid);
+
+  // Close WiFiSession
+  try {
+    await db.wiFiSession.updateMany({
+      where: {
+        username: session.username,
+        status: 'active',
+      },
+      data: {
+        status: reason === 'Session-Cleanup' ? 'disconnected' : 'terminated',
+        endTime: new Date(),
+        downloadBytes,
+        uploadBytes,
+      },
+    });
+  } catch {
+    // Non-fatal
+  }
+
+  // Try CoA disconnect via the RADIUS API (internal call)
+  try {
+    const coaRes = await fetch(`http://127.0.0.1:${process.env.PORT || 3000}/api/wifi/radius`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'coa-disconnect',
+        username: session.username,
+        nasIp: '127.0.0.1',
+        reason,
+      }),
+    });
+    SELog.info(`[FALLBACK] CoA disconnect response for ${session.username}: ${coaRes.status}`);
+  } catch (coaErr) {
+    SELog.warn(`[FALLBACK] CoA disconnect failed for ${session.username}: ${coaErr instanceof Error ? coaErr.message : String(coaErr)}`);
+  }
+
+  // Clean up idle tracking
+  lastActivityMap.delete(session.framedipaddress);
+  lastActivityMap.delete(`__prevTotal__${session.framedipaddress}`);
+}
+
+/**
  * Process a single session: read counters, update accounting, enforce policies.
  */
 async function processSession(
@@ -306,23 +486,28 @@ async function processSession(
   const counter = counterMap.get(ip);
 
   // ── Check if IP is still in nftables (authenticated) ──
-  const isAuthed = isIPAuthenticated(ip);
-  if (!isAuthed) {
-    // IP removed from firewall → session is gone (user left, DHCP expired, etc.)
-    SELog.info(`Stale session: ${session.username} (${ip}) — IP not in nftables`);
-    // Bug 9: Before closing stale session, read the counter to preserve last-cycle data
-    const staleCounter = counterMap.get(ip);
-    const dl = staleCounter ? staleCounter.downloadBytes : Number(session.acctinputoctets);
-    const ul = staleCounter ? staleCounter.uploadBytes : Number(session.acctoutputoctets);
-    await closeSession(session, 'Session-Cleanup', dl, ul);
-    result.staleCleaned++;
-    return;
+  // In FALLBACK mode (no nftables), skip stale check — rely on radacct timestamps
+  if (nftablesAvailable) {
+    const isAuthed = isIPAuthenticated(ip);
+    if (!isAuthed) {
+      // IP removed from firewall → session is gone (user left, DHCP expired, etc.)
+      SELog.info(`Stale session: ${session.username} (${ip}) — IP not in nftables`);
+      // Bug 9: Before closing stale session, read the counter to preserve last-cycle data
+      const staleCounter = counterMap.get(ip);
+      const dl = staleCounter ? staleCounter.downloadBytes : Number(session.acctinputoctets);
+      const ul = staleCounter ? staleCounter.uploadBytes : Number(session.acctoutputoctets);
+      await closeSession(session, 'Session-Cleanup', dl, ul);
+      result.staleCleaned++;
+      return;
+    }
   }
 
   // ── Check if counter rule exists for this IP ──
   if (!counter) {
-    // No counter rule yet — add one for future tracking
-    addUserCounter(ip);
+    if (nftablesAvailable) {
+      // No counter rule yet — add one for future tracking
+      addUserCounter(ip);
+    }
     // Still update session time even without byte data
     // Bug 14: Use safeGetTime for defensive Date handling
     const sessionTime = Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000);
@@ -336,6 +521,11 @@ async function processSession(
     // Also update WiFiSession
     // Bug 3: Number() wrapping for BigInt safety
     await updateWiFiSession(session.username, session.callingstationid, Number(session.acctinputoctets), Number(session.acctoutputoctets), sessionTime);
+
+    // In FALLBACK mode, still check idle/session/data-limit even without counters
+    if (!nftablesAvailable) {
+      await checkPoliciesFallback(session, ip, sessionTime, result);
+    }
     return;
   }
 
@@ -364,6 +554,20 @@ async function processSession(
   const delta = counterReset ? 0 : Math.max(0, newTotal - prevTotal);
   const downloadDelta = counterReset ? 0 : Math.max(0, newDownloadBytes - prevDownload);
   const uploadDelta = counterReset ? 0 : Math.max(0, newUploadBytes - prevUpload);
+
+  // ── FALLBACK idle detection (when nftables is available but counter shows no delta) ──
+  // If delta === 0 but radacct.acctupdatetime hasn't changed since last cycle,
+  // the user is truly idle. This catches edge cases where nftables counters exist
+  // but aren't incrementing (e.g. firewall rule ordering issues).
+  if (delta === 0 && !counterReset) {
+    const lastUpdate = safeGetTime(session.acctupdatetime);
+    const updateAgeSeconds = Math.floor((Date.now() - lastUpdate) / 1000);
+    // If radacct hasn't been updated in > 2 minutes and no nftables delta,
+    // force the idle path
+    if (updateAgeSeconds > 120) {
+      lastActivityMap.delete(ip); // Clear any stale timestamp
+    }
+  }
 
   // ── Calculate session time ──
   // Bug 14: Use safeGetTime for defensive Date handling
