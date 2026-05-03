@@ -585,7 +585,7 @@ export default function IpPoolManagement() {
                 <TableHead className="text-center">Ranges</TableHead>
                 <TableHead className="text-center">Total IPs</TableHead>
                 <TableHead className="text-center">Plans</TableHead>
-                <TableHead className="text-center">Users</TableHead>
+                <TableHead className="text-center">Overrides</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
