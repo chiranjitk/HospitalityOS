@@ -723,6 +723,15 @@ export async function POST(request: NextRequest) {
       }
 
       // ─── Room Number ──────────────────────────────────────
+      // Unification: If a PMS-provisioned WiFiUser already exists for this
+      // guest/booking, reuse it instead of creating a duplicate room-{number}
+      // user. This gives the guest plan-level bandwidth, data limits, and
+      // session timeout from their actual WiFi plan (not portal defaults).
+      //
+      // Lookup priority:
+      //   1. WiFiUser where bookingId = match.id  (PMS auto-provisioned for this booking)
+      //   2. WiFiUser where guestId = match.primaryGuestId AND status = 'active'
+      //   3. Fallback: create room-{number} user (original behavior)
       case 'room_number': {
         if (!roomNumber?.trim()) {
           return errorResponse('MISSING_ROOM', 'Please enter your room number');
@@ -756,13 +765,142 @@ export async function POST(request: NextRequest) {
           });
           roomPlanIpPoolId = roomPlan?.ipPoolId ?? null;
         }
+
+        const now = new Date();
+
+        // ── Look for existing PMS-provisioned WiFiUser ──
+        // Priority 1: Exact booking match (most precise — created at check-in)
+        const existingByBooking = await db.wiFiUser.findFirst({
+          where: { bookingId: match.id, status: { in: ['active', 'suspended'] } },
+          include: { plan: { select: { ipPoolId: true, maxDevices: true, validityMinutes: true, validityDays: true, downloadSpeed: true, uploadSpeed: true, name: true } } },
+        });
+
+        // Priority 2: Same guest, active user (covers cases where bookingId wasn't set)
+        const existingByGuest = !existingByBooking
+          ? await db.wiFiUser.findFirst({
+              where: { guestId: match.primaryGuestId, status: 'active', propertyId: match.propertyId },
+              include: { plan: { select: { ipPoolId: true, maxDevices: true, validityMinutes: true, validityDays: true, downloadSpeed: true, uploadSpeed: true, name: true } } },
+            })
+          : null;
+
+        const existingUser = existingByBooking || existingByGuest;
+        const reuseExisting = !!existingUser;
+
+        if (reuseExisting) {
+          // ── Reuse existing PMS-provisioned user ──
+          // This guest was auto-provisioned at check-in — use their plan attrs
+          const pmsUser = existingUser!;
+
+          if (pmsUser.status !== 'active') {
+            await logAuthAttempt(pmsUser.username, 'Access-Reject', request, 'ACCOUNT_INACTIVE');
+            return errorResponse('ACCOUNT_INACTIVE', 'Your WiFi account is not active. Please contact front desk.');
+          }
+
+          if (new Date(pmsUser.validUntil) < now) {
+            await logAuthAttempt(pmsUser.username, 'Access-Reject', request, 'ACCOUNT_EXPIRED');
+            return errorResponse('ACCOUNT_EXPIRED', 'Your WiFi session has expired. Please contact front desk to renew.');
+          }
+
+          const allowedPools = resolveAllowedPoolIds(pmsUser.plan?.ipPoolId || roomPlanIpPoolId, pmsUser.ipPoolId);
+          const pool = await getValidatedPool(request, allowedPools);
+          if (!pool) {
+            await logAuthAttempt(pmsUser.username, 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
+            return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
+          }
+
+          // Ensure RADIUS credentials exist (may have been deleted between sessions)
+          const existingCheck = await db.radCheck.findFirst({ where: { username: pmsUser.username } });
+          if (!existingCheck) {
+            try { await wifiUserService.resumeUser(pmsUser.id); } catch { /* best effort */ }
+          }
+
+          // Check concurrent session limit
+          const pmsMaxSessions = pmsUser.maxSessions || pmsUser.plan?.maxDevices || 1;
+          if (await isSessionLimitReached(pmsUser.username, pmsMaxSessions)) {
+            await logAuthAttempt(pmsUser.username, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
+            return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
+          }
+
+          const radiusResult = await radiusAuth(pmsUser.username, pmsUser.password);
+          if (!radiusResult.accepted) {
+            await logAuthAttempt(pmsUser.username, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
+            return errorResponse(radiusResult.rejectReason || 'AUTH_FAILED', getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED'));
+          }
+
+          // ── Calculate remaining validity (NEVER reset validUntil) ──
+          const planValidityMin = pmsUser.plan?.validityMinutes
+            || (pmsUser.plan?.validityDays ? pmsUser.plan.validityDays * 1440 : null)
+            || portalSessionTimeoutMin;
+          const remainingMs = new Date(pmsUser.validUntil).getTime() - now.getTime();
+          const remainingMinutes = Math.max(0, Math.ceil(remainingMs / 60000));
+          const remainingSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+
+          // Cap RADIUS Session-Timeout to remaining validity
+          const cappedSessionTimeoutSec = Math.min(planValidityMin * 60, remainingSeconds);
+          await db.radReply.deleteMany({ where: { username: pmsUser.username, attribute: 'Session-Timeout' } });
+          await db.radReply.create({
+            data: {
+              wifiUserId: pmsUser.id, username: pmsUser.username,
+              attribute: 'Session-Timeout', op: ':=',
+              value: String(cappedSessionTimeoutSec), isActive: true,
+            },
+          });
+
+          // Update last activity timestamp
+          await db.wiFiUser.update({ where: { id: pmsUser.id }, data: { validFrom: now } });
+
+          // Read bandwidth from radreply (user-level overrides > group-level)
+          const pmsRadreply = await db.radReply.findMany({ where: { username: pmsUser.username } });
+          const getRadReplyVal = (attr: string): string | undefined =>
+            pmsRadreply.find(r => r.attribute === attr)?.value;
+          const pmsBwDownBps = getRadReplyVal('WISPr-Bandwidth-Max-Down') || getRadReplyVal('Cryptsk-Bandwidth-Max-Down');
+          const pmsBwUpBps = getRadReplyVal('WISPr-Bandwidth-Max-Up') || getRadReplyVal('Cryptsk-Bandwidth-Max-Up');
+          const pmsBwDown = pmsBwDownBps ? Math.round(Number(pmsBwDownBps) / 1000000) : (pmsUser.plan?.downloadSpeed || bwDown);
+          const pmsBwUp = pmsBwUpBps ? Math.round(Number(pmsBwUpBps) / 1000000) : (pmsUser.plan?.uploadSpeed || bwUp);
+
+          await logAuthAttempt(pmsUser.username, 'Access-Accept', request, `pool:${pool.poolName} reuse:pms plan:${pmsUser.plan?.name || 'none'}`);
+          const sessionId = await createAccountingSession(pmsUser.username, request, 'portal', effectiveMac, pool);
+
+          await activateUserFirewall({
+            username: pmsUser.username, clientIp: getClientIpString(request),
+            propertyId: match.propertyId, sessionId,
+            macAddress: effectiveMac, userId: pmsUser.id,
+            maxBandwidthDownBytes: pmsBwDownBps ? Number(pmsBwDownBps) : portal?.maxBandwidthDown,
+            maxBandwidthUpBytes: pmsBwUpBps ? Number(pmsBwUpBps) : portal?.maxBandwidthUp,
+            subnet: pool.subnet,
+          });
+
+          const pmsCounterIp = normalizeIp(getClientIpString(request));
+          if (pmsCounterIp && pmsCounterIp !== '0.0.0.0') {
+            addUserCounter(pmsCounterIp);
+          }
+
+          // ── Save device profile with real browser fingerprint ──
+          await upsertDeviceProfileWithFingerprint({
+            wifiUserId: pmsUser.id, tenantId: pmsUser.tenantId,
+            propertyId: pmsUser.propertyId, guestId: pmsUser.guestId,
+            username: pmsUser.username, request,
+            macAddress: effectiveMac, fingerprintHash, storageToken,
+          });
+
+          return successResponse({
+            authenticated: true, method: 'room_number', username: pmsUser.username,
+            sessionTimeout: planValidityMin, remainingMinutes,
+            bandwidthDown: pmsBwDown, bandwidthUp: pmsBwUp,
+            poolName: pool.poolName, planName: pmsUser.plan?.name || null,
+            message: 'Connected successfully!',
+          });
+        }
+
+        // ── No PMS user found — fallback: create room-{number} user ──
+        console.log(`[Room Auth] No PMS user found for booking ${match.id} / guest ${match.primaryGuestId} — falling back to room-${match.room?.roomNumber?.toLowerCase() || roomNumber.trim().toLowerCase()}`);
+
         const pool = await getValidatedPool(request, resolveAllowedPoolIds(roomPlanIpPoolId));
         if (!pool) {
           await logAuthAttempt(`room-${roomNumber.trim().toLowerCase()}`, 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
           return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
         }
 
-        const now = new Date();
         const validUntil = new Date(now.getTime() + portalSessionTimeoutMin * 60 * 1000);
         const wifiUsername = `room-${match.room?.roomNumber?.toLowerCase() || roomNumber.trim().toLowerCase()}`;
         const userPassword = `${match.primaryGuest.lastName.toLowerCase()}-${match.id.slice(0, 8)}`;
@@ -797,7 +935,7 @@ export async function POST(request: NextRequest) {
           return errorResponse(radiusResult.rejectReason || 'AUTH_FAILED', getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED'));
         }
 
-        await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
+        await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName} fallback:room_user`);
         const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool);
 
         await activateUserFirewall({
