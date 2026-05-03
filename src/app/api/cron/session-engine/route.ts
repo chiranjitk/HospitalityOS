@@ -16,11 +16,14 @@ import { NextRequest, NextResponse } from 'next/server';
 //   4. Enforces idle timeout → disconnect
 //   5. Enforces data limits → disconnect
 //   6. Cleans up stale sessions
+//
+// Logs are written to: logs/session-engine.log
 // ────────────────────────────────────────────────────────────────
 
-const CRON_SECRET = process.env.CRON_SECRET || 'staysuite-cron-secret-2024';
+const CRON_SECRET = process.env.CRON_SECRET || (process.env.NODE_ENV !== 'production' ? 'dev-only-cron-secret' : '');
 
 function verifyCronSecret(request: NextRequest): boolean {
+  if (!CRON_SECRET) return false;
   const secret = request.headers.get('x-cron-secret');
   return secret === CRON_SECRET;
 }
@@ -54,7 +57,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET — Get session engine status
+// GET — Get session engine diagnostics (status + logs + health)
 export async function GET(request: NextRequest) {
   if (!verifyCronSecret(request)) {
     return NextResponse.json(
@@ -64,16 +67,16 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { getSessionEngineStatus } = await import('@/lib/wifi/services/session-engine');
-    const status = await getSessionEngineStatus();
+    const { getSessionEngineDiagnostics } = await import('@/lib/wifi/services/session-engine');
+    const diagnostics = await getSessionEngineDiagnostics();
 
     return NextResponse.json({
       success: true,
-      data: status,
+      data: diagnostics,
     });
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: 'Failed to get session engine status' },
+      { success: false, error: 'Failed to get session engine diagnostics' },
       { status: 500 }
     );
   }

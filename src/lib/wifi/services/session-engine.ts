@@ -61,6 +61,7 @@ import {
   deauthIP,
   type IPByteCount,
 } from '@/lib/wifi/utils/nftables-counters';
+import * as SELog from './session-engine-logger';
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -157,9 +158,9 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
     result.sessionsProcessed = activeSessions.length;
 
     if (activeSessions.length === 0) {
-      console.log('[SessionEngine] No active sessions found');
-      return result;
-    }
+      SELog.info('No active sessions found');
+      // Don't return early — still need to recordRunResult for status tracking
+    } else {
 
     // ── Step 3: Read all per-IP byte counters from nftables ──
     const counterData = readAllCounters();
@@ -168,8 +169,8 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
       counterMap.set(c.ip, c);
     }
 
-    console.log(
-      `[SessionEngine] Processing ${activeSessions.length} sessions, ` +
+    SELog.info(
+      `Processing ${activeSessions.length} sessions, ` +
       `${counterData.counts.length} counter rules found`
     );
 
@@ -179,9 +180,8 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
         await processSession(session, counterMap, result);
       } catch (err) {
         result.errors++;
-        console.error(
-          `[SessionEngine] Error processing session ${session.username} (${session.framedipaddress}):`,
-          err
+        SELog.error(
+          `Error processing session ${session.username} (${session.framedipaddress}): ${err instanceof Error ? err.message : String(err)}`
         );
       }
     }
@@ -190,8 +190,8 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
     const duration = Date.now() - startTime;
     result.durationMs = duration;
 
-    console.log(
-      `[SessionEngine] Cycle complete in ${duration}ms: ` +
+    SELog.info(
+      `Cycle complete in ${duration}ms: ` +
       `${result.interimUpdated} updated, ` +
       `${result.sessionTimeoutDisconnected} session-timeout, ` +
       `${result.idleTimeoutDisconnected} idle-timeout, ` +
@@ -199,10 +199,14 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
       `${result.staleCleaned} stale, ` +
       `${result.errors} errors`
     );
+    } // end else (activeSessions.length > 0)
   } catch (err) {
-    console.error('[SessionEngine] Fatal error:', err);
+    SELog.error(`Fatal error: ${err instanceof Error ? err.message : String(err)}`);
     result.errors++;
   }
+
+  // ── Step 6: Record run result for status tracking ──
+  SELog.recordRunResult(result);
 
   return result;
 }
@@ -249,7 +253,7 @@ async function processSession(
   const isAuthed = isIPAuthenticated(ip);
   if (!isAuthed) {
     // IP removed from firewall → session is gone (user left, DHCP expired, etc.)
-    console.log(`[SessionEngine] Stale session: ${session.username} (${ip}) — IP not in nftables`);
+    SELog.info(`Stale session: ${session.username} (${ip}) — IP not in nftables`);
     await closeSession(session, 'Session-Cleanup', 0, 0);
     result.staleCleaned++;
     return;
@@ -298,8 +302,8 @@ async function processSession(
     const idleSeconds = Math.floor((Date.now() - lastActivity) / 1000);
 
     if (idleSeconds >= idleTimeout) {
-      console.log(
-        `[SessionEngine] IDLE TIMEOUT: ${session.username} (${ip}) — ` +
+      SELog.info(
+        `IDLE TIMEOUT: ${session.username} (${ip}) — ` +
         `idle for ${idleSeconds}s (limit: ${idleTimeout}s)`
       );
       await disconnectSession(session, 'Idle-Timeout', newDownloadBytes, newUploadBytes);
@@ -316,8 +320,8 @@ async function processSession(
   // ── Check session timeout ──
   const sessionTimeout = await getSessionTimeoutForUser(session.username);
   if (sessionTimeout > 0 && sessionTime >= sessionTimeout) {
-    console.log(
-      `[SessionEngine] SESSION TIMEOUT: ${session.username} (${ip}) — ` +
+    SELog.info(
+      `SESSION TIMEOUT: ${session.username} (${ip}) — ` +
       `${sessionTime}s (limit: ${sessionTimeout}s)`
     );
     await disconnectSession(session, 'Session-Timeout', newDownloadBytes, newUploadBytes);
@@ -333,8 +337,8 @@ async function processSession(
   // ── Check data limit ──
   const dataLimitBytes = await getDataLimitForUser(session.username);
   if (dataLimitBytes > 0 && newTotal >= dataLimitBytes) {
-    console.log(
-      `[SessionEngine] DATA LIMIT EXCEEDED: ${session.username} (${ip}) — ` +
+    SELog.info(
+      `DATA LIMIT EXCEEDED: ${session.username} (${ip}) — ` +
       `${Math.round(newTotal / (1024 * 1024))}MB used of ${Math.round(dataLimitBytes / (1024 * 1024))}MB limit`
     );
     await disconnectSession(session, 'Data-Limit-Exceeded', newDownloadBytes, newUploadBytes);
@@ -493,7 +497,7 @@ async function updateWiFiSession(
     }
   } catch (err) {
     // Non-fatal
-    console.warn(`[SessionEngine] Failed to update WiFiSession for ${username}:`, err);
+    SELog.warn(`Failed to update WiFiSession for ${username}: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -605,8 +609,8 @@ async function disconnectSession(
     }
   }
 
-  console.log(
-    `[SessionEngine] Disconnected: ${session.username} (${ip}) — ` +
+  SELog.info(
+    `Disconnected: ${session.username} (${ip}) — ` +
     `reason: ${reason}, ` +
     `duration: ${sessionTime}s, ` +
     `data: ${Math.round((downloadBytes + uploadBytes) / (1024 * 1024))}MB`
@@ -696,14 +700,31 @@ export async function getSessionEngineStatus(): Promise<{
 
   const counterData = readAllCounters();
 
+  // Get lastRun from the logger
+  const logStatus = SELog.getStatus({ activeSessions, counterIPs: counterData.counts.length });
+
   return {
     activeSessions,
     totalDownloadMB: Math.round((totals._sum.acctinputoctets || 0) / (1024 * 1024)),
     totalUploadMB: Math.round((totals._sum.acctoutputoctets || 0) / (1024 * 1024)),
     counterIPs: counterData.counts.length,
     idleTrackingEntries: lastActivityMap.size,
-    lastRun: null, // Could be tracked with a module-level variable
+    lastRun: logStatus.lastRunAt ? new Date(logStatus.lastRunAt) : null,
   };
+}
+
+/**
+ * Get the full session engine diagnostic status (for admin monitoring).
+ * Includes log entries, file info, and run history.
+ */
+export async function getSessionEngineDiagnostics(): Promise<SELog.SessionEngineStatus> {
+  const activeSessions = await db.radAcct.count({
+    where: { acctstoptime: null as any },
+  });
+
+  const counterData = readAllCounters();
+
+  return SELog.getStatus({ activeSessions, counterIPs: counterData.counts.length });
 }
 
 /**
