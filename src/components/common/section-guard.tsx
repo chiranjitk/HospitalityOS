@@ -1,8 +1,8 @@
 'use client';
 
 import { usePermissions } from '@/contexts/PermissionContext';
-import { ShieldX } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useAuth } from '@/contexts/AuthContext';
+import { ShieldX, Loader2 } from 'lucide-react';
 
 interface SectionGuardProps {
   permission: string;
@@ -11,8 +11,18 @@ interface SectionGuardProps {
 }
 
 export function SectionGuard({ permission, children, fallback }: SectionGuardProps) {
-  const t = useTranslations('common');
   const { hasPermission } = usePermissions();
+  const { isLoading } = useAuth();
+
+  // While auth is loading, show a loader instead of "Access Denied"
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[300px] space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Verifying permissions...</p>
+      </div>
+    );
+  }
 
   if (!hasPermission(permission)) {
     if (fallback) return <>{fallback}</>;

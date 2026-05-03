@@ -84,6 +84,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (data?.success && data?.user) {
         setUser(data.user);
+
+        // If session requires refresh (idle timeout), re-authenticate silently
+        if (data.requiresRefresh) {
+          console.log('[Auth] Session requires refresh — re-authenticating...');
+          try {
+            const refreshRes = await fetch('/api/auth/session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'refresh' }),
+            });
+            const refreshData = await refreshRes.json();
+            if (refreshData?.success && refreshData?.user) {
+              setUser(refreshData.user);
+            }
+            // If refresh failed, keep the user logged in — don't silently log out
+          } catch {
+            // Keep user logged in even if refresh fails
+          }
+        }
       } else {
         setUser(null);
       }

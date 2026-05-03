@@ -133,9 +133,11 @@ export async function GET(request: NextRequest) {
     if (session.lastActive) {
       const idleDuration = Date.now() - session.lastActive.getTime();
       if (idleDuration > idleTimeoutMs) {
-        // Session is idle too long — require refresh
+        // Session is idle too long — require refresh but keep user data
+        // so the client can still render the UI and prompt for refresh
         return NextResponse.json({
           success: true,
+          user: buildUserResponse(user),
           requiresRefresh: true,
           message: `Session idle for too long (${securitySettings.idleTimeoutMinutes} minutes). Please refresh your session.`,
         });
