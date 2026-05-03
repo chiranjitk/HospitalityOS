@@ -54,8 +54,23 @@ function ensureLogDir(): void {
   }
 }
 
+const LOG_TIMEZONE = process.env.SE_LOG_TIMEZONE || 'Asia/Kolkata';
+
+function formatTimestamp(): string {
+  return new Date().toLocaleString('en-IN', {
+    timeZone: LOG_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).replace(/\//g, '-');
+}
+
 function formatLine(level: string, message: string): string {
-  const ts = new Date().toISOString();
+  const ts = formatTimestamp();
   return `[${ts}] [${level}] [SessionEngine] ${message}`;
 }
 
