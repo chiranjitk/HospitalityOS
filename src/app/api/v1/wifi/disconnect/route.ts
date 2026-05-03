@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { runLogoutScript } from '@/lib/network/script-runner';
+import { removeUserCounter, deauthIP } from '@/lib/wifi/utils/nftables-counters';
 
 // ────────────────────────────────────────────────────────────────
 // POST /api/v1/wifi/disconnect
@@ -85,6 +86,15 @@ export async function POST(request: NextRequest) {
       // WiFiSession may not exist or have no matching rows — non-fatal
     }
 
+    // ── Remove per-IP byte counter rules (session engine tracking) ──
+    if (clientIp && clientIp !== '0.0.0.0') {
+      try {
+        removeUserCounter(clientIp);
+      } catch {
+        // Non-fatal
+      }
+    }
+
     // ── Call staysuite_logout.sh to remove firewall + bandwidth rules ──
     // The logout script will:
     //   - Remove IP from nft loggedinusers set (blocks traffic)
@@ -108,6 +118,10 @@ export async function POST(request: NextRequest) {
         // Non-fatal — firewall cleanup failure should not block disconnect
         console.error('[Guest Disconnect] Exception calling logout script:', err);
       }
+
+      // ── Deauth IP from nftables authenticated_users set ──
+      // This immediately blocks internet access even if the logout script failed
+      deauthIP(clientIp);
     } else {
       console.warn(`[Guest Disconnect] No client IP found for ${username} — skipping firewall cleanup`);
     }
