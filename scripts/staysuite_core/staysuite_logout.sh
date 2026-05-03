@@ -16,8 +16,11 @@
 set -uo pipefail
 
 LOGFILE="${LOGFILE:-/var/log/staysuite_login.log}"
-log_msg()  { echo "$(date '+%Y-%m-%d %H:%M:%S') [LOGOUT] $*" >> "$LOGFILE" 2>/dev/null; }
-log_err()  { echo "$(date '+%Y-%m-%d %H:%M:%S') [LOGOUT][ERR] $*" >> "$LOGFILE" 2>/dev/null; }
+LOGDIR="$(dirname "$LOGFILE")"
+mkdir -p "$LOGDIR" 2>/dev/null || LOGFILE="/dev/null"
+[[ -w "$LOGDIR" ]] || LOGFILE="/dev/null"
+log_msg()  { echo "$(date '+%Y-%m-%d %H:%M:%S') [LOGOUT] $*" >> "$LOGFILE" 2>/dev/null || true; }
+log_err()  { echo "$(date '+%Y-%m-%d %H:%M:%S') [LOGOUT][ERR] $*" >> "$LOGFILE" 2>/dev/null || true; }
 
 STATEDIR="${SS_STATEDIR:-/var/run/staysuite/sessions}"
 PERSIST_STATEDIR="${SS_PERSIST_STATEDIR:-/var/lib/staysuite/sessions}"

@@ -26,6 +26,7 @@ module.exports = {
         NEXTAUTH_URL: 'http://localhost:3000',
         NEXT_DISABLE_TURBOPACK: '1',
         NODE_OPTIONS: '--max-old-space-size=1536',
+        STAYSUITE_SCRIPTS_DIR: '/home/z/my-project/scripts/staysuite_core',
       },
       max_memory_restart: '2G',
     },

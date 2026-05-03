@@ -52,8 +52,12 @@ set -euo pipefail
 
 # ─── Logging ──────────────────────────────────────────────────────────
 LOGFILE="${LOGFILE:-/var/log/staysuite_login.log}"
-log_msg()  { echo "$(date '+%Y-%m-%d %H:%M:%S') [LOGIN] $*" >> "$LOGFILE" 2>/dev/null; }
-log_err()  { echo "$(date '+%Y-%m-%d %H:%M:%S') [LOGIN][ERR] $*" >> "$LOGFILE" 2>/dev/null; }
+# Ensure log directory is writable (dev/sandbox: may not have /var/log access)
+LOGDIR="$(dirname "$LOGFILE")"
+mkdir -p "$LOGDIR" 2>/dev/null || LOGFILE="/dev/null"
+[[ -w "$LOGDIR" ]] || LOGFILE="/dev/null"
+log_msg()  { echo "$(date '+%Y-%m-%d %H:%M:%S') [LOGIN] $*" >> "$LOGFILE" 2>/dev/null || true; }
+log_err()  { echo "$(date '+%Y-%m-%d %H:%M:%S') [LOGIN][ERR] $*" >> "$LOGFILE" 2>/dev/null || true; }
 
 # ─── State directories (overridable via env for sandbox/testing) ─────
 STATEDIR="${SS_STATEDIR:-/var/run/staysuite/sessions}"          # tmpfs — fast logout lookup
