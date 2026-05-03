@@ -1314,8 +1314,9 @@ export async function GET(request: NextRequest) {
           // Build daily usage breakdown
           const dailyMap = new Map<string, { downloadBytes: number; uploadBytes: number }>();
           for (const r of userRecords) {
-            if (r.acctupdatetime) {
-              const dateKey = String(r.acctupdatetime).split('T')[0];
+            const rawDate = r.acctstarttime || r.acctupdatetime;
+            if (rawDate) {
+              const dateKey = String(rawDate).substring(0, 10);
               const existing = dailyMap.get(dateKey);
               if (existing) {
                 existing.downloadBytes += Number(r.acctoutputoctets ?? 0);
