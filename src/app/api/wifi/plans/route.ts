@@ -118,6 +118,8 @@ export async function POST(request: NextRequest) {    const user = await require
       priority = 0,
       validityDays = 1,
       validityMinutes = 1440,
+      sessionTimeoutSec,
+      idleTimeoutSec,
       status = 'active',
     } = body;
 
@@ -165,6 +167,8 @@ export async function POST(request: NextRequest) {    const user = await require
         priority: parseInt(priority, 10),
         validityDays: sanitizedValidityDays,
         validityMinutes: sanitizedValidityMinutes,
+        ...(sessionTimeoutSec !== undefined && { sessionTimeoutSec: parseInt(sessionTimeoutSec, 10) || null }),
+        ...(idleTimeoutSec !== undefined && { idleTimeoutSec: parseInt(idleTimeoutSec, 10) || null }),
         status,
       },
     });
@@ -249,6 +253,8 @@ export async function PUT(request: NextRequest) {    const user = await requireP
         ...(updateData.priority !== undefined && { priority: parseInt(updateData.priority, 10) }),
         ...(updateData.validityDays !== undefined && { validityDays: Math.max(1, parseInt(updateData.validityDays, 10) || 1) }),
         ...(updateData.validityMinutes !== undefined && { validityMinutes: Math.max(1, parseInt(updateData.validityMinutes, 10) || 1440) }),
+        ...(updateData.sessionTimeoutSec !== undefined && { sessionTimeoutSec: updateData.sessionTimeoutSec ? parseInt(updateData.sessionTimeoutSec, 10) : null }),
+        ...(updateData.idleTimeoutSec !== undefined && { idleTimeoutSec: updateData.idleTimeoutSec ? parseInt(updateData.idleTimeoutSec, 10) : null }),
         ...(updateData.status && { status: updateData.status }),
       },
     });

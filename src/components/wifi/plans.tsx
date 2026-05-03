@@ -59,6 +59,8 @@ interface WiFiPlan {
   maxDevices: number;
   fupPolicyId: string | null;
   fupPolicyName?: string;
+  sessionTimeoutSec: number | null;
+  idleTimeoutSec: number | null;
   price: number;
   currency: string;
   priority: number;
@@ -136,6 +138,19 @@ const convertMinutesToDisplay = (totalMinutes: number, unit: string): number => 
   }
 };
 
+/** Format seconds into a human-readable duration string */
+const formatSeconds = (seconds: number): string => {
+  if (!seconds || seconds <= 0) return '—';
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  if (days > 0) return days > 1 ? `${days} days` : `${days} day`;
+  if (hours > 0) return hours > 1 ? `${hours} hours` : `${hours} hour`;
+  if (minutes > 0) return minutes > 1 ? `${minutes} min` : `${minutes} min`;
+  return `${secs}s`;
+};
+
 export default function WifiPlans() {
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
@@ -179,6 +194,8 @@ export default function WifiPlans() {
     validityValue: '1',
     validityUnit: 'days',
     status: 'active',
+    sessionTimeout: '',
+    idleTimeout: '',
     unlimitedData: true,
     unlimitedSession: true,
   });
@@ -295,6 +312,8 @@ export default function WifiPlans() {
           priority: parseInt(formData.priority),
           validityDays: calcValidityDays(parseInt(formData.validityValue) || 1, formData.validityUnit),
           validityMinutes: calcValidityMinutes(parseInt(formData.validityValue) || 1, formData.validityUnit),
+          sessionTimeoutSec: formData.sessionTimeout ? parseInt(formData.sessionTimeout) : null,
+          idleTimeoutSec: formData.idleTimeout ? parseInt(formData.idleTimeout) : null,
           status: formData.status,
         }),
       });
@@ -353,6 +372,8 @@ export default function WifiPlans() {
           priority: parseInt(formData.priority),
           validityDays: calcValidityDays(parseInt(formData.validityValue) || 1, formData.validityUnit),
           validityMinutes: calcValidityMinutes(parseInt(formData.validityValue) || 1, formData.validityUnit),
+          sessionTimeoutSec: formData.sessionTimeout ? parseInt(formData.sessionTimeout) : null,
+          idleTimeoutSec: formData.idleTimeout ? parseInt(formData.idleTimeout) : null,
           status: formData.status,
         }),
       });
@@ -444,6 +465,8 @@ export default function WifiPlans() {
       validityValue: convertMinutesToDisplay(plan.validityMinutes || plan.validityDays * 1440, unit).toString(),
       validityUnit: unit,
       status: plan.status,
+      sessionTimeout: plan.sessionTimeoutSec?.toString() || '',
+      idleTimeout: plan.idleTimeoutSec?.toString() || '',
       unlimitedData: !plan.dataLimit,
       unlimitedSession: !plan.sessionLimit,
     });
@@ -472,6 +495,8 @@ export default function WifiPlans() {
       validityValue: '1',
       validityUnit: 'days',
       status: 'active',
+      sessionTimeout: '',
+      idleTimeout: '',
       unlimitedData: true,
       unlimitedSession: true,
     });
@@ -775,6 +800,20 @@ export default function WifiPlans() {
                         <span className="truncate">No FUP</span>
                       </div>
                     )}
+                    {plan.idleTimeoutSec ? (
+                      <div className="flex items-center gap-1.5 text-muted-foreground col-span-2">
+                        <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">Idle: {formatSeconds(plan.idleTimeoutSec)}</span>
+                        {plan.sessionTimeoutSec ? (
+                          <span className="truncate"> · Session: {formatSeconds(plan.sessionTimeoutSec)}</span>
+                        ) : null}
+                      </div>
+                    ) : plan.sessionTimeoutSec ? (
+                      <div className="flex items-center gap-1.5 text-muted-foreground col-span-2">
+                        <Clock className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">Session: {formatSeconds(plan.sessionTimeoutSec)}</span>
+                      </div>
+                    ) : null}
                   </div>
 
                   {/* Price + Stats divider */}
@@ -976,7 +1015,8 @@ export default function WifiPlans() {
                 Restrict users on this plan to connect only from the selected IP pool
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            {/* Price & Currency */}
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="price">Price</Label>
                 <Input
@@ -1006,33 +1046,72 @@ export default function WifiPlans() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            {/* Validity Period */}
+            <div className="space-y-2">
+              <Label>Validity Period</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min="1"
+                  value={formData.validityValue}
+                  onChange={(e) => setFormData(prev => ({ ...prev, validityValue: e.target.value }))}
+                  className="flex-1"
+                  placeholder="Enter value"
+                />
+                <Select value={formData.validityUnit} onValueChange={(v) => setFormData(prev => ({ ...prev, validityUnit: v }))}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="minutes">Minutes</SelectItem>
+                    <SelectItem value="hours">Hours</SelectItem>
+                    <SelectItem value="days">Days</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                = {formatDuration(calcValidityMinutes(parseInt(formData.validityValue) || 1, formData.validityUnit))} total
+              </p>
+            </div>
+            {/* Session Timeout & Idle Timeout */}
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Validity Period</Label>
-                <div className="flex gap-2">
-                  <Input
-                    type="number"
-                    min="1"
-                    value={formData.validityValue}
-                    onChange={(e) => setFormData(prev => ({ ...prev, validityValue: e.target.value }))}
-                    className="flex-1"
-                    placeholder="Enter value"
-                  />
-                  <Select value={formData.validityUnit} onValueChange={(v) => setFormData(prev => ({ ...prev, validityUnit: v }))}>
-                    <SelectTrigger className="w-[120px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="minutes">Minutes</SelectItem>
-                      <SelectItem value="hours">Hours</SelectItem>
-                      <SelectItem value="days">Days</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="sessionTimeout">Session Timeout</Label>
+                  <span className="text-[10px] text-muted-foreground font-normal">(seconds)</span>
                 </div>
+                <Input
+                  id="sessionTimeout"
+                  type="number"
+                  min="0"
+                  placeholder="e.g., 86400"
+                  value={formData.sessionTimeout}
+                  onChange={(e) => setFormData(prev => ({ ...prev, sessionTimeout: e.target.value }))}
+                />
                 <p className="text-[11px] text-muted-foreground">
-                  = {formatDuration(calcValidityMinutes(parseInt(formData.validityValue) || 1, formData.validityUnit))} total
+                  Max session duration. 0 or empty = no limit
+                </p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="idleTimeout">Idle Timeout</Label>
+                  <span className="text-[10px] text-muted-foreground font-normal">(seconds)</span>
+                </div>
+                <Input
+                  id="idleTimeout"
+                  type="number"
+                  min="0"
+                  placeholder="e.g., 300"
+                  value={formData.idleTimeout}
+                  onChange={(e) => setFormData(prev => ({ ...prev, idleTimeout: e.target.value }))}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Max inactivity. 0 or empty = no limit
                 </p>
               </div>
             </div>
+            {/* Priority & Status */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="priority">Priority</Label>
