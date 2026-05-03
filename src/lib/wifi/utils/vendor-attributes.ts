@@ -259,6 +259,7 @@ export function generateBandwidthAttributes(
  * @param timeoutMinutes - Session timeout in minutes (0 = no limit)
  * @param dataLimitMB - Data cap in MB (0/undefined = unlimited)
  * @param idleTimeoutSeconds - Idle timeout in seconds (0/undefined = no idle limit)
+ * @param interimIntervalSeconds - Acct-Interim-Interval in seconds (default: 60)
  * @returns Array of { attribute, value } pairs to write to radreply
  */
 export function generateSessionAttributes(
@@ -266,6 +267,7 @@ export function generateSessionAttributes(
   timeoutMinutes: number,
   dataLimitMB?: number,
   idleTimeoutSeconds?: number,
+  interimIntervalSeconds?: number,
 ): Array<{ attribute: string; value: string }> {
   const attrs: Array<{ attribute: string; value: string }> = [];
 
@@ -287,15 +289,18 @@ export function generateSessionAttributes(
   // Value 0 = Default, Value 1 = RADIUS-Request
   attrs.push({ attribute: 'Termination-Action', value: 'RADIUS-Request' });
 
-  // RFC 2869 — Acct-Interim-Interval: 60 seconds
+  // RFC 2869 — Acct-Interim-Interval: default 60 seconds
   // Controls how often the NAS sends Interim-Update accounting packets.
   // Essential for accurate idle timeout and data tracking on external NAS.
-  attrs.push({ attribute: 'Acct-Interim-Interval', value: '60' });
+  // Configurable per-property via RadiusServerConfig.interimUpdateInterval.
+  const interimInterval = interimIntervalSeconds || 60;
+  attrs.push({ attribute: 'Acct-Interim-Interval', value: String(interimInterval) });
 
   // RFC 2865 — Standard data limits (recognized by ALL NAS)
   if (dataLimitMB && dataLimitMB > 0) {
     const dataLimitBytes = dataLimitMB * 1024 * 1024;
     attrs.push(
+      { attribute: 'Max-Total-Octets', value: String(dataLimitBytes) },
       { attribute: 'Max-Input-Octets', value: String(dataLimitBytes) },
       { attribute: 'Max-Output-Octets', value: String(dataLimitBytes) },
     );
@@ -375,14 +380,24 @@ function getVendorBandwidthAttrs(
       break;
 
     case 'cisco':
-      attrs.push({
-        attribute: 'Cisco-AVPair',
-        value: `sub:Ingress-Committed-Data-Rate=${downloadBps}\nsub:Egress-Committed-Data-Rate=${uploadBps}`,
-      });
+      // Dual-format Cisco-AVPair for maximum compatibility:
+      // 1. Meraki MR: bandwidth-limit-down/up in kbps (semicolon-delimited)
+      // 2. Cisco IOS/ISG: sub:Ingress/Egress-Committed-Data-Rate in bps (newline-delimited)
+      // The NAS will use the format it understands and ignore the other.
+      const ciscoDownKbps = Math.ceil(downloadBps / 1000);
+      const ciscoUpKbps = Math.ceil(uploadBps / 1000);
+      attrs.push(
+        { attribute: 'Cisco-AVPair', value: `sub:Ingress-Committed-Data-Rate=${downloadBps}\nsub:Egress-Committed-Data-Rate=${uploadBps}` },
+        { attribute: 'Cisco-AVPair-0', value: `bandwidth-limit-down=${ciscoDownKbps}kbps;bandwidth-limit-up=${ciscoUpKbps}kbps` },
+      );
       break;
 
     case 'aruba':
-      attrs.push({ attribute: 'Aruba-User-Role', value: 'guest' });
+      // Aruba: Filter-Id references a firewall policy on the controller/ClearPass
+      attrs.push(
+        { attribute: 'Filter-Id', value: 'guest-wifi' },
+        { attribute: 'Aruba-User-Role', value: 'guest' },
+      );
       break;
 
     case 'chillispot':
@@ -393,7 +408,12 @@ function getVendorBandwidthAttrs(
       break;
 
     case 'fortinet':
-      attrs.push({ attribute: 'Fortinet-Group', value: 'guest-wifi' });
+      // Fortinet: Fortinet-Group assigns firewall policy group on FortiGate.
+      // Filter-Id provides fallback policy matching for older FortiOS versions.
+      attrs.push(
+        { attribute: 'Fortinet-Group', value: 'guest-wifi' },
+        { attribute: 'Filter-Id', value: 'guest-wifi' },
+      );
       break;
 
     case 'huawei':
@@ -437,14 +457,22 @@ function getVendorDataLimitAttrs(
       break;
 
     case 'cisco':
-      attrs.push({
-        attribute: 'Cisco-AVPair',
-        value: `sub:quota-in=${dataLimitBytes}\nsub:quota-out=${dataLimitBytes}`,
-      });
+      // Dual-format Cisco data limit for maximum compatibility:
+      // 1. Cisco IOS/ISG: sub:quota-in/out in bytes
+      // 2. Meraki MR: data-limit in bytes
+      attrs.push(
+        { attribute: 'Cisco-AVPair-1', value: `sub:quota-in=${dataLimitBytes}\nsub:quota-out=${dataLimitBytes}` },
+        { attribute: 'Cisco-AVPair-2', value: `data-limit=${dataLimitBytes}` },
+      );
       break;
 
     case 'aruba':
-      // Aruba data limits enforced via ClearPass policies — no direct data cap VSA
+      // Aruba: Use Filter-Id for bandwidth policy profile + HPE-ARUBA VSAs for data cap
+      // Aruba natively supports Filter-Id which references a firewall policy on the controller
+      attrs.push(
+        { attribute: 'Filter-Id', value: 'guest-wifi' },
+        { attribute: 'Aruba-User-Role', value: 'guest' },
+      );
       break;
 
     case 'chillispot':
@@ -456,7 +484,12 @@ function getVendorDataLimitAttrs(
       break;
 
     case 'fortinet':
-      attrs.push({ attribute: 'Fortinet-Group', value: 'guest-wifi' });
+      // Fortinet data limits enforced via firewall policy on FortiGate.
+      // Write Filter-Id referencing the policy group for consistency.
+      attrs.push(
+        { attribute: 'Fortinet-Group', value: 'guest-wifi' },
+        { attribute: 'Filter-Id', value: 'guest-wifi' },
+      );
       break;
 
     case 'huawei':
@@ -487,7 +520,7 @@ export function getActiveDataLimitAttrs(attributes: Record<string, string> | und
   if (!attributes) return [];
   return [
     // Standard RFC attributes
-    'Max-Input-Octets', 'Max-Output-Octets',
+    'Max-Total-Octets', 'Max-Input-Octets', 'Max-Output-Octets',
     // Vendor-specific attributes
     'Cryptsk-Total-Limit', 'Cryptsk-Max-Input-Octets', 'Cryptsk-Max-Output-Octets',
     'Mikrotik-Total-Limit',

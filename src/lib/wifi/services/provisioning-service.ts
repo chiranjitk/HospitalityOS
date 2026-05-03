@@ -266,6 +266,7 @@ class WiFiProvisioningService {
       let planValidityMinutes = 1440;
       let planDataLimit: number | undefined;
       let planSessionLimit: number | undefined;
+      let planIdleTimeoutSec: number | undefined;
       let bandwidth = { ...DEFAULT_BANDWIDTH }; // fallback
       let planSource = 'fallback'; // track where the plan came from
 
@@ -284,6 +285,7 @@ class WiFiProvisioningService {
             select: {
               id: true, downloadSpeed: true, uploadSpeed: true,
               validityDays: true, validityMinutes: true, dataLimit: true, sessionLimit: true, name: true,
+              idleTimeoutSec: true,
             },
           });
           if (roomTypePlan) {
@@ -292,6 +294,7 @@ class WiFiProvisioningService {
             planValidityMinutes = roomTypePlan.validityMinutes || roomTypePlan.validityDays * 1440;
             planDataLimit = roomTypePlan.dataLimit;
             planSessionLimit = roomTypePlan.sessionLimit;
+            planIdleTimeoutSec = roomTypePlan.idleTimeoutSec ?? undefined;
             bandwidth = {
               download: roomTypePlan.downloadSpeed * 1000000, // Mbps → bps
               upload: roomTypePlan.uploadSpeed * 1000000,
@@ -334,6 +337,7 @@ class WiFiProvisioningService {
             select: {
               id: true, downloadSpeed: true, uploadSpeed: true,
               validityDays: true, validityMinutes: true, dataLimit: true, sessionLimit: true, name: true,
+              idleTimeoutSec: true,
             },
           });
           if (defaultPlan) {
@@ -342,6 +346,7 @@ class WiFiProvisioningService {
             planValidityMinutes = defaultPlan.validityMinutes || defaultPlan.validityDays * 1440;
             planDataLimit = defaultPlan.dataLimit;
             planSessionLimit = defaultPlan.sessionLimit;
+            planIdleTimeoutSec = defaultPlan.idleTimeoutSec ?? undefined;
             bandwidth = {
               download: defaultPlan.downloadSpeed * 1000000,
               upload: defaultPlan.uploadSpeed * 1000000,
@@ -431,6 +436,7 @@ class WiFiProvisioningService {
         sessionTimeoutMinutes, // plan-based session timeout (minutes)
         sessionLimit: planSessionLimit, // max concurrent sessions from plan
         dataLimit: planDataLimit, // data cap from plan (MB)
+        idleTimeoutSeconds: planIdleTimeoutSec, // idle timeout from plan (seconds)
       });
 
       // Check data cap status (warn if approaching limit)

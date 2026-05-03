@@ -99,6 +99,7 @@ interface ActiveSession {
   username: string;
   framedipaddress: string;
   callingstationid: string;
+  nasipaddress: string;
   acctstarttime: Date;
   acctupdatetime: Date;
   acctinputoctets: number;
@@ -296,6 +297,7 @@ async function getActiveSessions(): Promise<ActiveSession[]> {
     SELECT
       radacctid, acctuniqueid, acctsessionid, username,
       framedipaddress, callingstationid,
+      COALESCE(nasipaddress, '127.0.0.1') as nasipaddress,
       acctstarttime, acctupdatetime,
       COALESCE(acctinputoctets, 0) as acctinputoctets,
       COALESCE(acctoutputoctets, 0) as acctoutputoctets,
@@ -461,7 +463,7 @@ async function disconnectSessionFallback(
       body: JSON.stringify({
         action: 'coa-disconnect',
         username: session.username,
-        nasIp: '127.0.0.1',
+        nasIp: session.nasipaddress,
         reason,
       }),
     });

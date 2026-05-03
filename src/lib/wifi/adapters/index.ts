@@ -478,11 +478,38 @@ class GenericAdapter extends GatewayAdapter {
   }
 
   async sendCoA(request: CoARequest): Promise<CoAResponse> {
-    // Generic CoA implementation
-    return {
-      success: true,
-      message: `Generic CoA ${request.action} completed`,
-    };
+    // Generic CoA: Route through freeradius-service radclient CLI.
+    // This works for ANY vendor that supports standard RADIUS CoA (RFC 5176).
+    try {
+      const radiusServiceUrl = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
+      const url = `${radiusServiceUrl}/api/coa/disconnect`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: request.username,
+          sessionId: request.sessionId,
+          nasIp: this.config.ipAddress,
+          nasSecret: this.config.secret,
+          coaPort: this.config.coaPort || 3799,
+        }),
+      });
+
+      if (!response.ok) {
+        return { success: false, message: `CoA failed: ${response.status}` };
+      }
+
+      const result = await response.json();
+      return {
+        success: result.success ?? true,
+        message: `Generic CoA ${request.action} for ${request.username} via ${this.config.ipAddress}`,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        message: `Generic CoA ${request.action} error: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
   }
 
   async getStatus(): Promise<GatewayStatus> {
