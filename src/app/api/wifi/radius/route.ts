@@ -736,7 +736,22 @@ export async function GET(request: NextRequest) {
           for (const s of activeSessions) {
             const sessionId = `ls_${s.acctuniqueid}`;
             if (sessionsMap.has(sessionId)) continue; // Deduplicate by acctuniqueid
-            const { os, browser } = parseDeviceFromUA(s.userAgent);
+            // Parse OS/browser from UA string
+            let os = 'Unknown';
+            let browser = 'Unknown';
+            if (s.userAgent) {
+              ({ os, browser } = parseDeviceFromUA(s.userAgent));
+            } else if (s.deviceType || s.deviceName) {
+              // No UA but DeviceProfile has device info — derive OS from deviceName
+              const dn = (s.deviceName || '').toLowerCase();
+              if (/iphone/.test(dn)) os = 'iOS';
+              else if (/ipad/.test(dn)) os = 'iPadOS';
+              else if (/android/.test(dn)) os = 'Android';
+              else if (/windows/.test(dn)) os = 'Windows';
+              else if (/mac/.test(dn)) os = 'macOS';
+              else if (/chromebook/.test(dn)) os = 'Chrome OS';
+              else if (/linux/.test(dn)) os = 'Linux';
+            }
             sessionsMap.set(sessionId, {
               id: sessionId,
               username: s.username || '',

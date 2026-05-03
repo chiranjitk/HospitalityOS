@@ -11,6 +11,115 @@ import {
 } from '@/lib/network/script-runner';
 
 // ────────────────────────────────────────────────────────────
+// Device Info Helpers
+// ────────────────────────────────────────────────────────────
+
+function parseDeviceTypeFromUA(ua: string): string {
+  if (/iPhone/i.test(ua)) return 'mobile';
+  if (/iPad/i.test(ua) || (/Macintosh/i.test(ua) && /WebKit/i.test(ua) && !/Safari/i.test(ua))) return 'tablet';
+  if (/Android/i.test(ua)) return /Mobile/i.test(ua) ? 'mobile' : 'tablet';
+  if (/SmartTV|InternetTV|APPLETV/i.test(ua)) return 'tv';
+  if (/Windows|Macintosh|Linux|CrOS/i.test(ua)) return 'desktop';
+  return 'unknown';
+}
+
+function parseDeviceNameFromUA(ua: string): string {
+  if (/iPhone/i.test(ua)) return 'iPhone';
+  if (/iPad/i.test(ua)) return 'iPad';
+  if (/Android/i.test(ua)) return /Mobile/i.test(ua) ? 'Android Phone' : 'Android Tablet';
+  if (/Windows/i.test(ua)) return 'Windows PC';
+  if (/Macintosh/i.test(ua)) return 'Mac';
+  if (/CrOS/i.test(ua)) return 'Chromebook';
+  if (/Linux/i.test(ua)) return 'Linux PC';
+  if (/SmartTV/i.test(ua)) return 'Smart TV';
+  return 'Unknown Device';
+}
+
+/**
+ * Update or create a DeviceProfile entry for the authenticated user.
+ * Uses the HTTP User-Agent header to extract device info (OS, browser, device type).
+ * Called after successful auth to ensure Active Users tab shows device details.
+ *
+ * This is a best-effort operation — failures are silently ignored.
+ */
+async function upsertDeviceProfile(params: {
+  wifiUserId: string;
+  tenantId: string;
+  propertyId: string;
+  guestId?: string | null;
+  username: string;
+  request: NextRequest;
+  macAddress?: string | null;
+}) {
+  try {
+    const { wifiUserId, tenantId, propertyId, guestId, username, request, macAddress } = params;
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || request.headers.get('x-real-ip')
+      || 'unknown';
+    const userAgent = request.headers.get('user-agent') || '';
+    const deviceType = parseDeviceTypeFromUA(userAgent);
+    const deviceName = parseDeviceNameFromUA(userAgent);
+
+    // Normalize MAC address format
+    const normalizedMac = macAddress
+      ? macAddress.replace(/[:\-\.\s]/g, '').toUpperCase()
+      : null;
+    const formattedMac = normalizedMac && normalizedMac.length === 12
+      ? normalizedMac.match(/.{2}/g)?.join(':') || null
+      : null;
+
+    // Try to find existing profile for this user
+    const existing = await db.deviceProfile.findFirst({
+      where: { wifiUserId, isActive: true },
+      select: { id: true },
+    });
+
+    if (existing) {
+      // Update existing profile with latest device info
+      await db.deviceProfile.update({
+        where: { id: existing.id },
+        data: {
+          ipAddress: clientIp,
+          userAgent: userAgent.substring(0, 500),
+          deviceType,
+          deviceName,
+          ...(formattedMac ? { macAddress: formattedMac } : {}),
+          authCount: { increment: 1 },
+          lastSeenAt: new Date(),
+        },
+      });
+    } else {
+      // Create new profile — use a deterministic fingerprintHash from username+propertyId
+      // since we don't have the real browser fingerprint on the server
+      const fallbackFingerprint = await crypto.subtle
+        .digest('SHA-256', new TextEncoder().encode(`${username}:${propertyId}`))
+        .then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''))
+        .catch(() => `${username}-${propertyId}`);
+
+      await db.deviceProfile.create({
+        data: {
+          tenantId,
+          propertyId,
+          wifiUserId,
+          guestId: guestId || undefined,
+          fingerprintHash: fallbackFingerprint,
+          ipAddress: clientIp,
+          userAgent: userAgent.substring(0, 500),
+          macAddress: formattedMac || undefined,
+          deviceType,
+          deviceName,
+          authCount: 1,
+          lastSeenAt: new Date(),
+          isActive: true,
+        },
+      });
+    }
+  } catch (err) {
+    console.warn('[Auth] DeviceProfile upsert failed (non-critical):', err instanceof Error ? err.message : err);
+  }
+}
+
+// ────────────────────────────────────────────────────────────
 // In-memory OTP store (sandbox — use Redis in production)
 // ────────────────────────────────────────────────────────────
 const otpStore = new Map<
@@ -458,6 +567,14 @@ export async function POST(request: NextRequest) {
           subnet: pool.subnet,
         });
 
+        // ── Save device profile for Active Users device info ──
+        try {
+          const voucherUser = await db.wiFiUser.findUnique({ where: { username: wifiUsername }, select: { id: true, tenantId: true, propertyId: true, guestId: true } });
+          if (voucherUser) {
+            await upsertDeviceProfile({ wifiUserId: voucherUser.id, tenantId: voucherUser.tenantId, propertyId: voucherUser.propertyId, guestId: voucherUser.guestId, username: wifiUsername, request, macAddress });
+          }
+        } catch { /* best effort */ }
+
         return successResponse({
           authenticated: true, method: 'voucher', username: wifiUsername,
           sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
@@ -551,6 +668,14 @@ export async function POST(request: NextRequest) {
           maxBandwidthUpBytes: portal?.maxBandwidthUp,
           subnet: pool.subnet,
         });
+
+        // ── Save device profile for Active Users device info ──
+        try {
+          const roomUser = await db.wiFiUser.findUnique({ where: { username: wifiUsername }, select: { id: true, tenantId: true, propertyId: true, guestId: true } });
+          if (roomUser) {
+            await upsertDeviceProfile({ wifiUserId: roomUser.id, tenantId: roomUser.tenantId, propertyId: roomUser.propertyId, guestId: roomUser.guestId, username: wifiUsername, request, macAddress });
+          }
+        } catch { /* best effort */ }
 
         return successResponse({
           authenticated: true, method: 'room_number', username: wifiUsername,
@@ -659,6 +784,17 @@ export async function POST(request: NextRequest) {
           maxBandwidthDownBytes: bwDownBps ? Number(bwDownBps) : portal?.maxBandwidthDown,
           maxBandwidthUpBytes: bwUpBps ? Number(bwUpBps) : portal?.maxBandwidthUp,
           subnet: pool.subnet,
+        });
+
+        // ── Save device profile for Active Users device info (OS, browser) ──
+        await upsertDeviceProfile({
+          wifiUserId: wifiUser.id,
+          tenantId: wifiUser.tenantId,
+          propertyId: wifiUser.propertyId,
+          guestId: wifiUser.guestId,
+          username: wifiUser.username,
+          request,
+          macAddress,
         });
 
         return successResponse({
