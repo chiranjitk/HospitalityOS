@@ -10,7 +10,8 @@
 #  Architecture:
 #    - Uses a dedicated table "inet staysuite_count" with a forward chain
 #    - Two counter rules per user: one for download (dst=IP), one for upload (src=IP)
-#    - Named counters ("user_in_<ip>" / "user_out_<ip>") for easy lookup
+#    - Anonymous counters with name embedded in comment for cross-version compatibility
+#      ("user_in_<ip>" / "user_out_<ip>" in comment field for grep-based lookup)
 #    - This table does NOT filter traffic — it only COUNTS (policy accept)
 #
 #  Usage:
@@ -111,12 +112,14 @@ cmd_add() {
     fi
 
     # Add download counter: traffic TO this user (dst = user IP)
+    # Uses anonymous counter + comment (compatible with all nftables/kernel versions)
+    # Named counters ("counter name") require kernel >= 5.18 which may not be available
     nft add rule inet staysuite_count forward \
-        ip daddr "$ip" counter name "user_in_${safe_ip}" comment "\"stayuser $ip\""
+        ip daddr "$ip" counter comment "\"user_in_${safe_ip} stayuser $ip\""
 
     # Add upload counter: traffic FROM this user (src = user IP)
     nft add rule inet staysuite_count forward \
-        ip saddr "$ip" counter name "user_out_${safe_ip}" comment "\"stayuser $ip\""
+        ip saddr "$ip" counter comment "\"user_out_${safe_ip} stayuser $ip\""
 
     log "INFO" "Counter rules added for $ip"
 }
