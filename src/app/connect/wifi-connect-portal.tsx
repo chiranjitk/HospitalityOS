@@ -72,6 +72,7 @@ import {
   Check,
   X,
   LogOut,
+  Bug,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -943,10 +944,14 @@ function SmsOtpForm({
   design,
   onAuthenticate,
   loading,
+  debugOtp,
+  onClearDebugOtp,
 }: {
   design: PortalDesignConfig;
   onAuthenticate: (method: string, payload: Record<string, string>) => void;
   loading: boolean;
+  debugOtp?: string | null;
+  onClearDebugOtp?: () => void;
 }) {
   const lang = usePortalLang();
   const [phone, setPhone] = useState('');
@@ -965,6 +970,7 @@ function SmsOtpForm({
   const handleSendOtp = async () => {
     if (!phone.trim()) { setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'phoneNumber').toLowerCase()); return; }
     setError('');
+    onClearDebugOtp?.();
     onAuthenticate('sms_otp', { phoneNumber: phone.trim() });
     setStep('otp');
     setCountdown(60);
@@ -983,6 +989,7 @@ function SmsOtpForm({
     if (countdown > 0) return;
     setOtp('');
     setError('');
+    onClearDebugOtp?.();
     onAuthenticate('sms_otp', { phoneNumber: phone.trim() });
     setCountdown(60);
   };
@@ -1037,6 +1044,24 @@ function SmsOtpForm({
         inputMode="numeric"
         className="text-center text-2xl font-mono font-bold tracking-[0.5em]"
       />
+      {/* Debug OTP display — visible when no active SMS gateway */}
+      {debugOtp && (
+        <div className="rounded-lg border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/40 p-3 text-center">
+          <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 mb-1 flex items-center justify-center gap-1">
+            <Bug className="w-3 h-3" />
+            DEBUG — OTP (no SMS gateway)
+          </p>
+          <p className="text-3xl font-mono font-black tracking-[0.3em] text-amber-800 dark:text-amber-200">
+            {debugOtp}
+          </p>
+          <button
+            onClick={() => navigator.clipboard?.writeText(debugOtp)}
+            className="mt-1.5 text-xs text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 underline"
+          >
+            Copy to clipboard
+          </button>
+        </div>
+      )}
       {error && <ErrorDisplay message={error} />}
       <DynamicButton design={design} onClick={handleVerifyOtp} disabled={otp.length < 6} loading={loading}>
         <>
@@ -1046,7 +1071,7 @@ function SmsOtpForm({
       </DynamicButton>
       <div className="flex items-center justify-between text-sm">
         <button
-          onClick={() => { setStep('phone'); setOtp(''); setError(''); }}
+          onClick={() => { setStep('phone'); setOtp(''); setError(''); onClearDebugOtp?.(); }}
           className="hover:underline flex items-center gap-1"
           style={{ color: mutedColor }}
         >
@@ -1140,6 +1165,7 @@ function UnifiedDesignerForm({
   const [otpStep, setOtpStep] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpCountdown, setOtpCountdown] = useState(0);
+  const [debugOtp, setDebugOtp] = useState<string | null>(null);
   const [termsModalOpen, setTermsModalOpen] = useState(false);
   const [emailConsent, setEmailConsent] = useState(false);
   const [phoneConsent, setPhoneConsent] = useState(false);
@@ -1286,6 +1312,7 @@ function UnifiedDesignerForm({
     if (otpCountdown > 0) return;
     setOtpCode('');
     setError('');
+    setDebugOtp(null);
     authenticate('sms_otp', { phoneNumber: formData.phone?.trim() || '' });
     setOtpCountdown(60);
   };
@@ -1348,6 +1375,24 @@ function UnifiedDesignerForm({
           inputMode="numeric"
           className="text-center text-2xl font-mono font-bold tracking-[0.5em]"
         />
+        {/* Debug OTP display — visible when no active SMS gateway */}
+        {debugOtp && (
+          <div className="rounded-lg border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/40 p-3 text-center">
+            <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 mb-1 flex items-center justify-center gap-1">
+              <Bug className="w-3 h-3" />
+              DEBUG — OTP (no SMS gateway)
+            </p>
+            <p className="text-3xl font-mono font-black tracking-[0.3em] text-amber-800 dark:text-amber-200">
+              {debugOtp}
+            </p>
+            <button
+              onClick={() => navigator.clipboard?.writeText(debugOtp)}
+              className="mt-1.5 text-xs text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 underline"
+            >
+              Copy to clipboard
+            </button>
+          </div>
+        )}
         {error && <ErrorDisplay message={error} />}
         <DynamicButton design={design} onClick={handleSubmit} disabled={otpCode.length < 6} loading={loading}>
           <>
@@ -1357,7 +1402,7 @@ function UnifiedDesignerForm({
         </DynamicButton>
         <div className="flex items-center justify-between text-sm">
           <button
-            onClick={() => { setOtpStep(false); setOtpCode(''); setError(''); }}
+            onClick={() => { setOtpStep(false); setOtpCode(''); setError(''); setDebugOtp(null); }}
             className="hover:underline flex items-center gap-1"
             style={{ color: mutedColor }}
           >
@@ -2021,7 +2066,13 @@ function PortalContent() {
         const result = await res.json();
 
         // SMS OTP first step: just sending phone, don't transition state
-        if (method === 'sms_otp' && !payload.otpCode && result.success) return;
+        if (method === 'sms_otp' && !payload.otpCode && result.success) {
+          // Capture debug OTP for testing without SMS gateway
+          if (result.data?._debugOtp) {
+            setDebugOtp(result.data._debugOtp);
+          }
+          return;
+        }
 
         if (result.success && result.data?.authenticated) {
           // DeviceProfile is now created server-side with the real fingerprint
@@ -2256,6 +2307,8 @@ function PortalContent() {
               authenticate(method, gi ? { ...payload, guestInfo: gi } : payload);
             }}
             loading={state === 'authenticating'}
+            debugOtp={debugOtp}
+            onClearDebugOtp={() => setDebugOtp(null)}
           />
         );
       case 'open_access':

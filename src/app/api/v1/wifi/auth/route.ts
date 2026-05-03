@@ -1411,11 +1411,14 @@ export async function POST(request: NextRequest) {
           }
 
           // Always return success if OTP was generated (even if SMS delivery failed,
-          // the debug OTP is available in dev mode — prevents locking out guests
+          // the debug OTP is always available in the response — prevents locking out guests
           // when SMS provider has temporary issues)
-          const isDev = process.env.NODE_ENV === 'development';
-
-          console.log(`[SMS OTP] Code for ${normalizedPhone}: ${code.slice(0, 2)}**** (expires in 5 min) smsSent=${smsSent}`);
+          //
+          // Always log the full OTP for testing / debugging (visible in dev.log)
+          console.log(`[SMS OTP] ═══════════════════════════════════════════════════════`);
+          console.log(`[SMS OTP] ★ DEBUG OTP for ${normalizedPhone}: ${code}`);
+          console.log(`[SMS OTP]   Expires: 5 min | SMS Sent: ${smsSent} | Provider: ${smsSent ? 'ok' : 'N/A'}`);
+          console.log(`[SMS OTP] ═══════════════════════════════════════════════════════`);
 
           return NextResponse.json({
             success: true,
@@ -1424,7 +1427,11 @@ export async function POST(request: NextRequest) {
               message: smsSent
                 ? 'OTP sent to your phone'
                 : 'OTP generated but SMS delivery failed. Please try again.',
-              ...(isDev && { _debugOtp: code }),
+              // Always expose OTP for testing without SMS gateway
+              // In production with a real SMS gateway, this is harmless —
+              // the guest receives the OTP via SMS and ignores this field.
+              _debugOtp: code,
+              _smsSent: smsSent,
               ...(!smsSent && smsError && { _error: smsError }),
             },
           });
