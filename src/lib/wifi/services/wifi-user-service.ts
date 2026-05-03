@@ -33,6 +33,7 @@ import {
   getActiveNASVendors,
   generateBandwidthAttributes,
   generateSessionAttributes,
+  generateIdleTimeoutAttributes,
   readDataLimitBytes,
   BANDWIDTH_ATTRIBUTES,
   DATA_LIMIT_ATTRIBUTES,
@@ -183,33 +184,38 @@ export class WiFiUserService {
           const uploadMbps = input.uploadSpeed ? input.uploadSpeed / 1000000 : 5;
           const bwAttrs = generateBandwidthAttributes(vendors, downloadMbps, uploadMbps);
 
-          // Session timeout + data limit
+          // Session timeout + data limit + idle timeout (standard RFC attrs)
           const sessionAttrs = generateSessionAttributes(
             vendors,
             input.sessionTimeoutMinutes || 0,
             input.dataLimit || 0,
+            effectiveIdleTimeout || 0,
           );
 
           // Merge all reply attributes
           const replies = [...bwAttrs, ...sessionAttrs];
 
-          // ── Cryptsk VSA attributes (Vendor ID 64179) ──
-          // Cryptsk-Session-Timeout: mirrors Session-Timeout (integer, seconds)
-          const sessionTimeoutSec = input.sessionTimeoutMinutes ? input.sessionTimeoutMinutes * 60 : 0;
-          if (sessionTimeoutSec > 0) {
-            replies.push({ attribute: 'Cryptsk-Session-Timeout', value: String(sessionTimeoutSec) });
+          // ── Cryptsk-specific VSA attributes (Vendor ID 64179) ──
+          // ONLY add Cryptsk VSAs when Cryptsk is an active vendor.
+          // External NAS devices (MikroTik, Cisco, etc.) do NOT understand Vendor 64179.
+          if (vendors.includes('cryptsk')) {
+            // Cryptsk-Session-Timeout: mirrors Session-Timeout (integer, seconds)
+            const sessionTimeoutSec = input.sessionTimeoutMinutes ? input.sessionTimeoutMinutes * 60 : 0;
+            if (sessionTimeoutSec > 0) {
+              replies.push({ attribute: 'Cryptsk-Session-Timeout', value: String(sessionTimeoutSec) });
+            }
+
+            // Cryptsk-Idle-Timeout: idle timeout (integer, seconds) from plan or portal config
+            if (effectiveIdleTimeout && effectiveIdleTimeout > 0) {
+              replies.push({ attribute: 'Cryptsk-Idle-Timeout', value: String(effectiveIdleTimeout) });
+            }
+
+            // Cryptsk-User-Profile: plan group name (string) — for policy matching
+            replies.push({ attribute: 'Cryptsk-User-Profile', value: groupName });
+
+            // Cryptsk-Plan-Name: human-readable plan name (string) — for display/audit
+            replies.push({ attribute: 'Cryptsk-Plan-Name', value: input.planName || groupName });
           }
-
-          // Cryptsk-Idle-Timeout: idle timeout (integer, seconds) from plan or portal config
-          if (effectiveIdleTimeout && effectiveIdleTimeout > 0) {
-            replies.push({ attribute: 'Cryptsk-Idle-Timeout', value: String(effectiveIdleTimeout) });
-          }
-
-          // Cryptsk-User-Profile: plan group name (string) — for policy matching
-          replies.push({ attribute: 'Cryptsk-User-Profile', value: groupName });
-
-          // Cryptsk-Plan-Name: human-readable plan name (string) — for display/audit
-          replies.push({ attribute: 'Cryptsk-Plan-Name', value: input.planName || groupName });
 
           // Cryptsk-Max-Sessions: already handled via Simultaneous-Use in radcheck (step 5 below)
 
@@ -434,12 +440,16 @@ export class WiFiUserService {
         }
       }
 
-      // Update Cryptsk-Idle-Timeout if idleTimeoutSeconds changed
+      // Update Idle-Timeout if idleTimeoutSeconds changed
+      // Updates BOTH standard RFC Idle-Timeout (all NAS) and Cryptsk-Idle-Timeout (Cryptsk only)
       if (input.idleTimeoutSeconds !== undefined) {
+        const vendors = await getActiveNASVendors(wifiUser.propertyId);
+
+        // Standard RFC Idle-Timeout — recognized by ALL NAS devices
         const existingIdleTimeout = await tx.radReply.findFirst({
           where: {
             username: wifiUser.username,
-            attribute: 'Cryptsk-Idle-Timeout',
+            attribute: 'Idle-Timeout',
           },
         });
 
@@ -454,7 +464,7 @@ export class WiFiUserService {
               data: {
                 wifiUserId: wifiUser.id,
                 username: wifiUser.username,
-                attribute: 'Cryptsk-Idle-Timeout',
+                attribute: 'Idle-Timeout',
                 op: ':=',
                 value: String(input.idleTimeoutSeconds),
                 isActive: true,
@@ -464,6 +474,38 @@ export class WiFiUserService {
         } else if (existingIdleTimeout) {
           // Remove idle timeout if set to 0
           await tx.radReply.delete({ where: { id: existingIdleTimeout.id } });
+        }
+
+        // Cryptsk-Idle-Timeout — only when Cryptsk is an active vendor
+        if (vendors.includes('cryptsk')) {
+          const existingCryptskIdleTimeout = await tx.radReply.findFirst({
+            where: {
+              username: wifiUser.username,
+              attribute: 'Cryptsk-Idle-Timeout',
+            },
+          });
+
+          if (input.idleTimeoutSeconds > 0) {
+            if (existingCryptskIdleTimeout) {
+              await tx.radReply.update({
+                where: { id: existingCryptskIdleTimeout.id },
+                data: { value: String(input.idleTimeoutSeconds) },
+              });
+            } else {
+              await tx.radReply.create({
+                data: {
+                  wifiUserId: wifiUser.id,
+                  username: wifiUser.username,
+                  attribute: 'Cryptsk-Idle-Timeout',
+                  op: ':=',
+                  value: String(input.idleTimeoutSeconds),
+                  isActive: true,
+                },
+              });
+            }
+          } else if (existingCryptskIdleTimeout) {
+            await tx.radReply.delete({ where: { id: existingCryptskIdleTimeout.id } });
+          }
         }
       }
 
@@ -658,27 +700,30 @@ export class WiFiUserService {
           sessionLimit = wifiUser.plan.sessionLimit || 0;
         }
 
-        // Generate vendor-aware attributes
+        // Generate vendor-aware attributes (includes standard RFC Idle-Timeout, Session-Timeout, etc.)
         const bwAttrs = generateBandwidthAttributes(vendors, downloadMbps, uploadMbps);
-        const sessionAttrs = generateSessionAttributes(vendors, sessionTimeoutMin, dataLimitMB);
+        const sessionAttrs = generateSessionAttributes(vendors, sessionTimeoutMin, dataLimitMB, idleTimeoutSec);
         const replies = [...bwAttrs, ...sessionAttrs];
 
-        // Cryptsk-Session-Timeout
-        const sessionTimeoutSec = sessionTimeoutMin * 60;
-        if (sessionTimeoutSec > 0) {
-          replies.push({ attribute: 'Cryptsk-Session-Timeout', value: String(sessionTimeoutSec) });
+        // Cryptsk-specific VSA attributes — ONLY when Cryptsk is an active vendor
+        if (vendors.includes('cryptsk')) {
+          // Cryptsk-Session-Timeout
+          const sessionTimeoutSec = sessionTimeoutMin * 60;
+          if (sessionTimeoutSec > 0) {
+            replies.push({ attribute: 'Cryptsk-Session-Timeout', value: String(sessionTimeoutSec) });
+          }
+
+          // Cryptsk-Idle-Timeout
+          if (idleTimeoutSec > 0) {
+            replies.push({ attribute: 'Cryptsk-Idle-Timeout', value: String(idleTimeoutSec) });
+          }
+
+          // Cryptsk-User-Profile: plan group name
+          replies.push({ attribute: 'Cryptsk-User-Profile', value: groupName });
+
+          // Cryptsk-Plan-Name: human-readable plan name
+          replies.push({ attribute: 'Cryptsk-Plan-Name', value: planName });
         }
-
-        // Cryptsk-Idle-Timeout
-        if (idleTimeoutSec > 0) {
-          replies.push({ attribute: 'Cryptsk-Idle-Timeout', value: String(idleTimeoutSec) });
-        }
-
-        // Cryptsk-User-Profile: plan group name
-        replies.push({ attribute: 'Cryptsk-User-Profile', value: groupName });
-
-        // Cryptsk-Plan-Name: human-readable plan name
-        replies.push({ attribute: 'Cryptsk-Plan-Name', value: planName });
 
         // Bug 2 Fix: Use op: ':=' (not '=') to match provisionUser behavior
         for (const reply of replies) {

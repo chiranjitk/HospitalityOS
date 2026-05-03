@@ -6,7 +6,7 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 const nextConfig: NextConfig = {
   output: "standalone",
   // Exclude native/binary packages from bundling — they are loaded at runtime via dynamic import
-  serverExternalPackages: ['speedtest-net', 'lzma-native', 'node-pre-gyp', '@mapbox/node-pre-gyp'],
+  serverExternalPackages: ['speedtest-net', 'lzma-native', 'node-pre-gyp', '@mapbox/node-pre-gyp', 'node-cron'],
   typescript: {
     // Skip type-checking during build to avoid OOM on servers with limited RAM.
     // The project has 700+ source files; tsc requires >2GB which exceeds typical VPS memory.

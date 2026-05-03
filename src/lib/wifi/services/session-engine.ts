@@ -302,6 +302,7 @@ async function getActiveSessions(): Promise<ActiveSession[]> {
       COALESCE(acctsessiontime, 0) as acctsessiontime
     FROM radacct
     WHERE acctstoptime IS NULL
+      AND (acctstatus IS NULL OR acctstatus = '' OR acctstatus = 'start')
       AND framedipaddress IS NOT NULL
       AND framedipaddress != ''
       AND framedipaddress != '0.0.0.0'
@@ -335,10 +336,12 @@ function checkNftablesAvailability(): boolean {
  * FALLBACK mode: Check idle timeout, session timeout, and data limit
  * when nftables counters are not available.
  *
- * Idle detection strategy: Compare radacct byte totals between cycles.
- * Since the session engine updates radacct each cycle, we track the
- * previous total in lastActivityMap and compare. If bytes haven't
- * changed, the user is idle.
+ * Idle detection strategy (PERSISTENT — survives server restart):
+ * Uses radacct.acctupdatetime as the "last activity" timestamp.
+ * In FALLBACK mode, the session engine does NOT update acctupdatetime
+ * (only acctsessiontime), so it stays at the value from the last real
+ * traffic or interim update. If acctupdatetime is older than the idle
+ * timeout threshold, the user is considered idle and disconnected.
  */
 async function checkPoliciesFallback(
   session: ActiveSession,
@@ -350,37 +353,35 @@ async function checkPoliciesFallback(
   const newUploadBytes = Number(session.acctoutputoctets);
   const newTotal = newDownloadBytes + newUploadBytes;
 
-  // ── Idle timeout check (fallback: track byte changes across cycles) ──
+  // ── Idle timeout check (persistent DB-based) ──
+  // Uses radacct.acctupdatetime as the "last activity" timestamp.
+  // In FALLBACK mode, we do NOT update acctupdatetime (see processSession),
+  // so it stays at the timestamp of the last real traffic or interim update.
+  // If acctupdatetime is older than idleTimeout seconds, the user is idle.
   const idleTimeout = await getIdleTimeoutForUser(session.username);
   if (idleTimeout > 0) {
-    // Retrieve previous total bytes for this IP
-    const prevTotalKey = `__prevTotal__${ip}`;
-    const prevTotal = lastActivityMap.get(prevTotalKey);
+    const lastActivity = safeGetTime(session.acctupdatetime);
+    const idleSeconds = Math.floor((Date.now() - lastActivity) / 1000);
 
-    if (prevTotal !== undefined && newTotal <= prevTotal) {
-      // No new bytes since last cycle → increment idle counter
-      const idleStart = lastActivityMap.get(ip) || Date.now();
-      lastActivityMap.set(ip, idleStart);
-      const idleSeconds = Math.floor((Date.now() - idleStart) / 1000);
-
-      if (idleSeconds >= idleTimeout) {
-        SELog.info(
-          `[FALLBACK] IDLE TIMEOUT: ${session.username} (${ip}) — ` +
-          `idle for ${idleSeconds}s (limit: ${idleTimeout}s), bytes unchanged: ${newTotal}`
-        );
-        await disconnectSessionFallback(session, 'Idle-Timeout', newDownloadBytes, newUploadBytes);
-        lastActivityMap.delete(ip);
-        lastActivityMap.delete(prevTotalKey);
-        result.idleTimeoutDisconnected++;
-        result.disconnectedSessions.push({ username: session.username, ip, reason: 'Idle-Timeout' });
-        return;
-      }
-    } else {
-      // Bytes changed → user is active, reset idle timer
-      lastActivityMap.set(ip, Date.now());
+    if (idleSeconds >= idleTimeout) {
+      SELog.info(
+        `[FALLBACK] IDLE TIMEOUT: ${session.username} (${ip}) — ` +
+        `idle for ${idleSeconds}s (limit: ${idleTimeout}s), last activity: ${session.acctupdatetime}, bytes: ${newTotal}`
+      );
+      await disconnectSessionFallback(session, 'Idle-Timeout', newDownloadBytes, newUploadBytes);
+      lastActivityMap.delete(ip);
+      result.idleTimeoutDisconnected++;
+      result.disconnectedSessions.push({ username: session.username, ip, reason: 'Idle-Timeout' });
+      return;
     }
-    // Store current total for next cycle comparison
-    lastActivityMap.set(prevTotalKey, newTotal);
+
+    // Log idle progress every 5 minutes for debugging
+    if (idleSeconds > 0 && idleSeconds % 300 < 60) {
+      SELog.info(
+        `[FALLBACK] Idle tracking: ${session.username} (${ip}) — ` +
+        `${idleSeconds}s idle of ${idleTimeout}s limit, bytes: ${newTotal}`
+      );
+    }
   }
 
   // ── Session timeout check ──
@@ -511,12 +512,26 @@ async function processSession(
     // Still update session time even without byte data
     // Bug 14: Use safeGetTime for defensive Date handling
     const sessionTime = Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000);
-    await db.$executeRawUnsafe(`
-      UPDATE radacct SET
-        acctsessiontime = $1,
-        acctupdatetime = NOW()
-      WHERE radacctid = $2
-    `, sessionTime, session.radacctid);
+
+    // In FALLBACK mode: do NOT update acctupdatetime — it serves as the
+    // persistent "last activity" timestamp. The idle detection compares
+    // Date.now() against this value. If we update it every cycle, idle
+    // detection would never trigger.
+    if (nftablesAvailable) {
+      await db.$executeRawUnsafe(`
+        UPDATE radacct SET
+          acctsessiontime = $1,
+          acctupdatetime = NOW()
+        WHERE radacctid = $2
+      `, sessionTime, session.radacctid);
+    } else {
+      // FALLBACK: only update session time, leave acctupdatetime untouched
+      await db.$executeRawUnsafe(`
+        UPDATE radacct SET
+          acctsessiontime = $1
+        WHERE radacctid = $2
+      `, sessionTime, session.radacctid);
+    }
 
     // Also update WiFiSession
     // Bug 3: Number() wrapping for BigInt safety
@@ -706,17 +721,27 @@ async function getSessionTimeoutForUser(username: string): Promise<number> {
 }
 
 /**
- * Get idle timeout for a user from radreply (Cryptsk-Idle-Timeout).
+ * Get idle timeout for a user from radreply.
+ * Checks Cryptsk-Idle-Timeout first (own gateway), then standard RFC Idle-Timeout
+ * (for external NAS devices like MikroTik, Cisco, Aruba).
  * Returns timeout in SECONDS. 0 = no limit.
  */
 async function getIdleTimeoutForUser(username: string): Promise<number> {
   try {
-    const reply = await db.radReply.findFirst({
+    // Check Cryptsk-Idle-Timeout first (own gateway / multimode)
+    const cryptskReply = await db.radReply.findFirst({
       where: { username, attribute: 'Cryptsk-Idle-Timeout', isActive: true },
     });
-    return reply ? parseInt(reply.value, 10) || 0 : 0;
+    if (cryptskReply && parseInt(cryptskReply.value, 10) > 0) {
+      return parseInt(cryptskReply.value, 10);
+    }
+
+    // Fallback: check standard RFC Idle-Timeout (for external NAS)
+    const standardReply = await db.radReply.findFirst({
+      where: { username, attribute: 'Idle-Timeout', isActive: true },
+    });
+    return standardReply ? parseInt(standardReply.value, 10) || 0 : 0;
   } catch (err) {
-    // Bug 15: Log the error instead of silently returning "no limit"
     SELog.warn(`Failed to look up Idle-Timeout for ${username}: ${err instanceof Error ? err.message : String(err)}`);
     return 0;
   }
@@ -724,9 +749,11 @@ async function getIdleTimeoutForUser(username: string): Promise<number> {
 
 /**
  * Get data limit for a user (in BYTES).
- * Checks multiple possible attributes:
- *   - Cryptsk-Data-Limit (bytes)
- *   - ChilliSpot-Max-Total-Octets (bytes)
+ * Checks multiple possible attributes (vendor-specific + standard RFC):
+ *   - Cryptsk-Data-Limit (bytes) — own gateway
+ *   - Cryptsk-Max-Input-Octets (bytes) — own gateway
+ *   - Max-Input-Octets (bytes) — standard RFC 2865 (ALL NAS)
+ *   - ChilliSpot-Max-Total-Octets (bytes) — ChilliSpot/Coova
  * Returns 0 = unlimited.
  */
 async function getDataLimitForUser(username: string): Promise<number> {
@@ -734,7 +761,12 @@ async function getDataLimitForUser(username: string): Promise<number> {
     const replies = await db.radReply.findMany({
       where: {
         username,
-        attribute: { in: ['Cryptsk-Data-Limit', 'ChilliSpot-Max-Total-Octets'] },
+        attribute: { in: [
+          'Cryptsk-Data-Limit',
+          'Cryptsk-Max-Input-Octets',
+          'Max-Input-Octets',         // Standard RFC 2865 — ALL NAS devices
+          'ChilliSpot-Max-Total-Octets',
+        ] },
         isActive: true,
       },
     });
@@ -745,7 +777,6 @@ async function getDataLimitForUser(username: string): Promise<number> {
     }
     return 0;
   } catch (err) {
-    // Bug 15: Log the error instead of silently returning "no limit"
     SELog.warn(`Failed to look up Data-Limit for ${username}: ${err instanceof Error ? err.message : String(err)}`);
     return 0;
   }

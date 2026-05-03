@@ -1,7 +1,12 @@
 /**
  * Next.js Instrumentation — runs once on server startup.
  * Initializes background cron jobs (session engine, NAS health, etc.).
+ *
+ * IMPORTANT: Must run in Node.js runtime — node-cron, fs, and child_process
+ * are NOT available in Edge runtime. Next.js 16 Turbopack defaults to Edge
+ * for instrumentation files unless explicitly set to 'nodejs'.
  */
+export const runtime = 'nodejs';
 
 export async function register() {
   // Only run on the server side

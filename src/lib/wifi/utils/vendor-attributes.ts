@@ -244,43 +244,105 @@ export function generateBandwidthAttributes(
 }
 
 /**
- * Generate session timeout and data limit attributes for one or more vendors.
+ * Generate session timeout, idle timeout, and data limit attributes for one or more vendors.
  *
- * Session-Timeout (RFC 2865) is ALWAYS included when timeoutMinutes > 0.
- * Vendor-specific data cap attributes are added based on each vendor profile.
+ * STANDARD RFC attributes are ALWAYS included first (recognized by ALL NAS devices worldwide):
+ *   - Session-Timeout (RFC 2865, attribute 27)
+ *   - Idle-Timeout (RFC 2865, attribute 28)
+ *   - Termination-Action (RFC 2865, attribute 29)
+ *   - Acct-Interim-Interval (RFC 2869, attribute 85)
+ *   - Max-Input-Octets / Max-Output-Octets (RFC 2865)
+ *
+ * Vendor-specific attributes are added after the standard ones.
  *
  * @param vendors - Array of normalized vendor profiles
  * @param timeoutMinutes - Session timeout in minutes (0 = no limit)
  * @param dataLimitMB - Data cap in MB (0/undefined = unlimited)
+ * @param idleTimeoutSeconds - Idle timeout in seconds (0/undefined = no idle limit)
  * @returns Array of { attribute, value } pairs to write to radreply
  */
 export function generateSessionAttributes(
   vendors: VendorProfile[],
   timeoutMinutes: number,
   dataLimitMB?: number,
+  idleTimeoutSeconds?: number,
 ): Array<{ attribute: string; value: string }> {
   const attrs: Array<{ attribute: string; value: string }> = [];
 
-  // RFC-standard Session-Timeout (RFC 2865) — recognized by ALL NAS devices
+  // ── STANDARD RFC attributes (recognized by ALL NAS devices) ──
+
+  // RFC 2865 — Session-Timeout: recognized by ALL NAS devices
   if (timeoutMinutes > 0) {
     attrs.push({ attribute: 'Session-Timeout', value: String(timeoutMinutes * 60) });
   }
 
-  // No data limit — nothing more to add
-  if (!dataLimitMB || dataLimitMB <= 0) return attrs;
+  // RFC 2865 — Idle-Timeout: recognized by ALL NAS devices
+  // Every NAS in the world understands this attribute and enforces idle disconnect.
+  if (idleTimeoutSeconds && idleTimeoutSeconds > 0) {
+    attrs.push({ attribute: 'Idle-Timeout', value: String(idleTimeoutSeconds) });
+  }
 
-  const dataLimitBytes = dataLimitMB * 1024 * 1024;
+  // RFC 2865 — Termination-Action: RADIUS-Request (default)
+  // Lets user re-authenticate after being disconnected by timeout/data-limit.
+  // Value 0 = Default, Value 1 = RADIUS-Request
+  attrs.push({ attribute: 'Termination-Action', value: 'RADIUS-Request' });
 
-  // Vendor-specific data cap attributes (deduplicated)
-  const seen = new Set<string>();
-  for (const vendor of vendors) {
-    const vendorAttrs = getVendorDataLimitAttrs(vendor, dataLimitBytes);
-    for (const va of vendorAttrs) {
-      if (!seen.has(va.attribute)) {
-        seen.add(va.attribute);
-        attrs.push(va);
+  // RFC 2869 — Acct-Interim-Interval: 60 seconds
+  // Controls how often the NAS sends Interim-Update accounting packets.
+  // Essential for accurate idle timeout and data tracking on external NAS.
+  attrs.push({ attribute: 'Acct-Interim-Interval', value: '60' });
+
+  // RFC 2865 — Standard data limits (recognized by ALL NAS)
+  if (dataLimitMB && dataLimitMB > 0) {
+    const dataLimitBytes = dataLimitMB * 1024 * 1024;
+    attrs.push(
+      { attribute: 'Max-Input-Octets', value: String(dataLimitBytes) },
+      { attribute: 'Max-Output-Octets', value: String(dataLimitBytes) },
+    );
+  }
+
+  // ── Vendor-specific data cap attributes (deduplicated) ──
+  if (dataLimitMB && dataLimitMB > 0) {
+    const dataLimitBytes = dataLimitMB * 1024 * 1024;
+    const seen = new Set<string>();
+    for (const vendor of vendors) {
+      const vendorAttrs = getVendorDataLimitAttrs(vendor, dataLimitBytes);
+      for (const va of vendorAttrs) {
+        if (!seen.has(va.attribute)) {
+          seen.add(va.attribute);
+          attrs.push(va);
+        }
       }
     }
+  }
+
+  return attrs;
+}
+
+/**
+ * Generate idle timeout attributes — standard RFC + vendor-specific.
+ *
+ * This is a convenience function for when you need to update idle timeout
+ * independently of session timeout and data limit.
+ *
+ * @param vendors - Array of normalized vendor profiles
+ * @param idleTimeoutSeconds - Idle timeout in seconds
+ * @returns Array of { attribute, value } pairs to write to radreply
+ */
+export function generateIdleTimeoutAttributes(
+  vendors: VendorProfile[],
+  idleTimeoutSeconds: number,
+): Array<{ attribute: string; value: string }> {
+  const attrs: Array<{ attribute: string; value: string }> = [];
+
+  if (idleTimeoutSeconds <= 0) return attrs;
+
+  // RFC 2865 — Idle-Timeout: recognized by ALL NAS devices
+  attrs.push({ attribute: 'Idle-Timeout', value: String(idleTimeoutSeconds) });
+
+  // Cryptsk-Idle-Timeout: only when Cryptsk is an active vendor
+  if (vendors.includes('cryptsk')) {
+    attrs.push({ attribute: 'Cryptsk-Idle-Timeout', value: String(idleTimeoutSeconds) });
   }
 
   return attrs;
@@ -419,13 +481,34 @@ function getVendorDataLimitAttrs(
 /**
  * Get all known data-limit attribute names that have a value set.
  * Used for deleting old vendor attrs before writing new ones.
+ * Includes standard RFC attributes (Max-Input-Octets, Max-Output-Octets).
  */
 export function getActiveDataLimitAttrs(attributes: Record<string, string> | undefined): string[] {
   if (!attributes) return [];
   return [
+    // Standard RFC attributes
+    'Max-Input-Octets', 'Max-Output-Octets',
+    // Vendor-specific attributes
     'Cryptsk-Total-Limit', 'Cryptsk-Max-Input-Octets', 'Cryptsk-Max-Output-Octets',
     'Mikrotik-Total-Limit',
     'ChilliSpot-Max-Total-Octets', 'ChilliSpot-Max-Input-Octets', 'ChilliSpot-Max-Output-Octets',
+  ].filter(attr => {
+    const val = attributes[attr];
+    return val && Number(val) > 0;
+  });
+}
+
+/**
+ * Get all known session/idle timeout attribute names that have a value set.
+ * Used for deleting old vendor attrs before writing new ones.
+ */
+export function getActiveTimeoutAttrs(attributes: Record<string, string> | undefined): string[] {
+  if (!attributes) return [];
+  return [
+    // Standard RFC attributes
+    'Session-Timeout', 'Idle-Timeout', 'Acct-Interim-Interval',
+    // Vendor-specific attributes
+    'Cryptsk-Session-Timeout', 'Cryptsk-Idle-Timeout',
   ].filter(attr => {
     const val = attributes[attr];
     return val && Number(val) > 0;
