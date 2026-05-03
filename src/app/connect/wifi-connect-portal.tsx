@@ -1790,7 +1790,7 @@ function PortalContent() {
       try {
         // Use pre-generated fingerprint, or generate fresh if not ready yet
         const fp = preGeneratedFingerprint
-          ? { hash: preGeneratedFingerprint } as Awaited<ReturnType<typeof generateFingerprint>>
+          ? { hash: preGeneratedFingerprint, signals: { signalCount: 0 } as any, collectionTimeMs: 0 }
           : await generateFingerprint();
 
         // Ensure storageToken exists (create if needed)
