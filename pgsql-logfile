@@ -755,3 +755,11 @@
 2026-05-03 20:41:22.492 UTC [6622] LOG:  checkpoint complete: wrote 12 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.103 s, sync=0.001 s, total=1.104 s; sync files=11, longest=0.001 s, average=0.001 s; distance=50 kB, estimate=3105 kB; lsn=0/33285D8, redo lsn=0/3328580
 2026-05-03 20:46:21.525 UTC [6622] LOG:  checkpoint starting: time
 2026-05-03 20:46:22.528 UTC [6622] LOG:  checkpoint complete: wrote 11 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.003 s, sync=0.001 s, total=1.004 s; sync files=11, longest=0.001 s, average=0.001 s; distance=56 kB, estimate=2800 kB; lsn=0/3336700, redo lsn=0/33366A8
+2026-05-03 20:51:21.538 UTC [6622] LOG:  checkpoint starting: time
+2026-05-03 20:51:23.443 UTC [6622] LOG:  checkpoint complete: wrote 20 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.905 s, sync=0.001 s, total=1.906 s; sync files=16, longest=0.001 s, average=0.001 s; distance=95 kB, estimate=2529 kB; lsn=0/334E478, redo lsn=0/334E420
+2026-05-03 20:56:21.470 UTC [6622] LOG:  checkpoint starting: time
+2026-05-03 20:56:22.774 UTC [6622] LOG:  checkpoint complete: wrote 14 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.304 s, sync=0.001 s, total=1.304 s; sync files=13, longest=0.001 s, average=0.001 s; distance=67 kB, estimate=2283 kB; lsn=0/335F440, redo lsn=0/335F3E8
+2026-05-03 21:01:21.826 UTC [6622] LOG:  checkpoint starting: time
+2026-05-03 21:01:22.828 UTC [6622] LOG:  checkpoint complete: wrote 11 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.003 s, sync=0.001 s, total=1.003 s; sync files=11, longest=0.001 s, average=0.001 s; distance=60 kB, estimate=2061 kB; lsn=0/336E700, redo lsn=0/336E6A8
+2026-05-03 21:01:44.937 UTC [14944] FATAL:  password authentication failed for user "postgres"
+2026-05-03 21:01:44.937 UTC [14944] DETAIL:  Connection matched file "/home/z/my-project/pgsql-data/pg_hba.conf" line 4: "host    all             all             127.0.0.1/32            md5"
