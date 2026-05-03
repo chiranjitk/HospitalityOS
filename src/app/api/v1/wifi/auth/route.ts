@@ -861,17 +861,41 @@ export async function POST(request: NextRequest) {
         await logAuthAttempt(username.trim(), 'Access-Accept', request, `pool:${pool.poolName}`);
         const sessionId = await createAccountingSession(username.trim(), request, 'portal', effectiveMac, pool);
 
-        // ── Read user's actual session timeout & bandwidth from radreply (not portal defaults) ──
+        // ── Reset user validity on each successful PMS login ──
+        // This ensures validUntil reflects the plan's validity from NOW,
+        // not from the original creation time. Without this, a user with
+        // validityMinutes=60 created days ago would have validUntil far
+        // in the future (set by the old create-user code using validityDays).
+        const planValidityMin = wifiUser.plan?.validityMinutes
+          || (wifiUser.plan?.validityDays ? wifiUser.plan.validityDays * 1440 : null)
+          || portalSessionTimeoutMin;
+        const newValidUntil = new Date(now.getTime() + planValidityMin * 60 * 1000);
+        await db.wiFiUser.update({
+          where: { id: wifiUser.id },
+          data: { validFrom: now, validUntil: newValidUntil, status: 'active' },
+        });
+
+        // Update RADIUS Session-Timeout to match plan validity
+        await db.radReply.deleteMany({
+          where: { username: wifiUser.username, attribute: 'Session-Timeout' },
+        });
+        await db.radReply.create({
+          data: {
+            wifiUserId: wifiUser.id,
+            username: wifiUser.username,
+            attribute: 'Session-Timeout',
+            op: ':=',
+            value: String(planValidityMin * 60),
+            isActive: true,
+          },
+        });
+
+        // ── Read user's bandwidth from radreply ──
         const userRadreply = await db.radReply.findMany({
           where: { username: username.trim() },
         });
         const getRadReplyValue = (attr: string): string | undefined =>
           userRadreply.find(r => r.attribute === attr)?.value;
-
-        const sessionTimeoutSec = getRadReplyValue('Session-Timeout');
-        const userSessionTimeoutMin = sessionTimeoutSec
-          ? Math.round(Number(sessionTimeoutSec) / 60)
-          : (wifiUser.plan?.validityMinutes || portalSessionTimeoutMin);
 
         const bwDownBps = getRadReplyValue('WISPr-Bandwidth-Max-Down')
           || getRadReplyValue('Cryptsk-Bandwidth-Max-Down');
@@ -904,7 +928,7 @@ export async function POST(request: NextRequest) {
 
         return successResponse({
           authenticated: true, method: 'pms_credentials', username: wifiUser.username,
-          sessionTimeout: userSessionTimeoutMin, bandwidthDown: userBwDown, bandwidthUp: userBwUp,
+          sessionTimeout: planValidityMin, bandwidthDown: userBwDown, bandwidthUp: userBwUp,
           poolName: pool.poolName, message: 'Connected successfully!',
         });
       }

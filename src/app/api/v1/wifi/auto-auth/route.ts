@@ -475,10 +475,33 @@ export async function POST(request: NextRequest) {
     // but never show up in the admin Active Users dashboard.
     await createAccountingSession(wifiUser.username, clientIp, request, 'auto_reauth', macAddress);
 
-    // ── Calculate remaining time ──
-    const validUntil = new Date(wifiUser.validUntil);
-    const remainingMs = validUntil.getTime() - now.getTime();
-    const remainingMinutes = Math.max(0, Math.floor(remainingMs / 60000));
+    // ── Calculate session timeout from plan validity ──
+    // Use plan.validityMinutes for the display duration (e.g. "1h"), not
+    // the remaining time from validUntil (which may be incorrect).
+    const planValidityMin = wifiUser.plan?.validityMinutes
+      || (wifiUser.plan?.validityDays ? wifiUser.plan.validityDays * 1440 : null)
+      || 60; // fallback: 1 hour
+
+    // ── Extend user validity on each successful auto-auth ──
+    // This ensures the user's validUntil reflects the plan's validity
+    // from the current session start, not from the original creation time.
+    const newValidUntil = new Date(now.getTime() + planValidityMin * 60 * 1000);
+    await db.wiFiUser.update({
+      where: { id: wifiUser.id },
+      data: { validUntil: newValidUntil },
+    });
+
+    // Update the RADIUS Session-Timeout to match the new validity
+    const newSessionTimeoutSec = planValidityMin * 60;
+    const existingSessionTimeout = await db.radReply.findFirst({
+      where: { username: wifiUser.username, attribute: 'Session-Timeout' },
+    });
+    if (existingSessionTimeout) {
+      await db.radReply.update({
+        where: { id: existingSessionTimeout.id },
+        data: { value: String(newSessionTimeoutSec) },
+      });
+    }
 
     // ── Success! Silent re-auth complete ──
     return NextResponse.json({
@@ -487,12 +510,12 @@ export async function POST(request: NextRequest) {
         authenticated: true,
         method: 'auto_auth',
         username: wifiUser.username,
-        sessionTimeout: remainingMinutes,
+        sessionTimeout: planValidityMin,
         planName: wifiUser.plan?.name || null,
         planValidityDays: wifiUser.plan?.validityDays || null,
         bandwidthDown: wifiUser.plan?.downloadSpeed || null,
         bandwidthUp: wifiUser.plan?.uploadSpeed || null,
-        remainingMinutes,
+        remainingMinutes: planValidityMin,
         message: 'Welcome back! Connected automatically.',
         deviceProfileId: deviceProfile.id,
       },
