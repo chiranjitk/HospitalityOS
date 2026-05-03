@@ -488,6 +488,7 @@ export const navigationConfig: NavSection[] = [
     category: 'addons',
     items: [
       { id: 'integrations-payments', title: 'Payment Gateways', href: '#integrations-payments', icon: CreditCard },
+      { id: 'integrations-sms', title: 'SMS Gateways', href: '#integrations-sms', icon: MessageSquare },
       { id: 'integrations-pos', title: 'POS Systems', href: '#integrations-pos', icon: UtensilsCrossed },
       { id: 'integrations-apis', title: 'Third-party APIs', href: '#integrations-apis', icon: Plug },
     ],

@@ -53,11 +53,6 @@ import { useTranslations } from 'next-intl';
 
 type IntegrationType =
   | 'smtp'
-  | 'sms_twilio'
-  | 'sms_vonage'
-  | 'sms_messagebird'
-  | 'sms_aws_sns'
-  | 'sms_custom'
   | 's3_storage'
   | 'fcm'
   | 'google_oauth'
@@ -111,51 +106,6 @@ const INTEGRATION_META: IntegrationMeta[] = [
     color: 'text-blue-600 dark:text-blue-400',
     bgColor: 'bg-blue-50 dark:bg-blue-950/40',
     hoverBorder: 'hover:border-blue-300',
-  },
-  {
-    type: 'sms_twilio',
-    label: 'SMS / Twilio',
-    sublabel: 'Global coverage',
-    icon: MessageSquare,
-    color: 'text-red-600 dark:text-red-400',
-    bgColor: 'bg-red-50 dark:bg-red-950/40',
-    hoverBorder: 'hover:border-red-300',
-  },
-  {
-    type: 'sms_vonage',
-    label: 'SMS / Vonage',
-    sublabel: 'Nexmo API',
-    icon: MessageSquare,
-    color: 'text-indigo-600 dark:text-indigo-400',
-    bgColor: 'bg-indigo-50 dark:bg-indigo-950/40',
-    hoverBorder: 'hover:border-indigo-300',
-  },
-  {
-    type: 'sms_messagebird',
-    label: 'SMS / MessageBird',
-    sublabel: 'EU focused',
-    icon: MessageSquare,
-    color: 'text-cyan-600 dark:text-cyan-400',
-    bgColor: 'bg-cyan-50 dark:bg-cyan-950/40',
-    hoverBorder: 'hover:border-cyan-300',
-  },
-  {
-    type: 'sms_aws_sns',
-    label: 'SMS / AWS SNS',
-    sublabel: 'AWS native',
-    icon: MessageSquare,
-    color: 'text-amber-600 dark:text-amber-400',
-    bgColor: 'bg-amber-50 dark:bg-amber-950/40',
-    hoverBorder: 'hover:border-amber-300',
-  },
-  {
-    type: 'sms_custom',
-    label: 'SMS / Custom',
-    sublabel: 'Any REST API',
-    icon: MessageSquare,
-    color: 'text-gray-600 dark:text-gray-400',
-    bgColor: 'bg-gray-50 dark:bg-gray-950/40',
-    hoverBorder: 'hover:border-gray-300',
   },
   {
     type: 's3_storage',
@@ -225,51 +175,6 @@ const INTEGRATION_SCHEMAS: Record<IntegrationType, IntegrationSchema> = {
       { key: 'fromEmail', label: 'From Email', type: 'text', placeholder: 'noreply@yourhotel.com', required: true },
       { key: 'fromName', label: 'From Name', type: 'text', placeholder: 'StaySuite Hotel' },
       { key: 'useTls', label: 'Use TLS', type: 'boolean', description: 'Enable TLS encryption for SMTP connections' },
-    ],
-  },
-  sms_twilio: {
-    description:
-      'Configure Twilio for sending SMS notifications and OTP codes. Twilio provides global coverage with local numbers in 100+ countries.',
-    fields: [
-      { key: 'accountSid', label: 'Account SID', type: 'text', placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', required: true },
-      { key: 'authToken', label: 'Auth Token', type: 'password', placeholder: 'Enter your auth token', required: true },
-      { key: 'phoneNumber', label: 'From Phone Number', type: 'text', placeholder: '+1234567890', required: true },
-    ],
-  },
-  sms_vonage: {
-    description:
-      'Configure Vonage (formerly Nexmo) for SMS delivery. Supports 200+ countries with competitive pricing.',
-    fields: [
-      { key: 'accountSid', label: 'API Key', type: 'text', placeholder: 'xxxxxxxx', required: true, description: 'Your Vonage API key' },
-      { key: 'authToken', label: 'API Secret', type: 'password', placeholder: 'Enter your API secret', required: true },
-      { key: 'phoneNumber', label: 'Sender Name / Number', type: 'text', placeholder: 'YourHotel or +1234567890', required: true, description: 'Alphanumeric sender (11 chars) or phone number' },
-    ],
-  },
-  sms_messagebird: {
-    description:
-      'Configure MessageBird for SMS delivery. Strong coverage in Europe, Asia, and Latin America.',
-    fields: [
-      { key: 'authToken', label: 'Access Key (Master Key)', type: 'password', placeholder: 'Enter your MessageBird access key', required: true },
-      { key: 'phoneNumber', label: 'Originator', type: 'text', placeholder: 'YourHotel or +1234567890', required: true, description: 'Alphanumeric sender or phone number' },
-    ],
-  },
-  sms_aws_sns: {
-    description:
-      'Configure AWS SNS for SMS delivery. Pay-per-use pricing, no monthly fees. Requires AWS IAM credentials with SNS permissions.',
-    fields: [
-      { key: 'accountSid', label: 'AWS Access Key ID', type: 'text', placeholder: 'AKIAIOSFODNN7EXAMPLE', required: true },
-      { key: 'authToken', label: 'AWS Secret Access Key', type: 'password', placeholder: 'Enter your AWS secret key', required: true },
-      { key: 'phoneNumber', label: 'Default Sender ID', type: 'text', placeholder: 'YourHotel', description: 'Alphanumeric sender ID (varies by country)' },
-      { key: 'region', label: 'AWS Region', type: 'text', placeholder: 'us-east-1' },
-    ],
-  },
-  sms_custom: {
-    description:
-      'Configure a custom HTTP SMS gateway. Must accept POST requests with JSON body containing to, from, and body fields.',
-    fields: [
-      { key: 'baseUrl', label: 'API Endpoint URL', type: 'url', placeholder: 'https://your-sms-gateway.com/api/send', required: true },
-      { key: 'authToken', label: 'API Key / Bearer Token', type: 'password', placeholder: 'Enter your API key', required: true },
-      { key: 'phoneNumber', label: 'Default Sender Number', type: 'text', placeholder: '+1234567890' },
     ],
   },
   s3_storage: {
@@ -589,8 +494,8 @@ export default function SystemIntegrations() {
           <Skeleton className="h-8 w-56 mb-2" />
           <Skeleton className="h-4 w-96 max-w-full" />
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {Array.from({ length: 12 }).map((_, i) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+          {Array.from({ length: 7 }).map((_, i) => (
             <Skeleton key={i} className="h-36 rounded-xl" />
           ))}
         </div>
@@ -629,7 +534,7 @@ export default function SystemIntegrations() {
       </div>
 
       {/* ── Integration Cards Grid ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {INTEGRATION_META.map((meta) => {
           const configured = isConfigured(meta.type);
           const isSelected = selectedType === meta.type;

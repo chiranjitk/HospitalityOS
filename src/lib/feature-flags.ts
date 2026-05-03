@@ -285,10 +285,10 @@ export const FEATURES: Record<string, FeatureConfig> = {
   integrations: {
     id: 'integrations',
     name: 'Third-party Integrations',
-    description: 'Payment gateways, WiFi gateways, POS systems, and third-party APIs',
+    description: 'Payment gateways, SMS gateways, WiFi gateways, POS systems, and third-party APIs',
     category: 'addons',
     subcategory: 'Integrations & Automation',
-    menuItems: ['integrations-payments', 'integrations-wifi', 'integrations-pos', 'integrations-apis'],
+    menuItems: ['integrations-payments', 'integrations-sms', 'integrations-wifi', 'integrations-pos', 'integrations-apis'],
     apiRoutes: ['/api/integrations'],
   },
   automation: {

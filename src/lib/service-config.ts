@@ -23,6 +23,10 @@ type IntegrationType =
   | 'sms_vonage'
   | 'sms_messagebird'
   | 'sms_aws_sns'
+  | 'sms_msg91'
+  | 'sms_gupshup'
+  | 'sms_textlocal'
+  | 'sms_kaleyra'
   | 'sms_custom'
   | 's3_storage'
   | 'fcm'
@@ -165,6 +169,10 @@ export async function getSMSProviderConfig(tenantId: string): Promise<import('./
     'sms_vonage',
     'sms_messagebird',
     'sms_aws_sns',
+    'sms_msg91',
+    'sms_gupshup',
+    'sms_textlocal',
+    'sms_kaleyra',
     'sms_custom',
   ];
 
@@ -176,6 +184,10 @@ export async function getSMSProviderConfig(tenantId: string): Promise<import('./
         sms_vonage: 'vonage',
         sms_messagebird: 'messagebird',
         sms_aws_sns: 'aws_sns',
+        sms_msg91: 'msg91',
+        sms_gupshup: 'gupshup',
+        sms_textlocal: 'textlocal',
+        sms_kaleyra: 'kaleyra',
         sms_custom: 'custom',
       };
       return {

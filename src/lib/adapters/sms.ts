@@ -6,6 +6,10 @@
  *   - Vonage / Nexmo
  *   - MessageBird
  *   - AWS SNS
+ *   - MSG91 (India-focused, DLT compliant)
+ *   - Gupshup (India, WhatsApp + SMS)
+ *   - Textlocal (India / Global)
+ *   - Kaleyra (India, CPaaS)
  *   - Custom HTTP (any REST API)
  *   - Mock (dev / test)
  *
@@ -32,6 +36,10 @@ export type SMSProviderType =
   | 'vonage'
   | 'messagebird'
   | 'aws_sns'
+  | 'msg91'
+  | 'gupshup'
+  | 'textlocal'
+  | 'kaleyra'
   | 'custom'
   | 'mock';
 
@@ -577,6 +585,301 @@ class CustomHTTPAdapter {
   }
 }
 
+// ---- MSG91 Adapter (India-focused, DLT compliant) ----
+class MSG91Adapter {
+  private config: SMSCredentials;
+
+  constructor(config: SMSCredentials) {
+    this.config = config;
+  }
+
+  async send(options: SMSOptions): Promise<SMSResult> {
+    try {
+      const from = options.from || this.config.phoneNumber || 'STAYSU';
+      // MSG91 flow: <country_code><10-digit-mobile>
+      const to = options.to.replace(/^\+/, '');
+
+      const response = await fetch('https://api.msg91.com/api/v5/flow/', {
+        method: 'POST',
+        headers: {
+          'authkey': this.config.authToken!,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          flow_id: this.config.accountSid, // Reuse accountSid as flow_id for template-based
+          sender: from,
+          mobiles: to,
+          message: options.message,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.type === 'error') {
+        return {
+          success: false,
+          error: data.message || `MSG91 HTTP ${response.status}`,
+          provider: 'msg91',
+          status: 'failed',
+        };
+      }
+
+      return {
+        success: true,
+        messageId: data.message_id || `msg91-${Date.now()}`,
+        provider: 'msg91',
+        status: 'sent',
+      };
+    } catch (error) {
+      console.error('[SMS/MSG91] Send error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'MSG91 send failed',
+        provider: 'msg91',
+        status: 'failed',
+      };
+    }
+  }
+
+  async sendBatch(messages: SMSOptions[]): Promise<SMSResult[]> {
+    // MSG91 doesn't have native batch — send individually
+    return Promise.all(messages.map((m) => this.send(m)));
+  }
+
+  async getBalance(): Promise<number> {
+    try {
+      const response = await fetch(
+        `https://api.msg91.com/api/v5/balance?authkey=${this.config.authToken}`,
+      );
+      const data = await response.json();
+      return parseFloat(data.balance || '0');
+    } catch {
+      return 0;
+    }
+  }
+}
+
+// ---- Gupshup Adapter (India, WhatsApp + SMS) ----
+class GupshupAdapter {
+  private config: SMSCredentials;
+
+  constructor(config: SMSCredentials) {
+    this.config = config;
+  }
+
+  async send(options: SMSOptions): Promise<SMSResult> {
+    try {
+      const from = options.from || this.config.phoneNumber || 'STAYSU';
+      // Gupshup send endpoint
+      const params = new URLSearchParams({
+        userid: this.config.accountSid || '',
+        password: this.config.authToken || '',
+        send_to: options.to.replace(/^\+/, ''),
+        msg: options.message,
+        msg_type: 'TEXT',
+        v: '1.1',
+      });
+      if (from) params.set('mask', from);
+
+      const response = await fetch('https://api.gupshup.io/smapi/v1/msg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+      });
+
+      const data = await response.json();
+
+      if (data.status === 'failure' || data.responseCode === '402') {
+        return {
+          success: false,
+          error: data.message || data.reason || 'Gupshup send failed',
+          provider: 'gupshup',
+          status: 'failed',
+        };
+      }
+
+      return {
+        success: true,
+        messageId: data.messageId || `gupshup-${Date.now()}`,
+        provider: 'gupshup',
+        status: data.status || 'sent',
+      };
+    } catch (error) {
+      console.error('[SMS/Gupshup] Send error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Gupshup send failed',
+        provider: 'gupshup',
+        status: 'failed',
+      };
+    }
+  }
+
+  async sendBatch(messages: SMSOptions[]): Promise<SMSResult[]> {
+    return Promise.all(messages.map((m) => this.send(m)));
+  }
+
+  async getBalance(): Promise<number> {
+    try {
+      const response = await fetch(
+        `https://api.gupshup.io/sm/api/v1/balance?userid=${this.config.accountSid}&password=${this.config.authToken}`,
+      );
+      const data = await response.json();
+      return parseFloat(data.balance || '0');
+    } catch {
+      return 0;
+    }
+  }
+}
+
+// ---- Textlocal Adapter (India / Global) ----
+class TextlocalAdapter {
+  private config: SMSCredentials;
+
+  constructor(config: SMSCredentials) {
+    this.config = config;
+  }
+
+  async send(options: SMSOptions): Promise<SMSResult> {
+    try {
+      const params = new URLSearchParams({
+        apiKey: this.config.authToken || '',
+        numbers: options.to.replace(/^\+/, ''),
+        message: options.message,
+        sender: options.from || this.config.phoneNumber || 'STAYSU',
+        test: '0',
+      });
+
+      if (options.statusCallback) {
+        params.set('receipt_url', options.statusCallback);
+      }
+
+      const response = await fetch('https://api.txtlocal.com/send/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+      });
+
+      const data = await response.json();
+
+      if (data.status !== 'success') {
+        return {
+          success: false,
+          error: data.errors?.[0]?.message || 'Textlocal send failed',
+          provider: 'textlocal',
+          status: 'failed',
+        };
+      }
+
+      return {
+        success: true,
+        messageId: data.messages?.[0]?.id || `textlocal-${Date.now()}`,
+        provider: 'textlocal',
+        status: data.messages?.[0]?.status || 'sent',
+        cost: parseFloat(data.messages?.[0]?.cost || '0'),
+      };
+    } catch (error) {
+      console.error('[SMS/Textlocal] Send error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Textlocal send failed',
+        provider: 'textlocal',
+        status: 'failed',
+      };
+    }
+  }
+
+  async sendBatch(messages: SMSOptions[]): Promise<SMSResult[]> {
+    return Promise.all(messages.map((m) => this.send(m)));
+  }
+
+  async getBalance(): Promise<number> {
+    try {
+      const response = await fetch(
+        `https://api.txtlocal.com/balance/?apiKey=${this.config.authToken}`,
+      );
+      const data = await response.json();
+      return parseFloat(data.balance?.sms || '0');
+    } catch {
+      return 0;
+    }
+  }
+}
+
+// ---- Kaleyra Adapter (India, CPaaS) ----
+class KaleyraAdapter {
+  private config: SMSCredentials;
+
+  constructor(config: SMSCredentials) {
+    this.config = config;
+  }
+
+  async send(options: SMSOptions): Promise<SMSResult> {
+    try {
+      const from = options.from || this.config.phoneNumber || 'STAYSU';
+      const to = options.to.replace(/^\+/, '');
+
+      const response = await fetch('https://api.kaleyra.io/v1/' + this.config.accountSid + '/messages', {
+        method: 'POST',
+        headers: {
+          'api-key': this.config.authToken!,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: `+${to}`,
+          type: 'OTP',
+          sender: from,
+          body: options.message,
+          template_id: this.config.region || '', // Optional: DLT template ID
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === 'error') {
+        return {
+          success: false,
+          error: data.message || `Kaleyra HTTP ${response.status}`,
+          provider: 'kaleyra',
+          status: 'failed',
+        };
+      }
+
+      return {
+        success: true,
+        messageId: data.data?.[0]?.id || data.message_id || `kaleyra-${Date.now()}`,
+        provider: 'kaleyra',
+        status: 'sent',
+      };
+    } catch (error) {
+      console.error('[SMS/Kaleyra] Send error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Kaleyra send failed',
+        provider: 'kaleyra',
+        status: 'failed',
+      };
+    }
+  }
+
+  async sendBatch(messages: SMSOptions[]): Promise<SMSResult[]> {
+    return Promise.all(messages.map((m) => this.send(m)));
+  }
+
+  async getBalance(): Promise<number> {
+    try {
+      const response = await fetch(
+        `https://api.kaleyra.io/v1/${this.config.accountSid}/balance`,
+        { headers: { 'api-key': this.config.authToken! } },
+      );
+      const data = await response.json();
+      return parseFloat(data.data?.balance?.sms || '0');
+    } catch {
+      return 0;
+    }
+  }
+}
+
 // ──────────────────────────────────────────────────────────────────
 // Unified SMS Adapter Interface
 // ──────────────────────────────────────────────────────────────────
@@ -601,6 +904,14 @@ function createAdapterFromCreds(creds: SMSCredentials): SMSAdapter {
       return new MessageBirdSMSAdapter(creds) as unknown as SMSAdapter;
     case 'aws_sns':
       return new AWSSNSAdapter(creds) as unknown as SMSAdapter;
+    case 'msg91':
+      return new MSG91Adapter(creds) as unknown as SMSAdapter;
+    case 'gupshup':
+      return new GupshupAdapter(creds) as unknown as SMSAdapter;
+    case 'textlocal':
+      return new TextlocalAdapter(creds) as unknown as SMSAdapter;
+    case 'kaleyra':
+      return new KaleyraAdapter(creds) as unknown as SMSAdapter;
     case 'custom':
       return new CustomHTTPAdapter(creds) as unknown as SMSAdapter;
     case 'mock':
@@ -628,7 +939,7 @@ function getEnvCredentials(): SMSCredentials | null {
   if (!accountSid || !authToken) return null;
 
   return {
-    provider: ['twilio', 'vonage', 'messagebird', 'aws_sns', 'custom'].includes(provider)
+    provider: ['twilio', 'vonage', 'messagebird', 'aws_sns', 'msg91', 'gupshup', 'textlocal', 'kaleyra', 'custom'].includes(provider)
       ? provider
       : 'twilio',
     accountSid,
@@ -770,6 +1081,10 @@ export {
   VonageSMSAdapter,
   MessageBirdSMSAdapter,
   AWSSNSAdapter,
+  MSG91Adapter,
+  GupshupAdapter,
+  TextlocalAdapter,
+  KaleyraAdapter,
   CustomHTTPAdapter,
   createAdapterFromCreds,
   getEnvCredentials,

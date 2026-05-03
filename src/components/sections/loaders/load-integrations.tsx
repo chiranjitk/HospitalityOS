@@ -4,6 +4,9 @@ export default async function loadSection(section: string): Promise<{ default: R
     case 'integrations-payment':
     case 'integrations-payments':
       return import('@/components/integrations/payment-gateways-page');
+    case 'integrations-sms':
+    case 'integrations-sms-gateway':
+      return import('@/components/integrations/sms-gateways');
     case 'integrations-wifi':
       return import('@/components/integrations/wifi-gateways');
     case 'integrations-pos':
