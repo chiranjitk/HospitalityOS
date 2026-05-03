@@ -839,7 +839,7 @@ export default function RadiusUsersTab() {
                     <TableHead>Plan</TableHead>
                     <TableHead>Password</TableHead>
                     <TableHead>Bandwidth</TableHead>
-                    <TableHead>Validity</TableHead>
+                    <TableHead>Session</TableHead>
                     <TableHead>Data Cap</TableHead>
                     <TableHead>FUP Policy</TableHead>
                     <TableHead>IP Pool</TableHead>
