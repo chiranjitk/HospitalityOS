@@ -120,6 +120,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log(`[AutoAuth] Received: fp=${fingerprintHash.substring(0, 16)}... token=${storageToken ? storageToken.substring(0, 8) + '...' : 'null'} slug=${portalSlug || 'none'}`);
+
     // ── Resolve property from portal slug ──
     let propertyId: string | null = null;
     let tenantId: string | null = null;
@@ -166,6 +168,7 @@ export async function POST(request: NextRequest) {
 
     // Strategy 2: Match by fingerprintHash (fallback when storage cleared)
     if (!deviceProfile) {
+      console.log(`[AutoAuth] Strategy 1 (token) failed, trying Strategy 2 (fingerprint)`);
       deviceProfile = await db.deviceProfile.findFirst({
         where: {
           fingerprintHash,

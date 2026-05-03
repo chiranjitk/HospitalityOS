@@ -370,19 +370,30 @@ export function getStorageToken(): string | null {
 }
 
 /**
- * Save a new storage token to localStorage.
+ * Save a storage token to localStorage.
+ * If a token already exists, it is preserved (not overwritten).
  * Call this after successful authentication.
+ *
+ * @param token - Optional token to save. If not provided, the existing
+ *                token is preserved, or a new one is created if none exists.
  */
 export function saveStorageToken(token?: string): string {
-  const value = token || generateUUID();
+  // Reuse existing token if no explicit token provided and one already exists
+  if (!token) {
+    const existing = getStorageToken();
+    if (existing) {
+      return existing;
+    }
+    token = generateUUID();
+  }
   try {
-    localStorage.setItem(STORAGE_TOKEN_KEY, value);
+    localStorage.setItem(STORAGE_TOKEN_KEY, token);
     localStorage.setItem(STORAGE_VERSION_KEY, String(FINGERPRINT_VERSION));
   } catch {
     // Storage quota exceeded or unavailable — silent fail
     // Fingerprint-only matching will still work
   }
-  return value;
+  return token;
 }
 
 /**
