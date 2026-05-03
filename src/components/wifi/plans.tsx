@@ -1056,8 +1056,8 @@ export default function WifiPlans() {
                   min="1"
                   value={formData.validityValue}
                   onChange={(e) => setFormData(prev => ({ ...prev, validityValue: e.target.value }))}
-                  className="flex-1"
-                  placeholder="Enter value"
+                  className="w-20 shrink-0"
+                  placeholder="1"
                 />
                 <Select value={formData.validityUnit} onValueChange={(v) => setFormData(prev => ({ ...prev, validityUnit: v }))}>
                   <SelectTrigger className="w-20 shrink-0">
