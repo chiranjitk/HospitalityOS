@@ -845,3 +845,89 @@
 	        GROUP BY hour
 	        ORDER BY hour
 	      
+2026-05-03 23:31:22.546 UTC [6622] LOG:  checkpoint starting: time
+2026-05-03 23:31:24.751 UTC [6622] LOG:  checkpoint complete: wrote 23 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=2.205 s, sync=0.001 s, total=2.206 s; sync files=18, longest=0.001 s, average=0.001 s; distance=71 kB, estimate=164 kB; lsn=0/35B05D0, redo lsn=0/35B0578
+2026-05-03 23:32:53.085 UTC [30712] ERROR:  operator does not exist: uuid = text at character 179
+2026-05-03 23:32:53.085 UTC [30712] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-03 23:32:53.085 UTC [30712] STATEMENT:  
+	        SELECT
+	          EXTRACT(HOUR FROM "startTime" AT TIME ZONE 'UTC')::int as hour,
+	          COUNT(*)::bigint as count
+	        FROM "WiFiSession"
+	        WHERE "tenantId" = $1
+	          AND "startTime" >= $2
+	        GROUP BY hour
+	        ORDER BY hour
+	      
+2026-05-03 23:33:24.860 UTC [30712] ERROR:  operator does not exist: uuid = text at character 179
+2026-05-03 23:33:24.860 UTC [30712] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-03 23:33:24.860 UTC [30712] STATEMENT:  
+	        SELECT
+	          EXTRACT(HOUR FROM "startTime" AT TIME ZONE 'UTC')::int as hour,
+	          COUNT(*)::bigint as count
+	        FROM "WiFiSession"
+	        WHERE "tenantId" = $1
+	          AND "startTime" >= $2
+	        GROUP BY hour
+	        ORDER BY hour
+	      
+2026-05-03 23:33:41.754 UTC [30710] ERROR:  operator does not exist: uuid = text at character 179
+2026-05-03 23:33:41.754 UTC [30710] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-03 23:33:41.754 UTC [30710] STATEMENT:  
+	        SELECT
+	          EXTRACT(HOUR FROM "startTime" AT TIME ZONE 'UTC')::int as hour,
+	          COUNT(*)::bigint as count
+	        FROM "WiFiSession"
+	        WHERE "tenantId" = $1
+	          AND "startTime" >= $2
+	        GROUP BY hour
+	        ORDER BY hour
+	      
+2026-05-03 23:33:43.854 UTC [30710] ERROR:  operator does not exist: uuid = text at character 179
+2026-05-03 23:33:43.854 UTC [30710] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-03 23:33:43.854 UTC [30710] STATEMENT:  
+	        SELECT
+	          EXTRACT(HOUR FROM "startTime" AT TIME ZONE 'UTC')::int as hour,
+	          COUNT(*)::bigint as count
+	        FROM "WiFiSession"
+	        WHERE "tenantId" = $1
+	          AND "startTime" >= $2
+	        GROUP BY hour
+	        ORDER BY hour
+	      
+2026-05-03 23:33:46.770 UTC [30712] ERROR:  operator does not exist: uuid = text at character 179
+2026-05-03 23:33:46.770 UTC [30712] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-03 23:33:46.770 UTC [30712] STATEMENT:  
+	        SELECT
+	          EXTRACT(HOUR FROM "startTime" AT TIME ZONE 'UTC')::int as hour,
+	          COUNT(*)::bigint as count
+	        FROM "WiFiSession"
+	        WHERE "tenantId" = $1
+	          AND "startTime" >= $2
+	        GROUP BY hour
+	        ORDER BY hour
+	      
+2026-05-03 23:33:48.122 UTC [30709] ERROR:  operator does not exist: uuid = text at character 179
+2026-05-03 23:33:48.122 UTC [30709] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-03 23:33:48.122 UTC [30709] STATEMENT:  
+	        SELECT
+	          EXTRACT(HOUR FROM "startTime" AT TIME ZONE 'UTC')::int as hour,
+	          COUNT(*)::bigint as count
+	        FROM "WiFiSession"
+	        WHERE "tenantId" = $1
+	          AND "startTime" >= $2
+	        GROUP BY hour
+	        ORDER BY hour
+	      
+2026-05-03 23:33:53.667 UTC [30716] ERROR:  operator does not exist: uuid = text at character 179
+2026-05-03 23:33:53.667 UTC [30716] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-03 23:33:53.667 UTC [30716] STATEMENT:  
+	        SELECT
+	          EXTRACT(HOUR FROM "startTime" AT TIME ZONE 'UTC')::int as hour,
+	          COUNT(*)::bigint as count
+	        FROM "WiFiSession"
+	        WHERE "tenantId" = $1
+	          AND "startTime" >= $2
+	        GROUP BY hour
+	        ORDER BY hour
+	      
