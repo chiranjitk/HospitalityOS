@@ -16,6 +16,26 @@ import { execSync } from 'child_process';
 
 const COUNTER_SCRIPT = '/home/z/my-project/scripts/nftables/staysuite-traffic-counters.sh';
 
+// One-time availability check — if nft is missing or nftables table can't be
+// created, suppress all subsequent log noise. SessionEngine handles fallback.
+let _nftablesAvailable: boolean | null = null;
+
+function isNftablesAvailable(): boolean {
+  if (_nftablesAvailable !== null) return _nftablesAvailable;
+  try {
+    execSync('which nft 2>/dev/null', { timeout: 2000 });
+    const result = execSync(`bash ${COUNTER_SCRIPT} setup 2>&1`, {
+      encoding: 'utf-8',
+      timeout: 5000,
+    });
+    _nftablesAvailable = true;
+    return true;
+  } catch {
+    _nftablesAvailable = false;
+    return false;
+  }
+}
+
 export interface IPByteCount {
   ip: string;
   downloadBytes: number;
@@ -31,14 +51,14 @@ export interface AllByteCounts {
  * Ensure the counter table exists. Safe to call multiple times.
  */
 export function setupCounterTable(): boolean {
+  if (!isNftablesAvailable()) return false;
   try {
     execSync(`bash ${COUNTER_SCRIPT} setup 2>&1`, {
       encoding: 'utf-8',
       timeout: 5000,
     });
     return true;
-  } catch (err) {
-    console.error('[nft-counters] Failed to setup counter table:', err);
+  } catch {
     return false;
   }
 }
@@ -48,14 +68,14 @@ export function setupCounterTable(): boolean {
  * Called after successful authentication.
  */
 export function addUserCounter(ip: string): boolean {
+  if (!isNftablesAvailable()) return false;
   try {
     execSync(`bash ${COUNTER_SCRIPT} add ${ip} 2>&1`, {
       encoding: 'utf-8',
       timeout: 5000,
     });
     return true;
-  } catch (err) {
-    console.error(`[nft-counters] Failed to add counter for ${ip}:`, err);
+  } catch {
     return false;
   }
 }
@@ -65,15 +85,14 @@ export function addUserCounter(ip: string): boolean {
  * Called on logout/disconnect/session cleanup.
  */
 export function removeUserCounter(ip: string): boolean {
+  if (!isNftablesAvailable()) return false;
   try {
     execSync(`bash ${COUNTER_SCRIPT} remove ${ip} 2>&1`, {
       encoding: 'utf-8',
       timeout: 5000,
     });
     return true;
-  } catch (err) {
-    // Non-fatal — counters may already be removed
-    console.warn(`[nft-counters] Failed to remove counter for ${ip}:`, err);
+  } catch {
     return false;
   }
 }
@@ -83,6 +102,7 @@ export function removeUserCounter(ip: string): boolean {
  * Returns { ip, downloadBytes, uploadBytes }.
  */
 export function readUserCounter(ip: string): IPByteCount | null {
+  if (!isNftablesAvailable()) return null;
   try {
     const output = execSync(`bash ${COUNTER_SCRIPT} read ${ip} 2>&1`, {
       encoding: 'utf-8',
@@ -108,6 +128,7 @@ export function readUserCounter(ip: string): IPByteCount | null {
  * Returns array of { ip, downloadBytes, uploadBytes }.
  */
 export function readAllCounters(): AllByteCounts {
+  if (!isNftablesAvailable()) return { counts: [], timestamp: new Date() };
   try {
     const output = execSync(`bash ${COUNTER_SCRIPT} read-all 2>&1`, {
       encoding: 'utf-8',
@@ -133,8 +154,7 @@ export function readAllCounters(): AllByteCounts {
     }
 
     return { counts, timestamp: new Date() };
-  } catch (err) {
-    console.error('[nft-counters] Failed to read all counters:', err);
+  } catch {
     return { counts: [], timestamp: new Date() };
   }
 }
@@ -144,6 +164,7 @@ export function readAllCounters(): AllByteCounts {
  * Used during cleanup/reset.
  */
 export function flushAllCounters(): boolean {
+  if (!isNftablesAvailable()) return false;
   try {
     execSync(`bash ${COUNTER_SCRIPT} flush 2>&1`, {
       encoding: 'utf-8',
