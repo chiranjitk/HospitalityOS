@@ -675,7 +675,7 @@ export default function SystemIntegrations() {
                           isSensitiveField(field) ? (visible ? 'text' : 'password') : field.type === 'number' ? 'number' : 'text'
                         }
                         placeholder={field.placeholder}
-                        value={value as string}
+                        value={(value as string) ?? ''}
                         onChange={(e) =>
                           handleFieldChange(
                             field.key,

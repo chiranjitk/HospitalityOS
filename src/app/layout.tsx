@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster as ShadcnToaster } from "@/components/ui/toaster";
+import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { FeatureFlagsProvider } from "@/contexts/FeatureFlagsContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { PermissionProvider } from "@/contexts/PermissionContext";
@@ -82,7 +83,8 @@ export default async function RootLayout({
                     </CurrencyProvider>
                   </FeatureFlagsProvider>
                 </PermissionProvider>
-                <Toaster />
+                <ShadcnToaster />
+                <SonnerToaster />
               </AuthProvider>
             </I18nProvider>
           </NextIntlClientProvider>

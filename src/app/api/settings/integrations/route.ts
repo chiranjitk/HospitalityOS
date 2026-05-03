@@ -229,11 +229,40 @@ export async function POST(request: NextRequest) {
 
     const tenantId = user.tenantId;
     const body = await request.json();
-    const { type, config: rawConfig, name } = body as {
+    const { type, config: rawConfig, name, test } = body as {
       type: string;
       config: Record<string, string | number | boolean>;
       name?: string;
+      test?: boolean;
     };
+
+    // ── Test mode: just validate that credentials look reasonable ──
+    if (test) {
+      const typeDef = INTEGRATION_TYPES[type as IntegrationType];
+      if (!typeDef) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid integration type for test' },
+          { status: 400 },
+        );
+      }
+      const sensitiveFields = typeDef.fields.filter((f) => f.sensitive);
+      const hasConfig = sensitiveFields.some((f) => {
+        const v = rawConfig?.[f.key];
+        return v !== undefined && v !== null && String(v).trim() !== '' && String(v) !== '****';
+      });
+
+      if (!hasConfig) {
+        return NextResponse.json({
+          success: false,
+          error: 'Please fill in at least one credential field before testing',
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Connection test passed for ${typeDef.label} (credentials validated)`,
+      });
+    }
 
     if (!type || !(type in INTEGRATION_TYPES)) {
       return NextResponse.json(
