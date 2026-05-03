@@ -41,6 +41,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
   Wifi,
   Search,
   Loader2,
@@ -59,6 +64,10 @@ import {
   XCircle,
   Eye,
   AlertTriangle,
+  Info,
+  Timer,
+  Moon,
+  Hourglass,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -105,6 +114,138 @@ interface LiveSessionStats {
   perNas: { nasIp: string; nasIdentifier?: string; count: number }[];
   totalDownload: number;
   totalUpload: number;
+}
+
+// ─── Session Terms Info Components (declared outside render) ────────────────────
+
+/** Rich popover content explaining Session Time, Idle Timeout, Session Timeout */
+function SessionTermsInfoContent() {
+  return (
+    <div className="space-y-3 text-sm">
+      {/* Session Time */}
+      <div className="flex gap-2.5">
+        <div className="shrink-0 mt-0.5">
+          <div className="p-1.5 rounded-md bg-emerald-500/10">
+            <Timer className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+          </div>
+        </div>
+        <div className="min-w-0">
+          <p className="font-semibold text-sm">Session Time</p>
+          <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+            <li><span className="font-medium text-foreground/80">What:</span> Total duration since the user connected/logged in</li>
+            <li><span className="font-medium text-foreground/80">Starts:</span> When RADIUS sends Access-Accept</li>
+            <li><span className="font-medium text-foreground/80">Behavior:</span> Always counts up, never pauses or resets</li>
+            <li className="pt-0.5"><span className="font-medium text-foreground/80">Example:</span> Login at 10:00 AM → at 10:30 AM = <span className="font-mono">30m 0s</span></li>
+            <li className="italic text-muted-foreground/70">Like a stopwatch that starts when you enter a room</li>
+          </ul>
+        </div>
+      </div>
+      {/* Idle Timeout */}
+      <div className="flex gap-2.5">
+        <div className="shrink-0 mt-0.5">
+          <div className="p-1.5 rounded-md bg-amber-500/10">
+            <Moon className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+          </div>
+        </div>
+        <div className="min-w-0">
+          <p className="font-semibold text-sm">Idle Timeout</p>
+          <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+            <li><span className="font-medium text-foreground/80">What:</span> Max allowed inactivity before disconnect</li>
+            <li><span className="font-medium text-foreground/80\">Starts:</span> Resets every time user sends/receives traffic</li>
+            <li><span className="font-medium text-foreground/80\">Behavior:</span> No traffic for X duration → user disconnected</li>
+            <li className="pt-0.5"><span className="font-medium text-foreground/80\">Example:</span> Idle Timeout = <span className="font-mono">5m 0s</span> → user stops browsing → kicked after 5 min</li>
+            <li className="italic text-muted-foreground/70">Like a screensaver lock — inactivity triggers it</li>
+          </ul>
+        </div>
+      </div>
+      {/* Session Timeout */}
+      <div className="flex gap-2.5">
+        <div className="shrink-0 mt-0.5">
+          <div className="p-1.5 rounded-md bg-rose-500/10">
+            <Hourglass className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+          </div>
+        </div>
+        <div className="min-w-0">
+          <p className="font-semibold text-sm">Session Timeout</p>
+          <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+            <li><span className="font-medium text-foreground/80">What:</span> Max total session duration regardless of activity</li>
+            <li><span className="font-medium text-foreground/80">Behavior:</span> Even with active browsing, time limit enforced</li>
+            <li className="pt-0.5"><span className="font-medium text-foreground/80">Example:</span> Timeout = <span className="font-mono">24h 0m</span> → user kicked at 24 hours even if active</li>
+            <li className="italic text-muted-foreground/70">Like a parking meter — time runs out no matter what</li>
+          </ul>
+        </div>
+      </div>
+      {/* Quick comparison table */}
+      <div className="border rounded-md overflow-hidden mt-2">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-muted/50">
+              <th className="text-left px-2 py-1.5 font-medium">Feature</th>
+              <th className="text-left px-2 py-1.5 font-medium">Resets?</th>
+              <th className="text-left px-2 py-1.5 font-medium">On Timeout</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            <tr>
+              <td className="px-2 py-1.5 font-medium">Session Time</td>
+              <td className="px-2 py-1.5 text-muted-foreground">Never</td>
+              <td className="px-2 py-1.5 text-muted-foreground">Just a counter</td>
+            </tr>
+            <tr>
+              <td className="px-2 py-1.5 font-medium">Idle Timeout</td>
+              <td className="px-2 py-1.5 text-muted-foreground">On every packet</td>
+              <td className="px-2 py-1.5 text-destructive font-medium">Disconnected</td>
+            </tr>
+            <tr>
+              <td className="px-2 py-1.5 font-medium">Session Timeout</td>
+              <td className="px-2 py-1.5 text-muted-foreground">Never</td>
+              <td className="px-2 py-1.5 text-destructive font-medium">Disconnected</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/** Small circular info button that opens the session terms popover */
+function SessionTermsInfoButton() {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center justify-center h-4 w-4 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+          aria-label="Session time terms explained"
+        >
+          <Info className="h-3 w-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-4" side="right" align="start" sideOffset={8}>
+        <SessionTermsInfoContent />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** Full-width dashed card with info button (shown in session details dialog) */
+function SessionTermsInfoPopover() {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="w-full flex items-center gap-2 p-3 rounded-lg border border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-muted/30 text-muted-foreground hover:text-foreground transition-all text-xs group"
+        >
+          <Info className="h-4 w-4 shrink-0 group-hover:text-primary" />
+          <span>What do Session Time, Idle Timeout &amp; Session Timeout mean?</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-4" side="bottom" align="center" sideOffset={8}>
+        <SessionTermsInfoContent />
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────────
@@ -790,7 +931,12 @@ export default function LiveSessions() {
                         <TableHead>MAC</TableHead>
                         <TableHead>Device</TableHead>
                         <TableHead>BW Down / Up</TableHead>
-                        <TableHead>Time</TableHead>
+                        <TableHead>
+                          <div className="flex items-center gap-1">
+                            Time
+                            <SessionTermsInfoButton />
+                          </div>
+                        </TableHead>
                         <TableHead>Data Down / Up</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -1018,8 +1164,13 @@ export default function LiveSessions() {
                   </div>
                 </div>
               </div>
+              {/* Session Terms Info Popover */}
+              <SessionTermsInfoPopover />
               <div className="border-t pt-4">
-                <p className="text-xs font-medium text-muted-foreground mb-2">Session Info</p>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <p className="text-xs font-medium text-muted-foreground">Session Info</p>
+                  <SessionTermsInfoButton />
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Session Time</p>
