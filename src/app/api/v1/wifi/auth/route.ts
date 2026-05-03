@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
+import { sendSMSNow } from '@/lib/services/sms-service';
 import { randomUUID, randomInt } from 'crypto';
 import { radiusAuth, getRejectMessage } from '@/lib/wifi/utils/radius-auth';
 import { addUserCounter } from '@/lib/wifi/utils/nftables-counters';
@@ -133,7 +134,7 @@ async function upsertDeviceProfileWithFingerprint(params: {
 // ────────────────────────────────────────────────────────────
 const otpStore = new Map<
   string,
-  { code: string; expiresAt: number; phone: string }
+  { code: string; expiresAt: number; phone: string; attempts: number }
 >();
 
 if (process.env.NODE_ENV === 'production') {
@@ -142,6 +143,45 @@ if (process.env.NODE_ENV === 'production') {
 
 function generateOtp(): string {
   return randomInt(100000, 999999).toString();
+}
+
+// ────────────────────────────────────────────────────────────
+// OTP Rate Limiter (per-phone, prevents SMS spam / OTP bombing)
+// ────────────────────────────────────────────────────────────
+const otpRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+const OTP_MAX_REQUESTS = 5;   // max OTP sends per phone per window
+const OTP_WINDOW_MS = 15 * 60 * 1000; // 15 minute window
+const OTP_MAX_VERIFY_ATTEMPTS = 5; // max wrong OTP tries before invalidation
+
+function checkOtpRateLimit(phone: string): { allowed: boolean; retryAfterSec: number } {
+  const now = Date.now();
+  const entry = otpRateLimits.get(phone);
+  if (!entry || now > entry.resetAt) {
+    otpRateLimits.set(phone, { count: 1, resetAt: now + OTP_WINDOW_MS });
+    return { allowed: true, retryAfterSec: 0 };
+  }
+  entry.count++;
+  if (entry.count > OTP_MAX_REQUESTS) {
+    const retryAfterSec = Math.ceil((entry.resetAt - now) / 1000);
+    return { allowed: false, retryAfterSec };
+  }
+  return { allowed: true, retryAfterSec: 0 };
+}
+
+// ────────────────────────────────────────────────────────────
+// Phone Number Validation
+// ────────────────────────────────────────────────────────────
+function isValidPhoneNumber(phone: string): boolean {
+  const digits = phone.replace(/\D/g, '');
+  return digits.length >= 10 && digits.length <= 15;
+}
+
+function normalizePhoneNumber(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 10) return `+91${digits}`; // default India
+  if (!phone.startsWith('+')) return `+${digits}`;
+  return `+${digits}`;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -1162,6 +1202,15 @@ export async function POST(request: NextRequest) {
       }
 
       // ─── SMS OTP ──────────────────────────────────────────
+      // Two-step flow:
+      //   Step 1 (no otpCode): Validate phone → generate OTP → send via SMS → store in otpStore
+      //   Step 2 (with otpCode): Validate OTP → provision RADIUS user → authenticate
+      //
+      // Security:
+      //   - Per-phone rate limiting (5 sends per 15 min)
+      //   - Max 5 wrong OTP attempts per OTP
+      //   - 5-minute OTP expiry
+      //   - Phone number format validation
       case 'sms_otp': {
         if (otpCode) {
           // ── Step 2: Verify OTP (credential check) ──
@@ -1169,7 +1218,7 @@ export async function POST(request: NextRequest) {
             return errorResponse('MISSING_PHONE', 'Phone number is required for OTP verification');
           }
 
-          const normalizedPhone = phoneNumber.trim().replace(/\s+/g, '');
+          const normalizedPhone = normalizePhoneNumber(phoneNumber.trim());
           const stored = otpStore.get(normalizedPhone);
 
           if (!stored) {
@@ -1181,13 +1230,21 @@ export async function POST(request: NextRequest) {
             return errorResponse('OTP_EXPIRED', 'Your OTP has expired. Please request a new one.');
           }
 
+          // Track wrong attempts — invalidate after too many tries
+          stored.attempts++;
+          if (stored.attempts > OTP_MAX_VERIFY_ATTEMPTS) {
+            otpStore.delete(normalizedPhone);
+            return errorResponse('OTP_MAX_ATTEMPTS', 'Too many incorrect attempts. Please request a new OTP.');
+          }
+
           if (stored.code !== otpCode.trim()) {
-            return errorResponse('OTP_INVALID', 'Invalid OTP code. Please try again.');
+            const remaining = OTP_MAX_VERIFY_ATTEMPTS - stored.attempts;
+            return errorResponse('OTP_INVALID', `Invalid OTP code. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`);
           }
 
           // ── OTP verified — check IP pool ──
-          const pool = await getValidatedPool(request, resolveAllowedPoolIds(portalPlanIpPoolId));
-          if (!pool) {
+          const smsPool = await getValidatedPool(request, resolveAllowedPoolIds(portalPlanIpPoolId));
+          if (!smsPool) {
             await logAuthAttempt(`sms-${normalizedPhone.replace(/[^a-z0-9]/gi, '')}`, 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
             return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
           }
@@ -1206,19 +1263,48 @@ export async function POST(request: NextRequest) {
               : Promise.resolve(undefined));
 
           if (fallbackPropertyId) {
+            // ── Resolve plan for proper device limit + data cap ──
+            let smsPlanId: string | null = null;
+            let smsMaxDevices = 1;
+            let smsDataLimit: number | undefined;
+
+            if (portalPlanIpPoolId || fallbackPropertyId) {
+              // Try property default AAA plan
+              const aaaConfig = await db.wiFiAAAConfig.findUnique({
+                where: { propertyId: fallbackPropertyId },
+                select: { defaultPlanId: true },
+              });
+              if (aaaConfig?.defaultPlanId) {
+                smsPlanId = aaaConfig.defaultPlanId;
+                const planAttrs = await db.wiFiPlan.findUnique({
+                  where: { id: smsPlanId },
+                  select: { maxDevices: true, dataLimit: true },
+                });
+                if (planAttrs?.maxDevices && planAttrs.maxDevices > 0) {
+                  smsMaxDevices = planAttrs.maxDevices;
+                }
+                if (planAttrs?.dataLimit && planAttrs.dataLimit > 0) {
+                  smsDataLimit = planAttrs.dataLimit;
+                }
+              }
+            }
+
             await provisionOrResumeUser(wifiUsername, now, validUntil, {
               tenantId: portal?.tenantId || '',
               propertyId: fallbackPropertyId,
               username: wifiUsername,
               password: stored.code,
+              planId: smsPlanId ?? undefined,
               downloadSpeed: downloadBps,
               uploadSpeed: uploadBps,
               sessionTimeoutMinutes: portalSessionTimeoutMin,
               idleTimeoutSeconds: portal?.idleTimeout,
+              sessionLimit: smsMaxDevices,
+              dataLimit: smsDataLimit,
             });
 
-            // Check concurrent session limit (SMS users get default 1)
-            if (await isSessionLimitReached(wifiUsername, 1)) {
+            // Check concurrent session limit (from resolved plan, not hardcoded)
+            if (await isSessionLimitReached(wifiUsername, smsMaxDevices)) {
               await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
               return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
             }
@@ -1229,8 +1315,8 @@ export async function POST(request: NextRequest) {
               return errorResponse(radiusResult.rejectReason || 'AUTH_FAILED', getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED'));
             }
 
-            await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
-            const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool);
+            await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${smsPool.poolName}${smsPlanId ? ' plan:aaa' : ''}`);
+            const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, smsPool);
 
             await activateUserFirewall({
               username: wifiUsername, clientIp: getClientIpString(request),
@@ -1238,7 +1324,7 @@ export async function POST(request: NextRequest) {
               macAddress: effectiveMac,
               maxBandwidthDownBytes: portal?.maxBandwidthDown,
               maxBandwidthUpBytes: portal?.maxBandwidthUp,
-              subnet: pool.subnet,
+              subnet: smsPool.subnet,
             });
 
             // Add per-IP byte counter rules for session engine tracking
@@ -1246,36 +1332,100 @@ export async function POST(request: NextRequest) {
             if (smsCounterIp && smsCounterIp !== '0.0.0.0') {
               addUserCounter(smsCounterIp);
             }
+
+            // ── Save device profile for auto-reauth ──
+            try {
+              const smsUser = await db.wiFiUser.findUnique({
+                where: { username: wifiUsername },
+                select: { id: true, tenantId: true, propertyId: true, guestId: true },
+              });
+              if (smsUser) {
+                await upsertDeviceProfileWithFingerprint({
+                  wifiUserId: smsUser.id, tenantId: smsUser.tenantId,
+                  propertyId: smsUser.propertyId, guestId: smsUser.guestId,
+                  username: wifiUsername, request,
+                  macAddress: effectiveMac, fingerprintHash, storageToken,
+                });
+              }
+            } catch { /* best effort */ }
           }
 
           return successResponse({
             authenticated: true, method: 'sms_otp', username: wifiUsername,
             sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
-            poolName: pool.poolName, message: 'Connected successfully!',
+            poolName: smsPool.poolName, message: 'Connected successfully!',
           });
         } else {
-          // ── Step 1: Send OTP (no credential check needed) ──
+          // ── Step 1: Send OTP ──
           if (!phoneNumber?.trim()) {
             return errorResponse('MISSING_PHONE', 'Please enter your phone number');
           }
 
-          const normalizedPhone = phoneNumber.trim().replace(/\s+/g, '');
+          const normalizedPhone = normalizePhoneNumber(phoneNumber.trim());
+
+          // Validate phone number format
+          if (!isValidPhoneNumber(phoneNumber.trim())) {
+            return errorResponse('INVALID_PHONE', 'Please enter a valid phone number (10-15 digits).');
+          }
+
+          // Per-phone rate limiting (prevent OTP bombing)
+          const rateCheck = checkOtpRateLimit(normalizedPhone);
+          if (!rateCheck.allowed) {
+            return errorResponse(
+              'OTP_RATE_LIMITED',
+              `Too many OTP requests. Please try again in ${rateCheck.retryAfterSec} seconds.`,
+              429,
+            );
+          }
+
           const code = generateOtp();
 
           otpStore.set(normalizedPhone, {
             code,
             expiresAt: Date.now() + 5 * 60 * 1000,
             phone: normalizedPhone,
+            attempts: 0,
           });
 
-          console.log(`[SMS OTP] Code for ${normalizedPhone}: ${code.slice(0, 2)}**** (expires in 5 min)`);
+          // ── Actually send the OTP via SMS ──
+          let smsSent = false;
+          let smsError: string | undefined;
+
+          try {
+            const tenantId = portal?.tenantId || '';
+            const result = await sendSMSNow({
+              to: normalizedPhone,
+              message: `Your StaySuite WiFi verification code is: ${code}. Valid for 5 minutes. Do not share this code.`,
+              tenantId: tenantId || undefined,
+            });
+            smsSent = result.success;
+            if (!result.success) {
+              smsError = result.error;
+              console.error(`[SMS OTP] Failed to send to ${normalizedPhone}: ${smsError}`);
+            } else {
+              console.log(`[SMS OTP] Sent via ${result.provider} to ${normalizedPhone} (messageId: ${result.messageId})`);
+            }
+          } catch (err) {
+            smsError = err instanceof Error ? err.message : 'SMS delivery failed';
+            console.error(`[SMS OTP] Exception sending to ${normalizedPhone}:`, smsError);
+          }
+
+          // Always return success if OTP was generated (even if SMS delivery failed,
+          // the debug OTP is available in dev mode — prevents locking out guests
+          // when SMS provider has temporary issues)
+          const isDev = process.env.NODE_ENV === 'development';
+
+          console.log(`[SMS OTP] Code for ${normalizedPhone}: ${code.slice(0, 2)}**** (expires in 5 min) smsSent=${smsSent}`);
 
           return NextResponse.json({
             success: true,
             data: {
-              otpSent: true,
-              message: 'OTP sent to your phone',
-              ...(process.env.NODE_ENV === 'development' && { _debugOtp: code }),
+              otpSent: smsSent,
+              message: smsSent
+                ? 'OTP sent to your phone'
+                : 'OTP generated but SMS delivery failed. Please try again.',
+              ...(isDev && { _debugOtp: code }),
+              ...(!smsSent && smsError && { _error: smsError }),
             },
           });
         }
