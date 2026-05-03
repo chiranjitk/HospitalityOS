@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 /**
  * Send a RADIUS Access-Request via radclient to FreeRADIUS on localhost.
@@ -6,6 +6,9 @@ import { execSync } from 'child_process';
  * Simultaneous-Use via fn_check_login_limit, expiration, etc.).
  *
  * This device acts as a NAS gateway, so NAS-IP-Address is always 127.0.0.1.
+ *
+ * Uses execFileSync instead of execSync to avoid shell pipe dependency
+ * on /bin/sh (which may not be resolvable in some sandbox environments).
  */
 export async function radiusAuth(username: string, password: string): Promise<{
   accepted: boolean;
@@ -18,13 +21,10 @@ export async function radiusAuth(username: string, password: string): Promise<{
     const dictDir = '/home/z/my-project/freeradius-install/share/freeradius';
     const libDir = '/home/z/my-project/freeradius-install/lib';
 
-    // radclient needs LD_LIBRARY_PATH for shared libs and -D for dictionary path
-    // LD_LIBRARY_PATH is set via env option below (no need for inline export)
-    const escapedUsername = username.replace(/'/g, "'\\''");
-    const escapedPassword = password.replace(/'/g, "'\\''");
-    const radclientCmd = `echo "User-Name = '${escapedUsername}', User-Password = '${escapedPassword}', NAS-IP-Address = 127.0.0.1, NAS-Port = 0, NAS-Port-Type = Wireless-802.11, Called-Station-Id = '00:00:00:00:00:01'" | ${radclientBin} -D ${dictDir} -x 127.0.0.1 auth testing123 3`;
+    const radclientInput = `User-Name = '${username}', User-Password = '${password}', NAS-IP-Address = 127.0.0.1, NAS-Port = 0, NAS-Port-Type = Wireless-802.11, Called-Station-Id = '00:00:00:00:00:01'\n`;
 
-    const output = execSync(radclientCmd, {
+    const output = execFileSync(radclientBin, ['-D', dictDir, '-x', '127.0.0.1', 'auth', 'testing123', '3'], {
+      input: radclientInput,
       encoding: 'utf-8',
       timeout: 5000,
       cwd: raddbDir,

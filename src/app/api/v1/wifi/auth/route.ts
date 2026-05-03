@@ -429,15 +429,15 @@ async function resolveMacAddress(
   // 3. DHCP lease lookup by client IP (last resort)
   if (clientIp && clientIp !== '0.0.0.0' && clientIp !== 'unknown') {
     try {
-      const leaseResult = await db.$queryRawUnsafe<Array<{ "hwAddress": string | null }>>(`
-        SELECT "hwAddress" FROM "DhcpLease"
+      const leaseResult = await db.$queryRawUnsafe<Array<{ "macAddress": string | null }>>(`
+        SELECT "macAddress" FROM "DhcpLease"
         WHERE "ipAddress" = $1 AND state = 'active'
-        ORDER BY "updatedAt" DESC
+        ORDER BY "lastSeenAt" DESC
         LIMIT 1
       `, clientIp);
 
-      if (leaseResult.length > 0 && leaseResult[0].hwAddress) {
-        const normalized = leaseResult[0].hwAddress.replace(/[:\-\.\s]/g, '').toUpperCase();
+      if (leaseResult.length > 0 && leaseResult[0].macAddress) {
+        const normalized = leaseResult[0].macAddress.replace(/[:\-\.\s]/g, '').toUpperCase();
         if (/^[0-9A-F]{12}$/.test(normalized)) {
           console.log(`[MAC] Resolved from DHCP lease: IP=${clientIp} → MAC=${normalized.match(/.{2}/g)?.join(':')}`);
           return normalized.match(/.{2}/g)?.join(':') || null;
