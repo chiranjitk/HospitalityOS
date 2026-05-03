@@ -395,6 +395,7 @@
     "security-sessions": "Device Sessions",
     "security-sso": "SSO Configuration",
     "integrations-payments": "Payment Gateways",
+    "integrations-sms": "SMS Gateways",
     "integrations-pos": "POS Systems",
     "integrations-apis": "Third-party APIs",
     "automation-workflows": "Workflow Builder",

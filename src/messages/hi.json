@@ -394,6 +394,7 @@
     "security-sessions": "डिवाइस सेशन",
     "security-sso": "SSO कॉन्फ़िगरेशन",
     "integrations-payments": "पेमेंट गेटवे",
+    "integrations-sms": "SMS गेटवे",
     "integrations-pos": "POS सिस्टम",
     "integrations-apis": "थर्ड-पार्टी API",
     "automation-workflows": "वर्कफ़्लो बिल्डर",
