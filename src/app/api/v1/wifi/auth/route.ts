@@ -343,7 +343,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const sessionTimeout = portal?.sessionTimeout ?? 1440; // minutes
+    // Portal defaults (sessionTimeout is stored in SECONDS in DB, convert to minutes for display)
+    const portalSessionTimeoutMin = portal?.sessionTimeout
+      ? Math.round(portal.sessionTimeout / 60)
+      : 1440; // default 24h in minutes
     const bwDown = portal
       ? Math.round((portal.maxBandwidthDown || 5242880) / 1000000)
       : 5;
@@ -407,7 +410,7 @@ export async function POST(request: NextRequest) {
         }
 
         const wifiUsername = `voucher-${voucher.code.toLowerCase()}`;
-        const validUntil = new Date(now.getTime() + sessionTimeout * 60 * 1000);
+        const validUntil = new Date(now.getTime() + portalSessionTimeoutMin * 60 * 1000);
         const downloadBps = bwDown * 1000000;
         const uploadBps = bwUp * 1000000;
         const dataLimitMb = voucher.plan?.dataLimit ?? undefined;
@@ -423,7 +426,7 @@ export async function POST(request: NextRequest) {
           planName: voucher.plan?.name,
           downloadSpeed: downloadBps,
           uploadSpeed: uploadBps,
-          sessionTimeoutMinutes: sessionTimeout,
+          sessionTimeoutMinutes: portalSessionTimeoutMin,
           idleTimeoutSeconds: portal?.idleTimeout,
           sessionLimit: voucher.plan?.maxDevices,
           dataLimit: dataLimitMb,
@@ -457,7 +460,7 @@ export async function POST(request: NextRequest) {
 
         return successResponse({
           authenticated: true, method: 'voucher', username: wifiUsername,
-          sessionTimeout, bandwidthDown: bwDown, bandwidthUp: bwUp,
+          sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
           poolName: pool.poolName, message: 'Connected successfully!',
         });
       }
@@ -503,7 +506,7 @@ export async function POST(request: NextRequest) {
         }
 
         const now = new Date();
-        const validUntil = new Date(now.getTime() + sessionTimeout * 60 * 1000);
+        const validUntil = new Date(now.getTime() + portalSessionTimeoutMin * 60 * 1000);
         const wifiUsername = `room-${match.room?.roomNumber?.toLowerCase() || roomNumber.trim().toLowerCase()}`;
         const userPassword = `${match.primaryGuest.lastName.toLowerCase()}-${match.id.slice(0, 8)}`;
         const downloadBps = bwDown * 1000000;
@@ -518,7 +521,7 @@ export async function POST(request: NextRequest) {
           password: userPassword,
           downloadSpeed: downloadBps,
           uploadSpeed: uploadBps,
-          sessionTimeoutMinutes: sessionTimeout,
+          sessionTimeoutMinutes: portalSessionTimeoutMin,
           idleTimeoutSeconds: portal?.idleTimeout,
         });
 
@@ -551,7 +554,7 @@ export async function POST(request: NextRequest) {
 
         return successResponse({
           authenticated: true, method: 'room_number', username: wifiUsername,
-          sessionTimeout, bandwidthDown: bwDown, bandwidthUp: bwUp,
+          sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
           poolName: pool.poolName, message: 'Connected successfully!',
         });
       }
@@ -568,7 +571,7 @@ export async function POST(request: NextRequest) {
         const wifiUser = await db.wiFiUser.findUnique({
           where: { username: username.trim() },
           include: {
-            plan: { select: { ipPoolId: true, maxDevices: true } },
+            plan: { select: { ipPoolId: true, maxDevices: true, validityMinutes: true } },
             ipPool: { select: { id: true } },
           },
         });
@@ -630,18 +633,37 @@ export async function POST(request: NextRequest) {
         await logAuthAttempt(username.trim(), 'Access-Accept', request, `pool:${pool.poolName}`);
         const sessionId = await createAccountingSession(username.trim(), request, 'portal', macAddress, pool);
 
+        // ── Read user's actual session timeout & bandwidth from radreply (not portal defaults) ──
+        const userRadreply = await db.radReply.findMany({
+          where: { username: username.trim() },
+        });
+        const getRadReplyValue = (attr: string): string | undefined =>
+          userRadreply.find(r => r.attribute === attr)?.value;
+
+        const sessionTimeoutSec = getRadReplyValue('Session-Timeout');
+        const userSessionTimeoutMin = sessionTimeoutSec
+          ? Math.round(Number(sessionTimeoutSec) / 60)
+          : (wifiUser.plan?.validityMinutes || portalSessionTimeoutMin);
+
+        const bwDownBps = getRadReplyValue('WISPr-Bandwidth-Max-Down')
+          || getRadReplyValue('Cryptsk-Bandwidth-Max-Down');
+        const bwUpBps = getRadReplyValue('WISPr-Bandwidth-Max-Up')
+          || getRadReplyValue('Cryptsk-Bandwidth-Max-Up');
+        const userBwDown = bwDownBps ? Math.round(Number(bwDownBps) / 1000000) : bwDown;
+        const userBwUp = bwUpBps ? Math.round(Number(bwUpBps) / 1000000) : bwUp;
+
         await activateUserFirewall({
           username: username.trim(), clientIp: getClientIpString(request),
           propertyId: wifiUser.propertyId, sessionId,
           macAddress, userId: wifiUser.id,
-          maxBandwidthDownBytes: portal?.maxBandwidthDown,
-          maxBandwidthUpBytes: portal?.maxBandwidthUp,
+          maxBandwidthDownBytes: bwDownBps ? Number(bwDownBps) : portal?.maxBandwidthDown,
+          maxBandwidthUpBytes: bwUpBps ? Number(bwUpBps) : portal?.maxBandwidthUp,
           subnet: pool.subnet,
         });
 
         return successResponse({
           authenticated: true, method: 'pms_credentials', username: wifiUser.username,
-          sessionTimeout, bandwidthDown: bwDown, bandwidthUp: bwUp,
+          sessionTimeout: userSessionTimeoutMin, bandwidthDown: userBwDown, bandwidthUp: userBwUp,
           poolName: pool.poolName, message: 'Connected successfully!',
         });
       }
@@ -680,7 +702,7 @@ export async function POST(request: NextRequest) {
           otpStore.delete(normalizedPhone);
 
           const now = new Date();
-          const validUntil = new Date(now.getTime() + sessionTimeout * 60 * 1000);
+          const validUntil = new Date(now.getTime() + portalSessionTimeoutMin * 60 * 1000);
           const wifiUsername = `sms-${normalizedPhone.replace(/[^a-z0-9]/gi, '')}`;
           const downloadBps = bwDown * 1000000;
           const uploadBps = bwUp * 1000000;
@@ -698,7 +720,7 @@ export async function POST(request: NextRequest) {
               password: stored.code,
               downloadSpeed: downloadBps,
               uploadSpeed: uploadBps,
-              sessionTimeoutMinutes: sessionTimeout,
+              sessionTimeoutMinutes: portalSessionTimeoutMin,
               idleTimeoutSeconds: portal?.idleTimeout,
             });
 
@@ -729,7 +751,7 @@ export async function POST(request: NextRequest) {
 
           return successResponse({
             authenticated: true, method: 'sms_otp', username: wifiUsername,
-            sessionTimeout, bandwidthDown: bwDown, bandwidthUp: bwUp,
+            sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
             poolName: pool.poolName, message: 'Connected successfully!',
           });
         } else {
@@ -770,7 +792,7 @@ export async function POST(request: NextRequest) {
         }
 
         const now = new Date();
-        const validUntil = new Date(now.getTime() + sessionTimeout * 60 * 1000);
+        const validUntil = new Date(now.getTime() + portalSessionTimeoutMin * 60 * 1000);
         let wifiUsername: string | null = null;
 
         if (portal) {
@@ -795,7 +817,7 @@ export async function POST(request: NextRequest) {
                 userType: 'guest',
                 downloadSpeed: downloadBps,
                 uploadSpeed: uploadBps,
-                sessionTimeoutMinutes: sessionTimeout,
+                sessionTimeoutMinutes: portalSessionTimeoutMin,
                 idleTimeoutSeconds: portal?.idleTimeout,
               });
 
@@ -830,7 +852,7 @@ export async function POST(request: NextRequest) {
 
         return successResponse({
           authenticated: true, method: 'open_access', username: wifiUsername,
-          sessionTimeout, bandwidthDown: bwDown, bandwidthUp: bwUp,
+          sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
           poolName: pool.poolName, message: 'Connected successfully!',
         });
       }
