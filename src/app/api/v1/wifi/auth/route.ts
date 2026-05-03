@@ -755,15 +755,32 @@ export async function POST(request: NextRequest) {
           return errorResponse('ROOM_NOT_FOUND', 'No active guest found for this room number and last name. Please verify and try again.');
         }
 
-        // ── Credentials valid — now check IP pool ──
-        // Resolve plan ipPoolId from room type's WiFi plan binding
+        // ── Credentials valid — now resolve plan ──
+        // Priority: roomType's WiFi plan → property's default AAA plan
+        // This plan determines bandwidth, device limit, data cap, session timeout
         let roomPlanIpPoolId: string | null = null;
-        if (match.roomType?.wifiPlanId) {
+        let roomPlanId: string | null = match.roomType?.wifiPlanId ?? null;
+
+        if (roomPlanId) {
           const roomPlan = await db.wiFiPlan.findUnique({
-            where: { id: match.roomType.wifiPlanId },
+            where: { id: roomPlanId },
             select: { ipPoolId: true },
           });
           roomPlanIpPoolId = roomPlan?.ipPoolId ?? null;
+        } else {
+          // No plan on room type — fall back to property's default AAA plan
+          const aaaConfig = await db.wiFiAAAConfig.findUnique({
+            where: { propertyId: match.propertyId },
+            select: { defaultPlanId: true },
+          });
+          if (aaaConfig?.defaultPlanId) {
+            roomPlanId = aaaConfig.defaultPlanId;
+            const defaultPlan = await db.wiFiPlan.findUnique({
+              where: { id: roomPlanId },
+              select: { ipPoolId: true },
+            });
+            roomPlanIpPoolId = defaultPlan?.ipPoolId ?? null;
+          }
         }
 
         const now = new Date();
@@ -907,6 +924,22 @@ export async function POST(request: NextRequest) {
         const downloadBps = bwDown * 1000000;
         const uploadBps = bwUp * 1000000;
 
+        // Resolve plan attrs for device limit and data cap
+        let roomMaxDevices = 1; // safe default
+        let roomDataLimit: number | undefined;
+        if (roomPlanId) {
+          const planAttrs = await db.wiFiPlan.findUnique({
+            where: { id: roomPlanId },
+            select: { maxDevices: true, dataLimit: true },
+          });
+          if (planAttrs?.maxDevices && planAttrs.maxDevices > 0) {
+            roomMaxDevices = planAttrs.maxDevices;
+          }
+          if (planAttrs?.dataLimit && planAttrs.dataLimit > 0) {
+            roomDataLimit = planAttrs.dataLimit;
+          }
+        }
+
         await provisionOrResumeUser(wifiUsername, now, validUntil, {
           tenantId: match.tenantId,
           propertyId: match.propertyId,
@@ -914,17 +947,17 @@ export async function POST(request: NextRequest) {
           bookingId: match.id,
           username: wifiUsername,
           password: userPassword,
+          planId: roomPlanId ?? undefined,
           downloadSpeed: downloadBps,
           uploadSpeed: uploadBps,
           sessionTimeoutMinutes: portalSessionTimeoutMin,
           idleTimeoutSeconds: portal?.idleTimeout,
+          sessionLimit: roomMaxDevices,
+          dataLimit: roomDataLimit,
         });
 
-        // Check concurrent session limit (default 1 for room users)
-        const roomMaxSessions = match.roomType?.wifiPlanId
-          ? (await db.wiFiPlan.findUnique({ where: { id: match.roomType.wifiPlanId }, select: { maxDevices: true } }))?.maxDevices ?? 1
-          : 1;
-        if (await isSessionLimitReached(wifiUsername, roomMaxSessions)) {
+        // Check concurrent session limit (from resolved plan, not hardcoded)
+        if (await isSessionLimitReached(wifiUsername, roomMaxDevices)) {
           await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
           return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
         }
