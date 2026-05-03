@@ -4,6 +4,7 @@ import { decrypt } from '@/lib/encryption';
 import { executeReport, sendReportEmail } from './report-executor';
 import { createGatewayAdapter, DEFAULT_PORTS } from '@/lib/wifi/adapters';
 import type { GatewayConfig, GatewayVendor } from '@/lib/wifi/adapters';
+import { runSessionEngine } from '@/lib/wifi/services/session-engine';
 
 // ---------------------------------------------------------------------------
 // Provider → Vendor mapping (same as API route)
@@ -93,6 +94,18 @@ export function initializeScheduler(): void {
 
   activeJobs.set('gateway-sync', gatewaySyncJob);
   console.log('[Scheduler] Gateway auto-sync job started - runs every minute');
+
+  // Run every minute to process session engine (nftables counters → accounting)
+  const sessionEngineJob = cron.schedule('* * * * *', async () => {
+    try {
+      await runSessionEngine();
+    } catch (err) {
+      console.error('[Scheduler] Session engine error:', err);
+    }
+  });
+
+  activeJobs.set('session-engine', sessionEngineJob);
+  console.log('[Scheduler] Session engine job started - runs every minute');
 }
 
 /**

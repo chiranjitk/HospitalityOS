@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
 import { randomUUID } from 'crypto';
 import { radiusAuth, getRejectMessage } from '@/lib/wifi/utils/radius-auth';
+import { addUserCounter } from '@/lib/wifi/utils/nftables-counters';
 import {
   runLoginScript,
   generateClassIds,
@@ -670,6 +671,12 @@ export async function POST(request: NextRequest) {
           subnet: pool.subnet,
         });
 
+        // Add per-IP byte counter rules for session engine tracking
+        const voucherCounterIp = normalizeIp(getClientIpString(request));
+        if (voucherCounterIp && voucherCounterIp !== '0.0.0.0') {
+          addUserCounter(voucherCounterIp);
+        }
+
         // ── Save device profile with real browser fingerprint ──
         try {
           const voucherUser = await db.wiFiUser.findUnique({ where: { username: wifiUsername }, select: { id: true, tenantId: true, propertyId: true, guestId: true } });
@@ -771,6 +778,12 @@ export async function POST(request: NextRequest) {
           maxBandwidthUpBytes: portal?.maxBandwidthUp,
           subnet: pool.subnet,
         });
+
+        // Add per-IP byte counter rules for session engine tracking
+        const roomCounterIp = normalizeIp(getClientIpString(request));
+        if (roomCounterIp && roomCounterIp !== '0.0.0.0') {
+          addUserCounter(roomCounterIp);
+        }
 
         // ── Save device profile with real browser fingerprint ──
         try {
@@ -921,6 +934,12 @@ export async function POST(request: NextRequest) {
           subnet: pool.subnet,
         });
 
+        // Add per-IP byte counter rules for session engine tracking
+        const pmsCounterIp = normalizeIp(getClientIpString(request));
+        if (pmsCounterIp && pmsCounterIp !== '0.0.0.0') {
+          addUserCounter(pmsCounterIp);
+        }
+
         // ── Save device profile with real browser fingerprint ──
         await upsertDeviceProfileWithFingerprint({
           wifiUserId: wifiUser.id,
@@ -1020,6 +1039,12 @@ export async function POST(request: NextRequest) {
               maxBandwidthUpBytes: portal?.maxBandwidthUp,
               subnet: pool.subnet,
             });
+
+            // Add per-IP byte counter rules for session engine tracking
+            const smsCounterIp = normalizeIp(getClientIpString(request));
+            if (smsCounterIp && smsCounterIp !== '0.0.0.0') {
+              addUserCounter(smsCounterIp);
+            }
           }
 
           return successResponse({
@@ -1117,6 +1142,12 @@ export async function POST(request: NextRequest) {
                 maxBandwidthUpBytes: portal?.maxBandwidthUp,
                 subnet: pool.subnet,
               });
+
+              // Add per-IP byte counter rules for session engine tracking
+              const openCounterIp = normalizeIp(getClientIpString(request));
+              if (openCounterIp && openCounterIp !== '0.0.0.0') {
+                addUserCounter(openCounterIp);
+              }
             }
           } catch {
             // Best effort for open access

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { randomUUID } from 'crypto';
 import { radiusAuth, getRejectMessage } from '@/lib/wifi/utils/radius-auth';
+import { addUserCounter } from '@/lib/wifi/utils/nftables-counters';
 
 // ────────────────────────────────────────────────────────────
 // IP Pool Validation Helpers (shared with wifi/auth)
@@ -476,6 +477,12 @@ export async function POST(request: NextRequest) {
     // Without this, auto-auth users appear "connected" on the portal
     // but never show up in the admin Active Users dashboard.
     await createAccountingSession(wifiUser.username, clientIp, request, 'auto_reauth', macAddress);
+
+    // ── Add per-IP byte counter rules for session engine tracking ──
+    const counterIp = autoAuthClientIp || normalizeIp(clientIp);
+    if (counterIp && counterIp !== '0.0.0.0') {
+      addUserCounter(counterIp);
+    }
 
     // ── Calculate remaining validity (NEVER reset validUntil on reauth) ──
     // validUntil is set ONCE on first login/creation. Reauth only checks it.
