@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requirePermission } from '@/lib/auth/tenant-context';// GET /api/wifi/plans - List all WiFi plans with filtering
+import { requirePermission } from '@/lib/auth/tenant-context';
+import { syncRadiusGroup, deleteRadiusGroup } from '@/lib/wifi/services/wifi-user-service';
 export async function GET(request: NextRequest) {    const user = await requirePermission(request, 'wifi.manage');
     if (user instanceof NextResponse) return user;
 
@@ -173,6 +174,11 @@ export async function POST(request: NextRequest) {    const user = await require
       },
     });
 
+    // Sync RADIUS group attributes (radgroupcheck/radgroupreply) for this plan
+    await syncRadiusGroup(plan).catch(err => {
+      console.error('[plans] Failed to sync RADIUS group:', err);
+    });
+
     return NextResponse.json({ success: true, data: plan }, { status: 201 });
   } catch (error) {
     console.error('Error creating WiFi plan:', error);
@@ -258,6 +264,15 @@ export async function PUT(request: NextRequest) {    const user = await requireP
         ...(updateData.status && { status: updateData.status }),
       },
     });
+
+    // Sync RADIUS group attributes if plan settings changed
+    if (updateData.name || updateData.downloadSpeed !== undefined || updateData.uploadSpeed !== undefined ||
+        updateData.dataLimit !== undefined || updateData.sessionLimit !== undefined ||
+        updateData.sessionTimeoutSec !== undefined || updateData.idleTimeoutSec !== undefined) {
+      await syncRadiusGroup(plan).catch(err => {
+        console.error('[plans] Failed to sync RADIUS group on update:', err);
+      });
+    }
 
     // Sync idle timeout to existing users on this plan if it changed
     if (updateData.idleTimeoutSec !== undefined) {
@@ -357,8 +372,14 @@ export async function DELETE(request: NextRequest) {    const user = await requi
     }
 
     // Hard delete if no associations
+    const planName = existingPlan.name;
     await db.wiFiPlan.delete({
       where: { id },
+    });
+
+    // Delete RADIUS group entries (radgroupcheck/radgroupreply/radusergroup)
+    await deleteRadiusGroup(planName).catch(err => {
+      console.error('[plans] Failed to delete RADIUS group:', err);
     });
 
     return NextResponse.json({

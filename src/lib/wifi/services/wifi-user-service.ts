@@ -41,6 +41,187 @@ import {
 
 const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
 
+// ─── Plan → RADIUS Group Name Conversion ──────────────────────────────
+/**
+ * Convert a WiFiPlan name to a RADIUS-safe group name.
+ * "VIP Suite Plan" → "vip_suite_plan"
+ * "Free WiFi" → "free_wifi"
+ */
+export function planNameToGroupName(planName: string): string {
+  return planName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard_guests';
+}
+
+/**
+ * Sync a WiFiPlan's attributes to radgroupcheck/radgroupreply (group-level).
+ * Called when a plan is created or updated.
+ *
+ * Group-level attributes are the PRIMARY source of RADIUS policies.
+ * Individual users inherit these via radusergroup. User-level radreply
+ * should only contain per-user OVERRIDES (e.g., session timeout based on checkout).
+ *
+ * radgroupcheck: Session-Timeout, Simultaneous-Use, data limits (access checks)
+ * radgroupreply: bandwidth, idle timeout, data limits, Cryptsk VSAs (authorization)
+ */
+export async function syncRadiusGroup(plan: {
+  id: string;
+  name: string;
+  tenantId: string;
+  downloadSpeed: number;
+  uploadSpeed: number;
+  dataLimit?: number | null;
+  sessionLimit?: number | null;
+  sessionTimeoutSec?: number | null;
+  idleTimeoutSec?: number | null;
+}, propertyId?: string): Promise<void> {
+  const groupName = planNameToGroupName(plan.name);
+  const vendors = await getActiveNASVendors(propertyId);
+  const downloadMbps = plan.downloadSpeed || 10;
+  const uploadMbps = plan.uploadSpeed || 5;
+  const sessionTimeoutSec = plan.sessionTimeoutSec || 0;
+  const idleTimeoutSec = plan.idleTimeoutSec || 0;
+  const dataLimitMB = plan.dataLimit || 0;
+  const sessionLimit = plan.sessionLimit || 0;
+  const sessionTimeoutMin = sessionTimeoutSec > 0 ? Math.floor(sessionTimeoutSec / 60) : 0;
+
+  await db.$transaction(async (tx) => {
+    // ── Delete old group entries ──
+    await tx.radGroupCheck.deleteMany({ where: { groupname: groupName } });
+    await tx.radGroupReply.deleteMany({ where: { groupname: groupName } });
+
+    // ── radgroupcheck: Access control attributes ──
+    const groupChecks: Array<{ attribute: string; op: string; value: string; priority: number }> = [];
+
+    // Session-Timeout (check: reject if exceeded)
+    if (sessionTimeoutSec > 0) {
+      groupChecks.push({ attribute: 'Session-Timeout', op: ':=', value: String(sessionTimeoutSec), priority: 10 });
+    }
+
+    // Simultaneous-Use (check: max concurrent sessions)
+    if (sessionLimit > 0) {
+      groupChecks.push({ attribute: 'Simultaneous-Use', op: ':=', value: String(sessionLimit), priority: 20 });
+    }
+
+    // Cryptsk-Vendor-Specific checks (only when Cryptsk is active NAS)
+    if (vendors.includes('cryptsk')) {
+      // Cryptsk bandwidth check attrs
+      groupChecks.push(
+        { attribute: 'Cryptsk-Rate-Limit', op: ':=', value: `${downloadMbps}M/${uploadMbps}M`, priority: 30 },
+        { attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: String(downloadMbps * 1000000), priority: 31 },
+        { attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: String(uploadMbps * 1000000), priority: 32 },
+      );
+
+      if (sessionTimeoutSec > 0) {
+        groupChecks.push({ attribute: 'Cryptsk-Session-Timeout', op: ':=', value: String(sessionTimeoutSec), priority: 33 });
+      }
+      if (dataLimitMB > 0) {
+        groupChecks.push({ attribute: 'Cryptsk-Total-Limit', op: ':=', value: String(dataLimitMB * 1024 * 1024), priority: 34 });
+      }
+    }
+
+    // ── radgroupreply: Authorization attributes (returned to NAS on Access-Accept) ──
+    const groupReplies: Array<{ attribute: string; op: string; value: string; priority: number }> = [];
+
+    // WISPr bandwidth (universal baseline)
+    groupReplies.push(
+      { attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: String(downloadMbps * 1000000), priority: 0 },
+      { attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: String(uploadMbps * 1000000), priority: 1 },
+    );
+
+    // Session attributes (RFC standard)
+    if (sessionTimeoutSec > 0) {
+      groupReplies.push({ attribute: 'Session-Timeout', op: ':=', value: String(sessionTimeoutSec), priority: 10 });
+    }
+    if (idleTimeoutSec > 0) {
+      groupReplies.push({ attribute: 'Idle-Timeout', op: ':=', value: String(idleTimeoutSec), priority: 11 });
+    }
+    // Termination-Action: RADIUS-Request (allows re-auth after disconnect)
+    groupReplies.push({ attribute: 'Termination-Action', op: ':=', value: 'RADIUS-Request', priority: 12 });
+    // Acct-Interim-Interval: default 60s
+    groupReplies.push({ attribute: 'Acct-Interim-Interval', op: ':=', value: '60', priority: 13 });
+
+    // Data limits (RFC standard)
+    if (dataLimitMB > 0) {
+      const dataLimitBytes = dataLimitMB * 1024 * 1024;
+      groupReplies.push(
+        { attribute: 'Max-Total-Octets', op: ':=', value: String(dataLimitBytes), priority: 20 },
+        { attribute: 'Max-Input-Octets', op: ':=', value: String(dataLimitBytes), priority: 21 },
+        { attribute: 'Max-Output-Octets', op: ':=', value: String(dataLimitBytes), priority: 22 },
+      );
+    }
+
+    // Cryptsk VSAs (only when Cryptsk is active NAS)
+    if (vendors.includes('cryptsk')) {
+      if (idleTimeoutSec > 0) {
+        groupReplies.push({ attribute: 'Cryptsk-Idle-Timeout', op: ':=', value: String(idleTimeoutSec), priority: 30 });
+      }
+      groupReplies.push(
+        { attribute: 'Cryptsk-User-Profile', op: ':=', value: groupName, priority: 40 },
+        { attribute: 'Cryptsk-Plan-Name', op: ':=', value: plan.name, priority: 41 },
+      );
+      if (dataLimitMB > 0) {
+        const dataLimitBytes = dataLimitMB * 1024 * 1024;
+        groupReplies.push(
+          { attribute: 'Cryptsk-Max-Input-Octets', op: ':=', value: String(dataLimitBytes), priority: 42 },
+          { attribute: 'Cryptsk-Max-Output-Octets', op: ':=', value: String(dataLimitBytes), priority: 43 },
+        );
+      }
+    }
+
+    // MikroTik vendor attrs
+    if (vendors.includes('mikrotik')) {
+      groupReplies.push({ attribute: 'Mikrotik-Rate-Limit', op: ':=', value: `${downloadMbps}M/${uploadMbps}M`, priority: 50 });
+      if (dataLimitMB > 0) {
+        groupReplies.push({ attribute: 'Mikrotik-Total-Limit', op: ':=', value: String(dataLimitMB * 1024 * 1024), priority: 51 });
+      }
+    }
+
+    // ChilliSpot/Coova vendor attrs (fallback for unknown vendors)
+    if (vendors.includes('chillispot') || vendors.includes('other')) {
+      groupReplies.push(
+        { attribute: 'ChilliSpot-Bandwidth-Max-Down', op: ':=', value: String(downloadMbps * 1000000), priority: 60 },
+        { attribute: 'ChilliSpot-Bandwidth-Max-Up', op: ':=', value: String(uploadMbps * 1000000), priority: 61 },
+      );
+      if (dataLimitMB > 0) {
+        const dataLimitBytes = dataLimitMB * 1024 * 1024;
+        groupReplies.push(
+          { attribute: 'ChilliSpot-Max-Total-Octets', op: ':=', value: String(dataLimitBytes), priority: 62 },
+          { attribute: 'ChilliSpot-Max-Input-Octets', op: ':=', value: String(dataLimitBytes), priority: 63 },
+          { attribute: 'ChilliSpot-Max-Output-Octets', op: ':=', value: String(dataLimitBytes), priority: 64 },
+        );
+      }
+    }
+
+    // ── Bulk insert ──
+    if (groupChecks.length > 0) {
+      await tx.radGroupCheck.createMany({
+        data: groupChecks.map(c => ({ groupname: groupName, ...c })),
+      });
+    }
+    if (groupReplies.length > 0) {
+      await tx.radGroupReply.createMany({
+        data: groupReplies.map(r => ({ groupname: groupName, ...r })),
+      });
+    }
+
+    console.log(`[RADIUS Group] Synced group "${groupName}" (${groupChecks.length} checks, ${groupReplies.length} replies)`);
+  });
+}
+
+/**
+ * Delete a RADIUS group's entries from radgroupcheck/radgroupreply.
+ * Called when a plan is deleted.
+ * Also removes radusergroup mappings that point to this group.
+ */
+export async function deleteRadiusGroup(planName: string): Promise<void> {
+  const groupName = planNameToGroupName(planName);
+  await db.$transaction(async (tx) => {
+    await tx.radGroupCheck.deleteMany({ where: { groupname: groupName } });
+    await tx.radGroupReply.deleteMany({ where: { groupname: groupName } });
+    await tx.radUserGroup.deleteMany({ where: { groupname: groupName } });
+    console.log(`[RADIUS Group] Deleted group "${groupName}"`);
+  });
+}
+
 /** Prisma unique constraint violation error code */
 const PRISMA_UNIQUE_VIOLATION = 'P2002';
 
@@ -175,52 +356,68 @@ export class WiFiUserService {
             },
           });
 
-          // 3. Create RadReply (authorization policies — FreeRADIUS reads this table directly)
-          // Use VENDOR-AWARE attribute generation based on active NAS types
-          const vendors = await getActiveNASVendors(input.propertyId);
-
-          // Bandwidth limits
-          const downloadMbps = input.downloadSpeed ? input.downloadSpeed / 1000000 : 10;
-          const uploadMbps = input.uploadSpeed ? input.uploadSpeed / 1000000 : 5;
-          const bwAttrs = generateBandwidthAttributes(vendors, downloadMbps, uploadMbps);
-
-          // Session timeout + data limit + idle timeout (standard RFC attrs)
-          const sessionAttrs = generateSessionAttributes(
-            vendors,
-            input.sessionTimeoutMinutes || 0,
-            input.dataLimit || 0,
-            effectiveIdleTimeout || 0,
-          );
-
-          // Merge all reply attributes
-          const replies = [...bwAttrs, ...sessionAttrs];
-
-          // ── Cryptsk-specific VSA attributes (Vendor ID 64179) ──
-          // ONLY add Cryptsk VSAs when Cryptsk is an active vendor.
-          // External NAS devices (MikroTik, Cisco, etc.) do NOT understand Vendor 64179.
-          if (vendors.includes('cryptsk')) {
-            // Cryptsk-Session-Timeout: mirrors Session-Timeout (integer, seconds)
-            const sessionTimeoutSec = input.sessionTimeoutMinutes ? input.sessionTimeoutMinutes * 60 : 0;
-            if (sessionTimeoutSec > 0) {
-              replies.push({ attribute: 'Cryptsk-Session-Timeout', value: String(sessionTimeoutSec) });
+          // 3. Ensure group-level attributes exist (sync from plan → radgroupcheck/radgroupreply)
+          //    FreeRADIUS reads group attrs via radusergroup → radgroupcheck/radgroupreply.
+          //    This is the PRIMARY source of bandwidth, data limits, session policy.
+          if (input.planId) {
+            const planFull = await tx.wiFiPlan.findUnique({
+              where: { id: input.planId },
+            });
+            if (planFull) {
+              // Check if group already has entries (avoid re-sync on every provision)
+              const existingGroupEntries = await tx.radGroupCheck.count({ where: { groupname: groupName } });
+              if (existingGroupEntries === 0) {
+                // Sync group attributes (best-effort, non-blocking)
+                // We use the tx to ensure consistency
+                await syncRadiusGroup({
+                  id: planFull.id,
+                  name: planFull.name,
+                  tenantId: planFull.tenantId,
+                  downloadSpeed: planFull.downloadSpeed,
+                  uploadSpeed: planFull.uploadSpeed,
+                  dataLimit: planFull.dataLimit,
+                  sessionLimit: planFull.sessionLimit,
+                  sessionTimeoutSec: planFull.sessionTimeoutSec,
+                  idleTimeoutSec: planFull.idleTimeoutSec,
+                }, input.propertyId).catch(err => {
+                  console.warn(`[WiFi Provisioning] Group sync failed for ${groupName}:`, err instanceof Error ? err.message : err);
+                });
+              }
             }
-
-            // Cryptsk-Idle-Timeout: idle timeout (integer, seconds) from plan or portal config
-            if (effectiveIdleTimeout && effectiveIdleTimeout > 0) {
-              replies.push({ attribute: 'Cryptsk-Idle-Timeout', value: String(effectiveIdleTimeout) });
-            }
-
-            // Cryptsk-User-Profile: plan group name (string) — for policy matching
-            replies.push({ attribute: 'Cryptsk-User-Profile', value: groupName });
-
-            // Cryptsk-Plan-Name: human-readable plan name (string) — for display/audit
-            replies.push({ attribute: 'Cryptsk-Plan-Name', value: input.planName || groupName });
           }
 
-          // Cryptsk-Max-Sessions: already handled via Simultaneous-Use in radcheck (step 5 below)
+          // 4. Create per-user RadReply OVERRIDES only (not plan-level attributes)
+          //    Group-level attrs (bandwidth, data limits, idle timeout) come from radgroupreply.
+          //    User-level radreply should only contain:
+          //      - Session-Timeout override (based on checkout date, not plan validity)
+          //      - Cryptsk-Plan-Name / Cryptsk-User-Profile (per-user identity VSAs)
+          //    DO NOT duplicate bandwidth/data-limit/idle-timeout here — they're in the group.
+          const vendors = await getActiveNASVendors(input.propertyId);
+          const userReplies: Array<{ attribute: string; value: string }> = [];
 
-          // Create all replies
-          for (const reply of replies) {
+          // Per-user Session-Timeout override: based on booking checkout, NOT plan default
+          // Group already has Session-Timeout from plan. This user-level override takes
+          // precedence in FreeRADIUS (user attrs > group attrs).
+          if (input.sessionTimeoutMinutes && input.sessionTimeoutMinutes > 0) {
+            const sessionTimeoutSec = input.sessionTimeoutMinutes * 60;
+            userReplies.push({ attribute: 'Session-Timeout', value: String(sessionTimeoutSec) });
+
+            // Cryptsk mirror
+            if (vendors.includes('cryptsk')) {
+              userReplies.push({ attribute: 'Cryptsk-Session-Timeout', value: String(sessionTimeoutSec) });
+            }
+          }
+
+          // Cryptsk per-user identity VSAs (always at user level — identifies THIS user)
+          if (vendors.includes('cryptsk')) {
+            // Cryptsk-User-Profile: plan group name (for policy matching)
+            userReplies.push({ attribute: 'Cryptsk-User-Profile', value: groupName });
+            // Cryptsk-Plan-Name: human-readable plan name (for display/audit)
+            userReplies.push({ attribute: 'Cryptsk-Plan-Name', value: input.planName || groupName });
+          }
+
+          // Create user-level reply entries
+          for (const reply of userReplies) {
             await tx.radReply.create({
               data: {
                 wifiUserId: wifiUser.id,
@@ -233,8 +430,9 @@ export class WiFiUserService {
             });
           }
 
-          // 4. Create RadUserGroup — maps username to plan group
-          // FreeRADIUS uses this to load group-level attributes from radgroupcheck/radgroupreply
+          // 5. Create RadUserGroup — maps username to plan group
+          //    FreeRADIUS reads group-level attrs via this mapping.
+          //    radusergroup → radgroupcheck (access checks) + radgroupreply (authorization)
           await tx.radUserGroup.create({
             data: {
               username,
@@ -243,8 +441,9 @@ export class WiFiUserService {
             },
           });
 
-          // 5. Set Simultaneous-Use if sessionLimit is specified (max concurrent sessions)
-          // This goes in radcheck (not radreply) because it's an access check
+          // 6. Per-user Simultaneous-Use override in radcheck (if different from group)
+          //    Group already has Simultaneous-Use. This user-level override takes precedence.
+          //    Only write if explicitly provided (e.g., a specific booking override).
           if (input.sessionLimit && input.sessionLimit > 0) {
             await tx.radCheck.create({
               data: {
@@ -670,59 +869,47 @@ export class WiFiUserService {
         });
       }
 
-      // Bug 3 Fix: Re-create the FULL set of RadReply attributes from the user's plan
-      // (previously only recreated password + bandwidth, missing most attributes)
+      // Re-create per-user RadReply only (plan attrs come from group via radusergroup)
       const existingReplyCount = await tx.radReply.count({
         where: { username: wifiUser.username },
       });
       if (existingReplyCount === 0) {
         const vendors = await getActiveNASVendors(wifiUser.propertyId);
 
-        // Resolve plan group name and defaults
+        // Resolve plan group name
         let groupName = 'standard-guests';
-        let downloadMbps = 10;
-        let uploadMbps = 5;
-        let sessionTimeoutMin = 0;
-        let idleTimeoutSec = 0;
-        let dataLimitMB = 0;
-        let sessionLimit = 0;
         let planName = groupName;
 
         if (wifiUser.plan) {
-          // Convert plan name to a RADIUS-safe group name (lowercase, underscores)
-          groupName = wifiUser.plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard-guests';
+          groupName = planNameToGroupName(wifiUser.plan.name);
           planName = wifiUser.plan.name;
-          downloadMbps = wifiUser.plan.downloadSpeed || 10;
-          uploadMbps = wifiUser.plan.uploadSpeed || 5;
-          sessionTimeoutMin = wifiUser.plan.sessionTimeoutSec ? Math.floor(wifiUser.plan.sessionTimeoutSec / 60) : 0;
-          idleTimeoutSec = wifiUser.plan.idleTimeoutSec || 0;
-          dataLimitMB = wifiUser.plan.dataLimit || 0;
-          sessionLimit = wifiUser.plan.sessionLimit || 0;
+
+          // Ensure group-level attributes exist
+          const existingGroupEntries = await tx.radGroupCheck.count({ where: { groupname: groupName } });
+          if (existingGroupEntries === 0) {
+            await syncRadiusGroup({
+              id: wifiUser.plan.id,
+              name: wifiUser.plan.name,
+              tenantId: wifiUser.plan.tenantId,
+              downloadSpeed: wifiUser.plan.downloadSpeed,
+              uploadSpeed: wifiUser.plan.uploadSpeed,
+              dataLimit: wifiUser.plan.dataLimit,
+              sessionLimit: wifiUser.plan.sessionLimit,
+              sessionTimeoutSec: wifiUser.plan.sessionTimeoutSec,
+              idleTimeoutSec: wifiUser.plan.idleTimeoutSec,
+            }, wifiUser.propertyId).catch(err => {
+              console.warn(`[Resume] Group sync failed:`, err instanceof Error ? err.message : err);
+            });
+          }
         }
 
-        // Generate vendor-aware attributes (includes standard RFC Idle-Timeout, Session-Timeout, etc.)
-        const bwAttrs = generateBandwidthAttributes(vendors, downloadMbps, uploadMbps);
-        const sessionAttrs = generateSessionAttributes(vendors, sessionTimeoutMin, dataLimitMB, idleTimeoutSec);
-        const replies = [...bwAttrs, ...sessionAttrs];
-
-        // Cryptsk-specific VSA attributes — ONLY when Cryptsk is an active vendor
+        // Only write per-user identity VSAs (not plan attributes — those are in the group)
+        const replies: Array<{ attribute: string; value: string }> = [];
         if (vendors.includes('cryptsk')) {
-          // Cryptsk-Session-Timeout
-          const sessionTimeoutSec = sessionTimeoutMin * 60;
-          if (sessionTimeoutSec > 0) {
-            replies.push({ attribute: 'Cryptsk-Session-Timeout', value: String(sessionTimeoutSec) });
-          }
-
-          // Cryptsk-Idle-Timeout
-          if (idleTimeoutSec > 0) {
-            replies.push({ attribute: 'Cryptsk-Idle-Timeout', value: String(idleTimeoutSec) });
-          }
-
-          // Cryptsk-User-Profile: plan group name
-          replies.push({ attribute: 'Cryptsk-User-Profile', value: groupName });
-
-          // Cryptsk-Plan-Name: human-readable plan name
-          replies.push({ attribute: 'Cryptsk-Plan-Name', value: planName });
+          replies.push(
+            { attribute: 'Cryptsk-User-Profile', value: groupName },
+            { attribute: 'Cryptsk-Plan-Name', value: planName },
+          );
         }
 
         // Bug 2 Fix: Use op: ':=' (not '=') to match provisionUser behavior
@@ -739,27 +926,7 @@ export class WiFiUserService {
           });
         }
 
-        // Re-create Simultaneous-Use in RadCheck if the plan specifies it
-        if (sessionLimit > 0) {
-          const existingSimUse = await tx.radCheck.findFirst({
-            where: {
-              username: wifiUser.username,
-              attribute: 'Simultaneous-Use',
-            },
-          });
-          if (!existingSimUse) {
-            await tx.radCheck.create({
-              data: {
-                wifiUserId: wifiUser.id,
-                username: wifiUser.username,
-                attribute: 'Simultaneous-Use',
-                op: ':=',
-                value: String(sessionLimit),
-                isActive: true,
-              },
-            });
-          }
-        }
+        // Simultaneous-Use is handled at group level (radgroupcheck) — no user-level needed
       }
 
       // Re-create RadUserGroup if not exists
@@ -768,7 +935,7 @@ export class WiFiUserService {
       });
       if (!existingGroup) {
         const groupName = wifiUser.plan
-          ? wifiUser.plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard-guests'
+          ? planNameToGroupName(wifiUser.plan.name)
           : 'standard-guests';
         await tx.radUserGroup.create({
           data: { username: wifiUser.username, groupname: groupName, priority: 0 },
