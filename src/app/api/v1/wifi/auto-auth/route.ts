@@ -484,6 +484,7 @@ export async function POST(request: NextRequest) {
         authenticated: true,
         method: 'auto_auth',
         username: wifiUser.username,
+        sessionTimeout: remainingMinutes,
         planName: wifiUser.plan?.name || null,
         planValidityDays: wifiUser.plan?.validityDays || null,
         bandwidthDown: wifiUser.plan?.downloadSpeed || null,
