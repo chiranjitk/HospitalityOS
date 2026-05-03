@@ -1280,14 +1280,14 @@ export async function GET(request: NextRequest) {
             property_name: string | null;
             plan_name: string | null;
           }[]>(`
-            SELECT radacctid, acctuniqueid, acctsessionid, username,
+            SELECT DISTINCT ON (radacctid) radacctid, acctuniqueid, acctsessionid, username,
                    nasipaddress, calledstationid, framedipaddress, callingstationid,
                    acctstarttime, acctstoptime, acctsessiontime,
                    acctinputoctets, acctoutputoctets, acctupdatetime,
                    guest_first_name, guest_last_name, room_number,
                    property_name, plan_name
             FROM v_session_history ${whereClause}
-            ORDER BY acctstarttime DESC
+            ORDER BY radacctid, acctstarttime DESC
           `, ...sqlParams);
 
           // Build sessions list — BigInt-safe
