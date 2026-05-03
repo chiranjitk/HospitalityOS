@@ -54,6 +54,12 @@ export interface DesignSettings {
   // ── Feature 1: Multi-Language Portal ──
   languages: string[];
   defaultLanguage: string;
+  /** Per-language translations for admin-defined content.
+   *  Shape: { "es": { "title": "Bienvenido", "subtitle": "Conectarse al WiFi", ... }, ... }
+   *  Supported keys: title, subtitle, welcomeMessage, termsText, promotionTitle,
+   *  promotionDesc, hotelName, hotelAddress, marketingConsentText,
+   *  surveyQuestion, surveyThankYou, hotelPhoneLabel, hotelWebsiteLabel */
+  translations: Record<string, Record<string, string>>;
 
   // ── Feature 2: Guest Marketing Opt-In ──
   marketingOptIn: {
@@ -236,6 +242,12 @@ export interface PortalDesignConfig {
   // ── Feature 1: Multi-Language Portal ──
   languages: string[];
   defaultLanguage: string;
+  /** Per-language translations for admin-defined content.
+   *  Shape: { "es": { "title": "Bienvenido", "subtitle": "Conectarse al WiFi", ... }, ... }
+   *  Supported keys: title, subtitle, welcomeMessage, termsText, promotionTitle,
+   *  promotionDesc, hotelName, hotelAddress, marketingConsentText,
+   *  surveyQuestion, surveyThankYou */
+  translations: Record<string, Record<string, string>>;
 
   // ── Feature 2: Guest Marketing Opt-In ──
   marketingOptIn: {
@@ -315,16 +327,19 @@ export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
   hotelPhone: '',
   hotelWebsite: '',
   logoUrl: '',
-  showHotelInfo: false,
-  amenities: [],
-  showAmenities: false,
+  showHotelInfo: true,
+  amenities: ['WiFi', 'Pool', 'Spa', 'Gym'],
+  showAmenities: true,
   showSocialMedia: false,
-  socialLinks: [],
-  showClock: false,
-  showWeather: false,
-  promotionTitle: '',
-  promotionDesc: '',
-  showPromotion: false,
+  socialLinks: [
+    { platform: 'instagram', url: 'https://instagram.com' },
+    { platform: 'facebook', url: 'https://facebook.com' },
+  ],
+  showClock: true,
+  showWeather: true,
+  promotionTitle: 'Special Offer',
+  promotionDesc: 'Book 3 nights and get 20% off your stay!',
+  showPromotion: true,
   termsText: '',
   termsUrl: '',
   showBranding: true,
@@ -335,6 +350,7 @@ export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
   // Multi-Language
   languages: ['en'],
   defaultLanguage: 'en',
+  translations: {},
 
   // Marketing Opt-In
   marketingOptIn: {
@@ -345,8 +361,17 @@ export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
   },
 
   // Multi-Slide Carousel
-  promotions: [],
-  showPromotions: false,
+  promotions: [
+    {
+      id: 'default-promo-1',
+      title: 'Special Offer',
+      description: 'Book 3 nights and get 20% off your stay!',
+      imageUrl: '',
+      linkUrl: '',
+      backgroundColor: '#f59e0b',
+    },
+  ],
+  showPromotions: true,
 
   // Post-Connect Survey
   surveyConfig: {
@@ -357,7 +382,7 @@ export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
   },
 
   // Weather Widget
-  weatherLocation: '',
+  weatherLocation: 'New York',
 
   // Custom Amenities
   customAmenities: [],
@@ -820,4 +845,375 @@ export function getSocialPlatformColor(platform: string): string {
     case 'tiktok': return '#000000';
     default: return '#6B7280';
   }
+}
+
+// ────────────────────────────────────────────────────────────
+// Multi-Language Translation Helpers (Feature 1)
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Built-in translations for portal UI chrome strings (buttons, labels, etc.)
+ * These cover the fixed strings that aren't admin-editable.
+ * Admin-editable content (title, subtitle, etc.) uses `getLocalizedText()` with
+ * the `translations` map stored in the design config.
+ */
+export const PORTAL_UI_STRINGS: Record<string, Record<string, string>> = {
+  en: {
+    connect: 'Connect',
+    connectNow: 'Connect Now',
+    connectToWiFi: 'Connect to WiFi',
+    signIn: 'Sign In',
+    signInWithRoom: 'Sign In with Room',
+    voucherCode: 'Voucher Code',
+    roomNumber: 'Room Number',
+    lastName: 'Last Name',
+    firstName: 'First Name',
+    username: 'Username',
+    password: 'Password',
+    phoneNumber: 'Phone Number',
+    emailAddress: 'Email Address',
+    passport: 'Passport / ID',
+    bookingId: 'Booking ID',
+    verificationCode: 'Verification Code',
+    verifyAndConnect: 'Verify & Connect',
+    sendVerificationCode: 'Send Verification Code',
+    changeNumber: 'Change number',
+    resendCode: 'Resend code',
+    resendIn: 'Resend in {0}s',
+    termsAndConditions: 'Terms & Conditions',
+    iAgreeToThe: 'I agree to the',
+    emailMarketing: 'I agree to receive email marketing',
+    smsMarketing: 'I agree to receive SMS marketing',
+    loadingPortal: 'Loading portal...',
+    connected: 'Connected!',
+    sessionDetails: 'Session Details',
+    duration: 'Duration',
+    download: 'Download',
+    upload: 'Upload',
+    method: 'Method',
+    connectAnotherDevice: 'Connect another device',
+    enterRoom: 'Enter Room',
+    enterVoucher: 'Enter Voucher',
+    otpLogin: 'OTP Login',
+    freeAccess: 'Free Access',
+    freeWiFi: 'Free WiFi',
+    swimmingPool: 'Swimming Pool',
+    spaWellness: 'Spa & Wellness',
+    restaurant: 'Restaurant',
+    fitnessCenter: 'Fitness Center',
+    roomService: 'Room Service',
+    parking: 'Parking',
+    concierge: 'Concierge',
+    qrCodeScanned: 'QR Code scanned',
+    qrCodePrefilled: 'your voucher code has been pre-filled',
+    clickToConnect: 'Click below to connect to the WiFi network',
+    weWillSendCode: "We'll send a verification code to your phone",
+    enterCodeSentTo: 'Enter the 6-digit code sent to',
+    pleaseEnter: 'Please enter',
+    sessionTimeout: 'session timeout',
+    openAccessDesc: 'Click below to connect to the WiFi network',
+    specialOffer: 'Special Offer',
+    weatherSetLocation: 'Weather — set location in designer',
+    poweredBy: 'Powered by StaySuite Hospitality OS',
+    thankYouForFeedback: 'Thank you for your feedback!',
+  },
+  es: {
+    connect: 'Conectar', connectNow: 'Conectar Ahora', connectToWiFi: 'Conectar al WiFi',
+    signIn: 'Iniciar Sesión', signInWithRoom: 'Iniciar con Habitación',
+    voucherCode: 'Código de Voucher', roomNumber: 'Número de Habitación', lastName: 'Apellido',
+    firstName: 'Nombre', username: 'Usuario', password: 'Contraseña', phoneNumber: 'Teléfono',
+    emailAddress: 'Correo Electrónico', passport: 'Pasaporte / ID', bookingId: 'ID de Reserva',
+    verificationCode: 'Código de Verificación', verifyAndConnect: 'Verificar y Conectar',
+    sendVerificationCode: 'Enviar Código de Verificación', changeNumber: 'Cambiar número',
+    resendCode: 'Reenviar código', resendIn: 'Reenviar en {0}s',
+    termsAndConditions: 'Términos y Condiciones', iAgreeToThe: 'Acepto los',
+    emailMarketing: 'Acepto recibir marketing por correo electrónico',
+    smsMarketing: 'Acepto recibir marketing por SMS',
+    loadingPortal: 'Cargando portal...', connected: '¡Conectado!', sessionDetails: 'Detalles de Sesión',
+    duration: 'Duración', download: 'Descarga', upload: 'Subida', method: 'Método',
+    connectAnotherDevice: 'Conectar otro dispositivo',
+    enterRoom: 'Habitación', enterVoucher: 'Voucher', otpLogin: 'OTP', freeAccess: 'Acceso Libre',
+    freeWiFi: 'WiFi Gratis', swimmingPool: 'Piscina', spaWellness: 'Spa y Bienestar',
+    restaurant: 'Restaurante', fitnessCenter: 'Gimnasio', roomService: 'Servicio a Habitación',
+    parking: 'Estacionamiento', concierge: 'Conserjería',
+    qrCodeScanned: 'Código QR escaneado', qrCodePrefilled: 'tu código de voucher se ha rellenado',
+    clickToConnect: 'Haz clic abajo para conectarte a la red WiFi',
+    weWillSendCode: 'Enviaremos un código de verificación a tu teléfono',
+    enterCodeSentTo: 'Ingresa el código de 6 dígitos enviado a',
+    pleaseEnter: 'Por favor ingresa', sessionTimeout: 'tiempo de sesión',
+    openAccessDesc: 'Haz clic abajo para conectarte a la red WiFi',
+    specialOffer: 'Oferta Especial', weatherSetLocation: 'Clima — configure ubicación en el diseñador',
+    poweredBy: 'Powered by StaySuite Hospitality OS', thankYouForFeedback: '¡Gracias por tu opinión!',
+  },
+  fr: {
+    connect: 'Connexion', connectNow: 'Se Connecter Maintenant', connectToWiFi: 'Se Connecter au WiFi',
+    signIn: 'Se Connecter', signInWithRoom: "Se Connecter avec la Chambre",
+    voucherCode: "Code d'Accès", roomNumber: 'Numéro de Chambre', lastName: 'Nom',
+    firstName: 'Prénom', username: 'Identifiant', password: 'Mot de Passe', phoneNumber: 'Téléphone',
+    emailAddress: 'E-mail', passport: 'Passeport / ID', bookingId: 'ID de Réservation',
+    verificationCode: 'Code de Vérification', verifyAndConnect: 'Vérifier et Se Connecter',
+    sendVerificationCode: 'Envoyer le Code', changeNumber: 'Changer de numéro',
+    resendCode: 'Renvoyer le code', resendIn: 'Renvoyer dans {0}s',
+    termsAndConditions: "Conditions Générales", iAgreeToThe: "J'accepte les",
+    emailMarketing: "J'accepte de recevoir des e-mails marketing",
+    smsMarketing: "J'accepte de recevoir des SMS marketing",
+    loadingPortal: 'Chargement du portail...', connected: 'Connecté !', sessionDetails: 'Détails de la Session',
+    duration: 'Durée', download: 'Téléchargement', upload: 'Envoi', method: 'Méthode',
+    connectAnotherDevice: 'Connecter un autre appareil',
+    enterRoom: 'Chambre', enterVoucher: "Code d'Accès", otpLogin: 'OTP', freeAccess: 'Accès Libre',
+    freeWiFi: 'WiFi Gratuit', swimmingPool: 'Piscine', spaWellness: 'Spa & Bien-être',
+    restaurant: 'Restaurant', fitnessCenter: 'Salle de Sport', roomService: 'Service en Chambre',
+    parking: 'Parking', concierge: 'Conciergerie',
+    qrCodeScanned: 'Code QR scanné', qrCodePrefilled: "votre code d'accès a été pré-rempli",
+    clickToConnect: 'Cliquez ci-dessous pour vous connecter au WiFi',
+    weWillSendCode: 'Nous enverrons un code de vérification à votre téléphone',
+    enterCodeSentTo: 'Entrez le code à 6 chiffres envoyé à',
+    pleaseEnter: 'Veuillez entrer', sessionTimeout: 'durée de session',
+    openAccessDesc: 'Cliquez ci-dessous pour vous connecter au WiFi',
+    specialOffer: 'Offre Spéciale', weatherSetLocation: 'Météo — configurez la localisation',
+    poweredBy: 'Powered by StaySuite Hospitality OS', thankYouForFeedback: 'Merci pour votre avis !',
+  },
+  de: {
+    connect: 'Verbinden', connectNow: 'Jetzt Verbinden', connectToWiFi: 'Mit WiFi Verbinden',
+    signIn: 'Anmelden', signInWithRoom: 'Mit Zimmer Anmelden',
+    voucherCode: 'Gutscheincode', roomNumber: 'Zimmernummer', lastName: 'Nachname',
+    firstName: 'Vorname', username: 'Benutzername', password: 'Passwort', phoneNumber: 'Telefonnummer',
+    emailAddress: 'E-Mail-Adresse', passport: 'Reisepass / ID', bookingId: 'Buchungs-ID',
+    verificationCode: 'Verifizierungscode', verifyAndConnect: 'Verifizieren & Verbinden',
+    sendVerificationCode: 'Code Senden', changeNumber: 'Nummer ändern',
+    resendCode: 'Code erneut senden', resendIn: 'Erneut senden in {0}s',
+    termsAndConditions: 'AGB', iAgreeToThe: 'Ich akzeptiere die',
+    emailMarketing: 'Ich stimme E-Mail-Marketing zu',
+    smsMarketing: 'Ich stimme SMS-Marketing zu',
+    loadingPortal: 'Portal wird geladen...', connected: 'Verbunden!', sessionDetails: 'Sitzungsdetails',
+    duration: 'Dauer', download: 'Download', upload: 'Upload', method: 'Methode',
+    connectAnotherDevice: 'Anderes Gerät verbinden',
+    enterRoom: 'Zimmer', enterVoucher: 'Gutschein', otpLogin: 'OTP', freeAccess: 'Freier Zugang',
+    freeWiFi: 'Kostenloses WiFi', swimmingPool: 'Swimmingpool', spaWellness: 'Spa & Wellness',
+    restaurant: 'Restaurant', fitnessCenter: 'Fitnesscenter', roomService: 'Zimmerservice',
+    parking: 'Parkplatz', concierge: 'Concierge',
+    qrCodeScanned: 'QR-Code gescannt', qrCodePrefilled: 'Ihr Gutscheincode wurde ausgefüllt',
+    clickToConnect: 'Klicken Sie unten, um sich mit dem WiFi zu verbinden',
+    weWillSendCode: 'Wir senden einen Verifizierungscode an Ihr Telefon',
+    enterCodeSentTo: 'Geben Sie den 6-stelligen Code ein, gesendet an',
+    pleaseEnter: 'Bitte geben Sie', sessionTimeout: 'Sitzungsdauer',
+    openAccessDesc: 'Klicken Sie unten, um sich mit dem WiFi zu verbinden',
+    specialOffer: 'Sonderangebot', weatherSetLocation: 'Wetter — Standort im Designer einstellen',
+    poweredBy: 'Powered by StaySuite Hospitality OS', thankYouForFeedback: 'Vielen Dank für Ihr Feedback!',
+  },
+  hi: {
+    connect: 'कनेक्ट करें', connectNow: 'अभी कनेक्ट करें', connectToWiFi: 'WiFi से कनेक्ट करें',
+    signIn: 'साइन इन', signInWithRoom: 'कमरे से साइन इन',
+    voucherCode: 'वाउचर कोड', roomNumber: 'कमरा नंबर', lastName: 'अंतिम नाम',
+    firstName: 'पहला नाम', username: 'उपयोगकर्ता नाम', password: 'पासवर्ड', phoneNumber: 'फ़ोन नंबर',
+    emailAddress: 'ईमेल पता', passport: 'पासपोर्ट / ID', bookingId: 'बुकिंग ID',
+    verificationCode: 'सत्यापन कोड', verifyAndConnect: 'सत्यापित करें और कनेक्ट करें',
+    sendVerificationCode: 'सत्यापन कोड भेजें', changeNumber: 'नंबर बदलें',
+    resendCode: 'कोड दोबारा भेजें', resendIn: '{0}s में दोबारा भेजें',
+    termsAndConditions: 'नियम और शर्तें', iAgreeToThe: 'मैं स्वीकार करता हूं',
+    emailMarketing: 'मैं ईमेल मार्केटिंग प्राप्त करने के लिए सहमत हूं',
+    smsMarketing: 'मैं SMS मार्केटिंग प्राप्त करने के लिए सहमत हूं',
+    loadingPortal: 'पोर्टल लोड हो रहा है...', connected: 'कनेक्ट हो गया!', sessionDetails: 'सत्र विवरण',
+    duration: 'अवधि', download: 'डाउनलोड', upload: 'अपलोड', method: 'विधि',
+    connectAnotherDevice: 'अन्य डिवाइस कनेक्ट करें',
+    enterRoom: 'कमरा दर्ज करें', enterVoucher: 'वाउचर', otpLogin: 'OTP', freeAccess: 'मुफ्त एक्सेस',
+    freeWiFi: 'मुफ्त WiFi', swimmingPool: 'स्विमिंग पूल', spaWellness: 'स्पा और वेलनेस',
+    restaurant: 'रेस्टोरेंट', fitnessCenter: 'फिटनेस सेंटर', roomService: 'रूम सर्विस',
+    parking: 'पार्किंग', concierge: 'कॉन्सियर्ज',
+    qrCodeScanned: 'QR कोड स्कैन किया गया', qrCodePrefilled: 'आपका वाउचर कोड भर दिया गया है',
+    clickToConnect: 'WiFi से कनेक्ट करने के लिए नीचे क्लिक करें',
+    weWillSendCode: 'हम आपके फ़ोन पर एक सत्यापन कोड भेजेंगे',
+    enterCodeSentTo: 'भेजा गया 6 अंकों का कोड दर्ज करें',
+    pleaseEnter: 'कृपया दर्ज करें', sessionTimeout: 'सत्र अवधि',
+    openAccessDesc: 'WiFi से कनेक्ट करने के लिए नीचे क्लिक करें',
+    specialOffer: 'विशेष ऑफर', weatherSetLocation: 'मौसम — डिज़ाइनर में स्थान सेट करें',
+    poweredBy: 'Powered by StaySuite Hospitality OS', thankYouForFeedback: 'आपके फ़ीडबैक के लिए धन्यवाद!',
+  },
+  zh: {
+    connect: '连接', connectNow: '立即连接', connectToWiFi: '连接WiFi',
+    signIn: '登录', signInWithRoom: '房间登录',
+    voucherCode: '凭证码', roomNumber: '房间号', lastName: '姓',
+    firstName: '名', username: '用户名', password: '密码', phoneNumber: '电话号码',
+    emailAddress: '电子邮箱', passport: '护照/身份证', bookingId: '预订号',
+    verificationCode: '验证码', verifyAndConnect: '验证并连接',
+    sendVerificationCode: '发送验证码', changeNumber: '更换号码',
+    resendCode: '重新发送', resendIn: '{0}秒后重发',
+    termsAndConditions: '条款与条件', iAgreeToThe: '我同意',
+    emailMarketing: '我同意接收邮件营销',
+    smsMarketing: '我同意接收短信营销',
+    loadingPortal: '正在加载门户...', connected: '已连接！', sessionDetails: '会话详情',
+    duration: '时长', download: '下载', upload: '上传', method: '方式',
+    connectAnotherDevice: '连接其他设备',
+    enterRoom: '房间', enterVoucher: '凭证', otpLogin: 'OTP', freeAccess: '免费接入',
+    freeWiFi: '免费WiFi', swimmingPool: '游泳池', spaWellness: '水疗中心',
+    restaurant: '餐厅', fitnessCenter: '健身中心', roomService: '客房服务',
+    parking: '停车场', concierge: '礼宾部',
+    qrCodeScanned: '二维码已扫描', qrCodePrefilled: '您的凭证码已自动填入',
+    clickToConnect: '点击下方连接WiFi',
+    weWillSendCode: '我们将向您手机发送验证码',
+    enterCodeSentTo: '输入发送至以下号码的6位验证码',
+    pleaseEnter: '请输入', sessionTimeout: '会话时长',
+    openAccessDesc: '点击下方连接WiFi',
+    specialOffer: '特别优惠', weatherSetLocation: '天气 — 在设计器中设置位置',
+    poweredBy: 'Powered by StaySuite Hospitality OS', thankYouForFeedback: '感谢您的反馈！',
+  },
+  ja: {
+    connect: '接続', connectNow: '今すぐ接続', connectToWiFi: 'WiFiに接続',
+    signIn: 'サインイン', signInWithRoom: '部屋番号でサインイン',
+    voucherCode: 'バウチャーコード', roomNumber: '部屋番号', lastName: '姓',
+    firstName: '名', username: 'ユーザー名', password: 'パスワード', phoneNumber: '電話番号',
+    emailAddress: 'メールアドレス', passport: 'パスポート/ID', bookingId: '予約ID',
+    verificationCode: '認証コード', verifyAndConnect: '認証して接続',
+    sendVerificationCode: '認証コードを送信', changeNumber: '番号を変更',
+    resendCode: '再送信', resendIn: '{0}秒後に再送信',
+    termsAndConditions: '利用規約', iAgreeToThe: '同意します',
+    emailMarketing: 'メールマーケティングを受け取ることに同意します',
+    smsMarketing: 'SMSマーケティングを受け取ることに同意します',
+    loadingPortal: 'ポータルを読み込み中...', connected: '接続完了！', sessionDetails: 'セッション詳細',
+    duration: '時間', download: 'ダウンロード', upload: 'アップロード', method: '方法',
+    connectAnotherDevice: '別のデバイスを接続',
+    enterRoom: '部屋番号', enterVoucher: 'バウチャー', otpLogin: 'OTP', freeAccess: '無料アクセス',
+    freeWiFi: '無料WiFi', swimmingPool: 'プール', spaWellness: 'スパ',
+    restaurant: 'レストラン', fitnessCenter: 'フィットネス', roomService: 'ルームサービス',
+    parking: '駐車場', concierge: 'コンシェルジュ',
+    qrCodeScanned: 'QRコード読取完了', qrCodePrefilled: 'バウチャーコードが入力されました',
+    clickToConnect: 'WiFiに接続するには下のボタンをクリック',
+    weWillSendCode: '認証コードをお電話番号に送信します',
+    enterCodeSentTo: '送信された6桁のコードを入力してください',
+    pleaseEnter: '入力してください', sessionTimeout: 'セッション時間',
+    openAccessDesc: 'WiFiに接続するには下のボタンをクリック',
+    specialOffer: '特別オファー', weatherSetLocation: '天気 — デザイナーで位置を設定',
+    poweredBy: 'Powered by StaySuite Hospitality OS', thankYouForFeedback: 'フィードバックありがとうございます！',
+  },
+  ar: {
+    connect: 'اتصال', connectNow: 'اتصل الآن', connectToWiFi: 'اتصل بالواي فاي',
+    signIn: 'تسجيل الدخول', signInWithRoom: 'تسجيل الدخول بالغرفة',
+    voucherCode: 'كود القسيمة', roomNumber: 'رقم الغرفة', lastName: 'اسم العائلة',
+    firstName: 'الاسم الأول', username: 'اسم المستخدم', password: 'كلمة المرور', phoneNumber: 'رقم الهاتف',
+    emailAddress: 'البريد الإلكتروني', passport: 'جواز السفر / الهوية', bookingId: 'رقم الحجز',
+    verificationCode: 'رمز التحقق', verifyAndConnect: 'تحقق واتصل',
+    sendVerificationCode: 'إرسال رمز التحقق', changeNumber: 'تغيير الرقم',
+    resendCode: 'إعادة الإرسال', resendIn: 'إعادة الإرسال خلال {0} ثانية',
+    termsAndConditions: 'الشروط والأحكام', iAgreeToThe: 'أوافق على',
+    emailMarketing: 'أوافق على تلقي التسويق عبر البريد الإلكتروني',
+    smsMarketing: 'أوافق على تلقي التسويق عبر الرسائل القصيرة',
+    loadingPortal: 'جاري تحميل البوابة...', connected: 'متصل!', sessionDetails: 'تفاصيل الجلسة',
+    duration: 'المدة', download: 'التنزيل', upload: 'الرفع', method: 'الطريقة',
+    connectAnotherDevice: 'الاتصال بجهاز آخر',
+    enterRoom: 'الغرفة', enterVoucher: 'القسيمة', otpLogin: 'OTP', freeAccess: 'وصول مجاني',
+    freeWiFi: 'واي فاي مجاني', swimmingPool: 'حمام السباحة', spaWellness: 'السبا',
+    restaurant: 'المطعم', fitnessCenter: 'صالة الألعاب الرياضية', roomService: 'خدمة الغرف',
+    parking: 'موقف السيارات', concierge: 'الكونسيرج',
+    qrCodeScanned: 'تم مسح رمز QR', qrCodePrefilled: 'تم ملء كود القسيمة',
+    clickToConnect: 'انقر أدناه للاتصال بشبكة الواي فاي',
+    weWillSendCode: 'سنرسل رمز التحقق إلى هاتفك',
+    enterCodeSentTo: 'أدخل الرمز المكون من 6 أرقام المرسل إلى',
+    pleaseEnter: 'الرجاء إدخال', sessionTimeout: 'مدة الجلسة',
+    openAccessDesc: 'انقر أدناه للاتصال بشبكة الواي فاي',
+    specialOffer: 'عرض خاص', weatherSetLocation: 'الطقس — ضبط الموقع في المصمم',
+    poweredBy: 'Powered by StaySuite Hospitality OS', thankYouForFeedback: 'شكرا لملاحظاتك!',
+  },
+  pt: {
+    connect: 'Conectar', connectNow: 'Conectar Agora', connectToWiFi: 'Conectar ao WiFi',
+    signIn: 'Entrar', signInWithRoom: 'Entrar com Quarto',
+    voucherCode: 'Código do Voucher', roomNumber: 'Número do Quarto', lastName: 'Sobrenome',
+    firstName: 'Nome', username: 'Usuário', password: 'Senha', phoneNumber: 'Telefone',
+    emailAddress: 'E-mail', passport: 'Passaporte / ID', bookingId: 'ID da Reserva',
+    verificationCode: 'Código de Verificação', verifyAndConnect: 'Verificar e Conectar',
+    sendVerificationCode: 'Enviar Código', changeNumber: 'Alterar número',
+    resendCode: 'Reenviar código', resendIn: 'Reenviar em {0}s',
+    termsAndConditions: 'Termos e Condições', iAgreeToThe: 'Eu concordo com os',
+    emailMarketing: 'Concordo em receber marketing por e-mail',
+    smsMarketing: 'Concordo em receber marketing por SMS',
+    loadingPortal: 'Carregando portal...', connected: 'Conectado!', sessionDetails: 'Detalhes da Sessão',
+    duration: 'Duração', download: 'Download', upload: 'Upload', method: 'Método',
+    connectAnotherDevice: 'Conectar outro dispositivo',
+    enterRoom: 'Quarto', enterVoucher: 'Voucher', otpLogin: 'OTP', freeAccess: 'Acesso Livre',
+    freeWiFi: 'WiFi Grátis', swimmingPool: 'Piscina', spaWellness: 'Spa & Bem-estar',
+    restaurant: 'Restaurante', fitnessCenter: 'Academia', roomService: 'Serviço de Quarto',
+    parking: 'Estacionamento', concierge: 'Concierge',
+    qrCodeScanned: 'Código QR escaneado', qrCodePrefilled: 'seu código de voucher foi preenchido',
+    clickToConnect: 'Clique abaixo para conectar à rede WiFi',
+    weWillSendCode: 'Enviaremos um código de verificação para seu telefone',
+    enterCodeSentTo: 'Digite o código de 6 dígitos enviado para',
+    pleaseEnter: 'Por favor insira', sessionTimeout: 'duração da sessão',
+    openAccessDesc: 'Clique abaixo para conectar à rede WiFi',
+    specialOffer: 'Oferta Especial', weatherSetLocation: 'Clima — configure localização no designer',
+    poweredBy: 'Powered by StaySuite Hospitality OS', thankYouForFeedback: 'Obrigado pelo seu feedback!',
+  },
+  ko: {
+    connect: '연결', connectNow: '지금 연결', connectToWiFi: 'WiFi 연결',
+    signIn: '로그인', signInWithRoom: '객실로 로그인',
+    voucherCode: '바우처 코드', roomNumber: '객실 번호', lastName: '성',
+    firstName: '이름', username: '사용자 이름', password: '비밀번호', phoneNumber: '전화번호',
+    emailAddress: '이메일 주소', passport: '여권/신분증', bookingId: '예약 번호',
+    verificationCode: '인증 코드', verifyAndConnect: '인증 및 연결',
+    sendVerificationCode: '인증 코드 보내기', changeNumber: '번호 변경',
+    resendCode: '재전송', resendIn: '{0}초 후 재전송',
+    termsAndConditions: '이용약관', iAgreeToThe: '동의합니다',
+    emailMarketing: '이메일 마케팅 수신에 동의합니다',
+    smsMarketing: 'SMS 마케팅 수신에 동의합니다',
+    loadingPortal: '포털 로딩 중...', connected: '연결 완료!', sessionDetails: '세션 상세',
+    duration: '시간', download: '다운로드', upload: '업로드', method: '방식',
+    connectAnotherDevice: '다른 기기 연결',
+    enterRoom: '객실', enterVoucher: '바우처', otpLogin: 'OTP', freeAccess: '무료 접속',
+    freeWiFi: '무료 WiFi', swimmingPool: '수영장', spaWellness: '스파',
+    restaurant: '레스토랑', fitnessCenter: '피트니스 센터', roomService: '룸서비스',
+    parking: '주차장', concierge: '콘시어지',
+    qrCodeScanned: 'QR 코드 스캔 완료', qrCodePrefilled: '바우처 코드가 입력되었습니다',
+    clickToConnect: 'WiFi에 연결하려면 아래를 클릭하세요',
+    weWillSendCode: '휴대전화로 인증 코드를 보내드립니다',
+    enterCodeSentTo: '전송된 6자리 코드를 입력하세요',
+    pleaseEnter: '입력해 주세요', sessionTimeout: '세션 시간',
+    openAccessDesc: 'WiFi에 연결하려면 아래를 클릭하세요',
+    specialOffer: '특별 오퍼', weatherSetLocation: '날씨 — 디자이너에서 위치 설정',
+    poweredBy: 'Powered by StaySuite Hospitality OS', thankYouForFeedback: '피드백 감사합니다!',
+  },
+};
+
+/**
+ * Get a localized UI string (for portal chrome/buttons/labels).
+ * Falls back to English if the language or key is missing.
+ */
+export function getUIString(lang: string, key: string, fallback = ''): string {
+  const langStrings = PORTAL_UI_STRINGS[lang] || PORTAL_UI_STRINGS.en;
+  return langStrings[key] || fallback || PORTAL_UI_STRINGS.en[key] || key;
+}
+
+/**
+ * Get localized admin-defined content (title, subtitle, etc.)
+ * Checks design.translations[lang][fieldKey] first, then falls back to design[fieldKey].
+ */
+export function getLocalizedText(
+  design: { translations?: Record<string, Record<string, string>>; [key: string]: unknown },
+  fieldKey: string,
+  language: string,
+): string {
+  // Map of PortalDesignConfig field names to translation keys
+  const fieldToTranslationKey: Record<string, string> = {
+    title: 'title',
+    subtitle: 'subtitle',
+    welcomeMessage: 'welcomeMessage',
+    termsText: 'termsText',
+    promotionTitle: 'promotionTitle',
+    promotionDesc: 'promotionDesc',
+    hotelName: 'hotelName',
+    hotelAddress: 'hotelAddress',
+  };
+
+  const tKey = fieldToTranslationKey[fieldKey] || fieldKey;
+  const langTranslations = design.translations?.[language];
+  if (langTranslations && langTranslations[tKey]) {
+    return langTranslations[tKey];
+  }
+  // Fallback to the default language translations
+  const defaultLang = (design.defaultLanguage as string) || 'en';
+  if (defaultLang !== language) {
+    const defaultTranslations = design.translations?.[defaultLang];
+    if (defaultTranslations && defaultTranslations[tKey]) {
+      return defaultTranslations[tKey];
+    }
+  }
+  // Final fallback to the raw design field
+  return (design[fieldKey] as string) || '';
 }
