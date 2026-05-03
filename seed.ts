@@ -58,11 +58,12 @@ async function main() {
     await prisma.folioLineItem.deleteMany({});
     await prisma.folio.deleteMany({});
     await prisma.discount.deleteMany({});
-    await prisma.bookingGuest.deleteMany({});
     await prisma.booking.deleteMany({});
     await prisma.ratePlan.deleteMany({});
     await prisma.restaurantTable.deleteMany({});
     await prisma.menuItem.deleteMany({});
+    await prisma.orderItem.deleteMany({});
+    await prisma.order.deleteMany({});
     await prisma.orderCategory.deleteMany({});
     await prisma.stockItem.deleteMany({});
     await prisma.vendor.deleteMany({});
@@ -77,6 +78,41 @@ async function main() {
     await prisma.user.deleteMany({});
     await prisma.role.deleteMany({});
     await prisma.amenity.deleteMany({});
+    // Addon module tables (cleaned here, not in a second pass later)
+    await prisma.workOrder.deleteMany({});
+    await prisma.purchaseOrderItem.deleteMany({});
+    await prisma.purchaseOrder.deleteMany({});
+    await prisma.pricingRule.deleteMany({});
+    await prisma.waitlistEntry.deleteMany({});
+    await prisma.groupBooking.deleteMany({});
+    await prisma.floorPlanRoom.deleteMany({});
+    await prisma.floorPlan.deleteMany({});
+    await prisma.staffChatMessage.deleteMany({});
+    await prisma.staffChannelMember.deleteMany({});
+    await prisma.staffChannel.deleteMany({});
+    await prisma.guestJourney.deleteMany({});
+    await prisma.guestStay.deleteMany({});
+    await prisma.guestDocument.deleteMany({});
+    await prisma.vehicle.deleteMany({});
+    await prisma.chatMessage.deleteMany({});
+    await prisma.chatConversation.deleteMany({});
+    await prisma.competitorPrice.deleteMany({});
+    await prisma.demandForecast.deleteMany({});
+    await prisma.energyMetric.deleteMany({});
+    await prisma.brand.deleteMany({});
+    await prisma.externalReview.deleteMany({});
+    await prisma.bookingAuditLog.deleteMany({});
+    await prisma.loyaltyReward.deleteMany({});
+    await prisma.loyaltyTier.deleteMany({});
+    await prisma.campaign.deleteMany({});
+    await prisma.guestSegment.deleteMany({});
+    await prisma.parkingSlot.deleteMany({});
+    await prisma.eventSpace.deleteMany({});
+    await prisma.channelConnection.deleteMany({});
+    await prisma.securityIncident.deleteMany({});
+    await prisma.webhookEndpoint.deleteMany({});
+    await prisma.automationRule.deleteMany({});
+    await prisma.notificationTemplate.deleteMany({});
     await prisma.property.deleteMany({});
     await prisma.tenant.deleteMany({});
     console.log('Core seed data cleaned.');
@@ -2636,51 +2672,10 @@ async function main() {
   // ADDON MODULE SEED DATA
   // ============================================================
 
-  // Cleanup addon module data (for re-seed support)
-  console.log('Cleaning remaining addon module data...');
-  try {
-    await prisma.staffChatMessage.deleteMany({});
-    await prisma.staffChannelMember.deleteMany({});
-    await prisma.staffChannel.deleteMany({});
-    await prisma.guestJourney.deleteMany({});
-    await prisma.guestStay.deleteMany({});
-    await prisma.guestDocument.deleteMany({});
-    await prisma.vehicle.deleteMany({});
-    await prisma.chatMessage.deleteMany({});
-    await prisma.chatConversation.deleteMany({});
-    await prisma.workOrder.deleteMany({});
-    await prisma.purchaseOrderItem.deleteMany({});
-    await prisma.purchaseOrder.deleteMany({});
-    await prisma.pricingRule.deleteMany({});
-    await prisma.waitlistEntry.deleteMany({});
-    await prisma.groupBooking.deleteMany({});
-    await prisma.floorPlanRoom.deleteMany({});
-    await prisma.floorPlan.deleteMany({});
-    await prisma.competitorPrice.deleteMany({});
-    await prisma.demandForecast.deleteMany({});
-    await prisma.energyMetric.deleteMany({});
-    await prisma.integration.deleteMany({});
-    await prisma.brand.deleteMany({});
-    await prisma.externalReview.deleteMany({});
-    await prisma.bookingAuditLog.deleteMany({});
-    await prisma.securitySettings.deleteMany({});
-    await prisma.loyaltyReward.deleteMany({});
-    await prisma.loyaltyTier.deleteMany({});
-    await prisma.campaignSegment.deleteMany({});
-    await prisma.campaign.deleteMany({});
-    await prisma.segmentMembership.deleteMany({});
-    await prisma.guestSegment.deleteMany({});
-    await prisma.parkingSlot.deleteMany({});
-    await prisma.eventSpace.deleteMany({});
-    await prisma.channelConnection.deleteMany({});
-    await prisma.securityIncident.deleteMany({});
-    await prisma.webhookEndpoint.deleteMany({});
-    await prisma.automationRule.deleteMany({});
-    await prisma.notificationTemplate.deleteMany({});
-    console.log('Addon module data cleaned.');
-  } catch (e: any) {
-    console.log('Addon module cleanup note:', e.message);
-  }
+  // NOTE: Addon module cleanup removed — data is already cleaned at the top of this file.
+  // The previous cleanup block here was DELETING data already seeded above (workOrders,
+  // vehicles, floorPlans, guestDocuments, etc.), leaving 29+ tables empty. All cleanup
+  // is now handled once at the beginning of main() to avoid double-delete bugs.
 
   // ─── 1. Notification Templates ─────────────────────────────────
   console.log('Seeding notification templates...');

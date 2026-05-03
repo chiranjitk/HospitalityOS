@@ -67,4 +67,9 @@ sql {
     session {
         query = "SELECT * FROM radacct WHERE acctuniqueid = '%{Acct-Unique-Session-Id}' AND acctstoptime IS NULL"
     }
+
+    # Post-auth: log every authentication attempt to radpostauth
+    post-auth {
+        query = "INSERT INTO radpostauth (username, pass, reply, authdate, calledstationid, callingstationid, \"nasIpAddress\") VALUES ('%{SQL-User-Name}', '', 'Access-Accept', '%S', '%{Called-Station-Id}', '%{Calling-Station-Id}', '%{NAS-IP-Address}')"
+    }
 }
