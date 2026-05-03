@@ -20,6 +20,7 @@ import { db } from '@/lib/db';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import net from 'net';
+import dgram from 'dgram';
 import * as SELog from './session-engine-logger';
 
 const execAsync = promisify(exec);
@@ -150,8 +151,76 @@ async function checkIcmpAvailable(): Promise<boolean> {
 }
 
 /**
+ * UDP port check: sends a RADIUS Status-Server request to detect if the
+ * port is reachable. RADIUS uses UDP (not TCP), so we use dgram.
+ *
+ * For non-RADIUS ports, we use a simple UDP connect approach:
+ * send empty datagram, check if we get any response or no ICMP error.
+ *
+ * Returns latency in ms if port responded, null if unreachable.
+ */
+function udpPortCheck(ip: string, port: number, timeoutMs: number = 3000): Promise<number | null> {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    let resolved = false;
+
+    const socket = dgram.createSocket('udp4');
+    const timer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        socket.close();
+        resolve(null);
+      }
+    }, timeoutMs);
+
+    socket.on('error', (err) => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timer);
+        socket.close();
+        // "ECONNREFUSED" means the port is actually open but no RADIUS listener responded
+        // "EHOSTUNREACH" / "ENETUNREACH" means host/port not reachable
+        if (err.code === 'ECONNREFUSED') {
+          // Port exists but didn't accept our packet — still means "reachable"
+          resolve(Date.now() - start);
+        } else {
+          resolve(null);
+        }
+      }
+    });
+
+    socket.on('message', () => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timer);
+        socket.close();
+        resolve(Date.now() - start);
+      }
+    });
+
+    // Send a minimal RADIUS Status-Server packet (Access-Request with empty fields)
+    // RADIUS packet format: Code(1) + Identifier(1) + Length(2) + Authenticator(16) = 20 bytes
+    // Code 12 = Status-Server
+    const buffer = Buffer.alloc(20);
+    buffer[0] = 12; // Status-Server
+    buffer[1] = 0;  // Identifier
+    buffer.writeUInt16BE(20, 2); // Length
+    // Authenticator left as zeros
+
+    socket.send(buffer, port, ip, (err) => {
+      if (err && !resolved) {
+        resolved = true;
+        clearTimeout(timer);
+        socket.close();
+        resolve(null);
+      }
+    });
+  });
+}
+
+/**
  * TCP port check: tries to connect to host:port, returns latency in ms.
- * Returns null if connection failed or timed out.
+ * Used as fallback for non-RADIUS services.
  */
 function tcpPortCheck(ip: string, port: number, timeoutMs: number = 3000): Promise<number | null> {
   return new Promise((resolve) => {
@@ -231,25 +300,25 @@ async function probeNas(
     );
   }
 
-  // ── 2. TCP Auth Port Check ──
+  // ── 2. UDP Auth Port Check (RADIUS uses UDP, not TCP) ──
   probes.push(
     (async () => {
-      const latency = await tcpPortCheck(nas.ipAddress, nas.authPort, 3000);
+      const latency = await udpPortCheck(nas.ipAddress, nas.authPort, 3000);
       result.authPortLatencyMs = latency;
       if (latency !== null) {
         result.isOnline = true;
-        result.probesUsed.push(`tcp:${nas.authPort}`);
+        result.probesUsed.push(`udp:${nas.authPort}`);
       }
     })()
   );
 
-  // ── 3. TCP Acct Port Check (optional, non-blocking) ──
+  // ── 3. UDP Acct Port Check ──
   probes.push(
     (async () => {
-      const latency = await tcpPortCheck(nas.ipAddress, nas.acctPort, 2000);
+      const latency = await udpPortCheck(nas.ipAddress, nas.acctPort, 2000);
       result.acctPortLatencyMs = latency;
-      if (latency !== null && !result.probesUsed.includes(`tcp:${nas.acctPort}`)) {
-        result.probesUsed.push(`tcp:${nas.acctPort}`);
+      if (latency !== null && !result.probesUsed.includes(`udp:${nas.acctPort}`)) {
+        result.probesUsed.push(`udp:${nas.acctPort}`);
       }
     })()
   );
@@ -278,9 +347,9 @@ async function probeNas(
     if (!icmpAvailable && isLocalhost) {
       result.error = 'ICMP unavailable (sandbox) + localhost ports closed';
     } else if (!icmpAvailable) {
-      result.error = `TCP ports ${nas.authPort}/${nas.acctPort} not responding (ICMP unavailable)`;
+      result.error = `UDP ports ${nas.authPort}/${nas.acctPort} not responding (ICMP unavailable)`;
     } else {
-      result.error = `All probes failed: ICMP unreachable, TCP ${nas.authPort}/${nas.acctPort} closed`;
+      result.error = `All probes failed: ICMP unreachable, UDP ${nas.authPort}/${nas.acctPort} no response`;
     }
   }
 
