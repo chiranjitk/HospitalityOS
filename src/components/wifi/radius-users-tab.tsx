@@ -70,6 +70,7 @@ import {
   Ban,
   UserX,
   UserCheck,
+  AlertTriangle,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -398,20 +399,40 @@ export default function RadiusUsersTab() {
     }
   };
 
+  const [forceDelete, setForceDelete] = useState(false);
+
+  // Resolve the user object for the delete dialog
+  const deleteUser = deleteUserId ? users.find(u => u.id === deleteUserId) : null;
+  const isDeleteUserActive = deleteUser?.status === 'active';
+
   const handleDelete = async () => {
     if (!deleteUserId) return;
     try {
+      const body: Record<string, unknown> = { action: 'delete-user', id: deleteUserId };
+      if (forceDelete) body.force = true;
+
       const res = await fetch('/api/wifi/radius', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete-user', id: deleteUserId }),
+        body: JSON.stringify(body),
       });
+      const data = await res.json();
+
+      // Handle active user blocked (409)
+      if (!res.ok && data.code === 'ACTIVE_USER_BLOCKED') {
+        toast({
+          title: 'Active User Blocked',
+          description: `${data.details.username} is currently active. Deactivate the user first, or enable "Force Delete" to proceed.`,
+          variant: 'destructive',
+        });
+        return; // keep dialog open so user can enable force
+      }
+
       if (!res.ok) {
-        const errText = await res.text().catch(() => 'Unknown error');
-        toast({ title: 'Error', description: `Delete failed (${res.status}): ${errText}`, variant: 'destructive' });
+        toast({ title: 'Error', description: data.error || `Delete failed (${res.status})`, variant: 'destructive' });
         return;
       }
-      const data = await res.json();
+
       if (data.success) {
         toast({ title: 'Success', description: 'User deleted successfully' });
         fetchUsers();
@@ -422,6 +443,7 @@ export default function RadiusUsersTab() {
       toast({ title: 'Error', description: 'Failed to delete user', variant: 'destructive' });
     } finally {
       setDeleteUserId(null);
+      setForceDelete(false);
     }
   };
 
@@ -1178,18 +1200,45 @@ export default function RadiusUsersTab() {
       </AlertDialog>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteUserId} onOpenChange={(open) => { if (!open) setDeleteUserId(null); }}>
+      <AlertDialog open={!!deleteUserId} onOpenChange={(open) => { if (!open) { setDeleteUserId(null); setForceDelete(false); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete RADIUS User</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete this user from the RADIUS server. They will no longer be able to authenticate to WiFi.
+            <AlertDialogDescription className="space-y-2">
+              <span>
+                This will permanently delete <span className="font-semibold">{deleteUser?.username}</span> from the RADIUS server. They will no longer be able to authenticate to WiFi.
+              </span>
+              {isDeleteUserActive && (
+                <span className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-800 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-200">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span className="text-sm">
+                    This user is currently <span className="font-semibold">active</span>. Deactivating or suspending is recommended instead of deletion. Enable "Force Delete" below to override this safety check.
+                  </span>
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {isDeleteUserActive && (
+            <div className="flex items-center gap-2 px-6 pb-4">
+              <input
+                id="force-delete-checkbox"
+                type="checkbox"
+                checked={forceDelete}
+                onChange={(e) => setForceDelete(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-destructive focus:ring-destructive/50"
+              />
+              <label htmlFor="force-delete-checkbox" className="text-sm font-medium text-muted-foreground cursor-pointer">
+                Force Delete (bypass active user protection)
+              </label>
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
+            <AlertDialogAction
+              onClick={handleDelete}
+              className={forceDelete ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'}
+            >
+              {forceDelete ? 'Force Delete' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

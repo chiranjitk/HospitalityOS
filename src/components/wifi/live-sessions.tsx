@@ -261,7 +261,7 @@ export default function LiveSessions() {
     totalUpload: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [nasFilter, setNasFilter] = useState<string>('all');

@@ -2663,41 +2663,60 @@ export async function POST(request: NextRequest) {
 
       case 'delete-user': {
         const userId = data.id;
+        const force = data.force === true;
         if (!userId) {
           return NextResponse.json({ success: false, error: 'User id is required' }, { status: 400 });
         }
         try {
-          // Resolve username before deleting for the log
+          // Resolve full user info including status and active sessions
           const delUser = await db.wiFiUser.findUnique({
             where: { id: userId },
-            select: { username: true, propertyId: true },
+            select: { username: true, propertyId: true, status: true },
           }).catch(() => null);
+
+          if (!delUser) {
+            return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
+          }
+
+          // Safety guard: block deletion of active users unless force=true
+          if (!force && delUser.status === 'active') {
+            const activeSessionCount = await db.wiFiSession.count({
+              where: { username: delUser.username, status: 'active' },
+            });
+            return NextResponse.json({
+              success: false,
+              error: 'Cannot delete active user',
+              code: 'ACTIVE_USER_BLOCKED',
+              details: {
+                username: delUser.username,
+                status: delUser.status,
+                activeSessions: activeSessionCount,
+                hint: 'Deactivate or suspend the user first, or use force=true to delete anyway.',
+              },
+            }, { status: 409 });
+          }
 
           // Delete RADIUS records + WiFiUser in transaction
           await db.$transaction(async (tx) => {
-            // Delete radcheck entries
-            if (delUser) {
-              await tx.radCheck.deleteMany({ where: { username: delUser.username } });
-              await tx.radReply.deleteMany({ where: { username: delUser.username } });
-              await tx.radUserGroup.deleteMany({ where: { username: delUser.username } });
-            }
+            await tx.radCheck.deleteMany({ where: { username: delUser.username } });
+            await tx.radReply.deleteMany({ where: { username: delUser.username } });
+            await tx.radUserGroup.deleteMany({ where: { username: delUser.username } });
             await tx.wiFiUser.delete({ where: { id: userId } });
           });
 
-          if (delUser) {
-            wifiUserService.logProvisioning({
-              action: 'deprovision',
-              username: delUser.username,
-              propertyId: delUser.propertyId,
-              result: 'success',
-              details: `Deleted WiFi user ${delUser.username}`,
-            }).catch(() => {});
-          }
+          wifiUserService.logProvisioning({
+            action: 'deprovision',
+            username: delUser.username,
+            propertyId: delUser.propertyId,
+            result: 'success',
+            details: force
+              ? `Force-deleted WiFi user ${delUser.username} (was active)`
+              : `Deleted WiFi user ${delUser.username}`,
+          }).catch(() => {});
 
           return NextResponse.json({ success: true, message: `User deleted successfully` });
         } catch (deleteError) {
           console.error('[delete-user] Direct DB deletion error:', deleteError);
-          // Fallback: try to log the failure
           const delUser = await db.wiFiUser.findUnique({ where: { id: userId }, select: { username: true, propertyId: true } }).catch(() => null);
           if (delUser) {
             wifiUserService.logProvisioning({
