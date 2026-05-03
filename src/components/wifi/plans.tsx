@@ -1060,7 +1060,7 @@ export default function WifiPlans() {
                   placeholder="Enter value"
                 />
                 <Select value={formData.validityUnit} onValueChange={(v) => setFormData(prev => ({ ...prev, validityUnit: v }))}>
-                  <SelectTrigger className="w-[140px]">
+                  <SelectTrigger className="w-[70px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
