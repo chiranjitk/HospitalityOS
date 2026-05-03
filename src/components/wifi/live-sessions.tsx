@@ -62,6 +62,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { formatDistanceToNow } from 'date-fns';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -334,7 +335,37 @@ export default function LiveSessions() {
     fetchSessions();
   };
 
+  // ─── Live Session Time counter (for details dialog) ────────────────
+  const [liveSessionTime, setLiveSessionTime] = useState(0);
+
+  useEffect(() => {
+    if (!selectedSession?.startedAt) {
+      setLiveSessionTime(selectedSession?.sessionTime || 0);
+      return;
+    }
+    // Calculate from startedAt (overrides stale acctsessiontime)
+    const calc = () => Math.max(
+      Math.floor((Date.now() - new Date(selectedSession.startedAt!).getTime()) / 1000),
+      selectedSession.sessionTime || 0
+    );
+    setLiveSessionTime(calc());
+    const interval = setInterval(() => setLiveSessionTime(calc()), 1000);
+    return () => clearInterval(interval);
+  }, [selectedSession?.id, selectedSession?.startedAt, selectedSession?.sessionTime]);
+
   // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  /**
+   * Get effective session time — prefers acctsessiontime from RADIUS,
+   * falls back to calculating from startedAt (useful when accounting updates aren't flowing).
+   */
+  const getSessionTime = (session: LiveSession): number => {
+    if (session.sessionTime > 0) return session.sessionTime;
+    if (session.startedAt) {
+      return Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 1000);
+    }
+    return 0;
+  };
 
   const formatDuration = (seconds: number): string => {
     if (!seconds || seconds <= 0) return '0s';
@@ -456,7 +487,7 @@ export default function LiveSessions() {
             <p className="text-muted-foreground mb-0.5">Session</p>
             <p className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              {formatDuration(session.sessionTime)}
+              {formatDuration(getSessionTime(session))}
             </p>
           </div>
         </div>
@@ -830,7 +861,7 @@ export default function LiveSessions() {
                           <TableCell>
                             <div className="flex items-center gap-1 text-xs">
                               <Clock className="h-3 w-3 text-muted-foreground" />
-                              <span>{formatDuration(session.sessionTime)}</span>
+                              <span>{formatDuration(getSessionTime(session))}</span>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -992,7 +1023,7 @@ export default function LiveSessions() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Session Time</p>
-                    <p className="text-sm">{formatDuration(selectedSession.sessionTime)}</p>
+                    <p className="text-sm font-medium tabular-nums">{formatDuration(liveSessionTime)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Data Usage</p>
@@ -1008,6 +1039,14 @@ export default function LiveSessions() {
                     <p className="text-xs text-muted-foreground">Idle Timeout</p>
                     <p className="text-sm">{selectedSession.idleTimeout ? formatDuration(selectedSession.idleTimeout) : '—'}</p>
                   </div>
+                  {selectedSession.startedAt && (
+                    <div className="col-span-2">
+                      <p className="text-xs text-muted-foreground">Started</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(selectedSession.startedAt).toLocaleString()} ({formatDistanceToNow(selectedSession.startedAt)} ago)
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

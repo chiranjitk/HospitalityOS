@@ -712,6 +712,23 @@ export async function GET(request: NextRequest) {
           // Strip /32 CIDR suffix from PostgreSQL inet columns
           const stripCidr = (v: string | null) => (v || '').replace(/\/\d+$/, '');
 
+          // Batch-fetch Session-Timeout from radreply as fallback for sessionTimeoutSec
+          const usernames = activeSessions.map(s => s.username).filter(Boolean);
+          const radreplyTimeoutMap: Record<string, number> = {};
+          if (usernames.length > 0) {
+            try {
+              const radreplyRows = await db.$queryRawUnsafe<{ username: string; value: string }[]>(`
+                SELECT username, value
+                FROM radreply
+                WHERE username = ANY($1::text[])
+                  AND attribute = 'Session-Timeout'
+              `, usernames);
+              for (const row of radreplyRows) {
+                radreplyTimeoutMap[row.username] = parseInt(row.value, 10) || 0;
+              }
+            } catch { /* non-fatal */ }
+          }
+
           // Parse device info from User-Agent string (supplement DeviceProfile data)
           const parseDeviceFromUA = (ua: string | null): { os: string; browser: string } => {
             if (!ua) return { os: '', browser: '' };
@@ -776,8 +793,9 @@ export async function GET(request: NextRequest) {
               status: 'active' as const,
               startedAt: s.acctstarttime || '',
               lastSeenAt: s.acctupdatetime || '',
-              sessionTimeout: s.sessionTimeoutSec,
-              idleTimeout: s.idleTimeoutSec,
+              // Session timeout: plan field → radreply fallback
+              sessionTimeout: s.sessionTimeoutSec || radreplyTimeoutMap[s.username] || null,
+              idleTimeout: s.idleTimeoutSec || null,
               planName: s.plan_name || '',
               roomId: s.room_number || '',
               // Enriched fields from view
