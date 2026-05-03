@@ -1,2 +1,4 @@
 2026-05-03 02:01:53 [LOGIN] LOGIN: ip=21.0.0.1 mark=0x15000001 action=masq pool=0 dn=5000k up=1000k session=
 2026-05-03 02:01:53 [LOGIN][ERR] nft: failed to add 21.0.0.1 to loggedinusers
+2026-05-03 03:10:26 [LOGIN] LOGIN: ip=21.0.0.1 mark=0x15000001 action=masq pool=1033 dn=800000k up=400000k session=1777777826457-89afa794
+2026-05-03 03:10:26 [LOGIN][ERR] nft: failed to add 21.0.0.1 to loggedinusers
