@@ -208,8 +208,17 @@ async function probeNas(
   const probes: Promise<void>[] = [];
   const isLocalhost = LOCALHOST_IPS.has(nas.ipAddress);
 
+  // ── 0. Self/Localhost NAS — always online (StaySuite IS the gateway) ──
+  // When the NAS IP is 127.0.0.1, this IS the local machine. No need to probe.
+  if (isLocalhost) {
+    result.isOnline = true;
+    result.avgLatencyMs = 0;
+    result.probesUsed.push('self:localhost');
+    return result;
+  }
+
   // ── 1. ICMP Ping ──
-  if (icmpAvailable && !isLocalhost) {
+  if (icmpAvailable) {
     probes.push(
       (async () => {
         const latency = await icmpPing(nas.ipAddress);
