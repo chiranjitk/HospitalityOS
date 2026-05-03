@@ -763,3 +763,5 @@
 2026-05-03 21:01:22.828 UTC [6622] LOG:  checkpoint complete: wrote 11 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.003 s, sync=0.001 s, total=1.003 s; sync files=11, longest=0.001 s, average=0.001 s; distance=60 kB, estimate=2061 kB; lsn=0/336E700, redo lsn=0/336E6A8
 2026-05-03 21:01:44.937 UTC [14944] FATAL:  password authentication failed for user "postgres"
 2026-05-03 21:01:44.937 UTC [14944] DETAIL:  Connection matched file "/home/z/my-project/pgsql-data/pg_hba.conf" line 4: "host    all             all             127.0.0.1/32            md5"
+2026-05-03 21:06:21.926 UTC [6622] LOG:  checkpoint starting: time
+2026-05-03 21:06:40.370 UTC [6622] LOG:  checkpoint complete: wrote 185 buffers (1.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=18.444 s, sync=0.001 s, total=18.445 s; sync files=140, longest=0.001 s, average=0.000 s; distance=69 kB, estimate=1862 kB; lsn=0/337FD80, redo lsn=0/337FCF0
