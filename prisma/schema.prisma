@@ -4102,6 +4102,7 @@ model RadAcct {
   acctinputpackets    Int?      @default(0)
   acctoutputpackets   Int?      @default(0)
   acctstatus          String?   @default("start")
+  loginType           String?   @default("portal") // portal, mac, voucher, etc.
   createdAt           DateTime  @default(now()) @db.Timestamptz
   updatedAt           DateTime  @updatedAt @db.Timestamptz
   radiusClass         String?   @map("class")
@@ -4284,14 +4285,16 @@ model RadiusNAS {
   coaPort     Int       @default(3799)
   authPort    Int       @default(1812)
   acctPort    Int       @default(1813)
-  status      String    @default("active")
-  lastSeenAt  DateTime? @db.Timestamptz
-  totalAuths  Int       @default(0)
-  totalAccts  Int       @default(0)
-  createdAt   DateTime  @default(now()) @db.Timestamptz
-  updatedAt   DateTime  @updatedAt @db.Timestamptz
-  property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  status            String    @default("active")
+  lastSeenAt        DateTime? @db.Timestamptz
+  lastWentOnlineAt  DateTime? @db.Timestamptz // When NAS last transitioned from offline → online (for uptime tracking)
+  lastWentOfflineAt DateTime? @db.Timestamptz // When NAS last transitioned from online → offline
+  totalAuths        Int       @default(0)
+  totalAccts        Int       @default(0)
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+  property          Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([propertyId, ipAddress])
   @@unique([propertyId, shortname])

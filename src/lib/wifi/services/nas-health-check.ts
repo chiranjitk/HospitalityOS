@@ -503,14 +503,62 @@ export async function runNasHealthCheck(): Promise<NasHealthCheckResult> {
       }
     }
 
-    // ── Step 6: Update RadiusNAS.lastSeenAt for online devices ──
-    const onlineIps = result.results.filter((r) => r.isOnline).map((r) => r.nasIp);
-    if (onlineIps.length > 0) {
-      await db.$executeRawUnsafe(`
-        UPDATE "RadiusNAS"
-        SET "lastSeenAt" = NOW()
-        WHERE "ipAddress" = ANY($1::text[])
-      `, onlineIps);
+    // ── Step 6: Detect state transitions & update RadiusNAS ──
+    // For each probed NAS, compare current probe result with previous health log.
+    // Transitions: offline→online (set lastWentOnlineAt), online→offline (set lastWentOfflineAt)
+    const now = new Date();
+
+    for (const probe of result.results) {
+      try {
+        // Get previous health state for this NAS IP
+        const prevRows = await db.$queryRawUnsafe<Array<{ isOnline: boolean }>>(`
+          SELECT "isOnline"
+          FROM "NasHealthLog"
+          WHERE "nasIpAddress" = $1
+          ORDER BY "createdAt" DESC
+          LIMIT 1 OFFSET 1
+        `, probe.nasIp); // OFFSET 1 skips the one we just wrote in Step 5
+
+        const wasOnline = prevRows.length > 0 ? prevRows[0].isOnline : null;
+
+        if (probe.isOnline && wasOnline === false) {
+          // Transition: offline → online
+          await db.$executeRawUnsafe(`
+            UPDATE "RadiusNAS"
+            SET "lastSeenAt" = NOW(),
+                "lastWentOnlineAt" = NOW()
+            WHERE "ipAddress" = $1
+          `, probe.nasIp);
+          SELog.info(`NAS state change: ${probe.nasName} (${probe.nasIp}) — offline → online`);
+        } else if (probe.isOnline && wasOnline === null) {
+          // First health check ever — assume it was always online if currently online
+          await db.$executeRawUnsafe(`
+            UPDATE "RadiusNAS"
+            SET "lastSeenAt" = NOW(),
+                "lastWentOnlineAt" = COALESCE("lastWentOnlineAt", NOW())
+            WHERE "ipAddress" = $1
+              AND "lastWentOnlineAt" IS NULL
+          `, probe.nasIp);
+        } else if (!probe.isOnline && wasOnline === true) {
+          // Transition: online → offline
+          await db.$executeRawUnsafe(`
+            UPDATE "RadiusNAS"
+            SET "lastWentOfflineAt" = NOW()
+            WHERE "ipAddress" = $1
+          `, probe.nasIp);
+          SELog.warn(`NAS state change: ${probe.nasName} (${probe.nasIp}) — online → offline`);
+        } else if (probe.isOnline) {
+          // Still online — just update lastSeenAt
+          await db.$executeRawUnsafe(`
+            UPDATE "RadiusNAS"
+            SET "lastSeenAt" = NOW()
+            WHERE "ipAddress" = $1
+          `, probe.nasIp);
+        }
+        // If offline and was offline → no update needed
+      } catch (err) {
+        SELog.error(`Failed to update state transition for ${probe.nasIp}: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
 
     // ── Step 7: Cleanup old health logs (keep 7 days) ──

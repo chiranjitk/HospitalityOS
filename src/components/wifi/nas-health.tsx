@@ -45,13 +45,14 @@ interface NasHealthEntry {
   id: string;
   nasIp: string;
   nasIdentifier?: string;
-  status: 'online' | 'offline' | 'degraded';
+  status: 'online' | 'offline' | 'degraded' | 'unknown';
   liveUserCount: number;
   lastSeenAt: string;
   latency?: number;
   totalSessions: number;
   failedAuths: number;
-  uptime?: number;
+  uptime?: number | null;
+  lastWentOfflineAt?: string | null;
   softwareVersion?: string;
 }
 
@@ -59,6 +60,7 @@ interface NasHealthStats {
   totalNas: number;
   onlineCount: number;
   offlineCount: number;
+  unknownCount: number;
   totalLiveUsers: number;
   avgLatency: number;
 }
@@ -74,6 +76,7 @@ export default function NasHealth() {
     totalNas: 0,
     onlineCount: 0,
     offlineCount: 0,
+    unknownCount: 0,
     totalLiveUsers: 0,
     avgLatency: 0,
   });
@@ -182,6 +185,19 @@ export default function NasHealth() {
         </div>
       );
     }
+    if (status === 'unknown') {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-3 w-3">
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-gray-400" />
+          </span>
+          <Badge className="bg-gray-500 hover:bg-gray-600 text-white border-0 text-xs">
+            <Wifi className="h-3 w-3 mr-1" />
+            Unknown
+          </Badge>
+        </div>
+      );
+    }
     return (
       <div className="flex items-center gap-2">
         <span className="relative flex h-3 w-3">
@@ -200,6 +216,7 @@ export default function NasHealth() {
       online: 'bg-emerald-500',
       degraded: 'bg-amber-500',
       offline: 'bg-red-500',
+      unknown: 'bg-gray-400',
     };
     return (
       <span className="relative flex h-2.5 w-2.5">
@@ -225,8 +242,14 @@ export default function NasHealth() {
     return <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 text-xs">{latency}ms</Badge>;
   };
 
-  const formatUptime = (seconds?: number) => {
-    if (!seconds || seconds <= 0) return '—';
+  const formatUptime = (seconds?: number | null, status?: string, lastWentOfflineAt?: string | null) => {
+    if (!seconds || seconds <= 0) {
+      // If offline, show when it went down
+      if (status === 'offline' && lastWentOfflineAt) {
+        return `Down ${formatDistanceToNow(new Date(lastWentOfflineAt))} ago`;
+      }
+      return '—';
+    }
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
     if (days > 0) return `${days}d ${hours}h`;
@@ -238,24 +261,28 @@ export default function NasHealth() {
   const getStatusIconColor = (status: string) => {
     if (status === 'online') return 'text-emerald-500 dark:text-emerald-400';
     if (status === 'degraded') return 'text-amber-500 dark:text-amber-400';
+    if (status === 'unknown') return 'text-gray-400 dark:text-gray-500';
     return 'text-red-500 dark:text-red-400';
   };
 
   const getStatusBgColor = (status: string) => {
     if (status === 'online') return 'bg-emerald-500/10';
     if (status === 'degraded') return 'bg-amber-500/10';
+    if (status === 'unknown') return 'bg-gray-500/10';
     return 'bg-red-500/10';
   };
 
   const getStatusBorderColor = (status: string) => {
     if (status === 'online') return 'border-emerald-200 dark:border-emerald-800';
     if (status === 'degraded') return 'border-amber-200 dark:border-amber-800';
+    if (status === 'unknown') return 'border-gray-200 dark:border-gray-700';
     return 'border-red-200 dark:border-red-800';
   };
 
   const getRowBgColor = (status: string) => {
     if (status === 'online') return 'bg-emerald-50/30 dark:bg-emerald-950/10';
     if (status === 'offline') return 'bg-red-50/30 dark:bg-red-950/10';
+    if (status === 'unknown') return 'bg-gray-50/30 dark:bg-gray-950/10';
     return '';
   };
 
@@ -427,7 +454,9 @@ export default function NasHealth() {
                   </div>
                   <div>
                     <p className="text-muted-foreground">Uptime</p>
-                    <p className="font-medium text-sm">{formatUptime(nas.uptime)}</p>
+                    <p className={cn('font-medium text-sm', nas.status === 'offline' && 'text-red-600 dark:text-red-400')}>
+                      {formatUptime(nas.uptime, nas.status, nas.lastWentOfflineAt)}
+                    </p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Total Sessions</p>
@@ -502,7 +531,9 @@ export default function NasHealth() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm">{formatUptime(nas.uptime)}</span>
+                        <span className={cn('text-sm', nas.status === 'offline' && 'text-red-600 dark:text-red-400')}>
+                          {formatUptime(nas.uptime, nas.status, nas.lastWentOfflineAt)}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <span className="text-sm tabular-nums">{nas.totalSessions}</span>

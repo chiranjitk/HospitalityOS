@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
       SELECT id, "tenantId", "propertyId", name, shortname, "ipAddress" as "nasIp",
              type, ports, secret, description, status,
              "coaEnabled", "coaPort", "authPort", "acctPort",
-             "createdAt", "updatedAt"
+             "createdAt", "updatedAt",
+             "lastSeenAt", "lastWentOnlineAt", "lastWentOfflineAt"
       FROM "RadiusNAS"
       WHERE "tenantId" = $1::uuid
       ORDER BY "createdAt" DESC
@@ -98,8 +99,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ── 4. Calculate uptime from RadiusNAS.createdAt ──
-    const now = Date.now();
+    // ── 4. Calculate uptime ──
+    // Uptime = time since NAS last went online (down→up transition).
+    // If currently online and lastWentOnlineAt exists → uptime = now - lastWentOnlineAt
+    // If currently offline → no uptime (null)
+    // If no health check data yet → fallback to registration time only if online
+    const nowMs = Date.now();
 
     // Build response
     const entries = nasClients.map(nas => {
@@ -110,7 +115,7 @@ export async function GET(request: NextRequest) {
       const health = healthMap[ip];
 
       // Determine status from health check data
-      let status: 'online' | 'offline' | 'degraded' = 'offline';
+      let status: 'online' | 'offline' | 'degraded' | 'unknown' = 'offline';
       if (health) {
         if (health.isOnline) {
           status = (health.avgLatencyMs != null && health.avgLatencyMs > 200) ? 'degraded' : 'online';
@@ -122,10 +127,19 @@ export async function GET(request: NextRequest) {
         status = live > 0 ? 'online' : 'unknown';
       }
 
-      // Uptime: seconds since NAS was created (registered in system)
-      const uptimeSeconds = nas.createdAt
-        ? Math.floor((now - new Date(nas.createdAt).getTime()) / 1000)
-        : 0;
+      // Uptime: seconds since last down→up transition
+      // Only meaningful when currently online
+      let uptimeSeconds: number | null = null;
+      if (status === 'online' || status === 'degraded') {
+        if (nas.lastWentOnlineAt) {
+          uptimeSeconds = Math.floor((nowMs - new Date(nas.lastWentOnlineAt).getTime()) / 1000);
+        } else {
+          // No transition recorded yet but currently online — use registration time as fallback
+          uptimeSeconds = nas.createdAt
+            ? Math.floor((nowMs - new Date(nas.createdAt).getTime()) / 1000)
+            : 0;
+        }
+      }
 
       return {
         id: nas.id,
@@ -141,20 +155,22 @@ export async function GET(request: NextRequest) {
         latency: health?.avgLatencyMs ?? null,
         uptime: uptimeSeconds,
         lastSeenAt: health?.lastSeenAt || nas.lastSeenAt || nas.updatedAt || nas.createdAt,
+        lastWentOfflineAt: nas.lastWentOfflineAt || null,
       };
     });
 
     // Stats
     const totalNas = entries.length;
-    const onlineCount = entries.filter(e => e.status === 'online').length;
-    const offlineCount = entries.filter(e => e.status === 'offline' || e.status === 'unknown').length;
+    const onlineCount = entries.filter(e => e.status === 'online' || e.status === 'degraded').length;
+    const offlineCount = entries.filter(e => e.status === 'offline').length;
+    const unknownCount = entries.filter(e => e.status === 'unknown').length;
     const totalLiveUsers = entries.reduce((sum, e) => sum + e.liveUserCount, 0);
     const latencies = entries.filter(e => e.latency != null).map(e => e.latency);
     const avgLatency = latencies.length > 0
       ? Math.round(latencies.reduce((s, l) => s + l, 0) / latencies.length)
       : 0;
 
-    const stats = { totalNas, onlineCount, offlineCount, totalLiveUsers, avgLatency };
+    const stats = { totalNas, onlineCount, offlineCount, unknownCount, totalLiveUsers, avgLatency };
 
     return NextResponse.json({ success: true, data: entries, stats });
   } catch (error: any) {
