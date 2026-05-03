@@ -259,6 +259,36 @@ export async function PUT(request: NextRequest) {    const user = await requireP
       },
     });
 
+    // Sync idle timeout to existing users on this plan if it changed
+    if (updateData.idleTimeoutSec !== undefined) {
+      try {
+        const newIdleTimeout = updateData.idleTimeoutSec ? parseInt(updateData.idleTimeoutSec, 10) : 0;
+        // Find all active WiFiUsers on this plan
+        const usersOnPlan = await db.wiFiUser.findMany({
+          where: { planId: id, status: 'active' },
+          select: { id: true, username: true },
+        });
+        for (const u of usersOnPlan) {
+          const existing = await db.radReply.findFirst({
+            where: { username: u.username, attribute: 'Cryptsk-Idle-Timeout' },
+          });
+          if (newIdleTimeout > 0) {
+            if (existing) {
+              await db.radReply.update({ where: { id: existing.id }, data: { value: String(newIdleTimeout) } });
+            } else {
+              await db.radReply.create({
+                data: { wifiUserId: u.id, username: u.username, attribute: 'Cryptsk-Idle-Timeout', op: ':=', value: String(newIdleTimeout), isActive: true },
+              });
+            }
+          } else if (existing) {
+            await db.radReply.delete({ where: { id: existing.id } });
+          }
+        }
+      } catch (syncErr) {
+        console.error('[plans] Failed to sync idle timeout to users:', syncErr);
+      }
+    }
+
     return NextResponse.json({ success: true, data: plan });
   } catch (error) {
     console.error('Error updating WiFi plan:', error);

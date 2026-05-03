@@ -90,6 +90,7 @@ export interface WiFiUserUpdateInput {
   downloadSpeed?: number;
   uploadSpeed?: number;
   sessionTimeoutMinutes?: number; // RADIUS Session-Timeout in minutes
+  idleTimeoutSeconds?: number; // Cryptsk-Idle-Timeout in seconds
   sessionLimit?: number; // Max concurrent sessions
   dataLimit?: number;
   status?: 'active' | 'suspended' | 'expired' | 'revoked';
@@ -116,16 +117,22 @@ export class WiFiUserService {
     return db.$transaction(async (tx) => {
       // Resolve plan group name (radusergroup maps username → groupname)
       let groupName = 'standard-guests'; // default fallback
+      let planIdleTimeoutSec = 0;
       if (input.planId) {
         const plan = await tx.wiFiPlan.findUnique({
           where: { id: input.planId },
-          select: { name: true },
+          select: { name: true, idleTimeoutSec: true, sessionTimeoutSec: true },
         });
         if (plan) {
           // Convert plan name to a RADIUS-safe group name (lowercase, underscores)
           groupName = plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard-guests';
+          // Auto-read idle timeout from plan if not explicitly provided
+          if (!input.idleTimeoutSeconds && plan.idleTimeoutSec) {
+            planIdleTimeoutSec = plan.idleTimeoutSec;
+          }
         }
       }
+      const effectiveIdleTimeout = input.idleTimeoutSeconds || planIdleTimeoutSec;
 
       // 1. Create WiFiUser
       const wifiUser = await tx.wiFiUser.create({
@@ -184,9 +191,9 @@ export class WiFiUserService {
         replies.push({ attribute: 'Cryptsk-Session-Timeout', value: String(sessionTimeoutSec) });
       }
 
-      // Cryptsk-Idle-Timeout: idle timeout (integer, seconds) from portal config
-      if (input.idleTimeoutSeconds && input.idleTimeoutSeconds > 0) {
-        replies.push({ attribute: 'Cryptsk-Idle-Timeout', value: String(input.idleTimeoutSeconds) });
+      // Cryptsk-Idle-Timeout: idle timeout (integer, seconds) from plan or portal config
+      if (effectiveIdleTimeout && effectiveIdleTimeout > 0) {
+        replies.push({ attribute: 'Cryptsk-Idle-Timeout', value: String(effectiveIdleTimeout) });
       }
 
       // Cryptsk-User-Profile: plan group name (string) — for policy matching
@@ -327,6 +334,39 @@ export class WiFiUserService {
               isActive: true,
             },
           });
+        }
+      }
+
+      // Update Cryptsk-Idle-Timeout if idleTimeoutSeconds changed
+      if (input.idleTimeoutSeconds !== undefined) {
+        const existingIdleTimeout = await tx.radReply.findFirst({
+          where: {
+            username: wifiUser.username,
+            attribute: 'Cryptsk-Idle-Timeout',
+          },
+        });
+
+        if (input.idleTimeoutSeconds > 0) {
+          if (existingIdleTimeout) {
+            await tx.radReply.update({
+              where: { id: existingIdleTimeout.id },
+              data: { value: String(input.idleTimeoutSeconds) },
+            });
+          } else {
+            await tx.radReply.create({
+              data: {
+                wifiUserId: wifiUser.id,
+                username: wifiUser.username,
+                attribute: 'Cryptsk-Idle-Timeout',
+                op: ':=',
+                value: String(input.idleTimeoutSeconds),
+                isActive: true,
+              },
+            });
+          }
+        } else if (existingIdleTimeout) {
+          // Remove idle timeout if set to 0
+          await tx.radReply.delete({ where: { id: existingIdleTimeout.id } });
         }
       }
 
