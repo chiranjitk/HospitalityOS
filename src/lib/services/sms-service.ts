@@ -1,8 +1,8 @@
 /**
  * StaySuite SMS Service
  * 
- * Comprehensive SMS service with:
- * - Multiple provider support (Twilio, mock)
+ * High-level SMS service with:
+ * - Multi-provider support via unified adapter (Twilio, Vonage, MessageBird, AWS SNS, Custom, Mock)
  * - Template support with variable substitution
  * - Delivery tracking
  * - Bulk sending with queue
@@ -10,7 +10,7 @@
  */
 
 import { db } from '@/lib/db';
-import { sendSMS as sendSMSAdapter, sendSMSForTenant, SMSOptions, SMSResult } from '@/lib/adapters/sms';
+import { sendSMS as sendSMSAdapter, sendSMSForTenant, normalizePhoneNumber, SMSOptions, SMSResult } from '@/lib/adapters/sms';
 import { getConfig } from '@/lib/config/env';
 import crypto from 'crypto';
 
@@ -386,18 +386,10 @@ export class SMSService {
   }
 
   /**
-   * Format phone number to E.164
+   * Format phone number to E.164 using unified normalizer.
    */
   private formatPhoneNumber(phone: string): string {
-    // Remove spaces, dashes, parentheses
-    let formatted = phone.replace(/[\s\-\(\)]/g, '');
-    
-    // Add + if missing
-    if (!formatted.startsWith('+')) {
-      formatted = '+' + formatted;
-    }
-    
-    return formatted;
+    return normalizePhoneNumber(phone, process.env.SMS_DEFAULT_COUNTRY_CODE || process.env.DEFAULT_COUNTRY_CODE);
   }
 
   /**

@@ -20,6 +20,10 @@ import { decrypt, isEncrypted } from '@/lib/encryption';
 type IntegrationType =
   | 'smtp'
   | 'sms_twilio'
+  | 'sms_vonage'
+  | 'sms_messagebird'
+  | 'sms_aws_sns'
+  | 'sms_custom'
   | 's3_storage'
   | 'fcm'
   | 'google_oauth'
@@ -145,6 +149,50 @@ export async function getTwilioConfig(tenantId: string) {
       dbConfig?.phoneNumber || process.env.TWILIO_PHONE_NUMBER || '',
     source: (dbConfig ? 'database' : 'env') as 'database' | 'env',
   };
+}
+
+// ── Unified SMS Provider (any provider) ─────────────────────────────────
+
+/**
+ * Generic SMS provider config loader.
+ * Looks up the DB Integration record for any sms_* type and returns
+ * a unified SMSCredentials-compatible object.
+ */
+export async function getSMSProviderConfig(tenantId: string): Promise<import('./adapters/sms').SMSCredentials & { _source: string } | null> {
+  // Try each SMS integration type in priority order
+  const smsTypes: IntegrationType[] = [
+    'sms_twilio',
+    'sms_vonage',
+    'sms_messagebird',
+    'sms_aws_sns',
+    'sms_custom',
+  ];
+
+  for (const type of smsTypes) {
+    const dbConfig = await getServiceConfig<Record<string, string | number | boolean>>(tenantId, type);
+    if (dbConfig) {
+      const providerMap: Record<string, string> = {
+        sms_twilio: 'twilio',
+        sms_vonage: 'vonage',
+        sms_messagebird: 'messagebird',
+        sms_aws_sns: 'aws_sns',
+        sms_custom: 'custom',
+      };
+      return {
+        provider: (providerMap[type] || 'twilio') as import('./adapters/sms').SMSProviderType,
+        accountSid: String(dbConfig.accountSid || dbConfig.apiKey || ''),
+        authToken: String(dbConfig.authToken || dbConfig.apiSecret || dbConfig.secretKey || ''),
+        phoneNumber: String(dbConfig.phoneNumber || dbConfig.fromNumber || ''),
+        region: String(dbConfig.region || ''),
+        baseUrl: String(dbConfig.baseUrl || ''),
+        webhookSecret: String(dbConfig.webhookSecret || ''),
+        defaultCountryCode: String(dbConfig.defaultCountryCode || ''),
+        _source: 'database',
+      };
+    }
+  }
+
+  return null;
 }
 
 // ── FCM Push ───────────────────────────────────────────────────────────────

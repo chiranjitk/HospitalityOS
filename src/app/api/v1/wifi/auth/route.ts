@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
 import { sendSMSNow } from '@/lib/services/sms-service';
+import { normalizePhoneNumber } from '@/lib/adapters/sms';
 import { randomUUID, randomInt } from 'crypto';
 import { radiusAuth, getRejectMessage } from '@/lib/wifi/utils/radius-auth';
 import { addUserCounter } from '@/lib/wifi/utils/nftables-counters';
@@ -177,11 +178,9 @@ function isValidPhoneNumber(phone: string): boolean {
   return digits.length >= 10 && digits.length <= 15;
 }
 
-function normalizePhoneNumber(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
-  if (digits.length === 10) return `+91${digits}`; // default India
-  if (!phone.startsWith('+')) return `+${digits}`;
-  return `+${digits}`;
+function normalizePhoneNumberLocal(phone: string): string {
+  // Use the shared normalizer with configurable default country code
+  return normalizePhoneNumber(phone, process.env.SMS_DEFAULT_COUNTRY_CODE || process.env.DEFAULT_COUNTRY_CODE || undefined);
 }
 
 // ────────────────────────────────────────────────────────────
@@ -1268,7 +1267,7 @@ export async function POST(request: NextRequest) {
             return errorResponse('MISSING_PHONE', 'Phone number is required for OTP verification');
           }
 
-          const normalizedPhone = normalizePhoneNumber(phoneNumber.trim());
+          const normalizedPhone = normalizePhoneNumberLocal(phoneNumber.trim());
           const stored = otpStore.get(normalizedPhone);
 
           if (!stored) {
@@ -1418,7 +1417,7 @@ export async function POST(request: NextRequest) {
             return errorResponse('MISSING_PHONE', 'Please enter your phone number');
           }
 
-          const normalizedPhone = normalizePhoneNumber(phoneNumber.trim());
+          const normalizedPhone = normalizePhoneNumberLocal(phoneNumber.trim());
 
           // Validate phone number format
           if (!isValidPhoneNumber(phoneNumber.trim())) {

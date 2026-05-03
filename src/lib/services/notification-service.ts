@@ -13,7 +13,7 @@
 
 import { db } from '@/lib/db';
 import { sendEmailForTenant, EmailOptions, EmailResult } from '@/lib/adapters/email';
-import { sendSMSForTenant, SMSMessageResult } from '@/lib/integrations/sms';
+import { sendSMSForTenant, type SMSResult as SMSMessageResult } from '@/lib/adapters/sms';
 import { getFCMConfig } from '@/lib/service-config';
 
 // Types
@@ -349,12 +349,15 @@ export class NotificationService {
   private async sendSMSNotification(data: NotificationData): Promise<SMSMessageResult> {
     const phone = await this.getRecipientPhone(data);
     if (!phone) {
-      return { success: false, error: 'No phone number found' };
+      return { success: false, error: 'No phone number found', provider: 'none' };
     }
 
     const plainTextBody = `${data.title}\n\n${data.message}`;
 
-    return sendSMSForTenant(data.tenantId, phone, plainTextBody);
+    return sendSMSForTenant(data.tenantId, {
+      to: phone,
+      message: plainTextBody,
+    });
   }
 
   /**

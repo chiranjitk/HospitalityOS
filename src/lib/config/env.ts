@@ -60,9 +60,10 @@ export interface EnvironmentConfig {
     from: string;
   };
   
-  // SMS (Twilio)
+  // SMS (multi-provider: Twilio, Vonage, MessageBird, AWS SNS, Custom)
   sms: {
     enabled: boolean;
+    provider: string | null;
     accountSid: string | null;
     phoneNumber: string | null;
   };
@@ -175,8 +176,9 @@ export function getEnvironmentConfig(): EnvironmentConfig {
   const smtpHost = process.env.SMTP_HOST || null;
   const hasEmail = smtpHost !== null;
   
-  // Twilio configuration
-  const twilioSid = process.env.TWILIO_ACCOUNT_SID || null;
+  // SMS — support multiple providers
+  const smsProvider = process.env.SMS_PROVIDER || process.env.SMS_GATEWAY || null;
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID || process.env.SMS_ACCOUNT_SID || null;
   const hasSMS = twilioSid !== null;
   
   // Stripe configuration
@@ -245,8 +247,9 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     // SMS
     sms: {
       enabled: hasSMS && getFeatureFlag('ENABLE_SMS', false),
+      provider: smsProvider || (hasSMS ? 'twilio' : null),
       accountSid: twilioSid,
-      phoneNumber: process.env.TWILIO_PHONE_NUMBER || null,
+      phoneNumber: process.env.TWILIO_PHONE_NUMBER || process.env.SMS_FROM_NUMBER || null,
     },
     
     // WhatsApp
@@ -358,7 +361,7 @@ export function getServiceStatus(): Record<string, { enabled: boolean; type: str
     },
     sms: {
       enabled: config.sms.enabled,
-      type: config.sms.enabled ? 'twilio' : 'mock',
+      type: config.sms.enabled ? (config.sms.provider || 'twilio') : 'mock',
     },
     whatsapp: {
       enabled: config.whatsapp.enabled,

@@ -52,10 +52,15 @@ export {
   getSMS,
   sendSMS,
   sendSMSBatch,
+  sendSMSForTenant,
+  getSMSForTenant,
   resetSMS,
+  normalizePhoneNumber,
   type SMSAdapter,
   type SMSOptions,
   type SMSResult,
+  type SMSProviderType,
+  type SMSCredentials,
 } from './sms';
 
 // Queue adapter
