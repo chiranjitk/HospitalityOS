@@ -42,7 +42,7 @@
  *                       │  • Idle-Timeout     → disconnect               │
  *                       │  • Data-Limit       → disconnect               │
  *                       │  • Stale session    → cleanup                  │
- *                       └──────────────────────────────────────────────┘
+ *                       └───────────────────────────────────────────────┘
  *
  * CRITICAL DESIGN DECISIONS:
  * - Reads REAL byte counters from nftables (not estimated)
@@ -110,6 +110,39 @@ interface ActiveSession {
 // Maps IP → last timestamp when bytes delta was > 0
 const lastActivityMap = new Map<string, number>();
 
+// Bug 7: Concurrency guard to prevent overlapping runs
+let isRunning = false;
+
+// ────────────────────────────────────────────────────────────
+// Helpers
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Bug 14: Defensive Date-to-timestamp conversion.
+ * Handles cases where acctstarttime might not be a proper Date object.
+ */
+function safeGetTime(date: Date | unknown): number {
+  if (date instanceof Date) return date.getTime();
+  return new Date(String(date)).getTime();
+}
+
+/**
+ * Minimal result returned when session engine is already running (Bug 7).
+ */
+function minimalResult(): SessionEngineResult {
+  return {
+    sessionsProcessed: 0,
+    interimUpdated: 0,
+    sessionTimeoutDisconnected: 0,
+    idleTimeoutDisconnected: 0,
+    dataLimitDisconnected: 0,
+    staleCleaned: 0,
+    errors: 0,
+    durationMs: 0,
+    disconnectedSessions: [],
+  };
+}
+
 // ────────────────────────────────────────────────────────────
 // Session Engine — Main Entry Point
 // ────────────────────────────────────────────────────────────
@@ -136,79 +169,102 @@ const lastActivityMap = new Map<string, number>();
  * 6. Return summary
  */
 export async function runSessionEngine(): Promise<SessionEngineResult> {
-  const startTime = Date.now();
-  const result: SessionEngineResult = {
-    sessionsProcessed: 0,
-    interimUpdated: 0,
-    sessionTimeoutDisconnected: 0,
-    idleTimeoutDisconnected: 0,
-    dataLimitDisconnected: 0,
-    staleCleaned: 0,
-    errors: 0,
-    durationMs: 0,
-    disconnectedSessions: [],
-  };
+  // Bug 7: Concurrency guard — skip if already running
+  if (isRunning) {
+    SELog.info('Session engine already running, skipping this cycle');
+    const skipped = minimalResult();
+    SELog.recordRunResult(skipped);
+    return skipped;
+  }
+  isRunning = true;
 
   try {
-    // ── Step 1: Ensure counter table exists ──
-    setupCounterTable();
+    const startTime = Date.now();
+    const result: SessionEngineResult = {
+      sessionsProcessed: 0,
+      interimUpdated: 0,
+      sessionTimeoutDisconnected: 0,
+      idleTimeoutDisconnected: 0,
+      dataLimitDisconnected: 0,
+      staleCleaned: 0,
+      errors: 0,
+      durationMs: 0,
+      disconnectedSessions: [],
+    };
 
-    // ── Step 2: Get all active sessions from radacct ──
-    const activeSessions = await getActiveSessions();
-    result.sessionsProcessed = activeSessions.length;
+    try {
+      // ── Step 1: Ensure counter table exists ──
+      setupCounterTable();
 
-    if (activeSessions.length === 0) {
-      SELog.info('No active sessions found');
-      // Don't return early — still need to recordRunResult for status tracking
-    } else {
+      // ── Step 2: Get all active sessions from radacct ──
+      const activeSessions = await getActiveSessions();
+      result.sessionsProcessed = activeSessions.length;
 
-    // ── Step 3: Read all per-IP byte counters from nftables ──
-    const counterData = readAllCounters();
-    const counterMap = new Map<string, IPByteCount>();
-    for (const c of counterData.counts) {
-      counterMap.set(c.ip, c);
-    }
+      if (activeSessions.length === 0) {
+        SELog.info('No active sessions found');
+        // Bug 6: Clear all idle tracking when no sessions exist
+        lastActivityMap.clear();
+        // Don't return early — still need to recordRunResult for status tracking
+      } else {
 
-    SELog.info(
-      `Processing ${activeSessions.length} sessions, ` +
-      `${counterData.counts.length} counter rules found`
-    );
-
-    // ── Step 4: Process each session ──
-    for (const session of activeSessions) {
-      try {
-        await processSession(session, counterMap, result);
-      } catch (err) {
-        result.errors++;
-        SELog.error(
-          `Error processing session ${session.username} (${session.framedipaddress}): ${err instanceof Error ? err.message : String(err)}`
-        );
+      // ── Step 3: Read all per-IP byte counters from nftables ──
+      const counterData = readAllCounters();
+      const counterMap = new Map<string, IPByteCount>();
+      for (const c of counterData.counts) {
+        counterMap.set(c.ip, c);
       }
+
+      SELog.info(
+        `Processing ${activeSessions.length} sessions, ` +
+        `${counterData.counts.length} counter rules found`
+      );
+
+      // ── Step 4: Process each session ──
+      for (const session of activeSessions) {
+        try {
+          await processSession(session, counterMap, result);
+        } catch (err) {
+          result.errors++;
+          SELog.error(
+            `Error processing session ${session.username} (${session.framedipaddress}): ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+      }
+
+      // Bug 6: GC pass — purge stale lastActivityMap entries for IPs no longer in counterMap
+      for (const [mapIp] of lastActivityMap) {
+        if (!counterMap.has(mapIp)) {
+          lastActivityMap.delete(mapIp);
+        }
+      }
+
+      // ── Step 5: Log results ──
+      const duration = Date.now() - startTime;
+      result.durationMs = duration;
+
+      SELog.info(
+        `Cycle complete in ${duration}ms: ` +
+        `${result.interimUpdated} updated, ` +
+        `${result.sessionTimeoutDisconnected} session-timeout, ` +
+        `${result.idleTimeoutDisconnected} idle-timeout, ` +
+        `${result.dataLimitDisconnected} data-limit, ` +
+        `${result.staleCleaned} stale, ` +
+        `${result.errors} errors`
+      );
+      } // end else (activeSessions.length > 0)
+    } catch (err) {
+      SELog.error(`Fatal error: ${err instanceof Error ? err.message : String(err)}`);
+      result.errors++;
     }
 
-    // ── Step 5: Log results ──
-    const duration = Date.now() - startTime;
-    result.durationMs = duration;
+    // ── Step 6: Record run result for status tracking ──
+    SELog.recordRunResult(result);
 
-    SELog.info(
-      `Cycle complete in ${duration}ms: ` +
-      `${result.interimUpdated} updated, ` +
-      `${result.sessionTimeoutDisconnected} session-timeout, ` +
-      `${result.idleTimeoutDisconnected} idle-timeout, ` +
-      `${result.dataLimitDisconnected} data-limit, ` +
-      `${result.staleCleaned} stale, ` +
-      `${result.errors} errors`
-    );
-    } // end else (activeSessions.length > 0)
-  } catch (err) {
-    SELog.error(`Fatal error: ${err instanceof Error ? err.message : String(err)}`);
-    result.errors++;
+    return result;
+  } finally {
+    // Bug 7: Always release the concurrency guard
+    isRunning = false;
   }
-
-  // ── Step 6: Record run result for status tracking ──
-  SELog.recordRunResult(result);
-
-  return result;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -254,7 +310,11 @@ async function processSession(
   if (!isAuthed) {
     // IP removed from firewall → session is gone (user left, DHCP expired, etc.)
     SELog.info(`Stale session: ${session.username} (${ip}) — IP not in nftables`);
-    await closeSession(session, 'Session-Cleanup', 0, 0);
+    // Bug 9: Before closing stale session, read the counter to preserve last-cycle data
+    const staleCounter = counterMap.get(ip);
+    const dl = staleCounter ? staleCounter.downloadBytes : Number(session.acctinputoctets);
+    const ul = staleCounter ? staleCounter.uploadBytes : Number(session.acctoutputoctets);
+    await closeSession(session, 'Session-Cleanup', dl, ul);
     result.staleCleaned++;
     return;
   }
@@ -264,7 +324,8 @@ async function processSession(
     // No counter rule yet — add one for future tracking
     addUserCounter(ip);
     // Still update session time even without byte data
-    const sessionTime = Math.floor((Date.now() - session.acctstarttime.getTime()) / 1000);
+    // Bug 14: Use safeGetTime for defensive Date handling
+    const sessionTime = Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000);
     await db.$executeRawUnsafe(`
       UPDATE radacct SET
         acctsessiontime = $1,
@@ -273,47 +334,68 @@ async function processSession(
     `, sessionTime, session.radacctid);
 
     // Also update WiFiSession
-    await updateWiFiSession(session.username, session.callingstationid, session.acctinputoctets, session.acctoutputoctets, sessionTime);
+    // Bug 3: Number() wrapping for BigInt safety
+    await updateWiFiSession(session.username, session.callingstationid, Number(session.acctinputoctets), Number(session.acctoutputoctets), sessionTime);
     return;
   }
 
   // ── Calculate byte deltas ──
   const newDownloadBytes = counter.downloadBytes;
   const newUploadBytes = counter.uploadBytes;
-  const prevTotal = session.acctinputoctets + session.acctoutputoctets;
+  // Bug 3: Number() wrapping for BigInt safety on radacct columns
+  const prevDownload = Number(session.acctinputoctets);
+  const prevUpload = Number(session.acctoutputoctets);
+  const prevTotal = prevDownload + prevUpload;
   const newTotal = newDownloadBytes + newUploadBytes;
 
-  // The delta might be negative if counters were reset
-  const delta = Math.max(0, newTotal - prevTotal);
-  const downloadDelta = Math.max(0, newDownloadBytes - session.acctinputoctets);
-  const uploadDelta = Math.max(0, newUploadBytes - session.acctoutputoctets);
+  // Bug 5: Detect counter reset — when new total is less than previous
+  const counterReset = newTotal < prevTotal;
+  if (counterReset) {
+    // Counter reset detected — update radacct baseline, don't trigger idle
+    SELog.warn(`Counter reset detected for ${ip}: prev=${prevTotal}, new=${newTotal}`);
+    await db.$executeRawUnsafe(
+      `UPDATE radacct SET acctinputoctets = $1, acctoutputoctets = $2 WHERE framedipaddress = $3 AND acctstoptime IS NULL`,
+      newDownloadBytes, newUploadBytes, ip
+    );
+    // Skip idle check this cycle — fall through to session/data limit checks
+  }
+
+  // The delta might be negative if counters were reset; on reset, treat as 0
+  const delta = counterReset ? 0 : Math.max(0, newTotal - prevTotal);
+  const downloadDelta = counterReset ? 0 : Math.max(0, newDownloadBytes - prevDownload);
+  const uploadDelta = counterReset ? 0 : Math.max(0, newUploadBytes - prevUpload);
 
   // ── Calculate session time ──
-  const sessionTime = Math.floor((Date.now() - session.acctstarttime.getTime()) / 1000);
+  // Bug 14: Use safeGetTime for defensive Date handling
+  const sessionTime = Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000);
 
-  // ── Check idle timeout ──
-  const idleTimeout = await getIdleTimeoutForUser(session.username);
-  if (idleTimeout > 0 && delta > 0) {
-    // User has activity — update last activity timestamp
-    lastActivityMap.set(ip, Date.now());
-  } else if (idleTimeout > 0 && delta === 0) {
-    // No activity — check if idle timeout exceeded
-    const lastActivity = lastActivityMap.get(ip) || session.acctstarttime.getTime();
-    const idleSeconds = Math.floor((Date.now() - lastActivity) / 1000);
+  // ── Check idle timeout (skip entirely on counter reset — Bug 5) ──
+  if (!counterReset) {
+    const idleTimeout = await getIdleTimeoutForUser(session.username);
+    if (idleTimeout > 0 && delta > 0) {
+      // User has activity — update last activity timestamp
+      lastActivityMap.set(ip, Date.now());
+    } else if (idleTimeout > 0 && delta === 0) {
+      // No activity — check if idle timeout exceeded
+      // Bug 6: Use Date.now() as fallback instead of session.acctstarttime.getTime()
+      // so users aren't immediately kicked on engine restart
+      const lastActivity = lastActivityMap.get(ip) || Date.now();
+      const idleSeconds = Math.floor((Date.now() - lastActivity) / 1000);
 
-    if (idleSeconds >= idleTimeout) {
-      SELog.info(
-        `IDLE TIMEOUT: ${session.username} (${ip}) — ` +
-        `idle for ${idleSeconds}s (limit: ${idleTimeout}s)`
-      );
-      await disconnectSession(session, 'Idle-Timeout', newDownloadBytes, newUploadBytes);
-      result.idleTimeoutDisconnected++;
-      result.disconnectedSessions.push({
-        username: session.username,
-        ip,
-        reason: 'Idle-Timeout',
-      });
-      return;
+      if (idleSeconds >= idleTimeout) {
+        SELog.info(
+          `IDLE TIMEOUT: ${session.username} (${ip}) — ` +
+          `idle for ${idleSeconds}s (limit: ${idleTimeout}s)`
+        );
+        await disconnectSession(session, 'Idle-Timeout', newDownloadBytes, newUploadBytes);
+        result.idleTimeoutDisconnected++;
+        result.disconnectedSessions.push({
+          username: session.username,
+          ip,
+          reason: 'Idle-Timeout',
+        });
+        return;
+      }
     }
   }
 
@@ -364,6 +446,7 @@ async function processSession(
   // ── Insert an interim-update row for audit trail ──
   // This creates a separate radacct row with acctstatus = 'interim-update'
   // so the accounting sync service can pick it up
+  // Bug 8: Use cumulative values (newDownloadBytes, newUploadBytes) instead of deltas
   await db.$executeRawUnsafe(`
     INSERT INTO radacct (
       acctuniqueid, acctsessionid, username,
@@ -381,7 +464,7 @@ async function processSession(
       'session-engine', NOW(), NOW()
     )
   `, session.acctsessionid, session.username, session.acctstarttime, ip,
-     downloadDelta, uploadDelta, sessionTime, session.callingstationid);
+     newDownloadBytes, newUploadBytes, sessionTime, session.callingstationid);
 
   // ── Update WiFiSession ──
   await updateWiFiSession(session.username, session.callingstationid, newDownloadBytes, newUploadBytes, sessionTime);
@@ -411,7 +494,9 @@ async function getSessionTimeoutForUser(username: string): Promise<number> {
       where: { username, attribute: 'Session-Timeout', isActive: true },
     });
     return reply ? parseInt(reply.value, 10) || 0 : 0;
-  } catch {
+  } catch (err) {
+    // Bug 15: Log the error instead of silently returning "no limit"
+    SELog.warn(`Failed to look up Session-Timeout for ${username}: ${err instanceof Error ? err.message : String(err)}`);
     return 0;
   }
 }
@@ -426,7 +511,9 @@ async function getIdleTimeoutForUser(username: string): Promise<number> {
       where: { username, attribute: 'Cryptsk-Idle-Timeout', isActive: true },
     });
     return reply ? parseInt(reply.value, 10) || 0 : 0;
-  } catch {
+  } catch (err) {
+    // Bug 15: Log the error instead of silently returning "no limit"
+    SELog.warn(`Failed to look up Idle-Timeout for ${username}: ${err instanceof Error ? err.message : String(err)}`);
     return 0;
   }
 }
@@ -453,7 +540,9 @@ async function getDataLimitForUser(username: string): Promise<number> {
       if (val > 0) return val;
     }
     return 0;
-  } catch {
+  } catch (err) {
+    // Bug 15: Log the error instead of silently returning "no limit"
+    SELog.warn(`Failed to look up Data-Limit for ${username}: ${err instanceof Error ? err.message : String(err)}`);
     return 0;
   }
 }
@@ -469,16 +558,18 @@ async function updateWiFiSession(
   sessionTimeSec: number
 ): Promise<void> {
   try {
+    // Bug 4: Always include username in WHERE clause to avoid matching
+    // ANY active session when macAddress is null/unknown
     const whereClause = macAddress && macAddress !== 'unknown'
-      ? { macAddress, status: 'active' }
-      : { status: 'active' };
+      ? { username, macAddress, status: 'active' }
+      : { username, status: 'active' };
 
-    // Try to find by MAC first, then by any active session for this user
+    // Try to find by username + MAC, then by username alone
     let session = await db.wiFiSession.findFirst({ where: whereClause });
 
     if (!session) {
       session = await db.wiFiSession.findFirst({
-        where: { status: 'active' },
+        where: { username, status: 'active' },
         orderBy: { startTime: 'desc' },
       });
     }
@@ -490,7 +581,8 @@ async function updateWiFiSession(
         data: {
           dataUsed: dataUsedMB,
           duration: sessionTimeSec,
-          ipAddress: macAddress ? undefined : undefined, // keep existing IP
+          // Bug 13: Removed meaningless ternary `undefined : undefined`,
+          // just omit ipAddress to keep existing value
           updatedAt: new Date(),
         },
       });
@@ -512,7 +604,8 @@ async function disconnectSession(
   uploadBytes: number
 ): Promise<void> {
   const ip = session.framedipaddress;
-  const sessionTime = Math.floor((Date.now() - session.acctstarttime.getTime()) / 1000);
+  // Bug 14: Use safeGetTime for defensive Date handling
+  const sessionTime = Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000);
 
   // 1. Remove from nftables (blocks internet access immediately)
   deauthIP(ip);
@@ -523,91 +616,109 @@ async function disconnectSession(
   // 3. Clean up idle tracking
   lastActivityMap.delete(ip);
 
-  // 4. Update radacct: set stop time and finalize counters
-  await db.$executeRawUnsafe(`
-    UPDATE radacct SET
-      acctstoptime = NOW(),
-      acctinputoctets = $1,
-      acctoutputoctets = $2,
-      acctsessiontime = $3,
-      acctterminatecause = $4,
-      acctupdatetime = NOW()
-    WHERE radacctid = $5
-      AND acctstoptime IS NULL
-  `, downloadBytes, uploadBytes, sessionTime, reason, session.radacctid);
+  // Bug 2: Calculate delta for WiFiUser — only increment by the remaining difference,
+  // not the full cumulative total (which would double-count bytes already recorded
+  // by interim updates in processSession)
+  const inDelta = Math.max(0, downloadBytes - Number(session.acctinputoctets));
+  const outDelta = Math.max(0, uploadBytes - Number(session.acctoutputoctets));
 
-  // 5. Insert a formal Accounting-Stop record for audit trail
-  await db.$executeRawUnsafe(`
-    INSERT INTO radacct (
-      acctuniqueid, acctsessionid, username,
-      nasipaddress, nasporttype, acctstarttime, acctstoptime, acctupdatetime,
-      acctauthentic, framedipaddress, acctstatus,
-      acctinputoctets, acctoutputoctets, acctsessiontime, acctterminatecause,
-      calledstationid, callingstationid,
-      "loginType", "createdAt", "updatedAt"
-    ) VALUES (
-      gen_random_uuid(), $1, $2,
-      '127.0.0.1', 'Wireless-802.11', $3, NOW(), NOW(),
-      'PAP', $4, 'stop',
-      $5, $6, $7, $8,
-      '00:00:00:00:00:01', $9,
-      'session-engine', NOW(), NOW()
-    )
-  `, session.acctsessionid, session.username, session.acctstarttime, ip,
-     downloadBytes, uploadBytes, sessionTime, reason, session.callingstationid);
+  // Bug 11: Wrap all DB operations in a transaction for atomicity
+  await db.$transaction(async (tx) => {
 
-  // 6. Close WiFiSession
-  try {
-    const wifiSession = await db.wiFiSession.findFirst({
-      where: {
-        macAddress: session.callingstationid || 'unknown',
-        status: 'active',
-      },
-    });
+    // 4. Update radacct: set stop time and finalize counters
+    const updateResult = await tx.$executeRawUnsafe(`
+      UPDATE radacct SET
+        acctstoptime = NOW(),
+        acctinputoctets = $1,
+        acctoutputoctets = $2,
+        acctsessiontime = $3,
+        acctterminatecause = $4,
+        acctupdatetime = NOW()
+      WHERE radacctid = $5
+        AND acctstoptime IS NULL
+    `, downloadBytes, uploadBytes, sessionTime, reason, session.radacctid);
 
-    if (wifiSession) {
-      const dataUsedMB = Math.floor((downloadBytes + uploadBytes) / (1024 * 1024));
-      await db.wiFiSession.update({
-        where: { id: wifiSession.id },
-        data: {
-          endTime: new Date(),
-          dataUsed: dataUsedMB,
-          duration: sessionTime,
-          status: 'ended',
-          updatedAt: new Date(),
+    // Bug 10: Only increment sessionCount if the radacct UPDATE actually affected rows
+    const rowsAffected = Number(updateResult);
+
+    // 5. Insert a formal Accounting-Stop record for audit trail
+    await tx.$executeRawUnsafe(`
+      INSERT INTO radacct (
+        acctuniqueid, acctsessionid, username,
+        nasipaddress, nasporttype, acctstarttime, acctstoptime, acctupdatetime,
+        acctauthentic, framedipaddress, acctstatus,
+        acctinputoctets, acctoutputoctets, acctsessiontime, acctterminatecause,
+        calledstationid, callingstationid,
+        "loginType", "createdAt", "updatedAt"
+      ) VALUES (
+        gen_random_uuid(), $1, $2,
+        '127.0.0.1', 'Wireless-802.11', $3, NOW(), NOW(),
+        'PAP', $4, 'stop',
+        $5, $6, $7, $8,
+        '00:00:00:00:00:01', $9,
+        'session-engine', NOW(), NOW()
+      )
+    `, session.acctsessionid, session.username, session.acctstarttime, ip,
+       downloadBytes, uploadBytes, sessionTime, reason, session.callingstationid);
+
+    // 6. Close WiFiSession
+    try {
+      const wifiSession = await tx.wiFiSession.findFirst({
+        where: {
+          macAddress: session.callingstationid || 'unknown',
+          status: 'active',
         },
       });
-    }
-  } catch {
-    // Non-fatal
-  }
 
-  // 7. Update WiFiUser cumulative stats + session count
-  try {
-    await db.wiFiUser.updateMany({
-      where: { username: session.username },
-      data: {
-        totalBytesIn: { increment: downloadBytes },
-        totalBytesOut: { increment: uploadBytes },
-        sessionCount: { increment: 1 },
-        lastAccountingAt: new Date(),
-      },
-    });
-  } catch {
-    // Non-fatal
-  }
-
-  // 8. Suspend the WiFi user for session-timeout and data-limit (not for idle-timeout)
-  if (reason === 'Session-Timeout' || reason === 'Data-Limit-Exceeded') {
-    try {
-      await db.wiFiUser.updateMany({
-        where: { username: session.username },
-        data: { status: reason === 'Data-Limit-Exceeded' ? 'suspended' : 'expired' },
-      });
+      if (wifiSession) {
+        const dataUsedMB = Math.floor((downloadBytes + uploadBytes) / (1024 * 1024));
+        await tx.wiFiSession.update({
+          where: { id: wifiSession.id },
+          data: {
+            endTime: new Date(),
+            dataUsed: dataUsedMB,
+            duration: sessionTime,
+            status: 'ended',
+            updatedAt: new Date(),
+          },
+        });
+      }
     } catch {
       // Non-fatal
     }
-  }
+
+    // 7. Update WiFiUser cumulative stats + session count
+    // Bug 10: Only increment if we actually closed a session (rowsAffected > 0)
+    // Bug 2: Use deltas (inDelta, outDelta) instead of cumulative totals
+    if (rowsAffected > 0) {
+      try {
+        await tx.wiFiUser.updateMany({
+          where: { username: session.username },
+          data: {
+            totalBytesIn: { increment: inDelta },
+            totalBytesOut: { increment: outDelta },
+            sessionCount: { increment: 1 },
+            lastAccountingAt: new Date(),
+          },
+        });
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    // 8. Suspend the WiFi user for session-timeout and data-limit (not for idle-timeout)
+    if (reason === 'Session-Timeout' || reason === 'Data-Limit-Exceeded') {
+      try {
+        await tx.wiFiUser.updateMany({
+          where: { username: session.username },
+          data: { status: reason === 'Data-Limit-Exceeded' ? 'suspended' : 'expired' },
+        });
+      } catch {
+        // Non-fatal
+      }
+    }
+
+  }); // end transaction
 
   SELog.info(
     `Disconnected: ${session.username} (${ip}) — ` +
@@ -628,7 +739,8 @@ async function closeSession(
   uploadBytes: number
 ): Promise<void> {
   const ip = session.framedipaddress;
-  const sessionTime = Math.floor((Date.now() - session.acctstarttime.getTime()) / 1000);
+  // Bug 14: Use safeGetTime for defensive Date handling
+  const sessionTime = Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000);
 
   // Remove counter rules (may already be gone)
   removeUserCounter(ip);
@@ -738,12 +850,13 @@ export async function forceDisconnect(params: {
 }): Promise<{ success: boolean; message?: string }> {
   const reason = params.reason || 'Admin-Request';
 
+  // Bug 1: Use parameterized query — $2 placeholder instead of string interpolation
   const session = await db.$queryRawUnsafe<ActiveSession[] | undefined>(`
     SELECT * FROM radacct
     WHERE acctstoptime IS NULL
-      AND (username = $1 ${params.ip ? `OR framedipaddress = '${params.ip}'` : ''})
+      AND (username = $1 ${params.ip ? `OR framedipaddress = $2` : ''})
     LIMIT 1
-  `, params.username || '');
+  `, params.username || '', ...(params.ip ? [params.ip] : []));
 
   if (!session || !Array.isArray(session) || session.length === 0) {
     return { success: false, message: 'No active session found' };
@@ -751,10 +864,12 @@ export async function forceDisconnect(params: {
 
   const activeSession = session[0];
 
-  // Read current counters before disconnecting
-  const counter = params.ip ? null : null; // Will use existing radacct values
-  const downloadBytes = activeSession.acctinputoctets || 0;
-  const uploadBytes = activeSession.acctoutputoctets || 0;
+  // Bug 12: Read live counters from nftables if possible (instead of dead code `null : null`)
+  const counterData = readAllCounters();
+  const counterEntry = params.ip ? counterData.counts.find(c => c.ip === params.ip) : null;
+  // Bug 16: Number() wrap BigInt values from radacct query results
+  const downloadBytes = counterEntry ? counterEntry.downloadBytes : Number(activeSession.acctinputoctets);
+  const uploadBytes = counterEntry ? counterEntry.uploadBytes : Number(activeSession.acctoutputoctets);
 
   await disconnectSession(activeSession, reason, downloadBytes, uploadBytes);
 

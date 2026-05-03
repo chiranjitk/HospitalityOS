@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
                 planId: wifiUser.planId,
                 guestId: wifiUser.guestId,
                 bookingId: wifiUser.bookingId,
+                username: record.username,
                 macAddress: record.callingstationid || 'unknown',
                 ipAddress: record.framedipaddress,
                 startTime: record.acctstarttime,
@@ -79,17 +80,22 @@ export async function POST(request: NextRequest) {
             created++;
           }
         } else if (record.acctstatus === 'interim') {
-          // Update existing session
+          // Update existing session — match by MAC + username for reliability
           const existingSession = await db.wiFiSession.findFirst({
             where: {
               macAddress: record.callingstationid || 'unknown',
+              ...(record.username ? { username: record.username } : {}),
               status: 'active',
             },
           });
 
           if (existingSession) {
-            const dataInMB = Math.floor(((record.acctinputoctets || 0) + (record.acctoutputoctets || 0)) / 1048576);
-            const duration = record.acctsessiontime || 0;
+            // BigInt fields must be converted to Number before arithmetic (Math.floor, /)
+            const inputOctets = Number(record.acctinputoctets || 0);
+            const outputOctets = Number(record.acctoutputoctets || 0);
+            const totalOctets = inputOctets + outputOctets;
+            const dataInMB = Math.floor(totalOctets / 1048576);
+            const duration = Number(record.acctsessiontime || 0);
 
             await db.wiFiSession.update({
               where: { id: existingSession.id },
@@ -121,17 +127,22 @@ export async function POST(request: NextRequest) {
             updated++;
           }
         } else if (record.acctstatus === 'stop') {
-          // Close session
+          // Close session — match by MAC + username for reliability
           const existingSession = await db.wiFiSession.findFirst({
             where: {
               macAddress: record.callingstationid || 'unknown',
+              ...(record.username ? { username: record.username } : {}),
               status: 'active',
             },
           });
 
           if (existingSession) {
-            const dataInMB = Math.floor(((record.acctinputoctets || 0) + (record.acctoutputoctets || 0)) / 1048576);
-            const duration = record.acctsessiontime || 0;
+            // BigInt fields must be converted to Number before arithmetic (Math.floor, /)
+            const inputOctets = Number(record.acctinputoctets || 0);
+            const outputOctets = Number(record.acctoutputoctets || 0);
+            const totalOctets = inputOctets + outputOctets;
+            const dataInMB = Math.floor(totalOctets / 1048576);
+            const duration = Number(record.acctsessiontime || 0);
 
             await db.wiFiSession.update({
               where: { id: existingSession.id },
@@ -143,13 +154,13 @@ export async function POST(request: NextRequest) {
               },
             });
 
-            // Update user stats
+            // Update user stats (BigInt → Number for consistent types)
             // NOTE: sessionCount NOT incremented here — session-engine handles it
             await db.wiFiUser.updateMany({
               where: { username: record.username },
               data: {
-                totalBytesIn: { increment: record.acctinputoctets || 0 },
-                totalBytesOut: { increment: record.acctoutputoctets || 0 },
+                totalBytesIn: { increment: BigInt(Number(record.acctinputoctets || 0)) },
+                totalBytesOut: { increment: BigInt(Number(record.acctoutputoctets || 0)) },
                 lastAccountingAt: new Date(),
               },
             });

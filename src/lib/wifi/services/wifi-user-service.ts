@@ -28,7 +28,7 @@
  */
 
 import { db } from '@/lib/db';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
 import {
   getActiveNASVendors,
   generateBandwidthAttributes,
@@ -39,6 +39,9 @@ import {
 } from '@/lib/wifi/utils/vendor-attributes';
 
 const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
+
+/** Prisma unique constraint violation error code */
+const PRISMA_UNIQUE_VIOLATION = 'P2002';
 
 /**
  * Helper to call the freeradius-service API
@@ -111,151 +114,176 @@ export class WiFiUserService {
    * 4. Create RadUserGroup (plan group mapping) — links user to plan group
    */
   async provisionUser(input: WiFiUserCreateInput) {
-    const username = input.username || this.generateUsername(input.propertyId);
-    const password = input.password || this.generatePassword();
+    // Bug 4 Fix: Retry loop (3 attempts) with fresh randomBytes on P2002 unique constraint error
+    const MAX_RETRIES = 3;
+    let lastError: Error | null = null;
 
-    return db.$transaction(async (tx) => {
-      // Resolve plan group name (radusergroup maps username → groupname)
-      let groupName = 'standard-guests'; // default fallback
-      let planIdleTimeoutSec = 0;
-      if (input.planId) {
-        const plan = await tx.wiFiPlan.findUnique({
-          where: { id: input.planId },
-          select: { name: true, idleTimeoutSec: true, sessionTimeoutSec: true },
-        });
-        if (plan) {
-          // Convert plan name to a RADIUS-safe group name (lowercase, underscores)
-          groupName = plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard-guests';
-          // Auto-read idle timeout from plan if not explicitly provided
-          if (!input.idleTimeoutSeconds && plan.idleTimeoutSec) {
-            planIdleTimeoutSec = plan.idleTimeoutSec;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const username = input.username || this.generateUsername(input.propertyId);
+        const password = input.password || this.generatePassword();
+
+        return await db.$transaction(async (tx) => {
+          // Resolve plan group name (radusergroup maps username → groupname)
+          let groupName = 'standard-guests'; // default fallback
+          let planIdleTimeoutSec = 0;
+          if (input.planId) {
+            const plan = await tx.wiFiPlan.findUnique({
+              where: { id: input.planId },
+              select: { name: true, idleTimeoutSec: true, sessionTimeoutSec: true },
+            });
+            if (plan) {
+              // Convert plan name to a RADIUS-safe group name (lowercase, underscores)
+              groupName = plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard-guests';
+              // Auto-read idle timeout from plan if not explicitly provided
+              if (!input.idleTimeoutSeconds && plan.idleTimeoutSec) {
+                planIdleTimeoutSec = plan.idleTimeoutSec;
+              }
+            }
           }
+          const effectiveIdleTimeout = input.idleTimeoutSeconds || planIdleTimeoutSec;
+
+          // 1. Create WiFiUser
+          const wifiUser = await tx.wiFiUser.create({
+            data: {
+              tenantId: input.tenantId,
+              propertyId: input.propertyId,
+              username,
+              password,
+              guestId: input.guestId,
+              bookingId: input.bookingId,
+              planId: input.planId,
+              validFrom: input.validFrom,
+              validUntil: input.validUntil,
+              userType: input.userType || 'guest',
+              status: 'active',
+              radiusSynced: true, // Same DB — always synced
+              radiusSyncedAt: new Date(),
+            },
+          });
+
+          // 2. Create RadCheck (authentication — FreeRADIUS reads this table directly)
+          await tx.radCheck.create({
+            data: {
+              wifiUserId: wifiUser.id,
+              username,
+              attribute: 'Cleartext-Password',
+              op: ':=',
+              value: password,
+              isActive: true,
+            },
+          });
+
+          // 3. Create RadReply (authorization policies — FreeRADIUS reads this table directly)
+          // Use VENDOR-AWARE attribute generation based on active NAS types
+          const vendors = await getActiveNASVendors(input.propertyId);
+
+          // Bandwidth limits
+          const downloadMbps = input.downloadSpeed ? input.downloadSpeed / 1000000 : 10;
+          const uploadMbps = input.uploadSpeed ? input.uploadSpeed / 1000000 : 5;
+          const bwAttrs = generateBandwidthAttributes(vendors, downloadMbps, uploadMbps);
+
+          // Session timeout + data limit
+          const sessionAttrs = generateSessionAttributes(
+            vendors,
+            input.sessionTimeoutMinutes || 0,
+            input.dataLimit || 0,
+          );
+
+          // Merge all reply attributes
+          const replies = [...bwAttrs, ...sessionAttrs];
+
+          // ── Cryptsk VSA attributes (Vendor ID 64179) ──
+          // Cryptsk-Session-Timeout: mirrors Session-Timeout (integer, seconds)
+          const sessionTimeoutSec = input.sessionTimeoutMinutes ? input.sessionTimeoutMinutes * 60 : 0;
+          if (sessionTimeoutSec > 0) {
+            replies.push({ attribute: 'Cryptsk-Session-Timeout', value: String(sessionTimeoutSec) });
+          }
+
+          // Cryptsk-Idle-Timeout: idle timeout (integer, seconds) from plan or portal config
+          if (effectiveIdleTimeout && effectiveIdleTimeout > 0) {
+            replies.push({ attribute: 'Cryptsk-Idle-Timeout', value: String(effectiveIdleTimeout) });
+          }
+
+          // Cryptsk-User-Profile: plan group name (string) — for policy matching
+          replies.push({ attribute: 'Cryptsk-User-Profile', value: groupName });
+
+          // Cryptsk-Plan-Name: human-readable plan name (string) — for display/audit
+          replies.push({ attribute: 'Cryptsk-Plan-Name', value: input.planName || groupName });
+
+          // Cryptsk-Max-Sessions: already handled via Simultaneous-Use in radcheck (step 5 below)
+
+          // Create all replies
+          for (const reply of replies) {
+            await tx.radReply.create({
+              data: {
+                wifiUserId: wifiUser.id,
+                username,
+                attribute: reply.attribute,
+                op: ':=',
+                value: reply.value,
+                isActive: true,
+              },
+            });
+          }
+
+          // 4. Create RadUserGroup — maps username to plan group
+          // FreeRADIUS uses this to load group-level attributes from radgroupcheck/radgroupreply
+          await tx.radUserGroup.create({
+            data: {
+              username,
+              groupname: groupName,
+              priority: 0,
+            },
+          });
+
+          // 5. Set Simultaneous-Use if sessionLimit is specified (max concurrent sessions)
+          // This goes in radcheck (not radreply) because it's an access check
+          if (input.sessionLimit && input.sessionLimit > 0) {
+            await tx.radCheck.create({
+              data: {
+                wifiUserId: wifiUser.id,
+                username,
+                attribute: 'Simultaneous-Use',
+                op: ':=',
+                value: String(input.sessionLimit),
+                isActive: true,
+              },
+            });
+          }
+
+          console.log(`[WiFi Provisioning] User ${username} created in shared DB (booking: ${input.bookingId || 'manual'}, group: ${groupName})`);
+
+          return {
+            wifiUser,
+            credentials: {
+              username,
+              password,
+              validFrom: input.validFrom,
+              validUntil: input.validUntil,
+            },
+            groupName,
+          };
+        });
+      } catch (error: unknown) {
+        // Check for Prisma unique constraint violation (P2002)
+        const isUniqueViolation = (
+          error &&
+          typeof error === 'object' &&
+          'code' in error &&
+          (error as { code: string }).code === PRISMA_UNIQUE_VIOLATION
+        );
+
+        if (isUniqueViolation && attempt < MAX_RETRIES - 1) {
+          console.warn(`[WiFi Provisioning] Username collision on attempt ${attempt + 1}, retrying with fresh random bytes...`);
+          lastError = error as Error;
+          continue; // retry with fresh randomBytes in next iteration
         }
+        throw error; // re-throw if not a unique violation or max retries exhausted
       }
-      const effectiveIdleTimeout = input.idleTimeoutSeconds || planIdleTimeoutSec;
+    }
 
-      // 1. Create WiFiUser
-      const wifiUser = await tx.wiFiUser.create({
-        data: {
-          tenantId: input.tenantId,
-          propertyId: input.propertyId,
-          username,
-          password,
-          guestId: input.guestId,
-          bookingId: input.bookingId,
-          planId: input.planId,
-          validFrom: input.validFrom,
-          validUntil: input.validUntil,
-          userType: input.userType || 'guest',
-          status: 'active',
-          radiusSynced: true, // Same DB — always synced
-          radiusSyncedAt: new Date(),
-        },
-      });
-
-      // 2. Create RadCheck (authentication — FreeRADIUS reads this table directly)
-      await tx.radCheck.create({
-        data: {
-          wifiUserId: wifiUser.id,
-          username,
-          attribute: 'Cleartext-Password',
-          op: ':=',
-          value: password,
-          isActive: true,
-        },
-      });
-
-      // 3. Create RadReply (authorization policies — FreeRADIUS reads this table directly)
-      // Use VENDOR-AWARE attribute generation based on active NAS types
-      const vendors = await getActiveNASVendors(input.propertyId);
-
-      // Bandwidth limits
-      const downloadMbps = input.downloadSpeed ? input.downloadSpeed / 1000000 : 10;
-      const uploadMbps = input.uploadSpeed ? input.uploadSpeed / 1000000 : 5;
-      const bwAttrs = generateBandwidthAttributes(vendors, downloadMbps, uploadMbps);
-
-      // Session timeout + data limit
-      const sessionAttrs = generateSessionAttributes(
-        vendors,
-        input.sessionTimeoutMinutes || 0,
-        input.dataLimit || 0,
-      );
-
-      // Merge all reply attributes
-      const replies = [...bwAttrs, ...sessionAttrs];
-
-      // ── Cryptsk VSA attributes (Vendor ID 64179) ──
-      // Cryptsk-Session-Timeout: mirrors Session-Timeout (integer, seconds)
-      const sessionTimeoutSec = input.sessionTimeoutMinutes ? input.sessionTimeoutMinutes * 60 : 0;
-      if (sessionTimeoutSec > 0) {
-        replies.push({ attribute: 'Cryptsk-Session-Timeout', value: String(sessionTimeoutSec) });
-      }
-
-      // Cryptsk-Idle-Timeout: idle timeout (integer, seconds) from plan or portal config
-      if (effectiveIdleTimeout && effectiveIdleTimeout > 0) {
-        replies.push({ attribute: 'Cryptsk-Idle-Timeout', value: String(effectiveIdleTimeout) });
-      }
-
-      // Cryptsk-User-Profile: plan group name (string) — for policy matching
-      replies.push({ attribute: 'Cryptsk-User-Profile', value: groupName });
-
-      // Cryptsk-Plan-Name: human-readable plan name (string) — for display/audit
-      replies.push({ attribute: 'Cryptsk-Plan-Name', value: input.planName || groupName });
-
-      // Cryptsk-Max-Sessions: already handled via Simultaneous-Use in radcheck (step 5 below)
-
-      // Create all replies
-      for (const reply of replies) {
-        await tx.radReply.create({
-          data: {
-            wifiUserId: wifiUser.id,
-            username,
-            attribute: reply.attribute,
-            op: ':=',
-            value: reply.value,
-            isActive: true,
-          },
-        });
-      }
-
-      // 4. Create RadUserGroup — maps username to plan group
-      // FreeRADIUS uses this to load group-level attributes from radgroupcheck/radgroupreply
-      await tx.radUserGroup.create({
-        data: {
-          username,
-          groupname: groupName,
-          priority: 0,
-        },
-      });
-
-      // 5. Set Simultaneous-Use if sessionLimit is specified (max concurrent sessions)
-      // This goes in radcheck (not radreply) because it's an access check
-      if (input.sessionLimit && input.sessionLimit > 0) {
-        await tx.radCheck.create({
-          data: {
-            wifiUserId: wifiUser.id,
-            username,
-            attribute: 'Simultaneous-Use',
-            op: ':=',
-            value: String(input.sessionLimit),
-            isActive: true,
-          },
-        });
-      }
-
-      console.log(`[WiFi Provisioning] User ${username} created in shared DB (booking: ${input.bookingId || 'manual'}, group: ${groupName})`);
-
-      return {
-        wifiUser,
-        credentials: {
-          username,
-          password,
-          validFrom: input.validFrom,
-          validUntil: input.validUntil,
-        },
-        groupName,
-      };
-    });
+    throw lastError || new Error('Failed to provision user after retries');
   }
 
   /**
@@ -271,11 +299,18 @@ export class WiFiUserService {
         throw new Error('WiFi user not found');
       }
 
-      // Update user record
+      // Bug 10 Fix: Explicitly map each field instead of spreading raw input
       const updated = await tx.wiFiUser.update({
         where: { id: userId },
         data: {
-          ...input,
+          ...(input.validUntil !== undefined && { validUntil: input.validUntil }),
+          ...(input.downloadSpeed !== undefined && { /* downloadSpeed stored in RadReply, not WiFiUser */ }),
+          ...(input.uploadSpeed !== undefined && { /* uploadSpeed stored in RadReply, not WiFiUser */ }),
+          ...(input.sessionTimeoutMinutes !== undefined && { /* sessionTimeout stored in RadReply, not WiFiUser */ }),
+          ...(input.idleTimeoutSeconds !== undefined && { /* idleTimeout stored in RadReply, not WiFiUser */ }),
+          ...(input.sessionLimit !== undefined && { /* sessionLimit stored in RadCheck, not WiFiUser */ }),
+          ...(input.dataLimit !== undefined && { /* dataLimit stored in RadReply, not WiFiUser */ }),
+          ...(input.status !== undefined && { status: input.status }),
           radiusSynced: true,
           radiusSyncedAt: new Date(),
         },
@@ -309,6 +344,33 @@ export class WiFiUserService {
         }
       }
 
+      // Bug 1 Fix: Update data-limit RadReply attributes (mirrors the bandwidth update block)
+      if (input.dataLimit !== undefined) {
+        const vendors = await getActiveNASVendors(wifiUser.propertyId);
+
+        // Delete old data-limit attributes (all known vendor names)
+        for (const attr of DATA_LIMIT_ATTRIBUTES) {
+          await tx.radReply.deleteMany({ where: { username: wifiUser.username, attribute: attr } });
+        }
+
+        // Write new vendor-appropriate data-limit attributes if dataLimit > 0
+        if (input.dataLimit > 0) {
+          const dataLimitAttrs = generateSessionAttributes(vendors, 0, input.dataLimit);
+          for (const reply of dataLimitAttrs) {
+            await tx.radReply.create({
+              data: {
+                wifiUserId: wifiUser.id,
+                username: wifiUser.username,
+                attribute: reply.attribute,
+                op: ':=',
+                value: reply.value,
+                isActive: true,
+              },
+            });
+          }
+        }
+      }
+
       // Update session timeout (from sessionTimeoutMinutes, not sessionLimit)
       if (input.sessionTimeoutMinutes !== undefined) {
         const existingTimeout = await tx.radReply.findFirst({
@@ -319,16 +381,51 @@ export class WiFiUserService {
         });
 
         if (existingTimeout) {
-          await tx.radReply.update({
-            where: { id: existingTimeout.id },
-            data: { value: String(input.sessionTimeoutMinutes * 60) },
-          });
-        } else if (input.sessionTimeoutMinutes) {
+          if (input.sessionTimeoutMinutes > 0) {
+            await tx.radReply.update({
+              where: { id: existingTimeout.id },
+              data: { value: String(input.sessionTimeoutMinutes * 60) },
+            });
+          } else {
+            // Remove session timeout if set to 0
+            await tx.radReply.delete({ where: { id: existingTimeout.id } });
+          }
+        } else if (input.sessionTimeoutMinutes > 0) {
           await tx.radReply.create({
             data: {
               wifiUserId: wifiUser.id,
               username: wifiUser.username,
               attribute: 'Session-Timeout',
+              op: ':=',
+              value: String(input.sessionTimeoutMinutes * 60),
+              isActive: true,
+            },
+          });
+        }
+
+        // Also update Cryptsk-Session-Timeout
+        const existingCryptskTimeout = await tx.radReply.findFirst({
+          where: {
+            username: wifiUser.username,
+            attribute: 'Cryptsk-Session-Timeout',
+          },
+        });
+
+        if (existingCryptskTimeout) {
+          if (input.sessionTimeoutMinutes > 0) {
+            await tx.radReply.update({
+              where: { id: existingCryptskTimeout.id },
+              data: { value: String(input.sessionTimeoutMinutes * 60) },
+            });
+          } else {
+            await tx.radReply.delete({ where: { id: existingCryptskTimeout.id } });
+          }
+        } else if (input.sessionTimeoutMinutes > 0) {
+          await tx.radReply.create({
+            data: {
+              wifiUserId: wifiUser.id,
+              username: wifiUser.username,
+              attribute: 'Cryptsk-Session-Timeout',
               op: ':=',
               value: String(input.sessionTimeoutMinutes * 60),
               isActive: true,
@@ -427,11 +524,12 @@ export class WiFiUserService {
       }
 
       // Update user status (preserves audit trail)
+      // Bug 9 Fix: Set radiusSynced: true since deletion IS the synced state (same DB architecture)
       await tx.wiFiUser.update({
         where: { id: userId },
         data: {
           status: 'revoked',
-          radiusSynced: false,
+          radiusSynced: true,
           radiusSyncedAt: new Date(),
         },
       });
@@ -520,6 +618,7 @@ export class WiFiUserService {
       if (!existingCheck) {
         await tx.radCheck.create({
           data: {
+            wifiUserId: wifiUser.id,
             username: wifiUser.username,
             attribute: 'Cleartext-Password',
             op: ':=',
@@ -529,28 +628,92 @@ export class WiFiUserService {
         });
       }
 
-      // Re-create RadReply (bandwidth) if not exists
-      // Vendor-aware: generate attrs based on active NAS types
-      const existingReply = await tx.radReply.findFirst({
+      // Bug 3 Fix: Re-create the FULL set of RadReply attributes from the user's plan
+      // (previously only recreated password + bandwidth, missing most attributes)
+      const existingReplyCount = await tx.radReply.count({
         where: { username: wifiUser.username },
       });
-      if (!existingReply && wifiUser.plan) {
+      if (existingReplyCount === 0) {
         const vendors = await getActiveNASVendors(wifiUser.propertyId);
-        const downloadMbps = wifiUser.plan.downloadSpeed || 10;
-        const uploadMbps = wifiUser.plan.uploadSpeed || 5;
-        const bwAttrs = generateBandwidthAttributes(vendors, downloadMbps, uploadMbps);
 
-        for (const reply of bwAttrs) {
+        // Resolve plan group name and defaults
+        let groupName = 'standard-guests';
+        let downloadMbps = 10;
+        let uploadMbps = 5;
+        let sessionTimeoutMin = 0;
+        let idleTimeoutSec = 0;
+        let dataLimitMB = 0;
+        let sessionLimit = 0;
+        let planName = groupName;
+
+        if (wifiUser.plan) {
+          // Convert plan name to a RADIUS-safe group name (lowercase, underscores)
+          groupName = wifiUser.plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard-guests';
+          planName = wifiUser.plan.name;
+          downloadMbps = wifiUser.plan.downloadSpeed || 10;
+          uploadMbps = wifiUser.plan.uploadSpeed || 5;
+          sessionTimeoutMin = wifiUser.plan.sessionTimeoutSec ? Math.floor(wifiUser.plan.sessionTimeoutSec / 60) : 0;
+          idleTimeoutSec = wifiUser.plan.idleTimeoutSec || 0;
+          dataLimitMB = wifiUser.plan.dataLimit || 0;
+          sessionLimit = wifiUser.plan.sessionLimit || 0;
+        }
+
+        // Generate vendor-aware attributes
+        const bwAttrs = generateBandwidthAttributes(vendors, downloadMbps, uploadMbps);
+        const sessionAttrs = generateSessionAttributes(vendors, sessionTimeoutMin, dataLimitMB);
+        const replies = [...bwAttrs, ...sessionAttrs];
+
+        // Cryptsk-Session-Timeout
+        const sessionTimeoutSec = sessionTimeoutMin * 60;
+        if (sessionTimeoutSec > 0) {
+          replies.push({ attribute: 'Cryptsk-Session-Timeout', value: String(sessionTimeoutSec) });
+        }
+
+        // Cryptsk-Idle-Timeout
+        if (idleTimeoutSec > 0) {
+          replies.push({ attribute: 'Cryptsk-Idle-Timeout', value: String(idleTimeoutSec) });
+        }
+
+        // Cryptsk-User-Profile: plan group name
+        replies.push({ attribute: 'Cryptsk-User-Profile', value: groupName });
+
+        // Cryptsk-Plan-Name: human-readable plan name
+        replies.push({ attribute: 'Cryptsk-Plan-Name', value: planName });
+
+        // Bug 2 Fix: Use op: ':=' (not '=') to match provisionUser behavior
+        for (const reply of replies) {
           await tx.radReply.create({
             data: {
               wifiUserId: wifiUser.id,
               username: wifiUser.username,
               attribute: reply.attribute,
-              op: '=',
+              op: ':=',
               value: reply.value,
               isActive: true,
             },
           });
+        }
+
+        // Re-create Simultaneous-Use in RadCheck if the plan specifies it
+        if (sessionLimit > 0) {
+          const existingSimUse = await tx.radCheck.findFirst({
+            where: {
+              username: wifiUser.username,
+              attribute: 'Simultaneous-Use',
+            },
+          });
+          if (!existingSimUse) {
+            await tx.radCheck.create({
+              data: {
+                wifiUserId: wifiUser.id,
+                username: wifiUser.username,
+                attribute: 'Simultaneous-Use',
+                op: ':=',
+                value: String(sessionLimit),
+                isActive: true,
+              },
+            });
+          }
         }
       }
 
@@ -790,10 +953,11 @@ export class WiFiUserService {
         for (const attr of BANDWIDTH_ATTRIBUTES) {
           await tx.radReply.deleteMany({ where: { username, attribute: attr } });
         }
-        // Write new vendor-appropriate attributes
+        // Bug 5 Fix: Set wifiUserId on new RadReply entries
         for (const reply of bwAttrs) {
           await tx.radReply.create({
             data: {
+              wifiUserId: wifiUser?.id,
               username,
               attribute: reply.attribute,
               op: ':=',
@@ -844,7 +1008,8 @@ export class WiFiUserService {
     success: boolean;
     created: number;
     failed: number;
-    users?: Array<{ username: string; password: string }>[];
+    // Bug 11 Fix: Correct array nesting — was Array<...>[] (array of arrays)
+    users?: Array<{ username: string; password: string }>;
     error?: string;
   }> {
     const {
@@ -852,7 +1017,7 @@ export class WiFiUserService {
       bandwidthDown, bandwidthUp, dataLimitMb = 512, validHours = 24,
     } = params;
 
-    const results: Array<{ username: string; password: string }[]> = [];
+    const results: Array<{ username: string; password: string }> = [];
     let created = 0;
     let failed = 0;
 
@@ -860,28 +1025,39 @@ export class WiFiUserService {
     const downloadSpeed = bandwidthDown * 1000000; // Mbps to bps
     const uploadSpeed = bandwidthUp * 1000000;
 
-    for (let i = 0; i < count; i++) {
-      try {
-        const username = `evt_${eventId.slice(-6)}_${String(i + 1).padStart(3, '0')}`;
-        const password = this.generatePassword(6);
+    // Bug 12 Fix: Process in parallel batches of 10 instead of sequentially
+    const BATCH_SIZE = 10;
+    const batchPromises: Promise<void>[] = [];
 
-        await this.provisionUser({
-          tenantId,
-          propertyId,
-          username,
-          password,
-          validFrom: new Date(),
-          validUntil,
-          userType: 'guest',
-          downloadSpeed,
-          uploadSpeed,
-          dataLimit: dataLimitMb,
+    for (let i = 0; i < count; i++) {
+      const username = `evt_${eventId.slice(-6)}_${String(i + 1).padStart(3, '0')}`;
+      const password = this.generatePassword(6);
+
+      const promise = this.provisionUser({
+        tenantId,
+        propertyId,
+        username,
+        password,
+        validFrom: new Date(),
+        validUntil,
+        userType: 'guest',
+        downloadSpeed,
+        uploadSpeed,
+        dataLimit: dataLimitMb,
+      })
+        .then(() => {
+          results.push({ username, password });
+          created++;
+        })
+        .catch(() => {
+          failed++;
         });
 
-        results.push({ username, password });
-        created++;
-      } catch {
-        failed++;
+      batchPromises.push(promise);
+
+      // Execute in parallel batches
+      if (batchPromises.length >= BATCH_SIZE || i === count - 1) {
+        await Promise.all(batchPromises.splice(0));
       }
     }
 
@@ -1054,13 +1230,14 @@ export class WiFiUserService {
 
   /**
    * Generate random password
+   * Bug 8 Fix: Use crypto.randomInt instead of modulo to avoid modulo bias
    */
   private generatePassword(length: number = 8): string {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-    const bytes = randomBytes(length);
     let password = '';
     for (let i = 0; i < length; i++) {
-      password += chars[bytes[i] % chars.length];
+      const idx = randomInt(chars.length);
+      password += chars[idx];
     }
     return password;
   }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
-import { randomUUID } from 'crypto';
+import { randomUUID, randomInt } from 'crypto';
 import { radiusAuth, getRejectMessage } from '@/lib/wifi/utils/radius-auth';
 import { addUserCounter } from '@/lib/wifi/utils/nftables-counters';
 import {
@@ -136,8 +136,12 @@ const otpStore = new Map<
   { code: string; expiresAt: number; phone: string }
 >();
 
+if (process.env.NODE_ENV === 'production') {
+  console.warn('[OTP] In-memory OTP store used in production — migrate to Redis for multi-instance support');
+}
+
 function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return randomInt(100000, 999999).toString();
 }
 
 // ────────────────────────────────────────────────────────────
@@ -251,8 +255,8 @@ function getClientIpString(request: NextRequest): string {
  * Resolve allowed IP pool IDs for a user based on their plan binding.
  *
  * Priority:
- * 1. WiFiPlan.ipPoolId — plan explicitly bound to a pool
- * 2. WiFiUser.ipPoolId — user-level override
+ * 1. WiFiUser.ipPoolId — user-level override
+ * 2. WiFiPlan.ipPoolId — plan default
  * 3. null — no restriction, any captive portal pool allowed
  *
  * Returns an array of pool UUIDs, or null if unrestricted.
@@ -286,7 +290,7 @@ async function isSessionLimitReached(username: string, maxSessions: number): Pro
     return activeCount >= maxSessions;
   } catch (err) {
     console.error('[Session Limit] Failed to count active sessions:', err);
-    return false; // On error, allow login (don't block on DB failure)
+    return true; // Fail closed — deny access on error
   }
 }
 
@@ -449,6 +453,21 @@ async function resolveMacAddress(
 }
 
 // ────────────────────────────────────────────────────────────
+// Per-IP Rate Limiter (in-memory — use Redis for production)
+// ────────────────────────────────────────────────────────────
+const authAttempts = new Map<string, { count: number; resetAt: number }>();
+function checkRateLimit(ip: string, maxAttempts: number = 10, windowMs: number = 60000): boolean {
+  const now = Date.now();
+  const entry = authAttempts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    authAttempts.set(ip, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  entry.count++;
+  return entry.count <= maxAttempts;
+}
+
+// ────────────────────────────────────────────────────────────
 // POST /api/v1/wifi/auth — Guest WiFi authentication
 //
 // Validation order (changed per requirement):
@@ -466,6 +485,14 @@ async function resolveMacAddress(
 // ────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    // ════════════════════════════════════════════════════════════
+    // STEP 0: Rate limit check (per-IP)
+    // ════════════════════════════════════════════════════════════
+    const clientRateLimitIp = extractClientIp(request) || 'unknown';
+    if (!checkRateLimit(clientRateLimitIp)) {
+      return errorResponse('RATE_LIMITED', 'Too many authentication attempts. Please try again later.', 429);
+    }
+
     // ════════════════════════════════════════════════════════════
     // STEP 1: Parse request body — extract username & method first
     // ════════════════════════════════════════════════════════════
@@ -608,12 +635,6 @@ export async function POST(request: NextRequest) {
           return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
         }
 
-        // Mark voucher as used
-        await db.wiFiVoucher.update({
-          where: { id: voucher.id },
-          data: { status: 'used', isUsed: true, usedAt: now },
-        });
-
         // Resolve propertyId
         const resolvedPropertyId = voucher.plan?.propertyId
           || await db.property.findFirst({ where: { tenantId: voucher.tenantId }, select: { id: true } }).then(p => p?.id);
@@ -656,6 +677,15 @@ export async function POST(request: NextRequest) {
         if (!radiusResult.accepted) {
           await logAuthAttempt(wifiUsername, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
           return errorResponse(radiusResult.rejectReason || 'AUTH_FAILED', getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED'));
+        }
+
+        // Atomically mark voucher as used (prevents double-use race condition)
+        const updatedVoucher = await db.wiFiVoucher.updateMany({
+          where: { id: voucher.id, isUsed: false },
+          data: { isUsed: true, usedAt: new Date(), status: 'used' },
+        });
+        if (updatedVoucher.count === 0) {
+          return NextResponse.json({ success: false, error: 'Voucher already used' }, { status: 409 });
         }
 
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
@@ -1067,7 +1097,7 @@ export async function POST(request: NextRequest) {
             phone: normalizedPhone,
           });
 
-          console.log(`[SMS OTP] Code for ${normalizedPhone}: ${code} (expires in 5 min)`);
+          console.log(`[SMS OTP] Code for ${normalizedPhone}: ${code.slice(0, 2)}**** (expires in 5 min)`);
 
           return NextResponse.json({
             success: true,

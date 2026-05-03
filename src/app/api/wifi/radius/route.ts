@@ -129,6 +129,8 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
 
+    await ensureRadacctClean();
+
     switch (action) {
       case 'status': {
         // Check actual FreeRADIUS process + PostgreSQL backend — not freeradius-service proxy
@@ -238,7 +240,7 @@ export async function GET(request: NextRequest) {
             return {
             id: row.id,
             username: row.username || '',
-            password: row.radius_password || '',
+            password: '',
             group: row.radius_group || '',
             attributes: {
               'WISPr-Bandwidth-Max-Down': String(row.plan_download_speed || 0),
@@ -389,10 +391,10 @@ export async function GET(request: NextRequest) {
           return NextResponse.json({ success: true, data: mapped });
         } catch (error) {
           console.error('[auth-logs] Direct query error:', error);
-          return NextResponse.json({ 
-            success: false, 
-            data: [], 
-            error: error instanceof Error ? error.message : String(error) 
+          return NextResponse.json({
+            success: false,
+            data: [],
+            error: 'Failed to fetch auth logs'
           });
         }
       }
@@ -436,6 +438,11 @@ export async function GET(request: NextRequest) {
           const dayBefore = new Date();
           dayBefore.setDate(dayBefore.getDate() - 2);
 
+          // Format dates as YYYY-MM-DD in local timezone (not UTC) for day-boundary comparison
+          const toLocalDateStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          const yesterdayStr = toLocalDateStr(yesterday);
+          const dayBeforeStr = toLocalDateStr(dayBefore);
+
           let last24hTrend = 0;
           try {
             const nextParam = params.length + 1;
@@ -449,12 +456,12 @@ export async function GET(request: NextRequest) {
 
             const todayCount = Number((await db.$queryRawUnsafe<{ c: number | bigint }[]>(
               `SELECT COUNT(*) as c FROM radpostauth ${todayWhere}`,
-              ...params, yesterday.toISOString().slice(0, 10)
+              ...params, yesterdayStr
             ))[0]?.c ?? 0);
 
             const prevDayCount = Number((await db.$queryRawUnsafe<{ c: number | bigint }[]>(
               `SELECT COUNT(*) as c FROM radpostauth ${prevDayWhere}`,
-              ...params, dayBefore.toISOString().slice(0, 10), yesterday.toISOString().slice(0, 10)
+              ...params, dayBeforeStr, yesterdayStr
             ))[0]?.c ?? 0);
 
             last24hTrend = prevDayCount > 0
@@ -749,7 +756,37 @@ export async function GET(request: NextRequest) {
             return { os, browser };
           };
 
-          const sessionsMap = new Map<string, ReturnType<typeof Object>>();
+          interface LiveSessionEntry {
+            id: string;
+            username: string;
+            ipAddress: string;
+            macAddress: string;
+            nasIp: string;
+            nasIdentifier: string;
+            deviceType: string;
+            deviceName: string;
+            operatingSystem: string;
+            browser: string;
+            userAgent: string;
+            loginType: string;
+            authCount: number;
+            bandwidthDown: string | null;
+            bandwidthUp: string | null;
+            sessionTime: number;
+            dataDownload: number;
+            dataUpload: number;
+            status: 'active';
+            startedAt: string | null;
+            lastSeenAt: string | null;
+            sessionTimeout: number | null;
+            idleTimeout: number | null;
+            planName: string;
+            roomId: string;
+            guestName: string;
+            propertyName: string;
+          }
+
+          const sessionsMap = new Map<string, LiveSessionEntry>();
           for (const s of activeSessions) {
             const sessionId = `ls_${s.acctuniqueid}`;
             if (sessionsMap.has(sessionId)) continue; // Deduplicate by acctuniqueid
@@ -897,7 +934,7 @@ export async function GET(request: NextRequest) {
             success: true,
             data: {
               totalActive,
-              peakToday: totalActive,
+              currentActive: totalActive,
               perNas: Array.from(nasMap.entries()).map(([nasIp, info]) => ({
                 nasIp,
                 nasIdentifier: info.nasIdentifier,
@@ -969,6 +1006,14 @@ export async function GET(request: NextRequest) {
           const limit = parseInt(searchParams.get('limit') || '100', 10);
           const offset = parseInt(searchParams.get('offset') || '0', 10);
 
+          const conditions: string[] = [];
+          const sqlParams: unknown[] = [];
+          if (propertyId) { conditions.push(`fap."propertyId" = $${sqlParams.length + 1}::uuid`); sqlParams.push(propertyId); }
+          if (enabled === 'true') { conditions.push('fap."isEnabled" = true'); }
+          else if (enabled === 'false') { conditions.push('fap."isEnabled" = false'); }
+          const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : 'WHERE 1=1';
+          sqlParams.push(limit, offset);
+
           const policies = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(`
             SELECT fap.id, fap."tenantId", fap."propertyId", fap.name, fap.description,
                    fap."cycleType", fap."limitType", fap."dataLimitMb", fap."dataLimitUnit",
@@ -980,19 +1025,14 @@ export async function GET(request: NextRequest) {
                    bp."uploadKbps" as "switchOverUploadKbps"
             FROM "FairAccessPolicy" fap
             LEFT JOIN "BandwidthPolicy" bp ON fap."switchOverBwPolicyId" = bp.id
-            WHERE 1=1
-              ${propertyId ? `AND fap."propertyId" = '${propertyId}'` : ''}
-              ${enabled === 'true' ? 'AND fap."isEnabled" = true' : ''}
-              ${enabled === 'false' ? 'AND fap."isEnabled" = false' : ''}
+            ${whereClause}
             ORDER BY fap.priority ASC, fap."createdAt" DESC
-            LIMIT ${limit} OFFSET ${offset}
-          `);
+            LIMIT $${sqlParams.length - 1} OFFSET $${sqlParams.length}
+          `, ...sqlParams);
 
           const totalResult = await db.$queryRawUnsafe<[{ c: number | bigint }][]>(
-            `SELECT COUNT(*) as c FROM "FairAccessPolicy" fap WHERE 1=1
-              ${propertyId ? `AND fap."propertyId" = '${propertyId}'` : ''}
-              ${enabled === 'true' ? 'AND fap."isEnabled" = true' : ''}
-              ${enabled === 'false' ? 'AND fap."isEnabled" = false' : ''}`
+            `SELECT COUNT(*) as c FROM "FairAccessPolicy" fap ${whereClause}`,
+            ...sqlParams.slice(0, sqlParams.length - 2)
           );
           const total = Number(totalResult[0]?.c ?? 0);
 
@@ -1465,11 +1505,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(data);
       }
 
-      default: {
-        // Default: return service status
-        const data = await freeradiusRequest('/api/status');
-        return NextResponse.json(data);
-      }
+      default:
+        return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
     }
   } catch (error) {
     console.error('Error communicating with RADIUS service:', error);
@@ -1730,8 +1767,8 @@ export async function POST(request: NextRequest) {
 
                 // Insert bandwidth + session timeout attributes via Prisma ORM
                 const replyAttrs = [
-                  { attribute: 'WISPr-Bandwidth-Max-Down', op: ':=' as const, value: String(plan.downloadSpeed * 1024) },
-                  { attribute: 'WISPr-Bandwidth-Max-Up', op: ':=' as const, value: String(plan.uploadSpeed * 1024) },
+                  { attribute: 'WISPr-Bandwidth-Max-Down', op: ':=' as const, value: String((plan.downloadSpeed || 10) * 1000000) },
+                  { attribute: 'WISPr-Bandwidth-Max-Up', op: ':=' as const, value: String((plan.uploadSpeed || 5) * 1000000) },
                   { attribute: 'Session-Timeout', op: ':=' as const, value: String(sessionTimeout) },
                 ];
                 for (const attr of replyAttrs) {
@@ -2164,7 +2201,7 @@ export async function POST(request: NextRequest) {
                   const cleanNasIp = session.nasipaddress?.replace(/\/\d+$/, '') || '';
 
                   // Look up NAS secret
-                  let nasSecret = 'testing123';
+                  let nasSecret = '';
                   let coaPort = 3799;
                   if (cleanNasIp) {
                     try {
@@ -2176,7 +2213,11 @@ export async function POST(request: NextRequest) {
                         nasSecret = nasRows[0].secret;
                         coaPort = nasRows[0].ports || 3799;
                       }
-                    } catch (nasLookupErr) { /* NAS lookup failed, use defaults */ }
+                    } catch (nasLookupErr) { /* NAS lookup failed */ }
+                  }
+                  if (!nasSecret) {
+                    console.warn('[change-user-status] No NAS secret found for ' + cleanNasIp + ', skipping radclient disconnect');
+                    continue;
                   }
 
                   // Send Disconnect-Message via radclient (best-effort)
@@ -2564,10 +2605,24 @@ export async function POST(request: NextRequest) {
           }
 
           // 7. Handle data limit
-          if (dataLimit !== undefined && dataLimit > 0) {
-            const limitBytes = String(dataLimit * 1024 * 1024);
-            await db.radReply.deleteMany({ where: { username: existingUser.username, attribute: 'Framed-Filter-Id' } });
-            // Data limit is typically enforced via group attributes, but store for reference
+          if (dataLimit !== undefined) {
+            if (dataLimit > 0) {
+              const limitBytes = String(dataLimit * 1024 * 1024);
+              await db.radReply.deleteMany({ where: { username: existingUser.username, attribute: 'Framed-Filter-Id' } });
+              await db.radReply.create({
+                data: {
+                  wifiUserId: userId,
+                  username: existingUser.username,
+                  attribute: 'Framed-Filter-Id',
+                  op: ':=',
+                  value: limitBytes,
+                  isActive: true,
+                },
+              });
+            } else {
+              // dataLimit === 0: remove existing data limit entries
+              await db.radReply.deleteMany({ where: { username: existingUser.username, attribute: 'Framed-Filter-Id' } });
+            }
           }
 
           // 8. Handle validUntil
@@ -2914,7 +2969,7 @@ export async function POST(request: NextRequest) {
         try {
           // Look up NAS secret from PostgreSQL
           // GUI may send nasIp with CIDR (e.g. 192.168.1.1/32) — strip it for NAS lookup
-          let nasSecret = 'testing123'; // default fallback
+          let nasSecret = '';
           let coaPort = 3799;
           const cleanNasIp = disconnectNasIp.replace(/\/\d+$/, ''); // strip /32 CIDR suffix
           try {
@@ -2926,7 +2981,11 @@ export async function POST(request: NextRequest) {
               nasSecret = nasRows[0].secret;
               coaPort = nasRows[0].ports || 3799;
             }
-          } catch { /* NAS lookup failed, use defaults */ }
+          } catch { /* NAS lookup failed */ }
+          if (!nasSecret) {
+            console.warn('[live-sessions-disconnect] No NAS secret found for ' + cleanNasIp + ', cannot send RADIUS disconnect');
+            coaMessage = 'No NAS secret configured for ' + cleanNasIp;
+          } else {
 
           // Build radclient attributes — use clean IP (without CIDR) for radclient
           const radclientPath = `${process.cwd()}/freeradius-install/bin/radclient`;
@@ -2950,6 +3009,7 @@ export async function POST(request: NextRequest) {
           } finally {
             try { fs.unlinkSync(tmpAttrsFile); } catch { /* ignore */ }
           }
+          } // end else (nasSecret available)
         } catch (coaErr) {
           coaMessage = coaErr instanceof Error ? coaErr.message : String(coaErr);
         }
@@ -2967,8 +3027,9 @@ export async function POST(request: NextRequest) {
           const nasIpFilter = (disconnectNasIp && disconnectNasIp !== '0.0.0.0' && disconnectNasIp !== '0.0.0.0/32') ? disconnectNasIp : '';
 
           // 2a. Close radacct record
+          let radacctRowsAffected = 0;
           try {
-            await db.$executeRawUnsafe(`
+            const radacctResult = await db.$executeRawUnsafe(`
               UPDATE radacct
               SET acctstoptime = NOW(),
                   acctterminatecause = 'Admin-Reset',
@@ -2982,19 +3043,22 @@ export async function POST(request: NextRequest) {
                 AND ($2::text = '' OR acctuniqueid = $2 OR acctsessionid = $2)
                 AND ($3::text = '' OR nasipaddress = $3 OR nasipaddress::inet = $3::inet)
             `, disconnectUsername, bareSessionId || '', nasIpFilter);
+            radacctRowsAffected = typeof radacctResult === 'number' ? radacctResult : (radacctResult as unknown as { rowCount: number }).rowCount ?? 0;
           } catch (radacctErr) {
             console.warn('[live-sessions-disconnect] radacct update error:', radacctErr instanceof Error ? radacctErr.message : radacctErr);
           }
 
           // 2b. Close WiFiSession by id (the bareSessionId may be WiFiSession.id)
           // WiFiSession has no username column — match only by id
+          let wifiRowsAffected = 0;
           try {
-            await db.$executeRawUnsafe(`
+            const wifiResult = await db.$executeRawUnsafe(`
               UPDATE "WiFiSession"
               SET status = 'completed', "endTime" = NOW(), "updatedAt" = NOW()
               WHERE status = 'active'
                 AND ($1::text = '' OR id = $1::uuid)
             `, bareSessionId || '');
+            wifiRowsAffected = typeof wifiResult === 'number' ? wifiResult : (wifiResult as unknown as { rowCount: number }).rowCount ?? 0;
           } catch (wifiErr) {
             console.warn('[live-sessions-disconnect] WiFiSession update error:', wifiErr instanceof Error ? wifiErr.message : wifiErr);
           }
@@ -3012,21 +3076,13 @@ export async function POST(request: NextRequest) {
             // LiveSession table may not have matching record — OK
           }
 
-          // Check if any session was closed (radacct OR WiFiSession)
-          const radacctClosed = await db.$queryRawUnsafe<{ cnt: bigint }[]>(
-            `SELECT COUNT(*) as cnt FROM radacct WHERE acctterminatecause = 'Admin-Reset' AND acctstoptime > NOW() - INTERVAL '5 seconds'`
-          );
-          const wifiClosed = await db.$queryRawUnsafe<{ cnt: bigint }[]>(
-            `SELECT COUNT(*) as cnt FROM "WiFiSession" WHERE status = 'completed' AND "endTime" > NOW() - INTERVAL '5 seconds'`
-          );
-          const radacctCount = Number(radacctClosed[0]?.cnt || 0);
-          const wifiCount = Number(wifiClosed[0]?.cnt || 0);
-          localEnded = radacctCount > 0 || wifiCount > 0;
+          // Determine if any session was closed using the actual rowsAffected
+          localEnded = radacctRowsAffected > 0 || wifiRowsAffected > 0;
           localMessage = localEnded
-            ? `Closed ${radacctCount} RADIUS session(s), ${wifiCount} WiFi session(s)`
+            ? `Closed ${radacctRowsAffected} RADIUS session(s), ${wifiRowsAffected} WiFi session(s)`
             : 'No matching active session found';
 
-          console.log('[live-sessions-disconnect] localEnded:', localEnded, 'radacct:', radacctCount, 'wifi:', wifiCount);
+          console.log('[live-sessions-disconnect] localEnded:', localEnded, 'radacct:', radacctRowsAffected, 'wifi:', wifiRowsAffected);
         } catch (dbErr) {
           localMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
         }
@@ -3136,7 +3192,8 @@ export async function POST(request: NextRequest) {
       case 'fap-policies-create': {
         try {
           const id = crypto.randomUUID();
-          const tenantId = context?.tenantId || '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+          const tenantId = context?.tenantId;
+          const propertyId = data.propertyId || null;
           const { name, description, cycleType, dataLimitMb, dataLimitUnit, applicableOn,
                   throttleAction, throttleDownloadMbps, throttleUploadMbps,
                   cycleResetHour, cycleResetMinute, priority, isEnabled } = data;
@@ -3144,22 +3201,25 @@ export async function POST(request: NextRequest) {
           if (!name) {
             return NextResponse.json({ success: false, error: 'Name is required' }, { status: 400 });
           }
+          if (!tenantId) {
+            return NextResponse.json({ success: false, error: 'Tenant ID is required' }, { status: 400 });
+          }
 
           // If throttle action, create a BandwidthPolicy first
           let switchOverBwPolicyId: string | null = null;
           if (throttleAction === 'throttle' && throttleDownloadMbps && throttleUploadMbps) {
             const bwResult = await db.$queryRawUnsafe<Array<{ id: string }>>(`
               INSERT INTO "BandwidthPolicy" (id, "propertyId", name, "downloadKbps", "uploadKbps", priority)
-              VALUES (gen_random_uuid(), NULL, $1, $2, $3, 0)
+              VALUES (gen_random_uuid(), $1::uuid, $2, $3, $4, 0)
               RETURNING id
-            `, `Throttle-${name}`, Math.round(Number(throttleDownloadMbps) * 1024), Math.round(Number(throttleUploadMbps) * 1024));
+            `, propertyId, `Throttle-${name}`, Math.round(Number(throttleDownloadMbps) * 1024), Math.round(Number(throttleUploadMbps) * 1024));
             switchOverBwPolicyId = bwResult[0]?.id || null;
           }
 
           await db.$executeRawUnsafe(`
             INSERT INTO "FairAccessPolicy" (id, "tenantId", "propertyId", name, description, "cycleType", "limitType", "dataLimitMb", "dataLimitUnit", "switchOverBwPolicyId", "cycleResetHour", "cycleResetMinute", "applicableOn", "isEnabled", priority)
-            VALUES ($1::uuid, $2::uuid, NULL, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-          `, id, tenantId, name, description || null, cycleType || 'daily', applicableOn || 'total',
+            VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          `, id, tenantId, propertyId, name, description || null, cycleType || 'daily', applicableOn || 'total',
              Number(dataLimitMb) || 1024, dataLimitUnit || 'mb', switchOverBwPolicyId,
              Number(cycleResetHour) || 23, Number(cycleResetMinute) || 59, applicableOn || 'total',
              isEnabled !== false, Number(priority) || 0);
@@ -3289,15 +3349,6 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: false, error: 'Schedule ID is required' }, { status: 400 });
         }
         const result = await freeradiusRequest(`/api/web-categories/schedules/${encodeURIComponent(id)}`, { method: 'DELETE' });
-        return NextResponse.json(result);
-      }
-
-      // ─── Accsium Gap: NAS Health POST ───────────────────────
-      case 'nas-health-check': {
-        const result = await freeradiusRequest('/api/nas-health/check', {
-          method: 'POST',
-          body: JSON.stringify(data),
-        });
         return NextResponse.json(result);
       }
 

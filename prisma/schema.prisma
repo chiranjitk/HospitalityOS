@@ -6461,7 +6461,7 @@ model WiFiAAAConfig {
 
 model WiFiAccountingSync {
   id               String   @id @default(uuid()) @db.Uuid
-  lastRadAcctId    String   @db.Uuid
+  lastRadAcctId    String
   lastSyncedAt     DateTime @default(now()) @db.Timestamptz
   recordsProcessed Int      @default(0)
   errors           Int      @default(0)
@@ -6597,29 +6597,33 @@ model WiFiPlan {
 }
 
 model WiFiSession {
-  id         String    @id @default(uuid()) @db.Uuid
-  tenantId   String    @db.Uuid
-  planId     String?   @db.Uuid
-  guestId    String?   @db.Uuid
-  bookingId  String?   @db.Uuid
-  macAddress String
-  ipAddress  String?
-  deviceName String?
-  deviceType String?
-  startTime  DateTime  @default(now()) @db.Timestamptz
-  endTime    DateTime? @db.Timestamptz
-  dataUsed   BigInt    @default(0)
-  duration   Int       @default(0)
-  authMethod String    @default("voucher")
-  status     String    @default("active")
-  createdAt  DateTime  @default(now()) @db.Timestamptz
-  updatedAt  DateTime  @updatedAt @db.Timestamptz
-  plan       WiFiPlan? @relation(fields: [planId], references: [id])
-  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @db.Uuid
+  planId       String?   @db.Uuid
+  guestId      String?   @db.Uuid
+  bookingId    String?   @db.Uuid
+  username     String?
+  acctUniqueId String?
+  macAddress   String
+  ipAddress    String?
+  deviceName   String?
+  deviceType   String?
+  startTime    DateTime  @default(now()) @db.Timestamptz
+  endTime      DateTime? @db.Timestamptz
+  dataUsed     BigInt    @default(0)
+  duration     Int       @default(0)
+  authMethod   String    @default("voucher")
+  status       String    @default("active")
+  createdAt    DateTime  @default(now()) @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @db.Timestamptz
+  plan         WiFiPlan? @relation(fields: [planId], references: [id])
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([macAddress])
   @@index([guestId])
+  @@index([username])
+  @@index([acctUniqueId])
 }
 
 model WiFiUser {
