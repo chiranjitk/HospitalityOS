@@ -560,10 +560,8 @@ CREATE VIEW v_user_usage AS  SELECT u.id AS user_id,
     u."totalBytesIn",
     u."totalBytesOut",
     u."totalBytesIn" + u."totalBytesOut" AS total_data_used,
-    u."sessionCount" AS total_sessions,
-    ( SELECT count(*) AS count
-           FROM "WiFiSession" ws
-          WHERE ws."guestId" = u."guestId" AND ws.status = 'active'::text) AS active_sessions,
+    COALESCE(( SELECT count(DISTINCT radacctid) FROM v_session_history sh WHERE sh.username = u.username), 0) AS total_sessions,
+    COALESCE(( SELECT count(DISTINCT radacctid) FROM v_session_history sh WHERE sh.username = u.username AND sh.session_status = 'active'::text), 0) AS active_sessions,
     u."totalBytesOut" AS total_download_bytes,
     u."totalBytesIn" AS total_upload_bytes,
     COALESCE(( SELECT sum(ws.duration) AS sum

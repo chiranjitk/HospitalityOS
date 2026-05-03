@@ -247,12 +247,13 @@ export class WiFiAccountingSyncService {
     });
 
     // Update WiFiUser cumulative stats
+    // NOTE: sessionCount is NOT incremented here — it's already incremented
+    // by session-engine when the session ends. Incrementing here would double-count.
     await db.wiFiUser.update({
       where: { id: wifiUser.id },
       data: {
         totalBytesIn: { increment: record.acctinputoctets || 0 },
         totalBytesOut: { increment: record.acctoutputoctets || 0 },
-        sessionCount: { increment: 1 },
         lastAccountingAt: new Date(),
       },
     });

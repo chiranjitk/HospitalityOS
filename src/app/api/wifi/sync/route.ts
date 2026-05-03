@@ -144,12 +144,12 @@ export async function POST(request: NextRequest) {
             });
 
             // Update user stats
+            // NOTE: sessionCount NOT incremented here — session-engine handles it
             await db.wiFiUser.updateMany({
               where: { username: record.username },
               data: {
                 totalBytesIn: { increment: record.acctinputoctets || 0 },
                 totalBytesOut: { increment: record.acctoutputoctets || 0 },
-                sessionCount: { increment: 1 },
                 lastAccountingAt: new Date(),
               },
             });
