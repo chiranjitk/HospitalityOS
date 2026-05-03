@@ -3,10 +3,10 @@ import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
 
 // ─── GET /api/wifi/nas-health ──────────────────────────────────────────────
-// Reads NAS status from RadiusNAS + LiveSession + RadiusAuthLog + NasHealthLog
+// Reads NAS status from RadiusNAS + radacct + radpostauth + NasHealthLog
 //
 // ─── POST /api/wifi/nas-health ─────────────────────────────────────────────
-// Triggers a live NAS health check (ICMP ping + TCP port probe).
+// Triggers a live NAS health check (ICMP ping + UDP port probe).
 // Requires wifi.manage permission.
 
 // ─── GET: Read status ──────────────────────────────────────────────────────
@@ -38,40 +38,51 @@ export async function GET(request: NextRequest) {
     // Collect all NAS IPs for batch queries
     const nasIps = nasClients.map(n => n.nasIp).filter(Boolean);
 
-    // Count live (active) sessions per NAS IP
+    // ── 1. Active sessions from radacct (acctstoptime IS NULL) ──
+    // This is the real data source — radacct is populated by auth flow + session engine
     let liveSessionMap: Record<string, number> = {};
+    let totalSessionMap: Record<string, number> = {};
     if (nasIps.length > 0) {
-      const liveSessions = await db.$queryRawUnsafe(`
+      // Active sessions
+      const activeSessions = await db.$queryRawUnsafe(`
+        SELECT nasipaddress, COUNT(*)::int as cnt
+        FROM radacct
+        WHERE acctstoptime IS NULL
+          AND nasipaddress = ANY($1::text[])
+        GROUP BY nasipaddress
+      `, nasIps) as any[];
+      for (const row of activeSessions) {
+        liveSessionMap[row.nasipaddress] = row.cnt;
+      }
+
+      // Total sessions (all-time)
+      const totalSessions = await db.$queryRawUnsafe(`
+        SELECT nasipaddress, COUNT(*)::int as cnt
+        FROM radacct
+        WHERE nasipaddress = ANY($1::text[])
+        GROUP BY nasipaddress
+      `, nasIps) as any[];
+      for (const row of totalSessions) {
+        totalSessionMap[row.nasipaddress] = row.cnt;
+      }
+    }
+
+    // ── 2. Failed auths from radpostauth ──
+    let failedAuthMap: Record<string, number> = {};
+    if (nasIps.length > 0) {
+      const failedAuths = await db.$queryRawUnsafe(`
         SELECT "nasIpAddress", COUNT(*)::int as cnt
-        FROM "LiveSession"
-        WHERE "nasIpAddress" IS NOT NULL
-          AND "nasIpAddress" = ANY($1::text[])
-          AND status = 'active'
+        FROM radpostauth
+        WHERE "nasIpAddress" = ANY($1::text[])
+          AND reply = 'Reject'
         GROUP BY "nasIpAddress"
       `, nasIps) as any[];
-      for (const row of liveSessions) {
-        liveSessionMap[row.nasIpAddress] = row.cnt;
+      for (const row of failedAuths) {
+        failedAuthMap[row.nasIpAddress] = row.cnt;
       }
     }
 
-    // Count total auths and failed auths per NAS IP
-    let authMap: Record<string, { totalAuths: number; failedAuths: number }> = {};
-    if (nasIps.length > 0) {
-      const authStats = await db.$queryRawUnsafe(`
-        SELECT "nasIpAddress",
-               COUNT(*)::int as "totalAuths",
-               COUNT(*) FILTER (WHERE "authResult" = 'Reject')::int as "failedAuths"
-        FROM "RadiusAuthLog"
-        WHERE "nasIpAddress" IS NOT NULL
-          AND "nasIpAddress" = ANY($1::text[])
-        GROUP BY "nasIpAddress"
-      `, nasIps) as any[];
-      for (const row of authStats) {
-        authMap[row.nasIpAddress] = { totalAuths: row.totalAuths, failedAuths: row.failedAuths };
-      }
-    }
-
-    // Get latest health log per NAS (from actual probe results)
+    // ── 3. Latest health probe from NasHealthLog ──
     let healthMap: Record<string, any> = {};
     if (nasIps.length > 0) {
       const healthLogs = await db.$queryRawUnsafe(`
@@ -87,11 +98,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ── 4. Calculate uptime from RadiusNAS.createdAt ──
+    const now = Date.now();
+
     // Build response
     const entries = nasClients.map(nas => {
       const ip = nas.nasIp;
       const live = liveSessionMap[ip] || 0;
-      const auth = authMap[ip] || { totalAuths: 0, failedAuths: 0 };
+      const total = totalSessionMap[ip] || 0;
+      const failed = failedAuthMap[ip] || 0;
       const health = healthMap[ip];
 
       // Determine status from health check data
@@ -107,6 +122,11 @@ export async function GET(request: NextRequest) {
         status = live > 0 ? 'online' : 'unknown';
       }
 
+      // Uptime: seconds since NAS was created (registered in system)
+      const uptimeSeconds = nas.createdAt
+        ? Math.floor((now - new Date(nas.createdAt).getTime()) / 1000)
+        : 0;
+
       return {
         id: nas.id,
         nasIp: ip,
@@ -116,10 +136,11 @@ export async function GET(request: NextRequest) {
         description: nas.description,
         status,
         liveUserCount: live,
-        totalSessions: auth.totalAuths,
-        failedAuths: auth.failedAuths,
+        totalSessions: total,
+        failedAuths: failed,
         latency: health?.avgLatencyMs ?? null,
-        lastSeenAt: health?.lastSeenAt || nas.updatedAt || nas.createdAt,
+        uptime: uptimeSeconds,
+        lastSeenAt: health?.lastSeenAt || nas.lastSeenAt || nas.updatedAt || nas.createdAt,
       };
     });
 

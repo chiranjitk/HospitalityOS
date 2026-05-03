@@ -406,22 +406,24 @@ export async function runNasHealthCheck(): Promise<NasHealthCheckResult> {
       return result;
     }
 
-    // ── Step 3: Batch-fetch live sessions and auth stats ──
+    // ── Step 3: Batch-fetch live sessions and auth stats from radacct ──
     const nasIps = nasList.map((n) => n.ipAddress);
 
-    const liveSessionRows = await db.$queryRawUnsafe<Array<{ nasIpAddress: string; cnt: number }>>(`
-      SELECT "nasIpAddress", COUNT(*)::int as cnt
-      FROM "LiveSession"
-      WHERE "nasIpAddress" = ANY($1::text[])
-        AND status = 'active'
-      GROUP BY "nasIpAddress"
+    // Active sessions from radacct (acctstoptime IS NULL)
+    const liveSessionRows = await db.$queryRawUnsafe<Array<{ nasipaddress: string; cnt: number }>>(`
+      SELECT nasipaddress, COUNT(*)::int as cnt
+      FROM radacct
+      WHERE acctstoptime IS NULL
+        AND nasipaddress = ANY($1::text[])
+      GROUP BY nasipaddress
     `, nasIps);
 
     const liveSessionMap: Record<string, number> = {};
     for (const row of liveSessionRows) {
-      liveSessionMap[row.nasIpAddress] = row.cnt;
+      liveSessionMap[row.nasipaddress] = row.cnt;
     }
 
+    // Failed auths from radpostauth
     const authRows = await db.$queryRawUnsafe<Array<{
       nasIpAddress: string;
       totalAuths: number;
@@ -429,8 +431,8 @@ export async function runNasHealthCheck(): Promise<NasHealthCheckResult> {
     }>>(`
       SELECT "nasIpAddress",
              COUNT(*)::int as "totalAuths",
-             COUNT(*) FILTER (WHERE "authResult" = 'Reject')::int as "failedAuths"
-      FROM "RadiusAuthLog"
+             COUNT(*) FILTER (WHERE reply = 'Reject')::int as "failedAuths"
+      FROM radpostauth
       WHERE "nasIpAddress" = ANY($1::text[])
       GROUP BY "nasIpAddress"
     `, nasIps);
