@@ -561,11 +561,27 @@ export async function POST(request: NextRequest) {
       password?: string;
       phoneNumber?: string;
       otpCode?: string;
-      guestInfo?: { firstName?: string; lastName?: string; email?: string; phone?: string };
+      guestInfo?: {
+        firstName?: string;
+        lastName?: string;
+        email?: string;
+        phone?: string;
+        passport?: string;
+        bookingId?: string;
+      };
+      marketingEmailConsent?: string;
+      marketingSmsConsent?: string;
       macAddress?: string;
       fingerprintHash?: string;
       storageToken?: string;
     };
+
+    // Normalize guestInfo — unified form sends it as a JSON string
+    if (typeof guestInfo === 'string') {
+      try {
+        body.guestInfo = JSON.parse(guestInfo);
+      } catch { /* ignore malformed JSON */ }
+    }
 
     if (!method) {
       return errorResponse('MISSING_METHOD', 'Authentication method is required');
@@ -752,6 +768,14 @@ export async function POST(request: NextRequest) {
           const voucherUser = await db.wiFiUser.findUnique({ where: { username: wifiUsername }, select: { id: true, tenantId: true, propertyId: true, guestId: true } });
           if (voucherUser) {
             await upsertDeviceProfileWithFingerprint({ wifiUserId: voucherUser.id, tenantId: voucherUser.tenantId, propertyId: voucherUser.propertyId, guestId: voucherUser.guestId, username: wifiUsername, request, macAddress: effectiveMac, fingerprintHash, storageToken });
+            // Save guest info from portal form
+            await saveGuestInfoAfterAuth({
+              wifiUserId: voucherUser.id,
+              guestId: voucherUser.guestId,
+              bookingId: voucher.bookingId,
+              guestInfo,
+              marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
+            });
           }
         } catch { /* best effort */ }
 
@@ -940,6 +964,15 @@ export async function POST(request: NextRequest) {
             macAddress: effectiveMac, fingerprintHash, storageToken,
           });
 
+          // Save guest info from portal form
+          saveGuestInfoAfterAuth({
+            wifiUserId: pmsUser.id,
+            guestId: pmsUser.guestId,
+            bookingId: match.id,
+            guestInfo,
+            marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
+          }).catch(() => {});
+
           return successResponse({
             authenticated: true, method: 'room_number', username: pmsUser.username,
             sessionTimeout: planValidityMin, remainingMinutes,
@@ -1031,6 +1064,14 @@ export async function POST(request: NextRequest) {
           const roomUser = await db.wiFiUser.findUnique({ where: { username: wifiUsername }, select: { id: true, tenantId: true, propertyId: true, guestId: true } });
           if (roomUser) {
             await upsertDeviceProfileWithFingerprint({ wifiUserId: roomUser.id, tenantId: roomUser.tenantId, propertyId: roomUser.propertyId, guestId: roomUser.guestId, username: wifiUsername, request, macAddress: effectiveMac, fingerprintHash, storageToken });
+            // Save guest info from portal form
+            await saveGuestInfoAfterAuth({
+              wifiUserId: roomUser.id,
+              guestId: roomUser.guestId,
+              bookingId: match.id,
+              guestInfo,
+              marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
+            });
           }
         } catch { /* best effort */ }
 
@@ -1194,6 +1235,15 @@ export async function POST(request: NextRequest) {
           storageToken,
         });
 
+          // Save guest info from portal form
+          saveGuestInfoAfterAuth({
+            wifiUserId: wifiUser.id,
+            guestId: wifiUser.guestId,
+            bookingId: wifiUser.bookingId,
+            guestInfo,
+            marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
+          }).catch(() => {});
+
         return successResponse({
           authenticated: true, method: 'pms_credentials', username: wifiUser.username,
           sessionTimeout: planValidityMin, remainingMinutes, bandwidthDown: userBwDown, bandwidthUp: userBwUp,
@@ -1345,6 +1395,13 @@ export async function POST(request: NextRequest) {
                   propertyId: smsUser.propertyId, guestId: smsUser.guestId,
                   username: wifiUsername, request,
                   macAddress: effectiveMac, fingerprintHash, storageToken,
+                });
+                // Save guest info from portal form
+                await saveGuestInfoAfterAuth({
+                  wifiUserId: smsUser.id,
+                  propertyId: fallbackPropertyId,
+                  guestInfo,
+                  marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
                 });
               }
             } catch { /* best effort */ }
@@ -1510,6 +1567,14 @@ export async function POST(request: NextRequest) {
           } catch {
             // Best effort for open access
           }
+
+          // Save guest info from portal form
+          saveGuestInfoAfterAuth({
+            wifiUsername,
+            propertyId: resolvedPropertyId,
+            guestInfo,
+            marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
+          }).catch(() => {});
         }
 
         return successResponse({
@@ -1542,6 +1607,192 @@ function errorResponse(code: string, message: string, status = 400) {
     { success: false, error: { code, message } },
     { status }
   );
+}
+
+// ────────────────────────────────────────────────────────────
+// Guest Info Persistence
+// ────────────────────────────────────────────────────────────
+
+interface GuestInfoPayload {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  passport?: string;
+  bookingId?: string;
+}
+
+interface MarketingConsent {
+  emailConsent?: boolean;
+  smsConsent?: boolean;
+}
+
+/**
+ * Save guest information collected from the captive portal form.
+ * Called AFTER successful authentication in all flows.
+ *
+ * Strategy:
+ *  1. If wifiUserId is known, look up the WiFiUser → get guestId/propertyId/tenantId
+ *  2. If guestId exists, UPDATE the existing Guest record (enrich profile)
+ *  3. If no guestId, CREATE a new Guest record (for SMS OTP / voucher / open_access guests)
+ *  4. Link the new Guest to the WiFiUser via guestId
+ *  5. Save passport as idNumber/idType on the Guest record
+ *  6. If bookingId provided and no booking linked, try to link
+ *  7. Update marketing consent flags (emailOptIn / smsOptIn)
+ *
+ * All operations are best-effort — failures are logged but don't block auth.
+ */
+async function saveGuestInfoAfterAuth(params: {
+  wifiUserId?: string | null;
+  wifiUsername?: string | null;
+  tenantId?: string;
+  propertyId?: string;
+  guestId?: string | null;
+  bookingId?: string | null;
+  guestInfo?: GuestInfoPayload;
+  marketingConsent?: MarketingConsent;
+}): Promise<void> {
+  const { wifiUserId, wifiUsername, tenantId, propertyId, guestId: existingGuestId, bookingId: existingBookingId, guestInfo, marketingConsent } = params;
+
+  if (!guestInfo && !marketingConsent) return;
+
+  try {
+    // Resolve tenantId/propertyId from WiFiUser if not directly available
+    let resolvedTenantId = tenantId;
+    let resolvedPropertyId = propertyId;
+    let resolvedGuestId = existingGuestId;
+    let resolvedBookingId = existingBookingId;
+    let resolvedWifiUserId = wifiUserId;
+
+    // Look up WiFiUser by ID or by username
+    if (!resolvedWifiUserId && wifiUsername) {
+      const userByUname = await db.wiFiUser.findUnique({
+        where: { username: wifiUsername },
+        select: { id: true, tenantId: true, propertyId: true, guestId: true, bookingId: true },
+      });
+      if (userByUname) {
+        resolvedWifiUserId = userByUname.id;
+        resolvedTenantId = resolvedTenantId || userByUname.tenantId;
+        resolvedPropertyId = resolvedPropertyId || userByUname.propertyId;
+        resolvedGuestId = resolvedGuestId || userByUname.guestId;
+        resolvedBookingId = resolvedBookingId || userByUname.bookingId;
+      }
+    }
+
+    if (resolvedWifiUserId && (!resolvedTenantId || !resolvedPropertyId || !resolvedGuestId)) {
+      const wifiUser = await db.wiFiUser.findUnique({
+        where: { id: resolvedWifiUserId },
+        select: { tenantId: true, propertyId: true, guestId: true, bookingId: true },
+      });
+      if (wifiUser) {
+        resolvedTenantId = resolvedTenantId || wifiUser.tenantId;
+        resolvedPropertyId = resolvedPropertyId || wifiUser.propertyId;
+        resolvedGuestId = resolvedGuestId || wifiUser.guestId;
+        resolvedBookingId = resolvedBookingId || wifiUser.bookingId;
+      }
+    }
+
+    if (!resolvedTenantId || !resolvedPropertyId) {
+      console.warn('[GuestInfo] Skipped — no tenantId/propertyId resolved');
+      return;
+    }
+
+    const updates: Record<string, unknown> = {};
+    const createData: Record<string, unknown> = { tenantId: resolvedTenantId, firstName: '', lastName: '' };
+
+    if (guestInfo) {
+      if (guestInfo.firstName?.trim()) {
+        updates.firstName = guestInfo.firstName.trim();
+        createData.firstName = guestInfo.firstName.trim();
+      }
+      if (guestInfo.lastName?.trim()) {
+        updates.lastName = guestInfo.lastName.trim();
+        createData.lastName = guestInfo.lastName.trim();
+      }
+      if (guestInfo.email?.trim()) {
+        updates.email = guestInfo.email.trim().toLowerCase();
+        createData.email = guestInfo.email.trim().toLowerCase();
+      }
+      if (guestInfo.phone?.trim()) {
+        updates.phone = guestInfo.phone.trim();
+        createData.phone = guestInfo.phone.trim();
+      }
+      if (guestInfo.passport?.trim()) {
+        // Save passport/ID as idType + idNumber on Guest
+        updates.idType = 'passport';
+        updates.idNumber = guestInfo.passport.trim();
+        createData.idType = 'passport';
+        createData.idNumber = guestInfo.passport.trim();
+      }
+    }
+
+    if (marketingConsent) {
+      if (marketingConsent.emailConsent) {
+        updates.emailOptIn = true;
+        createData.emailOptIn = true;
+      }
+      if (marketingConsent.smsConsent) {
+        updates.smsOptIn = true;
+        createData.smsOptIn = true;
+      }
+    }
+
+    // Skip if nothing to save
+    if (Object.keys(updates).length === 0 && !resolvedGuestId) return;
+
+    if (resolvedGuestId) {
+      // Update existing guest record
+      await db.guest.update({
+        where: { id: resolvedGuestId },
+        data: updates,
+      });
+      console.log(`[GuestInfo] Updated guest ${resolvedGuestId} with ${Object.keys(updates).join(', ')}`);
+    } else {
+      // Create new guest for anonymous auth flows (SMS OTP, voucher, open_access)
+      const newGuest = await db.guest.create({
+        data: createData,
+      });
+      resolvedGuestId = newGuest.id;
+      console.log(`[GuestInfo] Created guest ${resolvedGuestId} (${createData.firstName} ${createData.lastName})`);
+
+      // Link guest to WiFiUser
+      if (resolvedWifiUserId) {
+        await db.wiFiUser.update({
+          where: { id: resolvedWifiUserId },
+          data: { guestId: resolvedGuestId },
+        });
+      }
+    }
+
+    // If guestInfo.bookingId provided and no booking linked to WiFiUser, try to link
+    if (guestInfo?.bookingId?.trim() && resolvedWifiUserId) {
+      const bookingRef = guestInfo.bookingId.trim();
+      // Try matching by confirmationCode first, then by ID
+      const booking = await db.booking.findFirst({
+        where: {
+          OR: [
+            { confirmationCode: bookingRef },
+            { id: bookingRef },
+            { externalRef: bookingRef },
+          ],
+          propertyId: resolvedPropertyId,
+        },
+        select: { id: true },
+      });
+      if (booking) {
+        await db.wiFiUser.update({
+          where: { id: resolvedWifiUserId },
+          data: { bookingId: booking.id },
+        });
+        console.log(`[GuestInfo] Linked booking ${booking.id} to WiFiUser ${resolvedWifiUserId}`);
+      } else {
+        console.warn(`[GuestInfo] Booking not found for ref: ${bookingRef}`);
+      }
+    }
+  } catch (err) {
+    // Non-fatal — guest info persistence should never block authentication
+    console.error('[GuestInfo] Failed to save guest info:', err instanceof Error ? err.message : err);
+  }
 }
 
 /**

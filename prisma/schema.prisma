@@ -3708,7 +3708,7 @@ model PortalPage {
   showSocial      Boolean       @default(false)
   showBranding    Boolean       @default(true)
   // Portal Login Page field visibility — synced from credential policy
-  formFields      String        @default("{\"username\":true,\"password\":true,\"roomNumber\":false,\"phone\":false,\"voucherCode\":false,\"termsCheckbox\":true}")
+  formFields      String        @default("{\"username\":true,\"password\":true,\"roomNumber\":false,\"phone\":false,\"voucherCode\":false,\"terms\":true}")
   authFlow        String        @default("pms_credentials") // pms_credentials | room_number | voucher | sms_otp | open_access
   socialProviders String        @default("{\"google\":false,\"facebook\":false,\"apple\":false}")
   voucherTemplate String        @default("default") // default | elegant | minimal | luxury

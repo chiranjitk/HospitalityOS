@@ -1305,6 +1305,18 @@ function UnifiedDesignerForm({
       if (phoneConsent) payload.marketingSmsConsent = 'true';
     }
 
+    // Build guestInfo from form fields (firstName, lastName, email, phone, passport, bookingId)
+    const guestInfoFields: Record<string, string> = {};
+    if (formData.firstName?.trim()) guestInfoFields.firstName = formData.firstName.trim();
+    if (formData.lastName?.trim()) guestInfoFields.lastName = formData.lastName.trim();
+    if (formData.email?.trim()) guestInfoFields.email = formData.email.trim();
+    if (formData.phone?.trim()) guestInfoFields.phone = formData.phone.trim();
+    if (formData.passport?.trim()) guestInfoFields.passport = formData.passport.trim();
+    if (formData.bookingId?.trim()) guestInfoFields.bookingId = formData.bookingId.trim();
+    if (Object.keys(guestInfoFields).length > 0) {
+      payload.guestInfo = JSON.stringify(guestInfoFields);
+    }
+
     authenticate(authMethod, payload);
   }, [formData, authMethod, enabledFields, termsAccepted, termsRequired, showTerms, otpStep, otpCode, authenticate, design.marketingOptIn, emailConsent, phoneConsent, lang, getTranslatedFieldLabel]);
 
@@ -1900,7 +1912,7 @@ function PortalContent() {
   const [authResult, setAuthResult] = useState<AuthResult | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState('');
-  const [guestInfo, setGuestInfo] = useState({ firstName: '', lastName: '', email: '', phone: '' });
+  const [guestInfo, setGuestInfo] = useState({ firstName: '', lastName: '', email: '', phone: '', passport: '', bookingId: '' });
   const [selectedLanguage, setSelectedLanguage] = useState('');
 
   // Auto-auth state
@@ -2211,7 +2223,7 @@ function PortalContent() {
   };
 
   const hasVisibleGuestFields = (): boolean => {
-    return ['firstName', 'lastName', 'email', 'phone'].some(isFieldVisible);
+    return ['firstName', 'lastName', 'email', 'phone', 'passport', 'bookingId'].some(isFieldVisible);
   };
 
   // ── Background ──
@@ -2260,6 +2272,8 @@ function PortalContent() {
     if (isFieldVisible('lastName') && guestInfo.lastName.trim()) info.lastName = guestInfo.lastName.trim();
     if (isFieldVisible('email') && guestInfo.email.trim()) info.email = guestInfo.email.trim();
     if (isFieldVisible('phone') && guestInfo.phone.trim()) info.phone = guestInfo.phone.trim();
+    if (isFieldVisible('passport') && guestInfo.passport?.trim()) info.passport = guestInfo.passport.trim();
+    if (isFieldVisible('bookingId') && guestInfo.bookingId?.trim()) info.bookingId = guestInfo.bookingId.trim();
     return Object.keys(info).length > 0 ? info : undefined;
   };
 
