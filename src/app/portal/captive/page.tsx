@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -117,8 +118,43 @@ function SessionTimer() {
   )
 }
 
-// ── Main Component ─────────────────────────────────────
-export default function CaptivePortalPage() {
+// ── MAC Address Helper ─────────────────────────────────
+/**
+ * Validates and formats a MAC address string.
+ * Accepts: AA:BB:CC:DD:EE:FF, AA-BB-CC-DD-EE-FF, AABBCCDDEEFF, aa:bb:cc:dd:ee:ff
+ * Returns: formatted AA:BB:CC:DD:EE:FF or null if invalid
+ */
+function formatMacAddress(raw: string): string | null {
+  if (!raw || typeof raw !== 'string') return null
+  // Strip separators and normalize
+  const cleaned = raw.replace(/[:\-\.\s]/g, '').toUpperCase()
+  // Must be exactly 12 hex chars
+  if (!/^[0-9A-F]{12}$/.test(cleaned)) return null
+  return cleaned.match(/.{2}/g)?.join(':') || null
+}
+
+// ── Main Component (wrapped for useSearchParams) ─────────
+function CaptivePortalContent() {
+  const searchParams = useSearchParams()
+
+  // ── Read MAC address from URL query params ──
+  // Network equipment (AP/Controller/Gateway) typically redirects to the
+  // captive portal URL with the client's MAC address as a query parameter.
+  // Supported param names (covering major vendors):
+  //   ?mac=XX:XX:XX:XX:XX:XX  (UniFi, Mikrotik, Cisco, Aruba, Ruckus, pfSense, CoovaChilli)
+  //   ?client_mac=XX:XX        (pfSense, some Fortinet)
+  //   ?id=XX:XX                (CoovaChilli)
+  //   ?client-mac-address=XX   (Fortinet)
+  //   ?ap_mac=XX:XX            (Some Ubiquiti variants)
+  const rawMac =
+    searchParams.get('mac') ||
+    searchParams.get('client_mac') ||
+    searchParams.get('client-mac-address') ||
+    searchParams.get('id') ||
+    searchParams.get('ap_mac') ||
+    ''
+  const clientMac = formatMacAddress(rawMac)
+
   const [authState, setAuthState] = useState<AuthState>('idle')
   const [authTab, setAuthTab] = useState<string>('voucher')
   const [voucherCode, setVoucherCode] = useState('')
@@ -126,21 +162,36 @@ export default function CaptivePortalPage() {
   const [lastName, setLastName] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
 
+  // Debug: log MAC detection for troubleshooting
+  useEffect(() => {
+    if (rawMac) {
+      console.log(`[CaptivePortal] MAC detected from URL param: raw="${rawMac}" formatted="${clientMac}"`)
+    } else {
+      console.log('[CaptivePortal] No MAC in URL params — server will attempt DHCP/ARP lookup')
+    }
+  }, [rawMac, clientMac])
+
   const handleConnect = useCallback(async () => {
     setErrorMsg('')
     setAuthState('loading')
 
-    // Determine payload based on tab
+    // Determine payload based on tab — include MAC if available
     const payload =
       authTab === 'voucher'
         ? { method: 'voucher', code: voucherCode }
         : { method: 'room', roomNumber, lastName }
 
+    // Add MAC address to request body (from URL params or empty for server-side lookup)
+    const bodyPayload = {
+      ...payload,
+      ...(clientMac ? { macAddress: clientMac } : {}),
+    }
+
     try {
       const res = await fetch('/api/wifi/captive/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(bodyPayload),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -156,7 +207,7 @@ export default function CaptivePortalPage() {
     setTimeout(() => {
       setAuthState('success')
     }, 2000)
-  }, [authTab, voucherCode, roomNumber, lastName])
+  }, [authTab, voucherCode, roomNumber, lastName, clientMac])
 
   const canConnect =
     authTab === 'voucher'
@@ -543,6 +594,16 @@ export default function CaptivePortalPage() {
                 </AnimatePresence>
               </Tabs>
 
+              {/* MAC Address Debug (dev mode only) */}
+              {rawMac && (
+                <div className="flex items-center gap-2 mt-3 px-3 py-2 rounded-lg bg-emerald-500/5 dark:bg-emerald-500/5 border border-emerald-500/10 dark:border-emerald-500/10">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10px] font-mono text-emerald-300/40 dark:text-emerald-400/40">
+                    Device: {clientMac}
+                  </span>
+                </div>
+              )}
+
               {/* Error Message */}
               <AnimatePresence>
                 {errorMsg && (
@@ -623,5 +684,27 @@ export default function CaptivePortalPage() {
         </div>
       </motion.footer>
     </div>
+  )
+}
+
+// ── Default Export (Suspense boundary for useSearchParams) ──
+export default function CaptivePortalPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-emerald-950/30 to-gray-950 dark:from-background dark:via-primary/5 dark:to-background">
+          <motion.div
+            animate={{ opacity: [0.3, 1, 0.3] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 via-teal-500 to-emerald-600 flex items-center justify-center shadow-xl shadow-emerald-500/30">
+              <span className="text-2xl font-black text-white tracking-tighter">SS</span>
+            </div>
+          </motion.div>
+        </div>
+      }
+    >
+      <CaptivePortalContent />
+    </Suspense>
   )
 }

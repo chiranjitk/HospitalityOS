@@ -361,6 +361,85 @@ async function activateUserFirewall(params: {
 }
 
 // ────────────────────────────────────────────────────────────
+// MAC Address Resolution
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Resolve client MAC address using multiple methods (priority order):
+ *
+ * 1. Request body — Captive portal frontend passes MAC from URL query params
+ *    (e.g., ?mac=AA:BB:CC:DD:EE:FF from UniFi/Mikrotik/Cisco redirect)
+ * 2. HTTP headers — Some network equipment injects MAC as headers:
+ *    - X-MAC-Address, Client-MAC, Calling-Station-Id
+ *    - mac (Mikrotik, CoovaChilli), nas-mac (UniFi)
+ * 3. DHCP lease table — Look up by client IP as last resort
+ *    (only works if KEA/DHCP is running and has recorded the lease)
+ */
+async function resolveMacAddress(
+  request: NextRequest,
+  bodyMac?: string,
+  clientIp?: string,
+): Promise<string | null> {
+  // 1. Body MAC (from URL params forwarded by captive portal frontend)
+  if (bodyMac) {
+    const normalized = bodyMac.replace(/[:\-\.\s]/g, '').toUpperCase();
+    if (/^[0-9A-F]{12}$/.test(normalized)) {
+      return normalized.match(/.{2}/g)?.join(':') || null;
+    }
+  }
+
+  // 2. HTTP headers from network equipment
+  const headerSources = [
+    'x-mac-address',
+    'client-mac',
+    'mac',
+    'nas-mac',
+    'calling-station-id',
+    'x-client-mac',
+    'x-forwarded-mac',
+  ];
+  for (const header of headerSources) {
+    const value = request.headers.get(header);
+    if (value) {
+      // Calling-Station-Id is often "AA:BB:CC:DD:EE:FF" or "AA-BB-CC-DD-EE-FF"
+      // Some vendors prefix with SSID: "AA:BB:CC:DD:EE:FF-MyNetwork"
+      const macMatch = value.match(/([0-9A-Fa-f]{2}[:\-\.]){5}[0-9A-Fa-f]{2}/);
+      if (macMatch) {
+        const normalized = macMatch[0].replace(/[:\-\.\s]/g, '').toUpperCase();
+        if (/^[0-9A-F]{12}$/.test(normalized)) {
+          return normalized.match(/.{2}/g)?.join(':') || null;
+        }
+      }
+    }
+  }
+
+  // 3. DHCP lease lookup by client IP (last resort)
+  if (clientIp && clientIp !== '0.0.0.0' && clientIp !== 'unknown') {
+    try {
+      const leaseResult = await db.$queryRawUnsafe<Array<{ "hwAddress": string | null }>>(`
+        SELECT "hwAddress" FROM "DhcpLease"
+        WHERE "ipAddress" = $1 AND state = 'active'
+        ORDER BY "updatedAt" DESC
+        LIMIT 1
+      `, clientIp);
+
+      if (leaseResult.length > 0 && leaseResult[0].hwAddress) {
+        const normalized = leaseResult[0].hwAddress.replace(/[:\-\.\s]/g, '').toUpperCase();
+        if (/^[0-9A-F]{12}$/.test(normalized)) {
+          console.log(`[MAC] Resolved from DHCP lease: IP=${clientIp} → MAC=${normalized.match(/.{2}/g)?.join(':')}`);
+          return normalized.match(/.{2}/g)?.join(':') || null;
+        }
+      }
+    } catch (err) {
+      // Non-critical — DHCP lookup failure should not block auth
+      console.warn('[MAC] DHCP lease lookup failed:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  return null;
+}
+
+// ────────────────────────────────────────────────────────────
 // POST /api/v1/wifi/auth — Guest WiFi authentication
 //
 // Validation order (changed per requirement):
@@ -410,6 +489,18 @@ export async function POST(request: NextRequest) {
 
     if (!method) {
       return errorResponse('MISSING_METHOD', 'Authentication method is required');
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // STEP 1b: Resolve MAC address from multiple sources
+    // Priority: request body → HTTP headers → DHCP lease lookup
+    // ════════════════════════════════════════════════════════════
+    const clientIpForMac = extractClientIp(request) || getClientIpString(request);
+    const resolvedMac = await resolveMacAddress(request, macAddress, clientIpForMac);
+    // Use resolved MAC (from headers/DHCP) if body didn't provide one
+    const effectiveMac = macAddress || resolvedMac || undefined;
+    if (effectiveMac && resolvedMac && !macAddress) {
+      console.log(`[MAC] Auto-resolved MAC for client: ${clientIpForMac} → ${resolvedMac} (source: header/dhcp)`);
     }
 
     const validMethods = [
@@ -555,13 +646,13 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
-        const sessionId = await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
+        const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool);
 
         // Activate nftables + TC bandwidth shaping
         await activateUserFirewall({
           username: wifiUsername, clientIp: getClientIpString(request),
           propertyId: resolvedPropertyId, sessionId,
-          macAddress,
+          macAddress: effectiveMac,
           maxBandwidthDownBytes: portal?.maxBandwidthDown,
           maxBandwidthUpBytes: portal?.maxBandwidthUp,
           subnet: pool.subnet,
@@ -571,7 +662,7 @@ export async function POST(request: NextRequest) {
         try {
           const voucherUser = await db.wiFiUser.findUnique({ where: { username: wifiUsername }, select: { id: true, tenantId: true, propertyId: true, guestId: true } });
           if (voucherUser) {
-            await upsertDeviceProfile({ wifiUserId: voucherUser.id, tenantId: voucherUser.tenantId, propertyId: voucherUser.propertyId, guestId: voucherUser.guestId, username: wifiUsername, request, macAddress });
+            await upsertDeviceProfile({ wifiUserId: voucherUser.id, tenantId: voucherUser.tenantId, propertyId: voucherUser.propertyId, guestId: voucherUser.guestId, username: wifiUsername, request, macAddress: effectiveMac });
           }
         } catch { /* best effort */ }
 
@@ -658,12 +749,12 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
-        const sessionId = await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
+        const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool);
 
         await activateUserFirewall({
           username: wifiUsername, clientIp: getClientIpString(request),
           propertyId: match.propertyId, sessionId,
-          macAddress,
+          macAddress: effectiveMac,
           maxBandwidthDownBytes: portal?.maxBandwidthDown,
           maxBandwidthUpBytes: portal?.maxBandwidthUp,
           subnet: pool.subnet,
@@ -673,7 +764,7 @@ export async function POST(request: NextRequest) {
         try {
           const roomUser = await db.wiFiUser.findUnique({ where: { username: wifiUsername }, select: { id: true, tenantId: true, propertyId: true, guestId: true } });
           if (roomUser) {
-            await upsertDeviceProfile({ wifiUserId: roomUser.id, tenantId: roomUser.tenantId, propertyId: roomUser.propertyId, guestId: roomUser.guestId, username: wifiUsername, request, macAddress });
+            await upsertDeviceProfile({ wifiUserId: roomUser.id, tenantId: roomUser.tenantId, propertyId: roomUser.propertyId, guestId: roomUser.guestId, username: wifiUsername, request, macAddress: effectiveMac });
           }
         } catch { /* best effort */ }
 
@@ -756,7 +847,7 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(username.trim(), 'Access-Accept', request, `pool:${pool.poolName}`);
-        const sessionId = await createAccountingSession(username.trim(), request, 'portal', macAddress, pool);
+        const sessionId = await createAccountingSession(username.trim(), request, 'portal', effectiveMac, pool);
 
         // ── Read user's actual session timeout & bandwidth from radreply (not portal defaults) ──
         const userRadreply = await db.radReply.findMany({
@@ -780,7 +871,7 @@ export async function POST(request: NextRequest) {
         await activateUserFirewall({
           username: username.trim(), clientIp: getClientIpString(request),
           propertyId: wifiUser.propertyId, sessionId,
-          macAddress, userId: wifiUser.id,
+          macAddress: effectiveMac, userId: wifiUser.id,
           maxBandwidthDownBytes: bwDownBps ? Number(bwDownBps) : portal?.maxBandwidthDown,
           maxBandwidthUpBytes: bwUpBps ? Number(bwUpBps) : portal?.maxBandwidthUp,
           subnet: pool.subnet,
@@ -794,7 +885,7 @@ export async function POST(request: NextRequest) {
           guestId: wifiUser.guestId,
           username: wifiUser.username,
           request,
-          macAddress,
+          macAddress: effectiveMac,
         });
 
         return successResponse({
@@ -873,12 +964,12 @@ export async function POST(request: NextRequest) {
             }
 
             await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
-            const sessionId = await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
+            const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool);
 
             await activateUserFirewall({
               username: wifiUsername, clientIp: getClientIpString(request),
               propertyId: fallbackPropertyId, sessionId,
-              macAddress,
+              macAddress: effectiveMac,
               maxBandwidthDownBytes: portal?.maxBandwidthDown,
               maxBandwidthUpBytes: portal?.maxBandwidthUp,
               subnet: pool.subnet,
@@ -970,12 +1061,12 @@ export async function POST(request: NextRequest) {
               }
 
               await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
-              const sessionId = await createAccountingSession(wifiUsername, request, 'portal', macAddress, pool);
+              const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool);
 
               await activateUserFirewall({
                 username: wifiUsername, clientIp: getClientIpString(request),
                 propertyId: resolvedPropertyId, sessionId,
-                macAddress,
+                macAddress: effectiveMac,
                 maxBandwidthDownBytes: portal?.maxBandwidthDown,
                 maxBandwidthUpBytes: portal?.maxBandwidthUp,
                 subnet: pool.subnet,
