@@ -819,3 +819,29 @@
 2026-05-03 23:16:23.798 UTC [6622] LOG:  checkpoint complete: wrote 16 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.504 s, sync=0.001 s, total=1.505 s; sync files=11, longest=0.001 s, average=0.001 s; distance=79 kB, estimate=193 kB; lsn=0/356F528, redo lsn=0/356F4D0
 2026-05-03 23:21:22.799 UTC [6622] LOG:  checkpoint starting: time
 2026-05-03 23:21:24.703 UTC [6622] LOG:  checkpoint complete: wrote 20 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.904 s, sync=0.001 s, total=1.905 s; sync files=13, longest=0.001 s, average=0.001 s; distance=114 kB, estimate=185 kB; lsn=0/358BFF0, redo lsn=0/358BF98
+2026-05-03 23:26:22.741 UTC [6622] LOG:  checkpoint starting: time
+2026-05-03 23:26:24.446 UTC [6622] LOG:  checkpoint complete: wrote 18 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.704 s, sync=0.001 s, total=1.705 s; sync files=13, longest=0.001 s, average=0.001 s; distance=73 kB, estimate=174 kB; lsn=0/359E6B0, redo lsn=0/359E620
+2026-05-03 23:27:12.066 UTC [29841] ERROR:  operator does not exist: uuid = text at character 179
+2026-05-03 23:27:12.066 UTC [29841] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-03 23:27:12.066 UTC [29841] STATEMENT:  
+	        SELECT
+	          EXTRACT(HOUR FROM "startTime" AT TIME ZONE 'UTC')::int as hour,
+	          COUNT(*)::bigint as count
+	        FROM "WiFiSession"
+	        WHERE "tenantId" = $1
+	          AND "startTime" >= $2
+	        GROUP BY hour
+	        ORDER BY hour
+	      
+2026-05-03 23:27:15.251 UTC [29839] ERROR:  operator does not exist: uuid = text at character 179
+2026-05-03 23:27:15.251 UTC [29839] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-03 23:27:15.251 UTC [29839] STATEMENT:  
+	        SELECT
+	          EXTRACT(HOUR FROM "startTime" AT TIME ZONE 'UTC')::int as hour,
+	          COUNT(*)::bigint as count
+	        FROM "WiFiSession"
+	        WHERE "tenantId" = $1
+	          AND "startTime" >= $2
+	        GROUP BY hour
+	        ORDER BY hour
+	      
