@@ -100,6 +100,9 @@ import {
   ShieldCheck,
   Download,
   Upload,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Router,
   Undo2,
   Redo2,
   ChevronUp,
@@ -2534,6 +2537,50 @@ function WhitelistTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function AnalyticsTab() {
+  const [subTab, setSubTab] = useState<'overview' | 'live' | 'auth'>('overview');
+
+  const SUBTABS = [
+    { id: 'overview' as const, label: 'Overview', icon: BarChart3 },
+    { id: 'live' as const, label: 'Live Monitor', icon: Monitor },
+    { id: 'auth' as const, label: 'Auth Insights', icon: ShieldCheck },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Sub-tab navigation */}
+      <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
+        {SUBTABS.map((st) => {
+          const Icon = st.icon;
+          return (
+            <button
+              key={st.id}
+              onClick={() => setSubTab(st.id)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                subTab === st.id
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {st.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {subTab === 'overview' && <AnalyticsOverview />}
+      {subTab === 'live' && <AnalyticsLiveMonitor />}
+      {subTab === 'auth' && <AnalyticsAuthInsights />}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Sub-Tab 1: Overview — Period-based analytics (existing functionality)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function AnalyticsOverview() {
   const { propertyId } = usePropertyId();
   const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
   const [loading, setLoading] = useState(true);
@@ -2650,8 +2697,8 @@ function AnalyticsTab() {
       {/* Header with period selector */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold flex items-center gap-2"><BarChart3 className="h-4 w-4 text-teal-500" />Guest Analytics Dashboard</h3>
-          <p className="text-xs text-muted-foreground mt-1">Real-time WiFi portal usage, authentication patterns, and bandwidth insights</p>
+          <h3 className="text-sm font-semibold flex items-center gap-2"><BarChart3 className="h-4 w-4 text-teal-500" />Guest Analytics</h3>
+          <p className="text-xs text-muted-foreground mt-1">WiFi portal usage, authentication patterns, and bandwidth insights</p>
         </div>
         <div className="flex gap-1 bg-muted rounded-lg p-1">
           {periodLabels.map((p) => (
@@ -2821,7 +2868,7 @@ function AnalyticsTab() {
               </CardContent>
             </Card>
 
-            {/* Auth method breakdown as donut-like visual */}
+            {/* Session Status Donut */}
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm font-medium flex items-center gap-1.5"><ShieldCheck className="h-4 w-4" />Session Status</CardTitle></CardHeader>
               <CardContent className="space-y-3 py-2">
@@ -2856,6 +2903,656 @@ function AnalyticsTab() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Sub-Tab 2: Live Monitor — Real-time session monitoring with captive-redirect metrics
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function AnalyticsLiveMonitor() {
+  const { propertyId } = usePropertyId();
+  const REFRESH_INTERVAL = 10000; // 10s
+  const [liveStats, setLiveStats] = useState<{
+    totalActive: number;
+    currentActive: number;
+    perNas: Array<{ nasIp: string; nasIdentifier: string; count: number }>;
+    totalDownload: number;
+    totalUpload: number;
+  } | null>(null);
+  const [captiveMetrics, setCaptiveMetrics] = useState<{
+    totalRedirects: number;
+    totalCooldownSkips: number;
+    totalRateLimited: number;
+    totalWhitelistSkips: number;
+    totalHttpsRedirects: number;
+    peakActiveConnections: number;
+    bytesSent: number;
+    cooldownCacheSize: number;
+    whitelistSize: number;
+    perOsRedirects: Record<string, number>;
+    serverIPs: string[];
+    uptime: number;
+  } | null>(null);
+  const [authStats, setAuthStats] = useState<{
+    totalAuths: number;
+    acceptCount: number;
+    rejectCount: number;
+    successRate: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [countdown, setCountdown] = useState(REFRESH_INTERVAL / 1000);
+
+  // Fetch all realtime data
+  const fetchLive = useCallback(async () => {
+    try {
+      const queryParams = propertyId && propertyId !== 'default' ? `?propertyId=${propertyId}` : '';
+
+      const [sessionsRes, authRes, captiveRes] = await Promise.all([
+        fetch(`/api/wifi/radius?action=live-sessions-stats${queryParams}`),
+        fetch(`/api/wifi/radius?action=auth-logs-stats${queryParams}`),
+        // Captive-redirect metrics from the mini service on port 8888
+        fetch('/api/captive-redirect/metrics?XTransformPort=8888').catch(() => null),
+      ]);
+
+      if (sessionsRes.ok) {
+        const sessionsResult = await sessionsRes.json();
+        if (sessionsResult.success) setLiveStats(sessionsResult.data);
+      }
+      if (authRes.ok) {
+        const authResult = await authRes.json();
+        if (authResult.success) setAuthStats(authResult.data);
+      }
+      if (captiveRes && captiveRes.ok) {
+        const captiveResult = await captiveRes.json();
+        setCaptiveMetrics(captiveResult);
+      }
+
+      setLastRefresh(new Date());
+      setLoading(false);
+    } catch (e) {
+      console.error('Live monitor fetch error:', e);
+      setLoading(false);
+    }
+  }, [propertyId]);
+
+  // Auto-refresh
+  useEffect(() => {
+    void fetchLive();
+    const interval = setInterval(() => {
+      void fetchLive();
+    }, REFRESH_INTERVAL);
+    return () => clearInterval(interval);
+  }, [fetchLive]);
+
+  // Countdown timer
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdown(prev => prev <= 1 ? REFRESH_INTERVAL / 1000 : prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  function formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  function formatUptime(seconds: number): string {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+
+  const successRate = authStats ? authStats.successRate : 0;
+
+  return (
+    <div className="space-y-5">
+      {/* Header with live badge */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <Monitor className="h-4 w-4 text-emerald-500" />
+            Realtime Monitor
+          </h3>
+          <Badge variant="outline" className="border-emerald-500/50 text-emerald-600 dark:text-emerald-400 gap-1.5 text-[10px]">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            LIVE
+          </Badge>
+        </div>
+        <div className="flex items-center gap-3">
+          {lastRefresh && (
+            <span className="text-[10px] text-muted-foreground">
+              Updated {lastRefresh.toLocaleTimeString()} · next in {countdown}s
+            </span>
+          )}
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => void fetchLive()}>
+            <RefreshCw className="h-3 w-3 mr-1" />Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}><CardContent className="p-4"><Skeleton className="h-20 w-full rounded-lg" /></CardContent></Card>
+          ))}
+        </div>
+      )}
+
+      {/* Live KPI Cards */}
+      {!loading && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Active Sessions */}
+            <Card className="border-emerald-200 dark:border-emerald-900/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Active Sessions</p>
+                    <p className="text-3xl font-bold mt-1 text-emerald-600 dark:text-emerald-400">
+                      {liveStats?.totalActive ?? 0}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Real-time connected</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                    <Wifi className="h-5 w-5" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Auth Success Rate */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Auth Success Rate</p>
+                    <p className="text-3xl font-bold mt-1">
+                      <span className={successRate >= 80 ? 'text-emerald-600 dark:text-emerald-400' : successRate >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}>
+                        {authStats ? `${successRate}%` : '—'}
+                      </span>
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {authStats ? `${authStats.acceptCount} accepted, ${authStats.rejectCount} rejected` : 'No data'}
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Realtime Bandwidth */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Live Bandwidth</p>
+                    <div className="flex items-baseline gap-1 mt-1">
+                      <ArrowDownToLine className="h-3.5 w-3.5 text-teal-500" />
+                      <p className="text-lg font-bold">{liveStats ? formatBytes(liveStats.totalDownload) : '—'}</p>
+                    </div>
+                    <div className="flex items-baseline gap-1 mt-0.5">
+                      <ArrowUpFromLine className="h-3 w-3.5 text-amber-500" />
+                      <p className="text-sm font-semibold text-muted-foreground">{liveStats ? formatBytes(liveStats.totalUpload) : '—'}</p>
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                    <Zap className="h-5 w-5" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Captive Portal Redirects */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Portal Redirects</p>
+                    <p className="text-3xl font-bold mt-1">
+                      {captiveMetrics ? captiveMetrics.totalRedirects.toLocaleString() : '—'}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {captiveMetrics
+                        ? `${captiveMetrics.peakActiveConnections} peak conns · ${formatBytes(captiveMetrics.bytesSent)} sent`
+                        : 'Captive service offline'}
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
+                    <Router className="h-5 w-5" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* NAS Distribution */}
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+                  <Router className="h-4 w-4" />NAS / Access Point Distribution
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {(!liveStats || liveStats.perNas.length === 0) ? (
+                  <p className="text-xs text-muted-foreground italic py-6 text-center">No active NAS devices detected.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {liveStats.perNas.map((nas) => {
+                      const maxCount = Math.max(...liveStats.perNas.map(n => n.count), 1);
+                      return (
+                        <div key={nas.nasIp} className="flex items-center gap-3">
+                          <div className="min-w-[100px] text-xs font-mono text-muted-foreground truncate">{nas.nasIp}</div>
+                          <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-emerald-500 rounded-full transition-all duration-700"
+                              style={{ width: `${(nas.count / maxCount) * 100}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center gap-2 min-w-[60px] justify-end">
+                            <span className="text-xs font-semibold">{nas.count}</span>
+                            {nas.nasIdentifier && (
+                              <span className="text-[10px] text-muted-foreground truncate max-w-[80px]">{nas.nasIdentifier}</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Captive Portal Service Status */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+                  <Globe className="h-4 w-4" />Captive Portal Service
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {captiveMetrics ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Status</span>
+                      <Badge variant="outline" className="text-[10px] border-emerald-500/50 text-emerald-600 dark:text-emerald-400">Online</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Uptime</span>
+                      <span className="text-xs font-mono font-medium">{formatUptime(captiveMetrics.uptime)}</span>
+                    </div>
+                    <Separator />
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">HTTPS Redirects</span>
+                      <span className="text-xs font-semibold">{captiveMetrics.totalHttpsRedirects.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Rate Limited</span>
+                      <span className="text-xs font-semibold">{captiveMetrics.totalRateLimited.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Cooldown Skips</span>
+                      <span className="text-xs font-semibold">{captiveMetrics.totalCooldownSkips.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Whitelisted</span>
+                      <span className="text-xs font-semibold">{captiveMetrics.whitelistSize}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Cache Entries</span>
+                      <span className="text-xs font-semibold">{captiveMetrics.cooldownCacheSize.toLocaleString()}</span>
+                    </div>
+                    <Separator />
+                    {/* Per-OS breakdown */}
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1.5 font-medium uppercase tracking-wider">Redirects by OS</p>
+                      {Object.entries(captiveMetrics.perOsRedirects).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([os, count]) => (
+                        <div key={os} className="flex items-center justify-between py-0.5">
+                          <span className="text-[11px] text-muted-foreground">{os}</span>
+                          <span className="text-[11px] font-semibold">{count}</span>
+                        </div>
+                      ))}
+                      {Object.keys(captiveMetrics.perOsRedirects).length === 0 && (
+                        <p className="text-[10px] text-muted-foreground italic">No data yet</p>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center gap-2 py-6 text-center">
+                    <AlertTriangle className="h-6 w-6 text-amber-500" />
+                    <p className="text-xs text-muted-foreground">Captive portal redirect service is not reachable.</p>
+                    <p className="text-[10px] text-muted-foreground">Verify the mini-service is running on port 8888.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Auth Log Mini-Table */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+                <ShieldCheck className="h-4 w-4" />Authentication Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {authStats ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="text-center p-3 rounded-lg bg-muted/50">
+                    <p className="text-2xl font-bold">{authStats.totalAuths.toLocaleString()}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Total Attempts</p>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
+                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{authStats.acceptCount.toLocaleString()}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Accepted</p>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-rose-50 dark:bg-rose-950/30">
+                    <p className="text-2xl font-bold text-rose-600 dark:text-rose-400">{authStats.rejectCount.toLocaleString()}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Rejected</p>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-muted/50">
+                    <p className="text-2xl font-bold">{authStats.successRate}%</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Success Rate</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic text-center py-4">No auth data available.</p>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Sub-Tab 3: Auth Insights — Authentication analytics deep dive
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function AnalyticsAuthInsights() {
+  const { propertyId } = usePropertyId();
+  const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<{
+    summary: {
+      totalSessions: number;
+      activeSessions: number;
+      uniqueDevices: number;
+      avgDurationMin: number;
+      growthPercent: number;
+      totalDataMB: number;
+      totalVouchersUsed: number;
+    };
+    authDistribution: Array<{ method: string; count: number; pct: number }>;
+    peakHours: Array<{ hour: number; sessions: number }>;
+  } | null>(null);
+  const [authStats, setAuthStats] = useState<{
+    totalAuths: number;
+    acceptCount: number;
+    rejectCount: number;
+    successRate: number;
+    last24hTrend: number;
+  } | null>(null);
+
+  const fetchData = useCallback(async (p: 'today' | 'week' | 'month') => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ period: p });
+      if (propertyId && propertyId !== 'default') params.set('propertyId', propertyId);
+
+      const [analyticsRes, authRes] = await Promise.all([
+        fetch(`/api/wifi/portal/analytics?${params.toString()}`),
+        fetch(`/api/wifi/radius?action=auth-logs-stats&${params.toString()}`),
+      ]);
+
+      const analyticsResult = await analyticsRes.json();
+      if (analyticsResult.success) setData(analyticsResult.data);
+
+      if (authRes.ok) {
+        const authResult = await authRes.json();
+        if (authResult.success) setAuthStats(authResult.data);
+      }
+    } catch (e) {
+      console.error('Auth insights fetch error:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [propertyId]);
+
+  useEffect(() => {
+    void fetchData(period); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [period, fetchData]);
+
+  const periodLabels: Array<{ value: 'today' | 'week' | 'month'; label: string }> = [
+    { value: 'today', label: 'Today' },
+    { value: 'week', label: 'This Week' },
+    { value: 'month', label: 'This Month' },
+  ];
+
+  const authMethodLabels: Record<string, string> = {
+    voucher: 'Voucher Code',
+    room_number: 'Room Number',
+    pms_credentials: 'PMS Credentials',
+    sms_otp: 'SMS OTP',
+    open_access: 'Open Access',
+    social: 'Social Login',
+    mac_auth: 'MAC Auth',
+  };
+
+  const authMethodIcons: Record<string, string> = {
+    voucher: '🎫',
+    room_number: '🏨',
+    pms_credentials: '🔐',
+    sms_otp: '📱',
+    open_access: '🔓',
+    social: '🌐',
+    mac_auth: '💻',
+  };
+
+  if (loading && !data) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-5 w-40" />
+          <div className="flex gap-2"><Skeleton className="h-8 w-20" /><Skeleton className="h-8 w-20" /><Skeleton className="h-8 w-24" /></div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card><CardContent className="p-4"><Skeleton className="h-48 w-full rounded-lg" /></CardContent></Card>
+          <Card><CardContent className="p-4"><Skeleton className="h-48 w-full rounded-lg" /></CardContent></Card>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-teal-500" />Authentication Insights</h3>
+          <p className="text-xs text-muted-foreground mt-1">Deep dive into authentication methods, success rates, and trends</p>
+        </div>
+        <div className="flex gap-1 bg-muted rounded-lg p-1">
+          {periodLabels.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setPeriod(p.value)}
+              className={cn(
+                'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                period === p.value
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Auth Stats KPI Row */}
+      {authStats && (
+        <div className="grid grid-cols-3 gap-4">
+          <Card className="bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/50">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{authStats.acceptCount.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground mt-1">Successful Auths</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/50">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-rose-600 dark:text-rose-400">{authStats.rejectCount.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground mt-1">Failed Auths</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-teal-50 dark:bg-teal-950/20 border-teal-200 dark:border-teal-900/50">
+            <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center gap-2">
+                <p className="text-3xl font-bold text-teal-600 dark:text-teal-400">{authStats.successRate}%</p>
+                {authStats.last24hTrend !== 0 && (
+                  <span className={cn('text-xs font-medium', authStats.last24hTrend > 0 ? 'text-emerald-500' : 'text-rose-500')}>
+                    {authStats.last24hTrend > 0 ? '↑' : '↓'} {Math.abs(authStats.last24hTrend)}%
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Success Rate (24h trend)</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Auth Method Cards */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Login Methods Breakdown</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {!data || data.authDistribution.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic py-8 text-center">No authentication data for this period.</p>
+            ) : (
+              data.authDistribution
+                .sort((a, b) => b.count - a.count)
+                .map((am) => (
+                  <div key={am.method} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className="text-lg w-8 text-center flex-shrink-0">{authMethodIcons[am.method] || '❓'}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium truncate">{authMethodLabels[am.method] || am.method}</span>
+                        <span className="text-xs font-semibold ml-2">{am.count} <span className="text-muted-foreground font-normal">({am.pct}%)</span></span>
+                      </div>
+                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-teal-500 rounded-full transition-all duration-500" style={{ width: `${am.pct}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                ))
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Success Rate Donut + Stats */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Auth Success vs Failure</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center py-4 gap-4">
+            {authStats && authStats.totalAuths > 0 ? (
+              <>
+                <div className="relative w-28 h-28">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="10" className="text-rose-200 dark:text-rose-900/50" />
+                    {authStats.acceptCount > 0 && (
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="10"
+                        strokeDasharray={`${(authStats.acceptCount / authStats.totalAuths) * 251} 251`}
+                        strokeLinecap="round" className="text-emerald-500"
+                      />
+                    )}
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-lg font-bold">{authStats.successRate}%</span>
+                    <span className="text-[9px] text-muted-foreground">Success</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-6 w-full">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                    <div>
+                      <p className="text-xs font-semibold">{authStats.acceptCount.toLocaleString()}</p>
+                      <p className="text-[10px] text-muted-foreground">Accepted</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-rose-200 dark:bg-rose-900/50" />
+                    <div>
+                      <p className="text-xs font-semibold">{authStats.rejectCount.toLocaleString()}</p>
+                      <p className="text-[10px] text-muted-foreground">Rejected</p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground italic py-8">No authentication attempts recorded.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Peak Hours with Auth Context */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Session Distribution by Hour</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!data || data.peakHours.every(h => h.sessions === 0) ? (
+              <p className="text-xs text-muted-foreground italic py-8 text-center">No hourly data available for this period.</p>
+            ) : (
+              <div className="flex items-end gap-[2px] h-36">
+                {data.peakHours.filter(h => h.hour >= 5 && h.hour <= 24).map((h) => {
+                  const maxSessions = Math.max(...data!.peakHours.map(ph => ph.sessions), 1);
+                  const isNow = h.hour === new Date().getHours();
+                  return (
+                    <div key={h.hour} className="flex-1 flex flex-col items-center gap-1">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={cn(
+                              'w-full rounded-t-sm transition-all hover:opacity-80 cursor-default min-h-[2px]',
+                              isNow ? 'bg-emerald-500 ring-1 ring-emerald-300 dark:ring-emerald-700' : 'bg-teal-400/60'
+                            )}
+                            style={{ height: `${(h.sessions / maxSessions) * 100}%` }}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-[10px]">
+                          <p>{h.hour}:00 — {h.sessions} sessions</p>
+                          {isNow && <p className="text-emerald-400">← Current hour</p>}
+                        </TooltipContent>
+                      </Tooltip>
+                      <span className={cn('text-[8px]', isNow ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-muted-foreground')}>{h.hour}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
