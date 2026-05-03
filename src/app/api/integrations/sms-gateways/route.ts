@@ -16,6 +16,14 @@ const VALID_PROVIDERS = [
   'gupshup',
   'textlocal',
   'kaleyra',
+  'exotel',
+  'fast2sms',
+  'plivo',
+  'route_mobile',
+  'valuefirst',
+  'msgclub',
+  'airtel_iq',
+  'bulk_sms',
   'custom_http',
   'mock',
 ] as const;
@@ -32,6 +40,14 @@ const SENSITIVE_FIELDS: Record<SmsProvider, string[]> = {
   gupshup: ['password'],
   textlocal: ['apiKey'],
   kaleyra: ['apiKey'],
+  exotel: ['apiToken'],
+  fast2sms: ['apiKey'],
+  plivo: ['authToken'],
+  route_mobile: ['apiKey'],
+  valuefirst: ['apiKey'],
+  msgclub: ['apiKey'],
+  airtel_iq: ['clientSecret'],
+  bulk_sms: ['apiKey'],
   custom_http: ['apiKey'],
   mock: [],
 };
@@ -83,6 +99,14 @@ function providerDisplayName(p: SmsProvider): string {
     gupshup: 'Gupshup',
     textlocal: 'Textlocal',
     kaleyra: 'Kaleyra',
+    exotel: 'Exotel',
+    fast2sms: 'Fast2SMS',
+    plivo: 'Plivo',
+    route_mobile: 'Route Mobile',
+    valuefirst: 'ValueFirst',
+    msgclub: 'MSGCLUB',
+    airtel_iq: 'Airtel IQ',
+    bulk_sms: 'BulkSMS India',
     custom_http: 'Custom HTTP',
     mock: 'Mock (Dev)',
   };
@@ -90,7 +114,7 @@ function providerDisplayName(p: SmsProvider): string {
 }
 
 function providerRegion(p: SmsProvider): string {
-  const india = ['msg91', 'gupshup', 'textlocal', 'kaleyra'];
+  const india = ['msg91', 'gupshup', 'textlocal', 'kaleyra', 'exotel', 'fast2sms', 'plivo', 'route_mobile', 'valuefirst', 'msgclub', 'airtel_iq', 'bulk_sms'];
   if (p === 'mock') return 'dev';
   return india.includes(p) ? 'india' : 'global';
 }

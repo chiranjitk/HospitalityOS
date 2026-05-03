@@ -10,6 +10,14 @@
  *   - Gupshup (India, WhatsApp + SMS)
  *   - Textlocal (India / Global)
  *   - Kaleyra (India, CPaaS)
+ *   - Exotel (India, Cloud Telephony)
+ *   - Fast2SMS (India, Budget SMS)
+ *   - Plivo (India/Global, CPaaS)
+ *   - Route Mobile (India, Enterprise A2P)
+ *   - ValueFirst (India, Enterprise)
+ *   - MSGCLUB (India, Bulk SMS)
+ *   - Airtel IQ (India, Telecom API)
+ *   - BulkSMS India (India, Bulk Messaging)
  *   - Custom HTTP (any REST API)
  *   - Mock (dev / test)
  *
@@ -40,6 +48,14 @@ export type SMSProviderType =
   | 'gupshup'
   | 'textlocal'
   | 'kaleyra'
+  | 'exotel'
+  | 'fast2sms'
+  | 'plivo'
+  | 'route_mobile'
+  | 'valuefirst'
+  | 'msgclub'
+  | 'airtel_iq'
+  | 'bulk_sms'
   | 'custom'
   | 'mock';
 
@@ -513,6 +529,621 @@ class AWSSNSAdapter {
   }
 }
 
+// ---- Exotel Adapter (India, Cloud Telephony) ----
+class ExotelAdapter {
+  private config: SMSCredentials;
+
+  constructor(config: SMSCredentials) {
+    this.config = config;
+  }
+
+  async send(options: SMSOptions): Promise<SMSResult> {
+    try {
+      const sid = this.config.accountSid || '';
+      const token = this.config.authToken || '';
+      const from = options.from || this.config.phoneNumber || '';
+      const to = options.to.replace(/^\+/, '');
+
+      const params = new URLSearchParams({
+        From: from,
+        To: to,
+        Body: options.message,
+      });
+      if (this.config.region) params.set('DltTemplateId', this.config.region);
+
+      const response = await fetch(
+        `https://${sid}:${token}@api.exotel.com/v1/Accounts/${sid}/Sms/send`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString('base64')}`,
+          },
+          body: params.toString(),
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || data.status !== 'queued' && data.status !== 'sent') {
+        return {
+          success: false,
+          error: data.message || data.error || `Exotel HTTP ${response.status}`,
+          provider: 'exotel',
+          status: 'failed',
+        };
+      }
+
+      return {
+        success: true,
+        messageId: data.SMSMessage?.Sid || data.message_id || `exotel-${Date.now()}`,
+        provider: 'exotel',
+        status: data.status || 'sent',
+      };
+    } catch (error) {
+      console.error('[SMS/Exotel] Send error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Exotel send failed',
+        provider: 'exotel',
+        status: 'failed',
+      };
+    }
+  }
+
+  async sendBatch(messages: SMSOptions[]): Promise<SMSResult[]> {
+    return Promise.all(messages.map((m) => this.send(m)));
+  }
+
+  async getBalance(): Promise<number> {
+    try {
+      const sid = this.config.accountSid || '';
+      const token = this.config.authToken || '';
+      const response = await fetch(
+        `https://api.exotel.com/v1/Accounts/${sid}`,
+        { headers: { Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString('base64')}` } },
+      );
+      const data = await response.json();
+      return parseFloat(data.Account?.Balance?.SMSCredits || '0');
+    } catch {
+      return 0;
+    }
+  }
+}
+
+// ---- Fast2SMS Adapter (India, Budget SMS) ----
+class Fast2SMSAdapter {
+  private config: SMSCredentials;
+
+  constructor(config: SMSCredentials) {
+    this.config = config;
+  }
+
+  async send(options: SMSOptions): Promise<SMSResult> {
+    try {
+      const numbers = options.to.replace(/^\+/, '');
+      const sender = options.from || this.config.phoneNumber || '';
+
+      const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
+        method: 'POST',
+        headers: {
+          'authorization': this.config.authToken!,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          route: this.config.accountSid || 'otp',
+          sender_id: sender,
+          message: options.message,
+          numbers,
+          flash: 0,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status !== 'success' && data.return !== true) {
+        return {
+          success: false,
+          error: data.message || `Fast2SMS HTTP ${response.status}`,
+          provider: 'fast2sms',
+          status: 'failed',
+        };
+      }
+
+      return {
+        success: true,
+        messageId: data.message_id?.[0] || `fast2sms-${Date.now()}`,
+        provider: 'fast2sms',
+        status: 'sent',
+      };
+    } catch (error) {
+      console.error('[SMS/Fast2SMS] Send error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Fast2SMS send failed',
+        provider: 'fast2sms',
+        status: 'failed',
+      };
+    }
+  }
+
+  async sendBatch(messages: SMSOptions[]): Promise<SMSResult[]> {
+    return Promise.all(messages.map((m) => this.send(m)));
+  }
+
+  async getBalance(): Promise<number> {
+    try {
+      const response = await fetch('https://www.fast2sms.com/dev/wallet', {
+        headers: { authorization: this.config.authToken! },
+      });
+      const data = await response.json();
+      return parseFloat(data.wallet_balance || data.balance || '0');
+    } catch {
+      return 0;
+    }
+  }
+}
+
+// ---- Plivo Adapter (India/Global, CPaaS) ----
+class PlivoAdapter {
+  private config: SMSCredentials;
+
+  constructor(config: SMSCredentials) {
+    this.config = config;
+  }
+
+  async send(options: SMSOptions): Promise<SMSResult> {
+    try {
+      const authId = this.config.accountSid || '';
+      const authToken = this.config.authToken || '';
+      const from = options.from || this.config.phoneNumber || '';
+      const to = options.to;
+
+      const response = await fetch(`https://api.plivo.com/v1/Account/${authId}/Message/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${Buffer.from(`${authId}:${authToken}`).toString('base64')}`,
+        },
+        body: JSON.stringify({
+          src: from,
+          dst: to,
+          text: options.message,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        return {
+          success: false,
+          error: data.error || `Plivo HTTP ${response.status}`,
+          provider: 'plivo',
+          status: 'failed',
+        };
+      }
+
+      return {
+        success: true,
+        messageId: data.message_uuid?.[0] || data.messageId || `plivo-${Date.now()}`,
+        provider: 'plivo',
+        status: 'sent',
+      };
+    } catch (error) {
+      console.error('[SMS/Plivo] Send error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Plivo send failed',
+        provider: 'plivo',
+        status: 'failed',
+      };
+    }
+  }
+
+  async sendBatch(messages: SMSOptions[]): Promise<SMSResult[]> {
+    return Promise.all(messages.map((m) => this.send(m)));
+  }
+
+  async getBalance(): Promise<number> {
+    try {
+      const authId = this.config.accountSid || '';
+      const authToken = this.config.authToken || '';
+      const response = await fetch(
+        `https://api.plivo.com/v1/Account/${authId}/`,
+        { headers: { Authorization: `Basic ${Buffer.from(`${authId}:${authToken}`).toString('base64')}` } },
+      );
+      const data = await response.json();
+      return parseFloat(data.cash_credits || '0');
+    } catch {
+      return 0;
+    }
+  }
+}
+
+// ---- Route Mobile Adapter (India, Enterprise A2P) ----
+class RouteMobileAdapter {
+  private config: SMSCredentials;
+
+  constructor(config: SMSCredentials) {
+    this.config = config;
+  }
+
+  async send(options: SMSOptions): Promise<SMSResult> {
+    try {
+      const from = options.from || this.config.phoneNumber || '';
+      const to = options.to.replace(/^\+/, '');
+
+      const params = new URLSearchParams({
+        username: this.config.accountSid || '',
+        apiKey: this.config.authToken || '',
+        sender: from,
+        destination: to,
+        message: options.message,
+        routeid: this.config.region || '1',
+      });
+
+      const response = await fetch('https://api.routemobile.com/feeds/IntlSms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+      });
+
+      const text = await response.text();
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { raw: text };
+      }
+
+      if (!response.ok || data.status === 'failure') {
+        return {
+          success: false,
+          error: data.message || data.description || `Route Mobile HTTP ${response.status}`,
+          provider: 'route_mobile',
+          status: 'failed',
+        };
+      }
+
+      return {
+        success: true,
+        messageId: data.messsageId || data.message_id || `routemobile-${Date.now()}`,
+        provider: 'route_mobile',
+        status: 'sent',
+      };
+    } catch (error) {
+      console.error('[SMS/RouteMobile] Send error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Route Mobile send failed',
+        provider: 'route_mobile',
+        status: 'failed',
+      };
+    }
+  }
+
+  async sendBatch(messages: SMSOptions[]): Promise<SMSResult[]> {
+    return Promise.all(messages.map((m) => this.send(m)));
+  }
+
+  async getBalance(): Promise<number> {
+    try {
+      const response = await fetch(
+        `https://api.routemobile.com/feeds/IntlSms?username=${this.config.accountSid}&apiKey=${this.config.authToken}&type=balance`,
+      );
+      const data = await response.json();
+      return parseFloat(data.balance || '0');
+    } catch {
+      return 0;
+    }
+  }
+}
+
+// ---- ValueFirst Adapter (India, Enterprise) ----
+class ValueFirstAdapter {
+  private config: SMSCredentials;
+
+  constructor(config: SMSCredentials) {
+    this.config = config;
+  }
+
+  async send(options: SMSOptions): Promise<SMSResult> {
+    try {
+      const from = options.from || this.config.phoneNumber || '';
+
+      const response = await fetch('https://www.valuefirst.com/v1/sms/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.config.authToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: from,
+          to: [options.to],
+          message: options.message,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === 'error') {
+        return {
+          success: false,
+          error: data.message || `ValueFirst HTTP ${response.status}`,
+          provider: 'valuefirst',
+          status: 'failed',
+        };
+      }
+
+      return {
+        success: true,
+        messageId: data.messageId || data.data?.[0]?.messageId || `valuefirst-${Date.now()}`,
+        provider: 'valuefirst',
+        status: 'sent',
+      };
+    } catch (error) {
+      console.error('[SMS/ValueFirst] Send error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'ValueFirst send failed',
+        provider: 'valuefirst',
+        status: 'failed',
+      };
+    }
+  }
+
+  async sendBatch(messages: SMSOptions[]): Promise<SMSResult[]> {
+    return Promise.all(messages.map((m) => this.send(m)));
+  }
+
+  async getBalance(): Promise<number> {
+    try {
+      const response = await fetch('https://www.valuefirst.com/v1/balance', {
+        headers: { Authorization: `Bearer ${this.config.authToken}` },
+      });
+      const data = await response.json();
+      return parseFloat(data.balance || data.credits || '0');
+    } catch {
+      return 0;
+    }
+  }
+}
+
+// ---- MSGCLUB Adapter (India, Bulk SMS) ----
+class MSGCLUBAdapter {
+  private config: SMSCredentials;
+
+  constructor(config: SMSCredentials) {
+    this.config = config;
+  }
+
+  async send(options: SMSOptions): Promise<SMSResult> {
+    try {
+      const from = options.from || this.config.phoneNumber || '';
+      const to = options.to.replace(/^\+/, '');
+
+      const response = await fetch('https://api.msgclub.net/rest/v1/message/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': this.config.authToken!,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: from,
+          message: options.message,
+          contactNumbers: [to],
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === 'error') {
+        return {
+          success: false,
+          error: data.message || data.response || `MSGCLUB HTTP ${response.status}`,
+          provider: 'msgclub',
+          status: 'failed',
+        };
+      }
+
+      return {
+        success: true,
+        messageId: data.messageId || data.data?.[0]?.messageId || `msgclub-${Date.now()}`,
+        provider: 'msgclub',
+        status: 'sent',
+      };
+    } catch (error) {
+      console.error('[SMS/MSGCLUB] Send error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'MSGCLUB send failed',
+        provider: 'msgclub',
+        status: 'failed',
+      };
+    }
+  }
+
+  async sendBatch(messages: SMSOptions[]): Promise<SMSResult[]> {
+    return Promise.all(messages.map((m) => this.send(m)));
+  }
+
+  async getBalance(): Promise<number> {
+    try {
+      const response = await fetch('https://api.msgclub.net/rest/v1/balance', {
+        headers: { Authorization: this.config.authToken! },
+      });
+      const data = await response.json();
+      return parseFloat(data.balance || data.data?.balance || '0');
+    } catch {
+      return 0;
+    }
+  }
+}
+
+// ---- Airtel IQ Adapter (India, Telecom API) ----
+class AirtelIQAdapter {
+  private config: SMSCredentials;
+
+  constructor(config: SMSCredentials) {
+    this.config = config;
+  }
+
+  async send(options: SMSOptions): Promise<SMSResult> {
+    try {
+      const clientId = this.config.accountSid || '';
+      const clientSecret = this.config.authToken || '';
+      const from = options.from || this.config.phoneNumber || '';
+
+      const body: Record<string, unknown> = {
+        from,
+        to: [options.to],
+        text: options.message,
+      };
+      if (this.config.region) body.dlt_template_id = this.config.region;
+
+      const response = await fetch('https://iq.airtel.in/sms/api/v2/sms', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${clientId}:${clientSecret}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === 'error') {
+        return {
+          success: false,
+          error: data.message || `Airtel IQ HTTP ${response.status}`,
+          provider: 'airtel_iq',
+          status: 'failed',
+        };
+      }
+
+      return {
+        success: true,
+        messageId: data.transactionId || data.message_id || `airteliq-${Date.now()}`,
+        provider: 'airtel_iq',
+        status: data.status || 'sent',
+      };
+    } catch (error) {
+      console.error('[SMS/AirtelIQ] Send error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Airtel IQ send failed',
+        provider: 'airtel_iq',
+        status: 'failed',
+      };
+    }
+  }
+
+  async sendBatch(messages: SMSOptions[]): Promise<SMSResult[]> {
+    return Promise.all(messages.map((m) => this.send(m)));
+  }
+
+  async getBalance(): Promise<number> {
+    try {
+      const clientId = this.config.accountSid || '';
+      const clientSecret = this.config.authToken || '';
+      const response = await fetch('https://iq.airtel.in/sms/api/v2/balance', {
+        headers: { Authorization: `Bearer ${clientId}:${clientSecret}` },
+      });
+      const data = await response.json();
+      return parseFloat(data.balance || '0');
+    } catch {
+      return 0;
+    }
+  }
+}
+
+// ---- BulkSMS India Adapter (India, Bulk Messaging) ----
+class BulkSMSAdapter {
+  private config: SMSCredentials;
+
+  constructor(config: SMSCredentials) {
+    this.config = config;
+  }
+
+  async send(options: SMSOptions): Promise<SMSResult> {
+    try {
+      const from = options.from || this.config.phoneNumber || '';
+      const to = options.to.replace(/^\+/, '');
+
+      const params = new URLSearchParams({
+        username: this.config.accountSid || '',
+        apiKey: this.config.authToken || '',
+        sender: from,
+        mobile: to,
+        message: options.message,
+        type: 'TEXT',
+      });
+
+      const response = await fetch('https://portal.bulksmsindia.in/api/api_http.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+      });
+
+      const text = await response.text();
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { raw: text };
+      }
+
+      if (!response.ok || data.status === 'error' || data.code === '402') {
+        return {
+          success: false,
+          error: data.description || data.message || `BulkSMS HTTP ${response.status}`,
+          provider: 'bulk_sms',
+          status: 'failed',
+        };
+      }
+
+      return {
+        success: true,
+        messageId: data.messageId || data.id || `bulksms-${Date.now()}`,
+        provider: 'bulk_sms',
+        status: 'sent',
+      };
+    } catch (error) {
+      console.error('[SMS/BulkSMS] Send error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'BulkSMS send failed',
+        provider: 'bulk_sms',
+        status: 'failed',
+      };
+    }
+  }
+
+  async sendBatch(messages: SMSOptions[]): Promise<SMSResult[]> {
+    return Promise.all(messages.map((m) => this.send(m)));
+  }
+
+  async getBalance(): Promise<number> {
+    try {
+      const params = new URLSearchParams({
+        username: this.config.accountSid || '',
+        apiKey: this.config.authToken || '',
+        type: 'balance',
+      });
+      const response = await fetch('https://portal.bulksmsindia.in/api/api_http.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+      });
+      const text = await response.text();
+      const match = text.match(/(?:balance|credit)[^\d]*(\d+(?:\.\d+)?)/i);
+      return match ? parseFloat(match[1]) : 0;
+    } catch {
+      return 0;
+    }
+  }
+}
+
 // ---- Custom HTTP Adapter ----
 class CustomHTTPAdapter {
   private config: SMSCredentials;
@@ -912,6 +1543,22 @@ function createAdapterFromCreds(creds: SMSCredentials): SMSAdapter {
       return new TextlocalAdapter(creds) as unknown as SMSAdapter;
     case 'kaleyra':
       return new KaleyraAdapter(creds) as unknown as SMSAdapter;
+    case 'exotel':
+      return new ExotelAdapter(creds) as unknown as SMSAdapter;
+    case 'fast2sms':
+      return new Fast2SMSAdapter(creds) as unknown as SMSAdapter;
+    case 'plivo':
+      return new PlivoAdapter(creds) as unknown as SMSAdapter;
+    case 'route_mobile':
+      return new RouteMobileAdapter(creds) as unknown as SMSAdapter;
+    case 'valuefirst':
+      return new ValueFirstAdapter(creds) as unknown as SMSAdapter;
+    case 'msgclub':
+      return new MSGCLUBAdapter(creds) as unknown as SMSAdapter;
+    case 'airtel_iq':
+      return new AirtelIQAdapter(creds) as unknown as SMSAdapter;
+    case 'bulk_sms':
+      return new BulkSMSAdapter(creds) as unknown as SMSAdapter;
     case 'custom':
       return new CustomHTTPAdapter(creds) as unknown as SMSAdapter;
     case 'mock':
@@ -939,7 +1586,7 @@ function getEnvCredentials(): SMSCredentials | null {
   if (!accountSid || !authToken) return null;
 
   return {
-    provider: ['twilio', 'vonage', 'messagebird', 'aws_sns', 'msg91', 'gupshup', 'textlocal', 'kaleyra', 'custom'].includes(provider)
+    provider: ['twilio', 'vonage', 'messagebird', 'aws_sns', 'msg91', 'gupshup', 'textlocal', 'kaleyra', 'exotel', 'fast2sms', 'plivo', 'route_mobile', 'valuefirst', 'msgclub', 'airtel_iq', 'bulk_sms', 'custom'].includes(provider)
       ? provider
       : 'twilio',
     accountSid,
@@ -1085,6 +1732,14 @@ export {
   GupshupAdapter,
   TextlocalAdapter,
   KaleyraAdapter,
+  ExotelAdapter,
+  Fast2SMSAdapter,
+  PlivoAdapter,
+  RouteMobileAdapter,
+  ValueFirstAdapter,
+  MSGCLUBAdapter,
+  AirtelIQAdapter,
+  BulkSMSAdapter,
   CustomHTTPAdapter,
   createAdapterFromCreds,
   getEnvCredentials,

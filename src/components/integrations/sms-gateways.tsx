@@ -67,6 +67,14 @@ type SmsProvider =
   | 'gupshup'
   | 'textlocal'
   | 'kaleyra'
+  | 'exotel'
+  | 'fast2sms'
+  | 'plivo'
+  | 'route_mobile'
+  | 'valuefirst'
+  | 'msgclub'
+  | 'airtel_iq'
+  | 'bulk_sms'
   | 'custom_http'
   | 'mock';
 
@@ -114,6 +122,14 @@ const PROVIDER_OPTIONS: { value: SmsProvider; label: string; region: string }[] 
   { value: 'gupshup', label: 'Gupshup', region: 'india' },
   { value: 'textlocal', label: 'Textlocal', region: 'india' },
   { value: 'kaleyra', label: 'Kaleyra', region: 'india' },
+  { value: 'exotel', label: 'Exotel', region: 'india' },
+  { value: 'fast2sms', label: 'Fast2SMS', region: 'india' },
+  { value: 'plivo', label: 'Plivo', region: 'india' },
+  { value: 'route_mobile', label: 'Route Mobile', region: 'india' },
+  { value: 'valuefirst', label: 'ValueFirst', region: 'india' },
+  { value: 'msgclub', label: 'MSGCLUB', region: 'india' },
+  { value: 'airtel_iq', label: 'Airtel IQ', region: 'india' },
+  { value: 'bulk_sms', label: 'BulkSMS India', region: 'india' },
   { value: 'custom_http', label: 'Custom HTTP', region: 'global' },
   { value: 'mock', label: 'Mock (Dev / Test)', region: 'dev' },
 ];
@@ -158,6 +174,48 @@ const PROVIDER_FIELDS: Record<SmsProvider, ProviderField[]> = {
     { key: 'sid', label: 'SID', placeholder: 'Your Kaleyra SID' },
     { key: 'senderId', label: 'Sender ID', placeholder: 'STYSUT' },
     { key: 'templateId', label: 'Template ID (DLT)', placeholder: 'DLT template ID' },
+  ],
+  exotel: [
+    { key: 'apiKey', label: 'API Key', placeholder: 'Your Exotel API key' },
+    { key: 'apiToken', label: 'API Token', placeholder: 'Your Exotel API token', type: 'password' },
+    { key: 'sid', label: 'Exotel SID', placeholder: 'Your Exotel SID (Exotel virtual number)' },
+    { key: 'fromPhone', label: 'Sender Phone Number', placeholder: 'Sender Phone Number' },
+  ],
+  fast2sms: [
+    { key: 'apiKey', label: 'API Key', placeholder: 'Your Fast2SMS API key', type: 'password' },
+    { key: 'senderId', label: 'Sender ID', placeholder: 'Sender ID (DLT approved)' },
+    { key: 'route', label: 'Route', placeholder: 'Route (default: otp)' },
+  ],
+  plivo: [
+    { key: 'authId', label: 'Auth ID', placeholder: 'Your Plivo Auth ID' },
+    { key: 'authToken', label: 'Auth Token', placeholder: 'Your Plivo Auth Token', type: 'password' },
+    { key: 'fromNumber', label: 'Plivo Phone Number', placeholder: 'Plivo Phone Number' },
+  ],
+  route_mobile: [
+    { key: 'username', label: 'Username', placeholder: 'Your Route Mobile username' },
+    { key: 'apiKey', label: 'API Key', placeholder: 'Your Route Mobile API key', type: 'password' },
+    { key: 'senderId', label: 'Sender ID', placeholder: 'Sender ID (DLT approved)' },
+    { key: 'routeId', label: 'Route ID', placeholder: 'Route ID' },
+  ],
+  valuefirst: [
+    { key: 'apiKey', label: 'API Key', placeholder: 'Your ValueFirst API key', type: 'password' },
+    { key: 'senderId', label: 'Sender ID', placeholder: 'Sender ID' },
+    { key: 'gatewayId', label: 'Gateway ID', placeholder: 'Gateway ID' },
+  ],
+  msgclub: [
+    { key: 'apiKey', label: 'API Key', placeholder: 'Your MSGCLUB API key', type: 'password' },
+    { key: 'senderId', label: 'Sender ID', placeholder: 'Sender ID (DLT approved)' },
+    { key: 'templateId', label: 'Template ID', placeholder: 'Template ID (DLT)' },
+  ],
+  airtel_iq: [
+    { key: 'clientId', label: 'Client ID', placeholder: 'Your Airtel IQ Client ID' },
+    { key: 'clientSecret', label: 'Client Secret', placeholder: 'Your Airtel IQ Client Secret', type: 'password' },
+    { key: 'senderId', label: 'Sender ID', placeholder: 'Sender ID (DLT approved)' },
+  ],
+  bulk_sms: [
+    { key: 'apiKey', label: 'API Key', placeholder: 'Your BulkSMS API key', type: 'password' },
+    { key: 'username', label: 'Username', placeholder: 'Your BulkSMS username' },
+    { key: 'senderId', label: 'Sender ID', placeholder: 'Sender ID' },
   ],
   custom_http: [
     { key: 'endpointUrl', label: 'Endpoint URL', placeholder: 'https://api.example.com/sms/send' },
