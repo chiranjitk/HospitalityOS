@@ -1,0 +1,15 @@
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix auto re-authentication not working after logout in captive portal
+
+Work Log:
+- Root cause: TWO competing DeviceProfile creation paths. Auth route used fake fingerprints (SHA-256(username:propertyId)) that could never match real browser fingerprints during auto-auth.
+- Fix: Replaced upsertDeviceProfile with upsertDeviceProfileWithFingerprint that uses REAL client fingerprints from the browser.
+- Pre-generate fingerprint on portal mount, include in auth request body, do not clear storageToken on disconnect.
+
+Stage Summary:
+- DeviceProfiles now always use real browser fingerprints for reliable auto-reauth matching.
+- Files changed: src/app/api/v1/wifi/auth/route.ts, src/app/connect/wifi-connect-portal.tsx
+

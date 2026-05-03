@@ -1747,6 +1747,21 @@ function PortalContent() {
   // Auto-auth state
   const [autoAuthAttempted, setAutoAuthAttempted] = useState(false);
 
+  // Pre-generated fingerprint — computed once on mount and reused for
+  // both auto-auth attempts and manual auth DeviceProfile creation.
+  // This avoids generating the fingerprint twice and ensures consistency.
+  const [preGeneratedFingerprint, setPreGeneratedFingerprint] = useState<string | null>(null);
+
+  // Pre-generate fingerprint as soon as the component mounts (runs in background)
+  useEffect(() => {
+    generateFingerprint().then((fp) => {
+      setPreGeneratedFingerprint(fp.hash);
+      console.log('[Portal] Fingerprint pre-generated:', fp.hash.substring(0, 12) + '...', '(' + fp.signals.signalCount + ' signals, ' + fp.collectionTimeMs + 'ms)');
+    }).catch(() => {
+      console.warn('[Portal] Fingerprint pre-generation failed — will retry on auth');
+    });
+  }, []);
+
   // ── Apply portal config to state ──
   const applyPortalConfig = useCallback((data: PortalConfig) => {
     console.log('[Portal] Applying config:', {
@@ -1773,9 +1788,16 @@ function PortalContent() {
   const attemptAutoAuth = useCallback(
     async (slug: string) => {
       try {
-        // Collect fingerprint (async SHA-256)
-        const fp = await generateFingerprint();
-        const storageToken = getStorageToken();
+        // Use pre-generated fingerprint, or generate fresh if not ready yet
+        const fp = preGeneratedFingerprint
+          ? { hash: preGeneratedFingerprint } as Awaited<ReturnType<typeof generateFingerprint>>
+          : await generateFingerprint();
+
+        // Ensure storageToken exists (create if needed)
+        let storageToken = getStorageToken();
+        if (!storageToken) {
+          storageToken = saveStorageToken();
+        }
 
         console.log('[Portal] Auto-auth attempt:', {
           fingerprintPrefix: fp.hash.substring(0, 12) + '...',
@@ -1811,7 +1833,7 @@ function PortalContent() {
         return false;
       }
     },
-    []
+    [preGeneratedFingerprint]
   );
 
   // ── Fetch portal config on mount — IP-based auto-resolution ──
@@ -1866,8 +1888,17 @@ function PortalContent() {
       setErrorMessage('');
 
       try {
+        // Include real fingerprint + storageToken in the auth request body
+        // so the server can create the DeviceProfile with the correct fingerprint
+        // (needed for auto-reauth on future visits)
+        const storageToken = saveStorageToken(); // Create/reuse localStorage token
+        const fpHash = preGeneratedFingerprint || (await generateFingerprint().then(fp => fp.hash).catch(() => null));
+
         const body: Record<string, unknown> = { method, portalSlug, ...payload };
         if (clientMac) body.macAddress = clientMac;
+        if (fpHash) body.fingerprintHash = fpHash;
+        if (storageToken) body.storageToken = storageToken;
+
         const res = await fetch('/api/v1/wifi/auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1879,26 +1910,27 @@ function PortalContent() {
         if (method === 'sms_otp' && !payload.otpCode && result.success) return;
 
         if (result.success && result.data?.authenticated) {
-          // ── Save device profile for future auto-auth ──
-          try {
-            const fp = await generateFingerprint();
-            const token = saveStorageToken(); // Create/reuse localStorage token
-            // POST to auto-auth to create/update DeviceProfile (fire-and-forget)
-            fetch('/api/v1/wifi/auto-auth', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                fingerprintHash: fp.hash,
-                storageToken: token,
-                portalSlug,
-                macAddress: clientMac || undefined,
-                // Extra context for initial profile creation
-                _createProfile: true,
-                _wifiUsername: result.data.username,
-              }),
-            }).catch(() => {}); // Best effort
-          } catch {
-            // Fingerprint collection failed — silent fail, auth still succeeded
+          // DeviceProfile is now created server-side with the real fingerprint
+          // (included in the auth request body). No need for separate fire-and-forget.
+          // The auto-auth _createProfile fire-and-forget is kept as a fallback
+          // in case the auth route didn't receive the fingerprint (rare edge case).
+          if (!fpHash) {
+            try {
+              const fallbackFp = await generateFingerprint();
+              const fallbackToken = saveStorageToken();
+              fetch('/api/v1/wifi/auto-auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  fingerprintHash: fallbackFp.hash,
+                  storageToken: fallbackToken,
+                  portalSlug,
+                  macAddress: clientMac || undefined,
+                  _createProfile: true,
+                  _wifiUsername: result.data.username,
+                }),
+              }).catch(() => {}); // Best-effort fallback
+            } catch { /* silent */ }
           }
 
           setAuthResult(result.data);
@@ -1912,18 +1944,17 @@ function PortalContent() {
         setErrorMessage('Network error. Please ensure you are connected to the hotel WiFi and try again.');
       }
     },
-    [portalSlug]
+    [portalSlug, preGeneratedFingerprint]
   );
 
   // ── Disconnect handler: ends session, resets portal ──
-  // IMPORTANT: We do NOT delete the DeviceProfile — it must persist so that
-  // auto-auth can match this device by fingerprintHash on the next visit.
-  // We only clear the localStorage token so auto-auth creates a fresh one,
-  // and close the radacct session so the user disappears from Active Users.
+  // IMPORTANT: We do NOT delete the DeviceProfile and do NOT clear the storageToken.
+  // This enables auto-reauth on the next visit — when the user opens the portal again,
+  // the pre-generated fingerprint will match the existing DeviceProfile, and the
+  // storageToken will match via Strategy 1 (most reliable).
+  // To truly sign out from all devices, the user can use a separate "forget device" action.
   const handleDisconnect = useCallback(async () => {
     try {
-      const token = getStorageToken();
-
       // 1. Close any active radacct sessions for this user (sets acctstoptime)
       if (authResult?.username) {
         await fetch('/api/v1/wifi/disconnect', {
@@ -1935,10 +1966,8 @@ function PortalContent() {
         }).catch(() => {});
       }
 
-      // 2. Clear localStorage token — on next visit, auto-auth will
-      //    generate a new token and match by fingerprintHash (Strategy 2),
-      //    then save the new token to the existing DeviceProfile.
-      clearStorageToken();
+      // 2. Keep storageToken — do NOT clear it!
+      //    Auto-reauth will use it on the next visit to match by Strategy 1.
     } catch {
       // Best effort — proceed with reset regardless
     }
@@ -1948,7 +1977,7 @@ function PortalContent() {
     setAutoAuthAttempted(false);
     setState('auth_form');
     setErrorMessage('');
-  }, [authResult?.username]);
+  }, [authResult]);
 
   // ── Derived values ──
   const authMethods = portalConfig?.authMethods?.length
