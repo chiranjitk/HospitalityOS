@@ -861,21 +861,29 @@ export async function POST(request: NextRequest) {
         await logAuthAttempt(username.trim(), 'Access-Accept', request, `pool:${pool.poolName}`);
         const sessionId = await createAccountingSession(username.trim(), request, 'portal', effectiveMac, pool);
 
-        // ── Reset user validity on each successful PMS login ──
-        // This ensures validUntil reflects the plan's validity from NOW,
-        // not from the original creation time. Without this, a user with
-        // validityMinutes=60 created days ago would have validUntil far
-        // in the future (set by the old create-user code using validityDays).
+        // ── Calculate plan validity for session timeout & display ──
+        // validUntil is NOT reset here — it was set ONCE at user creation.
+        // This ensures timed packages (e.g. 4-hr) give exactly that much total time.
         const planValidityMin = wifiUser.plan?.validityMinutes
           || (wifiUser.plan?.validityDays ? wifiUser.plan.validityDays * 1440 : null)
           || portalSessionTimeoutMin;
-        const newValidUntil = new Date(now.getTime() + planValidityMin * 60 * 1000);
+
+        // Calculate remaining time for display and Session-Timeout capping
+        const remainingMs = wifiUser.validUntil
+          ? new Date(wifiUser.validUntil).getTime() - now.getTime()
+          : planValidityMin * 60 * 1000;
+        const remainingMinutes = Math.max(0, Math.ceil(remainingMs / 60000));
+        const remainingSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+
+        // ── Set validFrom to now (tracks last activity), but NEVER reset validUntil ──
         await db.wiFiUser.update({
           where: { id: wifiUser.id },
-          data: { validFrom: now, validUntil: newValidUntil, status: 'active' },
+          data: { validFrom: now },
         });
 
-        // Update RADIUS Session-Timeout to match plan validity
+        // ── Cap RADIUS Session-Timeout to remaining validity ──
+        // Prevents RADIUS sessions that outlast the actual account validity.
+        const cappedSessionTimeoutSec = Math.min(planValidityMin * 60, remainingSeconds);
         await db.radReply.deleteMany({
           where: { username: wifiUser.username, attribute: 'Session-Timeout' },
         });
@@ -885,7 +893,7 @@ export async function POST(request: NextRequest) {
             username: wifiUser.username,
             attribute: 'Session-Timeout',
             op: ':=',
-            value: String(planValidityMin * 60),
+            value: String(cappedSessionTimeoutSec),
             isActive: true,
           },
         });
@@ -928,7 +936,7 @@ export async function POST(request: NextRequest) {
 
         return successResponse({
           authenticated: true, method: 'pms_credentials', username: wifiUser.username,
-          sessionTimeout: planValidityMin, bandwidthDown: userBwDown, bandwidthUp: userBwUp,
+          sessionTimeout: planValidityMin, remainingMinutes, bandwidthDown: userBwDown, bandwidthUp: userBwUp,
           poolName: pool.poolName, message: 'Connected successfully!',
         });
       }

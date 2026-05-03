@@ -133,6 +133,7 @@ interface AuthResult {
   authenticated: boolean;
   method: string;
   sessionTimeout: number;
+  remainingMinutes?: number;
   bandwidthDown: number;
   bandwidthUp: number;
   message: string;
@@ -1481,11 +1482,17 @@ function SuccessScreen({
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4" style={{ color: accent }} />
             <div className="text-left">
-              <p className="text-xs" style={{ color: mutedColor }}>Duration</p>
+              <p className="text-xs" style={{ color: mutedColor }}>Time Remaining</p>
               <p className="font-medium" style={{ color: textColor }}>
-                {authResult.sessionTimeout >= 60
-                  ? `${Math.floor(authResult.sessionTimeout / 60)}h ${authResult.sessionTimeout % 60 > 0 ? `${authResult.sessionTimeout % 60}m` : ''}`
-                  : `${authResult.sessionTimeout} min`}
+                {(() => {
+                  const mins = authResult.remainingMinutes ?? authResult.sessionTimeout;
+                  if (mins >= 60) {
+                    const h = Math.floor(mins / 60);
+                    const m = mins % 60;
+                    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+                  }
+                  return `${mins} min`;
+                })()}
               </p>
             </div>
           </div>

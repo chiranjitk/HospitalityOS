@@ -347,8 +347,10 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Re-create session timeout from WiFiUser validity period
-      const sessionTimeoutSec = Math.floor((new Date(wifiUser.validUntil).getTime() - now.getTime()) / 1000);
+      // Re-create session timeout: cap at min(plan validity, remaining time)
+      const planValiditySec = (wifiUser.plan?.validityMinutes || 60) * 60;
+      const remainingUntilExpirySec = Math.floor((new Date(wifiUser.validUntil).getTime() - now.getTime()) / 1000);
+      const sessionTimeoutSec = Math.min(planValiditySec, Math.max(0, remainingUntilExpirySec));
       if (sessionTimeoutSec > 0) {
         await db.radReply.create({
           data: {
@@ -475,31 +477,28 @@ export async function POST(request: NextRequest) {
     // but never show up in the admin Active Users dashboard.
     await createAccountingSession(wifiUser.username, clientIp, request, 'auto_reauth', macAddress);
 
-    // ── Calculate session timeout from plan validity ──
-    // Use plan.validityMinutes for the display duration (e.g. "1h"), not
-    // the remaining time from validUntil (which may be incorrect).
+    // ── Calculate remaining validity (NEVER reset validUntil on reauth) ──
+    // validUntil is set ONCE on first login/creation. Reauth only checks it.
+    // This ensures a 4-hr package gives exactly 4 hours total — not infinite sliding.
     const planValidityMin = wifiUser.plan?.validityMinutes
       || (wifiUser.plan?.validityDays ? wifiUser.plan.validityDays * 1440 : null)
       || 60; // fallback: 1 hour
 
-    // ── Extend user validity on each successful auto-auth ──
-    // This ensures the user's validUntil reflects the plan's validity
-    // from the current session start, not from the original creation time.
-    const newValidUntil = new Date(now.getTime() + planValidityMin * 60 * 1000);
-    await db.wiFiUser.update({
-      where: { id: wifiUser.id },
-      data: { validUntil: newValidUntil },
-    });
+    const remainingMs = new Date(wifiUser.validUntil).getTime() - now.getTime();
+    const remainingMinutes = Math.max(0, Math.ceil(remainingMs / 60000));
+    const remainingSeconds = Math.max(0, Math.floor(remainingMs / 1000));
 
-    // Update the RADIUS Session-Timeout to match the new validity
-    const newSessionTimeoutSec = planValidityMin * 60;
+    // ── Cap RADIUS Session-Timeout to remaining validity ──
+    // If 30 min left on a 60-min plan, give a 30-min RADIUS session.
+    // This prevents RADIUS sessions that exceed the actual account validity.
+    const sessionTimeoutSec = Math.min(planValidityMin * 60, remainingSeconds);
     const existingSessionTimeout = await db.radReply.findFirst({
       where: { username: wifiUser.username, attribute: 'Session-Timeout' },
     });
-    if (existingSessionTimeout) {
+    if (existingSessionTimeout && String(existingSessionTimeout.value) !== String(sessionTimeoutSec)) {
       await db.radReply.update({
         where: { id: existingSessionTimeout.id },
-        data: { value: String(newSessionTimeoutSec) },
+        data: { value: String(sessionTimeoutSec) },
       });
     }
 
@@ -511,6 +510,7 @@ export async function POST(request: NextRequest) {
         method: 'auto_auth',
         username: wifiUser.username,
         sessionTimeout: planValidityMin,
+        remainingMinutes,
         planName: wifiUser.plan?.name || null,
         planValidityDays: wifiUser.plan?.validityDays || null,
         bandwidthDown: wifiUser.plan?.downloadSpeed || null,
