@@ -112,14 +112,44 @@ export default function NasHealth() {
 
   // ─── Actions ────────────────────────────────────────────────────────────────
 
+  const [isProbing, setIsProbing] = useState(false);
+
   const handleCheckNow = async (nas: NasHealthEntry) => {
-    toast({ title: 'Refreshing', description: `Re-fetching status for ${nas.nasIdentifier || nas.nasIp}` });
-    await fetchHealth();
+    toast({ title: 'Probing...', description: `Running health check for ${nas.nasIdentifier || nas.nasIp}` });
+    setIsProbing(true);
+    try {
+      const res = await fetch('/api/wifi/nas-health', { method: 'POST' });
+      const result = await res.json();
+      if (result.success) {
+        toast({ title: 'Health Check Complete', description: result.message });
+      } else {
+        toast({ title: 'Check Failed', description: result.error?.message || 'Unknown error', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Check Failed', description: 'Network error', variant: 'destructive' });
+    } finally {
+      setIsProbing(false);
+      await fetchHealth();
+    }
   };
 
   const handleRefreshAll = async () => {
-    await fetchHealth();
-    toast({ title: 'Refreshed', description: 'NAS status data updated' });
+    setIsProbing(true);
+    toast({ title: 'Probing all NAS...', description: 'Running ICMP + TCP health checks on all devices' });
+    try {
+      const res = await fetch('/api/wifi/nas-health', { method: 'POST' });
+      const result = await res.json();
+      if (result.success) {
+        toast({ title: 'All NAS Checked', description: result.message });
+      } else {
+        toast({ title: 'Check Failed', description: result.error?.message || 'Unknown error', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Check Failed', description: 'Network error', variant: 'destructive' });
+    } finally {
+      setIsProbing(false);
+      await fetchHealth();
+    }
   };
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -273,9 +303,9 @@ export default function NasHealth() {
             </Button>
           </div>
 
-          <Button variant="outline" size="sm" onClick={fetchHealth}>
-            <RefreshCw className={cn('h-4 w-4 mr-2', isLoading && 'animate-spin')} />
-            Refresh
+          <Button variant="outline" size="sm" onClick={handleRefreshAll} disabled={isProbing}>
+            <RefreshCw className={cn('h-4 w-4 mr-2', (isLoading || isProbing) && 'animate-spin')} />
+            {isProbing ? 'Probing...' : 'Probe All'}
           </Button>
         </div>
       </div>
@@ -416,9 +446,9 @@ export default function NasHealth() {
 
                 {/* Card Action */}
                 <div className="mt-3 pt-3 border-t flex justify-end">
-                  <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => handleCheckNow(nas)}>
-                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                    Refresh
+                  <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => handleCheckNow(nas)} disabled={isProbing}>
+                    <RefreshCw className={cn('h-3.5 w-3.5 mr-1.5', isProbing && 'animate-spin')} />
+                    Probe
                   </Button>
                 </div>
               </CardContent>
@@ -486,8 +516,8 @@ export default function NasHealth() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => handleCheckNow(nas)}>
-                          <RefreshCw className="h-4 w-4" />
+                        <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => handleCheckNow(nas)} disabled={isProbing}>
+                          <RefreshCw className={cn('h-4 w-4', isProbing && 'animate-spin')} />
                         </Button>
                       </TableCell>
                     </TableRow>

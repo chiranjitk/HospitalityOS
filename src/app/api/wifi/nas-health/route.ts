@@ -3,10 +3,14 @@ import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
 
 // ─── GET /api/wifi/nas-health ──────────────────────────────────────────────
-// Reads NAS status directly from RadiusNAS + LiveSession + RadiusAuthLog + NasHealthLog
-// (no dependency on freeradius-service microservice)
+// Reads NAS status from RadiusNAS + LiveSession + RadiusAuthLog + NasHealthLog
+//
+// ─── POST /api/wifi/nas-health ─────────────────────────────────────────────
+// Triggers a live NAS health check (ICMP ping + TCP port probe).
+// Requires wifi.manage permission.
+
+// ─── GET: Read status ──────────────────────────────────────────────────────
 export async function GET(request: NextRequest) {
-  // Auth: require wifi.manage OR reports.view (view-only action, same as radius route)
   const context = await requireAuth(request);
   if (context instanceof NextResponse) return context;
 
@@ -67,7 +71,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get latest health log per NAS (if any health checks have been recorded)
+    // Get latest health log per NAS (from actual probe results)
     let healthMap: Record<string, any> = {};
     if (nasIps.length > 0) {
       const healthLogs = await db.$queryRawUnsafe(`
@@ -90,7 +94,7 @@ export async function GET(request: NextRequest) {
       const auth = authMap[ip] || { totalAuths: 0, failedAuths: 0 };
       const health = healthMap[ip];
 
-      // Determine status
+      // Determine status from health check data
       let status: 'online' | 'offline' | 'degraded' = 'offline';
       if (health) {
         if (health.isOnline) {
@@ -100,7 +104,7 @@ export async function GET(request: NextRequest) {
         }
       } else if (nas.status === 'active') {
         // No health check data yet — use live sessions as a signal
-        status = live > 0 ? 'online' : 'offline';
+        status = live > 0 ? 'online' : 'unknown';
       }
 
       return {
@@ -114,7 +118,7 @@ export async function GET(request: NextRequest) {
         liveUserCount: live,
         totalSessions: auth.totalAuths,
         failedAuths: auth.failedAuths,
-        latency: health?.avgLatencyMs || null,
+        latency: health?.avgLatencyMs ?? null,
         lastSeenAt: health?.lastSeenAt || nas.updatedAt || nas.createdAt,
       };
     });
@@ -122,7 +126,7 @@ export async function GET(request: NextRequest) {
     // Stats
     const totalNas = entries.length;
     const onlineCount = entries.filter(e => e.status === 'online').length;
-    const offlineCount = entries.filter(e => e.status === 'offline').length;
+    const offlineCount = entries.filter(e => e.status === 'offline' || e.status === 'unknown').length;
     const totalLiveUsers = entries.reduce((sum, e) => sum + e.liveUserCount, 0);
     const latencies = entries.filter(e => e.latency != null).map(e => e.latency);
     const avgLatency = latencies.length > 0
@@ -136,6 +140,36 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching NAS health:', error);
     return NextResponse.json(
       { success: false, error: { message: 'Failed to fetch NAS health data', details: error.message } },
+      { status: 500 }
+    );
+  }
+}
+
+// ─── POST: Trigger live health check ───────────────────────────────────────
+export async function POST(request: NextRequest) {
+  const context = await requireAuth(request);
+  if (context instanceof NextResponse) return context;
+
+  if (!hasPermission(context, 'wifi.manage')) {
+    return NextResponse.json(
+      { success: false, error: 'Permission denied: requires wifi.manage' },
+      { status: 403 }
+    );
+  }
+
+  try {
+    const { runNasHealthCheck } = await import('@/lib/wifi/services/nas-health-check');
+    const result = await runNasHealthCheck();
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+      message: `Health check complete: ${result.online} online, ${result.offline} offline (${result.durationMs}ms)`,
+    });
+  } catch (error: any) {
+    console.error('Error running NAS health check:', error);
+    return NextResponse.json(
+      { success: false, error: { message: 'Health check failed', details: error.message } },
       { status: 500 }
     );
   }

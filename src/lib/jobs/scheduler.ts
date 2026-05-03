@@ -5,6 +5,7 @@ import { executeReport, sendReportEmail } from './report-executor';
 import { createGatewayAdapter, DEFAULT_PORTS } from '@/lib/wifi/adapters';
 import type { GatewayConfig, GatewayVendor } from '@/lib/wifi/adapters';
 import { runSessionEngine } from '@/lib/wifi/services/session-engine';
+import { runNasHealthCheck } from '@/lib/wifi/services/nas-health-check';
 
 // ---------------------------------------------------------------------------
 // Provider → Vendor mapping (same as API route)
@@ -106,6 +107,18 @@ export function initializeScheduler(): void {
 
   activeJobs.set('session-engine', sessionEngineJob);
   console.log('[Scheduler] Session engine job started - runs every minute');
+
+  // Run every minute to probe NAS devices (ICMP ping + TCP port check)
+  const nasHealthJob = cron.schedule('* * * * *', async () => {
+    try {
+      await runNasHealthCheck();
+    } catch (err) {
+      console.error('[Scheduler] NAS health check error:', err);
+    }
+  });
+
+  activeJobs.set('nas-health-check', nasHealthJob);
+  console.log('[Scheduler] NAS health check job started - runs every minute');
 }
 
 /**
