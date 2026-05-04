@@ -363,3 +363,26 @@ Stage Summary:
 - **Fix**: Use `| grep -q .` to check for non-empty output instead of exit code
 - **Files changed**: `staysuite_pool.sh`, `staysuite_login.sh`
 - **Commit**: f207ab79 pushed to main
+
+---
+Task ID: 6
+Agent: Main
+Task: Fix user leaf TC class creation failure — user rate exceeds pool ceil
+
+Work Log:
+- Analyzed login log: pool class 1:1033 exists but user leaf class 1:24056 fails
+- Identified root cause: user bandwidth (400Mbit DN, 200Mbit UP) exceeds pool ceil (240Mbit DN, 120Mbit UP)
+- HTB rejects child classes whose rate > parent ceil
+- Error was hidden by `2>/dev/null` — only showed generic "failed download class"
+- Fixed staysuite_login.sh Steps 9 and 10:
+  - Added rate validation: if user rate > pool ceil, auto-cap to pool ceil with warning
+  - Exposed tc errors: capture stderr into log variable instead of /dev/null
+  - Added stderr warning when rate is being capped
+  - Added actual tc error message in failure log
+- Pushed commit 2d74f45c to GitHub
+
+Stage Summary:
+- **Root cause**: User bandwidth config (400Mbit) exceeds pool ceiling (240Mbit) → HTB rejects
+- **Fix**: Auto-cap user rate to pool ceil + expose hidden tc errors
+- **Result**: User will get capped to pool ceil, bandwidth limiting will work
+- **Commit**: 2d74f45c pushed to main
