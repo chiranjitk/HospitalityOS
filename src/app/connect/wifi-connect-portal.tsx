@@ -1245,16 +1245,6 @@ function UnifiedDesignerForm({
       }
     }
 
-    // Email is mandatory when the field is visible
-    const hasEmailField = enabledFields.some((f) => f.key === 'email');
-    if (hasEmailField && !formData.email?.trim()) {
-      setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'emailAddress').toLowerCase());
-      return;
-    }
-    if (hasEmailField && formData.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
-      setError('Please enter a valid email address.');
-      return;
-    }
 
     // Terms validation
     if (showTerms && termsRequired && !termsAccepted) {
@@ -1485,8 +1475,7 @@ function UnifiedDesignerForm({
       {/* Dynamic fields from designer config */}
       {enabledFields.map((fieldDef, index) => {
         const label = getTranslatedFieldLabel(fieldDef.key, fieldDef.label);
-        // Email is always mandatory
-        const reqSuffix = (fieldDef.key === 'email' || isFieldRequired(fieldDef.key)) ? ' *' : '';
+        const reqSuffix = isFieldRequired(fieldDef.key) ? ' *' : '';
 
         return (
           <DynamicInput
@@ -2067,16 +2056,6 @@ function PortalContent() {
   const portalSlug = portalConfig?.slug || 'default';
   const authenticate = useCallback(
     async (method: string, payload: Record<string, string>) => {
-      // Validate email if guestInfo is being sent (email is mandatory)
-      const gi = payload.guestInfo;
-      if (gi) {
-        const parsedGi = typeof gi === 'string' ? (() => { try { return JSON.parse(gi); } catch { return null; } })() : gi;
-        if (parsedGi && !parsedGi.email?.trim()) {
-          setState('error');
-          setErrorMessage('Email address is required. Please provide your email to continue.');
-          return;
-        }
-      }
 
       setState('authenticating');
       setErrorMessage('');
@@ -2414,7 +2393,7 @@ function PortalContent() {
         {isFieldVisible('email') && (
           <DynamicInput
             design={design}
-            label={getFieldLabel('email', getUIString(lang, 'emailAddress')) + ' *'}
+            label={getFieldLabel('email', getUIString(lang, 'emailAddress')) + (isFieldRequired('email') ? ' *' : '')}
             type="email"
             value={guestInfo.email}
             onChange={(v) => setGuestInfo((prev) => ({ ...prev, email: v }))}

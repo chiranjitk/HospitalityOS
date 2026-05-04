@@ -587,10 +587,6 @@ export async function POST(request: NextRequest) {
       normalizedGuestInfo = guestInfo as GuestInfoPayload;
     }
 
-    // Validate email — mandatory field for guest auth
-    if (normalizedGuestInfo && !normalizedGuestInfo.email?.trim()) {
-      return errorResponse('MISSING_EMAIL', 'Email address is required. Please provide your email to continue.');
-    }
 
     if (!method) {
       return errorResponse('MISSING_METHOD', 'Authentication method is required');
