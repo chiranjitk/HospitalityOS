@@ -1289,3 +1289,714 @@
 2026-05-04 01:51:25.523 UTC [6622] LOG:  checkpoint complete: wrote 18 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.705 s, sync=0.001 s, total=1.706 s; sync files=11, longest=0.001 s, average=0.001 s; distance=92 kB, estimate=121 kB; lsn=0/381C1C0, redo lsn=0/381C168
 2026-05-04 01:56:23.609 UTC [6622] LOG:  checkpoint starting: time
 2026-05-04 01:56:25.114 UTC [6622] LOG:  checkpoint complete: wrote 16 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.505 s, sync=0.001 s, total=1.506 s; sync files=11, longest=0.001 s, average=0.001 s; distance=81 kB, estimate=117 kB; lsn=0/38308A0, redo lsn=0/3830848
+2026-05-04 19:26:53.706 UTC [6688] LOG:  starting PostgreSQL 17.4 on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2026-05-04 19:26:53.706 UTC [6688] LOG:  listening on IPv6 address "::1", port 5432
+2026-05-04 19:26:53.706 UTC [6688] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2026-05-04 19:26:53.707 UTC [6688] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2026-05-04 19:26:53.708 UTC [6691] LOG:  database system was shut down at 2026-05-04 19:26:50 UTC
+2026-05-04 19:26:53.709 UTC [6688] LOG:  database system is ready to accept connections
+2026-05-04 19:27:06.107 UTC [6745] ERROR:  relation "WiFiSession" does not exist at character 4154
+2026-05-04 19:27:06.107 UTC [6745] STATEMENT:  CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS session_id,
+	    COALESCE(s.id::text, r.radacctid::text) AS radacctid,
+	    COALESCE(s.id::text, r.acctsessionid) AS acctsessionid,
+	    COALESCE(s."tenantId", '00000000-0000-0000-0000-000000000000'::uuid) AS "tenantId",
+	    COALESCE(s."planId", '00000000-0000-0000-0000-000000000000'::uuid) AS "planId",
+	    COALESCE(s."guestId", '00000000-0000-0000-0000-000000000000'::uuid) AS "guestId",
+	    COALESCE(s."bookingId", '00000000-0000-0000-0000-000000000000'::uuid) AS "bookingId",
+	    COALESCE(s."macAddress", r.callingstationid) AS callingstationid,
+	    COALESCE(s."macAddress", r.callingstationid) AS wifi_mac,
+	    COALESCE(s."ipAddress", r.framedipaddress) AS "ipAddress",
+	    COALESCE(s."ipAddress", r.framedipaddress) AS framedipaddress,
+	    COALESCE(dp."deviceName", s."deviceName") AS "deviceName",
+	    COALESCE(dp."deviceType", s."deviceType") AS "deviceType",
+	    COALESCE(s."startTime", r.acctstarttime) AS acctstarttime,
+	    COALESCE(s."startTime", r.acctupdatetime) AS acctupdatetime,
+	    COALESCE(s."endTime", r.acctstoptime) AS acctstoptime,
+	    COALESCE(s."dataUsed", 0::bigint) + COALESCE(r.acctinputoctets, 0::bigint) + COALESCE(r.acctoutputoctets, 0::bigint) AS total_data_used,
+	    COALESCE(s.duration::bigint, r.acctsessiontime, 0::bigint) AS acctsessiontime,
+	    COALESCE(
+	        CASE
+	            WHEN s."dataUsed" IS NOT NULL THEN (s."dataUsed"::numeric * 0.7)::bigint
+	            ELSE r.acctoutputoctets
+	        END, 0::bigint) AS acctoutputoctets,
+	    COALESCE(
+	        CASE
+	            WHEN s."dataUsed" IS NOT NULL THEN (s."dataUsed"::numeric * 0.3)::bigint
+	            ELSE r.acctinputoctets
+	        END, 0::bigint) AS acctinputoctets,
+	    s."authMethod",
+	    COALESCE(s.status,
+	        CASE
+	            WHEN r.acctstoptime IS NULL THEN 'active'::text
+	            ELSE 'completed'::text
+	        END) AS session_status,
+	    COALESCE(s.status,
+	        CASE
+	            WHEN r.acctstoptime IS NULL THEN 'active'::text
+	            ELSE 'completed'::text
+	        END) AS wifi_user_status,
+	    COALESCE(s.status,
+	        CASE
+	            WHEN r.acctstoptime IS NULL THEN 'active'::text
+	            ELSE 'completed'::text
+	        END) AS status,
+	    COALESCE(r.acctterminatecause,
+	        CASE
+	            WHEN s.status = 'active'::text THEN 'User-Request'::text
+	            ELSE 'NAS-Request'::text
+	        END) AS acctterminatecause,
+	    s."createdAt",
+	    s."updatedAt",
+	    COALESCE(wu.username, r.username, ''::text) AS username,
+	    COALESCE(g."firstName", ''::text) AS guest_first_name,
+	    COALESCE(g."lastName", ''::text) AS guest_last_name,
+	    COALESCE(g.email, ''::citext) AS guest_email,
+	    COALESCE(g.phone, ''::text) AS guest_phone,
+	    COALESCE(g."loyaltyTier", ''::text) AS guest_loyalty_tier,
+	        CASE
+	            WHEN g."isVip" = true THEN 1
+	            ELSE 0
+	        END AS guest_is_vip,
+	    COALESCE(rm.number, ''::text) AS room_number,
+	    COALESCE(rm.name, ''::text) AS room_name,
+	    COALESCE(rm.floor, 0) AS room_floor,
+	    COALESCE(p.name, ''::text) AS property_name,
+	    COALESCE(wp.name, ''::text) AS plan_name,
+	    wp."downloadSpeed" AS downloadspeed,
+	    wp."downloadSpeed" AS plan_download_speed,
+	    wp."uploadSpeed" AS uploadspeed,
+	    wp."uploadSpeed" AS plan_upload_speed,
+	    wp."dataLimit" AS datalimit,
+	    wp."dataLimit" AS plan_data_limit,
+	    wp."sessionTimeoutSec",
+	    wp."idleTimeoutSec",
+	    COALESCE(b."confirmationCode", ''::text) AS booking_code,
+	    COALESCE(b.status, ''::text) AS booking_status,
+	    COALESCE(s.id::text, r.acctuniqueid) AS acctuniqueid,
+	    r.framedipv6address,
+	    COALESCE(r.nasipaddress, '0.0.0.0'::text) AS nasipaddress,
+	    ''::text AS nasidentifier,
+	    r.nasportid,
+	    COALESCE(r.nasporttype, 'Wireless-802.11'::text) AS nasporttype,
+	    COALESCE(r.calledstationid, ''::text) AS calledstationid,
+	    r.connectinfo_start,
+	    r.connectinfo_stop,
+	    -- DeviceProfile enrichment columns
+	    COALESCE(r."loginType", 'portal') AS "loginType",
+	    dp."userAgent" AS "userAgent",
+	    dp."macAddress" AS "dp_macAddress",
+	    COALESCE(dp."authCount", 0) AS "dp_authCount"
+	   FROM "WiFiSession" s
+	     FULL JOIN ( SELECT DISTINCT ON (radacct.username, radacct.acctsessionid) radacct.radacctid,
+	            radacct.acctsessionid,
+	            radacct.acctuniqueid,
+	            radacct.username,
+	            radacct.realm,
+	            radacct.nasipaddress,
+	            radacct.nasportid,
+	            radacct.nasporttype,
+	            radacct.acctstarttime,
+	            radacct.acctupdatetime,
+	            radacct.acctstoptime,
+	            radacct.acctinterval,
+	            radacct.acctsessiontime,
+	            radacct.acctauthentic,
+	            radacct.connectinfo_start,
+	            radacct.connectinfo_stop,
+	            radacct.acctinputoctets,
+	            radacct.acctoutputoctets,
+	            radacct.acctinputgigawords,
+	            radacct.acctoutputgigawords,
+	            radacct.calledstationid,
+	            radacct.callingstationid,
+	            radacct.acctterminatecause,
+	            radacct.servicetype,
+	            radacct.framedprotocol,
+	            radacct.framedipaddress,
+	            radacct.framedipv6address,
+	            radacct.framedipv6prefix,
+	            radacct.framedinterfaceid,
+	            radacct.delegatedipv6prefix,
+	            radacct.acctinputpackets,
+	            radacct.acctoutputpackets,
+	            radacct.acctstatus,
+	            radacct."createdAt",
+	            radacct."updatedAt",
+	            radacct.class,
+	            radacct."loginType"
+	           FROM radacct
+	          ORDER BY radacct.username, radacct.acctsessionid, radacct.radacctid DESC) r ON s.id::text = r.acctuniqueid
+	     LEFT JOIN LATERAL ( SELECT "WiFiUser".id,
+	            "WiFiUser"."tenantId",
+	            "WiFiUser"."propertyId",
+	            "WiFiUser".username,
+	            "WiFiUser".password,
+	            "WiFiUser"."guestId",
+	            "WiFiUser"."bookingId",
+	            "WiFiUser"."userType",
+	            "WiFiUser"."planId",
+	            "WiFiUser"."ipPoolId",
+	            "WiFiUser"."validFrom",
+	            "WiFiUser"."validUntil",
+	            "WiFiUser"."maxSessions",
+	            "WiFiUser"."sessionCount",
+	            "WiFiUser"."totalBytesIn",
+	            "WiFiUser"."totalBytesOut",
+	            "WiFiUser".status,
+	            "WiFiUser"."radiusSynced",
+	            "WiFiUser"."radiusSyncedAt",
+	            "WiFiUser"."lastAccountingAt",
+	            "WiFiUser"."createdAt",
+	            "WiFiUser"."updatedAt"
+	           FROM "WiFiUser"
+	          WHERE "WiFiUser".username = r.username OR r.username IS NULL AND "WiFiUser"."guestId" IS NOT NULL AND "WiFiUser"."guestId" = s."guestId"
+	         LIMIT 1) wu ON true
+	     LEFT JOIN LATERAL ( SELECT "DeviceProfile"."deviceName",
+	            "DeviceProfile"."deviceType",
+	            "DeviceProfile"."macAddress",
+	            "DeviceProfile"."userAgent",
+	            "DeviceProfile"."authCount",
+	            "DeviceProfile"."wifiUserId"
+	           FROM "DeviceProfile"
+	          WHERE "DeviceProfile"."wifiUserId" = wu.id AND "DeviceProfile"."isActive" = true
+	         ORDER BY "DeviceProfile"."lastSeenAt" DESC
+	         LIMIT 1) dp ON true
+	     LEFT JOIN "Guest" g ON COALESCE(wu."guestId", s."guestId") IS NOT NULL AND COALESCE(wu."guestId", s."guestId") = g.id
+	     LEFT JOIN "Booking" b ON COALESCE(wu."bookingId", s."bookingId") IS NOT NULL AND COALESCE(wu."bookingId", s."bookingId") = b.id
+	     LEFT JOIN "Room" rm ON b."roomId" = rm.id
+	     LEFT JOIN "Property" p ON COALESCE(wu."propertyId", b."propertyId") IS NOT NULL AND COALESCE(wu."propertyId", b."propertyId") = p.id
+	     LEFT JOIN "WiFiPlan" wp ON COALESCE(s."planId", wu."planId") = wp.id;
+2026-05-04 19:27:06.109 UTC [6745] ERROR:  current transaction is aborted, commands ignored until end of transaction block
+2026-05-04 19:27:06.109 UTC [6745] STATEMENT:  CREATE VIEW v_active_sessions AS  SELECT session_id,
+	    radacctid,
+	    acctsessionid,
+	    "tenantId",
+	    "planId",
+	    "guestId",
+	    "bookingId",
+	    callingstationid,
+	    wifi_mac,
+	    "ipAddress",
+	    framedipaddress,
+	    "deviceName",
+	    "deviceType",
+	    acctstarttime,
+	    acctupdatetime,
+	    acctstoptime,
+	    total_data_used,
+	    acctsessiontime,
+	    acctoutputoctets,
+	    acctinputoctets,
+	    "authMethod",
+	    session_status,
+	    wifi_user_status,
+	    status,
+	    acctterminatecause,
+	    "createdAt",
+	    "updatedAt",
+	    username,
+	    guest_first_name,
+	    guest_last_name,
+	    guest_email,
+	    guest_phone,
+	    guest_loyalty_tier,
+	    guest_is_vip,
+	    room_number,
+	    room_name,
+	    room_floor,
+	    property_name,
+	    plan_name,
+	    downloadspeed,
+	    plan_download_speed,
+	    uploadspeed,
+	    plan_upload_speed,
+	    datalimit,
+	    plan_data_limit,
+	    booking_code,
+	    booking_status,
+	    acctuniqueid,
+	    framedipv6address,
+	    nasipaddress,
+	    nasidentifier,
+	    nasportid,
+	    nasporttype,
+	    calledstationid,
+	    connectinfo_start,
+	    connectinfo_stop,
+	    -- DeviceProfile enrichment columns (from v_session_history)
+	    "loginType",
+	    "userAgent",
+	    "dp_macAddress",
+	    "dp_authCount",
+	    -- Timeout columns from WiFiPlan
+	    "sessionTimeoutSec",
+	    "idleTimeoutSec"
+	   FROM v_session_history
+	  WHERE session_status = 'active'::text;
+2026-05-04 19:27:06.109 UTC [6745] ERROR:  current transaction is aborted, commands ignored until end of transaction block
+2026-05-04 19:27:06.109 UTC [6745] STATEMENT:  CREATE VIEW v_auth_logs AS  SELECT pa.id::text AS id,
+	    pa.username,
+	    pa.reply AS auth_result,
+	    pa.authdate AS "timestamp",
+	    COALESCE(replace(acct.framedipaddress, '/32'::text, ''::text), ''::text) AS client_ip_address,
+	    COALESCE(pa."nasIpAddress", ''::text) AS nas_ip_address,
+	    COALESCE(NULLIF(pa.clientipaddress, ''), COALESCE(pa."nasIpAddress", ''::text), ''::text) AS source_ip_address,
+	    COALESCE(pa.callingstationid, ''::text) AS calling_station_id,
+	    COALESCE(pa.calledstationid, ''::text) AS called_station_id,
+	    'PAP'::text AS auth_type,
+	        CASE
+	            WHEN pa.reply = 'Access-Accept'::text THEN
+	            CASE
+	                WHEN COALESCE(replace(acct.framedipaddress, '/32'::text, ''::text), ''::text) <> ''::text THEN 'Authenticated — client IP: '::text || replace(acct.framedipaddress, '/32'::text, ''::text)
+	                WHEN COALESCE(pa."nasIpAddress", ''::text) <> ''::text THEN 'Authenticated from NAS '::text || pa."nasIpAddress"
+	                ELSE 'Authenticated successfully'::text
+	            END
+	            ELSE
+	            CASE
+	                WHEN pa.pass LIKE 'IP_NOT_IN_POOL:%%'::text THEN
+	                    'Rejected — IP not in managed pool: '::text || replace(pa.pass, 'IP_NOT_IN_POOL:'::text, ''::text) ||
+	                    COALESCE(' — user: '::text || pa.username, ''::text)
+	                WHEN pa.pass LIKE 'IP_NOT_DETERMINED'::text THEN
+	                    'Rejected — could not determine client IP'::text ||
+	                    COALESCE(' — user: '::text || pa.username, ''::text)
+	                WHEN pa.pass LIKE 'MAX_SESSIONS%%'::text THEN
+	                    'Rejected — max concurrent sessions reached'::text ||
+	                    COALESCE(' — user: '::text || pa.username, ''::text) ||
+	                    COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+	                WHEN pa.pass LIKE 'RADIUS_UNREACHABLE'::text THEN
+	                    'Rejected — RADIUS server unreachable'::text ||
+	                    COALESCE(' — user: '::text || pa.username, ''::text)
+	                WHEN pa.pass LIKE 'ACCOUNT_%%'::text THEN
+	                    'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
+	                    COALESCE(' — user: '::text || pa.username, ''::text) ||
+	                    COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+	                WHEN pa.pass LIKE 'INVALID_%%'::text OR pa.pass LIKE 'MISSING_%%'::text OR pa.pass LIKE 'VOUCHER_%%'::text OR pa.pass LIKE 'AUTH_%%'::text THEN
+	                    'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
+	                    COALESCE(' — user: '::text || pa.username, ''::text) ||
+	                    COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+	                WHEN wu.id IS NOT NULL THEN
+	                    'Rejected — invalid password'::text ||
+	                    COALESCE(' — user: '::text || pa.username, ''::text) ||
+	                    COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+	                ELSE
+	                    'Rejected — user not found'::text ||
+	                    COALESCE(' — username: '::text || pa.username, ''::text) ||
+	                    COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+	            END
+	        END AS reply_message,
+	    COALESCE(g."firstName", ''::text) AS guest_first_name,
+	    COALESCE(g."lastName", ''::text) AS guest_last_name,
+	    COALESCE(rm.number, ''::text) AS room_number,
+	    COALESCE(p.name, ''::text) AS property_name,
+	    COALESCE(u."propertyId"::text, ''::text) AS property_id,
+	    rg.groupname AS radius_group,
+	    wp.name AS plan_name,
+	    wp."downloadSpeed" AS plan_download_speed,
+	    wp."uploadSpeed" AS plan_upload_speed,
+	    wp."dataLimit" AS plan_data_limit
+	   FROM radpostauth pa
+	     LEFT JOIN LATERAL ( SELECT radacct.framedipaddress
+	           FROM radacct
+	          WHERE radacct.username = pa.username
+	          ORDER BY radacct.acctstarttime DESC
+	         LIMIT 1) acct ON true
+	     LEFT JOIN "WiFiUser" u ON pa.username = u.username
+	     LEFT JOIN "WiFiUser" wu ON pa.username = wu.username
+	     LEFT JOIN "Guest" g ON u."guestId" = g.id
+	     LEFT JOIN "Booking" b ON u."bookingId" = b.id
+	     LEFT JOIN "Room" rm ON b."roomId" = rm.id
+	     LEFT JOIN "Property" p ON u."propertyId" = p.id
+	     LEFT JOIN "WiFiPlan" wp ON u."planId" = wp.id
+	     LEFT JOIN radusergroup rg ON pa.username = rg.username;
+2026-05-04 19:27:06.109 UTC [6745] ERROR:  current transaction is aborted, commands ignored until end of transaction block
+2026-05-04 19:27:06.109 UTC [6745] STATEMENT:  CREATE VIEW v_user_usage AS  SELECT u.id AS user_id,
+	    u."tenantId",
+	    u."propertyId",
+	    u."guestId",
+	    u."bookingId",
+	    u.username,
+	    u."planId",
+	    u.status,
+	    u."totalBytesIn",
+	    u."totalBytesOut",
+	    u."totalBytesIn" + u."totalBytesOut" AS total_data_used,
+	    COALESCE(( SELECT count(DISTINCT radacctid) FROM v_session_history sh WHERE sh.username = u.username), 0) AS total_sessions,
+	    COALESCE(( SELECT count(DISTINCT radacctid) FROM v_session_history sh WHERE sh.username = u.username AND sh.session_status = 'active'::text), 0) AS active_sessions,
+	    u."totalBytesOut" AS total_download_bytes,
+	    u."totalBytesIn" AS total_upload_bytes,
+	    COALESCE(( SELECT sum(ws.duration) AS sum
+	           FROM "WiFiSession" ws
+	          WHERE ws."guestId" = u."guestId"), 0::bigint) AS total_session_time,
+	    u."lastAccountingAt" AS last_session_start,
+	    COALESCE(( SELECT min(ws."startTime") AS min
+	           FROM "WiFiSession" ws
+	          WHERE ws."guestId" = u."guestId"), '1970-01-01 00:00:00+00'::timestamp with time zone) AS first_session_start,
+	    u."lastAccountingAt" AS "lastSeenAt",
+	    u."createdAt",
+	    u."updatedAt",
+	    COALESCE(g."firstName", ''::text) AS guest_first_name,
+	    COALESCE(g."lastName", ''::text) AS guest_last_name,
+	    COALESCE(g.email, ''::citext) AS guest_email,
+	    COALESCE(g."loyaltyTier", ''::text) AS guest_loyalty_tier,
+	        CASE
+	            WHEN g."isVip" = true THEN 1
+	            ELSE 0
+	        END AS guest_is_vip,
+	    COALESCE(r.number, ''::text) AS room_number,
+	    COALESCE(r.name, ''::text) AS room_name,
+	    COALESCE(p.name, ''::text) AS property_name,
+	    COALESCE(wp.name, ''::text) AS plan_name,
+	    wp."downloadSpeed" AS plan_download_speed,
+	    wp."uploadSpeed" AS plan_upload_speed,
+	    wp."dataLimit" AS plan_data_limit,
+	    COALESCE(b."confirmationCode", ''::text) AS booking_code,
+	    COALESCE(b.status, ''::text) AS booking_status
+	   FROM "WiFiUser" u
+	     LEFT JOIN "Guest" g ON u."guestId" = g.id
+	     LEFT JOIN "Booking" b ON u."bookingId" = b.id
+	     LEFT JOIN "Room" r ON b."roomId" = r.id
+	     LEFT JOIN "Property" p ON u."propertyId" = p.id
+	     LEFT JOIN "WiFiPlan" wp ON u."planId" = wp.id;
+2026-05-04 19:27:06.109 UTC [6745] ERROR:  current transaction is aborted, commands ignored until end of transaction block
+2026-05-04 19:27:06.109 UTC [6745] STATEMENT:  CREATE VIEW v_wifi_users AS  SELECT u.id,
+	    u."tenantId",
+	    u."propertyId",
+	    u."guestId",
+	    u."bookingId",
+	    u.username,
+	    u."planId",
+	    u.status,
+	    NULL::text AS "authMethod",
+	    NULL::text AS "macAddress",
+	    u."validFrom",
+	    u."validUntil",
+	    u."totalBytesIn",
+	    u."totalBytesOut",
+	    u."sessionCount",
+	    u."lastAccountingAt" AS "lastSeenAt",
+	    u."createdAt",
+	    u."updatedAt",
+	    ( SELECT rc.value
+	           FROM radcheck rc
+	          WHERE rc.username = u.username AND rc.attribute = 'Cleartext-Password'::text
+	         LIMIT 1) AS radius_password,
+	    ( SELECT rg.groupname
+	           FROM radusergroup rg
+	          WHERE rg.username = u.username
+	         LIMIT 1) AS radius_group,
+	    g."firstName" AS guest_first_name,
+	    g."lastName" AS guest_last_name,
+	    g.email AS guest_email,
+	    g.phone AS guest_phone,
+	    g."loyaltyTier" AS guest_loyalty_tier,
+	        CASE
+	            WHEN g."isVip" = true THEN 1
+	            ELSE 0
+	        END AS guest_is_vip,
+	    r.number AS room_number,
+	    r.name AS room_name,
+	    r.floor AS room_floor,
+	    p.name AS property_name,
+	    wp.name AS plan_name,
+	    wp."downloadSpeed" AS plan_download_speed,
+	    wp."uploadSpeed" AS plan_upload_speed,
+	    wp."dataLimit" AS plan_data_limit,
+	    b."confirmationCode" AS booking_code,
+	    b.status AS booking_status,
+	    b."checkIn" AS booking_check_in,
+	    b."checkOut" AS booking_check_out
+	   FROM "WiFiUser" u
+	     LEFT JOIN "Guest" g ON u."guestId" = g.id
+	     LEFT JOIN "Booking" b ON u."bookingId" = b.id
+	     LEFT JOIN "Room" r ON b."roomId" = r.id
+	     LEFT JOIN "Property" p ON u."propertyId" = p.id
+	     LEFT JOIN "WiFiPlan" wp ON u."planId" = wp.id;
+2026-05-04 19:27:06.109 UTC [6745] ERROR:  current transaction is aborted, commands ignored until end of transaction block
+2026-05-04 19:27:06.109 UTC [6745] STATEMENT:  CREATE VIEW v_fup_switch_logs AS  SELECT fsl.id::text AS id,
+	    fsl.username,
+	    fsl.fup_policy_name,
+	    fsl.usage_mb,
+	    fsl.limit_mb,
+	    fsl.throttle_down_kbps,
+	    fsl.throttle_up_kbps,
+	    fsl.triggered_at,
+	    COALESCE(p.name, ''::text) AS property_name,
+	    wu."planId",
+	    wp.name AS plan_name,
+	    rg.groupname AS radius_group
+	   FROM fup_switch_log fsl
+	     LEFT JOIN "WiFiUser" wu ON wu.username = fsl.username
+	     LEFT JOIN "Property" p ON p.id = fsl.property_id
+	     LEFT JOIN "WiFiPlan" wp ON wp.id = wu."planId"
+	     LEFT JOIN radusergroup rg ON rg.username = fsl.username
+	  ORDER BY fsl.triggered_at DESC;
+2026-05-04 19:27:06.110 UTC [6745] ERROR:  current transaction is aborted, commands ignored until end of transaction block
+2026-05-04 19:27:06.110 UTC [6745] STATEMENT:  CREATE OR REPLACE FUNCTION public.fn_get_user_pool_info(p_username text)
+	 RETURNS TABLE(pool_name text, pool_id uuid, is_override boolean, source text)
+	 LANGUAGE plpgsql
+	 STABLE
+	AS $function$
+	DECLARE
+	    v_user_pool_id UUID;
+	    v_plan_pool_id UUID;
+	    v_plan_name TEXT;
+	BEGIN
+	    SELECT wu."ipPoolId", wp."ipPoolId", wp.name
+	    INTO v_user_pool_id, v_plan_pool_id, v_plan_name
+	    FROM "WiFiUser" wu LEFT JOIN "WiFiPlan" wp ON wu."planId" = wp.id
+	    WHERE wu.username = p_username LIMIT 1;
+	    IF v_user_pool_id IS NOT NULL THEN
+	        RETURN QUERY SELECT ip.name, ip.id, true::boolean, 'User Override'::TEXT
+	        FROM "IpPool" ip WHERE ip.id = v_user_pool_id;
+	    ELSIF v_plan_pool_id IS NOT NULL THEN
+	        RETURN QUERY SELECT ip.name, ip.id, false::boolean, ('Plan: ' || v_plan_name)::TEXT
+	        FROM "IpPool" ip WHERE ip.id = v_plan_pool_id;
+	    ELSE
+	        RETURN QUERY SELECT ip.name, ip.id, false::boolean, 'Default Pool'::TEXT
+	        FROM "IpPool" ip WHERE ip."isDefault" = true LIMIT 1;
+	    END IF;
+	    RETURN;
+	END;
+	$function$
+	;
+2026-05-04 19:27:06.110 UTC [6745] ERROR:  current transaction is aborted, commands ignored until end of transaction block
+2026-05-04 19:27:06.110 UTC [6745] STATEMENT:  CREATE OR REPLACE FUNCTION public.fn_get_pool_attr(p_username text, p_attr text)
+	 RETURNS text
+	 LANGUAGE plpgsql
+	 STABLE
+	AS $function$
+	DECLARE
+	    v_pool_id UUID;
+	    v_value TEXT;
+	BEGIN
+	    SELECT COALESCE(wu."ipPoolId", wp."ipPoolId")
+	    INTO v_pool_id
+	    FROM "WiFiUser" wu LEFT JOIN "WiFiPlan" wp ON wu."planId" = wp.id
+	    WHERE wu.username = p_username LIMIT 1;
+	    IF v_pool_id IS NULL THEN
+	        SELECT id INTO v_pool_id FROM "IpPool" WHERE "isDefault" = true AND enabled = true LIMIT 1;
+	    END IF;
+	    IF v_pool_id IS NULL THEN RETURN NULL; END IF;
+	    IF p_attr = 'gateway' THEN
+	        SELECT host(gateway) INTO v_value FROM "IpPool" WHERE id = v_pool_id;
+	    END IF;
+	    RETURN v_value;
+	END;
+	$function$
+	;
+2026-05-04 19:27:06.110 UTC [6745] ERROR:  current transaction is aborted, commands ignored until end of transaction block
+2026-05-04 19:27:06.110 UTC [6745] STATEMENT:  CREATE OR REPLACE FUNCTION public.fn_check_fup(p_username text)
+	 RETURNS TABLE(fup_triggered boolean, throttle_down integer, throttle_up integer, policy_name text, usage_mb double precision, limit_mb double precision)
+	 LANGUAGE plpgsql
+	 STABLE
+	AS $function$
+	DECLARE
+	  v_plan_id UUID; v_fup_id UUID; v_fup_name TEXT; v_fup_limit_mb FLOAT;
+	  v_usage_mb FLOAT; v_throttle_bp_id UUID; v_throttle_down INT; v_throttle_up INT;
+	BEGIN
+	  SELECT wp.id, wp."fupPolicyId" INTO v_plan_id, v_fup_id
+	  FROM "WiFiUser" wu LEFT JOIN "WiFiPlan" wp ON wu."planId" = wp.id
+	  WHERE wu.username = p_username AND wu.status = 'active' LIMIT 1;
+	  IF v_fup_id IS NULL THEN RETURN QUERY SELECT false, 0, 0, ''::text, 0.0::float, 0.0::float; RETURN; END IF;
+	  SELECT name, "dataLimitMb", "switchOverBwPolicyId" INTO v_fup_name, v_fup_limit_mb, v_throttle_bp_id
+	  FROM "FairAccessPolicy" WHERE id = v_fup_id AND "isEnabled" = true;
+	  IF v_fup_name IS NULL THEN RETURN QUERY SELECT false, 0, 0, ''::text, 0.0::float, 0.0::float; RETURN; END IF;
+	  SELECT (COALESCE(wu."totalBytesIn", 0)::bigint + COALESCE(wu."totalBytesOut", 0)::bigint) / (1024.0 * 1024.0) INTO v_usage_mb
+	  FROM "WiFiUser" wu WHERE wu.username = p_username LIMIT 1;
+	  IF v_usage_mb IS NULL OR v_usage_mb = 0 THEN
+	    SELECT COALESCE(SUM(COALESCE(acctinputoctets, 0) + COALESCE(acctoutputoctets, 0)), 0) / (1024.0 * 1024.0) INTO v_usage_mb
+	    FROM radacct WHERE username = p_username AND acctstarttime >= now() - interval '30 days';
+	  END IF;
+	  IF v_usage_mb >= v_fup_limit_mb THEN
+	    IF v_throttle_bp_id IS NOT NULL THEN
+	      SELECT "downloadKbps", "uploadKbps" INTO v_throttle_down, v_throttle_up FROM "BandwidthPolicy" WHERE id = v_throttle_bp_id LIMIT 1;
+	    END IF;
+	    v_throttle_down := COALESCE(v_throttle_down, 1024);
+	    v_throttle_up := COALESCE(v_throttle_up, 512);
+	    RETURN QUERY SELECT true, v_throttle_down, v_throttle_up, v_fup_name, v_usage_mb, v_fup_limit_mb; RETURN;
+	  END IF;
+	  RETURN QUERY SELECT false, 0, 0, v_fup_name, v_usage_mb, v_fup_limit_mb; RETURN;
+	END; $function$
+	;
+2026-05-04 19:27:06.110 UTC [6745] ERROR:  current transaction is aborted, commands ignored until end of transaction block
+2026-05-04 19:27:06.110 UTC [6745] STATEMENT:  CREATE OR REPLACE FUNCTION public.fn_check_login_limit(p_username text)
+	 RETURNS integer
+	 LANGUAGE plpgsql
+	 STABLE
+	AS $function$
+	DECLARE v_max_sessions INT; v_current_count INT;
+	BEGIN
+	  SELECT COALESCE(wu."maxSessions", wp."maxDevices", 0) INTO v_max_sessions
+	  FROM "WiFiUser" wu LEFT JOIN "WiFiPlan" wp ON wu."planId" = wp.id
+	  WHERE wu.username = p_username AND wu.status = 'active' LIMIT 1;
+	  IF v_max_sessions IS NULL OR v_max_sessions = 0 THEN RETURN 0; END IF;
+	  SELECT COUNT(*) INTO v_current_count FROM radacct WHERE username = p_username AND acctstoptime IS NULL;
+	  IF v_current_count >= v_max_sessions THEN RETURN 1; END IF;
+	  RETURN 0;
+	END; $function$
+	;
+2026-05-04 19:27:06.110 UTC [6745] ERROR:  current transaction is aborted, commands ignored until end of transaction block
+2026-05-04 19:27:06.110 UTC [6745] STATEMENT:  CREATE OR REPLACE FUNCTION public.fn_get_effective_bandwidth(p_username text, p_direction text)
+	 RETURNS integer
+	 LANGUAGE plpgsql
+	AS $function$
+	DECLARE
+	    v_plan_id UUID; v_download_speed INTEGER; v_upload_speed INTEGER;
+	    v_fup_id UUID; v_fup_cycle TEXT; v_fup_limit_mb DOUBLE PRECISION;
+	    v_throttle_down INTEGER; v_throttle_up INTEGER;
+	    v_cycle_start TIMESTAMPTZ; v_usage_bytes BIGINT; v_usage_mb DOUBLE PRECISION;
+	    v_plan_name TEXT; v_fup_name TEXT;
+	BEGIN
+	    SELECT wp.id, wp."downloadSpeed", wp."uploadSpeed", wp."fupPolicyId",
+	           fp."cycleType", fp."dataLimitMb", bp."downloadKbps", bp."uploadKbps",
+	           wp.name, fp.name
+	    INTO v_plan_id, v_download_speed, v_upload_speed, v_fup_id, v_fup_cycle, v_fup_limit_mb,
+	         v_throttle_down, v_throttle_up, v_plan_name, v_fup_name
+	    FROM "WiFiUser" wu JOIN "WiFiPlan" wp ON wu."planId" = wp.id
+	    LEFT JOIN "FairAccessPolicy" fp ON wp."fupPolicyId" = fp.id AND fp."isEnabled" = true
+	    LEFT JOIN "BandwidthPolicy" bp ON fp."switchOverBwPolicyId" = bp.id
+	    WHERE wu.username = p_username AND wu.status = 'active' LIMIT 1;
+	    IF v_plan_id IS NULL THEN RETURN 0; END IF;
+	    IF v_fup_id IS NULL THEN
+	        RETURN CASE WHEN p_direction = 'down' THEN v_download_speed * 1000 ELSE v_upload_speed * 1000 END;
+	    END IF;
+	    v_cycle_start := CASE v_fup_cycle
+	        WHEN 'daily' THEN date_trunc('day', NOW())
+	        WHEN 'weekly' THEN date_trunc('week', NOW())
+	        WHEN 'monthly' THEN date_trunc('month', NOW())
+	        ELSE date_trunc('day', NOW()) END;
+	    SELECT COALESCE(SUM(COALESCE("acctinputoctets", 0) + COALESCE("acctoutputoctets", 0)), 0)
+	    INTO v_usage_bytes FROM radacct WHERE username = p_username AND "acctstarttime" >= v_cycle_start;
+	    v_usage_mb := v_usage_bytes / (1024.0 * 1024.0);
+	    IF v_usage_mb >= v_fup_limit_mb THEN
+	        IF NOT EXISTS (
+	            SELECT 1 FROM fup_switch_log WHERE username = p_username
+	            AND action = 'throttle' AND created_at > NOW() - INTERVAL '5 minutes'
+	        ) THEN
+	            INSERT INTO fup_switch_log (username, plan_name, fup_policy_name, cycle_type,
+	                usage_mb, limit_mb, action, original_down_kbps, original_up_kbps,
+	                throttle_down_kbps, throttle_up_kbps, nas_ip)
+	            VALUES (p_username, v_plan_name, v_fup_name, v_fup_cycle,
+	                   v_usage_mb, v_fup_limit_mb, 'throttle',
+	                   v_download_speed * 1000, v_upload_speed * 1000,
+	                   v_throttle_down, v_throttle_up, NULL);
+	        END IF;
+	        RETURN CASE WHEN p_direction = 'down' THEN COALESCE(v_throttle_down, 256)
+	               ELSE COALESCE(v_throttle_up, 128) END;
+	    ELSE
+	        RETURN CASE WHEN p_direction = 'down' THEN v_download_speed * 1000
+	               ELSE v_upload_speed * 1000 END;
+	    END IF;
+	END; $function$
+	;
+2026-05-04 19:27:06.110 UTC [6745] ERROR:  current transaction is aborted, commands ignored until end of transaction block
+2026-05-04 19:27:06.110 UTC [6745] STATEMENT:  CREATE OR REPLACE FUNCTION public.fn_get_mikrotik_rate_limit(p_username text)
+	 RETURNS text
+	 LANGUAGE plpgsql
+	AS $function$
+	DECLARE v_down INTEGER; v_up INTEGER; v_plan_down INTEGER;
+	BEGIN
+	    v_down := fn_get_effective_bandwidth(p_username, 'down');
+	    v_up := fn_get_effective_bandwidth(p_username, 'up');
+	    SELECT wp."downloadSpeed" INTO v_plan_down
+	    FROM "WiFiUser" wu JOIN "WiFiPlan" wp ON wu."planId" = wp.id
+	    WHERE wu.username = p_username AND wu.status = 'active' LIMIT 1;
+	    IF v_plan_down IS NULL THEN RETURN v_down || 'K/' || v_up || 'K'; END IF;
+	    IF v_down < v_plan_down * 1000 THEN
+	        RETURN v_down || 'K/' || v_up || 'K';
+	    ELSE
+	        RETURN (v_down / 1000) || 'M/' || (v_up / 1000) || 'M';
+	    END IF;
+	END; $function$
+	;
+2026-05-04 19:27:06.110 UTC [6745] ERROR:  current transaction is aborted, commands ignored until end of transaction block
+2026-05-04 19:27:06.110 UTC [6745] STATEMENT:  CREATE OR REPLACE FUNCTION public.fn_is_fup_throttled(p_username text)
+	 RETURNS integer
+	 LANGUAGE plpgsql
+	AS $function$
+	DECLARE
+	    v_plan_id UUID; v_download_speed INTEGER; v_fup_id UUID; v_fup_limit_mb DOUBLE PRECISION;
+	    v_cycle_start TIMESTAMPTZ; v_usage_bytes BIGINT; v_usage_mb DOUBLE PRECISION;
+	BEGIN
+	    SELECT wp.id, wp."downloadSpeed", wp."fupPolicyId", fp."dataLimitMb"
+	    INTO v_plan_id, v_download_speed, v_fup_id, v_fup_limit_mb
+	    FROM "WiFiUser" wu JOIN "WiFiPlan" wp ON wu."planId" = wp.id
+	    LEFT JOIN "FairAccessPolicy" fp ON wp."fupPolicyId" = fp.id AND fp."isEnabled" = true
+	    WHERE wu.username = p_username AND wu.status = 'active' LIMIT 1;
+	    IF v_plan_id IS NULL OR v_fup_id IS NULL THEN RETURN 0; END IF;
+	    v_cycle_start := CASE
+	        WHEN (SELECT "cycleType" FROM "FairAccessPolicy" WHERE id = v_fup_id) = 'weekly' THEN date_trunc('week', NOW())
+	        WHEN (SELECT "cycleType" FROM "FairAccessPolicy" WHERE id = v_fup_id) = 'monthly' THEN date_trunc('month', NOW())
+	        ELSE date_trunc('day', NOW()) END;
+	    SELECT COALESCE(SUM(COALESCE("acctinputoctets", 0) + COALESCE("acctoutputoctets", 0)), 0)
+	    INTO v_usage_bytes FROM radacct WHERE username = p_username AND "acctstarttime" >= v_cycle_start;
+	    v_usage_mb := v_usage_bytes / (1024.0 * 1024.0);
+	    IF v_usage_mb >= v_fup_limit_mb THEN RETURN 1; ELSE RETURN 0; END IF;
+	END; $function$
+	;
+2026-05-04 19:27:06.114 UTC [6745] ERROR:  relation "WiFiUser" does not exist
+2026-05-04 19:27:06.114 UTC [6745] STATEMENT:  ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_wifiUserId_fkey" FOREIGN KEY ("wifiUserId") REFERENCES "WiFiUser"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+2026-05-04 19:27:06.114 UTC [6745] ERROR:  relation "Tenant" does not exist
+2026-05-04 19:27:06.114 UTC [6745] STATEMENT:  ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+2026-05-04 19:27:06.114 UTC [6745] ERROR:  relation "Property" does not exist
+2026-05-04 19:27:06.114 UTC [6745] STATEMENT:  ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_propertyId_fkey" FOREIGN KEY ("propertyId") REFERENCES "Property"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+2026-05-04 19:27:06.114 UTC [6745] ERROR:  relation "Guest" does not exist
+2026-05-04 19:27:06.114 UTC [6745] STATEMENT:  ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_guestId_fkey" FOREIGN KEY ("guestId") REFERENCES "Guest"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+2026-05-04 19:27:39.153 UTC [6820] ERROR:  type "citext" does not exist at character 151
+2026-05-04 19:27:39.153 UTC [6820] STATEMENT:  CREATE TABLE "Guest" (
+	    "id" UUID NOT NULL,
+	    "tenantId" UUID NOT NULL,
+	    "firstName" TEXT NOT NULL,
+	    "lastName" TEXT NOT NULL,
+	    "email" CITEXT,
+	    "phone" TEXT,
+	    "alternatePhone" TEXT,
+	    "nationality" TEXT,
+	    "dateOfBirth" TIMESTAMPTZ,
+	    "gender" TEXT,
+	    "idType" TEXT,
+	    "idNumber" TEXT,
+	    "idExpiry" TIMESTAMPTZ,
+	    "idCountry" TEXT,
+	    "address" TEXT,
+	    "city" TEXT,
+	    "state" TEXT,
+	    "country" TEXT,
+	    "postalCode" TEXT,
+	    "preferences" TEXT NOT NULL DEFAULT '{}',
+	    "dietaryRequirements" TEXT,
+	    "specialRequests" TEXT,
+	    "avatar" TEXT,
+	    "notes" TEXT,
+	    "tags" TEXT NOT NULL DEFAULT '[]',
+	    "loyaltyTier" TEXT NOT NULL DEFAULT 'bronze',
+	    "loyaltyPoints" INTEGER NOT NULL DEFAULT 0,
+	    "totalStays" INTEGER NOT NULL DEFAULT 0,
+	    "totalSpent" DOUBLE PRECISION NOT NULL DEFAULT 0,
+	    "isVip" BOOLEAN NOT NULL DEFAULT false,
+	    "vipLevel" TEXT,
+	    "source" TEXT NOT NULL DEFAULT 'direct',
+	    "sourceId" UUID,
+	    "emailOptIn" BOOLEAN NOT NULL DEFAULT false,
+	    "smsOptIn" BOOLEAN NOT NULL DEFAULT false,
+	    "status" TEXT NOT NULL DEFAULT 'active',
+	    "kycStatus" TEXT NOT NULL DEFAULT 'pending',
+	    "kycVerifiedAt" TIMESTAMPTZ,
+	    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	    "updatedAt" TIMESTAMPTZ NOT NULL,
+	    "deletedAt" TIMESTAMPTZ,
+	
+	    CONSTRAINT "Guest_pkey" PRIMARY KEY ("id")
+	)
+2026-05-04 19:28:04.171 UTC [6910] ERROR:  constraint "DeviceProfile_wifiUserId_fkey" for relation "DeviceProfile" already exists
+2026-05-04 19:28:04.171 UTC [6910] STATEMENT:  ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_wifiUserId_fkey" FOREIGN KEY ("wifiUserId") REFERENCES "WiFiUser"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+2026-05-04 19:28:04.171 UTC [6910] ERROR:  constraint "DeviceProfile_tenantId_fkey" for relation "DeviceProfile" already exists
+2026-05-04 19:28:04.171 UTC [6910] STATEMENT:  ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+2026-05-04 19:28:04.171 UTC [6910] ERROR:  constraint "DeviceProfile_propertyId_fkey" for relation "DeviceProfile" already exists
+2026-05-04 19:28:04.171 UTC [6910] STATEMENT:  ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_propertyId_fkey" FOREIGN KEY ("propertyId") REFERENCES "Property"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+2026-05-04 19:28:04.171 UTC [6910] ERROR:  constraint "DeviceProfile_guestId_fkey" for relation "DeviceProfile" already exists
+2026-05-04 19:28:04.171 UTC [6910] STATEMENT:  ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_guestId_fkey" FOREIGN KEY ("guestId") REFERENCES "Guest"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+2026-05-04 19:31:53.771 UTC [6689] LOG:  checkpoint starting: time
+2026-05-04 19:32:01.262 UTC [7467] ERROR:  duplicate key value violates unique constraint "ParkingSlot_pkey"
+2026-05-04 19:32:01.262 UTC [7467] DETAIL:  Key (id)=(70781398-9360-4a63-837c-829287bedf0b) already exists.
+2026-05-04 19:32:01.262 UTC [7467] STATEMENT:  INSERT INTO "public"."ParkingSlot" ("id","tenantId","propertyId","number","floor","type","vehicleType","hasCharging","chargerType","status","posX","posY","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,null,$9,$10,$11,$12,$13), ($14,$15,$16,$17,$18,$19,$20,$21,null,$22,$23,$24,$25,$26), ($27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40), ($41,$42,$43,$44,$45,$46,$47,$48,null,$49,$50,$51,$52,$53), ($54,$55,$56,$57,$58,$59,$60,$61,null,$62,$63,$64,$65,$66)
