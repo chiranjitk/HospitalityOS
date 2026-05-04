@@ -2046,22 +2046,40 @@ async function logAuthAttempt(
   username: string,
   reply: string,
   request: NextRequest,
-  extraInfo?: string
+  extraInfo?: string,
+  macAddress?: string,
 ) {
   try {
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       || request.headers.get('x-real-ip')
       || '';
 
+    // Resolve MAC: use provided MAC, then fall back to DeviceProfile lookup
+    let effectiveMac = macAddress || null;
+    if (!effectiveMac) {
+      try {
+        const wifiUser = await db.wiFiUser.findUnique({ where: { username }, select: { id: true } });
+        if (wifiUser) {
+          const dp = await db.deviceProfile.findFirst({
+            where: { wifiUserId: wifiUser.id, isActive: true, macAddress: { not: null } },
+            select: { macAddress: true },
+            orderBy: { lastSeenAt: 'desc' },
+          });
+          if (dp?.macAddress) effectiveMac = dp.macAddress;
+        }
+      } catch { /* non-fatal */ }
+    }
+
     // clientipaddress = real client IP (from HTTP headers)
     // "nasIpAddress" = 127.0.0.1 for captive portal (the app itself IS the NAS)
     await db.$executeRawUnsafe(
-      `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, "nasIpAddress")
-       VALUES ($1, $2, $3, NOW(), $4, '127.0.0.1')`,
+      `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, "nasIpAddress", callingstationid)
+       VALUES ($1, $2, $3, NOW(), $4, '127.0.0.1', $5)`,
       username,
       extraInfo || '',
       reply,
       clientIp,
+      effectiveMac,
     );
   } catch (err) {
     // Non-fatal — auth logging failure should not block authentication
@@ -2099,9 +2117,24 @@ async function createAccountingSession(
       ? macAddress.replace(/[:\-\.\s]/g, '').toUpperCase()
       : null;
     // Reformat as AA:BB:CC:DD:EE:FF for RADIUS compatibility
-    const formattedMac = normalizedMac && normalizedMac.length === 12
+    let formattedMac = normalizedMac && normalizedMac.length === 12
       ? normalizedMac.match(/.{2}/g)?.join(':') || null
       : null;
+
+    // Fallback: if no MAC from request, look up DeviceProfile for this user
+    if (!formattedMac) {
+      try {
+        const wifiUser = await db.wiFiUser.findUnique({ where: { username }, select: { id: true } });
+        if (wifiUser) {
+          const dp = await db.deviceProfile.findFirst({
+            where: { wifiUserId: wifiUser.id, isActive: true, macAddress: { not: null } },
+            select: { macAddress: true },
+            orderBy: { lastSeenAt: 'desc' },
+          });
+          if (dp?.macAddress) formattedMac = dp.macAddress;
+        }
+      } catch { /* non-fatal */ }
+    }
 
     // Build connect-info with pool details for audit trail
     const connectInfoStart = pool

@@ -378,3 +378,27 @@ Stage Summary:
 - Auto-auth is now controlled solely by CaptivePortal.autoAuthEnabled portal toggle
 - Both existing DeviceProfiles for chiranjitk are now isActive=true
 - Files changed: disconnect/route.ts, radius/route.ts, portal-page.tsx
+---
+Task ID: 2
+Agent: Main Agent
+Task: Store MAC address in Session History, Usage, and Auth Log tabs (not just Active Users)
+
+Work Log:
+- Investigated data flow: Active Users shows MAC via dp_macAddress fallback, but other tabs only use callingstationid from radacct/radpostauth which was NULL on WAN
+- Found root cause: radacct.callingstationid and radpostauth.callingstationid were not being populated when MAC was unavailable from HTTP (WAN side)
+- Fixed auth/route.ts `logAuthAttempt()`: Added DeviceProfile MAC lookup fallback + callingstationid column to radpostauth INSERT
+- Fixed auth/route.ts `createAccountingSession()`: Added DeviceProfile MAC lookup fallback for formattedMac
+- Fixed auto-auth/route.ts `logAuthAttempt()`: Same DeviceProfile MAC fallback + callingstationid column
+- Fixed auto-auth/route.ts `createAccountingSession()`: Same DeviceProfile MAC fallback
+- Updated v_auth_logs view: Added DeviceProfile LATERAL join for calling_station_id MAC fallback
+- Recreated v_session_history view: Added dp.macAddress to callingstationid COALESCE chain
+- Updated session-history.tsx frontend: Added dp_macAddress fallback to all MAC display locations (table, card, detail panel)
+- Added dp_macAddress to session-history API query SELECT
+- Restarted PM2, verified views return MAC 00:0C:29:7D:FB:A6 for all existing sessions
+
+Stage Summary:
+- All 4 tabs (Active Users, Session History, Usage, Auth Logs) now show MAC address
+- New auth sessions will store MAC in radacct.callingstationid and radpostauth.callingstationid
+- Existing sessions show MAC via DeviceProfile fallback in database views
+- Files changed: auth/route.ts, auto-auth/route.ts, session-history/route.ts, session-history.tsx
+- DB views updated: v_auth_logs, v_session_history, v_active_sessions

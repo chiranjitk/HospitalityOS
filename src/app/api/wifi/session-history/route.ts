@@ -329,7 +329,8 @@ export async function GET(request: NextRequest) {
                property_name, plan_name,
                downloadSpeed, uploadSpeed, dataLimit,
                wifi_user_status, wifi_mac, session_status,
-               "sessionTimeoutSec", "idleTimeoutSec"
+               "sessionTimeoutSec", "idleTimeoutSec",
+               "dp_macAddress"
         FROM v_session_history ${whereClause}
         ORDER BY acctstarttime DESC
         LIMIT $${params.length + 1} OFFSET $${params.length + 2}

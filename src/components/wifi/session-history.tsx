@@ -441,7 +441,7 @@ export default function SessionHistory() {
           {getStatusBadge(session)}
         </div>
         <div className="grid grid-cols-3 gap-2 text-xs">
-          <div><p className="text-muted-foreground mb-0.5">MAC</p><p className="font-mono truncate">{session.callingstationid || '—'}</p></div>
+          <div><p className="text-muted-foreground mb-0.5">MAC</p><p className="font-mono truncate">{session.callingstationid || session.dp_macAddress || '—'}</p></div>
           <div><p className="text-muted-foreground mb-0.5">NAS</p><div className="flex items-center gap-1"><Router className="h-3 w-3 shrink-0" /><span className="truncate">{session.nasipaddress || '—'}</span></div></div>
           <div><p className="text-muted-foreground mb-0.5">Duration</p><p className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatDuration(session.acctsessiontime)}</p></div>
         </div>
@@ -670,7 +670,7 @@ export default function SessionHistory() {
                                 <p className="font-mono text-xs text-muted-foreground pl-1">{session.framedipaddress || '—'}</p>
                               </div>
                             </TableCell>
-                            <TableCell><p className="font-mono text-xs text-muted-foreground">{session.callingstationid || '—'}</p></TableCell>
+                            <TableCell><p className="font-mono text-xs text-muted-foreground">{session.callingstationid || session.dp_macAddress || '—'}</p></TableCell>
                             <TableCell><div className="flex items-center gap-1.5"><Router className="h-3.5 w-3.5 text-muted-foreground shrink-0" /><span className="text-xs font-mono">{session.nasipaddress || '—'}</span></div></TableCell>
                             <TableCell><div className="flex items-center gap-1 text-xs"><CalendarDays className="h-3 w-3 text-muted-foreground shrink-0" /><span>{formatDateTime(session.acctstarttime)}</span></div></TableCell>
                             <TableCell>
@@ -752,7 +752,7 @@ export default function SessionHistory() {
                     </button>
                   </div>
                   <div><p className="text-xs text-muted-foreground">IP Address</p><p className="text-sm font-mono">{selectedSession.framedipaddress || '—'}</p></div>
-                  <div><p className="text-xs text-muted-foreground">MAC Address</p><p className="text-sm font-mono">{selectedSession.callingstationid || '—'}</p></div>
+                  <div><p className="text-xs text-muted-foreground">MAC Address</p><p className="text-sm font-mono">{selectedSession.callingstationid || selectedSession.dp_macAddress || '—'}</p></div>
                   <div><p className="text-xs text-muted-foreground">NAS IP</p><div className="flex items-center gap-1.5 mt-0.5"><Router className="h-3.5 w-3.5 text-muted-foreground" /><p className="text-sm font-mono">{selectedSession.nasipaddress || '—'}</p></div></div>
                 </div>
               </div>

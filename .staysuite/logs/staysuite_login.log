@@ -162,3 +162,49 @@
 2026-05-04 23:14:32 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersdstset
 2026-05-04 23:14:32 [LOGIN][ERR] nft: failed to add 21.0.0.1 to llusersset
 2026-05-04 23:14:32 [LOGIN][ERR] nft: failed to add 21.0.0.1 to one or more sets — cleanup
+2026-05-04 23:14:38 [LOGOUT] LOGOUT PARMS: -i 21.0.0.1
+2026-05-04 23:14:38 [LOGOUT] START: ip=21.0.0.1 mark=0x15000001 session= dn_cls=0 up_cls=0 pool=0
+2026-05-04 23:14:38 [LOGOUT] DONE: ip=21.0.0.1
+2026-05-04 23:14:39 [LOGIN] LOGIN PARMS: -i 21.0.0.1 -a masq -P 2 -R 200000 -C 240000 -r 100000 -c 120000 -d 16242 -u 16242 -D 5000 -U 2000 -S 1777936479264-96e0094d -X 255f8f40-ec97-4f2b-8d36-7fc811bcfbc8
+2026-05-04 23:14:39 [LOGIN] LOGIN: ip=21.0.0.1 mark=0x15000001 action=masq pool=2 dn=5000k up=2000k session=1777936479264-96e0094d
+2026-05-04 23:14:39 [LOGIN][ERR] nft: failed to add 21.0.0.1 to loggedinusers
+2026-05-04 23:14:39 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersset
+2026-05-04 23:14:39 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersdstset
+2026-05-04 23:14:39 [LOGIN][ERR] nft: failed to add 21.0.0.1 to llusersset
+2026-05-04 23:14:39 [LOGIN][ERR] nft: failed to add 21.0.0.1 to one or more sets — cleanup
+2026-05-04 23:15:43 [LOGOUT] LOGOUT PARMS: -i 21.0.0.1
+2026-05-04 23:15:43 [LOGOUT] START: ip=21.0.0.1 mark=0x15000001 session= dn_cls=0 up_cls=0 pool=0
+2026-05-04 23:15:43 [LOGOUT] DONE: ip=21.0.0.1
+2026-05-04 23:15:48 [LOGOUT] LOGOUT PARMS: -i 21.0.0.1
+2026-05-04 23:15:48 [LOGOUT] START: ip=21.0.0.1 mark=0x15000001 session= dn_cls=0 up_cls=0 pool=0
+2026-05-04 23:15:48 [LOGOUT] DONE: ip=21.0.0.1
+2026-05-04 23:15:49 [LOGIN] LOGIN PARMS: -i 21.0.0.1 -a masq -P 2 -R 200000 -C 240000 -r 100000 -c 120000 -d 16242 -u 16242 -D 5000 -U 2000 -S 1777936549635-98848871 -X 255f8f40-ec97-4f2b-8d36-7fc811bcfbc8
+2026-05-04 23:15:49 [LOGIN] LOGIN: ip=21.0.0.1 mark=0x15000001 action=masq pool=2 dn=5000k up=2000k session=1777936549635-98848871
+2026-05-04 23:15:49 [LOGIN][ERR] nft: failed to add 21.0.0.1 to loggedinusers
+2026-05-04 23:15:49 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersset
+2026-05-04 23:15:49 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersdstset
+2026-05-04 23:15:49 [LOGIN][ERR] nft: failed to add 21.0.0.1 to llusersset
+2026-05-04 23:15:49 [LOGIN][ERR] nft: failed to add 21.0.0.1 to one or more sets — cleanup
+2026-05-04 23:17:47 [LOGOUT] LOGOUT PARMS: -i 21.0.0.1
+2026-05-04 23:17:47 [LOGOUT] START: ip=21.0.0.1 mark=0x15000001 session= dn_cls=0 up_cls=0 pool=0
+2026-05-04 23:17:47 [LOGOUT] DONE: ip=21.0.0.1
+2026-05-04 23:17:48 [LOGIN] LOGIN PARMS: -i 21.0.0.1 -a masq -P 2 -R 200000 -C 240000 -r 100000 -c 120000 -d 16242 -u 16242 -D 5000 -U 2000 -S 1777936668644-8a552b23 -X 255f8f40-ec97-4f2b-8d36-7fc811bcfbc8
+2026-05-04 23:17:48 [LOGIN] LOGIN: ip=21.0.0.1 mark=0x15000001 action=masq pool=2 dn=5000k up=2000k session=1777936668644-8a552b23
+2026-05-04 23:17:48 [LOGIN][ERR] nft: failed to add 21.0.0.1 to loggedinusers
+2026-05-04 23:17:48 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersset
+2026-05-04 23:17:48 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersdstset
+2026-05-04 23:17:48 [LOGIN][ERR] nft: failed to add 21.0.0.1 to llusersset
+2026-05-04 23:17:48 [LOGIN][ERR] nft: failed to add 21.0.0.1 to one or more sets — cleanup
+2026-05-04 23:19:09 [LOGOUT] LOGOUT PARMS: -i 21.0.0.1
+2026-05-04 23:19:09 [LOGOUT] START: ip=21.0.0.1 mark=0x15000001 session= dn_cls=0 up_cls=0 pool=0
+2026-05-04 23:19:09 [LOGOUT] DONE: ip=21.0.0.1
+2026-05-04 23:19:31 [LOGIN] LOGIN PARMS: -i 21.0.0.1 -a masq -P 2 -R 200000 -C 240000 -r 100000 -c 120000 -d 16242 -u 16242 -D 5000 -U 2000 -S 1777936771188-990f1685 -X 255f8f40-ec97-4f2b-8d36-7fc811bcfbc8
+2026-05-04 23:19:31 [LOGIN] LOGIN: ip=21.0.0.1 mark=0x15000001 action=masq pool=2 dn=5000k up=2000k session=1777936771188-990f1685
+2026-05-04 23:19:31 [LOGIN][ERR] nft: failed to add 21.0.0.1 to loggedinusers
+2026-05-04 23:19:31 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersset
+2026-05-04 23:19:31 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersdstset
+2026-05-04 23:19:31 [LOGIN][ERR] nft: failed to add 21.0.0.1 to llusersset
+2026-05-04 23:19:31 [LOGIN][ERR] nft: failed to add 21.0.0.1 to one or more sets — cleanup
+2026-05-04 23:32:13 [POOL][ERR] pool 1:2 create FAILED on ifb0
+2026-05-04 23:32:13 [POOL][ERR] pool 1:3 create FAILED on ifb0
+2026-05-04 23:32:13 [POOL][ERR] pool 1:4 create FAILED on ifb0
