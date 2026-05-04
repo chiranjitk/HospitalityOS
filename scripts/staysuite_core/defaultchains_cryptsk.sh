@@ -40,24 +40,16 @@ SNMP_PORTS="{ 161, 162 }"
 DROP_PORTS="{ 8007, 8009, 3306, 389, 3128 }"
 
 ## ============================================================================
-## MODERN HTTP MODULE CHECK (IMPROVED)
+## CAPTIVE PORTAL MODULE CHECK
 ## ============================================================================
-# Primary check: netveli process running + port 8888 listening
-if ss -tln state listening '( sport = :8888 )' >/dev/null 2>&1 && pgrep -x netveli >/dev/null 2>&1; then
+# Check if captive-redirect service is listening on port 8888
+if ss -tln state listening '( sport = :8888 )' >/dev/null 2>&1; then
     httpmodule=1
-elif pgrep -x netveli >/dev/null 2>&1; then
-    # netveli is running but might not be listening yet — wait briefly
-    sleep 2
-    if ss -tln state listening '( sport = :8888 )' >/dev/null 2>&1; then
-        httpmodule=1
-    else
-        httpmodule=0
-    fi
 else
     httpmodule=0
 fi
 
-echo "httpmodule=$httpmodule (netveli on port 8888: $([ $httpmodule -eq 1 ] && echo 'YES' || echo 'NO'))"
+echo "httpmodule=$httpmodule (captive-redirect on port 8888: $([ $httpmodule -eq 1 ] && echo 'YES' || echo 'NO'))"
 
 ## ============================================================================
 ## HELPER FUNCTIONS
@@ -310,8 +302,9 @@ nft 'add rule inet nat prerouting jump frchainspre'
 
 if [ "$httpmodule" -eq 1 ]; then
     # INSERT at position 0 so redirect runs BEFORE jump open
-    [ "$https_status" = "true" ] && nft 'insert rule inet nat prerouting position 0 mark 20000 tcp dport 443 redirect to :8443'
+    # Order matters: HTTP first (position 0), then HTTPS (position 0 pushes HTTP to 1)
     nft 'insert rule inet nat prerouting position 0 mark 10000 tcp dport 80 redirect to :8888'
+    [ "$https_status" = "true" ] && nft 'insert rule inet nat prerouting position 0 mark 20000 tcp dport 443 redirect to :8443'
 fi
 
 ## ============================================================================
