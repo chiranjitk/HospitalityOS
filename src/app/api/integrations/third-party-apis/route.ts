@@ -3,6 +3,8 @@ import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { encrypt } from '@/lib/encryption';
 
+export const runtime = 'nodejs';
+
 // GET - List third-party APIs
 export async function GET(request: NextRequest) {
   try {

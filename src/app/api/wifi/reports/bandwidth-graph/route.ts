@@ -4,6 +4,8 @@ import { fetchRRD, userRRDPath, interfaceRRDPath } from '@/lib/rrd';
 import { db } from '@/lib/db';
 import fs from 'fs';
 
+export const runtime = 'nodejs';
+
 // GET /api/wifi/reports/bandwidth-graph - Unified graph data from RRD
 export async function GET(request: NextRequest) {
   const user = await requireAuth(request);

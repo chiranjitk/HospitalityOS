@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission, resolvePropertyId } from '@/lib/auth/tenant-context';
 import { fullApplyToNftables } from '@/lib/nftables-helper';
-import { FIREWALL_PRESETS } from '../route';
+import { FIREWALL_PRESETS } from '@/lib/wifi/firewall-presets';
 
 interface RouteParams {
   params: Promise<{ id: string }>;

@@ -5,6 +5,8 @@ import { encrypt, decrypt } from '@/lib/encryption';
 import { createGatewayAdapter, DEFAULT_PORTS } from '@/lib/wifi/adapters';
 import type { GatewayConfig, GatewayVendor, BandwidthPolicy } from '@/lib/wifi/adapters';
 
+export const runtime = 'nodejs';
+
 // ---------------------------------------------------------------------------
 // Valid provider values that can be stored in the Integration table.
 // Covers all 15 GatewayAdapter vendors.

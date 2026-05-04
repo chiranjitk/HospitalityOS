@@ -6,6 +6,8 @@ import {
   getListFilesSummary,
 } from '@/lib/wifi/e2guardian-sync';
 
+export const runtime = 'nodejs';
+
 // POST /api/wifi/firewall/content-filter/sync — Trigger e2guardian config sync
 export async function POST(request: NextRequest) {
   const user = await requirePermission(request, 'network.manage');

@@ -3,6 +3,8 @@ import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { triggerReport } from '@/lib/jobs/scheduler';
 
+export const runtime = 'nodejs';
+
 // GET /api/reports/scheduled - List scheduled reports
 export async function GET(request: NextRequest) {
   try {
