@@ -148,10 +148,15 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Invalidate pool classid cache — new pool changes the sequential mapping
+    // Invalidate pool classid cache + create TC class immediately
     try {
-      const { invalidatePoolCache } = await import('@/lib/network/script-runner');
+      const { invalidatePoolCache, initializeAllPoolClasses } = await import('@/lib/network/script-runner');
       invalidatePoolCache();
+      // Rebuild cache and create TC class for all pools (includes the new one)
+      const result = await initializeAllPoolClasses();
+      if (result.failed > 0) {
+        console.warn(`[BandwidthPool] Pool init after create: ${result.failed} failed`, result.details);
+      }
     } catch { /* non-fatal */ }
 
     return NextResponse.json({ success: true, data: pool }, { status: 201 });

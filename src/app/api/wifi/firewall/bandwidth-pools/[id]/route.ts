@@ -100,10 +100,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Invalidate pool classid cache — pool config may have changed
+    // Invalidate pool classid cache + update TC class immediately
+    const bwChanged = totalDownloadKbps !== undefined || totalUploadKbps !== undefined;
     try {
-      const { invalidatePoolCache } = await import('@/lib/network/script-runner');
+      const { invalidatePoolCache, initializeAllPoolClasses } = await import('@/lib/network/script-runner');
       invalidatePoolCache();
+      if (bwChanged) {
+        // Rebuild all pool TC classes with updated bandwidth
+        const result = await initializeAllPoolClasses();
+        if (result.failed > 0) {
+          console.warn(`[BandwidthPool] Pool init after update: ${result.failed} failed`, result.details);
+        }
+      }
     } catch { /* non-fatal */ }
 
     return NextResponse.json({ success: true, data: pool });
