@@ -190,19 +190,17 @@ UP_CLASSID_HEX="${UP_CLASSID:-0}"
 [[ "$DN_CLASSID_HEX" -gt 0 ]] && DN_CLASSID_HEX="$(printf '%x' "$DN_CLASSID_HEX")"
 [[ "$UP_CLASSID_HEX" -gt 0 ]] && UP_CLASSID_HEX="$(printf '%x' "$UP_CLASSID_HEX")"
 
-# ─── Step 8: Delete u32 filter + user class on ifb0 (download) ────────
+# ─── Step 8: Delete fw filter + user class on ifb0 (download) ────────
 if [[ "$DN_CLASSID" -gt 0 ]]; then
-    # Delete u32 filter matching dst IP
+    # Delete fw filter by handle (tc filter handle = fwmark value)
     tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-        u32 match ip dst "${IP}/32" 2>/dev/null && log_msg "tc: del u32 filter ifb0 dst=$IP"
+        handle "$MARK" fw 2>/dev/null && log_msg "tc: del fw filter ifb0 mark=$MARK"
 
-    # Fallback: delete any old fw/flower filters for this mark
+    # Fallback: try u32 and other filter types for cleanup
     tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-        fw "${MARK}" 2>/dev/null || true
+        u32 match ip dst "${IP}/32" 2>/dev/null || true
     tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
         flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null || true
-    tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-        fw handle "${MARK}" 2>/dev/null || true
 
     # Scan fallback: find any filter referencing this IP
     fh=$(tc filter show dev ifb0 parent 1: 2>/dev/null \
@@ -214,19 +212,17 @@ if [[ "$DN_CLASSID" -gt 0 ]]; then
         && log_msg "tc: del download class 1:${DN_CLASSID_HEX} ifb0"
 fi
 
-# ─── Step 9: Delete u32 filter + user class on ifb1 (upload) ─────────
+# ─── Step 9: Delete fw filter + user class on ifb1 (upload) ─────────
 if [[ "$UP_CLASSID" -gt 0 ]]; then
-    # Delete u32 filter matching src IP
+    # Delete fw filter by handle (tc filter handle = fwmark value)
     tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-        u32 match ip src "${IP}/32" 2>/dev/null && log_msg "tc: del u32 filter ifb1 src=$IP"
+        handle "$MARK" fw 2>/dev/null && log_msg "tc: del fw filter ifb1 mark=$MARK"
 
-    # Fallback: delete any old fw/flower filters for this mark
+    # Fallback: try u32 and other filter types for cleanup
     tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-        fw "${MARK}" 2>/dev/null || true
+        u32 match ip src "${IP}/32" 2>/dev/null || true
     tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
         flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null || true
-    tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-        fw handle "${MARK}" 2>/dev/null || true
 
     fh=$(tc filter show dev ifb1 parent 1: 2>/dev/null \
         | grep -i "${IP}" | grep -oP 'pref \K[0-9]+' | head -1) || true

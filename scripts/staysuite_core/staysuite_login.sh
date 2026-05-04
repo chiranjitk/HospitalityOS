@@ -452,20 +452,23 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
         if [[ "$TC_FAILED" -eq 0 ]]; then
             log_msg "tc: download 1:${DN_CLASSID_HEX} under $local_parent on ifb0 (rate=$DN_GUAR_RATE ceil=$DN_CEIL)"
 
-            # u32 filter: match packets by destination IP → assign to user class.
-            # u32 is the most portable TC filter — works on all kernels.
-            # ifb0 carries download traffic: dst IP = user IP.
-            # Delete any existing filter for this IP first (idempotent re-login).
+            # fw filter: match packets by fwmark → assign to user class.
+            # Syntax: handle <mark> fw classid <X:Y>
+            #   handle goes BEFORE fw (tc filter parameter, not fw keyword)
+            #   fw filter checks: skb->mark & mask == handle (mask default 0xffffffff)
+            # This works on both ifb0 and ifb1 because the mark is set by
+            # nft prerouting BEFORE NAT — it persists even after masquerade.
+            # Same approach as 24online: handle $userid fw classid 1:$classid
             tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-                u32 match ip dst "${IP}/32" 2>/dev/null || true
+                handle "$MARK" fw 2>/dev/null || true
             filter_err=$(tc filter add dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-                u32 match ip dst "${IP}/32" flowid "1:${DN_CLASSID_HEX}" 2>&1) || {
+                handle "$MARK" fw classid "1:${DN_CLASSID_HEX}" 2>&1) || {
                 TC_FAILED=1
-                log_err "tc: failed download u32 filter dst=$IP → 1:${DN_CLASSID_HEX} — $filter_err"
-                echo "[ERR] tc: dl u32 filter dst=$IP → 1:${DN_CLASSID_HEX} failed — $filter_err" >&2
+                log_err "tc: failed download fw filter mark=$MARK → 1:${DN_CLASSID_HEX} — $filter_err"
+                echo "[ERR] tc: dl fw filter mark=$MARK → 1:${DN_CLASSID_HEX} failed — $filter_err" >&2
             }
             if [[ "$TC_FAILED" -eq 0 ]]; then
-                log_msg "tc: download filter ifb0 dst=$IP → 1:${DN_CLASSID_HEX}"
+                log_msg "tc: download fw filter ifb0 mark=$MARK → 1:${DN_CLASSID_HEX}"
                 # Add sfq leaf qdisc for fairness (same as 24online)
                 tc qdisc add dev ifb0 parent "1:${DN_CLASSID_HEX}" handle "${DN_CLASSID_HEX}:" sfq perturb 10 2>/dev/null \
                     && log_msg "tc: download sfq 1:${DN_CLASSID_HEX}: on ifb0"
@@ -506,18 +509,19 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
         if [[ "$TC_FAILED" -eq 0 ]]; then
             log_msg "tc: upload 1:${UP_CLASSID_HEX} under $local_parent on ifb1 (rate=$UP_GUAR_RATE ceil=$UP_CEIL)"
 
-            # u32 filter: match packets by source IP → assign to user class.
-            # ifb1 carries upload traffic: src IP = user IP.
+            # fw filter: match packets by fwmark → assign to user class.
+            # On ifb1 (WAN egress redirect), src IP is masqueraded BUT
+            # the mark was set in nft prerouting BEFORE NAT → still valid.
             tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-                u32 match ip src "${IP}/32" 2>/dev/null || true
+                handle "$MARK" fw 2>/dev/null || true
             filter_err=$(tc filter add dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-                u32 match ip src "${IP}/32" flowid "1:${UP_CLASSID_HEX}" 2>&1) || {
+                handle "$MARK" fw classid "1:${UP_CLASSID_HEX}" 2>&1) || {
                 TC_FAILED=1
-                log_err "tc: failed upload u32 filter src=$IP → 1:${UP_CLASSID_HEX} — $filter_err"
-                echo "[ERR] tc: ul u32 filter src=$IP → 1:${UP_CLASSID_HEX} failed — $filter_err" >&2
+                log_err "tc: failed upload fw filter mark=$MARK → 1:${UP_CLASSID_HEX} — $filter_err"
+                echo "[ERR] tc: ul fw filter mark=$MARK → 1:${UP_CLASSID_HEX} failed — $filter_err" >&2
             }
             if [[ "$TC_FAILED" -eq 0 ]]; then
-                log_msg "tc: upload filter ifb1 src=$IP → 1:${UP_CLASSID_HEX}"
+                log_msg "tc: upload fw filter ifb1 mark=$MARK → 1:${UP_CLASSID_HEX}"
                 # Add sfq leaf qdisc for fairness (same as 24online)
                 tc qdisc add dev ifb1 parent "1:${UP_CLASSID_HEX}" handle "${UP_CLASSID_HEX}:" sfq perturb 10 2>/dev/null \
                     && log_msg "tc: upload sfq 1:${UP_CLASSID_HEX}: on ifb1"
