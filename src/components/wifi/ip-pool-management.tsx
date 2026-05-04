@@ -24,11 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+// Collapsible removed — bandwidth section is now always visible
 import {
   Network,
   Plus,
@@ -254,8 +250,7 @@ export default function IpPoolManagement() {
   // Bandwidth pool cache (keyed by subnet, populated on expand/edit)
   const [bandwidthPoolMap, setBandwidthPoolMap] = useState<Record<string, BandwidthPool>>({});
 
-  // Bandwidth section collapse state
-  const [bandwidthSectionOpen, setBandwidthSectionOpen] = useState(false);
+  // Bandwidth section is now always visible (not collapsible)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -594,13 +589,9 @@ export default function IpPoolManagement() {
           newFormData.totalUploadKbps = bp.totalUploadKbps;
           newFormData.perUserDownloadKbps = bp.perUserDownloadKbps;
           newFormData.perUserUploadKbps = bp.perUserUploadKbps;
-          setBandwidthSectionOpen(true);
-        } else {
-          setBandwidthSectionOpen(false);
         }
       } catch {
         // Non-fatal: bandwidth fetch failure doesn't block editing
-        setBandwidthSectionOpen(false);
       }
     }
 
@@ -624,7 +615,6 @@ export default function IpPoolManagement() {
       perUserUploadKbps: null,
     });
     setRangeErrors([]);
-    setBandwidthSectionOpen(false);
   };
 
   // Range management
@@ -1247,159 +1237,141 @@ export default function IpPoolManagement() {
             </div>
 
             {/* ─── Bandwidth Container (TC HTB Pool) ──────────────────────── */}
-            <Collapsible open={bandwidthSectionOpen} onOpenChange={setBandwidthSectionOpen}>
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="flex items-center gap-2 w-full rounded-lg border border-border bg-muted/30 p-3 hover:bg-muted/50 transition-colors text-left"
-                >
-                  <Gauge className={cn(
-                    "h-4 w-4 transition-colors",
-                    bandwidthSectionOpen ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground"
-                  )} />
-                  <div className="flex-1">
-                    <span className="text-sm font-semibold">Bandwidth Container (TC HTB Pool)</span>
-                    <p className="text-xs text-muted-foreground">Define container and per-user bandwidth limits</p>
-                  </div>
-                  <ChevronDown className={cn(
-                    "h-4 w-4 text-muted-foreground transition-transform",
-                    bandwidthSectionOpen && "rotate-180"
-                  )} />
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-3 space-y-4">
-                <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-4">
-                  {/* Container Bandwidth */}
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <Gauge className="h-3 w-3" />
-                      Container Bandwidth
-                    </Label>
-                    <p className="text-[11px] text-muted-foreground">
-                      TC HTB pool container size. Min 100 Mbps, Max 10 Gbit. NOT a per-user limit.
-                    </p>
-                  </div>
+            <div className="rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50/30 dark:bg-teal-950/20 p-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <Gauge className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                <span className="text-sm font-semibold">Bandwidth Container (TC HTB Pool)</span>
+              </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Total Download */}
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Container Bandwidth (Download)</Label>
-                      <div className="flex items-center gap-2">
-                        <Select
-                          value={String(formData.totalDownloadKbps / 1000)}
-                          onValueChange={handleTotalDownloadChange}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {BANDWIDTH_PRESETS.map((preset) => (
-                              <SelectItem key={preset.value} value={preset.value}>
-                                {preset.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">
-                        {formatBandwidthKbps(formData.totalDownloadKbps)}
-                      </p>
-                    </div>
+              {/* Container Bandwidth */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Gauge className="h-3 w-3" />
+                  Container Bandwidth
+                </Label>
+                <p className="text-[11px] text-muted-foreground">
+                  TC HTB pool container size. Min 100 Mbps, Max 10 Gbit. NOT a per-user limit.
+                </p>
+              </div>
 
-                    {/* Total Upload */}
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Container Bandwidth (Upload)</Label>
-                      <div className="flex items-center gap-2">
-                        <Select
-                          value={String(formData.totalUploadKbps / 1000)}
-                          onValueChange={handleTotalUploadChange}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {BANDWIDTH_PRESETS.map((preset) => (
-                              <SelectItem key={preset.value} value={preset.value}>
-                                {preset.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">
-                        {formatBandwidthKbps(formData.totalUploadKbps)}
-                      </p>
-                    </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Total Download */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Container Bandwidth (Download)</Label>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={String(formData.totalDownloadKbps / 1000)}
+                      onValueChange={handleTotalDownloadChange}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BANDWIDTH_PRESETS.map((preset) => (
+                          <SelectItem key={preset.value} value={preset.value}>
+                            {preset.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-
-                  {/* Per-User Limits */}
-                  <div className="space-y-2 pt-2 border-t">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Default Per-User Limits
-                    </Label>
-                    <p className="text-[11px] text-muted-foreground">
-                      Applied when no WiFi plan is assigned. Leave empty for no limit.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Per-User Download */}
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Default Per-User Limit (Download)</Label>
-                      <Select
-                        value={formData.perUserDownloadKbps ? String(formData.perUserDownloadKbps / 1000) : 'none'}
-                        onValueChange={handlePerUserDownloadChange}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="No limit" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No limit</SelectItem>
-                          {PER_USER_PRESETS.map((preset) => (
-                            <SelectItem key={preset.value} value={preset.value}>
-                              {preset.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[10px] text-muted-foreground">
-                        {formData.perUserDownloadKbps
-                          ? formatBandwidthKbps(formData.perUserDownloadKbps) + ' per user'
-                          : 'No per-user download limit'
-                        }
-                      </p>
-                    </div>
-
-                    {/* Per-User Upload */}
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Default Per-User Limit (Upload)</Label>
-                      <Select
-                        value={formData.perUserUploadKbps ? String(formData.perUserUploadKbps / 1000) : 'none'}
-                        onValueChange={handlePerUserUploadChange}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="No limit" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No limit</SelectItem>
-                          {PER_USER_PRESETS.map((preset) => (
-                            <SelectItem key={preset.value} value={preset.value}>
-                              {preset.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[10px] text-muted-foreground">
-                        {formData.perUserUploadKbps
-                          ? formatBandwidthKbps(formData.perUserUploadKbps) + ' per user'
-                          : 'No per-user upload limit'
-                        }
-                      </p>
-                    </div>
-                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    {formatBandwidthKbps(formData.totalDownloadKbps)}
+                  </p>
                 </div>
-              </CollapsibleContent>
-            </Collapsible>
+
+                {/* Total Upload */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Container Bandwidth (Upload)</Label>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={String(formData.totalUploadKbps / 1000)}
+                      onValueChange={handleTotalUploadChange}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BANDWIDTH_PRESETS.map((preset) => (
+                          <SelectItem key={preset.value} value={preset.value}>
+                            {preset.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    {formatBandwidthKbps(formData.totalUploadKbps)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Per-User Limits */}
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Default Per-User Limits
+                </Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Applied when no WiFi plan is assigned. Leave empty for no limit.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Per-User Download */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Default Per-User Limit (Download)</Label>
+                  <Select
+                    value={formData.perUserDownloadKbps ? String(formData.perUserDownloadKbps / 1000) : 'none'}
+                    onValueChange={handlePerUserDownloadChange}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="No limit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No limit</SelectItem>
+                      {PER_USER_PRESETS.map((preset) => (
+                        <SelectItem key={preset.value} value={preset.value}>
+                          {preset.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground">
+                    {formData.perUserDownloadKbps
+                      ? formatBandwidthKbps(formData.perUserDownloadKbps) + ' per user'
+                      : 'No per-user download limit'
+                    }
+                  </p>
+                </div>
+
+                {/* Per-User Upload */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Default Per-User Limit (Upload)</Label>
+                  <Select
+                    value={formData.perUserUploadKbps ? String(formData.perUserUploadKbps / 1000) : 'none'}
+                    onValueChange={handlePerUserUploadChange}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="No limit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No limit</SelectItem>
+                      {PER_USER_PRESETS.map((preset) => (
+                        <SelectItem key={preset.value} value={preset.value}>
+                          {preset.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground">
+                    {formData.perUserUploadKbps
+                      ? formatBandwidthKbps(formData.perUserUploadKbps) + ' per user'
+                      : 'No per-user upload limit'
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
           <DialogFooter>

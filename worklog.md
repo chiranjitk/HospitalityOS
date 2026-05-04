@@ -438,3 +438,24 @@ Stage Summary:
 - **Subnet matching**: User IP → pool subnet → user class under that pool
 - **Files changed**: script-runner.ts, instrumentation.ts, bandwidth-pools/route.ts, [id]/route.ts
 - **Commit**: c0276bda pushed to main
+---
+Task ID: 1
+Agent: Main Agent
+Task: Make bandwidth pool configuration visible in IP Pool Management page
+
+Work Log:
+- Read the full ip-pool-management.tsx file (1570 lines)
+- Found bandwidth config already exists but hidden inside a Collapsible section (collapsed by default)
+- Removed Collapsible/CollapsibleContent/CollapsibleTrigger wrapper — now always visible
+- Applied teal border styling to make bandwidth section visually prominent
+- Removed unused bandwidthSectionOpen state and all setBandwidthSectionOpen() calls
+- Removed unused Collapsible imports from @/components/ui/collapsible
+- Cleaned up indentation in the bandwidth section
+- Verified no build errors from changes
+
+Stage Summary:
+- Bandwidth Container (TC HTB Pool) section is now always visible in Create/Edit IP Pool dialog
+- No separate firewall page for bandwidth pool management exists or is needed
+- The section shows: Container BW (Download/Upload) with presets, and Per-User limits (Download/Upload) with "No limit" option
+- Backend APIs at /api/wifi/firewall/bandwidth-pools remain unchanged (called behind the scenes)
+
