@@ -186,6 +186,25 @@ fi
 [[ "$POOL_RATE_UP" -eq 0 ]] && POOL_RATE_UP="$POOL_RATE_DN"
 [[ "$POOL_CEIL_UP" -eq 0 ]]  && POOL_CEIL_UP="$POOL_CEIL_DN"
 
+# ─── Log all received parameters (copy-paste for manual debugging) ───
+PARAM_LOG="LOGIN PARMS: -i $IP -a $ACTION"
+[[ -n "$SNAT_IP" ]] && PARAM_LOG="$PARAM_LOG -s $SNAT_IP"
+[[ "$POOL_ID" -gt 0 ]] && PARAM_LOG="$PARAM_LOG -P $POOL_ID -R $POOL_RATE_DN -C $POOL_CEIL_DN -r $POOL_RATE_UP -c $POOL_CEIL_UP"
+[[ "$DN_CLASSID" -gt 0 ]] && PARAM_LOG="$PARAM_LOG -d $DN_CLASSID"
+[[ "$UP_CLASSID" -gt 0 ]] && PARAM_LOG="$PARAM_LOG -u $UP_CLASSID"
+[[ "$DN_KBPS" -gt 0 ]] && PARAM_LOG="$PARAM_LOG -D $DN_KBPS"
+[[ "$UP_KBPS" -gt 0 ]] && PARAM_LOG="$PARAM_LOG -U $UP_KBPS"
+[[ "$DN_GUAR" -gt 0 ]] && PARAM_LOG="$PARAM_LOG -g $DN_GUAR"
+[[ "$UP_GUAR" -gt 0 ]] && PARAM_LOG="$PARAM_LOG -G $UP_GUAR"
+[[ -n "$GATEWAY_ID" && "$GATEWAY_ID" != "-1" ]] && PARAM_LOG="$PARAM_LOG -W $GATEWAY_ID"
+[[ -n "$SESSION_ID" ]] && PARAM_LOG="$PARAM_LOG -S $SESSION_ID"
+[[ -n "$MAC_ADDR" ]] && PARAM_LOG="$PARAM_LOG -m $MAC_ADDR"
+[[ -n "$USER_ID" ]] && PARAM_LOG="$PARAM_LOG -X $USER_ID"
+[[ -n "$POLICY_ID" && "$POLICY_ID" != "0" ]] && PARAM_LOG="$PARAM_LOG -o $POLICY_ID"
+[[ "$FW_PREF" -ne 100 ]] && PARAM_LOG="$PARAM_LOG -f $FW_PREF"
+log_msg "$PARAM_LOG"
+echo "$PARAM_LOG" >&2
+
 # ─── File locking ────────────────────────────────────────────────────
 LCK="/tmp/staysuite_login_${IP}.LCK"
 exec 8>"$LCK"

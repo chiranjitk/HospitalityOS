@@ -151,6 +151,10 @@ export function runLoginScript(params: LoginScriptParams): ScriptResult {
   if (params.policyId && params.policyId !== '0') args.push('-o', params.policyId);
   if (params.fwPref) args.push('-f', String(params.fwPref));
 
+  // Log full command for manual debugging — copy-paste ready
+  const cmdLine = `${LOGIN_SCRIPT} ${args.join(' ')}`;
+  console.log(`[ScriptRunner] LOGIN >>> ${cmdLine}`);
+
   return runScript(LOGIN_SCRIPT, args, 15000);
 }
 
@@ -190,6 +194,10 @@ export function runLogoutScript(params: LogoutScriptParams): ScriptResult {
   if (params.gatewayId && params.gatewayId !== '-1') args.push('-W', params.gatewayId);
   if (params.poolId) args.push('-P', String(params.poolId));
   if (params.fwPref) args.push('-f', String(params.fwPref));
+
+  // Log full command for manual debugging — copy-paste ready
+  const cmdLine = `${LOGOUT_SCRIPT} ${args.join(' ')}`;
+  console.log(`[ScriptRunner] LOGOUT >>> ${cmdLine}`);
 
   return runScript(LOGOUT_SCRIPT, args, 10000);
 }

@@ -86,6 +86,18 @@ fi
 
 TAG="ss_${IP//./_}"
 
+# ─── Log all received parameters (copy-paste for manual debugging) ───
+PARAM_LOG="LOGOUT PARMS: -i $IP"
+[[ -n "$SESSION_ID" ]] && PARAM_LOG="$PARAM_LOG -S $SESSION_ID"
+[[ "$DN_CLASSID" -gt 0 ]] && PARAM_LOG="$PARAM_LOG -d $DN_CLASSID"
+[[ "$UP_CLASSID" -gt 0 ]] && PARAM_LOG="$PARAM_LOG -u $UP_CLASSID"
+[[ -n "$SNAT_IP" ]] && PARAM_LOG="$PARAM_LOG -s $SNAT_IP"
+[[ -n "$GATEWAY_ID" && "$GATEWAY_ID" != "-1" ]] && PARAM_LOG="$PARAM_LOG -W $GATEWAY_ID"
+[[ "$POOL_ID" -gt 0 ]] && PARAM_LOG="$PARAM_LOG -P $POOL_ID"
+[[ "$FW_PREF" -ne 100 ]] && PARAM_LOG="$PARAM_LOG -f $FW_PREF"
+log_msg "$PARAM_LOG"
+echo "$PARAM_LOG" >&2
+
 # Locking
 LCK="/tmp/staysuite_logout_${IP}.LCK"
 exec 8>"$LCK"
