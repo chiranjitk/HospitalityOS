@@ -38,7 +38,7 @@ const DEFAULT_NAT_ACTION = process.env.STAYSUITE_NAT_ACTION || 'masq';
 // Pool classid mapping: ordered by createdAt, first pool = 1:2, second = 1:3, etc.
 // This mapping is cached in memory and refreshed on each lookup.
 //
-// User classids: deterministic hash of username → range 102–25101 (DN), 25102–50101 (UP)
+// User classids: deterministic hash of username → range 102–25101 (same for DN & UP — different devices)
 
 /** Max pool classes reserved */
 const MAX_POOL_CLASSES = 100;
@@ -46,7 +46,7 @@ const MAX_POOL_CLASSES = 100;
 const POOL_CLASSID_START = 2;
 /** User classids start after the pool range */
 const USER_CLASSID_START = POOL_CLASSID_START + MAX_POOL_CLASSES; // 102
-/** Number of unique user classid slots per direction */
+/** Number of unique user classid slots */
 const USER_CLASSID_SLOTS = 25000;
 
 function hashString(str: string): number {
@@ -61,14 +61,16 @@ function hashString(str: string): number {
  * Generate deterministic TC class IDs from username.
  * Same username always maps to same classid — essential for recovery.
  *
- * DN: (hash % 25000) + 102  → range 102 – 25101
- * UP: DN + 25000             → range 25102 – 50101
+ * Download and upload use the SAME classid because they live on DIFFERENT devices:
+ *   ifb0 (download): 1:102  ← user's DN leaf
+ *   ifb1 (upload):   1:102  ← user's UP leaf (same number, no collision)
+ *
+ * Range: (hash % 25000) + 102  → 102 – 25101
  */
 export function generateClassIds(username: string): { dn: number; up: number } {
   const h = hashString(username);
-  const dn = (h % USER_CLASSID_SLOTS) + USER_CLASSID_START;  // 102–25101
-  const up = dn + USER_CLASSID_SLOTS;                          // 25102–50101
-  return { dn, up };
+  const classid = (h % USER_CLASSID_SLOTS) + USER_CLASSID_START;  // 102–25101
+  return { dn: classid, up: classid };  // SAME — different devices (ifb0 vs ifb1)
 }
 
 /**
