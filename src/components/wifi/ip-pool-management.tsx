@@ -307,14 +307,14 @@ export default function IpPoolManagement() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-      } else if (propertyId) {
-        // Create new bandwidth pool (requires propertyId)
+      } else {
+        // Create new bandwidth pool (propertyId optional)
         await fetch('/api/wifi/firewall/bandwidth-pools', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...payload,
-            propertyId,
+            propertyId: propertyId || undefined,
           }),
         });
       }

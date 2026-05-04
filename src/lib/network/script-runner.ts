@@ -356,16 +356,20 @@ export interface PoolBandwidthInfo {
  * Returns pool info if found, or zeroes if no pool configured.
  */
 export async function lookupBandwidthPool(
-  propertyId: string,
+  propertyId: string | null | undefined,
   subnet?: string | null
 ): Promise<PoolBandwidthInfo> {
   try {
     const { db } = await import('@/lib/db');
 
+    // Build where clause — handle null propertyId (match pools without property too)
+    const baseWhere: Record<string, unknown> = { enabled: true };
+    if (propertyId) baseWhere.propertyId = propertyId;
+
     // Try to match by subnet first (user IP → pool subnet → correct pool class)
     if (subnet) {
       const bySubnet = await db.bandwidthPool.findFirst({
-        where: { propertyId, enabled: true, subnet: { contains: subnet.split('/')[0] } },
+        where: { ...baseWhere, subnet: { contains: subnet.split('/')[0] } },
         select: { id: true, totalDownloadKbps: true, totalUploadKbps: true },
       });
       if (bySubnet) {
@@ -380,9 +384,9 @@ export async function lookupBandwidthPool(
       }
     }
 
-    // Fallback: find any enabled pool for this property
+    // Fallback: find any enabled pool for this property (or any if no propertyId)
     const anyPool = await db.bandwidthPool.findFirst({
-      where: { propertyId, enabled: true },
+      where: baseWhere,
       select: { id: true, totalDownloadKbps: true, totalUploadKbps: true },
     });
     if (anyPool) {

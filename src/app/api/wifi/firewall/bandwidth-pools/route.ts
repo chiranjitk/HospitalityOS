@@ -97,9 +97,9 @@ export async function POST(request: NextRequest) {
       enabled = true,
     } = body;
 
-    if (!propertyId || !name) {
+    if (!name) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required fields: propertyId, name' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required field: name' } },
         { status: 400 }
       );
     }
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
     const pool = await db.bandwidthPool.create({
       data: {
         tenantId: user.tenantId,
-        propertyId,
+        propertyId: propertyId || null,
         name,
         subnet,
         vlanId: vlanId !== undefined ? parseInt(vlanId, 10) : null,
