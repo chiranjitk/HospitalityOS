@@ -9,10 +9,16 @@ import { removeUserCounter, deauthIP } from '@/lib/wifi/utils/nftables-counters'
 //
 // Guest-facing disconnect endpoint (no auth required).
 // Called from the captive portal when the user clicks "Disconnect & Logout".
+// Also called from admin Active Users tab to force-disconnect a user.
 //
 // 1. Closes active radacct sessions (removes from Active Users tab)
 // 2. Closes WiFiSession records
 // 3. Calls staysuite_logout.sh to remove nft rules + TC classes
+// 4. Deactivates DeviceProfile on admin disconnect (prevents auto-reconnect)
+//
+// Source parameter:
+//   - 'admin' (or absent): Admin-initiated — DeviceProfile deactivated, auto-auth blocked
+//   - 'portal': Guest self-logout — DeviceProfile kept active for future auto-auth
 //
 // IP Resolution Strategy (in order):
 //   1. Request body `clientIp` field (frontend can pass it)
@@ -20,9 +26,6 @@ import { removeUserCounter, deauthIP } from '@/lib/wifi/utils/nftables-counters'
 //   3. Active radacct record for the username
 //   4. Active WiFiSession record for the username
 //   5. nftables loggedinusers set (last resort — shell command)
-//
-// The DeviceProfile is NOT deleted — it persists so that auto-auth can
-// match this device by fingerprintHash on the next visit.
 // ────────────────────────────────────────────────────────────────
 
 function getClientIpFromRequest(request: NextRequest): string {
@@ -36,7 +39,7 @@ function getClientIpFromRequest(request: NextRequest): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { username, clientIp: bodyIp } = body as { username?: string; clientIp?: string };
+    const { username, clientIp: bodyIp, source } = body as { username?: string; clientIp?: string; source?: string };
 
     if (!username) {
       return NextResponse.json(
@@ -106,8 +109,12 @@ export async function POST(request: NextRequest) {
     // Strategy 5: From nftables loggedinusers set (last resort — shell command)
     if (!clientIp) {
       try {
+        // Dynamic table name detection (same as session engine)
+        const nftSets = execSync('nft list sets 2>/dev/null', { encoding: 'utf-8', timeout: 3000 });
+        const mangleLine = nftSets.split('\n').find(l => l.includes('loggedinusers'));
+        const tableName = mangleLine ? mangleLine.split(/\s+/)[1] : 'mangle';
         const nftOutput = execSync(
-          'nft list elements inet mangle loggedinusers 2>/dev/null',
+          `nft list elements ${tableName} loggedinusers 2>/dev/null`,
           { encoding: 'utf-8', timeout: 3000 }
         );
         // Parse IPs from nft output: { 192.168.100.35, 10.0.0.1, ... }
@@ -212,6 +219,35 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[Guest Disconnect] User ${username} disconnected, ${closedCount} radacct session(s) closed`);
+
+    // ── Deactivate DeviceProfile(s) for admin-initiated disconnects ──
+    // When an admin disconnects a user (from Active Users tab), we deactivate
+    // the DeviceProfile so auto-auth doesn't immediately reconnect the device.
+    // Guest self-logout (source='portal') keeps the profile active for future visits.
+    if (source === 'admin' || !source) {
+      try {
+        // Look up WiFiUser to find the property for scoping
+        const wifiUser = await db.wiFiUser.findUnique({
+          where: { username },
+          select: { id: true, propertyId: true },
+        });
+        if (wifiUser) {
+          const deactivated = await db.deviceProfile.updateMany({
+            where: {
+              wifiUserId: wifiUser.id,
+              propertyId: wifiUser.propertyId,
+              isActive: true,
+            },
+            data: { isActive: false },
+          });
+          if (deactivated.count > 0) {
+            console.log(`[Guest Disconnect] Deactivated ${deactivated.count} DeviceProfile(s) for ${username} (admin disconnect — auto-auth disabled)`);
+          }
+        }
+      } catch {
+        // Non-fatal — DeviceProfile cleanup should not block disconnect
+      }
+    }
 
     return NextResponse.json({
       success: true,
