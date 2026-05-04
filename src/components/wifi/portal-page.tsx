@@ -103,6 +103,7 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   Router,
+  RefreshCw,
   Undo2,
   Redo2,
   ChevronUp,
@@ -2951,23 +2952,23 @@ function AnalyticsLiveMonitor() {
       const queryParams = propertyId && propertyId !== 'default' ? `?propertyId=${propertyId}` : '';
 
       const [sessionsRes, authRes, captiveRes] = await Promise.all([
-        fetch(`/api/wifi/radius?action=live-sessions-stats${queryParams}`),
-        fetch(`/api/wifi/radius?action=auth-logs-stats${queryParams}`),
-        // Captive-redirect metrics from the mini service on port 8888
-        fetch('/api/captive-redirect/metrics?XTransformPort=8888').catch(() => null),
+        fetch(`/api/wifi/radius?action=live-sessions-stats${queryParams}`).catch(() => null),
+        fetch(`/api/wifi/radius?action=auth-logs-stats${queryParams}`).catch(() => null),
+        // Captive-redirect metrics from the mini service on port 8888 (proxied)
+        fetch('/api/captive-redirect/metrics').catch(() => null),
       ]);
 
-      if (sessionsRes.ok) {
+      if (sessionsRes && sessionsRes.ok) {
         const sessionsResult = await sessionsRes.json();
         if (sessionsResult.success) setLiveStats(sessionsResult.data);
       }
-      if (authRes.ok) {
+      if (authRes && authRes.ok) {
         const authResult = await authRes.json();
         if (authResult.success) setAuthStats(authResult.data);
       }
       if (captiveRes && captiveRes.ok) {
         const captiveResult = await captiveRes.json();
-        setCaptiveMetrics(captiveResult);
+        if (captiveResult.success) setCaptiveMetrics(captiveResult.data);
       }
 
       setLastRefresh(new Date());
@@ -3318,14 +3319,16 @@ function AnalyticsAuthInsights() {
       if (propertyId && propertyId !== 'default') params.set('propertyId', propertyId);
 
       const [analyticsRes, authRes] = await Promise.all([
-        fetch(`/api/wifi/portal/analytics?${params.toString()}`),
-        fetch(`/api/wifi/radius?action=auth-logs-stats&${params.toString()}`),
+        fetch(`/api/wifi/portal/analytics?${params.toString()}`).catch(() => null),
+        fetch(`/api/wifi/radius?action=auth-logs-stats&${params.toString()}`).catch(() => null),
       ]);
 
-      const analyticsResult = await analyticsRes.json();
-      if (analyticsResult.success) setData(analyticsResult.data);
+      if (analyticsRes && analyticsRes.ok) {
+        const analyticsResult = await analyticsRes.json();
+        if (analyticsResult.success) setData(analyticsResult.data);
+      }
 
-      if (authRes.ok) {
+      if (authRes && authRes.ok) {
         const authResult = await authRes.json();
         if (authResult.success) setAuthStats(authResult.data);
       }

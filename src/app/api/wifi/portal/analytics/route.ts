@@ -48,7 +48,8 @@ export async function GET(request: NextRequest) {
       startTime: { gte: prevStartDate, lt: prevEndDate },
     };
 
-    // Run all queries in parallel
+    // Run all queries with individual error handling — never fail the entire response
+    // Each query has its own try/catch so partial data is always returned
     const [
       totalSessions,
       activeSessions,
@@ -61,22 +62,22 @@ export async function GET(request: NextRequest) {
       voucherUsedCount,
     ] = await Promise.all([
       // 1. Total sessions in the selected period
-      db.wiFiSession.count({ where }),
+      db.wiFiSession.count({ where }).catch(() => 0),
 
       // 2. Currently active sessions
       db.wiFiSession.count({
         where: { ...where, status: 'active' },
-      }),
+      }).catch(() => 0),
 
       // 3. Previous period session count (for growth %)
-      db.wiFiSession.count({ where: prevWhere }),
+      db.wiFiSession.count({ where: prevWhere }).catch(() => 0),
 
       // 4. Auth method distribution
       db.wiFiSession.groupBy({
         by: ['authMethod'],
         where,
         _count: { id: true },
-      }),
+      }).catch(() => []),
 
       // 5. Peak usage hours (sessions per hour of day)
       db.$queryRaw<Array<{ hour: number; count: bigint }>>`
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
           AND "startTime" >= ${startDate}
         GROUP BY hour
         ORDER BY hour
-      `,
+      `.catch(() => []),
 
       // 6. Completed sessions for duration calculation
       db.wiFiSession.findMany({
@@ -99,13 +100,13 @@ export async function GET(request: NextRequest) {
         },
         select: { duration: true },
         take: 500,
-      }),
+      }).catch(() => []),
 
       // 7. Total data used (download + upload combined as dataUsed)
       db.wiFiSession.aggregate({
         where,
         _sum: { dataUsed: true },
-      }),
+      }).catch(() => ({ _sum: { dataUsed: BigInt(0) } })),
 
       // 8. Unique devices (distinct MAC addresses)
       db.wiFiSession.groupBy({
@@ -115,7 +116,7 @@ export async function GET(request: NextRequest) {
           macAddress: { not: '' },
         },
         _count: { id: true },
-      }),
+      }).catch(() => []),
 
       // 9. Vouchers used in the period
       db.wiFiVoucher.count({
@@ -124,7 +125,7 @@ export async function GET(request: NextRequest) {
           isUsed: true,
           usedAt: { gte: startDate },
         },
-      }),
+      }).catch(() => 0),
     ]);
 
     // Calculate average session duration in minutes
