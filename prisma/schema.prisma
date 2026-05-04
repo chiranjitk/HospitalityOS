@@ -1810,10 +1810,11 @@ model FirewallRule {
   enabled      Boolean      @default(true)
   comment      String?
   priority     Int          @default(0)
-  scheduleId   String?      @db.Uuid
-  createdAt    DateTime     @default(now()) @db.Timestamptz
-  updatedAt    DateTime     @updatedAt @db.Timestamptz
-  firewallZone FirewallZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  scheduleId       String?             @db.Uuid
+  createdAt        DateTime            @default(now()) @db.Timestamptz
+  updatedAt        DateTime            @updatedAt @db.Timestamptz
+  firewallZone     FirewallZone        @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  firewallSchedule FirewallSchedule?   @relation(fields: [scheduleId], references: [id])
   property     Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -1839,6 +1840,8 @@ model FirewallSchedule {
   updatedAt  DateTime @updatedAt @db.Timestamptz
   property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  rules      FirewallRule[]
 
   @@index([tenantId])
   @@index([propertyId])
@@ -3786,6 +3789,51 @@ model PortForwardRule {
   @@index([enabled])
 }
 
+/// QuickBlock - Instant IP/Subnet/MAC blocks
+model QuickBlock {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  propertyId  String   @db.Uuid
+  type        String   // ip, subnet, mac
+  value       String   // The IP/subnet/MAC value
+  reason      String?
+  enabled     Boolean  @default(true)
+  expiresAt   DateTime? @db.Timestamptz
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, type, value])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([type])
+  @@index([enabled])
+}
+
+/// RateLimitRule - Bandwidth rate limiting rules
+model RateLimitRule {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  propertyId    String   @db.Uuid
+  name          String?
+  targetIp      String?  // Single IP or subnet
+  targetSet     String?  // Named set (e.g., "guest-subnet")
+  downloadRate  String   @default("10mbit") // e.g., "10mbit", "1gbit"
+  uploadRate    String   @default("5mbit")
+  protocol      String   @default("all") // all, tcp, udp
+  enabled       Boolean  @default(true)
+  comment       String?
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  updatedAt     DateTime @updatedAt @db.Timestamptz
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([enabled])
+}
+
 model PreventiveMaintenance {
   id                String    @id @default(uuid()) @db.Uuid
   tenantId          String    @db.Uuid
@@ -3975,6 +4023,8 @@ model Property {
   bondConfigs            BondConfig[]
   wanFailovers           WanFailover[]
   portForwardRules       PortForwardRule[]
+  quickBlocks            QuickBlock[]
+  rateLimitRules         RateLimitRule[]
   dhcpSubnets            DhcpSubnet[]
   dhcpReservations       DhcpReservation[]
   dhcpLeases             DhcpLease[]
@@ -5772,6 +5822,8 @@ model Tenant {
   bondConfigs               BondConfig[]
   wanFailovers              WanFailover[]
   portForwardRules          PortForwardRule[]
+  quickBlocks              QuickBlock[]
+  rateLimitRules           RateLimitRule[]
   dhcpSubnets               DhcpSubnet[]
   dhcpReservations          DhcpReservation[]
   dhcpLeases                DhcpLease[]

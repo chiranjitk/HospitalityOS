@@ -252,3 +252,47 @@ Stage Summary:
 - PWA fully implemented: manifest, service worker, install prompt, meta tags
 - No new lint errors from PWA files (all useSyncExternalStore + useMemo patterns)
 - Mobile: touch targets, safe areas, scrollbar styling, overflow prevention all added globally
+---
+Task ID: 2
+Agent: schema-agent
+Task: Add QuickBlock and RateLimitRule Prisma models
+
+Work Log:
+- Read schema.prisma to find insertion points
+- Added QuickBlock model after PortForwardRule
+- Added RateLimitRule model after QuickBlock
+- Added relations to Property model
+- Added relations to Tenant model
+
+Stage Summary:
+- Two new models: QuickBlock, RateLimitRule
+- Both with multi-tenant support (tenantId, propertyId)
+- QuickBlock has unique constraint on [propertyId, type, value]
+- Ready for prisma db push
+
+---
+Task ID: 3
+Agent: api-routes-agent
+Task: Create DB-first firewall API routes
+
+Work Log:
+- Read existing API patterns from rules/route.ts and nftables-helper.ts
+- Added FirewallRule ↔ FirewallSchedule Prisma relation (was missing)
+- Pushed schema changes and regenerated Prisma client
+- Created 14 new API route files under /api/wifi/firewall/
+- All routes use Prisma DB as source of truth with multi-tenant filtering
+- Apply to nftables-service is fire-and-forget (non-blocking) via try/catch
+- Auth: all routes use requirePermission(request, 'wifi.manage')
+- Property resolution: uses resolvePropertyId() from tenant-context
+- Response format: { success: boolean, data?: T, error?: string }
+
+Stage Summary:
+- gui-rules: CRUD + toggle + reorder (PATCH with _action=reorder)
+- port-forwards: CRUD + toggle (PATCH)
+- quick-blocks: list + create + delete (with duplicate check)
+- rate-limits: CRUD + toggle (PATCH)
+- presets: hardcoded list (7 presets) + apply endpoint (creates FirewallRule records)
+- apply: explicit apply button handler (returns result from nftables-service)
+- flush: flush GUI chains (fire-and-forget)
+- chain-architecture: metadata (6 chains)
+- apply-status: service health check (serviceAvailable, mode, appliedAt, pendingChanges)

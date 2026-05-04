@@ -187,7 +187,7 @@ interface Schedule {
 
 // ─── API Helper ──────────────────────────────────────────────────────
 
-const API_BASE = '/api/nftables';
+const API_BASE = '/api/wifi/firewall';
 
 interface NftablesResult {
   applied: boolean;
@@ -476,7 +476,7 @@ function RulesTab() {
 
   const fetchNftablesStatus = useCallback(async () => {
     try {
-      const res = await apiFetch<{ mode: string }>(`${API_BASE}/status`);
+      const res = await apiFetch<{ mode: string }>(`${API_BASE}/apply-status`);
       if (res.success && res.data) {
         setNftablesMode((res.data.mode as 'production' | 'simulation') || null);
       }
@@ -2455,7 +2455,7 @@ function ChainArchitectureTab() {
       setLoading(true);
       const [archRes, statusRes] = await Promise.all([
         apiFetch<ChainArchData>(`${API_BASE}/chain-architecture`),
-        apiFetch<ChainStatusData>(`${API_BASE}/status`),
+        apiFetch<ChainStatusData>(`${API_BASE}/apply-status`),
       ]);
       if (archRes.success && archRes.data) setArchData(archRes.data);
       if (statusRes.success && statusRes.data) setStatusData(statusRes.data);
@@ -2518,7 +2518,7 @@ function ChainArchitectureTab() {
   const flushGuiChains = async () => {
     try {
       setFlushing(true);
-      await apiFetch(`${API_BASE}/flush-gui`, { method: 'POST' });
+      await apiFetch(`${API_BASE}/flush`, { method: 'POST' });
       toast({ title: 'GUI Chains Flushed', description: 'All GUI-managed chains have been flushed.' });
       await fetchData();
     } catch (e: unknown) {
