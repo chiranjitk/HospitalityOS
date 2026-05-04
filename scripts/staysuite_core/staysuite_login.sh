@@ -21,8 +21,8 @@
 #    │  │   └── ...                                                 │
 #    │  └── ... (other pools)                                       │
 #    │                                                              │
-#    │  filter parent 1: pref 100 fw handle 0xIP_HEX → classid    │
-#    │    (TC reads the nft mark set by prerouting)                 │
+#    │  filter parent 1: pref 100 flower fwmark 0xIP_HEX → classid │
+#    │    (TC reads the nft mark set by prerouting via flower)      │
 #    └──────────────────────────────────────────────────────────────┘
 #
 #  FLOW:
@@ -444,15 +444,20 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
         if [[ "$TC_FAILED" -eq 0 ]]; then
             log_msg "tc: download 1:${DN_CLASSID_HEX} under $local_parent on ifb0 (rate=$DN_GUAR_RATE ceil=$DN_CEIL)"
 
-            # fw filter: match fwmark set by nft → assign to user class
-            # IMPORTANT: handle MUST come before 'fw' keyword. tc fw filter uses
-            # handle as the fwmark value to match (with /0xFFFFFFFF mask).
+            # flower filter: match fwmark set by nft → assign to user class
+            # flower supports full 32-bit fwmark with mask (fw is 16-bit limited).
+            # Delete any existing filter for this mark first (idempotent re-login).
+            tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
+                flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null || true
             filter_err=$(tc filter add dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-                handle "${MARK}/0xFFFFFFFF" fw classid "1:${DN_CLASSID_HEX}" 2>&1) || {
+                flower fwmark "${MARK}/0xFFFFFFFF" classid "1:${DN_CLASSID_HEX}" 2>&1) || {
                 TC_FAILED=1
-                log_err "tc: failed download fw filter $MARK → 1:${DN_CLASSID_HEX} — $filter_err"
-                echo "[ERR] tc: dl fw filter $MARK → 1:${DN_CLASSID_HEX} failed — $filter_err" >&2
+                log_err "tc: failed download flower filter $MARK → 1:${DN_CLASSID_HEX} — $filter_err"
+                echo "[ERR] tc: dl flower filter $MARK → 1:${DN_CLASSID_HEX} failed — $filter_err" >&2
             }
+            if [[ "$TC_FAILED" -eq 0 ]]; then
+                log_msg "tc: download filter ifb0 fwmark=$MARK → 1:${DN_CLASSID_HEX}"
+            fi
         fi
     fi
 
@@ -489,12 +494,18 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
         if [[ "$TC_FAILED" -eq 0 ]]; then
             log_msg "tc: upload 1:${UP_CLASSID_HEX} under $local_parent on ifb1 (rate=$UP_GUAR_RATE ceil=$UP_CEIL)"
 
+            # flower filter: match fwmark set by nft → assign to user class
+            tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
+                flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null || true
             filter_err=$(tc filter add dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-                handle "${MARK}/0xFFFFFFFF" fw classid "1:${UP_CLASSID_HEX}" 2>&1) || {
+                flower fwmark "${MARK}/0xFFFFFFFF" classid "1:${UP_CLASSID_HEX}" 2>&1) || {
                 TC_FAILED=1
-                log_err "tc: failed upload fw filter $MARK → 1:${UP_CLASSID_HEX} — $filter_err"
-                echo "[ERR] tc: ul fw filter $MARK → 1:${UP_CLASSID_HEX} failed — $filter_err" >&2
+                log_err "tc: failed upload flower filter $MARK → 1:${UP_CLASSID_HEX} — $filter_err"
+                echo "[ERR] tc: ul flower filter $MARK → 1:${UP_CLASSID_HEX} failed — $filter_err" >&2
             }
+            if [[ "$TC_FAILED" -eq 0 ]]; then
+                log_msg "tc: upload filter ifb1 fwmark=$MARK → 1:${UP_CLASSID_HEX}"
+            fi
         fi
     fi
 elif [[ "$POOL_ID" -gt 0 ]]; then

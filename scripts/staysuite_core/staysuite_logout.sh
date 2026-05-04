@@ -189,34 +189,47 @@ UP_CLASSID_HEX="${UP_CLASSID:-0}"
 [[ "$DN_CLASSID_HEX" -gt 0 ]] && DN_CLASSID_HEX="$(printf '%x' "$DN_CLASSID_HEX")"
 [[ "$UP_CLASSID_HEX" -gt 0 ]] && UP_CLASSID_HEX="$(printf '%x' "$UP_CLASSID_HEX")"
 
-# ─── Step 8: Delete fw filter + user class on ifb0 (download) ───────
+# ─── Step 8: Delete flower filter + user class on ifb0 (download) ───────
 if [[ "$DN_CLASSID" -gt 0 ]]; then
-    # Delete fw filter — handle must come before 'fw' keyword
+    # Delete flower filter by fwmark
     tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-        handle "${MARK}/0xFFFFFFFF" fw 2>/dev/null && log_msg "tc: del fw filter ifb0 $MARK"
+        flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null && log_msg "tc: del flower filter ifb0 $MARK"
 
-    # Fallback: delete by scanning for this fwmark
+    # Fallback: delete any remaining fw/fwmark filter for this mark
+    tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
+        handle "${MARK}/0xFFFFFFFF" fw 2>/dev/null || true
+    tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
+        fw handle "${MARK}" 2>/dev/null || true
+
+    # Scan fallback: find any filter referencing this mark
     tc filter show dev ifb0 parent 1: 2>/dev/null | grep -q "handle 0x" && {
         fh=$(tc filter show dev ifb0 parent 1: 2>/dev/null \
             | grep "handle ${MARK}" | grep -oP 'pref \K[0-9]+' | head -1) || true
         [[ -n "$fh" ]] && tc filter del dev ifb0 parent 1: protocol ip pref "$fh" 2>/dev/null \
-            && log_msg "tc: del fw filter ifb0 by pref $fh"
+            && log_msg "tc: del fallback filter ifb0 by pref $fh"
     }
 
     tc class del dev ifb0 classid "1:${DN_CLASSID_HEX}" 2>/dev/null \
         && log_msg "tc: del download class 1:${DN_CLASSID_HEX} ifb0"
 fi
 
-# ─── Step 9: Delete fw filter + user class on ifb1 (upload) ────────
+# ─── Step 9: Delete flower filter + user class on ifb1 (upload) ────────
 if [[ "$UP_CLASSID" -gt 0 ]]; then
+    # Delete flower filter by fwmark
     tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-        handle "${MARK}/0xFFFFFFFF" fw 2>/dev/null && log_msg "tc: del fw filter ifb1 $MARK"
+        flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null && log_msg "tc: del flower filter ifb1 $MARK"
+
+    # Fallback: delete any remaining fw/fwmark filter for this mark
+    tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
+        handle "${MARK}/0xFFFFFFFF" fw 2>/dev/null || true
+    tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
+        fw handle "${MARK}" 2>/dev/null || true
 
     tc filter show dev ifb1 parent 1: 2>/dev/null | grep -q "handle 0x" && {
         fh=$(tc filter show dev ifb1 parent 1: 2>/dev/null \
             | grep "handle ${MARK}" | grep -oP 'pref \K[0-9]+' | head -1) || true
         [[ -n "$fh" ]] && tc filter del dev ifb1 parent 1: protocol ip pref "$fh" 2>/dev/null \
-            && log_msg "tc: del fw filter ifb1 by pref $fh"
+            && log_msg "tc: del fallback filter ifb1 by pref $fh"
     }
 
     tc class del dev ifb1 classid "1:${UP_CLASSID_HEX}" 2>/dev/null \
