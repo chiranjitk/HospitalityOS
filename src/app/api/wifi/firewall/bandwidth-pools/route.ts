@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
     const pool = await db.bandwidthPool.create({
       data: {
         tenantId: user.tenantId,
-        propertyId: propertyId || null,
+        ...(propertyId && { propertyId }),
         name,
         subnet,
         vlanId: vlanId !== undefined ? parseInt(vlanId, 10) : null,
