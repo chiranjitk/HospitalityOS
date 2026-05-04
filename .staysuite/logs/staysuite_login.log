@@ -62,3 +62,46 @@
 2026-05-04 22:44:03 [LOGIN][ERR] nft: failed to add 192.168.1.100 to usersdstset
 2026-05-04 22:44:03 [LOGIN][ERR] nft: failed to add 192.168.1.100 to llusersset
 2026-05-04 22:44:03 [LOGIN][ERR] nft: failed to add 192.168.1.100 to one or more sets — cleanup
+2026-05-04 22:46:37 [LOGIN] LOGIN PARMS: -i 21.0.0.1 -a masq -P 4 -R 2000000 -C 2400000 -r 2000000 -c 2400000 -d 16242 -u 16242 -D 5000 -U 2000 -S 1777934797068-ff5f0188 -X 255f8f40-ec97-4f2b-8d36-7fc811bcfbc8
+2026-05-04 22:46:37 [LOGIN] LOGIN: ip=21.0.0.1 mark=0x15000001 action=masq pool=4 dn=5000k up=2000k session=1777934797068-ff5f0188
+2026-05-04 22:46:37 [LOGIN][ERR] nft: failed to add 21.0.0.1 to loggedinusers
+2026-05-04 22:46:37 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersset
+2026-05-04 22:46:37 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersdstset
+2026-05-04 22:46:37 [LOGIN][ERR] nft: failed to add 21.0.0.1 to llusersset
+2026-05-04 22:46:37 [LOGIN][ERR] nft: failed to add 21.0.0.1 to one or more sets — cleanup
+2026-05-04 22:46:42 [LOGOUT] LOGOUT PARMS: -i 21.0.0.1
+2026-05-04 22:46:42 [LOGOUT] START: ip=21.0.0.1 mark=0x15000001 session= dn_cls=0 up_cls=0 pool=0
+2026-05-04 22:46:42 [LOGOUT] DONE: ip=21.0.0.1
+2026-05-04 22:47:33 [LOGIN] LOGIN PARMS: -i 21.0.0.1 -a masq -P 4 -R 2000000 -C 2400000 -r 2000000 -c 2400000 -d 16242 -u 16242 -D 5000 -U 2000 -S 1777934853384-f5bfd5e0 -X 255f8f40-ec97-4f2b-8d36-7fc811bcfbc8
+2026-05-04 22:47:33 [LOGIN] LOGIN: ip=21.0.0.1 mark=0x15000001 action=masq pool=4 dn=5000k up=2000k session=1777934853384-f5bfd5e0
+2026-05-04 22:47:33 [LOGIN][ERR] nft: failed to add 21.0.0.1 to loggedinusers
+2026-05-04 22:47:33 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersset
+2026-05-04 22:47:33 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersdstset
+2026-05-04 22:47:33 [LOGIN][ERR] nft: failed to add 21.0.0.1 to llusersset
+2026-05-04 22:47:33 [LOGIN][ERR] nft: failed to add 21.0.0.1 to one or more sets — cleanup
+2026-05-04 22:47:37 [LOGOUT] LOGOUT PARMS: -i 21.0.0.1
+2026-05-04 22:47:37 [LOGOUT] START: ip=21.0.0.1 mark=0x15000001 session= dn_cls=0 up_cls=0 pool=0
+2026-05-04 22:47:37 [LOGOUT] DONE: ip=21.0.0.1
+2026-05-04 22:53:14 [LOGIN] LOGIN PARMS: -i 21.0.0.1 -a masq -P 4 -R 2000000 -C 2400000 -r 2000000 -c 2400000 -d 16242 -u 16242 -D 5000 -U 2000 -S 1777935194825-8207b6c9 -m 00:0C:29:7D:FB:A6 -X 255f8f40-ec97-4f2b-8d36-7fc811bcfbc8
+2026-05-04 22:53:14 [LOGIN] LOGIN: ip=21.0.0.1 mark=0x15000001 action=masq pool=4 dn=5000k up=2000k session=1777935194825-8207b6c9
+2026-05-04 22:53:14 [LOGIN][ERR] nft: failed to add 21.0.0.1 to loggedinusers
+2026-05-04 22:53:14 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersset
+2026-05-04 22:53:15 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersdstset
+2026-05-04 22:53:15 [LOGIN][ERR] nft: failed to add 21.0.0.1 to llusersset
+2026-05-04 22:53:15 [LOGIN][ERR] nft: failed to add 21.0.0.1 to one or more sets — cleanup
+2026-05-04 22:53:40 [LOGOUT] LOGOUT PARMS: -i 21.0.0.1
+2026-05-04 22:53:40 [LOGOUT] START: ip=21.0.0.1 mark=0x15000001 session= dn_cls=0 up_cls=0 pool=0
+2026-05-04 22:53:40 [LOGOUT] DONE: ip=21.0.0.1
+2026-05-04 22:54:06 [LOGIN] LOGIN PARMS: -i 21.0.0.1 -a masq -P 4 -R 2000000 -C 2400000 -r 2000000 -c 2400000 -d 16242 -u 16242 -D 5000 -U 2000 -S 1777935245951-3a928dc7 -m 00:0C:29:7D:FB:A6 -X 255f8f40-ec97-4f2b-8d36-7fc811bcfbc8
+2026-05-04 22:54:06 [LOGIN] LOGIN: ip=21.0.0.1 mark=0x15000001 action=masq pool=4 dn=5000k up=2000k session=1777935245951-3a928dc7
+2026-05-04 22:54:06 [LOGIN][ERR] nft: failed to add 21.0.0.1 to loggedinusers
+2026-05-04 22:54:06 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersset
+2026-05-04 22:54:06 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersdstset
+2026-05-04 22:54:06 [LOGIN][ERR] nft: failed to add 21.0.0.1 to llusersset
+2026-05-04 22:54:06 [LOGIN][ERR] nft: failed to add 21.0.0.1 to one or more sets — cleanup
+2026-05-04 22:55:33 [LOGOUT] LOGOUT PARMS: -i 21.0.0.1
+2026-05-04 22:55:33 [LOGOUT] START: ip=21.0.0.1 mark=0x15000001 session= dn_cls=0 up_cls=0 pool=0
+2026-05-04 22:55:33 [LOGOUT] DONE: ip=21.0.0.1
+2026-05-04 22:56:30 [POOL][ERR] pool 1:2 create FAILED on ifb0
+2026-05-04 22:56:30 [POOL][ERR] pool 1:3 create FAILED on ifb0
+2026-05-04 22:56:30 [POOL][ERR] pool 1:4 create FAILED on ifb0
