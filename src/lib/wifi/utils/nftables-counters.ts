@@ -50,6 +50,53 @@ let _authSetExists: boolean | null = null;
 let _authSetCheckedAt = 0;
 const AUTH_SET_CHECK_TTL = 60_000; // Re-check every 60 seconds
 
+// Cache for the nft table name that contains the 'loggedinusers' set.
+// The shell scripts (staysuite_login.sh, staysuite_logout.sh) all use
+// 'inet mangle', but the table name could theoretically differ. We detect
+// it dynamically from 'nft list sets' output to avoid hardcoded mismatches.
+let _mangleTableName: string | null = null;
+let _mangleTableCheckedAt = 0;
+const MANGLE_TABLE_CHECK_TTL = 60_000; // Re-detect every 60 seconds
+
+/**
+ * Detect the nft table name that contains the 'loggedinusers' set.
+ * Parses 'nft list sets' output to find the table declaration that
+ * precedes 'set loggedinusers'. Falls back to 'mangle' if detection fails.
+ *
+ * The result is cached for MANGLE_TABLE_CHECK_TTL to avoid repeated exec calls.
+ */
+function getMangleTableName(): string {
+  const now = Date.now();
+  if (_mangleTableName !== null && (now - _mangleTableCheckedAt) < MANGLE_TABLE_CHECK_TTL) {
+    return _mangleTableName;
+  }
+  try {
+    const output = execSync('nft list sets 2>/dev/null', {
+      encoding: 'utf-8',
+      timeout: 3000,
+    });
+    // Walk through lines, tracking the current table name.
+    // When we find 'set loggedinusers', use the table we're currently in.
+    const lines = output.split('\n');
+    let currentTable = '';
+    for (const line of lines) {
+      const tableMatch = line.match(/table inet (\S+)\s*\{/);
+      if (tableMatch) currentTable = tableMatch[1];
+      if (line.includes('set loggedinusers') && currentTable) {
+        _mangleTableName = currentTable;
+        _mangleTableCheckedAt = now;
+        return currentTable;
+      }
+    }
+  } catch {
+    // nft not available — use default
+  }
+  // Default: matches what staysuite_login.sh / staysuite_logout.sh use
+  _mangleTableName = 'mangle';
+  _mangleTableCheckedAt = now;
+  return 'mangle';
+}
+
 function isNftablesAvailable(): boolean {
   if (_nftablesAvailable !== null) return _nftablesAvailable;
   try {
@@ -232,10 +279,10 @@ export function doesAuthenticatedSetExist(): boolean {
 }
 
 /**
- * Check if an IP is in the nftables authenticated_users set.
+ * Check if an IP is in the nftables loggedinusers set.
  * Used to verify a session is still active at the firewall level.
  *
- * If the authenticated_users set doesn't exist at all (e.g. nftables not
+ * If the loggedinusers set doesn't exist at all (e.g. nftables not
  * fully configured), returns true to prevent false stale detection —
  * we cannot confirm the IP is NOT authenticated, so we assume it is.
  */
@@ -246,9 +293,12 @@ export function isIPAuthenticated(ip: string): boolean {
     return true;
   }
 
+  // Detect the actual table name dynamically (could be 'mangle', 'staysuite_mangle', etc.)
+  const tableName = getMangleTableName();
+
   try {
     const output = execSync(
-      `nft get element inet staysuite_mangle loggedinusers "{ ${ip} }" 2>&1`,
+      `nft get element inet ${tableName} loggedinusers "{ ${ip} }" 2>&1`,
       { encoding: 'utf-8', timeout: 3000 }
     );
     return output.includes(ip);
@@ -258,13 +308,14 @@ export function isIPAuthenticated(ip: string): boolean {
 }
 
 /**
- * Remove a user IP from the nftables authenticated_users set.
+ * Remove a user IP from the nftables loggedinusers set.
  * This is the "disconnect" action at the firewall level.
  */
 export function deauthIP(ip: string): boolean {
+  const tableName = getMangleTableName();
   try {
     execSync(
-      `nft delete element inet staysuite_mangle loggedinusers "{ ${ip} }" 2>/dev/null`,
+      `nft delete element inet ${tableName} loggedinusers "{ ${ip} }" 2>/dev/null`,
       { encoding: 'utf-8', timeout: 3000 }
     );
     return true;

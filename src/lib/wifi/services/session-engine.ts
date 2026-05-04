@@ -216,9 +216,9 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
         // safe fallback to avoid wiping all active sessions).
         if (!doesAuthenticatedSetExist()) {
           SELog.warn(
-            'nftables authenticated_users set not found — ' +
+            'nftables loggedinusers set not found — ' +
             'stale session detection is DISABLED. ' +
-            'Ensure nftables rules are properly configured (staysuite_mangle table).'
+            'Ensure nftables rules are properly configured (inet mangle table).'
           );
         }
       }
