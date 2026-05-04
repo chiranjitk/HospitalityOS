@@ -91,9 +91,11 @@ async function upsertDeviceProfileWithFingerprint(params: {
   }
 
   if (!effectiveFingerprint) {
-    console.log('[Auth] No client fingerprint or MAC address — skipping DeviceProfile creation (deferred to auto-auth)');
+    console.log(`[Auth] No client fingerprint or MAC address — skipping DeviceProfile creation (deferred to auto-auth) [fp=${fingerprintHash || 'null'} mac=${macAddress || 'null'}]`);
     return;
   }
+
+  console.log(`[Auth] DeviceProfile upsert for ${username}: fp=${effectiveFingerprint ? effectiveFingerprint.substring(0, 16) + '...' : 'none'} mac=${formattedMac || 'none'} synthetic=${isSynthetic}`);
 
   try {
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
@@ -697,6 +699,7 @@ export async function POST(request: NextRequest) {
     const resolvedMac = await resolveMacAddress(request, macAddress, clientIpForMac);
     // Use resolved MAC (from headers/DHCP) if body didn't provide one
     const effectiveMac = macAddress || resolvedMac || undefined;
+    console.log(`[Auth] MAC resolution: body=${macAddress || 'none'} resolved=${resolvedMac || 'none'} effective=${effectiveMac || 'none'} (client: ${clientIpForMac})`);
     if (effectiveMac && resolvedMac && !macAddress) {
       console.log(`[MAC] Auto-resolved MAC for client: ${clientIpForMac} → ${resolvedMac} (source: header/dhcp)`);
     }
