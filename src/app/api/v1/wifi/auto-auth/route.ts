@@ -3,6 +3,12 @@ import { db } from '@/lib/db';
 import { randomUUID, createHash } from 'crypto';
 import { radiusAuth, getRejectMessage } from '@/lib/wifi/utils/radius-auth';
 import { addUserCounter } from '@/lib/wifi/utils/nftables-counters';
+import {
+  runLoginScript,
+  generateClassIds,
+  lookupBandwidthPool,
+  type LoginScriptParams,
+} from '@/lib/network/script-runner';
 
 // ────────────────────────────────────────────────────────────
 // IP Pool Validation Helpers (shared with wifi/auth)
@@ -459,6 +465,7 @@ export async function POST(request: NextRequest) {
     // Also enforces plan→pool binding (same as manual auth route).
     const autoAuthRawIp = extractClientIp(request);
     const autoAuthClientIp = normalizeIp(autoAuthRawIp);
+    let matchedPool: { poolId: string; poolName: string; subnet?: string } | null = null;
 
     if (autoAuthClientIp) {
       const allowedPools = resolveAllowedPoolIds(
@@ -476,6 +483,7 @@ export async function POST(request: NextRequest) {
           { status: 403 }
         );
       }
+      matchedPool = poolMatch;
       console.log(`[AutoAuth] IP pool check PASSED: ${autoAuthClientIp} → pool "${poolMatch.poolName}"${allowedPools?.length ? ' [plan-restricted]' : ''}`);
     }
 
@@ -512,11 +520,42 @@ export async function POST(request: NextRequest) {
     // ── Log successful auth attempt to radpostauth (for Auth Logs tab) ──
     await logAuthAttempt(wifiUser.username, 'Access-Accept', request, 'auto_auth');
 
+    // ── Normalize MAC address for firewall script ──
+    const normalizedAutoMac = macAddress
+      ? macAddress.replace(/[:\-\.\s]/g, '').toUpperCase()
+      : null;
+    const formattedAutoMac = normalizedAutoMac && normalizedAutoMac.length === 12
+      ? normalizedAutoMac.match(/.{2}/g)?.join(':') || undefined
+      : undefined;
+
     // ── Create radacct accounting session (for Active Users tab) ──
     // The v_active_sessions view shows rows where acctstoptime IS NULL.
     // Without this, auto-auth users appear "connected" on the portal
     // but never show up in the admin Active Users dashboard.
-    await createAccountingSession(wifiUser.username, clientIp, request, 'auto_reauth', macAddress);
+    const acctSessionId = await createAccountingSession(wifiUser.username, clientIp, request, 'auto_reauth', macAddress);
+
+    // ── Resolve bandwidth from RADIUS radReply or WiFi plan ──
+    const autoAuthBw = await resolvePlanBandwidthKbps(wifiUser.planId, wifiUser.username);
+
+    // ── Activate nftables + TC bandwidth shaping (staysuite_login.sh) ──
+    // CRITICAL: Without this, the IP is NOT added to the nftables loggedinusers set,
+    // and the session engine will detect it as stale and disconnect the user!
+    const firewallIp = autoAuthClientIp || normalizeIp(clientIp);
+    if (firewallIp && firewallIp !== '0.0.0.0') {
+      await activateUserFirewall({
+        username: wifiUser.username,
+        clientIp: firewallIp,
+        propertyId: wifiUser.propertyId,
+        sessionId: acctSessionId,
+        macAddress: formattedAutoMac,
+        userId: wifiUser.id,
+        dnKbps: autoAuthBw.dn,
+        upKbps: autoAuthBw.up,
+        subnet: matchedPool?.poolName,
+      });
+    } else {
+      console.warn(`[AutoAuth] No valid client IP for firewall activation — session engine may detect stale (ip=${clientIp})`);
+    }
 
     // ── Add per-IP byte counter rules for session engine tracking ──
     const counterIp = autoAuthClientIp || normalizeIp(clientIp);
@@ -621,6 +660,114 @@ export async function DELETE(request: NextRequest) {
 // Helpers
 // ────────────────────────────────────────────────────────────────
 
+// ────────────────────────────────────────────────────────────
+// Firewall Activation (same as auth route)
+// ────────────────────────────────────────────────────────────
+
+async function activateUserFirewall(params: {
+  username: string;
+  clientIp: string;
+  propertyId: string;
+  sessionId?: string;
+  macAddress?: string;
+  userId?: string;
+  /** Download bandwidth in kbps (e.g. 5000 = 5 Mbps) */
+  dnKbps?: number;
+  /** Upload bandwidth in kbps (e.g. 2000 = 2 Mbps) */
+  upKbps?: number;
+  subnet?: string | null;
+}) {
+  try {
+    const clientIp = normalizeIp(params.clientIp);
+    if (!clientIp || clientIp === '0.0.0.0') {
+      console.warn('[AutoAuth Firewall] Skipping activation — no valid client IP');
+      return;
+    }
+
+    if (!params.sessionId) {
+      console.warn(`[AutoAuth Firewall] No sessionId for ${params.username} — session engine will NOT track this user.`);
+    }
+
+    const classIds = generateClassIds(params.username);
+    const dnKbps = params.dnKbps || 0;
+    const upKbps = params.upKbps || 0;
+    const poolBw = await lookupBandwidthPool(params.propertyId, params.subnet);
+
+    const scriptParams: LoginScriptParams = {
+      ip: clientIp,
+      action: 'masq',
+      poolId: poolBw.poolId,
+      poolRateDn: poolBw.poolRateDn,
+      poolCeilDn: poolBw.poolCeilDn,
+      poolRateUp: poolBw.poolRateUp,
+      poolCeilUp: poolBw.poolCeilUp,
+      dnClassid: classIds.dn,
+      upClassid: classIds.up,
+      dnKbps,
+      upKbps,
+      sessionId: params.sessionId,
+      macAddress: params.macAddress,
+      userId: params.userId,
+    };
+
+    const result = runLoginScript(scriptParams);
+
+    if (result.success) {
+      console.log(
+        `[AutoAuth Firewall] Login OK: ${params.username} ip=${clientIp} cls=${classIds.dn}/${classIds.up} pool=${poolBw.poolId} dn=${dnKbps}k up=${upKbps}k (${result.durationMs}ms)`
+      );
+    } else {
+      console.error(
+        `[AutoAuth Firewall] Login FAIL: ${params.username} ip=${clientIp} exit=${result.exitCode} pool=${poolBw.poolId} stderr=${result.stderr || '(none)'} (${result.durationMs}ms)`
+      );
+    }
+  } catch (err) {
+    console.error('[AutoAuth Firewall] Exception:', err);
+  }
+}
+
+/**
+ * Resolve bandwidth from RADIUS radReply or WiFi plan (in kbps).
+ * Same logic as auth route's resolvePlanBandwidthKbps.
+ */
+async function resolvePlanBandwidthKbps(
+  planId: string | null | undefined,
+  username?: string,
+): Promise<{ dn: number; up: number }> {
+  // Priority 1: RADIUS radReply override
+  if (username) {
+    try {
+      const radreply = await db.radReply.findMany({ where: { username } });
+      const getVal = (attr: string): string | undefined =>
+        radreply.find(r => r.attribute === attr)?.value;
+      const radDown = getVal('WISPr-Bandwidth-Max-Down') || getVal('Cryptsk-Bandwidth-Max-Down');
+      const radUp = getVal('WISPr-Bandwidth-Max-Up') || getVal('Cryptsk-Bandwidth-Max-Up');
+      if (radDown && radUp) {
+        return { dn: Math.round(Number(radDown) / 1000), up: Math.round(Number(radUp) / 1000) };
+      }
+    } catch { /* non-critical */ }
+  }
+
+  // Priority 2: WiFi plan bandwidth (Mbps → kbps)
+  if (planId) {
+    try {
+      const plan = await db.wiFiPlan.findUnique({
+        where: { id: planId },
+        select: { downloadSpeed: true, uploadSpeed: true },
+      });
+      if (plan && plan.downloadSpeed > 0 && plan.uploadSpeed > 0) {
+        return { dn: plan.downloadSpeed * 1000, up: plan.uploadSpeed * 1000 };
+      }
+    } catch { /* non-critical */ }
+  }
+
+  return { dn: 0, up: 0 };
+}
+
+// ────────────────────────────────────────────────────────────
+// UA Parsing Helpers
+// ────────────────────────────────────────────────────────────
+
 function parseDeviceType(ua: string): string {
   if (/iPhone/i.test(ua)) return 'mobile';
   // iPad detection: UA contains "iPad" or macOS with touch capabilities
@@ -690,7 +837,7 @@ async function createAccountingSession(
   request: NextRequest,
   loginType: string = 'portal',
   macAddress?: string
-) {
+): Promise<string> {
   try {
     const acctSessionId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
     const acctUniqueId = randomUUID();
@@ -731,8 +878,10 @@ async function createAccountingSession(
     );
 
     console.log(`[AutoAuth] radacct session created for ${username} (loginType: ${loginType}, IP: ${clientIp}, MAC: ${formattedMac || 'N/A'})`);
+    return acctSessionId;
   } catch (err) {
     // Non-fatal — accounting failure should not block auto-auth
     console.error('[AutoAuth] Failed to create accounting session:', err);
+    return '';
   }
 }
