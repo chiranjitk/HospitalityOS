@@ -1,14 +1,15 @@
 #!/bin/bash
 ###########################################################################
-#       Script : StaySuite User Login (nftables + HTB + flower filter)
+#       Script : StaySuite User Login (nftables + HTB + fw filter)
 #       OS     : Rocky Linux 10 (nftables v1.1.1, kernel 5.x+)
 #       Reason : Single-user firewall + bandwidth activation
 #
 #  ARCHITECTURE:
 #    ┌──────────────────────────────────────────────────────────────┐
 #    │  nft mangle prerouting                                       │
-#    │    ip saddr $IP → meta mark set 0xIP_HEX                   │
-#    │    ip daddr $IP → meta mark set 0xIP_HEX                   │
+#    │    ip saddr $IP → meta mark set 0x<16-bit>                  │
+#    │    ip daddr $IP → meta mark set 0x<16-bit>                  │
+#    │    (mark = last 2 octets of IP, e.g. .100.35 → 0x6423)     │
 #    │    (mark persists through routing → available to TC)        │
 #    └──────────────┬───────────────────────────────────────────────┘
 #                   │
@@ -21,8 +22,11 @@
 #    │  │   └── ...                                                 │
 #    │  └── ... (other pools)                                       │
 #    │                                                              │
-#    │  filter parent 1: pref 100 flower fwmark 0xIP_HEX → classid │
-#    │    (TC reads the nft mark set by prerouting via flower)      │
+#    │  filter parent 1: pref 100 fw handle 0x<16-bit> → flowid   │
+#    │    (fw filter checks skb->mark & 0xFFFF == handle)          │
+#    │    NOTE: fw is 16-bit only; flower fwmark NOT available on  │
+#    │    this kernel. Using last 2 IP octets gives unique marks   │
+#    │    within any /16 (covers all practical hotel WiFi setups).  │
 #    └──────────────────────────────────────────────────────────────┘
 #
 #  FLOW:
@@ -213,11 +217,15 @@ flock -n 8 2>/dev/null || {
 }
 
 # ─── Helpers ─────────────────────────────────────────────────────────
-# Convert IPv4 to hex mark: 192.168.1.100 → 0xC0A80164
+# Convert IPv4 to 16-bit fw mark using last 2 octets.
+# The tc fw filter only supports 16-bit handles (skb->mark & 0xFFFF).
+# flower fwmark is NOT available on this kernel.
+# Using last 2 octets: 192.168.100.35 → (100<<8)|35 = 0x6423
+# Unique within any /16 address space (sufficient for all practical deployments).
 ip_to_hex() {
     local IFS='.'
     read -ra o <<< "$1"
-    printf "0x%02X%02X%02X%02X" "${o[0]}" "${o[1]}" "${o[2]}" "${o[3]}"
+    printf "0x%04X" "$(( (${o[2]} << 8) | ${o[3]} ))"
 }
 
 # Comment tag for nft rules (enables precise removal on logout)
@@ -344,7 +352,7 @@ nft add rule inet filter intranetuploadaccounting ip saddr "${IP}" udp dport 606
 # Login adds:
 #   1. Pool root class:   1:<pool_id>   parent 1:1
 #   2. User leaf class:   1:<classid>   parent 1:<pool_id>
-#   3. fw filter:  handle 0xIP_HEX → classid 1:<classid>
+#   3. fw filter:  handle 0x<16-bit mark> → flowid 1:<classid>
 # ═══════════════════════════════════════════════════════════════════
 
 # Verify TC HTB infrastructure exists before attempting bandwidth shaping.
@@ -444,19 +452,19 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
         if [[ "$TC_FAILED" -eq 0 ]]; then
             log_msg "tc: download 1:${DN_CLASSID_HEX} under $local_parent on ifb0 (rate=$DN_GUAR_RATE ceil=$DN_CEIL)"
 
-            # flower filter: match fwmark set by nft → assign to user class
-            # flower supports full 32-bit fwmark with mask (fw is 16-bit limited).
-            # Delete any existing filter for this mark first (idempotent re-login).
+            # fw filter: match skb->mark (set by nft) → assign to user class
+            # fw filter checks (skb->mark & 0xFFFF) == handle.
+            # Delete any existing filter for this handle first (idempotent re-login).
             tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-                flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null || true
+                fw handle "${MARK}" 2>/dev/null || true
             filter_err=$(tc filter add dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-                flower fwmark "${MARK}/0xFFFFFFFF" classid "1:${DN_CLASSID_HEX}" 2>&1) || {
+                fw handle "${MARK}" flowid "1:${DN_CLASSID_HEX}" 2>&1) || {
                 TC_FAILED=1
-                log_err "tc: failed download flower filter $MARK → 1:${DN_CLASSID_HEX} — $filter_err"
-                echo "[ERR] tc: dl flower filter $MARK → 1:${DN_CLASSID_HEX} failed — $filter_err" >&2
+                log_err "tc: failed download fw filter $MARK → 1:${DN_CLASSID_HEX} — $filter_err"
+                echo "[ERR] tc: dl fw filter $MARK → 1:${DN_CLASSID_HEX} failed — $filter_err" >&2
             }
             if [[ "$TC_FAILED" -eq 0 ]]; then
-                log_msg "tc: download filter ifb0 fwmark=$MARK → 1:${DN_CLASSID_HEX}"
+                log_msg "tc: download filter ifb0 fw_handle=$MARK → 1:${DN_CLASSID_HEX}"
             fi
         fi
     fi
@@ -494,17 +502,17 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
         if [[ "$TC_FAILED" -eq 0 ]]; then
             log_msg "tc: upload 1:${UP_CLASSID_HEX} under $local_parent on ifb1 (rate=$UP_GUAR_RATE ceil=$UP_CEIL)"
 
-            # flower filter: match fwmark set by nft → assign to user class
+            # fw filter: match skb->mark (set by nft) → assign to user class
             tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-                flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null || true
+                fw handle "${MARK}" 2>/dev/null || true
             filter_err=$(tc filter add dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-                flower fwmark "${MARK}/0xFFFFFFFF" classid "1:${UP_CLASSID_HEX}" 2>&1) || {
+                fw handle "${MARK}" flowid "1:${UP_CLASSID_HEX}" 2>&1) || {
                 TC_FAILED=1
-                log_err "tc: failed upload flower filter $MARK → 1:${UP_CLASSID_HEX} — $filter_err"
-                echo "[ERR] tc: ul flower filter $MARK → 1:${UP_CLASSID_HEX} failed — $filter_err" >&2
+                log_err "tc: failed upload fw filter $MARK → 1:${UP_CLASSID_HEX} — $filter_err"
+                echo "[ERR] tc: ul fw filter $MARK → 1:${UP_CLASSID_HEX} failed — $filter_err" >&2
             }
             if [[ "$TC_FAILED" -eq 0 ]]; then
-                log_msg "tc: upload filter ifb1 fwmark=$MARK → 1:${UP_CLASSID_HEX}"
+                log_msg "tc: upload filter ifb1 fw_handle=$MARK → 1:${UP_CLASSID_HEX}"
             fi
         fi
     fi

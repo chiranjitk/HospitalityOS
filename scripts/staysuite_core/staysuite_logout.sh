@@ -78,9 +78,10 @@ fi
 [[ -z "$IP" ]] && exit 0
 
 # Compute mark if not loaded from state
+# Uses 16-bit mark from last 2 octets (matching the login script)
 if [[ -z "$MARK" ]]; then
     IFS='.' read -ra o <<< "$IP"
-    MARK=$(printf "0x%02X%02X%02X%02X" "${o[0]}" "${o[1]}" "${o[2]}" "${o[3]}")
+    MARK=$(printf "0x%04X" "$(( (${o[2]} << 8) | ${o[3]} ))")
     unset IFS
 fi
 
@@ -189,17 +190,17 @@ UP_CLASSID_HEX="${UP_CLASSID:-0}"
 [[ "$DN_CLASSID_HEX" -gt 0 ]] && DN_CLASSID_HEX="$(printf '%x' "$DN_CLASSID_HEX")"
 [[ "$UP_CLASSID_HEX" -gt 0 ]] && UP_CLASSID_HEX="$(printf '%x' "$UP_CLASSID_HEX")"
 
-# ─── Step 8: Delete flower filter + user class on ifb0 (download) ───────
+# ─── Step 8: Delete fw filter + user class on ifb0 (download) ────────
 if [[ "$DN_CLASSID" -gt 0 ]]; then
-    # Delete flower filter by fwmark
+    # Delete fw filter by handle (16-bit mark)
     tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-        flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null && log_msg "tc: del flower filter ifb0 $MARK"
+        fw handle "${MARK}" 2>/dev/null && log_msg "tc: del fw filter ifb0 $MARK"
 
-    # Fallback: delete any remaining fw/fwmark filter for this mark
+    # Fallback: delete any remaining flower/fwmark filter for this mark
+    tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
+        flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null || true
     tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
         handle "${MARK}/0xFFFFFFFF" fw 2>/dev/null || true
-    tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-        fw handle "${MARK}" 2>/dev/null || true
 
     # Scan fallback: find any filter referencing this mark
     tc filter show dev ifb0 parent 1: 2>/dev/null | grep -q "handle 0x" && {
@@ -213,17 +214,17 @@ if [[ "$DN_CLASSID" -gt 0 ]]; then
         && log_msg "tc: del download class 1:${DN_CLASSID_HEX} ifb0"
 fi
 
-# ─── Step 9: Delete flower filter + user class on ifb1 (upload) ────────
+# ─── Step 9: Delete fw filter + user class on ifb1 (upload) ─────────
 if [[ "$UP_CLASSID" -gt 0 ]]; then
-    # Delete flower filter by fwmark
+    # Delete fw filter by handle (16-bit mark)
     tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-        flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null && log_msg "tc: del flower filter ifb1 $MARK"
+        fw handle "${MARK}" 2>/dev/null && log_msg "tc: del fw filter ifb1 $MARK"
 
-    # Fallback: delete any remaining fw/fwmark filter for this mark
+    # Fallback: delete any remaining flower/fwmark filter for this mark
+    tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
+        flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null || true
     tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
         handle "${MARK}/0xFFFFFFFF" fw 2>/dev/null || true
-    tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-        fw handle "${MARK}" 2>/dev/null || true
 
     tc filter show dev ifb1 parent 1: 2>/dev/null | grep -q "handle 0x" && {
         fh=$(tc filter show dev ifb1 parent 1: 2>/dev/null \
