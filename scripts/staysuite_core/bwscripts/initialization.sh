@@ -82,6 +82,10 @@ for conn_file in /etc/NetworkManager/system-connections/*.nmconnection; do
 
     # Flush existing qdisc on the physical interface
     tc qdisc del dev $device root 2>/dev/null
+    # CRITICAL: Also remove any leftover ingress qdisc from previous deployments.
+    # Ingress qdisc (ffff:) is separate from root and NOT removed by 'tc qdisc del root'.
+    # A stale ingress redirect will block ALL incoming traffic on this interface.
+    tc qdisc del dev $device ingress 2>/dev/null
 
     # Add HTB root to the physical interface
     tc qdisc add dev $device root handle 1: $QUEUE
