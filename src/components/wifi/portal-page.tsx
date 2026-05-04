@@ -720,7 +720,7 @@ function ZoneFormContent({ form, setForm, zones, editZone, ssidInput, setSsidInp
         <div className="space-y-0.5">
           <Label className="text-sm font-medium">Auto-Reauth</Label>
           <p className="text-[10px] text-muted-foreground">
-            Returning devices silently reconnect without login. Disable to force re-auth after admin disconnect.
+            Returning devices silently reconnect without login. Toggle off to disable auto-reauth entirely for this zone.
           </p>
         </div>
         <Switch

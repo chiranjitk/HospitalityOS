@@ -360,3 +360,21 @@ Stage Summary:
 - Portal logout now preserves DeviceProfile for future auto-auth
 - Admin disconnect (from Active Users tab) still kills DeviceProfile (blocks auto-auth)
 - Two distinct behaviors: portal logout = keep auto-auth, admin disconnect = kill auto-auth
+---
+Task ID: 1
+Agent: Main Agent
+Task: Remove admin disconnect from deactivating auto-auth - auto-auth should only be controlled by portal panel toggle
+
+Work Log:
+- Checked PM2 logs: found the exact cycle causing auto-auth failure - admin disconnect was setting DeviceProfile.isActive=false, causing all subsequent auto-auth attempts to return 404
+- Removed DeviceProfile deactivation from `/api/v1/wifi/disconnect/route.ts` (was lines 224-251, the `if (source === 'admin' || !source)` block)
+- Removed DeviceProfile deactivation from `/api/wifi/radius/route.ts` live-sessions-disconnect handler (was lines 3173-3194)
+- Updated portal-page.tsx description: "Toggle off to disable auto-reauth entirely for this zone"
+- Reactivated 1 previously-deactivated DeviceProfile in database via direct pg query
+- Restarted PM2 (staysuite-nextjs)
+
+Stage Summary:
+- Admin disconnect NO LONGER deactivates DeviceProfile
+- Auto-auth is now controlled solely by CaptivePortal.autoAuthEnabled portal toggle
+- Both existing DeviceProfiles for chiranjitk are now isActive=true
+- Files changed: disconnect/route.ts, radius/route.ts, portal-page.tsx

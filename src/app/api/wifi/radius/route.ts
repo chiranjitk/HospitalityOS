@@ -3170,28 +3170,9 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // 2h. Deactivate DeviceProfile(s) — prevent auto-auth from immediately reconnecting
-          try {
-            if (disconnectUsername) {
-              const wifiUserForDp = await db.wiFiUser.findUnique({
-                where: { username: disconnectUsername },
-                select: { id: true, propertyId: true },
-              });
-              if (wifiUserForDp) {
-                const dpResult = await db.deviceProfile.updateMany({
-                  where: {
-                    wifiUserId: wifiUserForDp.id,
-                    propertyId: wifiUserForDp.propertyId,
-                    isActive: true,
-                  },
-                  data: { isActive: false },
-                });
-                if (dpResult.count > 0) {
-                  console.log(`[live-sessions-disconnect] Deactivated ${dpResult.count} DeviceProfile(s) for ${disconnectUsername} (auto-auth blocked)`);
-                }
-              }
-            }
-          } catch { /* non-fatal */ }
+          // NOTE: Admin disconnect does NOT deactivate DeviceProfile — auto-auth
+          // is controlled solely by the portal panel toggle (CaptivePortal.autoAuthEnabled).
+          // If autoAuthEnabled is ON, devices will auto-reauth regardless of admin disconnect.
         } catch (dbErr) {
           localMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
         }

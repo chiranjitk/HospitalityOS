@@ -221,34 +221,9 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Guest Disconnect] User ${username} disconnected, ${closedCount} radacct session(s) closed`);
 
-    // ── Deactivate DeviceProfile(s) for admin-initiated disconnects ──
-    // When an admin disconnects a user (from Active Users tab), we deactivate
-    // the DeviceProfile so auto-auth doesn't immediately reconnect the device.
-    // Guest self-logout (source='portal') keeps the profile active for future visits.
-    if (source === 'admin' || !source) {
-      try {
-        // Look up WiFiUser to find the property for scoping
-        const wifiUser = await db.wiFiUser.findUnique({
-          where: { username },
-          select: { id: true, propertyId: true },
-        });
-        if (wifiUser) {
-          const deactivated = await db.deviceProfile.updateMany({
-            where: {
-              wifiUserId: wifiUser.id,
-              propertyId: wifiUser.propertyId,
-              isActive: true,
-            },
-            data: { isActive: false },
-          });
-          if (deactivated.count > 0) {
-            console.log(`[Guest Disconnect] Deactivated ${deactivated.count} DeviceProfile(s) for ${username} (admin disconnect — auto-auth disabled)`);
-          }
-        }
-      } catch {
-        // Non-fatal — DeviceProfile cleanup should not block disconnect
-      }
-    }
+    // NOTE: Admin disconnect does NOT deactivate DeviceProfile — auto-auth
+    // is controlled solely by the portal panel toggle (CaptivePortal.autoAuthEnabled).
+    // If autoAuthEnabled is ON, devices will auto-reauth regardless of admin disconnect.
 
     return NextResponse.json({
       success: true,
