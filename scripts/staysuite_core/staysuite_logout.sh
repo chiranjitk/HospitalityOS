@@ -190,48 +190,48 @@ UP_CLASSID_HEX="${UP_CLASSID:-0}"
 [[ "$DN_CLASSID_HEX" -gt 0 ]] && DN_CLASSID_HEX="$(printf '%x' "$DN_CLASSID_HEX")"
 [[ "$UP_CLASSID_HEX" -gt 0 ]] && UP_CLASSID_HEX="$(printf '%x' "$UP_CLASSID_HEX")"
 
-# ─── Step 8: Delete fw filter + user class on ifb0 (download) ────────
+# ─── Step 8: Delete u32 filter + user class on ifb0 (download) ────────
 if [[ "$DN_CLASSID" -gt 0 ]]; then
-    # Delete fw filter by handle (16-bit mark, positional syntax)
+    # Delete u32 filter matching dst IP
     tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-        fw "${MARK}" 2>/dev/null && log_msg "tc: del fw filter ifb0 $MARK"
+        u32 match ip dst "${IP}/32" 2>/dev/null && log_msg "tc: del u32 filter ifb0 dst=$IP"
 
-    # Fallback: delete any remaining flower/fwmark filter for this mark
+    # Fallback: delete any old fw/flower filters for this mark
+    tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
+        fw "${MARK}" 2>/dev/null || true
     tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
         flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null || true
     tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-        handle "${MARK}/0xFFFFFFFF" fw 2>/dev/null || true
+        fw handle "${MARK}" 2>/dev/null || true
 
-    # Scan fallback: find any filter referencing this mark
-    tc filter show dev ifb0 parent 1: 2>/dev/null | grep -q "handle 0x" && {
-        fh=$(tc filter show dev ifb0 parent 1: 2>/dev/null \
-            | grep "handle ${MARK}" | grep -oP 'pref \K[0-9]+' | head -1) || true
-        [[ -n "$fh" ]] && tc filter del dev ifb0 parent 1: protocol ip pref "$fh" 2>/dev/null \
-            && log_msg "tc: del fallback filter ifb0 by pref $fh"
-    }
+    # Scan fallback: find any filter referencing this IP
+    fh=$(tc filter show dev ifb0 parent 1: 2>/dev/null \
+        | grep -i "${IP}" | grep -oP 'pref \K[0-9]+' | head -1) || true
+    [[ -n "$fh" ]] && tc filter del dev ifb0 parent 1: protocol ip pref "$fh" 2>/dev/null \
+        && log_msg "tc: del fallback filter ifb0 by pref $fh"
 
     tc class del dev ifb0 classid "1:${DN_CLASSID_HEX}" 2>/dev/null \
         && log_msg "tc: del download class 1:${DN_CLASSID_HEX} ifb0"
 fi
 
-# ─── Step 9: Delete fw filter + user class on ifb1 (upload) ─────────
+# ─── Step 9: Delete u32 filter + user class on ifb1 (upload) ─────────
 if [[ "$UP_CLASSID" -gt 0 ]]; then
-    # Delete fw filter by handle (16-bit mark, positional syntax)
+    # Delete u32 filter matching src IP
     tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-        fw "${MARK}" 2>/dev/null && log_msg "tc: del fw filter ifb1 $MARK"
+        u32 match ip src "${IP}/32" 2>/dev/null && log_msg "tc: del u32 filter ifb1 src=$IP"
 
-    # Fallback: delete any remaining flower/fwmark filter for this mark
+    # Fallback: delete any old fw/flower filters for this mark
+    tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
+        fw "${MARK}" 2>/dev/null || true
     tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
         flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null || true
     tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-        handle "${MARK}/0xFFFFFFFF" fw 2>/dev/null || true
+        fw handle "${MARK}" 2>/dev/null || true
 
-    tc filter show dev ifb1 parent 1: 2>/dev/null | grep -q "handle 0x" && {
-        fh=$(tc filter show dev ifb1 parent 1: 2>/dev/null \
-            | grep "handle ${MARK}" | grep -oP 'pref \K[0-9]+' | head -1) || true
-        [[ -n "$fh" ]] && tc filter del dev ifb1 parent 1: protocol ip pref "$fh" 2>/dev/null \
-            && log_msg "tc: del fallback filter ifb1 by pref $fh"
-    }
+    fh=$(tc filter show dev ifb1 parent 1: 2>/dev/null \
+        | grep -i "${IP}" | grep -oP 'pref \K[0-9]+' | head -1) || true
+    [[ -n "$fh" ]] && tc filter del dev ifb1 parent 1: protocol ip pref "$fh" 2>/dev/null \
+        && log_msg "tc: del fallback filter ifb1 by pref $fh"
 
     tc class del dev ifb1 classid "1:${UP_CLASSID_HEX}" 2>/dev/null \
         && log_msg "tc: del upload class 1:${UP_CLASSID_HEX} ifb1"

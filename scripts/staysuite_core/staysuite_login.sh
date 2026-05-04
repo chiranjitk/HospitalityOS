@@ -452,19 +452,20 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
         if [[ "$TC_FAILED" -eq 0 ]]; then
             log_msg "tc: download 1:${DN_CLASSID_HEX} under $local_parent on ifb0 (rate=$DN_GUAR_RATE ceil=$DN_CEIL)"
 
-            # fw filter: match skb->mark (set by nft) → assign to user class
-            # fw syntax: fw [HANDLE[/FWMASK]] classid CLASSID (positional, no keywords)
-            # Delete any existing filter for this handle first (idempotent re-login).
+            # u32 filter: match packets by destination IP → assign to user class.
+            # u32 is the most portable TC filter — works on all kernels.
+            # ifb0 carries download traffic: dst IP = user IP.
+            # Delete any existing filter for this IP first (idempotent re-login).
             tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-                fw "${MARK}" 2>/dev/null || true
+                u32 match ip dst "${IP}/32" 2>/dev/null || true
             filter_err=$(tc filter add dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-                fw "${MARK}" classid "1:${DN_CLASSID_HEX}" 2>&1) || {
+                u32 match ip dst "${IP}/32" flowid "1:${DN_CLASSID_HEX}" 2>&1) || {
                 TC_FAILED=1
-                log_err "tc: failed download fw filter $MARK → 1:${DN_CLASSID_HEX} — $filter_err"
-                echo "[ERR] tc: dl fw filter $MARK → 1:${DN_CLASSID_HEX} failed — $filter_err" >&2
+                log_err "tc: failed download u32 filter dst=$IP → 1:${DN_CLASSID_HEX} — $filter_err"
+                echo "[ERR] tc: dl u32 filter dst=$IP → 1:${DN_CLASSID_HEX} failed — $filter_err" >&2
             }
             if [[ "$TC_FAILED" -eq 0 ]]; then
-                log_msg "tc: download filter ifb0 fw_handle=$MARK → 1:${DN_CLASSID_HEX}"
+                log_msg "tc: download filter ifb0 dst=$IP → 1:${DN_CLASSID_HEX}"
             fi
         fi
     fi
@@ -502,17 +503,18 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
         if [[ "$TC_FAILED" -eq 0 ]]; then
             log_msg "tc: upload 1:${UP_CLASSID_HEX} under $local_parent on ifb1 (rate=$UP_GUAR_RATE ceil=$UP_CEIL)"
 
-            # fw filter: match skb->mark (set by nft) → assign to user class
+            # u32 filter: match packets by source IP → assign to user class.
+            # ifb1 carries upload traffic: src IP = user IP.
             tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-                fw "${MARK}" 2>/dev/null || true
+                u32 match ip src "${IP}/32" 2>/dev/null || true
             filter_err=$(tc filter add dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-                fw "${MARK}" classid "1:${UP_CLASSID_HEX}" 2>&1) || {
+                u32 match ip src "${IP}/32" flowid "1:${UP_CLASSID_HEX}" 2>&1) || {
                 TC_FAILED=1
-                log_err "tc: failed upload fw filter $MARK → 1:${UP_CLASSID_HEX} — $filter_err"
-                echo "[ERR] tc: ul fw filter $MARK → 1:${UP_CLASSID_HEX} failed — $filter_err" >&2
+                log_err "tc: failed upload u32 filter src=$IP → 1:${UP_CLASSID_HEX} — $filter_err"
+                echo "[ERR] tc: ul u32 filter src=$IP → 1:${UP_CLASSID_HEX} failed — $filter_err" >&2
             }
             if [[ "$TC_FAILED" -eq 0 ]]; then
-                log_msg "tc: upload filter ifb1 fw_handle=$MARK → 1:${UP_CLASSID_HEX}"
+                log_msg "tc: upload filter ifb1 src=$IP → 1:${UP_CLASSID_HEX}"
             fi
         fi
     fi
