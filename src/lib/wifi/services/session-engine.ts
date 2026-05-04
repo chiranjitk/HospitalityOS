@@ -59,6 +59,7 @@ import {
   removeUserCounter,
   isIPAuthenticated,
   deauthIP,
+  doesAuthenticatedSetExist,
   type IPByteCount,
 } from '@/lib/wifi/utils/nftables-counters';
 import * as SELog from './session-engine-logger';
@@ -209,6 +210,17 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
       // ── Step 1: Ensure counter table exists (skip in fallback mode) ──
       if (nftablesAvailable) {
         setupCounterTable();
+
+        // Warn if the authenticated_users set doesn't exist — stale session
+        // detection will be skipped (isIPAuthenticated returns true as a
+        // safe fallback to avoid wiping all active sessions).
+        if (!doesAuthenticatedSetExist()) {
+          SELog.warn(
+            'nftables authenticated_users set not found — ' +
+            'stale session detection is DISABLED. ' +
+            'Ensure nftables rules are properly configured (staysuite_mangle table).'
+          );
+        }
       }
 
       // ── Step 2: Get all active sessions from radacct ──

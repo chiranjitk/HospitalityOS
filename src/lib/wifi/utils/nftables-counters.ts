@@ -20,6 +20,13 @@ const COUNTER_SCRIPT = '/home/z/my-project/scripts/nftables/staysuite-traffic-co
 // created, suppress all subsequent log noise. SessionEngine handles fallback.
 let _nftablesAvailable: boolean | null = null;
 
+// Cache for authenticated_users set existence check.
+// When the set doesn't exist, isIPAuthenticated() returns true (can't verify)
+// to prevent false stale detection.
+let _authSetExists: boolean | null = null;
+let _authSetCheckedAt = 0;
+const AUTH_SET_CHECK_TTL = 60_000; // Re-check every 60 seconds
+
 function isNftablesAvailable(): boolean {
   if (_nftablesAvailable !== null) return _nftablesAvailable;
   try {
@@ -177,10 +184,42 @@ export function flushAllCounters(): boolean {
 }
 
 /**
+ * Check if the nftables authenticated_users set exists.
+ * Result is cached for AUTH_SET_CHECK_TTL to avoid repeated exec calls.
+ */
+export function doesAuthenticatedSetExist(): boolean {
+  const now = Date.now();
+  if (_authSetExists !== null && (now - _authSetCheckedAt) < AUTH_SET_CHECK_TTL) {
+    return _authSetExists;
+  }
+  try {
+    const output = execSync('nft list sets 2>/dev/null', {
+      encoding: 'utf-8',
+      timeout: 3000,
+    });
+    _authSetExists = output.includes('authenticated_users');
+  } catch {
+    _authSetExists = false;
+  }
+  _authSetCheckedAt = now;
+  return _authSetExists;
+}
+
+/**
  * Check if an IP is in the nftables authenticated_users set.
  * Used to verify a session is still active at the firewall level.
+ *
+ * If the authenticated_users set doesn't exist at all (e.g. nftables not
+ * fully configured), returns true to prevent false stale detection —
+ * we cannot confirm the IP is NOT authenticated, so we assume it is.
  */
 export function isIPAuthenticated(ip: string): boolean {
+  // If the set doesn't exist, we can't verify authentication.
+  // Return true to avoid false stale detection wiping all sessions.
+  if (!doesAuthenticatedSetExist()) {
+    return true;
+  }
+
   try {
     const output = execSync(
       `nft get element inet staysuite_mangle authenticated_users "{ ${ip} }" 2>&1`,

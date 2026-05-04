@@ -5,8 +5,14 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  // Exclude native/binary packages from bundling — they are loaded at runtime via dynamic import
-  serverExternalPackages: ['speedtest-net', 'lzma-native', 'node-pre-gyp', '@mapbox/node-pre-gyp', 'node-cron'],
+  // Exclude native/binary packages and Node.js-only modules from bundling.
+  // These are loaded at runtime via dynamic import from instrumentation.ts (Node.js runtime).
+  // Without this, Turbopack traces them into the Edge Runtime analysis and emits warnings.
+  serverExternalPackages: [
+    'speedtest-net', 'lzma-native', 'node-pre-gyp', '@mapbox/node-pre-gyp', 'node-cron',
+    // Node.js built-ins used by scheduler/session-engine/network modules:
+    'child_process', 'net', 'dgram', 'fs', 'path', 'crypto',
+  ],
   typescript: {
     // Skip type-checking during build to avoid OOM on servers with limited RAM.
     // The project has 700+ source files; tsc requires >2GB which exceeds typical VPS memory.

@@ -6,6 +6,12 @@
  * IMPORTANT: Must run in Node.js runtime — node-cron, fs, and child_process
  * are NOT available in Edge runtime. Next.js 16 Turbopack defaults to Edge
  * for instrumentation files unless explicitly set to 'nodejs'.
+ *
+ * NOTE: Turbopack may emit Edge Runtime warnings during dev compilation
+ * (e.g. "A Node.js module is loaded ('child_process')"). These are harmless
+ * analysis-phase warnings — the file explicitly sets runtime = 'nodejs' so
+ * it always runs in Node.js context at runtime. They do NOT appear in
+ * production builds.
  */
 export const runtime = 'nodejs';
 
