@@ -347,25 +347,27 @@ async function isSessionLimitReached(username: string, maxSessions: number): Pro
  * The recovery script will catch up if this fails.
  */
 /**
- * Resolve per-user bandwidth in bytes/sec from the user's WiFi plan.
+ * Resolve per-user bandwidth in kbps from the user's WiFi plan.
  *
  * Priority:
- *   1. radReply WISPr-Bandwidth-Max-Down/Up (user-level override from RADIUS)
- *   2. WiFiPlan.downloadSpeed/uploadSpeed (plan-level, stored in Mbps → converted to bytes/sec)
- *   3. Portal maxBandwidthDown/Up (zone-level default, stored in bytes/sec)
- *   4. Hardcoded fallback (5 Mbps down / 1 Mbps up)
+ *   1. radReply WISPr-Bandwidth-Max-Down/Up (user-level override, in bits/sec → /1000 = kbps)
+ *   2. WiFiPlan.downloadSpeed/uploadSpeed (plan-level, in Mbps → *1000 = kbps)
+ *   3. Portal maxBandwidthDown/Up (zone-level default, in bytes/sec → *8/1000 = kbps)
+ *   4. Hardcoded fallback (5000 kbps down / 1000 kbps up)
  *
- * CRITICAL: WiFiPlan.downloadSpeed is in Mbps (e.g. 5 = 5 Mbps).
- * activateUserFirewall expects bytes/sec (e.g. 625000 = 5 Mbps).
- * So we must multiply: planSpeed * 1000000.
+ * UNIT REFERENCE:
+ *   WiFiPlan.downloadSpeed = 5 means 5 Mbps
+ *   WISPr-Bandwidth-Max-Down = 5000000 means 5,000,000 bits/sec = 5000 kbps
+ *   CaptivePortal.maxBandwidthDown = 5242880 means bytes/sec (legacy, ~40 Mbps)
+ *   TC login script expects kbps (e.g. -D 5000 = 5 Mbps)
  */
-async function resolvePlanBandwidthBytes(
+async function resolvePlanBandwidthKbps(
   planId: string | null | undefined,
   username?: string,
-  portalDown?: number,
-  portalUp?: number,
-): Promise<{ down: number; up: number }> {
-  // Priority 1: RADIUS radReply override (user-specific bandwidth)
+  portalDownBytes?: number,
+  portalUpBytes?: number,
+): Promise<{ dn: number; up: number }> {
+  // Priority 1: RADIUS radReply override (WISPr stores bits/sec → convert to kbps)
   if (username) {
     try {
       const radreply = await db.radReply.findMany({ where: { username } });
@@ -374,12 +376,12 @@ async function resolvePlanBandwidthBytes(
       const radDown = getVal('WISPr-Bandwidth-Max-Down') || getVal('Cryptsk-Bandwidth-Max-Down');
       const radUp = getVal('WISPr-Bandwidth-Max-Up') || getVal('Cryptsk-Bandwidth-Max-Up');
       if (radDown && radUp) {
-        return { down: Number(radDown), up: Number(radUp) };
+        return { dn: Math.round(Number(radDown) / 1000), up: Math.round(Number(radUp) / 1000) };
       }
     } catch { /* non-critical */ }
   }
 
-  // Priority 2: WiFi plan bandwidth (downloadSpeed/uploadSpeed are in Mbps)
+  // Priority 2: WiFi plan bandwidth (downloadSpeed/uploadSpeed are in Mbps → *1000 = kbps)
   if (planId) {
     try {
       const plan = await db.wiFiPlan.findUnique({
@@ -387,22 +389,22 @@ async function resolvePlanBandwidthBytes(
         select: { downloadSpeed: true, uploadSpeed: true },
       });
       if (plan && plan.downloadSpeed > 0 && plan.uploadSpeed > 0) {
-        console.log(`[BW] Plan speed: ${plan.downloadSpeed}Mbps/${plan.uploadSpeed}Mbps (planId=${planId.substring(0, 8)}...)`);
+        console.log(`[BW] Plan speed: ${plan.downloadSpeed}Mbps/${plan.uploadSpeed}Mbps → ${plan.downloadSpeed * 1000}/${plan.uploadSpeed * 1000}kbps (planId=${planId.substring(0, 8)}...)`);
         return {
-          down: plan.downloadSpeed * 1000000,  // Mbps → bytes/sec
-          up: plan.uploadSpeed * 1000000,
+          dn: plan.downloadSpeed * 1000,  // Mbps → kbps
+          up: plan.uploadSpeed * 1000,
         };
       }
     } catch { /* non-critical */ }
   }
 
-  // Priority 3: Portal default (already in bytes/sec)
-  if (portalDown && portalUp) {
-    return { down: portalDown, up: portalUp };
+  // Priority 3: Portal default (bytes/sec → bits/sec → kbps)
+  if (portalDownBytes && portalUpBytes) {
+    return { dn: Math.round(portalDownBytes * 8 / 1000), up: Math.round(portalUpBytes * 8 / 1000) };
   }
 
   // Priority 4: Hardcoded fallback
-  return { down: 5242880, up: 1048576 }; // 5 Mbps / 1 Mbps
+  return { dn: 5000, up: 1000 }; // 5 Mbps / 1 Mbps
 }
 
 async function activateUserFirewall(params: {
@@ -412,8 +414,10 @@ async function activateUserFirewall(params: {
   sessionId?: string;
   macAddress?: string;
   userId?: string;
-  maxBandwidthDownBytes?: number;
-  maxBandwidthUpBytes?: number;
+  /** Download bandwidth in kbps (e.g. 5000 = 5 Mbps) */
+  dnKbps?: number;
+  /** Upload bandwidth in kbps (e.g. 2000 = 2 Mbps) */
+  upKbps?: number;
   subnet?: string | null;
 }) {
   try {
@@ -432,13 +436,9 @@ async function activateUserFirewall(params: {
     // Generate deterministic class IDs from username
     const classIds = generateClassIds(params.username);
 
-    // Convert bytes/sec → kbps for the login script
-    const dnKbps = params.maxBandwidthDownBytes
-      ? Math.round(params.maxBandwidthDownBytes * 8 / 1000)
-      : 0;
-    const upKbps = params.maxBandwidthUpBytes
-      ? Math.round(params.maxBandwidthUpBytes * 8 / 1000)
-      : 0;
+    // Bandwidth in kbps — passed directly from caller (no conversion needed)
+    const dnKbps = params.dnKbps || 0;
+    const upKbps = params.upKbps || 0;
 
     // Look up BandwidthPool for pool-level rate limiting
     const poolBw = await lookupBandwidthPool(params.propertyId, params.subnet);
@@ -773,9 +773,9 @@ export async function POST(request: NextRequest) {
         const validUntil = new Date(now.getTime() + portalSessionTimeoutMin * 60 * 1000);
         const dataLimitMb = voucher.plan?.dataLimit ?? undefined;
 
-        // Use PLAN bandwidth (Mbps → bytes/sec), NOT portal defaults
-        const planDnBps = (voucher.plan?.downloadSpeed || bwDown) * 1000000;
-        const planUpBps = (voucher.plan?.uploadSpeed || bwUp) * 1000000;
+        // Use PLAN bandwidth (Mbps → kbps), NOT portal defaults
+        const planDnKbps = (voucher.plan?.downloadSpeed || bwDown) * 1000;
+        const planUpKbps = (voucher.plan?.uploadSpeed || bwUp) * 1000;
 
         await provisionOrResumeUser(wifiUsername, now, validUntil, {
           tenantId: voucher.tenantId,
@@ -786,8 +786,8 @@ export async function POST(request: NextRequest) {
           password: voucher.code,
           planId: voucher.planId ?? undefined,
           planName: voucher.plan?.name,
-          downloadSpeed: planDnBps,
-          uploadSpeed: planUpBps,
+          downloadSpeed: planDnKbps * 1000,  // kbps → bits/sec for RADIUS
+          uploadSpeed: planUpKbps * 1000,
           sessionTimeoutMinutes: portalSessionTimeoutMin,
           idleTimeoutSeconds: portal?.idleTimeout,
           sessionLimit: voucher.plan?.maxDevices,
@@ -819,8 +819,8 @@ export async function POST(request: NextRequest) {
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
         const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool);
 
-        // Activate nftables + TC bandwidth shaping — use PLAN speed, not portal defaults
-        const voucherBw = await resolvePlanBandwidthBytes(
+        // Activate nftables + TC bandwidth shaping — use PLAN speed in kbps, not portal defaults
+        const voucherBw = await resolvePlanBandwidthKbps(
           voucher.planId, wifiUsername,
           portal?.maxBandwidthDown, portal?.maxBandwidthUp,
         );
@@ -828,8 +828,8 @@ export async function POST(request: NextRequest) {
           username: wifiUsername, clientIp: getClientIpString(request),
           propertyId: resolvedPropertyId, sessionId,
           macAddress: effectiveMac,
-          maxBandwidthDownBytes: voucherBw.down,
-          maxBandwidthUpBytes: voucherBw.up,
+          dnKbps: voucherBw.dn,
+          upKbps: voucherBw.up,
           subnet: pool.subnet,
         });
 
@@ -1015,15 +1015,11 @@ export async function POST(request: NextRequest) {
           const pmsBwDown = pmsBwDownBps ? Math.round(Number(pmsBwDownBps) / 1000000) : (pmsUser.plan?.downloadSpeed || bwDown);
           const pmsBwUp = pmsBwUpBps ? Math.round(Number(pmsBwUpBps) / 1000000) : (pmsUser.plan?.uploadSpeed || bwUp);
 
-          // ── Use PLAN bandwidth for RADIUS provisioning + firewall shaping ──
-          const pmsPlanDn = pmsBwDownBps ? Number(pmsBwDownBps) : (pmsUser.plan?.downloadSpeed || bwDown) * 1000000;
-          const pmsPlanUp = pmsBwUpBps ? Number(pmsBwUpBps) : (pmsUser.plan?.uploadSpeed || bwUp) * 1000000;
-
           await logAuthAttempt(pmsUser.username, 'Access-Accept', request, `pool:${pool.poolName} reuse:pms plan:${pmsUser.plan?.name || 'none'}`);
           const sessionId = await createAccountingSession(pmsUser.username, request, 'portal', effectiveMac, pool);
 
-          // Activate firewall — resolve from plan, not portal defaults
-          const pmsBw = await resolvePlanBandwidthBytes(
+          // Activate firewall — resolve from plan in kbps
+          const pmsBw = await resolvePlanBandwidthKbps(
             pmsUser.planId, pmsUser.username,
             portal?.maxBandwidthDown, portal?.maxBandwidthUp,
           );
@@ -1031,8 +1027,8 @@ export async function POST(request: NextRequest) {
             username: pmsUser.username, clientIp: getClientIpString(request),
             propertyId: match.propertyId, sessionId,
             macAddress: effectiveMac, userId: pmsUser.id,
-            maxBandwidthDownBytes: pmsBw.down,
-            maxBandwidthUpBytes: pmsBw.up,
+            dnKbps: pmsBw.dn,
+            upKbps: pmsBw.up,
             subnet: pool.subnet,
           });
 
@@ -1083,8 +1079,8 @@ export async function POST(request: NextRequest) {
         // Resolve plan attrs for bandwidth, device limit and data cap
         let roomMaxDevices = 1; // safe default
         let roomDataLimit: number | undefined;
-        let roomPlanDnBps = bwDown * 1000000;
-        let roomPlanUpBps = bwUp * 1000000;
+        let roomPlanDnKbps = bwDown * 1000;  // kbps
+        let roomPlanUpKbps = bwUp * 1000;    // kbps
         if (roomPlanId) {
           const planAttrs = await db.wiFiPlan.findUnique({
             where: { id: roomPlanId },
@@ -1097,8 +1093,8 @@ export async function POST(request: NextRequest) {
             roomDataLimit = planAttrs.dataLimit;
           }
           if (planAttrs?.downloadSpeed && planAttrs.downloadSpeed > 0) {
-            roomPlanDnBps = planAttrs.downloadSpeed * 1000000;
-            roomPlanUpBps = planAttrs.uploadSpeed * 1000000;
+            roomPlanDnKbps = planAttrs.downloadSpeed * 1000;  // Mbps → kbps
+            roomPlanUpKbps = planAttrs.uploadSpeed * 1000;
           }
         }
 
@@ -1110,8 +1106,8 @@ export async function POST(request: NextRequest) {
           username: wifiUsername,
           password: userPassword,
           planId: roomPlanId ?? undefined,
-          downloadSpeed: roomPlanDnBps,
-          uploadSpeed: roomPlanUpBps,
+          downloadSpeed: roomPlanDnKbps * 1000,  // kbps → bits/sec for RADIUS
+          uploadSpeed: roomPlanUpKbps * 1000,
           sessionTimeoutMinutes: portalSessionTimeoutMin,
           idleTimeoutSeconds: portal?.idleTimeout,
           sessionLimit: roomMaxDevices,
@@ -1137,8 +1133,8 @@ export async function POST(request: NextRequest) {
           username: wifiUsername, clientIp: getClientIpString(request),
           propertyId: match.propertyId, sessionId,
           macAddress: effectiveMac,
-          maxBandwidthDownBytes: roomPlanDnBps,
-          maxBandwidthUpBytes: roomPlanUpBps,
+          dnKbps: roomPlanDnKbps,
+          upKbps: roomPlanUpKbps,
           subnet: pool.subnet,
         });
 
@@ -1300,8 +1296,8 @@ export async function POST(request: NextRequest) {
           username: username.trim(), clientIp: getClientIpString(request),
           propertyId: wifiUser.propertyId, sessionId,
           macAddress: effectiveMac, userId: wifiUser.id,
-          maxBandwidthDownBytes: bwDownBps ? Number(bwDownBps) : (wifiUser.plan?.downloadSpeed || bwDown) * 1000000,
-          maxBandwidthUpBytes: bwUpBps ? Number(bwUpBps) : (wifiUser.plan?.uploadSpeed || bwUp) * 1000000,
+          dnKbps: bwDownBps ? Math.round(Number(bwDownBps) / 1000) : (wifiUser.plan?.downloadSpeed || bwDown) * 1000,
+          upKbps: bwUpBps ? Math.round(Number(bwUpBps) / 1000) : (wifiUser.plan?.uploadSpeed || bwUp) * 1000,
           subnet: pool.subnet,
         });
 
@@ -1404,8 +1400,8 @@ export async function POST(request: NextRequest) {
             let smsPlanId: string | null = null;
             let smsMaxDevices = 1;
             let smsDataLimit: number | undefined;
-            let smsPlanDnBps = bwDown * 1000000;
-            let smsPlanUpBps = bwUp * 1000000;
+            let smsPlanDnKbps = bwDown * 1000;  // kbps
+            let smsPlanUpKbps = bwUp * 1000;    // kbps
 
             if (portalPlanIpPoolId || fallbackPropertyId) {
               // Try property default AAA plan
@@ -1426,8 +1422,8 @@ export async function POST(request: NextRequest) {
                   smsDataLimit = planAttrs.dataLimit;
                 }
                 if (planAttrs?.downloadSpeed && planAttrs.downloadSpeed > 0) {
-                  smsPlanDnBps = planAttrs.downloadSpeed * 1000000;
-                  smsPlanUpBps = planAttrs.uploadSpeed * 1000000;
+                  smsPlanDnKbps = planAttrs.downloadSpeed * 1000;  // Mbps → kbps
+                  smsPlanUpKbps = planAttrs.uploadSpeed * 1000;
                 }
               }
             }
@@ -1438,8 +1434,8 @@ export async function POST(request: NextRequest) {
               username: wifiUsername,
               password: stored.code,
               planId: smsPlanId ?? undefined,
-              downloadSpeed: smsPlanDnBps,
-              uploadSpeed: smsPlanUpBps,
+              downloadSpeed: smsPlanDnKbps * 1000,  // kbps → bits/sec for RADIUS
+              uploadSpeed: smsPlanUpKbps * 1000,
               sessionTimeoutMinutes: portalSessionTimeoutMin,
               idleTimeoutSeconds: portal?.idleTimeout,
               sessionLimit: smsMaxDevices,
@@ -1465,8 +1461,8 @@ export async function POST(request: NextRequest) {
               username: wifiUsername, clientIp: getClientIpString(request),
               propertyId: fallbackPropertyId, sessionId,
               macAddress: effectiveMac,
-              maxBandwidthDownBytes: smsPlanDnBps,
-              maxBandwidthUpBytes: smsPlanUpBps,
+              dnKbps: smsPlanDnKbps,
+              upKbps: smsPlanUpKbps,
               subnet: smsPool.subnet,
             });
 
@@ -1612,8 +1608,8 @@ export async function POST(request: NextRequest) {
 
             if (resolvedPropertyId) {
               // Resolve plan bandwidth for open access users (AAA default plan if configured)
-              let openPlanDnBps = bwDown * 1000000;
-              let openPlanUpBps = bwUp * 1000000;
+              let openPlanDnKbps = bwDown * 1000;  // kbps
+              let openPlanUpKbps = bwUp * 1000;    // kbps
               const aaaConfig = await db.wiFiAAAConfig.findUnique({
                 where: { propertyId: resolvedPropertyId },
                 select: { defaultPlanId: true },
@@ -1624,8 +1620,8 @@ export async function POST(request: NextRequest) {
                   select: { downloadSpeed: true, uploadSpeed: true },
                 }).catch(() => null);
                 if (openPlan?.downloadSpeed && openPlan.downloadSpeed > 0) {
-                  openPlanDnBps = openPlan.downloadSpeed * 1000000;
-                  openPlanUpBps = openPlan.uploadSpeed * 1000000;
+                  openPlanDnKbps = openPlan.downloadSpeed * 1000;  // Mbps → kbps
+                  openPlanUpKbps = openPlan.uploadSpeed * 1000;
                 }
               }
 
@@ -1637,8 +1633,8 @@ export async function POST(request: NextRequest) {
                 validFrom: now,
                 validUntil,
                 userType: 'guest',
-                downloadSpeed: openPlanDnBps,
-                uploadSpeed: openPlanUpBps,
+                downloadSpeed: openPlanDnKbps * 1000,  // kbps → bits/sec for RADIUS
+                uploadSpeed: openPlanUpKbps * 1000,
                 sessionTimeoutMinutes: portalSessionTimeoutMin,
                 idleTimeoutSeconds: portal?.idleTimeout,
               });
@@ -1662,8 +1658,8 @@ export async function POST(request: NextRequest) {
                 username: wifiUsername, clientIp: getClientIpString(request),
                 propertyId: resolvedPropertyId, sessionId,
                 macAddress: effectiveMac,
-                maxBandwidthDownBytes: openPlanDnBps,
-                maxBandwidthUpBytes: openPlanUpBps,
+                dnKbps: openPlanDnKbps,
+                upKbps: openPlanUpKbps,
                 subnet: pool.subnet,
               });
 
