@@ -459,3 +459,34 @@ Stage Summary:
 - The section shows: Container BW (Download/Upload) with presets, and Per-User limits (Download/Upload) with "No limit" option
 - Backend APIs at /api/wifi/firewall/bandwidth-pools remain unchanged (called behind the scenes)
 
+---
+Task ID: 2
+Agent: Main Agent
+Task: Make bandwidth section collapsible + remove per-user limits from GUI
+
+Work Log:
+- **Collapsible bandwidth section**: Replaced always-visible section with Collapsible component (collapsed by default)
+  - Collapsed state shows: "Bandwidth Container (TC HTB Pool)" + current DL/UL values summary
+  - Expanded state shows: Container BW dropdowns (Download/Upload) with presets
+  - Create dialog: starts collapsed
+  - Edit dialog: auto-expands so user sees current values
+  - Dialog close: resets to collapsed
+  - Uses ChevronRight/ChevronDown icons for expand/collapse indicator
+- **Removed per-user limit fields**: Per-user bandwidth is managed via WiFi plans, not pool defaults
+  - Removed `perUserDownloadKbps` and `perUserUploadKbps` from form state
+  - Removed `PER_USER_PRESETS` constant
+  - Removed `handlePerUserDownloadChange` and `handlePerUserUploadChange` handlers
+  - Removed "Per-User Limits" section from Create/Edit dialog
+  - Removed per-user columns from expanded pool view (now shows 2-column grid + note)
+  - Removed per-user columns from detail dialog (now shows 2-column grid + note)
+  - Removed per-user fields from syncBandwidthPool payload
+  - Removed per-user fields from openEditDialog pre-fill
+  - Removed per-user fields from resetForm
+  - Added "Per-user limits are managed via WiFi plans" note in all remaining views
+
+Stage Summary:
+- Bandwidth Container section is now collapsible with smooth expand/collapse UI
+- Per-user limit fields completely removed from GUI — users get bandwidth from WiFi plans
+- Container bandwidth (pool size) remains configurable: 100Mbps to 10Gbit presets
+- Files changed: `src/components/wifi/ip-pool-management.tsx`
+
