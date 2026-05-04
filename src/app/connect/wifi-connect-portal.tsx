@@ -2154,6 +2154,7 @@ function PortalContent() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             username: authResult.username,
+            source: 'portal', // Keep DeviceProfile active for future auto-auth
           }),
         }).catch(() => {});
       }

@@ -339,3 +339,24 @@ Stage Summary:
 - Missing MAC address no longer causes auto-auth failure
 - IP pool check is advisory only — determines whether to activate firewall rules, but doesn't block auth
 - Server running clean with no errors
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix auto-auth failing after portal logout — disconnect killing DeviceProfile
+
+Work Log:
+- Analyzed PM2 logs chronologically:
+  1. Login chiranjitk → DeviceProfile created ✅
+  2. Portal "Disconnect & Logout" → DeviceProfile DEACTIVATED ❌
+  3. Auto-auth attempt → NO_MATCH (profile inactive) ❌
+- Root cause: `wifi-connect-portal.tsx` handleDisconnect() called `/api/v1/wifi/disconnect` without `source: 'portal'`
+- The disconnect route defaults: `if (source === 'admin' || !source)` → deactivates DeviceProfile
+- Portal logout was being treated as admin disconnect
+- Fixed: Added `source: 'portal'` to the disconnect request body in handleDisconnect()
+- With `source: 'portal'`, the disconnect route SKIPS DeviceProfile deactivation (line 228)
+- Verified admin panel uses separate `/api/wifi/radius` with `live-sessions-disconnect` action (correctly deactivates profiles)
+
+Stage Summary:
+- Portal logout now preserves DeviceProfile for future auto-auth
+- Admin disconnect (from Active Users tab) still kills DeviceProfile (blocks auto-auth)
+- Two distinct behaviors: portal logout = keep auto-auth, admin disconnect = kill auto-auth
