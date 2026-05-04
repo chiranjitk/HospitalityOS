@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { execSync } from 'child_process';
 import { db } from '@/lib/db';
 import { runLogoutScript } from '@/lib/network/script-runner';
 import { removeUserCounter, deauthIP } from '@/lib/wifi/utils/nftables-counters';
@@ -13,14 +14,29 @@ import { removeUserCounter, deauthIP } from '@/lib/wifi/utils/nftables-counters'
 // 2. Closes WiFiSession records
 // 3. Calls staysuite_logout.sh to remove nft rules + TC classes
 //
+// IP Resolution Strategy (in order):
+//   1. Request body `clientIp` field (frontend can pass it)
+//   2. Request headers `x-forwarded-for` / `x-real-ip`
+//   3. Active radacct record for the username
+//   4. Active WiFiSession record for the username
+//   5. nftables loggedinusers set (last resort — shell command)
+//
 // The DeviceProfile is NOT deleted — it persists so that auto-auth can
 // match this device by fingerprintHash on the next visit.
 // ────────────────────────────────────────────────────────────────
 
+function getClientIpFromRequest(request: NextRequest): string {
+  return (
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip')?.trim() ||
+    ''
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { username } = body as { username?: string };
+    const { username, clientIp: bodyIp } = body as { username?: string; clientIp?: string };
 
     if (!username) {
       return NextResponse.json(
@@ -29,23 +45,92 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── Get the client IP from the most recent active radacct session ──
-    // This is needed by staysuite_logout.sh to remove the correct firewall rules.
+    // ── Multi-strategy IP resolution ──
     let clientIp = '';
-    try {
-      const session = await db.$queryRawUnsafe<Array<{ framedipaddress: string | null; acctsessionid: string }>[]>(
-        `SELECT framedipaddress, acctsessionid
-         FROM radacct
-         WHERE acctstoptime IS NULL AND username = $1
-         ORDER BY acctstarttime DESC
-         LIMIT 1`,
-        username,
-      );
-      if (session.length > 0) {
-        clientIp = session[0].framedipaddress || '';
+    let ipSource = 'none';
+
+    // Strategy 1: From request body (frontend can pass it)
+    if (bodyIp && bodyIp !== '0.0.0.0') {
+      clientIp = bodyIp;
+      ipSource = 'body';
+    }
+
+    // Strategy 2: From request headers (reverse proxy sets this)
+    if (!clientIp) {
+      const headerIp = getClientIpFromRequest(request);
+      if (headerIp && headerIp !== '0.0.0.0' && headerIp !== '127.0.0.1') {
+        clientIp = headerIp;
+        ipSource = 'header';
       }
-    } catch {
-      // Non-fatal
+    }
+
+    // Strategy 3: From active radacct session
+    if (!clientIp) {
+      try {
+        const session = await db.$queryRawUnsafe<Array<{ framedipaddress: string | null }>[]>(
+          `SELECT framedipaddress
+           FROM radacct
+           WHERE acctstoptime IS NULL AND username = $1
+             AND framedipaddress IS NOT NULL
+             AND framedipaddress != '' AND framedipaddress != '0.0.0.0'
+           ORDER BY acctstarttime DESC
+           LIMIT 1`,
+          username,
+        );
+        if (session.length > 0 && session[0].framedipaddress) {
+          clientIp = session[0].framedipaddress;
+          ipSource = 'radacct';
+        }
+      } catch {
+        // Non-fatal — DB may be unavailable
+      }
+    }
+
+    // Strategy 4: From active WiFiSession
+    if (!clientIp) {
+      try {
+        const wifiSession = await db.wiFiSession.findFirst({
+          where: { username, status: 'active', ipAddress: { not: '' } },
+          select: { ipAddress: true },
+          orderBy: { startTime: 'desc' },
+        });
+        if (wifiSession?.ipAddress && wifiSession.ipAddress !== '0.0.0.0') {
+          clientIp = wifiSession.ipAddress;
+          ipSource = 'wifisession';
+        }
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    // Strategy 5: From nftables loggedinusers set (last resort — shell command)
+    if (!clientIp) {
+      try {
+        const nftOutput = execSync(
+          'nft list elements inet mangle loggedinusers 2>/dev/null',
+          { encoding: 'utf-8', timeout: 3000 }
+        );
+        // Parse IPs from nft output: { 192.168.100.35, 10.0.0.1, ... }
+        const ipMatch = nftOutput.match(/\{([^}]+)\}/);
+        if (ipMatch) {
+          const ips = ipMatch[1].split(',').map((s: string) => s.trim());
+          if (ips.length === 1) {
+            // Only one IP in loggedinusers — must be this user
+            clientIp = ips[0];
+            ipSource = 'nftables (sole IP)';
+          } else if (ips.length > 1) {
+            console.warn(`[Guest Disconnect] nftables has ${ips.length} IPs in loggedinusers, can't determine which belongs to ${username}`);
+          }
+        }
+      } catch {
+        // nft not available or not running as root — non-fatal
+      }
+    }
+
+    if (clientIp) {
+      console.log(`[Guest Disconnect] Resolved IP for ${username}: ${clientIp} (source: ${ipSource})`);
+    } else {
+      console.warn(`[Guest Disconnect] No client IP found for ${username} after all strategies`);
     }
 
     // ── Close all active radacct sessions for this user ──
@@ -133,6 +218,8 @@ export async function POST(request: NextRequest) {
       data: {
         disconnected: true,
         closedSessions: closedCount,
+        clientIp: clientIp || undefined,
+        ipSource: clientIp ? ipSource : undefined,
         message: 'Disconnected successfully',
       },
     });

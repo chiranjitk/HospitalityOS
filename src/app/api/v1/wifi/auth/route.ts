@@ -364,6 +364,12 @@ async function activateUserFirewall(params: {
       return;
     }
 
+    // Warn if sessionId is empty — means radacct creation failed
+    // The firewall will still work, but session engine can't track this user
+    if (!params.sessionId) {
+      console.warn(`[Firewall] No sessionId for ${params.username} — radacct creation may have failed. Session engine will NOT track this user.`);
+    }
+
     // Generate deterministic class IDs from username
     const classIds = generateClassIds(params.username);
 
