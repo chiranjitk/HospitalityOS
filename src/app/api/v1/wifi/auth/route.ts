@@ -319,10 +319,16 @@ async function isSessionLimitReached(username: string, maxSessions: number): Pro
   if (maxSessions <= 0) return false; // 0 or negative = unlimited
 
   try {
+    // Only count real active sessions — exclude interim-update audit rows
+    // which have acctstoptime IS NULL but are NOT actual user sessions.
+    // Also exclude any rows with acctterminatecause set (already closed).
     const result = await db.$queryRawUnsafe<Array<{ count: bigint }>>(`
       SELECT COUNT(*)::bigint as count
       FROM radacct
-      WHERE username = $1 AND acctstoptime IS NULL
+      WHERE username = $1
+        AND acctstoptime IS NULL
+        AND (acctstatus IS NULL OR acctstatus = '' OR acctstatus = 'start')
+        AND acctterminatecause IS NULL
     `, username);
 
     const activeCount = Number(result[0]?.count ?? 0);

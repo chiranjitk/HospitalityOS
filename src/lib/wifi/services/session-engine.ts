@@ -268,6 +268,36 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
         }
       }
 
+      // ── Step 4b: Close orphan interim-update rows ──
+      // The session engine INSERTs interim-update rows (acctstatus='interim-update')
+      // that have acctstoptime IS NULL. If a session was closed externally
+      // (GUI disconnect, guest logout) but the engine's INSERT ran in a race,
+      // these orphans linger and block re-login ("Maximum concurrent sessions").
+      // Clean up any interim rows whose original session is already stopped.
+      try {
+        const orphanResult = await db.$executeRawUnsafe(`
+          UPDATE radacct
+          SET acctstoptime = NOW(),
+              acctterminatecause = 'Orphan-Cleanup',
+              acctupdatetime = NOW()
+          WHERE acctstoptime IS NULL
+            AND acctstatus = 'interim-update'
+            AND NOT EXISTS (
+              SELECT 1 FROM radacct r2
+              WHERE r2.username = radacct.username
+                AND r2.acctsessionid = radacct.acctsessionid
+                AND r2.acctstoptime IS NULL
+                AND (r2.acctstatus IS NULL OR r2.acctstatus = '' OR r2.acctstatus = 'start')
+            )
+        `);
+        const orphanCount = typeof orphanResult === 'number' ? orphanResult : 0;
+        if (orphanCount > 0) {
+          SELog.info(`Cleaned ${orphanCount} orphan interim-update rows (no matching active session)`);
+        }
+      } catch (err) {
+        SELog.warn(`Failed to clean orphan interim rows: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
       // ── Step 5: Log results ──
       const duration = Date.now() - startTime;
       result.durationMs = duration;

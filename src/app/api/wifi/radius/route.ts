@@ -3102,6 +3102,64 @@ export async function POST(request: NextRequest) {
             : 'No matching active session found';
 
           console.log('[live-sessions-disconnect] localEnded:', localEnded, 'radacct:', radacctRowsAffected, 'wifi:', wifiRowsAffected);
+
+          // 2d. Close orphan interim-update rows for this user
+          // The session engine INSERTs interim-update rows (acctstatus='interim-update')
+          // that have acctstoptime IS NULL. If the main session was closed, these orphans
+          // linger and cause "Maximum concurrent sessions reached" on re-login.
+          try {
+            const orphanResult = await db.$executeRawUnsafe(`
+              UPDATE radacct
+              SET acctstoptime = NOW(),
+                  acctterminatecause = 'Session-Cleanup',
+                  acctupdatetime = NOW()
+              WHERE acctstoptime IS NULL
+                AND username = $1
+                AND acctstatus = 'interim-update'
+            `, disconnectUsername);
+            const orphanCount = typeof orphanResult === 'number' ? orphanResult : 0;
+            if (orphanCount > 0) {
+              console.log(`[live-sessions-disconnect] Cleaned ${orphanCount} orphan interim-update rows for ${disconnectUsername}`);
+            }
+          } catch { /* non-fatal */ }
+
+          // 2e. Resolve client IP for firewall + counter cleanup
+          let clientIp = '';
+          try {
+            // Try to get IP from the most recently closed radacct row
+            const ipRow = await db.$queryRawUnsafe<Array<{ framedipaddress: string }[]>>(`
+              SELECT framedipaddress FROM radacct
+              WHERE username = $1 AND framedipaddress IS NOT NULL
+                AND framedipaddress != '' AND framedipaddress != '0.0.0.0'
+              ORDER BY acctstarttime DESC LIMIT 1
+            `, disconnectUsername);
+            if (ipRow.length > 0 && ipRow[0].framedipaddress) {
+              clientIp = ipRow[0].framedipaddress;
+            }
+          } catch { /* non-fatal */ }
+
+          // 2f. Call logout script for full nft + TC cleanup
+          // The live-sessions-disconnect only did DB cleanup above.
+          // We need to also remove: nft sets, mark rules, NAT rules, TC classes, counter rules.
+          if (clientIp && clientIp !== '0.0.0.0') {
+            try {
+              const { runLogoutScript } = await import('@/lib/network/script-runner');
+              const logoutResult = runLogoutScript({ ip: clientIp });
+              if (logoutResult.success) {
+                console.log(`[live-sessions-disconnect] Firewall cleanup OK: ${disconnectUsername} ip=${clientIp} (${logoutResult.durationMs}ms)`);
+              } else {
+                console.warn(`[live-sessions-disconnect] Firewall cleanup FAIL: ${disconnectUsername} ip=${clientIp} exit=${logoutResult.exitCode}`);
+              }
+            } catch (fwErr) {
+              console.warn('[live-sessions-disconnect] Exception calling logout script:', fwErr instanceof Error ? fwErr.message : fwErr);
+            }
+
+            // 2g. Remove per-IP byte counter rules (defense-in-depth — logout script also does this now)
+            try {
+              const { removeUserCounter } = await import('@/lib/wifi/utils/nftables-counters');
+              removeUserCounter(clientIp);
+            } catch { /* non-fatal */ }
+          }
         } catch (dbErr) {
           localMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
         }
