@@ -217,6 +217,11 @@ DROP VIEW IF EXISTS v_fup_switch_logs;
 -- Performs FULL JOIN between Prisma WiFiSession and FreeRADIUS radacct,
 -- then uses LATERAL join to resolve WiFiUser via radacct username OR
 -- via WiFiSession.guestId (handles app-created sessions without RADIUS).
+--
+-- 2026-05-05: MAC fallback — callingstationid now uses 3-way COALESCE:
+--   WiFiSession.macAddress → radacct.callingstationid → DeviceProfile.macAddress
+--   This ensures MAC is always populated even when RADIUS doesn't provide it
+--   (e.g., captive portal auth on WAN side without real NAS).
 -- ---------------------------------------------------------------------------
 CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS session_id,
     COALESCE(s.id::text, r.radacctid::text) AS radacctid,
@@ -225,8 +230,8 @@ CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS
     COALESCE(s."planId", '00000000-0000-0000-0000-000000000000'::uuid) AS "planId",
     COALESCE(s."guestId", '00000000-0000-0000-0000-000000000000'::uuid) AS "guestId",
     COALESCE(s."bookingId", '00000000-0000-0000-0000-000000000000'::uuid) AS "bookingId",
-    COALESCE(s."macAddress", r.callingstationid) AS callingstationid,
-    COALESCE(s."macAddress", r.callingstationid) AS wifi_mac,
+    COALESCE(s."macAddress", r.callingstationid, dp."macAddress") AS callingstationid,
+    COALESCE(s."macAddress", r.callingstationid, dp."macAddress") AS wifi_mac,
     COALESCE(s."ipAddress", r.framedipaddress) AS "ipAddress",
     COALESCE(s."ipAddress", r.framedipaddress) AS framedipaddress,
     COALESCE(dp."deviceName", s."deviceName") AS "deviceName",
@@ -393,6 +398,7 @@ CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS
 -- VIEW: v_active_sessions
 -- Filters v_session_history for currently active (online) sessions.
 -- Used by: Active Users tab, real-time stats widgets.
+-- Inherits MAC fallback from v_session_history (3-way COALESCE).
 -- ---------------------------------------------------------------------------
 CREATE VIEW v_active_sessions AS  SELECT session_id,
     radacctid,
@@ -467,6 +473,10 @@ CREATE VIEW v_active_sessions AS  SELECT session_id,
 -- Used by: Auth Logs tab, security audit reports.
 -- Enhanced: source_ip_address = clientipaddress (fallback to nasIpAddress).
 -- Reject messages include username, source IP, and specific reason.
+--
+-- 2026-05-05: Added DeviceProfile MAC fallback for calling_station_id.
+--   When radpostauth.callingstationid is NULL (WAN/captive portal auth),
+--   falls back to DeviceProfile.macAddress for the matched WiFiUser.
 -- ---------------------------------------------------------------------------
 CREATE VIEW v_auth_logs AS  SELECT pa.id::text AS id,
     pa.username,
@@ -475,7 +485,7 @@ CREATE VIEW v_auth_logs AS  SELECT pa.id::text AS id,
     COALESCE(replace(acct.framedipaddress, '/32'::text, ''::text), ''::text) AS client_ip_address,
     COALESCE(pa."nasIpAddress", ''::text) AS nas_ip_address,
     COALESCE(NULLIF(pa.clientipaddress, ''), COALESCE(pa."nasIpAddress", ''::text), ''::text) AS source_ip_address,
-    COALESCE(pa.callingstationid, ''::text) AS calling_station_id,
+    COALESCE(pa.callingstationid, dp_mac.mac_address, ''::text) AS calling_station_id,
     COALESCE(pa.calledstationid, ''::text) AS called_station_id,
     'PAP'::text AS auth_type,
         CASE
@@ -536,6 +546,11 @@ CREATE VIEW v_auth_logs AS  SELECT pa.id::text AS id,
          LIMIT 1) acct ON true
      LEFT JOIN "WiFiUser" u ON pa.username = u.username
      LEFT JOIN "WiFiUser" wu ON pa.username = wu.username
+     LEFT JOIN LATERAL ( SELECT "DeviceProfile"."macAddress" AS mac_address
+           FROM "DeviceProfile"
+          WHERE "DeviceProfile"."wifiUserId" = u.id AND "DeviceProfile"."isActive" = true AND "DeviceProfile"."macAddress" IS NOT NULL
+          ORDER BY "DeviceProfile"."lastSeenAt" DESC
+         LIMIT 1) dp_mac ON true
      LEFT JOIN "Guest" g ON u."guestId" = g.id
      LEFT JOIN "Booking" b ON u."bookingId" = b.id
      LEFT JOIN "Room" rm ON b."roomId" = rm.id
