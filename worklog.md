@@ -511,3 +511,22 @@ Stage Summary:
 - `scripts/staysuite_core/staysuite_logout.sh` — ip_to_hex() → 16-bit, flower → fw filter deletion
 - 16-bit mark unique within any /16 address space (covers all practical hotel WiFi deployments)
 - User needs to deploy updated scripts to production server
+
+---
+Task ID: logout-tc-cleanup-fix
+Agent: main
+Task: Fix logout not cleaning up TC filters, classes, and sfq qdiscs
+
+Work Log:
+- Analyzed logout script: filters were being deleted but classes remained
+- Root cause 1: Case sensitivity - MARK is uppercase (0xD0A86423) but `tc filter show` outputs lowercase (0xd0a86423). `grep "handle 0xD0A86423"` never matched, so FILTER_CLASSID discovery always returned empty
+- Root cause 2: Missing sfq qdisc deletion - tc refuses to delete a class with child qdiscs. sfq must be deleted BEFORE the HTB class
+- Fixed grep to use `-i` flag for case-insensitive matching in both ifb0 and ifb1 discovery
+- Added sfq qdisc deletion before class deletion for both devices
+- Correct cleanup order now: filter del → discover classid → sfq qdisc del → class del
+- Pushed to GitHub as commit 4aeab887
+
+Stage Summary:
+- Fixed `scripts/staysuite_core/staysuite_logout.sh` - TC cleanup now works correctly
+- Two bugs fixed: case-insensitive grep + sfq-before-class deletion order
+- Logout now fully cleans: fw filters, sfq qdiscs, and HTB user classes on both ifb0/ifb1
