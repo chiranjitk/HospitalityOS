@@ -402,3 +402,29 @@ Stage Summary:
 - Existing sessions show MAC via DeviceProfile fallback in database views
 - Files changed: auth/route.ts, auto-auth/route.ts, session-history/route.ts, session-history.tsx
 - DB views updated: v_auth_logs, v_session_history, v_active_sessions
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Deep scan for hardcoded paths in DHCP server and entire codebase
+
+Work Log:
+- Scanned all DHCP-related files across mini-services, API routes, components, and lib
+- Identified root cause of production lease report not showing in GUI
+- Found all hardcoded paths in the entire codebase
+- Read and analyzed: dhcp-service/index.ts, dns-service/index.ts, captive-redirect/index.ts
+- Read and analyzed: api/wifi/dhcp/status/route.ts, api/kea/[...path]/route.ts
+- Read and analyzed: lib/wifi/paths.ts, lib/wifi/utils/radius-auth.ts, lib/restricted-network.ts
+- Read and analyzed: lib/network/script-runner.ts, lib/network/executor.ts, lib/network/nettypes.ts
+- Scanned entire src/ directory for /var/, /etc/, /tmp/, /usr/, /home/z patterns
+
+Stage Summary:
+- ROOT CAUSE: dns-service:1218 uses /var/lib/misc/ (Debian) instead of /var/lib/dnsmasq/ (Rocky 10)
+- dhcp-service parseLeasesFile() has duplicate + wrong Debian fallback paths
+- Status APIs return wrong hardcoded paths (configFile, leasesFile)
+- No lease file → DB sync mechanism (GUI reads from DB, but nobody populates DB from dnsmasq)
+- radius-auth.ts has sandbox-only /home/z/my-project/freeradius-install/ paths
+- walled-garden/route.ts has sandbox-only /home/z/my-project/scripts path
+- paths.ts is good pattern but missing all DHCP/dnsmasq paths
+- Total: 10+ hardcoded path issues identified across 12+ files
+- Reported findings to user, awaiting approval to fix
