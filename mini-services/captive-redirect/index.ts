@@ -864,35 +864,40 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
     if (clientIP && whitelist.isWhitelisted(clientIP)) {
       metrics.totalWhitelistSkips++;
       metrics.currentActiveConnections--;
-      // Return a connection error — whitelisted clients should not reach here
-      // (nftables should not redirect them), but just in case:
       res.writeHead(204, { 'Connection': 'close' });
       res.end();
       return;
     }
 
-    // ── Rate limiting ───────────────────────────────────────────────────
-    if (clientIP && !rateLimiter.allow(clientIP)) {
-      const response = buildRateLimitedResponse();
-      res.socket?.write(response);
-      res.socket?.destroy();
-      metrics.currentActiveConnections--;
-      return;
-    }
-
-    // ── Redirect cooldown ───────────────────────────────────────────────
-    if (clientIP && !cooldownCache.shouldRedirect(clientIP, now)) {
-      metrics.currentActiveConnections--;
-      // During cooldown, send 204 No Content to suppress OS captive detection
-      // This prevents the OS from repeatedly showing the captive portal
-      const response = build204Response();
-      res.socket?.write(response);
-      res.socket?.destroy();
-      return;
-    }
-
-    // ── Device detection ────────────────────────────────────────────────
+    // ── Device detection (EARLY — before cooldown/rate-limit) ───────────
+    // We must detect captive portal URLs BEFORE cooldown to ensure OS
+    // detection always gets 302. Sending 204 to a detection URL kills
+    // the OS portal popup, causing slow/repeated retries.
     const deviceInfo = detectDevice(req);
+
+    // ── Captive detection URLs: ALWAYS redirect, skip cooldown ──────────
+    // OS captive portal detection (CNA/NCSI/Firefox) relies on consistent
+    // 302 responses. Cooldown/rate-limit only apply to regular traffic to
+    // prevent infinite browser redirect loops.
+    if (!deviceInfo.isCaptiveDetection) {
+      // Rate limiting only for non-detection traffic
+      if (clientIP && !rateLimiter.allow(clientIP)) {
+        const response = buildRateLimitedResponse();
+        res.socket?.write(response);
+        res.socket?.destroy();
+        metrics.currentActiveConnections--;
+        return;
+      }
+
+      // Cooldown only for non-detection traffic (prevents browser redirect loops)
+      if (clientIP && !cooldownCache.shouldRedirect(clientIP, now)) {
+        metrics.currentActiveConnections--;
+        const response = build204Response();
+        res.socket?.write(response);
+        res.socket?.destroy();
+        return;
+      }
+    }
 
     // ── Build redirect URL ──────────────────────────────────────────────
     const serverIP = getRedirectIP(req);
