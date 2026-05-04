@@ -1187,3 +1187,27 @@
 	      
 2026-05-04 00:11:22.096 UTC [6622] LOG:  checkpoint starting: time
 2026-05-04 00:11:23.401 UTC [6622] LOG:  checkpoint complete: wrote 14 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.305 s, sync=0.001 s, total=1.306 s; sync files=11, longest=0.001 s, average=0.001 s; distance=68 kB, estimate=118 kB; lsn=0/36594F8, redo lsn=0/36594A0
+2026-05-04 00:11:38.112 UTC [32661] ERROR:  operator does not exist: uuid = text at character 179
+2026-05-04 00:11:38.112 UTC [32661] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-04 00:11:38.112 UTC [32661] STATEMENT:  
+	        SELECT
+	          EXTRACT(HOUR FROM "startTime" AT TIME ZONE 'UTC')::int as hour,
+	          COUNT(*)::bigint as count
+	        FROM "WiFiSession"
+	        WHERE "tenantId" = $1
+	          AND "startTime" >= $2
+	        GROUP BY hour
+	        ORDER BY hour
+	      
+2026-05-04 00:11:55.568 UTC [32651] ERROR:  operator does not exist: uuid = text at character 179
+2026-05-04 00:11:55.568 UTC [32651] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-04 00:11:55.568 UTC [32651] STATEMENT:  
+	        SELECT
+	          EXTRACT(HOUR FROM "startTime" AT TIME ZONE 'UTC')::int as hour,
+	          COUNT(*)::bigint as count
+	        FROM "WiFiSession"
+	        WHERE "tenantId" = $1
+	          AND "startTime" >= $2
+	        GROUP BY hour
+	        ORDER BY hour
+	      
