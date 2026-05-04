@@ -367,12 +367,31 @@ export async function lookupBandwidthPool(
     if (propertyId) baseWhere.propertyId = propertyId;
 
     // Try to match by subnet first (user IP → pool subnet → correct pool class)
+    // Use exact match on the subnet prefix to avoid false positives
+    // (e.g. 192.168.100.0 should NOT match 192.168.10.0/24)
     if (subnet) {
+      const subnetPrefix = subnet.split('/')[0];
       const bySubnet = await db.bandwidthPool.findFirst({
-        where: { ...baseWhere, subnet: { contains: subnet.split('/')[0] } },
+        where: { ...baseWhere, subnet: subnetPrefix },
         select: { id: true, totalDownloadKbps: true, totalUploadKbps: true },
       });
-      if (bySubnet) {
+      if (!bySubnet) {
+        // Fallback: try contains match (for CIDR stored with /prefix)
+        const byContains = await db.bandwidthPool.findFirst({
+          where: { ...baseWhere, subnet: { startsWith: subnetPrefix + '/' } },
+          select: { id: true, totalDownloadKbps: true, totalUploadKbps: true },
+        });
+        if (byContains) {
+          const poolId = await getPoolClassId(byContains.id);
+          return {
+            poolId,
+            poolRateDn: byContains.totalDownloadKbps,
+            poolCeilDn: Math.round(byContains.totalDownloadKbps * 1.2),
+            poolRateUp: byContains.totalUploadKbps,
+            poolCeilUp: Math.round(byContains.totalUploadKbps * 1.2),
+          };
+        }
+      } else if (bySubnet) {
         const poolId = await getPoolClassId(bySubnet.id);
         return {
           poolId,
