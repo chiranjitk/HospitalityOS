@@ -30,10 +30,16 @@ https_status="${https_status:-false}"
 LLNETWORKUSERS="${LLNETWORKUSERS:-N}"
 ipv6="${ipv6:-N}"
 
+# Captive portal ports — must be accessible from guest network
+PORTAL_HTTP="${PORTAL_HTTP:-8888}"   # captive-redirect HTTP
+PORTAL_HTTPS="${PORTAL_HTTPS:-8443}"  # captive-redirect HTTPS/TLS SNI
+PORTAL_APP="${PORTAL_APP:-3000}"       # Next.js portal app
+
 ## ============================================================================
 ## CONFIGURATION VARIABLES
 ## ============================================================================
-OPENPORTS="{ 80, 443, 22, 222, 5555, 6791, 10080, 10090 }"
+# Include captive portal ports in open ports (guest must reach portal app directly)
+OPENPORTS="{ 80, 443, 22, 222, 5555, 6791, 10080, 10090, ${PORTAL_HTTP}, ${PORTAL_HTTPS}, ${PORTAL_APP} }"
 LEGACY_PORTS="{ 23, 273, 137, 138, 139, 445 }"
 DNS_PORTS="{ 53, 3799, 3899 }"
 SNMP_PORTS="{ 161, 162 }"
@@ -42,14 +48,14 @@ DROP_PORTS="{ 8007, 8009, 3306, 389, 3128 }"
 ## ============================================================================
 ## CAPTIVE PORTAL MODULE CHECK
 ## ============================================================================
-# Check if captive-redirect service is listening on port 8888
-if ss -tln state listening '( sport = :8888 )' >/dev/null 2>&1; then
+# Check if captive-redirect service is listening on port $PORTAL_HTTP
+if ss -tln state listening "( sport = :${PORTAL_HTTP} )" >/dev/null 2>&1; then
     httpmodule=1
 else
     httpmodule=0
 fi
 
-echo "httpmodule=$httpmodule (captive-redirect on port 8888: $([ $httpmodule -eq 1 ] && echo 'YES' || echo 'NO'))"
+echo "httpmodule=$httpmodule (captive-redirect on port $PORTAL_HTTP: $([ $httpmodule -eq 1 ] && echo 'YES' || echo 'NO'))"
 
 ## ============================================================================
 ## HELPER FUNCTIONS
@@ -303,8 +309,8 @@ nft 'add rule inet nat prerouting jump frchainspre'
 if [ "$httpmodule" -eq 1 ]; then
     # INSERT at position 0 so redirect runs BEFORE jump open
     # Order matters: HTTP first (position 0), then HTTPS (position 0 pushes HTTP to 1)
-    nft 'insert rule inet nat prerouting position 0 mark 10000 tcp dport 80 redirect to :8888'
-    [ "$https_status" = "true" ] && nft 'insert rule inet nat prerouting position 0 mark 20000 tcp dport 443 redirect to :8443'
+    nft "insert rule inet nat prerouting position 0 mark 10000 tcp dport 80 redirect to :$PORTAL_HTTP"
+    [ "$https_status" = "true" ] && nft "insert rule inet nat prerouting position 0 mark 20000 tcp dport 443 redirect to :$PORTAL_HTTPS"
 fi
 
 ## ============================================================================
@@ -352,7 +358,13 @@ nft 'add chain inet security invalid_packets { type filter hook prerouting prior
 nft 'add rule inet security invalid_packets ct state invalid log prefix "INVALID_PKT: "'
 
 nft 'add chain inet security port_scan { type filter hook input priority -160; }'
-nft 'add rule inet security port_scan tcp dport != { 22, 80, 443, 53 } ct state new meter portscan { ip saddr limit rate over 10/minute burst 5 packets } log prefix "PORT_SCAN: " drop'
+# IMPORTANT: Include captive portal ports ($PORTAL_HTTP, $PORTAL_HTTPS, $PORTAL_APP)
+# in the port_scan exception. Without this, the port_scan rule rate-limits guest
+# TCP connections to these ports (burst 5, then 10/min), causing the portal page
+# to take 1+ minutes to load. After NAT redirect, port 80 traffic arrives as
+# port 8888 — so $PORTAL_HTTP must be listed here.
+PORTSCAN_ALLOW="{ 22, 80, 443, 53, ${PORTAL_HTTP}, ${PORTAL_HTTPS}, ${PORTAL_APP} }"
+nft "add rule inet security port_scan tcp dport != $PORTSCAN_ALLOW ct state new meter portscan { ip saddr limit rate over 10/minute burst 5 packets } log prefix \"PORT_SCAN: \" drop"
 
 nft 'add chain inet security ssh_protection { type filter hook input priority -155; }'
 # Log the attempt, but DO NOT drop it (remove 'drop' so it passes to the next rule)
@@ -384,7 +396,7 @@ nft 'add rule inet filter input ct state established,related accept'
 ## It is safe to drop invalid here in the filter table without breaking routing
 nft 'add rule inet filter input ct state invalid drop'
 nft 'add rule inet filter input jump intranetuploadaccounting'
-nft 'add rule inet filter input tcp dport { 80, 443, 22, 222, 5555, 6791, 10080, 10090 } ct state new accept'
+nft "add rule inet filter input tcp dport $OPENPORTS ct state new accept"
 
 ## ============================================================================
 ## IPv6 SUPPORT
