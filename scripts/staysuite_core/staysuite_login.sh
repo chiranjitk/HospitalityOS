@@ -233,6 +233,7 @@ nft add element inet mangle loggedinusersdstip "{ ${IP} }" 2>/dev/null \
 
 if [[ "$SET_FAILED" -eq 1 ]]; then
     log_err "nft: failed to add $IP to one or more sets — cleanup"
+    echo "[NFT FAIL] set add failed for $IP — cleanup and exit 3" >&2
     nft delete element inet mangle loggedinusers "{ ${IP} }" 2>/dev/null
     nft delete element inet mangle usersset "{ ${IP} }" 2>/dev/null
     nft delete element inet mangle usersdstset "{ ${IP} }" 2>/dev/null
@@ -241,29 +242,39 @@ if [[ "$SET_FAILED" -eq 1 ]]; then
 fi
 
 # ─── Step 3: Insert nft fwmark rules in prerouting ──────────────────
-# Insert at position 5 (after icmp + 3×syn rules, before usersset checks).
-# Sets meta mark = IP hex so TC fw filter can match it.
-# Both saddr (upload from user) and daddr (download to user) are marked.
-#
-# IMPORTANT: position 5 is RELATIVE to first login. Subsequent logins
-# also insert at position 5, which pushes previous marks down. This is
-# intentional — all mark rules execute since none accept/drop.
-if ! nft insert rule inet mangle prerouting position 5 \
-    ip saddr "${IP}" meta mark set "${MARK}" \
-    comment "${TAG}_mark" 2>&1 | tee -a "$LOGFILE" >/dev/null; then
-    NFT_FAILED=1
-    log_err "nft: failed to insert saddr mark rule"
-else
-    log_msg "nft: prerouting saddr $IP → mark $MARK"
+# Dynamically find position: insert before the first @usersset check rule
+# so marks are set BEFORE the terminal accept rules.
+# Fallback: insert at chain start (safe — rules match specific IP only).
+REF_HANDLE=""
+REF_HANDLE=$(nft -a list chain inet mangle prerouting 2>/dev/null \
+    | grep -m1 'ip saddr @usersset meta mark set ct mark' \
+    | grep -oP 'handle \K[0-9]+')
+INSERT_POS="position ${REF_HANDLE}"
+if [[ -z "$REF_HANDLE" ]]; then
+    INSERT_POS=""
+    log_msg "nft: @usersset mark ref not found — inserting mark rules at chain start"
 fi
 
-if ! nft insert rule inet mangle prerouting position 5 \
-    ip daddr "${IP}" meta mark set "${MARK}" \
-    comment "${TAG}_mark_dn" 2>&1 | tee -a "$LOGFILE" >/dev/null; then
+NFT_SADDR_ERR=$(nft insert rule inet mangle prerouting ${INSERT_POS} \
+    ip saddr "${IP}" meta mark set "${MARK}" \
+    comment "${TAG}_mark" 2>&1)
+if [[ $? -ne 0 ]]; then
     NFT_FAILED=1
-    log_err "nft: failed to insert daddr mark rule"
+    log_err "nft: failed saddr mark rule: ${NFT_SADDR_ERR}"
+    echo "[NFT FAIL] saddr mark ${IP}: ${NFT_SADDR_ERR}" >&2
 else
-    log_msg "nft: prerouting daddr $IP → mark $MARK"
+    log_msg "nft: prerouting saddr ${IP} → mark ${MARK}"
+fi
+
+NFT_DADDR_ERR=$(nft insert rule inet mangle prerouting ${INSERT_POS} \
+    ip daddr "${IP}" meta mark set "${MARK}" \
+    comment "${TAG}_mark_dn" 2>&1)
+if [[ $? -ne 0 ]]; then
+    NFT_FAILED=1
+    log_err "nft: failed daddr mark rule: ${NFT_DADDR_ERR}"
+    echo "[NFT FAIL] daddr mark ${IP}: ${NFT_DADDR_ERR}" >&2
+else
+    log_msg "nft: prerouting daddr ${IP} → mark ${MARK}"
 fi
 
 # ─── Step 4: NAT POSTROUTING ───────────────────────────────────────
@@ -317,7 +328,13 @@ nft add rule inet filter intranetuploadaccounting ip saddr "${IP}" udp dport 606
 #   3. fw filter:  handle 0xIP_HEX → classid 1:<classid>
 # ═══════════════════════════════════════════════════════════════════
 
-if [[ "$POOL_ID" -gt 0 ]]; then
+# Verify TC HTB infrastructure exists before attempting bandwidth shaping.
+# If the root qdisc is missing (e.g., initialization.sh not run), skip TC
+# entirely rather than failing and triggering exit 5.
+TC_INFRA_OK=1
+tc qdisc show dev ifb0 2>/dev/null | grep -q 'qdisc htb 1:' || TC_INFRA_OK=0
+
+if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
 
     # ─── Step 8: Ensure pool root class exists ───────────────────────
     # classid 1:<pool_id> under parent 1:1 on both ifb0 and ifb1
@@ -408,6 +425,10 @@ if [[ "$POOL_ID" -gt 0 ]]; then
             fi
         fi
     fi
+elif [[ "$POOL_ID" -gt 0 ]]; then
+    # Pool configured but TC infrastructure missing — skip bandwidth shaping
+    log_msg "tc: HTB qdisc not found on ifb0 — skipping bandwidth shaping for $IP"
+    echo "[WARN] tc: no HTB root qdisc on ifb0/ifb1 — bandwidth skipped for $IP" >&2
 fi
 
 # ─── Step 11: Save session state ────────────────────────────────────
@@ -473,14 +494,17 @@ cleanup_all_sets() {
 # ─── Final result ────────────────────────────────────────────────────
 if [[ "$NFT_FAILED" -eq 1 && "$TC_FAILED" -eq 1 ]]; then
     log_err "PARTIAL FAIL $IP: nft+tc both failed — cleanup"
+    echo "[LOGIN FAIL] ${IP}: nft+tc both failed — full cleanup (exit 5)" >&2
     cleanup_all_sets
     exit 5
 elif [[ "$NFT_FAILED" -eq 1 ]]; then
     log_err "PARTIAL FAIL $IP: nft failed, tc OK — cleanup sets"
+    echo "[LOGIN FAIL] ${IP}: nft mark insert failed — cleanup (exit 3)" >&2
     cleanup_all_sets
     exit 3
 elif [[ "$TC_FAILED" -eq 1 ]]; then
     log_err "PARTIAL FAIL $IP: tc failed, nft OK (user still has internet, no bandwidth limits)"
+    echo "[LOGIN WARN] ${IP}: tc failed — user has internet, no bandwidth limits" >&2
     # TC failure is non-fatal — user gets internet without bandwidth limits
 fi
 

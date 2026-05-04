@@ -216,8 +216,9 @@ function runScript(scriptPath: string, args: string[], timeoutMs: number): Scrip
     scriptEnv.SS_PERSIST_STATEDIR = scriptEnv.SS_PERSIST_STATEDIR || `${projectRoot}/.staysuite/sessions`;
   }
 
+  const cmd = `${scriptPath} ${args.join(' ')}`;
+
   try {
-    const cmd = `${scriptPath} ${args.join(' ')}`;
     const stdout = execSync(cmd, {
       encoding: 'utf-8',
       timeout: timeoutMs,
@@ -239,16 +240,20 @@ function runScript(scriptPath: string, args: string[], timeoutMs: number): Scrip
 
     // Script executed but returned non-zero exit code
     if (error.status !== undefined) {
+      const stderr = (error.stderr || '').trim();
+      // Log the full command + stderr for debugging firewall failures
+      console.error(`[ScriptRunner] FAIL cmd="${cmd.substring(cmd.lastIndexOf('/') + 1)}" exit=${error.status} stderr="${stderr}" (${durationMs}ms)`);
       return {
         success: false,
         exitCode: error.status,
         stdout: (error.stdout || '').trim(),
-        stderr: (error.stderr || '').trim(),
+        stderr,
         durationMs,
       };
     }
 
     // Script couldn't be found, timed out, or permission denied
+    console.error(`[ScriptRunner] ERROR cmd="${cmd.substring(cmd.lastIndexOf('/') + 1)}" msg="${error.message || 'Unknown error'}" (${durationMs}ms)`);
     return {
       success: false,
       exitCode: null,

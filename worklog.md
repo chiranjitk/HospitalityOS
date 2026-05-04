@@ -315,3 +315,30 @@ Stage Summary:
 - Fixed the crash: `ReferenceError: marketingEmailConsent is not defined` — caused by missing destructuring
 - Fixed silent data loss: guestInfo properties (firstName, lastName, email, phone) were never being saved to Guest records because the JSON string was never parsed into the variable used by `saveGuestInfoAfterAuth`
 - Email is now mandatory: backend returns `MISSING_EMAIL` if guestInfo sent without email; frontend validates before submission
+---
+Task ID: 9
+Agent: Main Agent
+Task: Fix firewall login script exit=5 failure (nft + TC both failing)
+
+Work Log:
+- Analyzed `staysuite_login.sh` (489 lines) to trace exit=5 path: requires BOTH NFT_FAILED=1 AND TC_FAILED=1
+- Identified TWO root causes:
+  1. **Hardcoded `position 5` in nft insert rule** — if prerouting chain handle 5 doesn't exist (after chain re-creation/modification), the insert fails with NFT_FAILED=1
+  2. **No TC qdisc existence check** — if `tc qdisc htb 1:` doesn't exist on ifb0/ifb1 (initialization.sh not run), ALL tc class/filter commands fail with TC_FAILED=1
+  3. **No stderr output** — script only wrote errors to LOGFILE, not stderr (which execSync captures), so Next.js always showed `stderr=(none)`
+- Fixed `scripts/staysuite_core/staysuite_login.sh`:
+  - **Dynamic position lookup**: Replaced hardcoded `position 5` with `grep` for the `@usersset meta mark set ct mark` rule handle. Falls back to chain start insertion if reference not found.
+  - **TC qdisc check**: Added `tc qdisc show dev ifb0 | grep -q 'qdisc htb 1:'` before TC section. If qdisc missing, skips TC entirely with warning (doesn't set TC_FAILED, so no exit 5).
+  - **Stderr diagnostics**: Added `echo "..." >&2` at all failure points (SET_FAILED, NFT_FAILED, TC_FAILED, final exit) so Next.js captures the actual error messages.
+  - Replaced `| tee -a "$LOGFILE"` pipe (problematic with set -eo pipefail) with direct `2>&1` capture into variable + `$?` check.
+- Fixed `src/lib/network/script-runner.ts`:
+  - Moved `cmd` variable before try/catch so it's accessible in catch block
+  - Added `[ScriptRunner] FAIL` and `[ScriptRunner] ERROR` console.error logs with cmd, exit code, and stderr
+- Fixed `src/app/api/v1/wifi/auth/route.ts`:
+  - Enhanced failure log to include `ip=`, `pool=`, `cls=` for better diagnostics
+
+Stage Summary:
+- Exit=5 should no longer occur due to missing TC qdisc infrastructure (TC section is skipped gracefully)
+- Exit=5 should no longer occur due to wrong prerouting chain handle (dynamic lookup with fallback)
+- All failure messages now visible in Next.js PM2 logs via stderr capture
+- Script passes `bash -n` syntax check

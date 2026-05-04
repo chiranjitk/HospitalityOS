@@ -403,7 +403,7 @@ async function activateUserFirewall(params: {
       );
     } else {
       console.error(
-        `[Firewall] Login FAIL: ${params.username} exit=${result.exitCode} stderr=${result.stderr || '(none)'} (${result.durationMs}ms)`
+        `[Firewall] Login FAIL: ${params.username} ip=${clientIp} exit=${result.exitCode} pool=${poolBw.poolId} cls=${classIds.dn}/${classIds.up} stderr=${result.stderr || '(none)'} (${result.durationMs}ms)`
       );
     }
   } catch (err) {
