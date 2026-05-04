@@ -70,3 +70,35 @@ Stage Summary:
 - Session engine no longer falsely marks sessions as stale
 - Edge Runtime Turbopack warnings mitigated via serverExternalPackages
 - Repository state is clean and pushed to GitHub
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Fix counter rules accumulating on login + wrong nft set name + hardcoded script path
+
+Work Log:
+- Analyzed user's `nft list ruleset` output: 6 counter rules for 1 IP (3 login pairs accumulated)
+- Root cause #1: staysuite_logout.sh did NOT clean up staysuite_count table rules
+  (counter cleanup was solely delegated to TS layer's removeUserCounter())
+- Root cause #2: nftables-counters.ts checked for 'authenticated_users' set but actual
+  set name is 'loggedinusers' (created by staysuite_login.sh) → stale detection permanently disabled
+- Root cause #3: COUNTER_SCRIPT path hardcoded to /home/z/my-project/ (sandbox path),
+  inconsistent with login/logout scripts which use STAYSUITE_SCRIPTS_DIR
+- Root cause #4: cmd_read only parsed FIRST matching rule per direction (not summing duplicates)
+- Fixed staysuite-traffic-counters.sh:
+  - cmd_add: detects and removes stale rules before adding fresh ones
+  - cmd_read: sums ALL matching rules per direction using while-read loop
+  - cmd_remove: improved with count logging
+- Fixed staysuite_logout.sh: added Step 7c — scans staysuite_count table for ALL
+  counter rules matching user IP, deletes by handle (highest first)
+- Fixed nftables-counters.ts:
+  - Changed authenticated_users → loggedinusers in doesAuthenticatedSetExist,
+    isIPAuthenticated, and deauthIP (enables proper stale detection)
+  - Counter script path now uses STAYSUITE_SCRIPTS_DIR with project-relative fallback
+- Committed and pushed: 98103735
+
+Stage Summary:
+- Counter rules no longer accumulate: logout script + TS layer provide double cleanup
+- Stale session detection now works: correct set name (loggedinusers) enables IP verification
+- Counter script path works in both production and sandbox environments
+- cmd_read correctly sums accumulated duplicate rules for accurate byte counts
