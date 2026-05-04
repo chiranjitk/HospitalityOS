@@ -192,9 +192,9 @@ UP_CLASSID_HEX="${UP_CLASSID:-0}"
 
 # ─── Step 8: Delete fw filter + user class on ifb0 (download) ────────
 if [[ "$DN_CLASSID" -gt 0 ]]; then
-    # Delete fw filter by handle (16-bit mark)
+    # Delete fw filter by handle (16-bit mark, positional syntax)
     tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-        fw handle "${MARK}" 2>/dev/null && log_msg "tc: del fw filter ifb0 $MARK"
+        fw "${MARK}" 2>/dev/null && log_msg "tc: del fw filter ifb0 $MARK"
 
     # Fallback: delete any remaining flower/fwmark filter for this mark
     tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
@@ -216,9 +216,9 @@ fi
 
 # ─── Step 9: Delete fw filter + user class on ifb1 (upload) ─────────
 if [[ "$UP_CLASSID" -gt 0 ]]; then
-    # Delete fw filter by handle (16-bit mark)
+    # Delete fw filter by handle (16-bit mark, positional syntax)
     tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-        fw handle "${MARK}" 2>/dev/null && log_msg "tc: del fw filter ifb1 $MARK"
+        fw "${MARK}" 2>/dev/null && log_msg "tc: del fw filter ifb1 $MARK"
 
     # Fallback: delete any remaining flower/fwmark filter for this mark
     tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \

@@ -453,12 +453,12 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
             log_msg "tc: download 1:${DN_CLASSID_HEX} under $local_parent on ifb0 (rate=$DN_GUAR_RATE ceil=$DN_CEIL)"
 
             # fw filter: match skb->mark (set by nft) → assign to user class
-            # fw filter checks (skb->mark & 0xFFFF) == handle.
+            # fw syntax: fw [HANDLE[/FWMASK]] classid CLASSID (positional, no keywords)
             # Delete any existing filter for this handle first (idempotent re-login).
             tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-                fw handle "${MARK}" 2>/dev/null || true
+                fw "${MARK}" 2>/dev/null || true
             filter_err=$(tc filter add dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-                fw handle "${MARK}" flowid "1:${DN_CLASSID_HEX}" 2>&1) || {
+                fw "${MARK}" classid "1:${DN_CLASSID_HEX}" 2>&1) || {
                 TC_FAILED=1
                 log_err "tc: failed download fw filter $MARK → 1:${DN_CLASSID_HEX} — $filter_err"
                 echo "[ERR] tc: dl fw filter $MARK → 1:${DN_CLASSID_HEX} failed — $filter_err" >&2
@@ -504,9 +504,9 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
 
             # fw filter: match skb->mark (set by nft) → assign to user class
             tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-                fw handle "${MARK}" 2>/dev/null || true
+                fw "${MARK}" 2>/dev/null || true
             filter_err=$(tc filter add dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-                fw handle "${MARK}" flowid "1:${UP_CLASSID_HEX}" 2>&1) || {
+                fw "${MARK}" classid "1:${UP_CLASSID_HEX}" 2>&1) || {
                 TC_FAILED=1
                 log_err "tc: failed upload fw filter $MARK → 1:${UP_CLASSID_HEX} — $filter_err"
                 echo "[ERR] tc: ul fw filter $MARK → 1:${UP_CLASSID_HEX} failed — $filter_err" >&2
