@@ -78,10 +78,11 @@ fi
 [[ -z "$IP" ]] && exit 0
 
 # Compute mark if not loaded from state
-# Uses 16-bit mark from last 2 octets (matching the login script)
+# Uses 32-bit mark = (full IP | 0x10000000), same as 24online's IPMARK
 if [[ -z "$MARK" ]]; then
     IFS='.' read -ra o <<< "$IP"
-    MARK=$(printf "0x%04X" "$(( (${o[2]} << 8) | ${o[3]} ))")
+    ip_num=$(( (o[0] << 24) | (o[1] << 16) | (o[2] << 8) | o[3] ))
+    MARK=$(printf "0x%08X" "$(( ip_num | 0x10000000 ))")
     unset IFS
 fi
 
@@ -130,10 +131,14 @@ nft delete element inet mangle loggedinusersdstip "{ ${IP} }" 2>/dev/null \
 nft delete element inet mangle loggedinusersnetwork "{ ${IP} }" 2>/dev/null \
     && log_msg "nft: -loggedinusersnetwork $IP"
 
-# ─── Step 2: Delete nft mark rules (prerouting) by comment tag ─────
-# These are the rules that set meta mark = IP hex
+# ─── Step 2: Delete nft mark rules by comment tag ───────────────────
+# Prerouting: mark set + connmark save
 delete_rules_by_tag "${TAG}_mark" "inet mangle prerouting"
+delete_rules_by_tag "${TAG}_mark_save" "inet mangle prerouting"
 delete_rules_by_tag "${TAG}_mark_dn" "inet mangle prerouting"
+# Postrouting: connmark restore + connmark save
+delete_rules_by_tag "${TAG}_mark_restore" "inet mangle postrouting"
+delete_rules_by_tag "${TAG}_mark_dn_save" "inet mangle postrouting"
 
 # ─── Step 3: Delete NAT rules ──────────────────────────────────────
 delete_rules_by_tag "${TAG}_nat" "inet nat postrouting"

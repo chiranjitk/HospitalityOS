@@ -217,15 +217,17 @@ flock -n 8 2>/dev/null || {
 }
 
 # ─── Helpers ─────────────────────────────────────────────────────────
-# Convert IPv4 to 16-bit fw mark using last 2 octets.
-# The tc fw filter only supports 16-bit handles (skb->mark & 0xFFFF).
-# flower fwmark is NOT available on this kernel.
-# Using last 2 octets: 192.168.100.35 → (100<<8)|35 = 0x6423
-# Unique within any /16 address space (sufficient for all practical deployments).
+# Convert IPv4 to fw mark using full IP OR'd with 0x10000000.
+# This is the same as 24online's IPMARK --addr src --or-mask 0x10000000.
+# Example: 192.168.100.35 → 0xC0A86423 | 0x10000000 = 0xD0A86423
+# The 0x10000000 OR mask ensures the mark never collides with system marks (low values).
+# The fw filter on ifb0/ifb1 checks: skb->mark & 0xFFFFFFFF == this value.
 ip_to_hex() {
     local IFS='.'
     read -ra o <<< "$1"
-    printf "0x%04X" "$(( (${o[2]} << 8) | ${o[3]} ))"
+    local ip_num=$(( (o[0] << 24) | (o[1] << 16) | (o[2] << 8) | o[3] ))
+    local mark=$(( ip_num | 0x10000000 ))
+    printf "0x%08X" "$mark"
 }
 
 # Comment tag for nft rules (enables precise removal on logout)
@@ -269,9 +271,19 @@ if [[ "$SET_FAILED" -eq 1 ]]; then
 fi
 
 # ─── Step 3: Insert nft fwmark rules in prerouting ──────────────────
-# Dynamically find position: insert before the first @usersset check rule
-# so marks are set BEFORE the terminal accept rules.
-# Fallback: insert at chain start (safe — rules match specific IP only).
+# Same mechanism as 24online's iptables IPMARK + CONNMARK pattern:
+#   1. For established connections: restore mark from conntrack
+#   2. For NEW connections: set mark = (src_ip | 0x10000000), save to conntrack
+#
+# The CONNMARK save/restore is critical because:
+#   - Download (reply) packets arrive on LAN egress → ifb0
+#   - The reply packet's src IP is the SERVER, not the client
+#   - Without CONNMARK, we can't match download packets by client IP on ifb0
+#   - CONNMARK restores the original mark from the connection's first packet
+#
+# In nftables, IPMARK is replaced by: meta mark set ip saddr | 0x10000000
+# CONNMARK save/restore maps to: ct mark set mark / meta mark set ct mark
+
 REF_HANDLE=""
 REF_HANDLE=$(nft -a list chain inet mangle prerouting 2>/dev/null \
     | grep -m1 'ip saddr @usersset meta mark set ct mark' \
@@ -282,6 +294,8 @@ if [[ -z "$REF_HANDLE" ]]; then
     log_msg "nft: @usersset mark ref not found — inserting mark rules at chain start"
 fi
 
+# PREROUTING: Upload direction (client → internet)
+# NEW packets from client: set mark = (src_ip | 0x10000000), save to conntrack
 NFT_SADDR_ERR=$(nft insert rule inet mangle prerouting ${INSERT_POS} \
     ip saddr "${IP}" meta mark set "${MARK}" \
     comment "${TAG}_mark" 2>&1)
@@ -293,15 +307,36 @@ else
     log_msg "nft: prerouting saddr ${IP} → mark ${MARK}"
 fi
 
-NFT_DADDR_ERR=$(nft insert rule inet mangle prerouting ${INSERT_POS} \
-    ip daddr "${IP}" meta mark set "${MARK}" \
-    comment "${TAG}_mark_dn" 2>&1)
+# Save mark to conntrack so it persists for the entire connection
+NFT_SAVE_ERR=$(nft insert rule inet mangle prerouting ${INSERT_POS} \
+    ip saddr "${IP}" ct mark set meta mark \
+    comment "${TAG}_mark_save" 2>&1)
 if [[ $? -ne 0 ]]; then
-    NFT_FAILED=1
-    log_err "nft: failed daddr mark rule: ${NFT_DADDR_ERR}"
-    echo "[NFT FAIL] daddr mark ${IP}: ${NFT_DADDR_ERR}" >&2
+    log_err "nft: failed saddr connmark save: ${NFT_SAVE_ERR}"
 else
-    log_msg "nft: prerouting daddr ${IP} → mark ${MARK}"
+    log_msg "nft: prerouting saddr ${IP} → ct mark save"
+fi
+
+# POSTROUTING: Download direction (internet → client)
+# NEW reply packets: restore mark from conntrack (set during prerouting on outbound)
+# Also set mark for dst-based matching on ifb0
+NFT_DADDR_ERR=$(nft add rule inet mangle postrouting \
+    ip daddr "${IP}" meta mark set ct mark \
+    comment "${TAG}_mark_restore" 2>&1)
+if [[ $? -ne 0 ]]; then
+    log_err "nft: failed daddr connmark restore: ${NFT_DADDR_ERR}"
+else
+    log_msg "nft: postrouting daddr ${IP} → ct mark restore"
+fi
+
+# Save to conntrack for download direction too
+NFT_DSAVE_ERR=$(nft add rule inet mangle postrouting \
+    ip daddr "${IP}" ct mark set meta mark \
+    comment "${TAG}_mark_dn_save" 2>&1)
+if [[ $? -ne 0 ]]; then
+    log_err "nft: failed daddr connmark save: ${NFT_DSAVE_ERR}"
+else
+    log_msg "nft: postrouting daddr ${IP} → ct mark save"
 fi
 
 # ─── Step 4: NAT POSTROUTING ───────────────────────────────────────
