@@ -10,7 +10,7 @@
  * API: /api/wifi/portal-whitelist (REST: GET/POST/PUT/DELETE)
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,6 +66,8 @@ import {
   Info,
   ChevronDown,
   CheckCircle,
+  XCircle,
+  AlertCircle,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePropertyId } from '@/hooks/use-property';
@@ -118,6 +120,11 @@ export default function PortalWhitelist() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showPresetPanel, setShowPresetPanel] = useState(false);
 
+  // Walled garden state
+  const [wgStatus, setWgStatus] = useState<{ active: boolean; entries: number; ipCount: number; configExists: boolean; setExists: boolean; ruleExists: boolean } | null>(null);
+  const [wgApplying, setWgApplying] = useState(false);
+  const mountedRef = useRef(true);
+
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<PortalWhitelistEntry | null>(null);
@@ -161,9 +168,63 @@ export default function PortalWhitelist() {
     }
   }, [propertyId]);
 
+  // ─── Walled Garden Status ──────────────────────────────────────────────────
+
+  const fetchWgStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/wifi/walled-garden?action=status');
+      const data = await res.json();
+      if (data.success && data.data && mountedRef.current) {
+        setWgStatus(data.data);
+      }
+    } catch (e) {
+      console.error('WG status error:', e);
+    }
+  }, []);
+
+  const handleApplyWg = useCallback(async () => {
+    setWgApplying(true);
+    try {
+      const action = wgStatus?.active ? 'remove' : 'apply';
+      const res = await fetch('/api/wifi/walled-garden', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({
+          title: wgStatus?.active ? 'Firewall Rules Removed' : 'Firewall Rules Applied',
+          description: wgStatus?.active
+            ? 'Walled garden rules have been removed from the firewall'
+            : `Walled garden rules applied with ${data.data?.ipCount ?? 0} IPs`,
+        });
+        // Refresh status after a brief delay to allow nftables to settle
+        setTimeout(() => fetchWgStatus(), 1000);
+      } else {
+        toast({
+          title: 'Firewall Error',
+          description: data.error || 'Failed to apply walled garden rules',
+          variant: 'destructive',
+        });
+      }
+    } catch {
+      toast({
+        title: 'Network Error',
+        description: 'Failed to communicate with the firewall service',
+        variant: 'destructive',
+      });
+    } finally {
+      if (mountedRef.current) setWgApplying(false);
+    }
+  }, [wgStatus, toast, fetchWgStatus]);
+
   useEffect(() => {
+    mountedRef.current = true;
     fetchEntries();
-  }, [fetchEntries]);
+    fetchWgStatus();
+    return () => { mountedRef.current = false; };
+  }, [fetchEntries, fetchWgStatus]);
 
   // ─── Form Helpers ───────────────────────────────────────────────────────────
 
@@ -407,7 +468,7 @@ export default function PortalWhitelist() {
 
       {/* Stats + Actions Row */}
       <div className="flex flex-col sm:flex-row justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <span className="text-2xl font-bold">{entries.length}</span>
             <span className="text-sm text-muted-foreground">entries</span>
@@ -425,8 +486,49 @@ export default function PortalWhitelist() {
               </span>
             )}
           </div>
+          {/* Walled Garden Status Badge */}
+          {wgStatus && (
+            <Badge
+              variant="outline"
+              className={cn(
+                'text-[10px] gap-1',
+                wgStatus.active
+                  ? 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400'
+                  : 'border-amber-500/50 text-amber-600',
+              )}
+            >
+              {wgStatus.active ? (
+                <>
+                  <CheckCircle className="h-3 w-3" />
+                  Firewall Active ({wgStatus.ipCount} IPs)
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="h-3 w-3" />
+                  Not Applied
+                </>
+              )}
+            </Badge>
+          )}
         </div>
         <div className="flex gap-2 flex-wrap">
+          {/* Walled Garden Apply / Remove Button */}
+          <Button
+            variant={wgStatus?.active ? 'destructive' : 'default'}
+            size="sm"
+            onClick={handleApplyWg}
+            disabled={wgApplying}
+            className={!wgStatus?.active ? 'bg-teal-600 hover:bg-teal-700 text-white' : undefined}
+          >
+            {wgApplying ? (
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+            ) : wgStatus?.active ? (
+              <XCircle className="h-4 w-4 mr-1.5" />
+            ) : (
+              <ShieldCheck className="h-4 w-4 mr-1.5" />
+            )}
+            {wgStatus?.active ? 'Remove Rules' : 'Apply to Firewall'}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowPresetPanel(!showPresetPanel)}>
             <Hotel className="h-4 w-4 mr-1.5" />
             Presets

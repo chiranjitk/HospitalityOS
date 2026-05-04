@@ -556,6 +556,14 @@ async function apiMutate<T>(url: string, options?: RequestInit): Promise<{ data:
 export default function PortalPage() {
   const [activeTab, setActiveTab] = useState<TabId>('portals');
   const [portalOptions, setPortalOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const activeTabRef = useRef<HTMLButtonElement>(null);
+
+  // Auto-scroll tab bar to active tab
+  useEffect(() => {
+    if (activeTabRef.current) {
+      activeTabRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [activeTab]);
 
   const fetchPortalOptions = useCallback(async () => {
     const data = await apiFetch<any[]>('/api/wifi/portal/instances');
@@ -572,20 +580,26 @@ export default function PortalPage() {
           Design stunning guest login experiences, manage portal instances, and print WiFi vouchers
         </p>
       </div>
-      <div className="border-b border-border">
-        <ScrollArea className="w-full">
-          <div className="flex gap-1 min-w-max px-1">
+      <div className="relative border-b border-border">
+        {/* Left fade indicator */}
+        <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 z-10 bg-gradient-to-r from-background to-transparent hidden" id="tab-fade-left" />
+        {/* Right fade indicator */}
+        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 z-10 bg-gradient-to-l from-background to-transparent" id="tab-fade-right" />
+        <ScrollArea className="w-full" id="tab-scroll-area">
+          <div className="flex gap-1 min-w-max px-1" id="tab-scroll-inner">
             {TABS.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               return (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                <button key={tab.id} ref={tab.id === activeTab ? activeTabRef : null} onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-150 whitespace-nowrap',
+                    'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all duration-150 whitespace-nowrap',
                     isActive ? 'border-teal-500 text-teal-600 dark:text-teal-400'
                       : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                   )}>
-                  <Icon className="h-4 w-4" />{tab.label}
+                  <Icon className="h-4 w-4" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
                 </button>
               );
             })}
@@ -2361,48 +2375,176 @@ function LayoutMiniPreview({ layout }: { layout: string }) {
 // Tab 3: Voucher Designer
 // ═══════════════════════════════════════════════════════════════════════════════
 
-interface VoucherGuest {
-  id: string; guestName: string; roomNumber: string; status: string;
-  username?: string; password?: string; ssid?: string; validUntil?: string;
+interface VoucherEntry {
+  id: string;
+  code: string;
+  planId: string;
+  planName?: string;
+  planSpeed?: string;
+  status: string;
+  isUsed: boolean;
+  validFrom: string;
+  validUntil: string;
+  issuedTo?: string | null;
+  issuedAt?: string | null;
+  guestId?: string | null;
+  bookingId?: string | null;
+  notes?: string | null;
+  createdAt: string;
+}
+
+interface VoucherStats {
+  total: number;
+  active: number;
+  used: number;
+  expired: number;
+  revoked: number;
 }
 
 function VoucherDesignerTab({ portalOptions }: { portalOptions: Array<{ id: string; name: string }> }) {
+  const [subView, setSubView] = useState<'designer' | 'list'>('designer');
   const [template, setTemplate] = useState('default');
-  const [guests, setGuests] = useState<VoucherGuest[]>([]);
+  const [selectedGuest, setSelectedGuest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedGuest, setSelectedGuest] = useState<VoucherGuest | null>(null);
+  const [guests, setGuests] = useState<any[]>([]);
   const { propertyId } = usePropertyId();
   const { toast } = useToast();
 
+  // ── Voucher list state ──
+  const [vouchers, setVouchers] = useState<VoucherEntry[]>([]);
+  const [voucherStats, setVoucherStats] = useState<VoucherStats>({ total: 0, active: 0, used: 0, expired: 0, revoked: 0 });
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [voucherSearch, setVoucherSearch] = useState('');
+  const [voucherStatusFilter, setVoucherStatusFilter] = useState('all');
+  const [voucherPage, setVoucherPage] = useState(0);
+  const PAGE_SIZE = 20;
+
+  // ── Generate dialog state ──
+  const [genOpen, setGenOpen] = useState(false);
+  const [genPlanId, setGenPlanId] = useState('');
+  const [genQuantity, setGenQuantity] = useState(10);
+  const [genValidityDays, setGenValidityDays] = useState(1);
+  const [genNotes, setGenNotes] = useState('');
+  const [genSaving, setGenSaving] = useState(false);
+
+  // ── Issue dialog state ──
+  const [issueOpen, setIssueOpen] = useState(false);
+  const [issueVoucher, setIssueVoucher] = useState<VoucherEntry | null>(null);
+  const [issueTo, setIssueTo] = useState('');
+  const [issueSaving, setIssueSaving] = useState(false);
+
+  // ── Voucher preview state ──
+  const [previewVoucher, setPreviewVoucher] = useState<VoucherEntry | null>(null);
+
+  const [plans, setPlans] = useState<Array<{ id: string; name: string; downloadSpeed?: number; uploadSpeed?: number; validityDays?: number; price?: number }>>([]);
+
+  // Load today's check-ins for voucher card preview
   useEffect(() => {
     async function load() {
       setLoading(true);
       const data = await apiFetch<any>(`/api/wifi/portal/vouchers?propertyId=${propertyId || 'default'}`);
-      const vouchers = data?.vouchers;
-      if (vouchers && Array.isArray(vouchers)) {
-        setGuests(vouchers.map((g: any) => ({
-          id: g.bookingId || g.id || '', guestName: g.guestName || 'Guest', roomNumber: g.roomNumber || '---',
-          status: g.wifiStatus || g.status || 'pending', username: g.wifiUsername || g.username || '',
-          password: g.wifiPassword || g.password || '', ssid: g.ssid || 'Guest-WiFi',
-          validUntil: g.wifiValidUntil || g.validUntil || g.checkOut || '',
-        })));
-      } else {
-        setGuests([]);
-      }
+      const v = data?.vouchers;
+      if (v && Array.isArray(v)) {
+        setGuests(v);
+        if (v.length > 0) setSelectedGuest(v[0]);
+      } else { setGuests([]); }
       setLoading(false);
     }
     void load();
   }, [propertyId]);
 
-  const handlePrint = (guest: VoucherGuest) => {
-    setSelectedGuest(guest);
-    toast({ title: 'Printing voucher', description: `Voucher for ${guest.guestName} sent to printer` });
-    setTimeout(() => window.print(), 500);
+  // Load plans for generate dialog
+  useEffect(() => {
+    apiFetch<any[]>('/api/wifi/plans').then(data => {
+      if (data) setPlans(data.map((p: any) => ({ id: p.id, name: p.name, downloadSpeed: p.downloadSpeed, uploadSpeed: p.uploadSpeed, validityDays: p.validityDays, price: p.price })));
+    });
+  }, []);
+
+  // Fetch vouchers list
+  const fetchVouchers = useCallback(async () => {
+    setVoucherLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('limit', String(PAGE_SIZE));
+      params.set('offset', String(voucherPage * PAGE_SIZE));
+      if (voucherStatusFilter !== 'all') params.set('status', voucherStatusFilter);
+      if (voucherSearch) params.set('search', voucherSearch);
+      if (propertyId) params.set('propertyId', propertyId);
+      const res = await fetch(`/api/wifi/vouchers?${params.toString()}`);
+      const result = await res.json();
+      if (result.success) {
+        setVouchers((result.data || []).map((v: any) => ({
+          id: v.id, code: v.code, planId: v.planId, planName: v.plan?.name || '—',
+          planSpeed: v.plan ? `${v.plan.downloadSpeed || 0}/${v.plan.uploadSpeed || 0} Mbps` : '',
+          status: v.status, isUsed: v.isUsed,
+          validFrom: v.validFrom, validUntil: v.validUntil,
+          issuedTo: v.issuedTo, issuedAt: v.issuedAt, guestId: v.guestId, bookingId: v.bookingId,
+          notes: v.notes, createdAt: v.createdAt,
+        })));
+        // Stats
+        const summary = result.summary?.byStatus || {};
+        setVoucherStats({
+          total: result.pagination?.total || 0,
+          active: summary.active || 0,
+          used: summary.used || 0,
+          expired: summary.expired || 0,
+          revoked: summary.revoked || 0,
+        });
+      }
+    } catch (e) { console.error('Voucher fetch error:', e); }
+    setVoucherLoading(false);
+  }, [propertyId, voucherPage, voucherStatusFilter, voucherSearch]);
+
+  useEffect(() => {
+    if (subView === 'list') void fetchVouchers();
+  }, [subView, fetchVouchers]);
+
+  // Generate vouchers
+  const handleGenerate = async () => {
+    if (!genPlanId) { toast({ title: 'Error', description: 'Select a WiFi plan', variant: 'destructive' }); return; }
+    setGenSaving(true);
+    const { error } = await apiMutate('/api/wifi/vouchers', {
+      method: 'POST',
+      body: JSON.stringify({ planId: genPlanId, quantity: genQuantity, validityDays: genValidityDays, notes: genNotes || undefined }),
+    });
+    setGenSaving(false);
+    if (error) { toast({ title: 'Generation Failed', description: error, variant: 'destructive' }); return; }
+    toast({ title: 'Vouchers Generated', description: `${genQuantity} voucher(s) created successfully` });
+    setGenOpen(false); setGenQuantity(10); setGenValidityDays(1); setGenNotes('');
+    setSubView('list');
   };
 
-  const handlePrintAll = () => {
-    toast({ title: 'Printing all vouchers', description: `${guests.length} vouchers sent to printer` });
-    setTimeout(() => window.print(), 500);
+  // Issue voucher
+  const handleIssue = async () => {
+    if (!issueVoucher || !issueTo.trim()) return;
+    setIssueSaving(true);
+    const { error } = await apiMutate('/api/wifi/vouchers', {
+      method: 'PUT',
+      body: JSON.stringify({ id: issueVoucher.id, action: 'issue', issuedTo: issueTo.trim() }),
+    });
+    setIssueSaving(false);
+    if (error) { toast({ title: 'Issue Failed', description: error, variant: 'destructive' }); return; }
+    toast({ title: 'Voucher Issued', description: `Issued to ${issueTo.trim()}` });
+    setIssueOpen(false); setIssueTo(''); fetchVouchers();
+  };
+
+  // Revoke voucher
+  const handleRevoke = async (voucher: VoucherEntry) => {
+    const res = await fetch(`/api/wifi/vouchers?id=${voucher.id}`, { method: 'DELETE' });
+    const result = await res.json();
+    if (result.success) { toast({ title: 'Revoked', description: `Voucher ${voucher.code} revoked` }); fetchVouchers(); }
+    else toast({ title: 'Error', description: result.error?.message || 'Failed to revoke', variant: 'destructive' });
+  };
+
+  // Copy code
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({ title: 'Copied', description: `${code} copied to clipboard` });
+  };
+
+  const handlePrint = (guest: any) => {
+    setSelectedGuest(guest);
+    toast({ title: 'Printing voucher', description: `Voucher for ${guest.guestName} sent to printer` });
   };
 
   const voucherStyle = useMemo(() => {
@@ -2416,107 +2558,234 @@ function VoucherDesignerTab({ portalOptions }: { portalOptions: Array<{ id: stri
 
   return (
     <div className="space-y-4">
-      {/* Template Selector */}
-      <div className="flex items-center gap-3">
-        <Label className="text-sm font-medium">Voucher Template:</Label>
-        <div className="flex gap-2">
-          {VOUCHER_TEMPLATES.map((vt) => (
-            <Tooltip key={vt.value}>
-              <TooltipTrigger asChild>
-                <button onClick={() => setTemplate(vt.value)}
-                  className={cn('px-3 py-1.5 rounded-lg border-2 text-xs font-medium transition-all',
-                    template === vt.value ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border hover:border-teal-300'
-                  )}>
-                  {vt.label}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{vt.desc}</TooltipContent>
-            </Tooltip>
-          ))}
-        </div>
-        <Button size="sm" variant="outline" onClick={handlePrintAll} className="ml-auto"><Printer className="h-4 w-4 mr-1.5" />Print All</Button>
+      {/* Sub-view toggle */}
+      <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
+        <button onClick={() => setSubView('designer')} className={cn('px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5', subView === 'designer' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
+          <Eye className="h-3.5 w-3.5" /> Card Designer
+        </button>
+        <button onClick={() => setSubView('list')} className={cn('px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5', subView === 'list' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
+          <Ticket className="h-3.5 w-3.5" /> Manage Vouchers
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Guests Table */}
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Today&apos;s Check-ins</CardTitle></CardHeader>
-          <CardContent>
-            {loading ? (<div className="space-y-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>) : (
-              <Table>
-                <TableHeader><TableRow><TableHead className="text-xs">Guest</TableHead><TableHead className="text-xs">Room</TableHead><TableHead className="text-xs">Status</TableHead><TableHead className="text-xs w-16"></TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {guests.map((g) => (
-                    <TableRow key={g.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedGuest(g)}>
-                      <TableCell className="text-xs font-medium py-2">{g.guestName}</TableCell>
-                      <TableCell className="text-xs py-2 font-mono">{g.roomNumber}</TableCell>
-                      <TableCell className="text-xs py-2">
-                        <Badge variant={g.status === 'printed' ? 'secondary' : 'outline'} className={cn('text-[10px]', g.status === 'printed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300')}>
-                          {g.status === 'printed' ? 'Printed' : 'Pending'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="py-2">
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); handlePrint(g); }}>
-                          <Printer className="h-3.5 w-3.5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Voucher Preview */}
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium flex items-center gap-2"><Eye className="h-4 w-4" />Voucher Preview</CardTitle></CardHeader>
-          <CardContent className="flex justify-center p-6">
-            {selectedGuest ? (
-            <div className={cn('w-[300px] rounded-xl border p-6 space-y-4 shadow-lg', voucherStyle.bg, voucherStyle.border)}>
-              {/* Header */}
-              <div className="text-center space-y-1">
-                <Building className={cn('h-8 w-8 mx-auto', voucherStyle.accent)} />
-                <h3 className={cn('text-lg font-bold', voucherStyle.text)}>StaySuite Hotel</h3>
-                <p className={cn('text-xs opacity-60', voucherStyle.text)}>WiFi Access Credentials</p>
-              </div>
-              <Separator />
-              {/* Guest Info */}
-              <div className="space-y-2">
-                <div className={cn('grid grid-cols-2 gap-3 text-xs', voucherStyle.text)}>
-                  <div><p className="opacity-50 text-[10px] uppercase">Guest</p><p className="font-semibold">{selectedGuest.guestName}</p></div>
-                  <div><p className="opacity-50 text-[10px] uppercase">Room</p><p className="font-semibold font-mono">{selectedGuest.roomNumber}</p></div>
-                  <div><p className="opacity-50 text-[10px] uppercase">Network</p><p className="font-semibold">{selectedGuest.ssid}</p></div>
-                  <div><p className="opacity-50 text-[10px] uppercase">Valid Until</p><p className="font-semibold">{selectedGuest.validUntil}</p></div>
-                </div>
-              </div>
-              <Separator />
-              {/* Credentials */}
-              <div className={cn('rounded-lg p-4 text-center space-y-2', template === 'luxury' ? 'bg-gray-700' : 'bg-muted/50')}>
-                <p className={cn('text-[10px] font-semibold uppercase tracking-wider opacity-50', voucherStyle.text)}>WiFi Credentials</p>
-                <div className="space-y-1.5">
-                  <div><p className={cn('text-[10px] opacity-50', voucherStyle.text)}>Username</p><p className={cn('text-sm font-mono font-bold', voucherStyle.text)}>{selectedGuest.username}</p></div>
-                  <div><p className={cn('text-[10px] opacity-50', voucherStyle.text)}>Password</p><p className={cn('text-sm font-mono font-bold tracking-wider', voucherStyle.accent)}>{selectedGuest.password}</p></div>
-                </div>
-              </div>
-              {/* QR Code Placeholder */}
-              <div className="flex justify-center">
-                <div className={cn('w-20 h-20 rounded-lg flex items-center justify-center', template === 'luxury' ? 'bg-gray-700' : 'bg-muted/30')}>
-                  <QrCode className={cn('h-10 w-10', voucherStyle.accent)} />
-                </div>
-              </div>
-              <p className={cn('text-center text-[9px] opacity-40', voucherStyle.text)}>Scan QR code or enter credentials manually</p>
+      {subView === 'designer' && (
+        <>
+          {/* Template Selector */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <Label className="text-sm font-medium">Template:</Label>
+            <div className="flex gap-2">
+              {VOUCHER_TEMPLATES.map((vt) => (
+                <Tooltip key={vt.value}>
+                  <TooltipTrigger asChild>
+                    <button onClick={() => setTemplate(vt.value)} className={cn('px-3 py-1.5 rounded-lg border-2 text-xs font-medium transition-all', template === vt.value ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border hover:border-teal-300')}>{vt.label}</button>
+                  </TooltipTrigger>
+                  <TooltipContent>{vt.desc}</TooltipContent>
+                </Tooltip>
+              ))}
             </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                <UserRound className="h-12 w-12 mb-3 opacity-30" />
-                <p className="text-sm font-medium">Select a guest to preview voucher</p>
-                <p className="text-xs mt-1 opacity-60">Click a row from the check-ins table</p>
+            <Button size="sm" onClick={() => { if (selectedGuest) handlePrint(selectedGuest); }} className="ml-auto"><Printer className="h-4 w-4 mr-1.5" />Print Selected</Button>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Guests Table */}
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Today&apos;s Check-ins</CardTitle></CardHeader>
+              <CardContent>
+                {loading ? (<div className="space-y-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>) : guests.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-8">No check-ins today</p>
+                ) : (
+                  <div className="max-h-96 overflow-y-auto">
+                    <Table>
+                      <TableHeader><TableRow><TableHead className="text-xs">Guest</TableHead><TableHead className="text-xs">Room</TableHead><TableHead className="text-xs">Status</TableHead><TableHead className="text-xs w-10"></TableHead></TableRow></TableHeader>
+                      <TableBody>
+                        {guests.map((g: any) => (
+                          <TableRow key={g.id} className={cn('cursor-pointer hover:bg-muted/50', selectedGuest?.id === g.id && 'bg-muted')} onClick={() => setSelectedGuest(g)}>
+                            <TableCell className="text-xs font-medium py-2">{g.guestName}</TableCell>
+                            <TableCell className="text-xs py-2 font-mono">{g.roomNumber}</TableCell>
+                            <TableCell className="text-xs py-2">
+                              <Badge variant="secondary" className={cn('text-[10px]', g.status === 'active' || g.wifiStatus === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300')}>
+                                {g.status === 'active' || g.wifiStatus === 'active' ? 'Online' : 'Pending'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="py-2">
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); handlePrint(g); }}>
+                                <Printer className="h-3.5 w-3.5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            {/* Voucher Preview */}
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium flex items-center gap-2"><Eye className="h-4 w-4" />Voucher Preview</CardTitle></CardHeader>
+              <CardContent className="flex justify-center p-6">
+                {selectedGuest ? (
+                  <div className={cn('w-[300px] rounded-xl border p-6 space-y-4 shadow-lg', voucherStyle.bg, voucherStyle.border)}>
+                    <div className="text-center space-y-1">
+                      <Building className={cn('h-8 w-8 mx-auto', voucherStyle.accent)} />
+                      <h3 className={cn('text-lg font-bold', voucherStyle.text)}>StaySuite Hotel</h3>
+                      <p className={cn('text-xs opacity-60', voucherStyle.text)}>WiFi Access Credentials</p>
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                      <div className={cn('grid grid-cols-2 gap-3 text-xs', voucherStyle.text)}>
+                        <div><p className="opacity-50 text-[10px] uppercase">Guest</p><p className="font-semibold">{selectedGuest.guestName}</p></div>
+                        <div><p className="opacity-50 text-[10px] uppercase">Room</p><p className="font-semibold font-mono">{selectedGuest.roomNumber}</p></div>
+                        <div><p className="opacity-50 text-[10px] uppercase">Network</p><p className="font-semibold">{selectedGuest.ssid}</p></div>
+                        <div><p className="opacity-50 text-[10px] uppercase">Valid Until</p><p className="font-semibold">{selectedGuest.validUntil}</p></div>
+                      </div>
+                    </div>
+                    <Separator />
+                    <div className={cn('rounded-lg p-4 text-center space-y-2', template === 'luxury' ? 'bg-gray-700' : 'bg-muted/50')}>
+                      <p className={cn('text-[10px] font-semibold uppercase tracking-wider opacity-50', voucherStyle.text)}>WiFi Credentials</p>
+                      <div className="space-y-1.5">
+                        <div><p className={cn('text-[10px] opacity-50', voucherStyle.text)}>Username</p><p className={cn('text-sm font-mono font-bold', voucherStyle.text)}>{selectedGuest.username || '—'}</p></div>
+                        <div><p className={cn('text-[10px] opacity-50', voucherStyle.text)}>Password</p><p className={cn('text-sm font-mono font-bold tracking-wider', voucherStyle.accent)}>{selectedGuest.password || '—'}</p></div>
+                      </div>
+                    </div>
+                    <div className="flex justify-center">
+                      <div className={cn('w-20 h-20 rounded-lg flex items-center justify-center', template === 'luxury' ? 'bg-gray-700' : 'bg-muted/30')}>
+                        <QrCode className={cn('h-10 w-10', voucherStyle.accent)} />
+                      </div>
+                    </div>
+                    <p className={cn('text-center text-[9px] opacity-40', voucherStyle.text)}>Scan QR code or enter credentials manually</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                    <UserRound className="h-12 w-12 mb-3 opacity-30" />
+                    <p className="text-sm font-medium">Select a guest to preview</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
+
+      {subView === 'list' && (
+        <>
+          {/* Stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {[
+              { label: 'Total', value: voucherStats.total, color: 'text-foreground' },
+              { label: 'Active', value: voucherStats.active, color: 'text-emerald-600 dark:text-emerald-400' },
+              { label: 'Used', value: voucherStats.used, color: 'text-blue-600 dark:text-blue-400' },
+              { label: 'Expired', value: voucherStats.expired, color: 'text-amber-600 dark:text-amber-400' },
+              { label: 'Revoked', value: voucherStats.revoked, color: 'text-rose-600 dark:text-rose-400' },
+            ].map(s => (
+              <Card key={s.label}><CardContent className="p-3 text-center">
+                <p className={cn('text-2xl font-bold', s.color)}>{s.value}</p>
+                <p className="text-[10px] text-muted-foreground">{s.label}</p>
+              </CardContent></Card>
+            ))}
+          </div>
+          {/* Actions bar */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white" onClick={() => setGenOpen(true)}><Plus className="h-4 w-4 mr-1.5" />Generate Vouchers</Button>
+            <Button size="sm" variant="outline" onClick={() => void fetchVouchers()} disabled={voucherLoading}><RefreshCw className={cn('h-4 w-4 mr-1.5', voucherLoading && 'animate-spin')} />Refresh</Button>
+            <div className="ml-auto flex items-center gap-2">
+              <Input placeholder="Search codes..." value={voucherSearch} onChange={e => { setVoucherSearch(e.target.value); setVoucherPage(0); }} className="h-8 w-40 text-xs" />
+              <Select value={voucherStatusFilter} onValueChange={v => { setVoucherStatusFilter(v); setVoucherPage(0); }}>
+                <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="used">Used</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                  <SelectItem value="revoked">Revoked</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {/* Voucher Table */}
+          <Card>
+            <CardContent className="p-0">
+              <div className="max-h-[500px] overflow-y-auto">
+                <Table>
+                  <TableHeader><TableRow>
+                    <TableHead className="text-xs">Code</TableHead>
+                    <TableHead className="text-xs hidden sm:table-cell">Plan</TableHead>
+                    <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs hidden md:table-cell">Valid Until</TableHead>
+                    <TableHead className="text-xs hidden md:table-cell">Issued To</TableHead>
+                    <TableHead className="text-xs text-right">Actions</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>
+                    {voucherLoading ? Array.from({ length: 5 }).map((_, i) => <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell></TableRow>)
+                    : vouchers.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground text-sm">No vouchers found</TableCell></TableRow>
+                    : vouchers.map((v) => (
+                      <TableRow key={v.id}>
+                        <TableCell><button onClick={() => copyCode(v.code)} className="font-mono text-xs font-semibold hover:text-teal-600 dark:hover:text-teal-400 flex items-center gap-1.5" title="Click to copy"><Copy className="h-3 w-3 text-muted-foreground" />{v.code}</button></TableCell>
+                        <TableCell className="text-xs hidden sm:table-cell"><div><p className="font-medium">{v.planName}</p><p className="text-[10px] text-muted-foreground">{v.planSpeed}</p></div></TableCell>
+                        <TableCell className="text-xs">
+                          <Badge variant={v.status === 'active' ? 'default' : 'secondary'} className={cn('text-[10px]', v.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : v.status === 'used' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : v.status === 'revoked' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300')}>
+                            {v.status.charAt(0).toUpperCase() + v.status.slice(1)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs hidden md:table-cell text-muted-foreground">{v.validUntil ? new Date(v.validUntil).toLocaleDateString() : '—'}</TableCell>
+                        <TableCell className="text-xs hidden md:table-cell">{v.issuedTo || <span className="text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            {v.status === 'active' && <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setIssueVoucher(v); setIssueOpen(true); }}><User className="h-3 w-3 mr-1" />Issue</Button>}
+                            {v.status === 'active' && <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => handleRevoke(v)}><XCircle className="h-3 w-3 mr-1" />Revoke</Button>}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+          {/* Pagination */}
+          {voucherStats.total > PAGE_SIZE && (
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">Showing {voucherPage * PAGE_SIZE + 1}–{Math.min((voucherPage + 1) * PAGE_SIZE, voucherStats.total)} of {voucherStats.total}</p>
+              <div className="flex gap-1">
+                <Button variant="outline" size="sm" className="h-7 text-xs" disabled={voucherPage === 0} onClick={() => setVoucherPage(p => p - 1)}>Previous</Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs" disabled={(voucherPage + 1) * PAGE_SIZE >= voucherStats.total} onClick={() => setVoucherPage(p => p + 1)}>Next</Button>
+              </div>
+            </div>
+          )}
+
+          {/* Generate Dialog */}
+          <Dialog open={genOpen} onOpenChange={setGenOpen}>
+            <DialogContent><DialogHeader><DialogTitle>Generate Voucher Codes</DialogTitle><DialogDescription>Create batch WiFi voucher codes linked to a plan. Codes are auto-generated and provisioned in RADIUS.</DialogDescription></DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2"><Label>WiFi Plan *</Label>
+                  <Select value={genPlanId} onValueChange={setGenPlanId}><SelectTrigger><SelectValue placeholder="Select a plan" /></SelectTrigger><SelectContent>{plans.map(p => <SelectItem key={p.id} value={p.id}>{p.name} — {p.downloadSpeed || 0}/{p.uploadSpeed || 0} Mbps, {p.validityDays || 1}d</SelectItem>)}</SelectContent></Select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Quantity</Label><Input type="number" min={1} max={500} value={genQuantity} onChange={e => setGenQuantity(parseInt(e.target.value) || 1)} /></div>
+                  <div className="space-y-2"><Label>Validity (days)</Label><Input type="number" min={1} max={365} value={genValidityDays} onChange={e => setGenValidityDays(parseInt(e.target.value) || 1)} /></div>
+                </div>
+                <div className="space-y-2"><Label>Notes (optional)</Label><Input value={genNotes} onChange={e => setGenNotes(e.target.value)} placeholder="e.g. Front desk batch" /></div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setGenOpen(false)}>Cancel</Button>
+                <Button onClick={handleGenerate} disabled={genSaving || !genPlanId} className="bg-teal-600 hover:bg-teal-700 text-white">{genSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Generate {genQuantity} Voucher(s)</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Issue Dialog */}
+          <Dialog open={issueOpen} onOpenChange={setIssueOpen}>
+            <DialogContent><DialogHeader><DialogTitle>Issue Voucher</DialogTitle><DialogDescription>Record physical distribution of voucher <span className="font-mono font-semibold">{issueVoucher?.code}</span></DialogDescription></DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2"><Label>Issued To *</Label><Input value={issueTo} onChange={e => setIssueTo(e.target.value)} placeholder="Guest name or recipient" /></div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIssueOpen(false)}>Cancel</Button>
+                <Button onClick={handleIssue} disabled={issueSaving || !issueTo.trim()} className="bg-teal-600 hover:bg-teal-700 text-white">{issueSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Issue Voucher</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
     </div>
   );
 }
