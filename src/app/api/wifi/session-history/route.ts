@@ -364,8 +364,8 @@ export async function GET(request: NextRequest) {
       summary: {
         total,
         active: activeCount,
-        totalDownload: Number(aggregateRow?.total_output ?? 0),
-        totalUpload: Number(aggregateRow?.total_input ?? 0),
+        totalDownload: Number(aggregateRow?.total_input ?? 0),
+        totalUpload: Number(aggregateRow?.total_output ?? 0),
       },
       filters: {
         startDate: dateRange.startDate.slice(0, 10),

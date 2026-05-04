@@ -56,6 +56,7 @@ import net from 'net';
 import tls from 'tls';
 import os from 'os';
 import crypto from 'crypto';
+import { execSync } from 'child_process';
 import { createLogger } from '../shared/logger';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -461,6 +462,77 @@ function cleanIP(ip: string | undefined): string {
 
 function isLoopback(ip: string): boolean {
   return ip === '127.0.0.1' || ip === '::1' || ip === '0.0.0.0' || ip === '' || ip.startsWith('169.254.');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAC Address Resolution (ARP + DHCP lease fallback)
+// ═══════════════════════════════════════════════════════════════════════════
+// Resolves client MAC from the system ARP table, with dnsmasq lease file
+// as fallback. This allows the captive portal to pass MAC to /connect?mac=...
+// so the auth flow can store it in DeviceProfile and radacct.callingstationid.
+
+const ARP_CACHE = new Map<string, string>();
+let _arpCacheAge = 0;
+const ARP_CACHE_TTL_MS = 30_000; // Refresh every 30s
+const LEASE_FILE = process.env.DHCP_LEASE_FILE || '/var/lib/dnsmasq/dnsmasq.leases';
+const MAC_REGEX = /([0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2})/;
+
+/**
+ * Look up a client's MAC address via ARP table, then dnsmasq lease file.
+ * Results cached for ARP_CACHE_TTL_MS to avoid repeated exec calls.
+ * Returns MAC in uppercase XX:XX:XX:XX:XX:XX format, or empty string.
+ */
+function resolveClientMAC(clientIP: string): string {
+  if (!clientIP || isLoopback(clientIP)) return '';
+
+  // Check cache
+  if (ARP_CACHE.has(clientIP) && (Date.now() - _arpCacheAge) < ARP_CACHE_TTL_MS) {
+    return ARP_CACHE.get(clientIP) || '';
+  }
+
+  try {
+    // Method 1: ARP table (fast, kernel-maintained)
+    const arpOutput = execSync(`ip neigh show ${clientIP} 2>/dev/null`, {
+      encoding: 'utf-8',
+      timeout: 1000,
+    });
+    const macMatch = arpOutput.match(MAC_REGEX);
+    if (macMatch) {
+      const mac = macMatch[1].toUpperCase();
+      ARP_CACHE.set(clientIP, mac);
+      _arpCacheAge = Date.now();
+      return mac;
+    }
+  } catch {
+    // ARP lookup failed, try lease file
+  }
+
+  try {
+    // Method 2: dnsmasq lease file
+    const leaseData = execSync(`cat ${LEASE_FILE} 2>/dev/null`, {
+      encoding: 'utf-8',
+      timeout: 1000,
+    });
+    const lines = leaseData.split('\n');
+    for (const line of lines) {
+      if (line.includes(clientIP)) {
+        const macMatch = line.match(MAC_REGEX);
+        if (macMatch) {
+          const mac = macMatch[1].toUpperCase();
+          ARP_CACHE.set(clientIP, mac);
+          _arpCacheAge = Date.now();
+          return mac;
+        }
+      }
+    }
+  } catch {
+    // Lease file not available
+  }
+
+  // Cache negative result to avoid hammering on every request
+  ARP_CACHE.set(clientIP, '');
+  _arpCacheAge = Date.now();
+  return '';
 }
 
 function getRedirectIP(req: http.IncomingMessage): string {
@@ -899,9 +971,11 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
       }
     }
 
-    // ── Build redirect URL ──────────────────────────────────────────────
+    // ── Build redirect URL with MAC address ───────────────────────────
     const serverIP = getRedirectIP(req);
-    const portalUrl = `${PORTAL_SCHEME}://${serverIP}:${PORTAL_PORT}${REDIRECT_PATH}`;
+    const clientMAC = resolveClientMAC(clientIP);
+    const macParam = clientMAC ? `?mac=${encodeURIComponent(clientMAC)}` : '';
+    const portalUrl = `${PORTAL_SCHEME}://${serverIP}:${PORTAL_PORT}${REDIRECT_PATH}${macParam}`;
 
     // ── Log the redirect ────────────────────────────────────────────────
     const timestamp = new Date().toISOString();
@@ -919,10 +993,10 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
     // Log detection URLs at debug level (they repeat every 5-10s — normal OS polling)
     // Only log real browser navigation at info level
     if (deviceInfo.isCaptiveDetection) {
-      log.debug('Captive detection redirect', { clientIP, host, os: deviceInfo.os, browser: deviceInfo.browser });
+      log.debug('Captive detection redirect', { clientIP, mac: clientMAC || '-', os: deviceInfo.os, browser: deviceInfo.browser });
     } else {
       log.info('Redirect', {
-        clientIP, method: req.method, url: req.url, host,
+        clientIP, mac: clientMAC || '-', method: req.method, url: req.url, host,
         os: deviceInfo.os, browser: deviceInfo.browser, device: deviceInfo.device, portalUrl,
       });
     }
