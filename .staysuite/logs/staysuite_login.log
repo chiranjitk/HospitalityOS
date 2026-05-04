@@ -16,3 +16,5 @@
 2026-05-04 16:27:14 [POOL][ERR] pool 1:3 create FAILED on ifb0
 2026-05-04 16:41:49 [POOL][ERR] pool 1:2 create FAILED on ifb0
 2026-05-04 16:41:50 [POOL][ERR] pool 1:3 create FAILED on ifb0
+2026-05-04 16:47:36 [POOL][ERR] pool 1:2 create FAILED on ifb0
+2026-05-04 16:47:36 [POOL][ERR] pool 1:3 create FAILED on ifb0
