@@ -120,5 +120,5 @@ data/e2guardian/private/
 # Worklog
 worklog.md
 
-# DB backups (binary restore files)
-db-backup/*.dump
+# DB backups (binary restore files) — keep marked backups tracked
+# db-backup/*.dump
