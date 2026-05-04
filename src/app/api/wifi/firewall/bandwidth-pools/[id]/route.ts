@@ -84,6 +84,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     });
 
+    // Invalidate pool classid cache — pool config may have changed
+    try {
+      const { invalidatePoolCache } = await import('@/lib/network/script-runner');
+      invalidatePoolCache();
+    } catch { /* non-fatal */ }
+
     return NextResponse.json({ success: true, data: pool });
   } catch (error) {
     console.error('Error updating bandwidth pool:', error);
@@ -114,6 +120,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     await db.bandwidthPool.delete({ where: { id } });
+
+    // Invalidate pool classid cache — pool removed changes sequential mapping
+    try {
+      const { invalidatePoolCache } = await import('@/lib/network/script-runner');
+      invalidatePoolCache();
+    } catch { /* non-fatal */ }
 
     return NextResponse.json({ success: true, message: 'Bandwidth pool deleted successfully' });
   } catch (error) {

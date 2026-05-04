@@ -27,15 +27,27 @@ const LOGOUT_SCRIPT = `${SCRIPTS_DIR}/staysuite_logout.sh`;
 const DEFAULT_NAT_ACTION = process.env.STAYSUITE_NAT_ACTION || 'masq';
 
 // ─── Class ID Generation ───────────────────────────────────────────
-// TC classid minor is 16-bit (1–65535). Pool roots use small IDs.
-// User leaf classes use deterministic hash of username to avoid
-// collision and enable crash recovery (same user → same classid).
+// TC classid minor is 16-bit (1–65535). All classid numbers are passed
+// as hex strings to tc commands (tc parses all numbers as hex via strtoul).
 //
-// Ranges:
-//   1–999       : reserved (root, pool roots)
-//   1000–1499   : pool root classes (1:1001, 1:1002, etc.)
-//   2001–31000  : user download leaf classes
-//   32001–63000 : user upload leaf classes
+// HTB Hierarchy:
+//   1:1          — Root (10Gbit, created by initialization.sh)
+//   1:2 – 1:101  — Pool root classes (max 100, sequential from DB)
+//   1:102+       — User leaf classes (under their pool)
+//
+// Pool classid mapping: ordered by createdAt, first pool = 1:2, second = 1:3, etc.
+// This mapping is cached in memory and refreshed on each lookup.
+//
+// User classids: deterministic hash of username → range 102–25101 (DN), 25102–50101 (UP)
+
+/** Max pool classes reserved */
+const MAX_POOL_CLASSES = 100;
+/** Pool classids start at 1:2 (1:1 is root) */
+const POOL_CLASSID_START = 2;
+/** User classids start after the pool range */
+const USER_CLASSID_START = POOL_CLASSID_START + MAX_POOL_CLASSES; // 102
+/** Number of unique user classid slots per direction */
+const USER_CLASSID_SLOTS = 25000;
 
 function hashString(str: string): number {
   let hash = 5381;
@@ -48,21 +60,70 @@ function hashString(str: string): number {
 /**
  * Generate deterministic TC class IDs from username.
  * Same username always maps to same classid — essential for recovery.
+ *
+ * DN: (hash % 25000) + 102  → range 102 – 25101
+ * UP: DN + 25000             → range 25102 – 50101
  */
 export function generateClassIds(username: string): { dn: number; up: number } {
   const h = hashString(username);
-  const dn = (h % 29000) + 2001;  // 2001–31000
-  const up = dn + 30000;          // 32001–61000
+  const dn = (h % USER_CLASSID_SLOTS) + USER_CLASSID_START;  // 102–25101
+  const up = dn + USER_CLASSID_SLOTS;                          // 25102–50101
   return { dn, up };
 }
 
 /**
+ * Pool classid cache: poolUuid → sequential classid (2-101)
+ * Refreshed on every lookupBandwidthPool call or initializeAllPoolClasses.
+ */
+let _poolClassIdCache: Map<string, number> | null = null;
+
+/**
+ * Build the pool UUID → classid mapping from the database.
+ * Pools ordered by createdAt → sequential classids 2, 3, 4, ...
+ * Max 100 pools (classids 2-101).
+ */
+async function buildPoolClassIdMap(): Promise<Map<string, number>> {
+  try {
+    const { db } = await import('@/lib/db');
+    const pools = await db.bandwidthPool.findMany({
+      where: { enabled: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    const map = new Map<string, number>();
+    pools.forEach((pool, index) => {
+      if (index < MAX_POOL_CLASSES) {
+        map.set(pool.id, POOL_CLASSID_START + index);  // 2, 3, 4, ...
+      }
+    });
+    return map;
+  } catch {
+    return new Map();
+  }
+}
+
+/**
+ * Get pool classid from UUID using cached sequential mapping.
+ * Falls back to building the map if cache is empty.
+ */
+export async function getPoolClassId(poolUuid: string): Promise<number> {
+  if (!_poolClassIdCache) {
+    _poolClassIdCache = await buildPoolClassIdMap();
+  }
+  return _poolClassIdCache.get(poolUuid) || 0;
+}
+
+/**
+ * @deprecated Use getPoolClassId() instead — kept for backward compat.
  * Generate a pool root class ID from the BandwidthPool database UUID.
- * Maps to range 1001–1499 for pool root HTB classes under 1:1.
+ * Now uses sequential mapping (2-101) instead of hash.
  */
 export function generatePoolClassId(poolUuid: string): number {
+  // This synchronous fallback should not be used in production.
+  // The async getPoolClassId() should be used instead.
+  console.warn(`[ScriptRunner] generatePoolClassId() called synchronously for ${poolUuid} — use getPoolClassId() instead`);
   const h = hashString(poolUuid);
-  return (h % 499) + 1001;  // 1001–1499
+  return (h % (MAX_POOL_CLASSES - 1)) + POOL_CLASSID_START;  // 2-100
 }
 
 // ─── Login Script Parameters ───────────────────────────────────────
@@ -284,6 +345,7 @@ export interface PoolBandwidthInfo {
 
 /**
  * Look up BandwidthPool for a given subnet/property.
+ * Uses the sequential pool classid mapping (2-101) based on DB creation order.
  * Returns pool info if found, or zeroes if no pool configured.
  */
 export async function lookupBandwidthPool(
@@ -293,14 +355,14 @@ export async function lookupBandwidthPool(
   try {
     const { db } = await import('@/lib/db');
 
-    // Try to match by subnet first
+    // Try to match by subnet first (user IP → pool subnet → correct pool class)
     if (subnet) {
       const bySubnet = await db.bandwidthPool.findFirst({
         where: { propertyId, enabled: true, subnet: { contains: subnet.split('/')[0] } },
         select: { id: true, totalDownloadKbps: true, totalUploadKbps: true },
       });
       if (bySubnet) {
-        const poolId = generatePoolClassId(bySubnet.id);
+        const poolId = await getPoolClassId(bySubnet.id);
         return {
           poolId,
           poolRateDn: bySubnet.totalDownloadKbps,
@@ -317,7 +379,7 @@ export async function lookupBandwidthPool(
       select: { id: true, totalDownloadKbps: true, totalUploadKbps: true },
     });
     if (anyPool) {
-      const poolId = generatePoolClassId(anyPool.id);
+      const poolId = await getPoolClassId(anyPool.id);
       return {
         poolId,
         poolRateDn: anyPool.totalDownloadKbps,
@@ -331,4 +393,99 @@ export async function lookupBandwidthPool(
   }
 
   return { poolId: 0, poolRateDn: 0, poolCeilDn: 0, poolRateUp: 0, poolCeilUp: 0 };
+}
+
+/**
+ * Initialize all pool TC classes on server startup.
+ * Queries all enabled BandwidthPools and creates their HTB root classes
+ * (1:2, 1:3, ..., 1:N) on ifb0/ifb1 via staysuite_pool.sh.
+ *
+ * This ensures that when users log in, the pool parent class already exists
+ * — the login script just creates user leaf classes under it.
+ *
+ * Call this on server startup (instrumentation.ts) or via API.
+ */
+export async function initializeAllPoolClasses(): Promise<{ created: number; failed: number; details: string[] }> {
+  const details: string[] = [];
+  let created = 0;
+  let failed = 0;
+
+  try {
+    const { db } = await import('@/lib/db');
+    const pools = await db.bandwidthPool.findMany({
+      where: { enabled: true },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        totalDownloadKbps: true,
+        totalUploadKbps: true,
+      },
+    });
+
+    if (pools.length === 0) {
+      details.push('No enabled BandwidthPools found in database');
+      return { created: 0, failed: 0, details };
+    }
+
+    // Build cache while we're at it
+    const cache = new Map<string, number>();
+
+    for (let i = 0; i < Math.min(pools.length, MAX_POOL_CLASSES); i++) {
+      const pool = pools[i];
+      const poolClassId = POOL_CLASSID_START + i;  // 2, 3, 4, ...
+      cache.set(pool.id, poolClassId);
+
+      const dnRate = pool.totalDownloadKbps;
+      const dnCeil = Math.round(pool.totalDownloadKbps * 1.2);
+      const upRate = pool.totalUploadKbps;
+      const upCeil = Math.round(pool.totalUploadKbps * 1.2);
+
+      try {
+        const result = runPoolCreate(poolClassId, dnRate, dnCeil, upRate, upCeil);
+        if (result.success) {
+          created++;
+          details.push(`Pool #${poolClassId} "${pool.name}" created (dn=${dnRate}/${dnCeil}k up=${upRate}/${upCeil}k)`);
+        } else {
+          failed++;
+          details.push(`Pool #${poolClassId} "${pool.name}" FAILED: ${result.stderr}`);
+        }
+      } catch (err) {
+        failed++;
+        details.push(`Pool #${poolClassId} "${pool.name}" ERROR: ${String(err)}`);
+      }
+    }
+
+    if (pools.length > MAX_POOL_CLASSES) {
+      details.push(`WARNING: ${pools.length - MAX_POOL_CLASSES} pools exceed max ${MAX_POOL_CLASSES} — extra pools ignored`);
+    }
+
+    // Store cache for login lookups
+    _poolClassIdCache = cache;
+
+    console.log(`[PoolInit] ${created} pool classes created, ${failed} failed (total ${pools.length} pools)`);
+  } catch (err) {
+    details.push(`Database error: ${String(err)}`);
+  }
+
+  return { created, failed, details };
+}
+
+/**
+ * Run staysuite_pool.sh create for a single pool.
+ */
+function runPoolCreate(poolId: number, dnRate: number, dnCeil: number, upRate: number, upCeil: number): ScriptResult {
+  const poolScript = `${SCRIPTS_DIR}/staysuite_pool.sh`;
+  const args = ['create', '-P', String(poolId), '-R', String(dnRate), '-C', String(dnCeil), '-r', String(upRate), '-c', String(upCeil)];
+  const cmdLine = `${poolScript} ${args.join(' ')}`;
+  console.log(`[PoolInit] CREATE >>> ${cmdLine}`);
+  return runScript(poolScript, args, 10000);
+}
+
+/**
+ * Invalidate pool classid cache (call after pool CRUD operations).
+ */
+export function invalidatePoolCache(): void {
+  _poolClassIdCache = null;
+  console.log('[ScriptRunner] Pool classid cache invalidated');
 }

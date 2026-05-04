@@ -126,6 +126,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Invalidate pool classid cache — new pool changes the sequential mapping
+    try {
+      const { invalidatePoolCache } = await import('@/lib/network/script-runner');
+      invalidatePoolCache();
+    } catch { /* non-fatal */ }
+
     return NextResponse.json({ success: true, data: pool }, { status: 201 });
   } catch (error) {
     console.error('Error creating bandwidth pool:', error);
