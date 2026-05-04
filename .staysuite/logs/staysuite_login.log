@@ -45,3 +45,20 @@
 2026-05-04 22:25:04 [LOGOUT] LOGOUT PARMS: -i 21.0.0.1
 2026-05-04 22:25:04 [LOGOUT] START: ip=21.0.0.1 mark=0x15000001 session= dn_cls=0 up_cls=0 pool=0
 2026-05-04 22:25:04 [LOGOUT] DONE: ip=21.0.0.1
+2026-05-04 22:39:14 [LOGIN] LOGIN PARMS: -i 21.0.0.1 -a masq -P 4 -R 2000000 -C 2400000 -r 2000000 -c 2400000 -d 16242 -u 16242 -D 5000 -U 2000 -S 1777934353885-b34a9842 -X 255f8f40-ec97-4f2b-8d36-7fc811bcfbc8
+2026-05-04 22:39:14 [LOGIN] LOGIN: ip=21.0.0.1 mark=0x15000001 action=masq pool=4 dn=5000k up=2000k session=1777934353885-b34a9842
+2026-05-04 22:39:14 [LOGIN][ERR] nft: failed to add 21.0.0.1 to loggedinusers
+2026-05-04 22:39:14 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersset
+2026-05-04 22:39:14 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersdstset
+2026-05-04 22:39:14 [LOGIN][ERR] nft: failed to add 21.0.0.1 to llusersset
+2026-05-04 22:39:14 [LOGIN][ERR] nft: failed to add 21.0.0.1 to one or more sets — cleanup
+2026-05-04 22:39:42 [LOGOUT] LOGOUT PARMS: -i 21.0.0.1
+2026-05-04 22:39:42 [LOGOUT] START: ip=21.0.0.1 mark=0x15000001 session= dn_cls=0 up_cls=0 pool=0
+2026-05-04 22:39:42 [LOGOUT] DONE: ip=21.0.0.1
+2026-05-04 22:44:03 [LOGIN] LOGIN PARMS: -i 192.168.1.100 -a masq -P 4 -R 2000000 -C 2400000 -r 2000000 -c 2400000 -d 16242 -u 16242 -D 5000 -U 2000 -S 1777934642859-813d51c3 -X 255f8f40-ec97-4f2b-8d36-7fc811bcfbc8
+2026-05-04 22:44:03 [LOGIN] LOGIN: ip=192.168.1.100 mark=0xD0A80164 action=masq pool=4 dn=5000k up=2000k session=1777934642859-813d51c3
+2026-05-04 22:44:03 [LOGIN][ERR] nft: failed to add 192.168.1.100 to loggedinusers
+2026-05-04 22:44:03 [LOGIN][ERR] nft: failed to add 192.168.1.100 to usersset
+2026-05-04 22:44:03 [LOGIN][ERR] nft: failed to add 192.168.1.100 to usersdstset
+2026-05-04 22:44:03 [LOGIN][ERR] nft: failed to add 192.168.1.100 to llusersset
+2026-05-04 22:44:03 [LOGIN][ERR] nft: failed to add 192.168.1.100 to one or more sets — cleanup
