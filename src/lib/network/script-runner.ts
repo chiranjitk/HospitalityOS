@@ -32,8 +32,13 @@ const DEFAULT_NAT_ACTION = process.env.STAYSUITE_NAT_ACTION || 'masq';
 //
 // HTB Hierarchy:
 //   1:1          — Root (10Gbit, created by initialization.sh)
-//   1:2 – 1:101  — Pool root classes (max 100, sequential from DB)
-//   1:102+       — User leaf classes (under their pool)
+//   1:2 – 1:101  — Pool container classes (max 100, default 2Gbit each)
+//   1:102+       — User leaf classes (per-plan bandwidth, under their pool)
+//
+// Design:
+//   Pool class = large container (2Gbit) to hold all users — NOT the actual limit
+//   User leaf  = per-plan bandwidth (50Mbps, 100Mbps, etc.) — does the real limiting
+//   Pool is just a grouping mechanism (by subnet/IP range)
 //
 // Pool classid mapping: ordered by createdAt, first pool = 1:2, second = 1:3, etc.
 // This mapping is cached in memory and refreshed on each lookup.

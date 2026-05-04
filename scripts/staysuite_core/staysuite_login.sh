@@ -422,7 +422,9 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
         fi
 
         # Validate: user rate/ceil must not exceed pool ceil
-        # HTB rejects child classes whose rate > parent ceil
+        # HTB rejects child classes whose rate > parent ceil.
+        # Pool ceil is normally 2Gbit (large container) so this rarely triggers,
+        # but keeps things safe if pool is configured with a small value.
         if [[ "$POOL_CEIL_DN" -gt 0 ]]; then
             if [[ "$DN_KBPS" -gt "$POOL_CEIL_DN" ]]; then
                 log_msg "tc: WARNING user DN rate ${DN_KBPS}k exceeds pool ceil ${POOL_CEIL_DN}k — capping to ${POOL_CEIL_DN}k"
@@ -466,6 +468,7 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
         fi
 
         # Validate: user rate/ceil must not exceed pool ceil
+        # Pool ceil is normally 2Gbit (large container) so this rarely triggers.
         if [[ "$POOL_CEIL_UP" -gt 0 ]]; then
             if [[ "$UP_KBPS" -gt "$POOL_CEIL_UP" ]]; then
                 log_msg "tc: WARNING user UP rate ${UP_KBPS}k exceeds pool ceil ${POOL_CEIL_UP}k — capping to ${POOL_CEIL_UP}k"
