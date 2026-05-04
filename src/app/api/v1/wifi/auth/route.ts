@@ -547,6 +547,8 @@ export async function POST(request: NextRequest) {
       phoneNumber,
       otpCode,
       guestInfo,
+      marketingEmailConsent,
+      marketingSmsConsent,
       macAddress,
       fingerprintHash,
       storageToken,
@@ -576,10 +578,18 @@ export async function POST(request: NextRequest) {
     };
 
     // Normalize guestInfo — unified form sends it as a JSON string
+    let normalizedGuestInfo: GuestInfoPayload | undefined;
     if (typeof guestInfo === 'string') {
       try {
-        body.guestInfo = JSON.parse(guestInfo);
+        normalizedGuestInfo = JSON.parse(guestInfo);
       } catch { /* ignore malformed JSON */ }
+    } else if (typeof guestInfo === 'object' && guestInfo !== null) {
+      normalizedGuestInfo = guestInfo as GuestInfoPayload;
+    }
+
+    // Validate email — mandatory field for guest auth
+    if (normalizedGuestInfo && !normalizedGuestInfo.email?.trim()) {
+      return errorResponse('MISSING_EMAIL', 'Email address is required. Please provide your email to continue.');
     }
 
     if (!method) {
@@ -772,7 +782,7 @@ export async function POST(request: NextRequest) {
               wifiUserId: voucherUser.id,
               guestId: voucherUser.guestId,
               bookingId: voucher.bookingId,
-              guestInfo,
+              guestInfo: normalizedGuestInfo,
               marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
             });
           }
@@ -968,7 +978,7 @@ export async function POST(request: NextRequest) {
             wifiUserId: pmsUser.id,
             guestId: pmsUser.guestId,
             bookingId: match.id,
-            guestInfo,
+            guestInfo: normalizedGuestInfo,
             marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
           }).catch(() => {});
 
@@ -1068,7 +1078,7 @@ export async function POST(request: NextRequest) {
               wifiUserId: roomUser.id,
               guestId: roomUser.guestId,
               bookingId: match.id,
-              guestInfo,
+              guestInfo: normalizedGuestInfo,
               marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
             });
           }
@@ -1239,7 +1249,7 @@ export async function POST(request: NextRequest) {
             wifiUserId: wifiUser.id,
             guestId: wifiUser.guestId,
             bookingId: wifiUser.bookingId,
-            guestInfo,
+            guestInfo: normalizedGuestInfo,
             marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
           }).catch(() => {});
 
@@ -1399,7 +1409,7 @@ export async function POST(request: NextRequest) {
                 await saveGuestInfoAfterAuth({
                   wifiUserId: smsUser.id,
                   propertyId: fallbackPropertyId,
-                  guestInfo,
+                  guestInfo: normalizedGuestInfo,
                   marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
                 });
               }
@@ -1571,7 +1581,7 @@ export async function POST(request: NextRequest) {
           saveGuestInfoAfterAuth({
             wifiUsername,
             propertyId: resolvedPropertyId,
-            guestInfo,
+            guestInfo: normalizedGuestInfo,
             marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
           }).catch(() => {});
         }

@@ -296,3 +296,22 @@ Stage Summary:
 - flush: flush GUI chains (fire-and-forget)
 - chain-architecture: metadata (6 chains)
 - apply-status: service health check (serviceAvailable, mode, appliedAt, pendingChanges)
+---
+Task ID: 1
+Agent: main
+Task: Fix ReferenceError: marketingEmailConsent is not defined + make email mandatory
+
+Work Log:
+- Identified root cause: `marketingEmailConsent` and `marketingSmsConsent` were declared in the TypeScript type annotation but NOT in the destructuring pattern of `body` in `/src/app/api/v1/wifi/auth/route.ts`
+- Fixed destructuring to include both `marketingEmailConsent` and `marketingSmsConsent` (line 550-551)
+- Fixed secondary bug: `guestInfo` was parsed from JSON string into `body.guestInfo` but the destructured `guestInfo` variable remained a string, causing `saveGuestInfoAfterAuth` to silently fail reading properties. Introduced `normalizedGuestInfo` variable that properly holds the parsed object.
+- Replaced all 6 occurrences of `guestInfo` → `normalizedGuestInfo` in `saveGuestInfoAfterAuth` calls across all auth methods (voucher, room_number, pms_credentials, sms_otp, open_access)
+- Added backend email validation: rejects auth with `MISSING_EMAIL` error if `guestInfo` is sent without email
+- Added frontend email validation in unified form's `handleSubmit` (email field mandatory + format validation)
+- Added frontend email validation in the shared `authenticate` callback (catches fallback mode)
+- Made email field always show `*` required indicator in both unified and fallback form modes
+
+Stage Summary:
+- Fixed the crash: `ReferenceError: marketingEmailConsent is not defined` — caused by missing destructuring
+- Fixed silent data loss: guestInfo properties (firstName, lastName, email, phone) were never being saved to Guest records because the JSON string was never parsed into the variable used by `saveGuestInfoAfterAuth`
+- Email is now mandatory: backend returns `MISSING_EMAIL` if guestInfo sent without email; frontend validates before submission
