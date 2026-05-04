@@ -102,3 +102,37 @@ Stage Summary:
 - Stale session detection now works: correct set name (loggedinusers) enables IP verification
 - Counter script path works in both production and sandbox environments
 - cmd_read correctly sums accumulated duplicate rules for accurate byte counts
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Fix GUI disconnect ghost sessions + re-login blocking + orphan interim rows
+
+Work Log:
+- Analyzed user's scenario: GUI disconnect → ghost counter rules → session engine
+  processes ghost session → interim rows accumulate → "Maximum concurrent sessions"
+  blocks re-login → user can never log in again
+- Root cause #1: live-sessions-disconnect route only did DB cleanup, NOT firewall
+  cleanup (no runLogoutScript, no removeUserCounter, no deauthIP)
+- Root cause #2: isSessionLimitReached() counted ALL radacct rows with
+  acctstoptime IS NULL, including interim-update audit rows from session engine
+- Root cause #3: Session engine creates interim-update INSERT rows that are never
+  cleaned up when the original session is closed externally
+- Fixed live-sessions-disconnect (radius/route.ts):
+  - Added orphan interim-update row cleanup by username
+  - Added client IP resolution from radacct
+  - Added runLogoutScript() call for full nft + TC cleanup
+  - Added removeUserCounter() as defense-in-depth
+- Fixed isSessionLimitReached (auth/route.ts):
+  - Added acctstatus filter: only count NULL/empty/start (exclude interim-update)
+  - Added acctterminatecause IS NULL filter (exclude already-closed rows)
+- Fixed session engine (session-engine.ts):
+  - Added Step 4b: orphan interim-row sweep after processing sessions
+  - Uses NOT EXISTS subquery to only clean orphans with no matching active session
+- Committed and pushed: 65035e68
+
+Stage Summary:
+- GUI disconnect now performs full cleanup: DB + nft sets + TC classes + counter rules
+- Re-login no longer blocked by orphan interim-update rows
+- Session engine self-heals: sweeps orphan rows every cycle
+- Session limit check only counts real active sessions (excludes audit rows)
