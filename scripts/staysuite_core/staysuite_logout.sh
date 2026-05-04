@@ -103,9 +103,19 @@ delete_rules_by_tag() {
     done
 }
 
-# ─── Step 1: Remove IP from loggedinusers set ────────────────────────
+# ─── Step 1: Remove IP from ALL nft sets ─────────────────────────
 nft delete element inet mangle loggedinusers "{ ${IP} }" 2>/dev/null \
     && log_msg "nft: -loggedinusers $IP"
+nft delete element inet mangle usersset "{ ${IP} }" 2>/dev/null \
+    && log_msg "nft: -usersset $IP"
+nft delete element inet mangle usersdstset "{ ${IP} }" 2>/dev/null \
+    && log_msg "nft: -usersdstset $IP"
+nft delete element inet mangle llusersset "{ ${IP} }" 2>/dev/null \
+    && log_msg "nft: -llusersset $IP"
+nft delete element inet mangle loggedinusersdstip "{ ${IP} }" 2>/dev/null \
+    && log_msg "nft: -loggedinusersdstip $IP"
+nft delete element inet mangle loggedinusersnetwork "{ ${IP} }" 2>/dev/null \
+    && log_msg "nft: -loggedinusersnetwork $IP"
 
 # ─── Step 2: Delete nft mark rules (prerouting) by comment tag ─────
 # These are the rules that set meta mark = IP hex

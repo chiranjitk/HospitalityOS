@@ -213,12 +213,32 @@ fi
 
 log_msg "LOGIN: ip=$IP mark=$MARK action=$ACTION pool=$POOL_ID dn=${DN_KBPS}k up=${UP_KBPS}k session=$SESSION_ID"
 
-# ─── Step 2: Add IP → loggedinusers nft set ─────────────────────────
-if ! nft add element inet mangle loggedinusers "{ ${IP} }" 2>/dev/null; then
-    log_err "nft: failed to add $IP to loggedinusers"
+# ─── Step 2: Add IP to all required nft sets ────────────────────────
+# loggedinusers — authoritative set, used for duplicate detection
+# usersset       — traffic flow (prerouting: ip saddr @usersset accept)
+# usersdstset    — download direction (postrouting: ip daddr @usersdstset accept)
+# llusersset     — low-latency accounting (prerouting: jump acctup)
+# loggedinusersdstip — destination IP accept (prerouting: ip daddr @loggedinusersdstip accept)
+SET_FAILED=0
+nft add element inet mangle loggedinusers "{ ${IP} }" 2>/dev/null \
+    && log_msg "nft: +loggedinusers $IP" || { SET_FAILED=1; log_err "nft: failed to add $IP to loggedinusers"; }
+nft add element inet mangle usersset "{ ${IP} }" 2>/dev/null \
+    && log_msg "nft: +usersset $IP" || { SET_FAILED=1; log_err "nft: failed to add $IP to usersset"; }
+nft add element inet mangle usersdstset "{ ${IP} }" 2>/dev/null \
+    && log_msg "nft: +usersdstset $IP" || { SET_FAILED=1; log_err "nft: failed to add $IP to usersdstset"; }
+nft add element inet mangle llusersset "{ ${IP} }" 2>/dev/null \
+    && log_msg "nft: +llusersset $IP" || { SET_FAILED=1; log_err "nft: failed to add $IP to llusersset"; }
+nft add element inet mangle loggedinusersdstip "{ ${IP} }" 2>/dev/null \
+    && log_msg "nft: +loggedinusersdstip $IP" || true  # non-critical
+
+if [[ "$SET_FAILED" -eq 1 ]]; then
+    log_err "nft: failed to add $IP to one or more sets — cleanup"
+    nft delete element inet mangle loggedinusers "{ ${IP} }" 2>/dev/null
+    nft delete element inet mangle usersset "{ ${IP} }" 2>/dev/null
+    nft delete element inet mangle usersdstset "{ ${IP} }" 2>/dev/null
+    nft delete element inet mangle llusersset "{ ${IP} }" 2>/dev/null
     exit 3
 fi
-log_msg "nft: +loggedinusers $IP"
 
 # ─── Step 3: Insert nft fwmark rules in prerouting ──────────────────
 # Insert at position 5 (after icmp + 3×syn rules, before usersset checks).
@@ -230,7 +250,7 @@ log_msg "nft: +loggedinusers $IP"
 # intentional — all mark rules execute since none accept/drop.
 if ! nft insert rule inet mangle prerouting position 5 \
     ip saddr "${IP}" meta mark set "${MARK}" \
-    comment "\"${TAG}_mark\"" 2>/dev/null; then
+    comment "${TAG}_mark" 2>&1 | tee -a "$LOGFILE" >/dev/null; then
     NFT_FAILED=1
     log_err "nft: failed to insert saddr mark rule"
 else
@@ -239,7 +259,7 @@ fi
 
 if ! nft insert rule inet mangle prerouting position 5 \
     ip daddr "${IP}" meta mark set "${MARK}" \
-    comment "\"${TAG}_mark_dn\"" 2>/dev/null; then
+    comment "${TAG}_mark_dn" 2>&1 | tee -a "$LOGFILE" >/dev/null; then
     NFT_FAILED=1
     log_err "nft: failed to insert daddr mark rule"
 else
@@ -423,21 +443,45 @@ TIMESTAMP=$(date +%s)"
 fi
 
 # ─── Step 12: Backup nft set elements (for reboot recovery) ────────
-# Save loggedinusers elements to persistent file
 nft list elements inet mangle loggedinusers 2>/dev/null > /var/lib/staysuite/nft_loggedinusers.set 2>/dev/null || true
+nft list elements inet mangle usersset 2>/dev/null > /var/lib/staysuite/nft_usersset.set 2>/dev/null || true
+nft list elements inet mangle usersdstset 2>/dev/null > /var/lib/staysuite/nft_usersdstset.set 2>/dev/null || true
 nft list elements inet mangle loggedinuserssnatip 2>/dev/null > /var/lib/staysuite/nft_loggedinuserssnatip.set 2>/dev/null || true
+
+# ─── Cleanup helper (used on partial failure) ───────────────────────
+cleanup_all_sets() {
+    log_msg "cleanup: removing $IP from all sets"
+    nft delete element inet mangle loggedinusers "{ ${IP} }" 2>/dev/null
+    nft delete element inet mangle usersset "{ ${IP} }" 2>/dev/null
+    nft delete element inet mangle usersdstset "{ ${IP} }" 2>/dev/null
+    nft delete element inet mangle llusersset "{ ${IP} }" 2>/dev/null
+    nft delete element inet mangle loggedinusersdstip "{ ${IP} }" 2>/dev/null
+    # Clean up orphaned NAT rules (by comment tag)
+    nft -a list chain inet nat postrouting 2>/dev/null \
+        | grep "\"${TAG}_nat\"" | grep -oP 'handle \K[0-9]+' | sort -rn | while read h; do
+            nft delete rule inet nat postrouting handle "$h" 2>/dev/null \
+                && log_msg "cleanup: nat postrouting handle $h"
+        done
+    # Clean up orphaned heartbeat rules
+    nft -a list chain inet filter intranetuploadaccounting 2>/dev/null \
+        | grep "\"${TAG}_heartbeat\"" | grep -oP 'handle \K[0-9]+' | sort -rn | while read h; do
+            nft delete rule inet filter intranetuploadaccounting handle "$h" 2>/dev/null \
+                && log_msg "cleanup: heartbeat handle $h"
+        done
+}
 
 # ─── Final result ────────────────────────────────────────────────────
 if [[ "$NFT_FAILED" -eq 1 && "$TC_FAILED" -eq 1 ]]; then
     log_err "PARTIAL FAIL $IP: nft+tc both failed — cleanup"
-    nft delete element inet mangle loggedinusers "{ ${IP} }" 2>/dev/null
+    cleanup_all_sets
     exit 5
 elif [[ "$NFT_FAILED" -eq 1 ]]; then
-    log_err "PARTIAL FAIL $IP: nft failed, tc OK"
+    log_err "PARTIAL FAIL $IP: nft failed, tc OK — cleanup sets"
+    cleanup_all_sets
     exit 3
 elif [[ "$TC_FAILED" -eq 1 ]]; then
-    log_err "PARTIAL FAIL $IP: tc failed, nft OK"
-    exit 4
+    log_err "PARTIAL FAIL $IP: tc failed, nft OK (user still has internet, no bandwidth limits)"
+    # TC failure is non-fatal — user gets internet without bandwidth limits
 fi
 
 log_msg "OK: ip=$IP mark=$MARK session=$SESSION_ID"
