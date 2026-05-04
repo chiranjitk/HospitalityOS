@@ -415,9 +415,10 @@ export function EnterpriseTableWrapper({
       <div
         className={cn(
           'enterprise-scroll',
-          maxHeight ? 'overflow-y-auto' : 'overflow-x-auto'
+          maxHeight && 'data-[scrollable=true]'
         )}
         style={maxHeight ? { maxHeight } : undefined}
+        data-scrollable={!!maxHeight || undefined}
       >
         {children}
       </div>

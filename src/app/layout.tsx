@@ -16,6 +16,8 @@ import { getMessages } from 'next-intl/server';
 import { cookies } from 'next/headers';
 import { locales, type Locale, defaultLocale, isValidLocale } from '@/i18n/config';
 import { I18nProvider } from '@/contexts/I18nContext';
+import { PwaRegister } from '@/components/common/pwa-register';
+import { PwaInstallPrompt } from '@/components/common/pwa-install-prompt';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,10 +38,21 @@ export const metadata: Metadata = {
     icon: "/icon.svg",
     apple: "/icon.svg",
   },
+  manifest: "/manifest.json",
   openGraph: {
     title: "StaySuite HospitalityOS",
     description: "Complete hospitality management platform",
     type: "website",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "StaySuite",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "default",
   },
 };
 
@@ -83,6 +96,8 @@ export default async function RootLayout({
                     </CurrencyProvider>
                   </FeatureFlagsProvider>
                 </PermissionProvider>
+                <PwaRegister />
+                <PwaInstallPrompt />
                 <ShadcnToaster />
                 <SonnerToaster />
               </AuthProvider>

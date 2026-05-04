@@ -180,3 +180,67 @@
   border-top: 1px solid var(--border);
   margin: 1rem 0;
 }
+
+/* Mobile responsive fixes for data components */
+@media (max-width: 639px) {
+  .stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.5rem !important;
+  }
+  
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 0.75rem;
+  }
+  
+  .page-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .filter-bar-inner {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .data-table-wrapper {
+    border-radius: var(--radius-md);
+  }
+  
+  .info-line {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .data-card-body {
+    padding: 0.75rem;
+  }
+}
+
+/* Ensure table wrappers are scrollable on mobile */
+.data-table-wrapper {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Stats grid responsive */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+}
+
+@media (max-width: 1023px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 639px) {
+  .stat-card-inner {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.25rem;
+  }
+}

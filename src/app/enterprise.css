@@ -239,8 +239,12 @@
 /* Enterprise Scrollable Container */
 .enterprise-scroll {
   overflow-x: auto;
-  max-height: 400px;
   overflow-y: auto;
+  max-width: 100%;
+}
+
+.enterprise-scroll[data-scrollable="true"] {
+  max-height: 400px;
 }
 
 .enterprise-scroll::-webkit-scrollbar {

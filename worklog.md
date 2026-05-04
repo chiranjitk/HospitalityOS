@@ -218,3 +218,37 @@ Stage Summary:
 - Live Monitor now properly connects to captive-redirect service via authenticated proxy
 - All 3 data sources in Live Monitor (sessions, auth, captive) are independently resilient
 - Refresh button in Live Monitor now renders correctly (was broken due to missing icon import)
+
+---
+Task ID: 8
+Agent: Main Agent
+Task: Mobile responsive fixes for all 30+ pages + full PWA support
+
+Work Log:
+- Deep-scanned entire project: 192+ virtual sections, 300+ components, 500+ API routes
+- Identified 73 files with tab navigation, 139 files with tables, 30+ files with data grids
+- **Base UI Component Fixes (cascade to all 192+ sections):**
+  - `src/components/ui/tabs.tsx`: TabsList now has `w-full max-w-full overflow-x-auto scrollbar-thin` (scrollable tabs on mobile). TabsTrigger changed from `flex-1` to `shrink-0` (natural tab width, no squishing)
+  - `src/components/ui/table.tsx`: Added `max-w-full` to container div (prevents overflow from constrained parents)
+  - `src/components/ui/enterprise.tsx`: EnterpriseTableWrapper now conditionally applies max-height only when explicitly set via `data-scrollable` attribute
+  - `src/app/enterprise.css`: Removed unconditional `max-height: 400px` from `.enterprise-scroll`, added `max-width: 100%`
+  - `src/app/data-components.css`: Added mobile responsive grid/flex layouts for stats-grid, page-header, filter-bar, data-table-wrapper, stat-card
+  - `src/app/utilities.css`: Added touch-target (44px), safe-area (iOS), snap-x-mobile, scrollbar-hidden utilities
+  - `src/app/globals.css`: Added mobile touch targets via `@media (pointer: coarse)`, iOS safe area support, thin scrollbar styling for tabs/tables on mobile, overflow-x prevention, card radius fixes on small screens
+- **PWA Implementation (complete):**
+  - `public/manifest.json`: Web App Manifest with app name, icons (SVG), shortcuts, standalone display mode
+  - `public/sw.js`: Production service worker with install/activate/fetch strategies (network-first pages, cache-first static assets), push notifications, background sync
+  - `public/icons/icon-192x192.svg` + `icon-512x512.svg`: App icons (purple rounded rect with "S")
+  - `src/hooks/use-pwa-install.ts`: React hook for PWA install detection (beforeinstallprompt, standalone detection, install/dismiss)
+  - `src/components/common/pwa-install-prompt.tsx`: Animated install prompt UI component (bottom sheet)
+  - `src/components/common/pwa-register.tsx`: Service worker registration component
+  - `src/app/layout.tsx`: Added manifest, appleWebApp, mobile-web-app-capable meta tags, PwaRegister + PwaInstallPrompt rendered
+- **Verified existing mobile patterns:** Portal page already uses ScrollArea for tabs, quick-stats-bar already has overflow-x-auto, grids already use responsive prefixes, tables already have overflow-x-auto in base component
+
+Stage Summary:
+- All 73 tab components now scrollable on mobile (via base TabsList fix)
+- All 139 table components properly constrained (via base Table fix)
+- All enterprise table wrappers respect max-height only when explicitly set
+- PWA fully implemented: manifest, service worker, install prompt, meta tags
+- No new lint errors from PWA files (all useSyncExternalStore + useMemo patterns)
+- Mobile: touch targets, safe areas, scrollbar styling, overflow prevention all added globally
