@@ -161,16 +161,28 @@ export function addUserCounter(ip: string): boolean {
 /**
  * Remove counter rules for a user IP.
  * Called on logout/disconnect/session cleanup.
+ *
+ * Logs the script output for debugging — previously failures were
+ * silently swallowed making counter leaks impossible to diagnose.
  */
 export function removeUserCounter(ip: string): boolean {
-  if (!isNftablesAvailable()) return false;
+  if (!isNftablesAvailable()) {
+    console.warn(`[Counter] removeUserCounter(${ip}) skipped — nftables not available`);
+    return false;
+  }
   try {
-    execSync(`bash ${getCOUNTER_SCRIPT()} remove ${ip} 2>&1`, {
+    const output = execSync(`bash ${getCOUNTER_SCRIPT()} remove ${ip} 2>&1`, {
       encoding: 'utf-8',
       timeout: 5000,
     });
+    const trimmed = output.trim();
+    if (trimmed) {
+      console.log(`[Counter] removeUserCounter(${ip}): ${trimmed}`);
+    }
     return true;
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[Counter] removeUserCounter(${ip}) FAILED: ${msg}`);
     return false;
   }
 }

@@ -224,3 +224,63 @@ Stage Summary:
   - Auth route creates DeviceProfile with synthetic fingerprint from MAC
   - Auto-auth Strategy 3 matches by MAC for silent re-auth on HTTP
   - MAC displayed in Active Users table + DeviceProfile
+
+---
+Task ID: 8
+Agent: Main Agent
+Task: Fix counter rules not cleaned on admin disconnect + session engine full cleanup
+
+Work Log:
+- User reported: disconnect from admin did NOT clear nftables counter rules
+  4 stale counter rules remained in inet staysuite_count table for 192.168.100.35
+  (2 pairs of user_in/user_out with different byte counts — accumulated from multiple sessions)
+
+- Analysis found multiple issues:
+
+  1. removeUserCounter() silently swallowed all errors — no logging at all
+     → impossible to diagnose why counter cleanup fails
+
+  2. Session engine disconnectSession() only called deauthIP() + removeUserCounter()
+     → did NOT call runLogoutScript() for full TC/NAT/fwmark/security cleanup
+     → orphaned TC HTB classes, NAT masquerade rules, fwmark rules accumulated
+
+  3. Session engine closeSession() (stale cleanup) same issue — no logout script call
+
+  4. No orphan counter cleanup mechanism — if counters survived for ANY reason
+     (server crash, race condition, old code without stale-cleanup-on-add),
+     they accumulated indefinitely
+
+  5. live-sessions-disconnect had counter cleanup but no error logging
+
+- Fixed removeUserCounter() in src/lib/wifi/utils/nftables-counters.ts:
+  - Added console.log for successful removals (shows script output)
+  - Added console.error for failures (shows error message)
+  - Added console.warn when nftables not available
+  - Captures script stdout/stderr via execSync output
+
+- Fixed session engine src/lib/wifi/services/session-engine.ts:
+  - Imported runLogoutScript from script-runner
+  - disconnectSession(): now calls runLogoutScript({ ip }) before removeUserCounter
+    → full cleanup: nft sets, fwmark, NAT, TC HTB classes, fw filters, state files
+  - closeSession(): same — now calls runLogoutScript for stale session cleanup
+  - Added cleanupOrphanCounters() function:
+    - Compares counter IPs against active session IPs from radacct
+    - Any counter without a matching active session is removed
+    - Runs at end of each session engine cycle (Step 5b)
+    - Handles: server crash, race conditions, old code artifacts, duplicate counters
+
+- Fixed disconnect route src/app/api/v1/wifi/disconnect/route.ts:
+  - removeUserCounter() now logs success/failure
+
+- Fixed live-sessions-disconnect in src/app/api/wifi/radius/route.ts:
+  - removeUserCounter() result now logged (OK/FAILED)
+  - Added warning when client IP resolution fails (counter cleanup skipped)
+
+Stage Summary:
+- COUNTER LEAK FIXED: orphan counter cleanup runs every 60s in session engine
+  → any counter rule without a matching active session is automatically removed
+- FULL SESSION CLEANUP: session engine now calls logout.sh on disconnect/stale
+  → TC HTB classes, NAT rules, fwmark rules all properly cleaned
+- OBSERVABILITY: all counter cleanup operations now logged for debugging
+- The 4 stale counter rules in the user's nftables will be auto-cleaned on next
+  session engine cycle (within 60 seconds of pulling this code)

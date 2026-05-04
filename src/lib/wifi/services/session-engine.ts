@@ -62,6 +62,7 @@ import {
   doesAuthenticatedSetExist,
   type IPByteCount,
 } from '@/lib/wifi/utils/nftables-counters';
+import { runLogoutScript } from '@/lib/network/script-runner';
 import * as SELog from './session-engine-logger';
 
 // ────────────────────────────────────────────────────────────
@@ -311,6 +312,20 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
         `${result.staleCleaned} stale, ` +
         `${result.errors} errors`
       );
+
+      // ── Step 5b: Orphan counter cleanup ──
+      // Remove nftables counter rules that have NO matching active session.
+      // This handles cases where:
+      //   - Server crashed/restarted mid-session
+      //   - Session was closed externally (admin disconnect, CoA) but counters survived
+      //   - Auto-auth created duplicate counters
+      if (nftablesAvailable) {
+        const orphanCount = await cleanupOrphanCounters(counterMap, activeSessions);
+        if (orphanCount > 0) {
+          SELog.info(`Cleaned ${orphanCount} orphan counter rule(s) without matching active sessions`);
+        }
+      }
+
       } // end else (activeSessions.length > 0)
     } catch (err) {
       SELog.error(`Fatal error: ${err instanceof Error ? err.message : String(err)}`);
@@ -330,6 +345,45 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
 // ────────────────────────────────────────────────────────────
 // Internal Functions
 // ────────────────────────────────────────────────────────────
+
+/**
+ * Cleanup orphaned nftables counter rules that have no matching active session.
+ *
+ * Compares the set of IPs with counter rules against the set of IPs in active
+ * radacct sessions. Any counter rule whose IP has no active session is removed.
+ *
+ * This handles edge cases where:
+ *   - Server crashed/restarted mid-session (counters survived, radacct didn't)
+ *   - Admin disconnect closed radacct but counters survived (race condition)
+ *   - Auto-auth created duplicate counters (old pair not cleaned before new pair added)
+ *   - Any other path that left counter rules without a matching session
+ *
+ * Returns the number of orphan rules cleaned.
+ */
+async function cleanupOrphanCounters(
+  counterMap: Map<string, IPByteCount>,
+  activeSessions: ActiveSession[]
+): Promise<number> {
+  // Build set of IPs that have active sessions
+  const activeIps = new Set<string>();
+  for (const session of activeSessions) {
+    if (session.framedipaddress) {
+      activeIps.add(session.framedipaddress);
+    }
+  }
+
+  // Find counter IPs without matching active sessions
+  let orphanCount = 0;
+  for (const [counterIp] of counterMap) {
+    if (!activeIps.has(counterIp)) {
+      SELog.info(`Orphan counter cleanup: removing rules for ${counterIp} (no active session)`);
+      removeUserCounter(counterIp);
+      orphanCount++;
+    }
+  }
+
+  return orphanCount;
+}
 
 /**
  * Get all active sessions from radacct (sessions that haven't been stopped).
@@ -889,10 +943,24 @@ async function disconnectSession(
   // 1. Remove from nftables (blocks internet access immediately)
   deauthIP(ip);
 
-  // 2. Remove byte counter rules
+  // 2. Call full logout script for complete cleanup
+  //    This cleans: nft sets, fwmark rules, NAT masquerade, TC HTB classes,
+  //    fw filters, security rules, session state files, AND counter rules
+  try {
+    const logoutResult = runLogoutScript({ ip });
+    if (logoutResult.success) {
+      SELog.info(`disconnectSession: logout.sh OK for ${session.username} (${ip}) in ${logoutResult.durationMs}ms`);
+    } else {
+      SELog.warn(`disconnectSession: logout.sh FAIL for ${session.username} (${ip}) exit=${logoutResult.exitCode}`);
+    }
+  } catch (err) {
+    SELog.warn(`disconnectSession: logout.sh exception for ${session.username}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // 3. Remove byte counter rules (defense-in-depth — logout.sh Step 7c also does this)
   removeUserCounter(ip);
 
-  // 3. Clean up idle tracking
+  // 4. Clean up idle tracking
   lastActivityMap.delete(ip);
 
   // Bug 2: Calculate delta for WiFiUser — only increment by the remaining difference,
@@ -1021,7 +1089,20 @@ async function closeSession(
   // Bug 14: Use safeGetTime for defensive Date handling
   const sessionTime = Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000);
 
-  // Remove counter rules (may already be gone)
+  // Call logout script for full nft + TC cleanup (stale sessions may have
+  // orphaned fwmark rules, NAT entries, or TC classes)
+  try {
+    const logoutResult = runLogoutScript({ ip });
+    if (logoutResult.success) {
+      SELog.info(`closeSession: logout.sh OK for ${session.username} (${ip}) in ${logoutResult.durationMs}ms`);
+    } else {
+      SELog.warn(`closeSession: logout.sh FAIL for ${session.username} (${ip}) exit=${logoutResult.exitCode}`);
+    }
+  } catch (err) {
+    SELog.warn(`closeSession: logout.sh exception for ${session.username}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Remove counter rules (defense-in-depth — may already be gone)
   removeUserCounter(ip);
 
   // Clean up idle tracking

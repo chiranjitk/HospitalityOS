@@ -181,9 +181,10 @@ export async function POST(request: NextRequest) {
     // ── Remove per-IP byte counter rules (session engine tracking) ──
     if (clientIp && clientIp !== '0.0.0.0') {
       try {
-        removeUserCounter(clientIp);
-      } catch {
-        // Non-fatal
+        const counterOk = removeUserCounter(clientIp);
+        console.log(`[Guest Disconnect] Counter cleanup ${counterOk ? 'OK' : 'FAILED'} for ${clientIp}`);
+      } catch (err) {
+        console.error('[Guest Disconnect] Counter cleanup exception:', err instanceof Error ? err.message : String(err));
       }
     }
 

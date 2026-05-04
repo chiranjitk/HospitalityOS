@@ -3140,6 +3140,10 @@ export async function POST(request: NextRequest) {
             }
           } catch { /* non-fatal */ }
 
+          if (!clientIp) {
+            console.warn(`[live-sessions-disconnect] Could not resolve client IP for ${disconnectUsername} — counter + firewall cleanup SKIPPED`);
+          }
+
           // 2f. Call logout script for full nft + TC cleanup
           // The live-sessions-disconnect only did DB cleanup above.
           // We need to also remove: nft sets, mark rules, NAT rules, TC classes, counter rules.
@@ -3159,8 +3163,11 @@ export async function POST(request: NextRequest) {
             // 2g. Remove per-IP byte counter rules (defense-in-depth — logout script also does this now)
             try {
               const { removeUserCounter } = await import('@/lib/wifi/utils/nftables-counters');
-              removeUserCounter(clientIp);
-            } catch { /* non-fatal */ }
+              const counterOk = removeUserCounter(clientIp);
+              console.log(`[live-sessions-disconnect] Counter cleanup ${counterOk ? 'OK' : 'FAILED'} for ${clientIp}`);
+            } catch (counterErr) {
+              console.error('[live-sessions-disconnect] Counter cleanup exception:', counterErr instanceof Error ? counterErr.message : counterErr);
+            }
           }
 
           // 2h. Deactivate DeviceProfile(s) — prevent auto-auth from immediately reconnecting
