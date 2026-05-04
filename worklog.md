@@ -386,3 +386,27 @@ Stage Summary:
 - **Fix**: Auto-cap user rate to pool ceil + expose hidden tc errors
 - **Result**: User will get capped to pool ceil, bandwidth limiting will work
 - **Commit**: 2d74f45c pushed to main
+
+---
+Task ID: 7
+Agent: Main
+Task: Fix "invalid class ID" — tc parses classid numbers as hexadecimal
+
+Work Log:
+- Analyzed error: `Error: argument "1:24056" is wrong: invalid class ID`
+- Root cause: tc/iproute2 uses strtoul(str, NULL, 16) to parse classid numbers
+- Decimal 24056 → hex 0x24056 = 147990 → overflows 16-bit minor field in TC_H_MAKE
+- TC handle format: (16-bit major << 16) | 16-bit minor, overflow corrupts major
+- Pool ID 1033 worked because 0x1033 = 4147, fits in 16 bits
+- User classid 24056 failed because 0x24056 = 147990, overflows
+- Fixed both staysuite_login.sh and staysuite_logout.sh:
+  - Added DN_CLASSID_HEX/UP_CLASSID_HEX using `printf '%x'`
+  - All tc class/filter commands now use hex-converted values
+  - State file still stores decimal (preserves compatibility with -d/-u flags)
+- Pushed commit 7b2dfa27 to GitHub
+
+Stage Summary:
+- **Root cause**: tc classid parsing is hexadecimal, not decimal — large decimal values overflow 16-bit minor field
+- **Fix**: `printf '%x'` conversion before all tc commands in login/logout scripts
+- **Files changed**: `staysuite_login.sh`, `staysuite_logout.sh`
+- **Commit**: 7b2dfa27 pushed to main
