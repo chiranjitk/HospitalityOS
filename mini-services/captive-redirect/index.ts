@@ -916,18 +916,16 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
       cooldownCache.mark(clientIP, now);
     }
 
-    log.info('Redirect', {
-      clientIP,
-      method: req.method,
-      url: req.url,
-      host,
-      os: deviceInfo.os,
-      browser: deviceInfo.browser,
-      device: deviceInfo.device,
-      isCaptiveDetection: deviceInfo.isCaptiveDetection,
-      detectionUrl: deviceInfo.detectionUrl || undefined,
-      portalUrl,
-    });
+    // Log detection URLs at debug level (they repeat every 5-10s — normal OS polling)
+    // Only log real browser navigation at info level
+    if (deviceInfo.isCaptiveDetection) {
+      log.debug('Captive detection redirect', { clientIP, host, os: deviceInfo.os, browser: deviceInfo.browser });
+    } else {
+      log.info('Redirect', {
+        clientIP, method: req.method, url: req.url, host,
+        os: deviceInfo.os, browser: deviceInfo.browser, device: deviceInfo.device, portalUrl,
+      });
+    }
 
     // ── Send redirect ───────────────────────────────────────────────────
     // Pre-built common redirect headers (fast path — avoids object creation)
@@ -942,10 +940,9 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
       'X-Hotspot-Version': '3.0',
     };
 
-    // Add Content-Type for Apple CNA (some iOS versions expect text/html)
-    if (deviceInfo.os === 'iOS' || deviceInfo.os === 'macOS') {
-      redirectHeaders['Content-Type'] = 'text/html';
-    }
+    // Content-Type: text/html — required by Apple CNA and helps Firefox/Android
+    // recognize the captive portal response faster
+    redirectHeaders['Content-Type'] = 'text/html';
 
     res.writeHead(REDIRECT_STATUS, redirectHeaders);
     res.end();
