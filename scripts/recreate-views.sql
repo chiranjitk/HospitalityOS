@@ -24,13 +24,14 @@ SELECT COALESCE(s.id::text, r.acctuniqueid) AS session_id,
     COALESCE(s."macAddress", r.callingstationid) AS wifi_mac,
     COALESCE(s."ipAddress", r.framedipaddress) AS "ipAddress",
     COALESCE(s."ipAddress", r.framedipaddress) AS framedipaddress,
-    s."deviceName",
-    s."deviceType",
+    COALESCE(dp."deviceName", s."deviceName") AS "deviceName",
+    COALESCE(dp."deviceType", s."deviceType") AS "deviceType",
     COALESCE(s."startTime", r.acctstarttime) AS acctstarttime,
     COALESCE(s."startTime", r.acctupdatetime) AS acctupdatetime,
     COALESCE(s."endTime", r.acctstoptime) AS acctstoptime,
     COALESCE(s."dataUsed", 0::bigint) + COALESCE(r.acctinputoctets, 0::bigint) + COALESCE(r.acctoutputoctets, 0::bigint) AS total_data_used,
     COALESCE(s.duration::bigint, r.acctsessiontime, 0::bigint) AS acctsessiontime,
+    -- RADIUS: acctoutputoctets = NAS→client (download), acctinputoctets = client→NAS (upload)
     COALESCE(CASE WHEN s."dataUsed" IS NOT NULL THEN (s."dataUsed"::numeric * 0.7)::bigint ELSE r.acctoutputoctets END, 0::bigint) AS acctoutputoctets,
     COALESCE(CASE WHEN s."dataUsed" IS NOT NULL THEN (s."dataUsed"::numeric * 0.3)::bigint ELSE r.acctinputoctets END, 0::bigint) AS acctinputoctets,
     s."authMethod",
@@ -68,7 +69,15 @@ SELECT COALESCE(s.id::text, r.acctuniqueid) AS session_id,
     COALESCE(r.nasporttype, 'Wireless-802.11'::text) AS nasporttype,
     COALESCE(r.calledstationid, ''::text) AS calledstationid,
     r.connectinfo_start,
-    r.connectinfo_stop
+    r.connectinfo_stop,
+    -- DeviceProfile enrichment columns
+    COALESCE(r."loginType", 'portal') AS "loginType",
+    dp."userAgent" AS "userAgent",
+    dp."macAddress" AS "dp_macAddress",
+    COALESCE(dp."authCount", 0) AS "dp_authCount",
+    -- Timeout columns from WiFiPlan
+    COALESCE(wp."sessionTimeout", 0) AS "sessionTimeoutSec",
+    COALESCE(wp."idleTimeout", 0) AS "idleTimeoutSec"
    FROM "WiFiSession" s
      FULL JOIN (
         SELECT DISTINCT ON (radacct.username, radacct.acctsessionid) radacct.*
@@ -81,6 +90,18 @@ SELECT COALESCE(s.id::text, r.acctuniqueid) AS session_id,
          WHERE "WiFiUser".username = r.username OR (r.username IS NULL AND "WiFiUser"."guestId" IS NOT NULL AND "WiFiUser"."guestId" = s."guestId")
          LIMIT 1
      ) wu ON true
+     LEFT JOIN LATERAL (
+        SELECT "DeviceProfile"."deviceName",
+               "DeviceProfile"."deviceType",
+               "DeviceProfile"."macAddress",
+               "DeviceProfile"."userAgent",
+               "DeviceProfile"."authCount",
+               "DeviceProfile"."wifiUserId"
+          FROM "DeviceProfile"
+         WHERE "DeviceProfile"."wifiUserId" = wu.id AND "DeviceProfile"."isActive" = true
+         ORDER BY "DeviceProfile"."lastSeenAt" DESC
+         LIMIT 1
+     ) dp ON true
      LEFT JOIN "Guest" g ON COALESCE(wu."guestId", s."guestId") IS NOT NULL AND COALESCE(wu."guestId", s."guestId") = g.id
      LEFT JOIN "Booking" b ON COALESCE(wu."bookingId", s."bookingId") IS NOT NULL AND COALESCE(wu."bookingId", s."bookingId") = b.id
      LEFT JOIN "Room" rm ON b."roomId" = rm.id
@@ -89,9 +110,74 @@ SELECT COALESCE(s.id::text, r.acctuniqueid) AS session_id,
 
 -- ---------------------------------------------------------------------------
 -- VIEW: v_active_sessions
+-- Filters v_session_history for currently active (online) sessions.
+-- Used by: Active Users tab, real-time stats widgets.
 -- ---------------------------------------------------------------------------
 CREATE VIEW v_active_sessions AS
-SELECT *
+SELECT session_id,
+    radacctid,
+    acctsessionid,
+    "tenantId",
+    "planId",
+    "guestId",
+    "bookingId",
+    callingstationid,
+    wifi_mac,
+    "ipAddress",
+    framedipaddress,
+    "deviceName",
+    "deviceType",
+    acctstarttime,
+    acctupdatetime,
+    acctstoptime,
+    total_data_used,
+    acctsessiontime,
+    acctoutputoctets,
+    acctinputoctets,
+    "authMethod",
+    session_status,
+    wifi_user_status,
+    status,
+    acctterminatecause,
+    "createdAt",
+    "updatedAt",
+    username,
+    guest_first_name,
+    guest_last_name,
+    guest_email,
+    guest_phone,
+    guest_loyalty_tier,
+    guest_is_vip,
+    room_number,
+    room_name,
+    room_floor,
+    property_name,
+    plan_name,
+    downloadspeed,
+    plan_download_speed,
+    uploadspeed,
+    plan_upload_speed,
+    datalimit,
+    plan_data_limit,
+    booking_code,
+    booking_status,
+    acctuniqueid,
+    framedipv6address,
+    nasipaddress,
+    nasidentifier,
+    nasportid,
+    nasporttype,
+    calledstationid,
+    connectinfo_start,
+    connectinfo_stop,
+    -- DeviceProfile enrichment columns (from v_session_history)
+    "loginType",
+    "userAgent",
+    "dp_macAddress",
+    "dp_authCount",
+    -- Timeout columns from WiFiPlan
+    "sessionTimeoutSec",
+    "idleTimeoutSec"
    FROM v_session_history
   WHERE session_status = 'active'::text;
 
