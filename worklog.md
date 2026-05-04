@@ -530,3 +530,24 @@ Stage Summary:
 - Fixed `scripts/staysuite_core/staysuite_logout.sh` - TC cleanup now works correctly
 - Two bugs fixed: case-insensitive grep + sfq-before-class deletion order
 - Logout now fully cleans: fw filters, sfq qdiscs, and HTB user classes on both ifb0/ifb1
+
+---
+Task ID: fix-bandwidth-plan-vs-portal
+Agent: main
+Task: Fix bandwidth taking wrong values — using portal defaults instead of WiFiPlan speeds
+
+Work Log:
+- Traced the bandwidth chain: auth route → activateUserFirewall → login script → TC HTB
+- Found root cause: ALL auth methods passed `portal?.maxBandwidthDown/Up` to activateUserFirewall
+- CaptivePortal.maxBandwidthDown is a zone-level default (5,000,000 bytes/sec = 40 Mbps after *8/1000)
+- WiFiPlan.downloadSpeed is the per-plan value in Mbps (e.g., 5 for 5 Mbps)
+- The user's "Free WiFi" plan had 5M/2M but got 40M/16M from portal defaults
+- Fixed all 6 auth methods: voucher, room_number (PMS reuse), room_number (fallback), pms_credentials, sms_otp, open_access
+- Each now resolves WiFiPlan.downloadSpeed/uploadSpeed and converts Mbps → bytes/sec (* 1000000)
+- Added resolvePlanBandwidthBytes() helper with priority chain: radReply > plan > portal > fallback
+- Also added downloadSpeed/uploadSpeed to PMS credentials plan select query
+- Committed as 4c74e6ba and pushed
+
+Stage Summary:
+- Fixed `src/app/api/v1/wifi/auth/route.ts` — all auth methods now use plan bandwidth
+- After pull, user on "Free WiFi" (5M/2M) will get `-D 5000 -U 2000` instead of `-D 40000 -U 16000`
