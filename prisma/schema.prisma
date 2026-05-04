@@ -296,6 +296,10 @@ model BandwidthPolicyDetail {
 }
 
 /// BandwidthPool - Shared bandwidth pool per subnet
+/// Pool class is a container (HTB parent) for all users in that subnet.
+/// NOT a bandwidth limit itself — user leaf classes do the real limiting.
+/// Min 100 Mbps, Max 10 Gbit (same as root class).
+/// If total of all pools exceeds root (10Gbit), HTB shares bandwidth proportionally.
 model BandwidthPool {
   id                  String   @id @default(uuid()) @db.Uuid
   tenantId            String   @db.Uuid
@@ -303,8 +307,8 @@ model BandwidthPool {
   name                String
   subnet              String?
   vlanId              Int?
-  totalDownloadKbps   Int      @default(2000000) // Pool container: 2 Gbit (NOT a bandwidth limit)
-  totalUploadKbps     Int      @default(2000000) // Pool container: 2 Gbit (NOT a bandwidth limit)
+  totalDownloadKbps   Int      @default(2000000) // Pool container: default 2Gbit, max 10Gbit
+  totalUploadKbps     Int      @default(2000000) // Pool container: default 2Gbit, max 10Gbit
   perUserDownloadKbps Int?                          // Default per-user download limit (if no plan assigned)
   perUserUploadKbps   Int?                          // Default per-user upload limit (if no plan assigned)
   enabled             Boolean  @default(true)

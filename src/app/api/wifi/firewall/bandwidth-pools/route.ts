@@ -90,8 +90,8 @@ export async function POST(request: NextRequest) {
       name,
       subnet,
       vlanId,
-      totalDownloadKbps = 100000,
-      totalUploadKbps = 100000,
+      totalDownloadKbps = 2000000,
+      totalUploadKbps = 2000000,
       perUserDownloadKbps,
       perUserUploadKbps,
       enabled = true,
@@ -104,9 +104,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (totalDownloadKbps < 0 || totalUploadKbps < 0) {
+    // Pool bandwidth validation: min 100 Mbps (100000 kbps), max 10 Gbit (10000000 kbps)
+    const POOL_BW_MIN = 100000;   // 100 Mbps
+    const POOL_BW_MAX = 10000000; // 10 Gbit (same as root class)
+
+    if (totalDownloadKbps < POOL_BW_MIN || totalDownloadKbps > POOL_BW_MAX) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Bandwidth values must be non-negative' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `totalDownloadKbps must be between 100 Mbps (100000) and 10 Gbit (10000000)` } },
+        { status: 400 }
+      );
+    }
+    if (totalUploadKbps < POOL_BW_MIN || totalUploadKbps > POOL_BW_MAX) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `totalUploadKbps must be between 100 Mbps (100000) and 10 Gbit (10000000)` } },
+        { status: 400 }
+      );
+    }
+    if (perUserDownloadKbps !== undefined && perUserDownloadKbps !== null && (perUserDownloadKbps < 0 || perUserDownloadKbps > POOL_BW_MAX)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'perUserDownloadKbps must be between 0 and 10 Gbit (10000000)' } },
+        { status: 400 }
+      );
+    }
+    if (perUserUploadKbps !== undefined && perUserUploadKbps !== null && (perUserUploadKbps < 0 || perUserUploadKbps > POOL_BW_MAX)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'perUserUploadKbps must be between 0 and 10 Gbit (10000000)' } },
         { status: 400 }
       );
     }
