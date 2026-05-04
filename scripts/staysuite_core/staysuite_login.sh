@@ -1,6 +1,6 @@
 #!/bin/bash
 ###########################################################################
-#       Script : StaySuite User Login (nftables + HTB + fw filter)
+#       Script : StaySuite User Login (nftables + HTB + flower filter)
 #       OS     : Rocky Linux 10 (nftables v1.1.1, kernel 5.x+)
 #       Reason : Single-user firewall + bandwidth activation
 #
@@ -444,12 +444,14 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
         if [[ "$TC_FAILED" -eq 0 ]]; then
             log_msg "tc: download 1:${DN_CLASSID_HEX} under $local_parent on ifb0 (rate=$DN_GUAR_RATE ceil=$DN_CEIL)"
 
-            # fw filter: match mark set by nft → assign to user class
-            filter_err=$(tc filter add dev ifb0 parent 1: protocol ip pref "$FW_PREF" fw \
-                handle "${MARK}" classid "1:${DN_CLASSID_HEX}" 2>&1) || {
+            # flower filter: match fwmark set by nft → assign to user class
+            # NOTE: 'fw handle' only supports 16-bit, but our mark is 32-bit IP hex.
+            #       'flower fwmark' supports full 32-bit marks.
+            filter_err=$(tc filter add dev ifb0 parent 1: protocol ip pref "$FW_PREF" flower \
+                fwmark "${MARK}/0xFFFFFFFF" classid "1:${DN_CLASSID_HEX}" 2>&1) || {
                 TC_FAILED=1
-                log_err "tc: failed download fw filter $MARK → 1:${DN_CLASSID_HEX} — $filter_err"
-                echo "[ERR] tc: dl fw filter $MARK → 1:${DN_CLASSID_HEX} failed — $filter_err" >&2
+                log_err "tc: failed download flower filter $MARK → 1:${DN_CLASSID_HEX} — $filter_err"
+                echo "[ERR] tc: dl flower filter $MARK → 1:${DN_CLASSID_HEX} failed — $filter_err" >&2
             }
         fi
     fi
@@ -487,11 +489,11 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
         if [[ "$TC_FAILED" -eq 0 ]]; then
             log_msg "tc: upload 1:${UP_CLASSID_HEX} under $local_parent on ifb1 (rate=$UP_GUAR_RATE ceil=$UP_CEIL)"
 
-            filter_err=$(tc filter add dev ifb1 parent 1: protocol ip pref "$FW_PREF" fw \
-                handle "${MARK}" classid "1:${UP_CLASSID_HEX}" 2>&1) || {
+            filter_err=$(tc filter add dev ifb1 parent 1: protocol ip pref "$FW_PREF" flower \
+                fwmark "${MARK}/0xFFFFFFFF" classid "1:${UP_CLASSID_HEX}" 2>&1) || {
                 TC_FAILED=1
-                log_err "tc: failed upload fw filter $MARK → 1:${UP_CLASSID_HEX} — $filter_err"
-                echo "[ERR] tc: ul fw filter $MARK → 1:${UP_CLASSID_HEX} failed — $filter_err" >&2
+                log_err "tc: failed upload flower filter $MARK → 1:${UP_CLASSID_HEX} — $filter_err"
+                echo "[ERR] tc: ul flower filter $MARK → 1:${UP_CLASSID_HEX} failed — $filter_err" >&2
             }
         fi
     fi
