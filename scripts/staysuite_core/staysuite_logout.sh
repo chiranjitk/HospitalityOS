@@ -196,46 +196,75 @@ UP_CLASSID_HEX="${UP_CLASSID:-0}"
 [[ "$UP_CLASSID_HEX" -gt 0 ]] && UP_CLASSID_HEX="$(printf '%x' "$UP_CLASSID_HEX")"
 
 # ─── Step 8: Delete fw filter + user class on ifb0 (download) ────────
+# CRITICAL: Always attempt cleanup even if classid=0 (session state not loaded).
+# Discover the classid from the existing tc filter if not known.
+FILTER_CLASSID=""
+
+# Try to find the classid from the fw filter for this mark
+FILTER_CLASSID=$(tc filter show dev ifb0 parent 1: 2>/dev/null \
+    | grep "handle ${MARK}" | grep -oP 'classid \K\S+' | head -1) || true
+if [[ -n "$FILTER_CLASSID" ]]; then
+    log_msg "tc: discovered ifb0 filter classid=$FILTER_CLASSID for mark=$MARK"
+fi
+
+# Delete fw filter by handle (tc filter handle = fwmark value)
+tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
+    handle "$MARK" fw 2>/dev/null && log_msg "tc: del fw filter ifb0 mark=$MARK"
+
+# Fallback: try u32 and other filter types for cleanup
+tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
+    u32 match ip dst "${IP}/32" 2>/dev/null || true
+tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
+    flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null || true
+
+# Scan fallback: find any filter referencing this mark
+fh=$(tc filter show dev ifb0 parent 1: 2>/dev/null \
+    | grep "handle ${MARK}" | grep -oP 'pref \K[0-9]+' | head -1) || true
+[[ -n "$fh" ]] && tc filter del dev ifb0 parent 1: protocol ip pref "$fh" 2>/dev/null \
+    && log_msg "tc: del fallback filter ifb0 by pref $fh"
+
+# Delete the user class (use discovered classid if DN_CLASSID was 0)
 if [[ "$DN_CLASSID" -gt 0 ]]; then
-    # Delete fw filter by handle (tc filter handle = fwmark value)
-    tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-        handle "$MARK" fw 2>/dev/null && log_msg "tc: del fw filter ifb0 mark=$MARK"
-
-    # Fallback: try u32 and other filter types for cleanup
-    tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-        u32 match ip dst "${IP}/32" 2>/dev/null || true
-    tc filter del dev ifb0 parent 1: protocol ip pref "$FW_PREF" \
-        flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null || true
-
-    # Scan fallback: find any filter referencing this IP
-    fh=$(tc filter show dev ifb0 parent 1: 2>/dev/null \
-        | grep -i "${IP}" | grep -oP 'pref \K[0-9]+' | head -1) || true
-    [[ -n "$fh" ]] && tc filter del dev ifb0 parent 1: protocol ip pref "$fh" 2>/dev/null \
-        && log_msg "tc: del fallback filter ifb0 by pref $fh"
-
     tc class del dev ifb0 classid "1:${DN_CLASSID_HEX}" 2>/dev/null \
         && log_msg "tc: del download class 1:${DN_CLASSID_HEX} ifb0"
+elif [[ -n "$FILTER_CLASSID" ]]; then
+    tc class del dev ifb0 classid "$FILTER_CLASSID" 2>/dev/null \
+        && log_msg "tc: del discovered download class $FILTER_CLASSID ifb0"
 fi
 
 # ─── Step 9: Delete fw filter + user class on ifb1 (upload) ─────────
+FILTER_CLASSID_UP=""
+
+# Try to find the classid from the fw filter for this mark
+FILTER_CLASSID_UP=$(tc filter show dev ifb1 parent 1: 2>/dev/null \
+    | grep "handle ${MARK}" | grep -oP 'classid \K\S+' | head -1) || true
+if [[ -n "$FILTER_CLASSID_UP" ]]; then
+    log_msg "tc: discovered ifb1 filter classid=$FILTER_CLASSID_UP for mark=$MARK"
+fi
+
+# Delete fw filter by handle (tc filter handle = fwmark value)
+tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
+    handle "$MARK" fw 2>/dev/null && log_msg "tc: del fw filter ifb1 mark=$MARK"
+
+# Fallback: try u32 and other filter types for cleanup
+tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
+    u32 match ip src "${IP}/32" 2>/dev/null || true
+tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
+    flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null || true
+
+# Scan fallback: find any filter referencing this mark
+fh=$(tc filter show dev ifb1 parent 1: 2>/dev/null \
+    | grep "handle ${MARK}" | grep -oP 'pref \K[0-9]+' | head -1) || true
+[[ -n "$fh" ]] && tc filter del dev ifb1 parent 1: protocol ip pref "$fh" 2>/dev/null \
+    && log_msg "tc: del fallback filter ifb1 by pref $fh"
+
+# Delete the user class (use discovered classid if UP_CLASSID was 0)
 if [[ "$UP_CLASSID" -gt 0 ]]; then
-    # Delete fw filter by handle (tc filter handle = fwmark value)
-    tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-        handle "$MARK" fw 2>/dev/null && log_msg "tc: del fw filter ifb1 mark=$MARK"
-
-    # Fallback: try u32 and other filter types for cleanup
-    tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-        u32 match ip src "${IP}/32" 2>/dev/null || true
-    tc filter del dev ifb1 parent 1: protocol ip pref "$FW_PREF" \
-        flower fwmark "${MARK}/0xFFFFFFFF" 2>/dev/null || true
-
-    fh=$(tc filter show dev ifb1 parent 1: 2>/dev/null \
-        | grep -i "${IP}" | grep -oP 'pref \K[0-9]+' | head -1) || true
-    [[ -n "$fh" ]] && tc filter del dev ifb1 parent 1: protocol ip pref "$fh" 2>/dev/null \
-        && log_msg "tc: del fallback filter ifb1 by pref $fh"
-
     tc class del dev ifb1 classid "1:${UP_CLASSID_HEX}" 2>/dev/null \
         && log_msg "tc: del upload class 1:${UP_CLASSID_HEX} ifb1"
+elif [[ -n "$FILTER_CLASSID_UP" ]]; then
+    tc class del dev ifb1 classid "$FILTER_CLASSID_UP" 2>/dev/null \
+        && log_msg "tc: del discovered upload class $FILTER_CLASSID_UP ifb1"
 fi
 
 # ─── Step 10: Remove session state files ────────────────────────────
