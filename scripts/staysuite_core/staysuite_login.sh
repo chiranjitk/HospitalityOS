@@ -414,11 +414,25 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
             local_parent="1:1"
         fi
 
-        if ! tc class add dev ifb0 parent "$local_parent" classid "1:${DN_CLASSID}" htb \
-            rate "$DN_GUAR_RATE" ceil "$DN_CEIL" quantum 1500 2>/dev/null; then
+        # Validate: user rate/ceil must not exceed pool ceil
+        # HTB rejects child classes whose rate > parent ceil
+        if [[ "$POOL_CEIL_DN" -gt 0 ]]; then
+            if [[ "$DN_KBPS" -gt "$POOL_CEIL_DN" ]]; then
+                log_msg "tc: WARNING user DN rate ${DN_KBPS}k exceeds pool ceil ${POOL_CEIL_DN}k — capping to ${POOL_CEIL_DN}k"
+                echo "[WARN] tc: user DN ${DN_KBPS}k > pool ceil ${POOL_CEIL_DN}k — capped" >&2
+                DN_RATE="${POOL_CEIL_DN}kbit"
+                DN_CEIL="${POOL_CEIL_DN}kbit"
+                DN_GUAR_RATE="${POOL_CEIL_DN}kbit"
+            fi
+        fi
+
+        tc_err=$(tc class add dev ifb0 parent "$local_parent" classid "1:${DN_CLASSID}" htb \
+            rate "$DN_GUAR_RATE" ceil "$DN_CEIL" quantum 1500 2>&1) || {
             TC_FAILED=1
-            log_err "tc: failed download class 1:${DN_CLASSID} on ifb0"
-        else
+            log_err "tc: failed download class 1:${DN_CLASSID} on ifb0 — $tc_err"
+            echo "[ERR] tc: dl class 1:${DN_CLASSID} failed — $tc_err" >&2
+        }
+        if [[ "$TC_FAILED" -eq 0 ]]; then
             log_msg "tc: download 1:${DN_CLASSID} under $local_parent on ifb0 (rate=$DN_GUAR_RATE ceil=$DN_CEIL)"
 
             # fw filter: match mark set by nft → assign to user class
@@ -444,11 +458,24 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
             local_parent="1:1"
         fi
 
-        if ! tc class add dev ifb1 parent "$local_parent" classid "1:${UP_CLASSID}" htb \
-            rate "$UP_GUAR_RATE" ceil "$UP_CEIL" quantum 1500 2>/dev/null; then
+        # Validate: user rate/ceil must not exceed pool ceil
+        if [[ "$POOL_CEIL_UP" -gt 0 ]]; then
+            if [[ "$UP_KBPS" -gt "$POOL_CEIL_UP" ]]; then
+                log_msg "tc: WARNING user UP rate ${UP_KBPS}k exceeds pool ceil ${POOL_CEIL_UP}k — capping to ${POOL_CEIL_UP}k"
+                echo "[WARN] tc: user UP ${UP_KBPS}k > pool ceil ${POOL_CEIL_UP}k — capped" >&2
+                UP_RATE="${POOL_CEIL_UP}kbit"
+                UP_CEIL="${POOL_CEIL_UP}kbit"
+                UP_GUAR_RATE="${POOL_CEIL_UP}kbit"
+            fi
+        fi
+
+        tc_err=$(tc class add dev ifb1 parent "$local_parent" classid "1:${UP_CLASSID}" htb \
+            rate "$UP_GUAR_RATE" ceil "$UP_CEIL" quantum 1500 2>&1) || {
             TC_FAILED=1
-            log_err "tc: failed upload class 1:${UP_CLASSID} on ifb1"
-        else
+            log_err "tc: failed upload class 1:${UP_CLASSID} on ifb1 — $tc_err"
+            echo "[ERR] tc: ul class 1:${UP_CLASSID} failed — $tc_err" >&2
+        }
+        if [[ "$TC_FAILED" -eq 0 ]]; then
             log_msg "tc: upload 1:${UP_CLASSID} under $local_parent on ifb1 (rate=$UP_GUAR_RATE ceil=$UP_CEIL)"
 
             if ! tc filter add dev ifb1 parent 1: protocol ip pref "$FW_PREF" fw \
