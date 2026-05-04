@@ -136,3 +136,38 @@ Stage Summary:
 - Re-login no longer blocked by orphan interim-update rows
 - Session engine self-heals: sweeps orphan rows every cycle
 - Session limit check only counts real active sessions (excludes audit rows)
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Fix false stale detection — wrong nft table name in isIPAuthenticated()
+
+Work Log:
+- User reported: session engine says "IP not in nftables" but IP IS in nftables
+  (loggedinusers, usersset, counter rules all present for 192.168.100.35)
+- Login succeeds, but within 60 seconds session engine marks session as stale
+- Root cause: isIPAuthenticated() and deauthIP() used hardcoded table name
+  'inet staysuite_mangle' but the actual nft table is 'inet mangle'
+  (created by staysuite_login.sh which uses 'nft add element inet mangle ...')
+- doesAuthenticatedSetExist() was unaffected because it uses 'nft list sets'
+  which is table-agnostic — so set-exists check passed but element lookup failed
+- The failed 'nft get element inet staysuite_mangle loggedinusers' throws an error,
+  caught by the catch block which returns false → false stale detection triggers
+- Fixed nftables-counters.ts:
+  - Added getMangleTableName() — dynamically detects the table name containing
+    'loggedinusers' set by parsing 'nft list sets' output line by line
+  - Falls back to 'mangle' (matching shell scripts) if detection fails
+  - Result cached for 60s to minimize exec calls
+  - isIPAuthenticated() now uses getMangleTableName() instead of hardcoded name
+  - deauthIP() also uses getMangleTableName()
+- Updated session-engine.ts warning message: 'authenticated_users' → 'loggedinusers',
+  'staysuite_mangle table' → 'inet mangle table'
+- Committed and pushed: d4054e77
+
+Stage Summary:
+- FALSE STALE DETECTION ROOT CAUSE FIXED: wrong table name was causing every
+  isIPAuthenticated() call to fail, marking all sessions as stale within 60s
+- Table name is now detected dynamically from nft list sets — works regardless
+  of whether the table is named 'mangle', 'staysuite_mangle', or anything else
+- deauthIP() also fixed — disconnect flow now correctly removes IP from the set
+- Warning messages now reference correct set/table names for accurate debugging
