@@ -135,15 +135,25 @@ export async function POST(request: NextRequest) {
     // ── Resolve property from portal slug ──
     let propertyId: string | null = null;
     let tenantId: string | null = null;
+    let autoAuthEnabled = true; // Default: allow auto-auth unless explicitly disabled
 
     if (portalSlug) {
       const portal = await db.captivePortal.findUnique({
         where: { slug: portalSlug },
-        select: { propertyId: true, tenantId: true },
+        select: { propertyId: true, tenantId: true, autoAuthEnabled: true, enabled: true },
       });
       if (portal) {
+        // If the portal is disabled or auto-auth is turned off, skip silently
+        if (!portal.enabled || !portal.autoAuthEnabled) {
+          console.log(`[AutoAuth] Skipped: portal "${portalSlug}" is ${!portal.enabled ? 'disabled' : 'auto-auth disabled'}`);
+          return NextResponse.json(
+            { success: false, error: { code: 'NO_MATCH', message: 'Auto-authentication is disabled for this portal' } },
+            { status: 404 }
+          );
+        }
         propertyId = portal.propertyId;
         tenantId = portal.tenantId;
+        autoAuthEnabled = portal.autoAuthEnabled;
       }
     }
 

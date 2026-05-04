@@ -104,6 +104,7 @@ export async function POST(request: NextRequest) {
       roamingMode,
       allowsRoamingFrom,
       authMethod,
+      autoAuthEnabled,
       maxBandwidthDown,
       maxBandwidthUp,
       bandwidthPolicy,
@@ -214,6 +215,7 @@ export async function POST(request: NextRequest) {
       zoneData.allowsRoamingFrom = typeof allowsRoamingFrom === 'string' ? allowsRoamingFrom : JSON.stringify(allowsRoamingFrom);
     }
     if (authMethod !== undefined) zoneData.authMethod = authMethod;
+    if (autoAuthEnabled !== undefined) zoneData.autoAuthEnabled = autoAuthEnabled;
     if (maxBandwidthDown !== undefined) zoneData.maxBandwidthDown = parseInt(maxBandwidthDown, 10);
     if (maxBandwidthUp !== undefined) zoneData.maxBandwidthUp = parseInt(maxBandwidthUp, 10);
     if (bandwidthPolicy !== undefined) zoneData.bandwidthPolicy = bandwidthPolicy;

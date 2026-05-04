@@ -284,3 +284,35 @@ Stage Summary:
 - OBSERVABILITY: all counter cleanup operations now logged for debugging
 - The 4 stale counter rules in the user's nftables will be auto-cleaned on next
   session engine cycle (within 60 seconds of pulling this code)
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Add Auto-Auth Enable/Disable Toggle per Captive Portal Zone
+
+Work Log:
+- Analyzed the auto-auth flow: auto-auth route → DeviceProfile lookup → RADIUS auth → firewall activation
+- Analyzed the admin disconnect flow: disconnect route → deactivate DeviceProfile → block future auto-auth
+- Identified user concern: admin disconnect disables auto-auth, guest has no way to re-enable it
+- Added `autoAuthEnabled` Boolean field to CaptivePortal model (default: true)
+- Pushed schema to PostgreSQL via `prisma db push`
+- Updated auto-auth route (`/api/v1/wifi/auto-auth`) to check `autoAuthEnabled` before processing — returns 404 if disabled
+- Updated resolve-zone API (`/api/wifi/portal/resolve-zone`) to include `autoAuthEnabled` in portal config response
+- Updated portal instances API POST/PUT handlers to accept `autoAuthEnabled` field
+- Added Switch toggle to portal zone settings form (between Auth Method and Roaming sections)
+- Added auto-auth indicator badge on zone cards (green "Auto-Reauth" vs muted "No Auto-Reauth")
+- Updated wifi-connect-portal to check `autoAuthEnabled` from config before attempting auto-auth
+- Updated PortalConfig interface to include optional `autoAuthEnabled` field
+
+Stage Summary:
+- **New schema field**: `CaptivePortal.autoAuthEnabled` (Boolean, default true)
+- **6 files modified**:
+  1. `prisma/schema.prisma` — added field
+  2. `src/app/api/v1/wifi/auto-auth/route.ts` — early exit when disabled
+  3. `src/app/api/wifi/portal/resolve-zone/route.ts` — expose in config
+  4. `src/app/api/wifi/portal/instances/route.ts` — accept in create
+  5. `src/app/api/wifi/portal/instances/[id]/route.ts` — accept in update
+  6. `src/components/wifi/portal-page.tsx` — UI toggle + card badge
+  7. `src/app/connect/wifi-connect-portal.tsx` — frontend guard
+- **Counter rule cleanup**: Already implemented in both `logout.sh` step 7c and `staysuite-traffic-counters.sh remove` — the residual counters the user saw were from before these fixes were deployed to the Rocky 10 server
+- **Admin disconnect behavior preserved**: Admin disconnect sets `DeviceProfile.isActive=false`, guest manual re-login sets it back to `true` via upsert

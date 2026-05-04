@@ -629,6 +629,7 @@ interface PortalZone {
   slug: string;
   enabled: boolean;
   isDefault: boolean;
+  autoAuthEnabled: boolean;
   authMethod: string;
   roamingMode: string;
   allowsRoamingFrom: string[];
@@ -647,7 +648,7 @@ const EMPTY_ZONE = {
   name: '', slug: '', authMethod: 'voucher', roamingMode: 'auth_origin',
   allowsRoamingFrom: [] as string[], maxBandwidthDown: 5, maxBandwidthUp: 1,
   bandwidthPolicy: 'zone', nasIdentifier: '', ssidList: [] as string[],
-  maxConcurrent: 200, sessionTimeout: 1440, idleTimeout: 30,
+  maxConcurrent: 200, sessionTimeout: 1440, idleTimeout: 30, autoAuthEnabled: true,
 };
 
 const AUTH_METHODS = [
@@ -713,6 +714,19 @@ function ZoneFormContent({ form, setForm, zones, editZone, ssidInput, setSsidInp
           </Select>
           {form.roamingMode === 'seamless' && <p className="text-[10px] text-muted-foreground">Allow sessions from other zones to roam in</p>}
         </div>
+      </div>
+      {/* Auto-Auth Toggle */}
+      <div className="flex items-center justify-between rounded-lg border p-3">
+        <div className="space-y-0.5">
+          <Label className="text-sm font-medium">Auto-Reauth</Label>
+          <p className="text-[10px] text-muted-foreground">
+            Returning devices silently reconnect without login. Disable to force re-auth after admin disconnect.
+          </p>
+        </div>
+        <Switch
+          checked={form.autoAuthEnabled}
+          onCheckedChange={v => setForm(f => ({ ...f, autoAuthEnabled: v }))}
+        />
       </div>
       {form.roamingMode === 'seamless' && (
         <div className="space-y-2">
@@ -806,6 +820,7 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
     if (data) {
       setZones(data.map((p: any) => ({
         id: p.id, name: p.name, slug: p.slug || '', enabled: p.enabled ?? true, isDefault: p.isDefault ?? false,
+        autoAuthEnabled: p.autoAuthEnabled ?? true,
         authMethod: p.authMethod || 'voucher', roamingMode: p.roamingMode || 'auth_origin',
         allowsRoamingFrom: JSON.parse(p.allowsRoamingFrom || '[]'),
         maxBandwidthDown: Math.round((p.maxBandwidthDown || 5242880) / 1048576),
@@ -867,6 +882,7 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
       maxBandwidthUp: zone.maxBandwidthUp, bandwidthPolicy: zone.bandwidthPolicy,
       nasIdentifier: zone.nasIdentifier, ssidList: [...zone.ssidList],
       maxConcurrent: zone.maxConcurrent, sessionTimeout: zone.sessionTimeout, idleTimeout: zone.idleTimeout,
+      autoAuthEnabled: zone.autoAuthEnabled,
     });
     setSsidInput('');
     setEditOpen(true);
@@ -887,6 +903,7 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
         maxConcurrent: form.maxConcurrent,
         sessionTimeout: form.sessionTimeout * 60,
         idleTimeout: form.idleTimeout * 60,
+        autoAuthEnabled: form.autoAuthEnabled,
         enabled: true,
       }),
     });
@@ -908,6 +925,7 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
         maxConcurrent: form.maxConcurrent,
         sessionTimeout: form.sessionTimeout * 60,
         idleTimeout: form.idleTimeout * 60,
+        autoAuthEnabled: form.autoAuthEnabled,
       }),
     });
     if (!error) { toast({ title: 'Zone updated', description: `${form.name} saved` }); await fetchPortals(); onPortalsChanged?.(); setEditOpen(false); }
@@ -975,6 +993,9 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
                   {authDef && <Badge variant="secondary" className={cn('text-[10px]', authDef.color)}>{authDef.label}</Badge>}
                   <Badge variant="outline" className="text-[10px]">↓ {zone.maxBandwidthDown} Mbps</Badge>
                   <Badge variant="outline" className="text-[10px]">↑ {zone.maxBandwidthUp} Mbps</Badge>
+                  <Badge variant={zone.autoAuthEnabled ? 'outline' : 'secondary'} className={cn('text-[10px]', zone.autoAuthEnabled ? 'border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400' : 'text-muted-foreground')}>
+                    {zone.autoAuthEnabled ? '🔄 Auto-Reauth' : '🔒 No Auto-Reauth'}
+                  </Badge>
                 </div>
 
                 {/* SSIDs */}

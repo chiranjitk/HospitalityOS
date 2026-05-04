@@ -130,6 +130,7 @@ interface PortalConfig {
   slug: string;
   authMethod: string;
   sessionTimeout: number;
+  autoAuthEnabled?: boolean;
   maxBandwidthDown: number;
   maxBandwidthUp: number;
   design: PortalDesignConfig;
@@ -2052,12 +2053,17 @@ function PortalContent() {
 
   // ── After portal config loads, attempt auto-auth ──
   useEffect(() => {
+    // Skip auto-auth if portal has it disabled (admin toggle)
+    if (portalConfig?.autoAuthEnabled === false) {
+      console.log('[Portal] Auto-auth disabled for this portal, showing login form');
+      return;
+    }
     if (portalConfig?.slug && !autoAuthAttempted && state === 'auth_form') {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setAutoAuthAttempted(true);
       attemptAutoAuth(portalConfig.slug);
     }
-  }, [portalConfig?.slug, autoAuthAttempted, state, attemptAutoAuth]);
+  }, [portalConfig?.slug, portalConfig?.autoAuthEnabled, autoAuthAttempted, state, attemptAutoAuth]);
 
   // ── Authentication handler ──
   const portalSlug = portalConfig?.slug || 'default';

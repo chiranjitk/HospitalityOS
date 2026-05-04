@@ -135,6 +135,7 @@ async function buildPortalConfig(portalId: string) {
     slug: portal.slug,
     authMethod: portal.authMethod,
     sessionTimeout: portal.sessionTimeout,
+    autoAuthEnabled: portal.autoAuthEnabled ?? true,
     // Convert bytes/sec to Mbps for guest-friendly display
     maxBandwidthDown: Math.round(portal.maxBandwidthDown / 1000000) || 5,
     maxBandwidthUp: Math.round(portal.maxBandwidthUp / 1000000) || 1,
