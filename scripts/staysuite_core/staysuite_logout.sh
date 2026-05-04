@@ -185,6 +185,23 @@ for set_info in $(nft list sets 2>/dev/null | grep -oP 'set \K\S+'); do
     fi
 done
 
+# ─── Step 7c: Clean up per-IP byte counter rules (staysuite_count) ──
+# The staysuite_count table holds anonymous counter rules for interim accounting.
+# Each user gets two rules: user_in_<ip> (download) and user_out_<ip> (upload).
+# Remove ALL matching rules for this IP (handles accumulated duplicates).
+SAFE_IP="${IP//./_}"
+if nft list tables 2>/dev/null | grep -q "staysuite_count"; then
+    counter_handles=$(nft -a list chain inet staysuite_count forward 2>/dev/null \
+        | grep "user_${SAFE_IP}" | grep -oP 'handle \K[0-9]+' | sort -rn || true)
+    counter_count=0
+    for h in $counter_handles; do
+        if nft delete rule inet staysuite_count forward handle "$h" 2>/dev/null; then
+            counter_count=$((counter_count + 1))
+        fi
+    done
+    [[ "$counter_count" -gt 0 ]] && log_msg "nft: cleaned ${counter_count} counter rules from staysuite_count for $IP"
+fi
+
 # ═══════════════════════════════════════════════════════════════════
 #  TC / HTB CLEANUP
 # ═══════════════════════════════════════════════════════════════════

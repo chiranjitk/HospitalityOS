@@ -13,8 +13,31 @@
  */
 
 import { execSync } from 'child_process';
+import * as path from 'path';
 
-const COUNTER_SCRIPT = '/home/z/my-project/scripts/nftables/staysuite-traffic-counters.sh';
+// Counter script path: production uses STAYSUITE_SCRIPTS_DIR (same as login/logout),
+// dev/sandbox falls back to project-relative path.
+const SCRIPTS_DIR = process.env.STAYSUITE_SCRIPTS_DIR || '/usr/local/scripts/staysuite_core';
+const COUNTER_SCRIPT_FALLBACK = path.join(process.cwd(), 'scripts/nftables/staysuite-traffic-counters.sh');
+
+function getCounterScript(): string {
+  const primary = path.join(SCRIPTS_DIR, 'staysuite-traffic-counters.sh');
+  try {
+    require('fs').accessSync(primary, require('fs').constants.R_OK);
+    return primary;
+  } catch {
+    return COUNTER_SCRIPT_FALLBACK;
+  }
+}
+
+// Lazy-resolve counter script path (filesystem check only once)
+let _resolvedCounterScript: string | null = null;
+function getCOUNTER_SCRIPT(): string {
+  if (!_resolvedCounterScript) {
+    _resolvedCounterScript = getCounterScript();
+  }
+  return _resolvedCounterScript;
+}
 
 // One-time availability check — if nft is missing or nftables table can't be
 // created, suppress all subsequent log noise. SessionEngine handles fallback.
@@ -31,7 +54,8 @@ function isNftablesAvailable(): boolean {
   if (_nftablesAvailable !== null) return _nftablesAvailable;
   try {
     execSync('which nft 2>/dev/null', { timeout: 2000 });
-    const result = execSync(`bash ${COUNTER_SCRIPT} setup 2>&1`, {
+    const script = getCOUNTER_SCRIPT();
+    const result = execSync(`bash ${script} setup 2>&1`, {
       encoding: 'utf-8',
       timeout: 5000,
     });
@@ -60,7 +84,7 @@ export interface AllByteCounts {
 export function setupCounterTable(): boolean {
   if (!isNftablesAvailable()) return false;
   try {
-    execSync(`bash ${COUNTER_SCRIPT} setup 2>&1`, {
+    execSync(`bash ${getCOUNTER_SCRIPT()} setup 2>&1`, {
       encoding: 'utf-8',
       timeout: 5000,
     });
@@ -77,7 +101,7 @@ export function setupCounterTable(): boolean {
 export function addUserCounter(ip: string): boolean {
   if (!isNftablesAvailable()) return false;
   try {
-    execSync(`bash ${COUNTER_SCRIPT} add ${ip} 2>&1`, {
+    execSync(`bash ${getCOUNTER_SCRIPT()} add ${ip} 2>&1`, {
       encoding: 'utf-8',
       timeout: 5000,
     });
@@ -94,7 +118,7 @@ export function addUserCounter(ip: string): boolean {
 export function removeUserCounter(ip: string): boolean {
   if (!isNftablesAvailable()) return false;
   try {
-    execSync(`bash ${COUNTER_SCRIPT} remove ${ip} 2>&1`, {
+    execSync(`bash ${getCOUNTER_SCRIPT()} remove ${ip} 2>&1`, {
       encoding: 'utf-8',
       timeout: 5000,
     });
@@ -111,7 +135,7 @@ export function removeUserCounter(ip: string): boolean {
 export function readUserCounter(ip: string): IPByteCount | null {
   if (!isNftablesAvailable()) return null;
   try {
-    const output = execSync(`bash ${COUNTER_SCRIPT} read ${ip} 2>&1`, {
+    const output = execSync(`bash ${getCOUNTER_SCRIPT()} read ${ip} 2>&1`, {
       encoding: 'utf-8',
       timeout: 5000,
     });
@@ -137,7 +161,7 @@ export function readUserCounter(ip: string): IPByteCount | null {
 export function readAllCounters(): AllByteCounts {
   if (!isNftablesAvailable()) return { counts: [], timestamp: new Date() };
   try {
-    const output = execSync(`bash ${COUNTER_SCRIPT} read-all 2>&1`, {
+    const output = execSync(`bash ${getCOUNTER_SCRIPT()} read-all 2>&1`, {
       encoding: 'utf-8',
       timeout: 10000,
     });
@@ -173,7 +197,7 @@ export function readAllCounters(): AllByteCounts {
 export function flushAllCounters(): boolean {
   if (!isNftablesAvailable()) return false;
   try {
-    execSync(`bash ${COUNTER_SCRIPT} flush 2>&1`, {
+    execSync(`bash ${getCOUNTER_SCRIPT()} flush 2>&1`, {
       encoding: 'utf-8',
       timeout: 5000,
     });
@@ -197,7 +221,9 @@ export function doesAuthenticatedSetExist(): boolean {
       encoding: 'utf-8',
       timeout: 3000,
     });
-    _authSetExists = output.includes('authenticated_users');
+    // Check for the actual nft set name used by login/logout scripts.
+    // The set is created as 'loggedinusers' in staysuite_login.sh.
+    _authSetExists = output.includes('loggedinusers');
   } catch {
     _authSetExists = false;
   }
@@ -222,7 +248,7 @@ export function isIPAuthenticated(ip: string): boolean {
 
   try {
     const output = execSync(
-      `nft get element inet staysuite_mangle authenticated_users "{ ${ip} }" 2>&1`,
+      `nft get element inet staysuite_mangle loggedinusers "{ ${ip} }" 2>&1`,
       { encoding: 'utf-8', timeout: 3000 }
     );
     return output.includes(ip);
@@ -238,7 +264,7 @@ export function isIPAuthenticated(ip: string): boolean {
 export function deauthIP(ip: string): boolean {
   try {
     execSync(
-      `nft delete element inet staysuite_mangle authenticated_users "{ ${ip} }" 2>/dev/null`,
+      `nft delete element inet staysuite_mangle loggedinusers "{ ${ip} }" 2>/dev/null`,
       { encoding: 'utf-8', timeout: 3000 }
     );
     return true;

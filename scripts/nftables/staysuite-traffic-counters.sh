@@ -18,7 +18,7 @@
 #    staysuite-traffic-counters.sh setup         — Create counter table + chain
 #    staysuite-traffic-counters.sh teardown      — Remove counter table
 #    staysuite-traffic-counters.sh add <ip>      — Add counter rules for user
-#    staysuite-traffic-counters.sh remove <ip>   — Remove counter rules for user
+#    staysuite-traffic-counters.sh remove <ip>   — Remove ALL counter rules for user
 #    staysuite-traffic-counters.sh read <ip>     — Read byte counts for user
 #    staysuite-traffic-counters.sh read-all      — Read byte counts for ALL users
 #    staysuite-traffic-counters.sh flush         — Remove all counter rules
@@ -30,9 +30,13 @@
 #    # Output: 192.168.1.100 1234567 987654
 #    #         (ip download_bytes upload_bytes)
 #
+#  NOTE: The logout script (staysuite_logout.sh) also performs counter
+#  cleanup independently via nft handle scanning. This script is used by
+#  the TypeScript session engine for read/add/remove operations.
+#
 ###########################################################################
 
-set -euo pipefail
+set -uo pipefail
 
 LOG_TAG="staysuite-counters"
 LOG_FILE="${STAYSUITE_DIR:-/usr/local/staysuite}/logs/counters.log"
@@ -105,10 +109,20 @@ cmd_add() {
     local safe_ip
     safe_ip=$(ip_to_counter_name "$ip")
 
-    # Check if rules already exist
-    if nft list chain inet staysuite_count forward -a 2>/dev/null | grep -q "user_in_${safe_ip}"; then
-        log "WARN" "Counter rules already exist for $ip, skipping"
-        return 0
+    # ── BUG FIX: Check for EXISTING rules and clean them up first ──
+    # Previously, if rules existed from a prior session (logout didn't clean),
+    # the duplicate check would find user_in_ and skip — leaving stale rules.
+    # Now: if ANY rules exist for this IP, remove them all first, then add fresh.
+    local existing_handles
+    existing_handles=$(nft -a list chain inet staysuite_count forward 2>/dev/null | \
+        grep "user_${safe_ip}" | \
+        grep -oP 'handle \K[0-9]+' | sort -rn || true)
+
+    if [[ -n "$existing_handles" ]]; then
+        log "WARN" "Found ${#existing_handles[@]} stale counter rules for $ip — cleaning up before add"
+        for handle in $existing_handles; do
+            nft delete rule inet staysuite_count forward handle "$handle" 2>/dev/null || true
+        done
     fi
 
     # Add download counter: traffic TO this user (dst = user IP)
@@ -133,24 +147,27 @@ cmd_remove() {
     local safe_ip
     safe_ip=$(ip_to_counter_name "$ip")
 
-    # Remove by handle — find rules with our counter names
-    # nft -a list shows handles, we use the counter name to identify
+    # Remove by handle — find ALL rules with our counter names
+    # Matches both user_in_<ip> and user_out_<ip>
     local handles
     handles=$(nft -a list chain inet staysuite_count forward 2>/dev/null | \
         grep "user_${safe_ip}" | \
-        grep -oP 'handle \K[0-9]+' || true)
+        grep -oP 'handle \K[0-9]+' | sort -rn || true)
 
     if [ -z "$handles" ]; then
         log "WARN" "No counter rules found for $ip"
         return 0
     fi
 
+    local count=0
     # Remove rules in reverse handle order (highest first) to avoid handle shift
-    for handle in $(echo "$handles" | sort -rn); do
-        nft delete rule inet staysuite_count forward handle "$handle" 2>/dev/null || true
+    for handle in $handles; do
+        if nft delete rule inet staysuite_count forward handle "$handle" 2>/dev/null; then
+            count=$((count + 1))
+        fi
     done
 
-    log "INFO" "Counter rules removed for $ip"
+    log "INFO" "Removed ${count} counter rules for $ip"
 }
 
 cmd_read() {
@@ -169,19 +186,19 @@ cmd_read() {
     local download_bytes=0
     local upload_bytes=0
 
-    # Extract download bytes (counter for dst=ip → user_in)
-    local download_match
-    download_match=$(echo "$output" | grep "user_in_${safe_ip}" | grep -oP 'bytes \K[0-9]+' || true)
-    if [ -n "$download_match" ]; then
-        download_bytes="$download_match"
-    fi
+    # ── BUG FIX: Sum ALL matching rules (handles accumulated duplicates) ──
+    # Previously, grep -oP only extracted the FIRST match's bytes.
+    # Now we sum all download/upload byte values for this IP.
 
-    # Extract upload bytes (counter for src=ip → user_out)
-    local upload_match
-    upload_match=$(echo "$output" | grep "user_out_${safe_ip}" | grep -oP 'bytes \K[0-9]+' || true)
-    if [ -n "$upload_match" ]; then
-        upload_bytes="$upload_match"
-    fi
+    # Extract ALL download bytes values (counter for dst=ip → user_in)
+    while IFS= read -r val; do
+        [[ -n "$val" ]] && download_bytes=$((download_bytes + val))
+    done < <(echo "$output" | grep "user_in_${safe_ip}" | grep -oP 'bytes \K[0-9]+' || true)
+
+    # Extract ALL upload bytes values (counter for src=ip → user_out)
+    while IFS= read -r val; do
+        [[ -n "$val" ]] && upload_bytes=$((upload_bytes + val))
+    done < <(echo "$output" | grep "user_out_${safe_ip}" | grep -oP 'bytes \K[0-9]+' || true)
 
     # Output format: ip download_bytes upload_bytes
     echo "$ip $download_bytes $upload_bytes"
@@ -227,9 +244,9 @@ Usage: staysuite-traffic-counters.sh <command> [args]
 Commands:
   setup              Create counter table and chain (run once at startup)
   teardown           Remove counter table entirely
-  add <ip>           Add counter rules for a user IP
-  remove <ip>        Remove counter rules for a user IP
-  read <ip>          Read byte counts: ip download_bytes upload_bytes
+  add <ip>           Add counter rules for a user IP (cleans stale rules first)
+  remove <ip>        Remove ALL counter rules for a user IP
+  read <ip>          Read byte counts (sums accumulated duplicates): ip download_bytes upload_bytes
   read-all           Read byte counts for ALL tracked users
   flush              Remove all counter rules (keep table)
 
