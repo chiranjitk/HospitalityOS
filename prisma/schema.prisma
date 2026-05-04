@@ -7353,7 +7353,8 @@ model LicenseKey {
 /// Matching priority:
 ///   1. storageToken  (localStorage cookie — most reliable, survives MAC change)
 ///   2. fingerprintHash (hardware fingerprint — fallback when storage cleared)
-///   3. No match → show login form
+///   3. macAddress (MAC-based synthetic fingerprint — fallback on HTTP where crypto.subtle unavailable)
+///   No match → show login form
 ///
 /// Browser compatibility (HTTP captive portal):
 ///   ✅ localStorage   — Chrome, Safari, Firefox, Edge, Android WebView
@@ -7413,6 +7414,7 @@ model DeviceProfile {
   @@unique([storageToken, propertyId])
   @@index([wifiUserId])
   @@index([guestId])
+  @@index([macAddress])
   @@index([tenantId, propertyId, lastSeenAt])
   @@index([isActive])
 }

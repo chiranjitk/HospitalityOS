@@ -171,3 +171,56 @@ Stage Summary:
   of whether the table is named 'mangle', 'staysuite_mangle', or anything else
 - deauthIP() also fixed — disconnect flow now correctly removes IP from the set
 - Warning messages now reference correct set/table names for accurate debugging
+---
+Task ID: 7
+Agent: Main Agent
+Task: Fix Data Down/Up column swap and MAC address DeviceProfile creation
+
+Work Log:
+- User confirmed session engine working (0 stale after d4054e77 fix)
+- User reported two new issues:
+  1. Active Users tab Data Down/Up columns showing reversed (download in upload, upload in download)
+  2. MAC address not saved in DeviceProfile ("No client fingerprint provided — skipping DeviceProfile creation")
+  3. MAC capture already working — captive-redirect passes ?mac=XX:XX:XX:XX:XX:XX, login script receives -m flag
+
+- Fixed Data Down/Up swap in src/app/api/wifi/radius/route.ts:
+  - RADIUS convention: Acct-Input-Octets = client→NAS (UPLOAD), Acct-Output-Octets = NAS→client (DOWNLOAD)
+  - Fixed 4 places where acctinputoctets/acctoutputoctets were mapped backwards:
+    1. Live sessions list (radacct source): lines 828-829
+    2. Live sessions list (LiveSession/proxy source): lines 872-873
+    3. Per-NAS stats totals: lines 922-923
+    4. User usage summary: lines 1389-1390
+  - Note: user sessions history (lines 1343-1344) was already correct
+  - Note: freeradius-service already maps correctly (totalDown=SUM(currentOutputBytes))
+
+- Fixed MAC address / DeviceProfile creation in src/app/api/v1/wifi/auth/route.ts:
+  - Root cause: upsertDeviceProfileWithFingerprint() returns early when no fingerprintHash
+  - On HTTP connections, crypto.subtle unavailable → browser fingerprint generation fails
+  - Solution: Added syntheticFingerprintFromMac() — generates SHA-256 hash from "syn-mac:{normalizedMAC}"
+  - Priority: real browser fingerprint → MAC-based synthetic → skip (defer to auto-auth)
+  - Prefix "syn-mac:" prevents collision with real browser fingerprints
+  - Update clause handles fingerprint upgrade: synthetic→real on subsequent auth
+
+- Enhanced auto-auth with Strategy 3 (MAC-based matching) in src/app/api/v1/wifi/auto-auth/route.ts:
+  - Strategy 1: storageToken (localStorage)
+  - Strategy 2: fingerprintHash (browser fingerprint)
+  - Strategy 3: macAddress (new — matches DeviceProfile by MAC address)
+  - Relaxed validation: accepts fingerprint OR token OR MAC (was fingerprint-only)
+  - Fixed log line crash when fingerprintHash is null
+
+- Updated portal frontend (wifi-connect-portal.tsx):
+  - attemptAutoAuth() now gracefully handles fingerprint generation failure
+  - Still sends MAC address in auto-auth request even without fingerprint
+  - Added clientMac to useCallback dependency array
+
+- Added @@index([macAddress]) to DeviceProfile model in prisma/schema.prisma
+  - Needed for efficient Strategy 3 query on PostgreSQL
+
+Stage Summary:
+- DATA DOWN/UP SWAP FIXED: all 4 RADIUS octets mappings corrected in radius API
+- MAC ADDRESS CAPTURE NOW WORKS end-to-end:
+  - captive-redirect detects MAC via DHCP/ARP
+  - Portal passes MAC in ?mac= query param
+  - Auth route creates DeviceProfile with synthetic fingerprint from MAC
+  - Auto-auth Strategy 3 matches by MAC for silent re-auth on HTTP
+  - MAC displayed in Active Users table + DeviceProfile

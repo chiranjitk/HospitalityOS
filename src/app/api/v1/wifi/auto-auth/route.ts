@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import { radiusAuth, getRejectMessage } from '@/lib/wifi/utils/radius-auth';
 import { addUserCounter } from '@/lib/wifi/utils/nftables-counters';
 
@@ -89,8 +89,11 @@ function resolveAllowedPoolIds(
 // Silent re-authentication for returning devices.
 //
 // Flow:
-//   1. Receive fingerprintHash + optional storageToken + portalSlug
-//   2. Look up DeviceProfile by storageToken (most reliable) OR fingerprintHash
+//   1. Receive fingerprintHash + optional storageToken + macAddress + portalSlug
+//   2. Look up DeviceProfile by:
+//      Strategy 1: storageToken (most reliable — set via localStorage)
+//      Strategy 2: fingerprintHash (real browser fingerprint)
+//      Strategy 3: macAddress → synthetic fingerprint (HTTP where crypto.subtle unavailable)
 //   3. If found → verify WiFiUser is still valid (active, not expired)
 //   4. If valid → update DeviceProfile stats → return success (silent re-auth)
 //   5. If not found or expired → return 404 (show login form)
@@ -113,15 +116,15 @@ export async function POST(request: NextRequest) {
     const _createProfile = body._createProfile as boolean | undefined;
     const _wifiUsername = body._wifiUsername as string | undefined;
 
-    // ── Validate required fields ──
-    if (!fingerprintHash) {
+    // ── Validate: need at least one identifier (fingerprint, token, or MAC) ──
+    if (!fingerprintHash && !storageToken && !macAddress) {
       return NextResponse.json(
-        { success: false, error: { code: 'MISSING_FINGERPRINT', message: 'Device fingerprint is required' } },
+        { success: false, error: { code: 'MISSING_IDENTIFIER', message: 'Device fingerprint, storage token, or MAC address is required' } },
         { status: 400 }
       );
     }
 
-    console.log(`[AutoAuth] Received: fp=${fingerprintHash.substring(0, 16)}... token=${storageToken ? storageToken.substring(0, 8) + '...' : 'null'} slug=${portalSlug || 'none'}`);
+    console.log(`[AutoAuth] Received: fp=${fingerprintHash ? fingerprintHash.substring(0, 16) + '...' : 'null'} token=${storageToken ? storageToken.substring(0, 8) + '...' : 'null'} mac=${macAddress || 'null'} slug=${portalSlug || 'none'}`);
 
     // ── Resolve property from portal slug ──
     let propertyId: string | null = null;
@@ -168,7 +171,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Strategy 2: Match by fingerprintHash (fallback when storage cleared)
-    if (!deviceProfile) {
+    if (!deviceProfile && fingerprintHash) {
       console.log(`[AutoAuth] Strategy 1 (token) failed, trying Strategy 2 (fingerprint)`);
       deviceProfile = await db.deviceProfile.findFirst({
         where: {
@@ -192,6 +195,43 @@ export async function POST(request: NextRequest) {
           },
         },
       });
+    }
+
+    // Strategy 3: Match by MAC address (synthetic fingerprint for HTTP/no-crypto.subtle)
+    if (!deviceProfile && macAddress) {
+      const normalizedMac = macAddress.replace(/[:\-\.\s]/g, '').toUpperCase();
+      const formattedMac = normalizedMac.length === 12
+        ? normalizedMac.match(/.{2}/g)?.join(':') || null
+        : null;
+      if (formattedMac) {
+        // Match by macAddress directly on DeviceProfile
+        console.log(`[AutoAuth] Strategy 2 (fingerprint) failed, trying Strategy 3 (MAC: ${formattedMac})`);
+        deviceProfile = await db.deviceProfile.findFirst({
+          where: {
+            macAddress: formattedMac,
+            isActive: true,
+            ...(propertyId ? { propertyId } : {}),
+          },
+          include: {
+            wifiUser: {
+              select: {
+                id: true,
+                username: true,
+                status: true,
+                validUntil: true,
+                validFrom: true,
+                password: true,
+                ipPoolId: true,
+                plan: { select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, validityDays: true, validityMinutes: true, ipPoolId: true } },
+                property: { select: { id: true, name: true, tenantId: true } },
+              },
+            },
+          },
+        });
+        if (deviceProfile) {
+          console.log(`[AutoAuth] Strategy 3 (MAC) matched: ${deviceProfile.fingerprintHash.substring(0, 16)}... for user ${deviceProfile.wifiUser?.username}`);
+        }
+      }
     }
 
     // ── No match found ──

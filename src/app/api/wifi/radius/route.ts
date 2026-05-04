@@ -825,8 +825,9 @@ export async function GET(request: NextRequest) {
               bandwidthDown: s.downloadspeed != null ? `${Number(s.downloadspeed)} Mbps` : null,
               bandwidthUp: s.uploadspeed != null ? `${Number(s.uploadspeed)} Mbps` : null,
               sessionTime: Number(s.acctsessiontime || 0),
-              dataDownload: Number(s.acctinputoctets || 0),
-              dataUpload: Number(s.acctoutputoctets || 0),
+              // RADIUS: acctoutputoctets = NAS→client (download), acctinputoctets = client→NAS (upload)
+              dataDownload: Number(s.acctoutputoctets || 0),
+              dataUpload: Number(s.acctinputoctets || 0),
               status: 'active' as const,
               startedAt: s.acctstarttime || '',
               lastSeenAt: s.acctupdatetime || '',
@@ -869,8 +870,9 @@ export async function GET(request: NextRequest) {
                 bandwidthDown: s.bandwidthDown ? `${s.bandwidthDown} Mbps` : null,
                 bandwidthUp: s.bandwidthUp ? `${s.bandwidthUp} Mbps` : null,
                 sessionTime: s.currentSessionTime || 0,
-                dataDownload: s.currentInputBytes || 0,
-                dataUpload: s.currentOutputBytes || 0,
+                // LiveSession: currentOutputBytes = download, currentInputBytes = upload
+                dataDownload: s.currentOutputBytes || 0,
+                dataUpload: s.currentInputBytes || 0,
                 status: s.status || 'active',
                 startedAt: s.startedAt || '',
                 lastSeenAt: s.lastInterimUpdate || s.updatedAt || '',
@@ -919,8 +921,8 @@ export async function GET(request: NextRequest) {
           let totalUpload = 0;
 
           for (const r of activeRecords) {
-            totalDownload += Number(r.acctinputoctets);
-            totalUpload += Number(r.acctoutputoctets);
+            totalDownload += Number(r.acctoutputoctets);
+            totalUpload += Number(r.acctinputoctets);
             const key = r.nasipaddress || 'unknown';
             const existing = nasMap.get(key);
             if (existing) {
@@ -1386,8 +1388,8 @@ export async function GET(request: NextRequest) {
             }));
 
           // Summary stats — BigInt-safe
-          const totalDownloadBytes = userRecords.reduce((s, r) => s + Number(r.acctinputoctets ?? 0), 0);
-          const totalUploadBytes = userRecords.reduce((s, r) => s + Number(r.acctoutputoctets ?? 0), 0);
+          const totalDownloadBytes = userRecords.reduce((s, r) => s + Number(r.acctoutputoctets ?? 0), 0);
+          const totalUploadBytes = userRecords.reduce((s, r) => s + Number(r.acctinputoctets ?? 0), 0);
           const totalSessionTime = userRecords.reduce((s, r) => s + Number(r.acctsessiontime ?? 0), 0);
           const activeSessions = userRecords.filter(r => !r.acctstoptime).length;
 

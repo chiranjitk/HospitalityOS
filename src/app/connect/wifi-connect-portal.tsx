@@ -1957,13 +1957,21 @@ function PortalContent() {
   // ── Attempt silent auto-auth for returning devices ──
   // Called after portal config is loaded. Checks if this device has a
   // saved fingerprint/storageToken that matches a known DeviceProfile.
+  // Falls back to MAC-based matching when browser fingerprint is unavailable (HTTP/no-crypto.subtle).
   const attemptAutoAuth = useCallback(
     async (slug: string) => {
       try {
         // Use pre-generated fingerprint, or generate fresh if not ready yet
-        const fp = preGeneratedFingerprint
-          ? { hash: preGeneratedFingerprint, signals: { signalCount: 0 } as any, collectionTimeMs: 0 }
-          : await generateFingerprint();
+        let fpHash: string | null = preGeneratedFingerprint || null;
+        if (!fpHash) {
+          try {
+            const fp = await generateFingerprint();
+            fpHash = fp.hash;
+            setPreGeneratedFingerprint(fp.hash); // Cache for future use
+          } catch {
+            console.warn('[Portal] Fingerprint generation failed — will try MAC-based auto-auth');
+          }
+        }
 
         // Ensure storageToken exists (create if needed)
         let storageToken = getStorageToken();
@@ -1972,17 +1980,16 @@ function PortalContent() {
         }
 
         console.log('[Portal] Auto-auth attempt:', {
-          fingerprintPrefix: fp.hash.substring(0, 12) + '...',
+          fingerprintPrefix: fpHash ? fpHash.substring(0, 12) + '...' : 'none',
           hasStorageToken: !!storageToken,
-          signalsCollected: fp.signals.signalCount,
-          collectionTime: fp.collectionTimeMs + 'ms',
+          macAddress: clientMac || 'none',
         });
 
         const res = await fetch('/api/v1/wifi/auto-auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            fingerprintHash: fp.hash,
+            fingerprintHash: fpHash || undefined,
             storageToken: storageToken || undefined,
             portalSlug: slug,
             macAddress: clientMac || undefined,
@@ -2005,7 +2012,7 @@ function PortalContent() {
         return false;
       }
     },
-    [preGeneratedFingerprint]
+    [preGeneratedFingerprint, clientMac]
   );
 
   // ── Fetch portal config on mount — IP-based auto-resolution ──
