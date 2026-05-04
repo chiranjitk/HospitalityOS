@@ -385,7 +385,9 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
         fi
 
         # Check if pool class already exists
-        if tc class show dev "$dev" classid "1:${POOL_ID}" >/dev/null 2>&1; then
+        # NOTE: "tc class show ... classid X" returns exit 0 even when class
+        # does NOT exist — must pipe through grep -q . to check for output
+        if tc class show dev "$dev" classid "1:${POOL_ID}" 2>/dev/null | grep -q .; then
             log_msg "tc: pool root 1:${POOL_ID} already exists on $dev (rate=$prate ceil=$pceil)"
         else
             if tc class add dev "$dev" parent 1:1 classid "1:${POOL_ID}" htb \

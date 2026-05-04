@@ -89,15 +89,28 @@ case "$CMD" in
             [[ "$dev" == "ifb1" ]] && { rate="$UP_RATE"; ceil="$UP_CEIL"; }
             [[ "$rate" -le 0 ]] && continue
 
-            if tc class show dev "$dev" classid "1:${POOL_ID}" >/dev/null 2>&1; then
+            # NOTE: "tc class show ... classid X" returns exit 0 even when the class
+            # does NOT exist — must check if output is non-empty via grep -q .
+            if tc class show dev "$dev" classid "1:${POOL_ID}" 2>/dev/null | grep -q .; then
                 log_msg "pool 1:${POOL_ID} already exists on $dev — updating"
-                tc class change dev "$dev" parent 1:1 classid "1:${POOL_ID}" htb \
-                    rate "${rate}kbit" ceil "${ceil}kbit" quantum 1500 2>/dev/null \
-                    && log_msg "pool 1:${POOL_ID} updated on $dev (rate=${rate}kbit ceil=${ceil}kbit)"
+                if tc class change dev "$dev" parent 1:1 classid "1:${POOL_ID}" htb \
+                    rate "${rate}kbit" ceil "${ceil}kbit" quantum 1500 2>/dev/null; then
+                    log_msg "pool 1:${POOL_ID} updated on $dev (rate=${rate}kbit ceil=${ceil}kbit)"
+                else
+                    log_err "pool 1:${POOL_ID} change FAILED on $dev (class may not exist despite check — trying add)"
+                    tc class add dev "$dev" parent 1:1 classid "1:${POOL_ID}" htb \
+                        rate "${rate}kbit" ceil "${ceil}kbit" quantum 1500 2>/dev/null \
+                        && log_msg "pool 1:${POOL_ID} fallback-add on $dev (rate=${rate}kbit ceil=${ceil}kbit)" \
+                        || log_err "pool 1:${POOL_ID} add also FAILED on $dev"
+                fi
             else
-                tc class add dev "$dev" parent 1:1 classid "1:${POOL_ID}" htb \
-                    rate "${rate}kbit" ceil "${ceil}kbit" quantum 1500 2>/dev/null \
-                    && log_msg "pool 1:${POOL_ID} created on $dev (rate=${rate}kbit ceil=${ceil}kbit)"
+                if tc class add dev "$dev" parent 1:1 classid "1:${POOL_ID}" htb \
+                    rate "${rate}kbit" ceil "${ceil}kbit" quantum 1500 2>/dev/null; then
+                    log_msg "pool 1:${POOL_ID} created on $dev (rate=${rate}kbit ceil=${ceil}kbit)"
+                else
+                    log_err "pool 1:${POOL_ID} create FAILED on $dev"
+                    exit 1
+                fi
             fi
         done
         ;;
