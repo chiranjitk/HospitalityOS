@@ -209,7 +209,7 @@ export async function GET(request: NextRequest) {
 
           const conditions: string[] = [];
           const sqlParams: unknown[] = [];
-          if (propertyId) { conditions.push(`"propertyId" = $${sqlParams.length + 1}`); sqlParams.push(propertyId); }
+          if (propertyId) { conditions.push(`"propertyId" = $${sqlParams.length + 1}::uuid`); sqlParams.push(propertyId); }
           if (status) { conditions.push(`vw.status = $${sqlParams.length + 1}`); sqlParams.push(status); }
           const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 

@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
           EXTRACT(HOUR FROM "startTime" AT TIME ZONE 'UTC')::int as hour,
           COUNT(*)::bigint as count
         FROM "WiFiSession"
-        WHERE "tenantId" = ${tenantId}
+        WHERE "tenantId" = ${tenantId}::uuid
           AND "startTime" >= ${startDate}
         GROUP BY hour
         ORDER BY hour
