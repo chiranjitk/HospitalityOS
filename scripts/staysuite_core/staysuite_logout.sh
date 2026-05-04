@@ -182,6 +182,12 @@ done
 # ═══════════════════════════════════════════════════════════════════
 #  TC / HTB CLEANUP
 # ═══════════════════════════════════════════════════════════════════
+# NOTE: tc parses classid numbers as HEXADECIMAL (strtoul base 16).
+# Convert decimal classids to hex before passing to tc commands.
+DN_CLASSID_HEX="${DN_CLASSID:-0}"
+UP_CLASSID_HEX="${UP_CLASSID:-0}"
+[[ "$DN_CLASSID_HEX" -gt 0 ]] && DN_CLASSID_HEX="$(printf '%x' "$DN_CLASSID_HEX")"
+[[ "$UP_CLASSID_HEX" -gt 0 ]] && UP_CLASSID_HEX="$(printf '%x' "$UP_CLASSID_HEX")"
 
 # ─── Step 8: Delete fw filter + user class on ifb0 (download) ───────
 if [[ "$DN_CLASSID" -gt 0 ]]; then
@@ -197,8 +203,8 @@ if [[ "$DN_CLASSID" -gt 0 ]]; then
             && log_msg "tc: del fw filter ifb0 by pref $fh"
     }
 
-    tc class del dev ifb0 classid "1:${DN_CLASSID}" 2>/dev/null \
-        && log_msg "tc: del download class 1:${DN_CLASSID} ifb0"
+    tc class del dev ifb0 classid "1:${DN_CLASSID_HEX}" 2>/dev/null \
+        && log_msg "tc: del download class 1:${DN_CLASSID_HEX} ifb0"
 fi
 
 # ─── Step 9: Delete fw filter + user class on ifb1 (upload) ────────
@@ -213,8 +219,8 @@ if [[ "$UP_CLASSID" -gt 0 ]]; then
             && log_msg "tc: del fw filter ifb1 by pref $fh"
     }
 
-    tc class del dev ifb1 classid "1:${UP_CLASSID}" 2>/dev/null \
-        && log_msg "tc: del upload class 1:${UP_CLASSID} ifb1"
+    tc class del dev ifb1 classid "1:${UP_CLASSID_HEX}" 2>/dev/null \
+        && log_msg "tc: del upload class 1:${UP_CLASSID_HEX} ifb1"
 fi
 
 # ─── Step 10: Remove session state files ────────────────────────────

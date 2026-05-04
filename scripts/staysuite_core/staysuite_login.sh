@@ -366,8 +366,15 @@ fi
 
 if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
 
-    log_msg "tc: TC section START — pool=$POOL_ID dn_cls=$DN_CLASSID up_cls=$UP_CLASSID dn=${DN_KBPS}k up=${UP_KBPS}k"
-    echo "[TC] pool=$POOL_ID dn_cls=$DN_CLASSID up_cls=$UP_CLASSID dn=${DN_KBPS}k up=${UP_KBPS}k" >&2
+    # CRITICAL: tc parses ALL classid numbers as HEXADECIMAL (strtoul base 16).
+    # A decimal 24056 becomes hex 0x24056 (147990), which overflows the 16-bit
+    # minor field → corrupts major handle → "invalid class ID" error.
+    # Fix: convert decimal classids to hex strings before passing to tc.
+    DN_CLASSID_HEX="$(printf '%x' "$DN_CLASSID")"
+    UP_CLASSID_HEX="$(printf '%x' "$UP_CLASSID")"
+
+    log_msg "tc: TC section START — pool=$POOL_ID dn_cls=$DN_CLASSID(0x${DN_CLASSID_HEX}) up_cls=$UP_CLASSID(0x${UP_CLASSID_HEX}) dn=${DN_KBPS}k up=${UP_KBPS}k"
+    echo "[TC] pool=$POOL_ID dn_cls=$DN_CLASSID(0x${DN_CLASSID_HEX}) up_cls=$UP_CLASSID(0x${UP_CLASSID_HEX}) dn=${DN_KBPS}k up=${UP_KBPS}k" >&2
 
     # ─── Step 8: Ensure pool root class exists ───────────────────────
     # classid 1:<pool_id> under parent 1:1 on both ifb0 and ifb1
@@ -426,22 +433,22 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
             fi
         fi
 
-        tc_err=$(tc class add dev ifb0 parent "$local_parent" classid "1:${DN_CLASSID}" htb \
+        tc_err=$(tc class add dev ifb0 parent "$local_parent" classid "1:${DN_CLASSID_HEX}" htb \
             rate "$DN_GUAR_RATE" ceil "$DN_CEIL" quantum 1500 2>&1) || {
             TC_FAILED=1
-            log_err "tc: failed download class 1:${DN_CLASSID} on ifb0 — $tc_err"
-            echo "[ERR] tc: dl class 1:${DN_CLASSID} failed — $tc_err" >&2
+            log_err "tc: failed download class 1:${DN_CLASSID_HEX} on ifb0 — $tc_err"
+            echo "[ERR] tc: dl class 1:${DN_CLASSID_HEX} failed — $tc_err" >&2
         }
         if [[ "$TC_FAILED" -eq 0 ]]; then
-            log_msg "tc: download 1:${DN_CLASSID} under $local_parent on ifb0 (rate=$DN_GUAR_RATE ceil=$DN_CEIL)"
+            log_msg "tc: download 1:${DN_CLASSID_HEX} under $local_parent on ifb0 (rate=$DN_GUAR_RATE ceil=$DN_CEIL)"
 
             # fw filter: match mark set by nft → assign to user class
             if ! tc filter add dev ifb0 parent 1: protocol ip pref "$FW_PREF" fw \
-                handle "${MARK}" classid "1:${DN_CLASSID}" 2>/dev/null; then
+                handle "${MARK}" classid "1:${DN_CLASSID_HEX}" 2>/dev/null; then
                 TC_FAILED=1
-                log_err "tc: failed download fw filter $MARK → 1:${DN_CLASSID}"
+                log_err "tc: failed download fw filter $MARK → 1:${DN_CLASSID_HEX}"
             else
-                log_msg "tc: fw filter ifb0 handle $MARK → 1:${DN_CLASSID}"
+                log_msg "tc: fw filter ifb0 handle $MARK → 1:${DN_CLASSID_HEX}"
             fi
         fi
     fi
@@ -469,21 +476,21 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
             fi
         fi
 
-        tc_err=$(tc class add dev ifb1 parent "$local_parent" classid "1:${UP_CLASSID}" htb \
+        tc_err=$(tc class add dev ifb1 parent "$local_parent" classid "1:${UP_CLASSID_HEX}" htb \
             rate "$UP_GUAR_RATE" ceil "$UP_CEIL" quantum 1500 2>&1) || {
             TC_FAILED=1
-            log_err "tc: failed upload class 1:${UP_CLASSID} on ifb1 — $tc_err"
-            echo "[ERR] tc: ul class 1:${UP_CLASSID} failed — $tc_err" >&2
+            log_err "tc: failed upload class 1:${UP_CLASSID_HEX} on ifb1 — $tc_err"
+            echo "[ERR] tc: ul class 1:${UP_CLASSID_HEX} failed — $tc_err" >&2
         }
         if [[ "$TC_FAILED" -eq 0 ]]; then
-            log_msg "tc: upload 1:${UP_CLASSID} under $local_parent on ifb1 (rate=$UP_GUAR_RATE ceil=$UP_CEIL)"
+            log_msg "tc: upload 1:${UP_CLASSID_HEX} under $local_parent on ifb1 (rate=$UP_GUAR_RATE ceil=$UP_CEIL)"
 
             if ! tc filter add dev ifb1 parent 1: protocol ip pref "$FW_PREF" fw \
-                handle "${MARK}" classid "1:${UP_CLASSID}" 2>/dev/null; then
+                handle "${MARK}" classid "1:${UP_CLASSID_HEX}" 2>/dev/null; then
                 TC_FAILED=1
-                log_err "tc: failed upload fw filter $MARK → 1:${UP_CLASSID}"
+                log_err "tc: failed upload fw filter $MARK → 1:${UP_CLASSID_HEX}"
             else
-                log_msg "tc: fw filter ifb1 handle $MARK → 1:${UP_CLASSID}"
+                log_msg "tc: fw filter ifb1 handle $MARK → 1:${UP_CLASSID_HEX}"
             fi
         fi
     fi
