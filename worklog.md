@@ -31,3 +31,26 @@ Stage Summary:
 - Platform admin: platform@staysuite.com / admin123
 - All 6 WiFi plans, 8 WiFi users, RADIUS credentials seeded
 - Complete hospitality demo data seeded (rooms, bookings, guests, etc.)
+
+---
+Task ID: 2
+Agent: Main Setup Agent
+Task: Fix session engine false stale detection + Edge Runtime build warnings
+
+Work Log:
+- Analyzed session engine logs: "Stale session: chiranjitk — IP not in nftables"
+- Root cause: when `nft` is installed but `authenticated_users` nftables set doesn't exist,
+  isIPAuthenticated() always returns false → all sessions marked stale → wiped from GUI
+- Fixed isIPAuthenticated() in nftables-counters.ts to check set existence first
+- Added doesAuthenticatedSetExist() with 60s cache to avoid repeated execSync calls
+- If authenticated_users set doesn't exist, returns true (assume authenticated) as safe fallback
+- Added admin warning log in session-engine.ts when set is missing
+- Added Node.js built-in modules to serverExternalPackages in next.config.ts
+- Added clarifying comments in instrumentation.ts about Turbopack analysis-phase warnings
+- Committed and pushed: 0daaa426
+
+Stage Summary:
+- False stale detection FIXED: sessions no longer wiped when nftables set is missing
+- Edge Runtime warnings MITIGATED: Node.js built-ins added to serverExternalPackages
+- Dev-mode Turbopack warnings are harmless (runtime = 'nodejs' takes effect at runtime)
+- All services verified: PostgreSQL, FreeRADIUS, Next.js all running correctly
