@@ -18,6 +18,18 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
   Network,
   Plus,
   Search,
@@ -37,6 +49,7 @@ import {
   X,
   Globe,
   MapPin,
+  Gauge,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -73,6 +86,22 @@ interface IpPool {
   };
 }
 
+interface BandwidthPool {
+  id: string;
+  tenantId: string;
+  propertyId: string;
+  name: string;
+  subnet: string | null;
+  vlanId: number | null;
+  totalDownloadKbps: number;
+  totalUploadKbps: number;
+  perUserDownloadKbps: number | null;
+  perUserUploadKbps: number | null;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatInet(val: string | null | undefined): string {
@@ -99,6 +128,46 @@ function countTotalIps(ranges: IpPoolRange[]): number {
     }
   }, 0);
 }
+
+/** Convert kbps to human-readable bandwidth string */
+function formatBandwidthKbps(kbps: number): string {
+  if (kbps >= 1000000) {
+    return `${kbps / 1000000} Gbit`;
+  }
+  return `${kbps / 1000} Mbps`;
+}
+
+/** Convert Mbps to kbps */
+function mbpsToKbps(mbps: number): number {
+  return mbps * 1000;
+}
+
+/** Convert kbps to Mbps (for display in form) */
+function kbpsToMbps(kbps: number | null): string {
+  if (kbps === null || kbps === undefined) return '';
+  return String(kbps / 1000);
+}
+
+// Bandwidth presets in Mbps
+const BANDWIDTH_PRESETS = [
+  { value: '100', label: '100 Mbps' },
+  { value: '500', label: '500 Mbps' },
+  { value: '1000', label: '1 Gbit' },
+  { value: '2000', label: '2 Gbit' },
+  { value: '5000', label: '5 Gbit' },
+  { value: '10000', label: '10 Gbit' },
+];
+
+// Per-user bandwidth presets
+const PER_USER_PRESETS = [
+  { value: '10', label: '10 Mbps' },
+  { value: '25', label: '25 Mbps' },
+  { value: '50', label: '50 Mbps' },
+  { value: '100', label: '100 Mbps' },
+  { value: '200', label: '200 Mbps' },
+  { value: '500', label: '500 Mbps' },
+  { value: '1000', label: '1 Gbit' },
+];
 
 // ─── Client-Side IP Validation ──────────────────────────────────────────────
 
@@ -182,6 +251,12 @@ export default function IpPoolManagement() {
   const [expandedPools, setExpandedPools] = useState<Set<string>>(new Set());
   const [rangeErrors, setRangeErrors] = useState<RangeError[]>([]);
 
+  // Bandwidth pool cache (keyed by subnet, populated on expand/edit)
+  const [bandwidthPoolMap, setBandwidthPoolMap] = useState<Record<string, BandwidthPool>>({});
+
+  // Bandwidth section collapse state
+  const [bandwidthSectionOpen, setBandwidthSectionOpen] = useState(false);
+
   // Form state
   const [formData, setFormData] = useState({
     name: '',
@@ -192,11 +267,84 @@ export default function IpPoolManagement() {
     captivePortal: false,
     enabled: true,
     ranges: [{ startIp: '', endIp: '', comment: '' }] as IpPoolRange[],
+    // Bandwidth fields (stored in Mbps in form, converted to kbps for API)
+    totalDownloadKbps: 2000000,  // default 2 Gbit
+    totalUploadKbps: 2000000,    // default 2 Gbit
+    perUserDownloadKbps: null as number | null,   // optional per-user default
+    perUserUploadKbps: null as number | null,     // optional per-user default
   });
 
   const isInitialMount = useRef(true);
 
-  // Fetch pools
+  // ─── Bandwidth Pool API helpers ──────────────────────────────────────────
+
+  /** Fetch all bandwidth pools and index by subnet for quick lookup */
+  const fetchBandwidthPools = useCallback(async () => {
+    try {
+      const res = await fetch('/api/wifi/firewall/bandwidth-pools');
+      const result = await res.json();
+      if (result.success && Array.isArray(result.data)) {
+        const map: Record<string, BandwidthPool> = {};
+        for (const bp of result.data) {
+          if (bp.subnet) {
+            map[bp.subnet] = bp;
+          }
+        }
+        setBandwidthPoolMap(map);
+        return map;
+      }
+    } catch (error) {
+      console.error('Error fetching bandwidth pools:', error);
+    }
+    return bandwidthPoolMap;
+  }, [bandwidthPoolMap]);
+
+  /** Sync bandwidth pool for a given subnet (fire-and-forget) */
+  const syncBandwidthPool = async (subnet: string, poolName: string, propertyId: string | null) => {
+    try {
+      const existingBpMap = await fetchBandwidthPools();
+      const existing = existingBpMap[subnet];
+
+      const payload = {
+        name: poolName,
+        subnet,
+        propertyId: propertyId || undefined,
+        totalDownloadKbps: formData.totalDownloadKbps,
+        totalUploadKbps: formData.totalUploadKbps,
+        perUserDownloadKbps: formData.perUserDownloadKbps,
+        perUserUploadKbps: formData.perUserUploadKbps,
+        enabled: formData.enabled,
+      };
+
+      if (existing) {
+        // Update existing bandwidth pool
+        await fetch(`/api/wifi/firewall/bandwidth-pools/${existing.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } else if (propertyId) {
+        // Create new bandwidth pool (requires propertyId)
+        await fetch('/api/wifi/firewall/bandwidth-pools', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...payload,
+            propertyId,
+          }),
+        });
+      }
+
+      // Refresh cache
+      fetchBandwidthPools();
+    } catch (error) {
+      // Fire-and-forget: don't fail the main operation
+      console.warn('Bandwidth pool sync failed (non-fatal):', error);
+    }
+  };
+
+  // ─── Fetch pools ──────────────────────────────────────────────────────────
+
   const fetchPools = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -234,7 +382,8 @@ export default function IpPoolManagement() {
     return () => clearTimeout(timer);
   }, [searchQuery, fetchPools]);
 
-  // Create pool
+  // ─── Create pool ──────────────────────────────────────────────────────────
+
   const handleCreate = async () => {
     setRangeErrors([]);
     if (!formData.name?.trim()) {
@@ -263,13 +412,23 @@ export default function IpPoolManagement() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
+          name: formData.name,
+          description: formData.description,
+          gateway: formData.gateway,
+          subnet: formData.subnet,
+          isDefault: formData.isDefault,
+          captivePortal: formData.captivePortal,
+          enabled: formData.enabled,
           ranges: validRanges,
         }),
       });
       const result = await res.json();
       if (result.success) {
         toast({ title: 'Success', description: result.message || 'IP pool created successfully' });
+
+        // Fire-and-forget: sync bandwidth pool
+        syncBandwidthPool(formData.subnet, formData.name, result.data?.propertyId);
+
         setIsCreateOpen(false);
         resetForm();
         setRangeErrors([]);
@@ -297,7 +456,8 @@ export default function IpPoolManagement() {
     }
   };
 
-  // Update pool
+  // ─── Update pool ──────────────────────────────────────────────────────────
+
   const handleUpdate = async () => {
     if (!selectedPool) return;
     setRangeErrors([]);
@@ -323,13 +483,23 @@ export default function IpPoolManagement() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: selectedPool.id,
-          ...formData,
+          name: formData.name,
+          description: formData.description,
+          gateway: formData.gateway,
+          subnet: formData.subnet,
+          isDefault: formData.isDefault,
+          captivePortal: formData.captivePortal,
+          enabled: formData.enabled,
           ranges: validRanges,
         }),
       });
       const result = await res.json();
       if (result.success) {
         toast({ title: 'Success', description: result.message || 'IP pool updated successfully' });
+
+        // Fire-and-forget: sync bandwidth pool
+        syncBandwidthPool(formData.subnet, formData.name, selectedPool.propertyId);
+
         setIsEditOpen(false);
         setSelectedPool(null);
         setRangeErrors([]);
@@ -356,7 +526,8 @@ export default function IpPoolManagement() {
     }
   };
 
-  // Delete pool
+  // ─── Delete pool ──────────────────────────────────────────────────────────
+
   const handleDelete = async () => {
     if (!selectedPool) return;
     setIsSaving(true);
@@ -385,10 +556,14 @@ export default function IpPoolManagement() {
     }
   };
 
-  const openEditDialog = (pool: IpPool) => {
+  // ─── Edit dialog with bandwidth pre-fill ─────────────────────────────────
+
+  const openEditDialog = async (pool: IpPool) => {
     setSelectedPool(pool);
     setRangeErrors([]);
-    setFormData({
+
+    // Prepare form data with bandwidth defaults
+    const newFormData = {
       name: pool.name,
       description: pool.description || '',
       gateway: formatInet(pool.gateway),
@@ -403,7 +578,33 @@ export default function IpPoolManagement() {
             comment: r.comment || '',
           }))
         : [{ startIp: '', endIp: '', comment: '' }],
-    });
+      totalDownloadKbps: 2000000,
+      totalUploadKbps: 2000000,
+      perUserDownloadKbps: null as number | null,
+      perUserUploadKbps: null as number | null,
+    };
+
+    // Try to fetch matching bandwidth pool by subnet
+    if (pool.subnet) {
+      try {
+        const bpMap = await fetchBandwidthPools();
+        const bp = bpMap[pool.subnet] || bpMap[formatInet(pool.subnet)];
+        if (bp) {
+          newFormData.totalDownloadKbps = bp.totalDownloadKbps;
+          newFormData.totalUploadKbps = bp.totalUploadKbps;
+          newFormData.perUserDownloadKbps = bp.perUserDownloadKbps;
+          newFormData.perUserUploadKbps = bp.perUserUploadKbps;
+          setBandwidthSectionOpen(true);
+        } else {
+          setBandwidthSectionOpen(false);
+        }
+      } catch {
+        // Non-fatal: bandwidth fetch failure doesn't block editing
+        setBandwidthSectionOpen(false);
+      }
+    }
+
+    setFormData(newFormData);
     setIsEditOpen(true);
   };
 
@@ -417,8 +618,13 @@ export default function IpPoolManagement() {
       captivePortal: false,
       enabled: true,
       ranges: [{ startIp: '', endIp: '', comment: '' }],
+      totalDownloadKbps: 2000000,
+      totalUploadKbps: 2000000,
+      perUserDownloadKbps: null,
+      perUserUploadKbps: null,
     });
     setRangeErrors([]);
+    setBandwidthSectionOpen(false);
   };
 
   // Range management
@@ -450,6 +656,52 @@ export default function IpPoolManagement() {
       else next.add(poolId);
       return next;
     });
+  };
+
+  // ─── Bandwidth input change handlers ─────────────────────────────────────
+
+  const handleTotalDownloadChange = (value: string) => {
+    if (value === '' || value === 'custom') {
+      setFormData(prev => ({ ...prev, totalDownloadKbps: value === '' ? 0 : prev.totalDownloadKbps }));
+      return;
+    }
+    const mbps = parseInt(value, 10);
+    if (!isNaN(mbps) && mbps >= 0) {
+      setFormData(prev => ({ ...prev, totalDownloadKbps: mbpsToKbps(mbps) }));
+    }
+  };
+
+  const handleTotalUploadChange = (value: string) => {
+    if (value === '' || value === 'custom') {
+      setFormData(prev => ({ ...prev, totalUploadKbps: value === '' ? 0 : prev.totalUploadKbps }));
+      return;
+    }
+    const mbps = parseInt(value, 10);
+    if (!isNaN(mbps) && mbps >= 0) {
+      setFormData(prev => ({ ...prev, totalUploadKbps: mbpsToKbps(mbps) }));
+    }
+  };
+
+  const handlePerUserDownloadChange = (value: string) => {
+    if (value === '' || value === 'none') {
+      setFormData(prev => ({ ...prev, perUserDownloadKbps: null }));
+      return;
+    }
+    const mbps = parseInt(value, 10);
+    if (!isNaN(mbps) && mbps >= 0) {
+      setFormData(prev => ({ ...prev, perUserDownloadKbps: mbpsToKbps(mbps) }));
+    }
+  };
+
+  const handlePerUserUploadChange = (value: string) => {
+    if (value === '' || value === 'none') {
+      setFormData(prev => ({ ...prev, perUserUploadKbps: null }));
+      return;
+    }
+    const mbps = parseInt(value, 10);
+    if (!isNaN(mbps) && mbps >= 0) {
+      setFormData(prev => ({ ...prev, perUserUploadKbps: mbpsToKbps(mbps) }));
+    }
   };
 
   return (
@@ -593,6 +845,8 @@ export default function IpPoolManagement() {
               {pools.map((pool) => {
                 const isExpanded = expandedPools.has(pool.id);
                 const totalIps = countTotalIps(pool.ranges);
+                const subnetKey = formatInet(pool.subnet);
+                const bwPool = bandwidthPoolMap[subnetKey] || bandwidthPoolMap[pool.subnet || ''];
 
                 return (
                   <React.Fragment key={pool.id}>
@@ -610,12 +864,18 @@ export default function IpPoolManagement() {
 
                       {/* Name + badges */}
                       <TableCell>
-                        <div className="flex items-center gap-2 min-w-[140px]">
+                        <div className="flex items-center gap-2 min-w-[140px] flex-wrap">
                           <span className="font-semibold text-sm">{pool.name}</span>
                           {pool.isDefault && (
                             <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700 text-[10px] px-1.5 py-0">
                               <Star className="h-2.5 w-2.5 mr-0.5 fill-amber-500" />
                               Default
+                            </Badge>
+                          )}
+                          {bwPool && (
+                            <Badge variant="outline" className="bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-700 text-[10px] px-1.5 py-0">
+                              <Gauge className="h-2.5 w-2.5 mr-0.5" />
+                              {formatBandwidthKbps(bwPool.totalDownloadKbps)}
                             </Badge>
                           )}
                         </div>
@@ -713,11 +973,12 @@ export default function IpPoolManagement() {
                       </TableCell>
                     </TableRow>
 
-                    {/* Expanded: IP Ranges sub-table */}
+                    {/* Expanded: IP Ranges + Bandwidth sub-table */}
                     {isExpanded && (
                       <TableRow className="bg-muted/20 hover:bg-muted/20">
                         <TableCell colSpan={10} className="p-0">
                           <div className="px-6 py-3">
+                            {/* IP Ranges section */}
                             <div className="flex items-center gap-2 mb-2">
                               <Globe className="h-3.5 w-3.5 text-muted-foreground" />
                               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -727,7 +988,7 @@ export default function IpPoolManagement() {
                             {pool.ranges.length === 0 ? (
                               <p className="text-xs text-muted-foreground py-2">No ranges configured</p>
                             ) : (
-                              <div className="rounded-lg border bg-background overflow-hidden">
+                              <div className="rounded-lg border bg-background overflow-hidden mb-4">
                                 <Table>
                                   <TableHeader>
                                     <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -762,6 +1023,46 @@ export default function IpPoolManagement() {
                                     ))}
                                   </TableBody>
                                 </Table>
+                              </div>
+                            )}
+
+                            {/* Bandwidth Pool section */}
+                            <div className="flex items-center gap-2 mb-2">
+                              <Gauge className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                Bandwidth Container (TC HTB)
+                              </span>
+                            </div>
+                            {bwPool ? (
+                              <div className="rounded-lg border bg-background overflow-hidden">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-border">
+                                  <div className="bg-background p-3">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Container ↓</p>
+                                    <p className="text-sm font-semibold tabular-nums mt-0.5">{formatBandwidthKbps(bwPool.totalDownloadKbps)}</p>
+                                  </div>
+                                  <div className="bg-background p-3">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Container ↑</p>
+                                    <p className="text-sm font-semibold tabular-nums mt-0.5">{formatBandwidthKbps(bwPool.totalUploadKbps)}</p>
+                                  </div>
+                                  <div className="bg-background p-3">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Per-User ↓</p>
+                                    <p className="text-sm font-semibold tabular-nums mt-0.5">
+                                      {bwPool.perUserDownloadKbps ? formatBandwidthKbps(bwPool.perUserDownloadKbps) : 'No limit'}
+                                    </p>
+                                  </div>
+                                  <div className="bg-background p-3">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Per-User ↑</p>
+                                    <p className="text-sm font-semibold tabular-nums mt-0.5">
+                                      {bwPool.perUserUploadKbps ? formatBandwidthKbps(bwPool.perUserUploadKbps) : 'No limit'}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-center">
+                                <p className="text-xs text-muted-foreground">
+                                  No bandwidth container configured. Edit this pool to set up TC HTB bandwidth limits.
+                                </p>
                               </div>
                             )}
                           </div>
@@ -944,6 +1245,161 @@ export default function IpPoolManagement() {
                 );
               })}
             </div>
+
+            {/* ─── Bandwidth Container (TC HTB Pool) ──────────────────────── */}
+            <Collapsible open={bandwidthSectionOpen} onOpenChange={setBandwidthSectionOpen}>
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 w-full rounded-lg border border-border bg-muted/30 p-3 hover:bg-muted/50 transition-colors text-left"
+                >
+                  <Gauge className={cn(
+                    "h-4 w-4 transition-colors",
+                    bandwidthSectionOpen ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground"
+                  )} />
+                  <div className="flex-1">
+                    <span className="text-sm font-semibold">Bandwidth Container (TC HTB Pool)</span>
+                    <p className="text-xs text-muted-foreground">Define container and per-user bandwidth limits</p>
+                  </div>
+                  <ChevronDown className={cn(
+                    "h-4 w-4 text-muted-foreground transition-transform",
+                    bandwidthSectionOpen && "rotate-180"
+                  )} />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-3 space-y-4">
+                <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-4">
+                  {/* Container Bandwidth */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Gauge className="h-3 w-3" />
+                      Container Bandwidth
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      TC HTB pool container size. Min 100 Mbps, Max 10 Gbit. NOT a per-user limit.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Total Download */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Container Bandwidth (Download)</Label>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={String(formData.totalDownloadKbps / 1000)}
+                          onValueChange={handleTotalDownloadChange}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {BANDWIDTH_PRESETS.map((preset) => (
+                              <SelectItem key={preset.value} value={preset.value}>
+                                {preset.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        {formatBandwidthKbps(formData.totalDownloadKbps)}
+                      </p>
+                    </div>
+
+                    {/* Total Upload */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Container Bandwidth (Upload)</Label>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={String(formData.totalUploadKbps / 1000)}
+                          onValueChange={handleTotalUploadChange}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {BANDWIDTH_PRESETS.map((preset) => (
+                              <SelectItem key={preset.value} value={preset.value}>
+                                {preset.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        {formatBandwidthKbps(formData.totalUploadKbps)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Per-User Limits */}
+                  <div className="space-y-2 pt-2 border-t">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Default Per-User Limits
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Applied when no WiFi plan is assigned. Leave empty for no limit.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Per-User Download */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Default Per-User Limit (Download)</Label>
+                      <Select
+                        value={formData.perUserDownloadKbps ? String(formData.perUserDownloadKbps / 1000) : 'none'}
+                        onValueChange={handlePerUserDownloadChange}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="No limit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No limit</SelectItem>
+                          {PER_USER_PRESETS.map((preset) => (
+                            <SelectItem key={preset.value} value={preset.value}>
+                              {preset.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-muted-foreground">
+                        {formData.perUserDownloadKbps
+                          ? formatBandwidthKbps(formData.perUserDownloadKbps) + ' per user'
+                          : 'No per-user download limit'
+                        }
+                      </p>
+                    </div>
+
+                    {/* Per-User Upload */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Default Per-User Limit (Upload)</Label>
+                      <Select
+                        value={formData.perUserUploadKbps ? String(formData.perUserUploadKbps / 1000) : 'none'}
+                        onValueChange={handlePerUserUploadChange}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="No limit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No limit</SelectItem>
+                          {PER_USER_PRESETS.map((preset) => (
+                            <SelectItem key={preset.value} value={preset.value}>
+                              {preset.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-muted-foreground">
+                        {formData.perUserUploadKbps
+                          ? formatBandwidthKbps(formData.perUserUploadKbps) + ' per user'
+                          : 'No per-user upload limit'
+                        }
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
 
           <DialogFooter>
@@ -1021,6 +1477,43 @@ export default function IpPoolManagement() {
                   </Badge>
                 </div>
               </div>
+
+              {/* Bandwidth Info */}
+              {(() => {
+                const subnetKey = formatInet(selectedPool.subnet);
+                const bwPool = bandwidthPoolMap[subnetKey] || bandwidthPoolMap[selectedPool.subnet || ''];
+                if (!bwPool) return null;
+                return (
+                  <div className="border-t pt-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                      <Gauge className="h-3 w-3" />
+                      Bandwidth Container (TC HTB)
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-md bg-muted/30 p-2 text-center">
+                        <p className="text-[10px] text-muted-foreground">Container ↓</p>
+                        <p className="text-sm font-semibold tabular-nums">{formatBandwidthKbps(bwPool.totalDownloadKbps)}</p>
+                      </div>
+                      <div className="rounded-md bg-muted/30 p-2 text-center">
+                        <p className="text-[10px] text-muted-foreground">Container ↑</p>
+                        <p className="text-sm font-semibold tabular-nums">{formatBandwidthKbps(bwPool.totalUploadKbps)}</p>
+                      </div>
+                      <div className="rounded-md bg-muted/30 p-2 text-center">
+                        <p className="text-[10px] text-muted-foreground">Per-User ↓</p>
+                        <p className="text-sm font-semibold tabular-nums">
+                          {bwPool.perUserDownloadKbps ? formatBandwidthKbps(bwPool.perUserDownloadKbps) : 'No limit'}
+                        </p>
+                      </div>
+                      <div className="rounded-md bg-muted/30 p-2 text-center">
+                        <p className="text-[10px] text-muted-foreground">Per-User ↑</p>
+                        <p className="text-sm font-semibold tabular-nums">
+                          {bwPool.perUserUploadKbps ? formatBandwidthKbps(bwPool.perUserUploadKbps) : 'No limit'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Ranges */}
               <div className="border-t pt-3">
