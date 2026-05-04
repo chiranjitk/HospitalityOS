@@ -296,3 +296,50 @@ Stage Summary:
 - flush: flush GUI chains (fire-and-forget)
 - chain-architecture: metadata (6 chains)
 - apply-status: service health check (serviceAvailable, mode, appliedAt, pendingChanges)
+
+---
+Task ID: install-guide
+Agent: general-purpose
+Task: Create captive-redirect installation guide for fresh server
+
+Work Log:
+- Read worklog.md and all source files for full context (index.ts, logger.ts, defaultchains_cryptsk.sh, ecosystem.config.cjs)
+- Created `/home/z/my-project/docs/install-captive-redirect.sh` (~620 lines) — comprehensive self-contained installer script:
+  - Pre-flight checks: root detection, OS compatibility (Ubuntu/Debian), auto IP detection
+  - Step 1: Installs system prerequisites (curl, unzip, ca-certificates, gnupg)
+  - Step 2: Installs Bun runtime via official installer, links to /usr/local/bin
+  - Step 3: Creates directory structure (`/opt/staysuite/captive-redirect` + `/opt/staysuite/shared`)
+  - Step 4: Creates shared/logger.ts (exact copy from source) with symlink for relative import
+  - Step 5: Creates package.json and full index.ts (complete self-contained server from source)
+  - Step 6: Creates .env file with all configurable environment variables
+  - Step 7: Sets up nftables rules — creates standalone `nftables-captive-redirect.sh` script that:
+    - Ensures inet nat and inet mangle tables exist
+    - Inserts redirect rules at position 0 (highest priority): mark 10000 :80→:8888, mark 20000 :443→:8443
+    - Saves ruleset to /etc/nftables/rules.nft
+  - Step 8: Installs PM2 globally, creates ecosystem.config.cjs, starts and saves process
+  - Step 9: Creates systemd service unit file as alternative (only starts if PM2 skipped)
+  - Step 10: Health check verification with retry logic (10 attempts, curl/wget)
+  - Step 11: Prints comprehensive status summary with all commands, ports, API endpoints
+  - Interactive prompts for portal IP/port/scheme (with defaults), --non-interactive mode for CI
+  - CLI argument parsing for all options (--portal-ip, --portal-port, --skip-nftables, etc.)
+  - Full color-coded output with sections, steps, success/warning/error formatting
+  - Idempotent: backs up existing .env, checks before installing, removes old PM2 process
+- Created `/home/z/my-project/docs/INSTALL-CAPTIVE-REDIRECT.md` (~280 lines) — comprehensive README:
+  - Architecture diagram (ASCII art showing guest → nftables → captive-redirect → portal flow)
+  - Step-by-step flow explanation with mark values (10000/20000)
+  - Supported devices table (16 device types with detection methods)
+  - Quick start (3 commands) and non-interactive automation example
+  - Full configuration reference (all env vars + CLI options)
+  - nftables setup explanation with mark flow diagram and rule reference
+  - Process management commands for both PM2 and systemd
+  - Complete API reference with example responses for health, metrics, whitelist
+  - Troubleshooting guide: service won't start, port conflicts, nftables issues, device-specific issues, rate limiting, log viewing
+  - File structure diagram
+  - Security notes
+
+Stage Summary:
+- Created 2 files: `docs/install-captive-redirect.sh` (installer) and `docs/INSTALL-CAPTIVE-REDIRECT.md` (README)
+- Installer is fully self-contained — can deploy captive-redirect on a fresh Ubuntu/Debian server with zero prerequisites
+- Supports both interactive and non-interactive (CI/automation) modes
+- Provides both PM2 and systemd process management options
+- Idempotent — safe to run multiple times
