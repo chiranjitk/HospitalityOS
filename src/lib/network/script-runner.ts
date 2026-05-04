@@ -340,6 +340,52 @@ function runScript(scriptPath: string, args: string[], timeoutMs: number): Scrip
   }
 }
 
+// ─── CIDR / IP Helper Functions ───────────────────────────────────
+
+/** Convert dotted IPv4 to unsigned 32-bit number */
+function ipToNum(ip: string): number {
+  const octets = ip.split('.').map(Number);
+  if (octets.length !== 4 || octets.some(isNaN)) return 0;
+  return ((octets[0] << 24 | octets[1] << 16 | octets[2] << 8 | octets[3]) >>> 0);
+}
+
+/** Get the network address for a CIDR (e.g. "192.168.100.35/24" → "192.168.100.0") */
+function getNetworkAddress(ip: string, prefix: number): string {
+  const octets = ip.split('.').map(Number);
+  if (octets.length !== 4 || octets.some(isNaN)) return ip;
+  const ipNum = ((octets[0] << 24 | octets[1] << 16 | octets[2] << 8 | octets[3]) >>> 0);
+  const mask = prefix === 0 ? 0 : ((0xFFFFFFFF << (32 - prefix)) >>> 0);
+  const network = (ipNum & mask) >>> 0;
+  return [
+    (network >>> 24) & 0xFF,
+    (network >>> 16) & 0xFF,
+    (network >>> 8) & 0xFF,
+    network & 0xFF,
+  ].join('.');
+}
+
+/** Normalize a CIDR string to canonical "network/prefix" format (e.g. "192.168.100.35/24" → "192.168.100.0/24") */
+function normalizeCidr(cidr: string): string | null {
+  const slash = cidr.indexOf('/');
+  if (slash === -1) return null;
+  const prefix = parseInt(cidr.substring(slash + 1), 10);
+  if (isNaN(prefix) || prefix < 0 || prefix > 32) return null;
+  const ip = cidr.substring(0, slash);
+  return `${getNetworkAddress(ip, prefix)}/${prefix}`;
+}
+
+/** Check if an IP address falls within a CIDR range */
+function ipInCidr(ip: string, cidr: string): boolean {
+  const slash = cidr.indexOf('/');
+  if (slash === -1) return false;
+  const prefix = parseInt(cidr.substring(slash + 1), 10);
+  if (isNaN(prefix) || prefix < 0 || prefix > 32) return false;
+  const ipNum = ipToNum(ip);
+  const networkNum = ipToNum(getNetworkAddress(cidr.substring(0, slash), prefix));
+  const mask = prefix === 0 ? 0 : ((0xFFFFFFFF << (32 - prefix)) >>> 0);
+  return (ipNum & mask) === networkNum;
+}
+
 // ─── Bandwidth Lookup Helper ──────────────────────────────────────
 
 export interface PoolBandwidthInfo {
@@ -348,11 +394,37 @@ export interface PoolBandwidthInfo {
   poolCeilDn: number;
   poolRateUp: number;
   poolCeilUp: number;
+  poolName?: string;
+}
+
+function emptyPoolResult(): PoolBandwidthInfo {
+  return { poolId: 0, poolRateDn: 0, poolCeilDn: 0, poolRateUp: 0, poolCeilUp: 0 };
+}
+
+function poolToResult(pool: { id: string; name: string; totalDownloadKbps: number; totalUploadKbps: number }, classId: number): PoolBandwidthInfo {
+  return {
+    poolId: classId,
+    poolRateDn: pool.totalDownloadKbps,
+    poolCeilDn: Math.round(pool.totalDownloadKbps * 1.2),
+    poolRateUp: pool.totalUploadKbps,
+    poolCeilUp: Math.round(pool.totalUploadKbps * 1.2),
+    poolName: pool.name,
+  };
 }
 
 /**
  * Look up BandwidthPool for a given subnet/property.
- * Uses the sequential pool classid mapping (2-101) based on DB creation order.
+ *
+ * Matching priority:
+ *   1. Exact CIDR match — normalize both input and pool subnets, compare as strings
+ *   2. IP-in-CIDR match — check if input IP falls within any pool's CIDR
+ *   3. Property-specific pool — match by propertyId (only if no subnet match)
+ *   4. Global pool — any pool with no propertyId
+ *
+ * IMPORTANT: Does NOT filter by propertyId at the DB level — fetches all enabled
+ * pools and matches in code. This prevents the bug where a pool with null propertyId
+ * is missed when the IpPool has a propertyId.
+ *
  * Returns pool info if found, or zeroes if no pool configured.
  */
 export async function lookupBandwidthPool(
@@ -362,67 +434,93 @@ export async function lookupBandwidthPool(
   try {
     const { db } = await import('@/lib/db');
 
-    // Build where clause — handle null propertyId (match pools without property too)
-    const baseWhere: Record<string, unknown> = { enabled: true };
-    if (propertyId) baseWhere.propertyId = propertyId;
+    // Ensure cache is built (rebuilds from DB if null)
+    if (!_poolClassIdCache) {
+      _poolClassIdCache = await buildPoolClassIdMap();
+    }
 
-    // Try to match by subnet first (user IP → pool subnet → correct pool class)
-    // Use exact match on the subnet prefix to avoid false positives
-    // (e.g. 192.168.100.0 should NOT match 192.168.10.0/24)
+    // Fetch ALL enabled pools — we match in code, not via DB filter.
+    // This avoids the propertyId mismatch bug (IpPool has propertyId but BandwidthPool doesn't).
+    const pools = await db.bandwidthPool.findMany({
+      where: { enabled: true },
+      select: {
+        id: true,
+        name: true,
+        propertyId: true,
+        subnet: true,
+        totalDownloadKbps: true,
+        totalUploadKbps: true,
+      },
+    });
+
+    if (pools.length === 0) {
+      console.log('[PoolLookup] No enabled BandwidthPools in database');
+      return emptyPoolResult();
+    }
+
+    // ── Step 1: CIDR subnet match ──
     if (subnet) {
-      const subnetPrefix = subnet.split('/')[0];
-      const bySubnet = await db.bandwidthPool.findFirst({
-        where: { ...baseWhere, subnet: subnetPrefix },
-        select: { id: true, totalDownloadKbps: true, totalUploadKbps: true },
-      });
-      if (!bySubnet) {
-        // Fallback: try contains match (for CIDR stored with /prefix)
-        const byContains = await db.bandwidthPool.findFirst({
-          where: { ...baseWhere, subnet: { startsWith: subnetPrefix + '/' } },
-          select: { id: true, totalDownloadKbps: true, totalUploadKbps: true },
+      const normalizedInput = normalizeCidr(subnet);
+
+      if (normalizedInput) {
+        // Priority 1a: Exact CIDR match (same normalized network/prefix)
+        const exactMatch = pools.find(p => {
+          if (!p.subnet) return false;
+          const normalized = normalizeCidr(p.subnet);
+          return normalized === normalizedInput;
         });
-        if (byContains) {
-          const poolId = await getPoolClassId(byContains.id);
-          return {
-            poolId,
-            poolRateDn: byContains.totalDownloadKbps,
-            poolCeilDn: Math.round(byContains.totalDownloadKbps * 1.2),
-            poolRateUp: byContains.totalUploadKbps,
-            poolCeilUp: Math.round(byContains.totalUploadKbps * 1.2),
-          };
+
+        if (exactMatch) {
+          const classId = _poolClassIdCache.get(exactMatch.id) || 0;
+          console.log(`[PoolLookup] ✓ Exact CIDR: "${exactMatch.name}" subnet=${exactMatch.subnet} → poolId=${classId}`);
+          return poolToResult(exactMatch, classId);
         }
-      } else if (bySubnet) {
-        const poolId = await getPoolClassId(bySubnet.id);
-        return {
-          poolId,
-          poolRateDn: bySubnet.totalDownloadKbps,
-          poolCeilDn: Math.round(bySubnet.totalDownloadKbps * 1.2),
-          poolRateUp: bySubnet.totalUploadKbps,
-          poolCeilUp: Math.round(bySubnet.totalUploadKbps * 1.2),
-        };
+
+        // Priority 1b: IP-in-CIDR containment match
+        // Extract IP from input (handles both "192.168.100.35" and "192.168.100.35/32")
+        const inputIp = subnet.split('/')[0];
+        const cidrMatch = pools.find(p => {
+          if (!p.subnet) return false;
+          return ipInCidr(inputIp, p.subnet);
+        });
+
+        if (cidrMatch) {
+          const classId = _poolClassIdCache.get(cidrMatch.id) || 0;
+          console.log(`[PoolLookup] ✓ IP-in-CIDR: "${cidrMatch.name}" subnet=${cidrMatch.subnet} for ip=${inputIp} → poolId=${classId}`);
+          return poolToResult(cidrMatch, classId);
+        }
+
+        console.log(`[PoolLookup] ✗ No CIDR match for subnet=${subnet} (normalized=${normalizedInput})`);
       }
     }
 
-    // Fallback: find any enabled pool for this property (or any if no propertyId)
-    const anyPool = await db.bandwidthPool.findFirst({
-      where: baseWhere,
-      select: { id: true, totalDownloadKbps: true, totalUploadKbps: true },
-    });
-    if (anyPool) {
-      const poolId = await getPoolClassId(anyPool.id);
-      return {
-        poolId,
-        poolRateDn: anyPool.totalDownloadKbps,
-        poolCeilDn: Math.round(anyPool.totalDownloadKbps * 1.2),
-        poolRateUp: anyPool.totalUploadKbps,
-        poolCeilUp: Math.round(anyPool.totalUploadKbps * 1.2),
-      };
+    // ── Step 2: Property-specific fallback ──
+    if (propertyId) {
+      const propertyPool = pools.find(p => p.propertyId === propertyId);
+      if (propertyPool) {
+        const classId = _poolClassIdCache.get(propertyPool.id) || 0;
+        console.log(`[PoolLookup] → Property fallback: "${propertyPool.name}" (propertyId=${propertyId.substring(0, 8)}...) → poolId=${classId}`);
+        return poolToResult(propertyPool, classId);
+      }
     }
-  } catch {
-    // Non-fatal: if DB query fails, skip pool bandwidth
-  }
 
-  return { poolId: 0, poolRateDn: 0, poolCeilDn: 0, poolRateUp: 0, poolCeilUp: 0 };
+    // ── Step 3: Global pool fallback (no propertyId) ──
+    const globalPool = pools.find(p => !p.propertyId);
+    if (globalPool) {
+      const classId = _poolClassIdCache.get(globalPool.id) || 0;
+      console.log(`[PoolLookup] → Global fallback: "${globalPool.name}" → poolId=${classId}`);
+      return poolToResult(globalPool, classId);
+    }
+
+    // ── Step 4: Absolute fallback — first pool ──
+    const firstPool = pools[0];
+    const classId = _poolClassIdCache.get(firstPool.id) || 0;
+    console.log(`[PoolLookup] → Absolute fallback: "${firstPool.name}" → poolId=${classId}`);
+    return poolToResult(firstPool, classId);
+  } catch (err) {
+    console.error('[PoolLookup] Error:', err);
+    return emptyPoolResult();
+  }
 }
 
 /**
