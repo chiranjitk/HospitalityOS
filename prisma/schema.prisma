@@ -303,7 +303,7 @@ model BandwidthPolicyDetail {
 model BandwidthPool {
   id                  String   @id @default(uuid()) @db.Uuid
   tenantId            String   @db.Uuid
-  propertyId          String   @db.Uuid
+  propertyId          String?  @db.Uuid
   name                String
   subnet              String?
   vlanId              Int?
@@ -314,7 +314,7 @@ model BandwidthPool {
   enabled             Boolean  @default(true)
   createdAt           DateTime @default(now()) @db.Timestamptz
   updatedAt           DateTime @updatedAt @db.Timestamptz
-  property            Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  property            Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
