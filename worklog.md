@@ -342,3 +342,24 @@ Stage Summary:
 - Exit=5 should no longer occur due to wrong prerouting chain handle (dynamic lookup with fallback)
 - All failure messages now visible in Next.js PM2 logs via stderr capture
 - Script passes `bash -n` syntax check
+
+---
+Task ID: 5
+Agent: Main
+Task: Fix pool class not created — tc class show always returns exit 0
+
+Work Log:
+- Read user's debug trace from `sh -x staysuite_pool.sh create -P 1033 ...`
+- Identified root cause: `tc class show dev ifb0 classid 1:1033` returns exit 0 even when class doesn't exist
+- Both `staysuite_pool.sh` (line 92) and `staysuite_login.sh` (line 388) used exit code check
+- This caused script to always run `tc class change` (on non-existent class) instead of `tc class add`
+- Fix: Changed `>/dev/null 2>&1` exit check to `2>/dev/null | grep -q .` (output non-empty check)
+- Added fallback logic in pool.sh: if change fails, try add as fallback
+- Added exit 1 on pool create failure
+- Pushed commit f207ab79 to GitHub
+
+Stage Summary:
+- **Root cause**: `tc class show ... classid X` always returns exit 0 regardless of whether class exists
+- **Fix**: Use `| grep -q .` to check for non-empty output instead of exit code
+- **Files changed**: `staysuite_pool.sh`, `staysuite_login.sh`
+- **Commit**: f207ab79 pushed to main
