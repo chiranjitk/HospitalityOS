@@ -353,7 +353,21 @@ nft add rule inet filter intranetuploadaccounting ip saddr "${IP}" udp dport 606
 TC_INFRA_OK=1
 tc qdisc show dev ifb0 2>/dev/null | grep -q 'qdisc htb 1:' || TC_INFRA_OK=0
 
+if [[ "$TC_INFRA_OK" -eq 0 && "$POOL_ID" -gt 0 ]]; then
+    log_msg "tc: HTB qdisc not found on ifb0 — trying initialization.sh"
+    echo "[WARN] tc: HTB qdisc missing — attempting auto-initialization" >&2
+    INIT_SCRIPT="/usr/local/scripts/staysuite_core/bwscripts/initialization.sh"
+    if [[ -x "$INIT_SCRIPT" ]]; then
+        $INIT_SCRIPT 2>/dev/null && TC_INFRA_OK=1 && log_msg "tc: initialization.sh succeeded" || log_err "tc: initialization.sh failed"
+    else
+        log_err "tc: $INIT_SCRIPT not found or not executable"
+    fi
+fi
+
 if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
+
+    log_msg "tc: TC section START — pool=$POOL_ID dn_cls=$DN_CLASSID up_cls=$UP_CLASSID dn=${DN_KBPS}k up=${UP_KBPS}k"
+    echo "[TC] pool=$POOL_ID dn_cls=$DN_CLASSID up_cls=$UP_CLASSID dn=${DN_KBPS}k up=${UP_KBPS}k" >&2
 
     # ─── Step 8: Ensure pool root class exists ───────────────────────
     # classid 1:<pool_id> under parent 1:1 on both ifb0 and ifb1
