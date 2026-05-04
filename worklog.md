@@ -410,3 +410,31 @@ Stage Summary:
 - **Fix**: `printf '%x'` conversion before all tc commands in login/logout scripts
 - **Files changed**: `staysuite_login.sh`, `staysuite_logout.sh`
 - **Commit**: 7b2dfa27 pushed to main
+
+---
+Task ID: 8
+Agent: Main
+Task: Redesign classid allocation — sequential pools (1:2-101), user classes (102+)
+
+Work Log:
+- Analyzed user requirements: pools should be sequential, max 100, created on server init
+- Redesigned classid allocation in script-runner.ts:
+  - Pool: sequential from DB createdAt order → 1:2, 1:3, ..., 1:101
+  - User DN: (hash % 25000) + 102 → range 102-25101
+  - User UP: DN + 25000 → range 25102-50101
+- Added pool classid cache (_poolClassIdCache) with buildPoolClassIdMap()
+- Added getPoolClassId() async function for pool UUID → sequential classid
+- Added initializeAllPoolClasses() — queries all enabled pools, creates TC classes
+- Added invalidatePoolCache() — called after pool CRUD operations
+- Updated instrumentation.ts to call initializeAllPoolClasses() on server startup
+- Updated bandwidth-pools API routes (POST, PUT, DELETE) to invalidate cache
+- Deprecated generatePoolClassId() with warning
+- Pushed commit c0276bda to GitHub
+
+Stage Summary:
+- **New HTB hierarchy**: 1:1 (root) → 1:2-101 (pools) → 1:102+ (users)
+- **Auto-init**: Pool classes created on server startup via instrumentation.ts
+- **Cache invalidation**: Pool CRUD APIs invalidate the classid mapping cache
+- **Subnet matching**: User IP → pool subnet → user class under that pool
+- **Files changed**: script-runner.ts, instrumentation.ts, bandwidth-pools/route.ts, [id]/route.ts
+- **Commit**: c0276bda pushed to main
