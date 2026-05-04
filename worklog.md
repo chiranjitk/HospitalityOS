@@ -490,3 +490,24 @@ Stage Summary:
 - Container bandwidth (pool size) remains configurable: 100Mbps to 10Gbit presets
 - Files changed: `src/components/wifi/ip-pool-management.tsx`
 
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix TC flower filter "What is fwmark?" error — switch to fw filter with 16-bit mark
+
+Work Log:
+- Analyzed login logs: `[LOGIN][ERR] tc: failed download flower filter 0xC0A86423 → 1:3f72 — What is "fwmark"?`
+- Root cause: Kernel's tc-flower does NOT support `fwmark` match parameter (not listed in flower usage help)
+- The `fw` filter only supports 16-bit handles — 32-bit fwmark (0xC0A86423) would be truncated
+- Solution: Use 16-bit mark from last 2 IP octets + `fw` filter (oldest, most compatible TC filter type)
+- Changed `ip_to_hex()` in login.sh: `192.168.100.35` → `0x6423` (instead of `0xC0A86423`)
+- Changed `ip_to_hex()` in logout.sh to use same 16-bit scheme
+- Replaced `flower fwmark ${MARK}/0xFFFFFFFF` with `fw handle ${MARK}` in both ifb0 and ifb1 filter commands
+- Logout filter deletion updated to try `fw handle` first, with fallbacks for old flower/fwmark filters
+
+Stage Summary:
+- `scripts/staysuite_core/staysuite_login.sh` — ip_to_hex() → 16-bit, flower → fw filter
+- `scripts/staysuite_core/staysuite_logout.sh` — ip_to_hex() → 16-bit, flower → fw filter deletion
+- 16-bit mark unique within any /16 address space (covers all practical hotel WiFi deployments)
+- User needs to deploy updated scripts to production server
