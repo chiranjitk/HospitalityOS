@@ -535,6 +535,8 @@ edns-packet-max=4096   # Support large DNS responses (DNSSEC, large TXT)
     const subnetResult = await pool.query('SELECT "subnet" FROM "DhcpSubnet" WHERE "enabled" = true');
     if (subnetResult.rows.length > 0) {
       config += '# Reverse DNS — resolve local IPs from DHCP subnets\n';
+      // dnsmasq requires auth-server when auth-zone is defined
+      config += 'auth-server=0.0.0.0\n';
       for (const sub of subnetResult.rows) {
         const cidr = sub.subnet;
         if (cidr && cidr.includes('/')) {
