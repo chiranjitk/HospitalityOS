@@ -1,0 +1,21 @@
+--- a/output/ulogd_output_JSON.c
++++ b/output/ulogd_output_JSON.c
+@@ -387,6 +387,17 @@ static int json_interp(struct ulogd_pluginstance *upi)
+ 		case ULOGD_RET_UINT64:
+ 			json_object_set_new(msg, field_name, json_integer(key->u.value.ui64));
+ 			break;
++		case ULOGD_RET_RAW:
++			/* Output raw packet data as hex string (for TLS SNI extraction) */
++			if (key->u.value.ptr && key->len > 0) {
++				char *hex = calloc(key->len * 2 + 1, 1);
++				if (hex) {
++					for (uint32_t i = 0; i < key->len; i++)
++						sprintf(hex + (i * 2), "%02x", ((uint8_t *)key->u.value.ptr)[i]);
++					json_object_set_new(msg, field_name, json_string(hex));
++					free(hex);
++				}
++			}
++			break;
+ 		default:
+ 			/* don't know how to interpret this key. */
+ 			break;

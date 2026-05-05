@@ -318,6 +318,45 @@ if ! make -j"$(nproc 2>/dev/null || echo 2)" 2>&1; then
   exit 1
 fi
 
+# ─── Patch JSON plugin to include raw.pkt as hex ────────────────────────
+# ulogd2 2.0.8 JSON output silently drops ULOGD_RET_RAW fields (the actual
+# packet payload). Without raw.pkt in JSON, TLS SNI extraction is impossible.
+# This patch adds a case for ULOGD_RET_RAW that outputs hex strings.
+log_step "  Patching JSON output plugin for raw.pkt hex support..."
+JSON_C="output/ulogd_output_JSON.c"
+if ! grep -q "ULOGD_RET_RAW" "$JSON_C"; then
+  # Backup original
+  cp "$JSON_C" "${JSON_C}.orig"
+  # Insert ULOGD_RET_RAW case before the 'default:' in the json_interp switch
+  NEW_RAW_CASE='                case ULOGD_RET_RAW:
+                        /* Output raw packet data as hex string (for TLS SNI extraction) */
+                        if (key->u.value.ptr && key->len > 0) {
+                                char *hex = calloc(key->len * 2 + 1, 1);
+                                if (hex) {
+                                        for (uint32_t i = 0; i < key->len; i++)
+                                                sprintf(hex + (i * 2), "%02x", ((uint8_t *)key->u.value.ptr)[i]);
+                                        json_object_set_new(msg, field_name, json_string(hex));
+                                        free(hex);
+                                }
+                        }
+                        break;'
+  # Find "default:" after ULOGD_RET_UINT64
+  LINE=$(grep -n "case ULOGD_RET_UINT64:" "$JSON_C" | head -1 | cut -d: -f1)
+  DEFAULT_LINE=$(sed -n "${LINE},\$p" "$JSON_C" | grep -n "^\t\tdefault:" | head -1 | cut -d: -f1)
+  DEFAULT_LINE=$((LINE + DEFAULT_LINE - 1))
+  sed -i "${DEFAULT_LINE}i\\${NEW_RAW_CASE}" "$JSON_C"
+  if grep -q "ULOGD_RET_RAW" "$JSON_C"; then
+    echo "    ✓ Patched: $JSON_C (ULOGD_RET_RAW → hex string)"
+    # Rebuild the JSON plugin with the patch
+    make -C output/ 2>&1 | tail -3
+  else
+    echo "    ✗ Patch FAILED — raw.pkt will NOT be in JSON output!"
+    echo "      Run tools/ulogd2-clickhouse/patch-json-plugin.sh on target server."
+  fi
+else
+  echo "    ✓ Already patched (ULOGD_RET_RAW case found)"
+fi
+
 log_step "  Installing ulogd2 to $INSTALL_PREFIX..."
 make install 2>&1
 
