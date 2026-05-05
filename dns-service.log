@@ -1,0 +1,11 @@
+[2026-05-05T00:02:06.820Z] [INFO] [dns-service] DNS Service starting {"port":3012,"version":"2.0.0","dnsmasq":"not-found","configPath":"/home/z/my-project/dns-local/staysuite.conf","database":"file:/home/z/my-project/db/custom.db"}
+[2026-05-05T00:02:06.824Z] [INFO] [dns-service] DNS Service HTTP server listening {"port":3012,"hostname":"0.0.0.0"}
+[2026-05-05T00:02:06.840Z] [WARN] [dns-service] PostgreSQL connection attempt 1/10 failed, retrying in 3s... {"database":"file:/home/z/my-project/db/custom.db","error":"error: password authentication failed for user \"z\""}
+[2026-05-05T00:02:06.842Z] [ERROR] [dns-service] Failed to create service tables {"error":"error: password authentication failed for user \"z\""}
+[2026-05-05T00:02:06.852Z] [WARN] [dns-service] DnsForwarder table not available, using defaults {"error":"error: password authentication failed for user \"z\""}
+[2026-05-05T00:02:06.855Z] [WARN] [dns-service] Failed to read zones for config {"error":"error: password authentication failed for user \"z\""}
+[2026-05-05T00:02:06.857Z] [WARN] [dns-service] Failed to read redirects for config {"error":"error: password authentication failed for user \"z\""}
+[2026-05-05T00:02:06.860Z] [WARN] [dns-service] Failed to read DHCP subnets for reverse DNS {"error":"error: password authentication failed for user \"z\""}
+[2026-05-05T00:02:06.860Z] [INFO] [dns-service] DNS config generated: /home/z/my-project/dns-local/staysuite.conf (17 directives)
+[2026-05-05T00:02:06.860Z] [WARN] [dns-service] dnsmasq not found on system
+[2026-05-05T00:02:09.844Z] [WARN] [dns-service] PostgreSQL connection attempt 2/10 failed, retrying in 3s... {"database":"file:/home/z/my-project/db/custom.db","error":"error: password authentication failed for user \"z\""}

@@ -19,13 +19,11 @@
 import { db } from '@/lib/db';
 import { existsSync, mkdirSync, writeFileSync, unlinkSync, appendFileSync } from 'fs';
 import { join } from 'path';
+import { RESTRICTED_NETWORK_PATH } from '@/lib/wifi/paths';
 
-// Configurable path — override via env var RESTRICTED_NETWORK_PATH
+// Configurable path — override via env var RESTRICTED_NETWORK_PATH (defined in paths.ts)
 // Production: /etc/restrictednetwork
 // Sandbox: ./restricted-network.txt
-const RESTRICTED_NETWORK_PATH = process.env.RESTRICTED_NETWORK_PATH || '/etc/restrictednetwork';
-
-// Fallback local path for sandbox testing
 const SANDBOX_FALLBACK_PATH = join(process.cwd(), 'restricted-network.txt');
 
 /** Get the writable path (production or sandbox fallback) */

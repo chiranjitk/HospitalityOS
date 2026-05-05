@@ -806,10 +806,13 @@ async function fullSync(): Promise<{ config: Awaited<ReturnType<typeof generateC
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function parseLeasesFile(): Promise<any[]> {
+  // DNSMASQ_LEASES is already correctly set based on SYSTEM_DNSMASQ detection:
+  //   Production (Rocky 10): /var/lib/dnsmasq/dnsmasq.leases
+  //   Sandbox/Dev:            /tmp/dnsmasq-dhcp.leases (or env override)
+  // Only fallback: try the alternate /var/lib/misc/ path for Debian compatibility
   const leasePaths = [
     DNSMASQ_LEASES,
-    '/var/lib/dnsmasq/dnsmasq.leases',
-    '/var/lib/misc/dnsmasq.leases',
+    '/var/lib/misc/dnsmasq.leases',    // Debian legacy fallback
   ];
 
   for (const lp of leasePaths) {

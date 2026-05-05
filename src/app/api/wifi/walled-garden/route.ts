@@ -15,9 +15,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { STAYSUITE_SCRIPTS_DIR } from '@/lib/wifi/paths';
+import path from 'path';
 
 const execFileAsync = promisify(execFile);
-const SCRIPT_PATH = '/home/z/my-project/scripts/staysuite_core/walled-garden-apply.sh';
+const SCRIPT_PATH = path.join(STAYSUITE_SCRIPTS_DIR, 'walled-garden-apply.sh');
 const SCRIPT_TIMEOUT = 30_000; // 30 seconds
 
 export async function GET(request: NextRequest) {

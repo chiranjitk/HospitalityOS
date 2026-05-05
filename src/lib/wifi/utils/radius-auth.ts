@@ -1,4 +1,6 @@
 import { execFileSync } from 'child_process';
+import { FREERADIUS_HOME, RADDB_PATH } from '@/lib/wifi/paths';
+import path from 'path';
 
 /**
  * Send a RADIUS Access-Request via radclient to FreeRADIUS on localhost.
@@ -16,10 +18,10 @@ export async function radiusAuth(username: string, password: string): Promise<{
   rejectReason?: string;
 }> {
   try {
-    const radclientBin = '/home/z/my-project/freeradius-install/bin/radclient';
-    const raddbDir = '/home/z/my-project/freeradius-install/etc/raddb';
-    const dictDir = '/home/z/my-project/freeradius-install/share/freeradius';
-    const libDir = '/home/z/my-project/freeradius-install/lib';
+    const radclientBin = `${FREERADIUS_HOME}/bin/radclient`;
+    const raddbDir = RADDB_PATH;
+    const dictDir = `${FREERADIUS_HOME}/share/freeradius`;
+    const libDir = `${FREERADIUS_HOME}/lib`;
 
     const radclientInput = `User-Name = '${username}', User-Password = '${password}', NAS-IP-Address = 127.0.0.1, NAS-Port = 0, NAS-Port-Type = Wireless-802.11, Called-Station-Id = '00:00:00:00:00:01'\n`;
 

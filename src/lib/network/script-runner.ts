@@ -19,9 +19,11 @@ import { execSync } from 'child_process';
  *   LOGFILE                — login/logout log file path
  */
 
+import { STAYSUITE_SCRIPTS_DIR } from '@/lib/wifi/paths';
+
 // ─── Configuration (production defaults, overridable via env) ────────
 
-const SCRIPTS_DIR = process.env.STAYSUITE_SCRIPTS_DIR || '/usr/local/scripts/staysuite_core';
+const SCRIPTS_DIR = STAYSUITE_SCRIPTS_DIR;
 const LOGIN_SCRIPT = `${SCRIPTS_DIR}/staysuite_login.sh`;
 const LOGOUT_SCRIPT = `${SCRIPTS_DIR}/staysuite_logout.sh`;
 const DEFAULT_NAT_ACTION = process.env.STAYSUITE_NAT_ACTION || 'masq';

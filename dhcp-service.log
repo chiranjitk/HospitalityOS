@@ -1,0 +1,6 @@
+[2026-05-05T00:02:01.829Z] [INFO] [dhcp-service] StaySuite DHCP Service starting {"port":3011,"systemDnsmasq":false,"configFile":"/home/z/my-project/dhcp-local/staysuite-dhcp.conf","leasesFile":"/tmp/dnsmasq-dhcp.leases"}
+[2026-05-05T00:02:01.838Z] [INFO] [dhcp-service] DHCP service listening on port 3011 (PostgreSQL backend)
+[2026-05-05T00:02:01.853Z] [WARN] [dhcp-service] PostgreSQL connection attempt 1/10 failed, retrying in 3s... {"database":"file:/home/z/my-project/db/custom.db","error":"error: password authentication failed for user \"z\""}
+[2026-05-05T00:02:04.857Z] [WARN] [dhcp-service] PostgreSQL connection attempt 2/10 failed, retrying in 3s... {"database":"file:/home/z/my-project/db/custom.db","error":"error: password authentication failed for user \"z\""}
+[2026-05-05T00:02:07.861Z] [WARN] [dhcp-service] PostgreSQL connection attempt 3/10 failed, retrying in 3s... {"database":"file:/home/z/my-project/db/custom.db","error":"error: password authentication failed for user \"z\""}
+[2026-05-05T00:02:10.864Z] [WARN] [dhcp-service] PostgreSQL connection attempt 4/10 failed, retrying in 3s... {"database":"file:/home/z/my-project/db/custom.db","error":"error: password authentication failed for user \"z\""}

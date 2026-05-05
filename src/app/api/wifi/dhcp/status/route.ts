@@ -2,11 +2,13 @@
  * DHCP Status API Route
  *
  * GET status endpoint returning DHCP service overview computed from DB.
+ * Uses centralized path definitions from src/lib/wifi/paths.ts.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { DNSMASQ_DHCP_CONF, DNSMASQ_LEASES_FILE } from '@/lib/wifi/paths';
 
 // GET /api/wifi/dhcp/status - Get DHCP service status
 export async function GET(request: NextRequest) {
@@ -38,8 +40,8 @@ export async function GET(request: NextRequest) {
         reservationCount,
         currentInterfaces: [],
         systemInterfaces: [],
-        configFile: '/etc/dnsmasq.conf',
-        leasesFile: '/var/lib/misc/dnsmasq.leases',
+        configFile: DNSMASQ_DHCP_CONF,
+        leasesFile: DNSMASQ_LEASES_FILE,
       },
     });
   } catch (error) {

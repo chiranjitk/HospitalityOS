@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { INTERFACES_FILE as PATHS_INTERFACES_FILE } from '@/lib/wifi/paths';
 
 /**
  * Interface Role Persistence Utility
@@ -17,9 +18,7 @@ import * as path from 'path';
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
-const DEFAULT_INTERFACES_FILE = '/etc/network/interfaces';
-
-const INTERFACES_FILE = process.env.NETWORK_INTERFACES_FILE || DEFAULT_INTERFACES_FILE;
+const INTERFACES_FILE = process.env.NETWORK_INTERFACES_FILE || PATHS_INTERFACES_FILE;
 
 const VALID_ROLES = [
   'wan',

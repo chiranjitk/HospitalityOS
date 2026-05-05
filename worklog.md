@@ -428,3 +428,36 @@ Stage Summary:
 - paths.ts is good pattern but missing all DHCP/dnsmasq paths
 - Total: 10+ hardcoded path issues identified across 12+ files
 - Reported findings to user, awaiting approval to fix
+
+---
+Task ID: 5-b
+Agent: Main Agent
+Task: Fix all hardcoded DHCP/server paths across the codebase
+
+Work Log:
+- Added dnsmasq DHCP/DNS paths to src/lib/wifi/paths.ts (DNSMASQ_BIN, DNSMASQ_CONF_DIR, DNSMASQ_DHCP_CONF, DNSMASQ_DNS_CONF, DNSMASQ_PID_FILE, DNSMASQ_LEASES_FILE, DNSMASQ_RESOLV_CONF)
+- Added scripts/network paths to paths.ts (STAYSUITE_SCRIPTS_DIR, NETWORK_SCRIPTS_DIR)
+- Added network config paths to paths.ts (NM_CONNECTIONS_DIR, ROUTE_FILE, RESTRICTED_NETWORK_PATH, INTERFACES_FILE)
+- Updated getRuntimeInfo() to include dnsmasq and scripts sections
+- Fixed dns-service/index.ts:1218 — changed /var/lib/misc/dnsmasq.leases → /var/lib/dnsmasq/dnsmasq.leases (Rocky 10 production path)
+- Fixed dhcp-service/index.ts parseLeasesFile() — removed duplicate /var/lib/dnsmasq path, kept /var/lib/misc as Debian fallback only
+- Fixed src/app/api/wifi/dhcp/status/route.ts — replaced hardcoded /etc/dnsmasq.conf + /var/lib/misc with DNSMASQ_DHCP_CONF + DNSMASQ_LEASES_FILE from paths.ts
+- Fixed src/app/api/kea/[...path]/route.ts — same path fix for fallback status response
+- Fixed src/app/api/dns/[...path]/route.ts — replaced hardcoded /etc/dnsmasq.d/staysuite.conf with DNSMASQ_DNS_CONF
+- Fixed src/lib/wifi/utils/radius-auth.ts — replaced 4 hardcoded /home/z/my-project/freeradius-install paths with FREERADIUS_HOME/RADDB_PATH from paths.ts
+- Fixed src/app/api/wifi/walled-garden/route.ts — replaced hardcoded /home/z/my-project/scripts path with STAYSUITE_SCRIPTS_DIR from paths.ts
+- Fixed src/lib/interface-role-persist.ts — replaced hardcoded /etc/network/interfaces with INTERFACES_FILE from paths.ts
+- Fixed src/lib/network/script-runner.ts — replaced hardcoded /usr/local/scripts with STAYSUITE_SCRIPTS_DIR from paths.ts
+- Fixed src/lib/wifi/utils/nftables-counters.ts — replaced hardcoded /usr/local/scripts with STAYSUITE_SCRIPTS_DIR from paths.ts
+- Fixed src/lib/restricted-network.ts — imported RESTRICTED_NETWORK_PATH from paths.ts instead of local hardcoded constant
+- Added lease file → DB sync mechanism in /api/kea/leases GET handler: now proxies to dhcp-service (reads live dnsmasq file) and syncs results to DhcpLease DB table so GUI always shows current data
+- Added syncLeasesToDb() function with delete+create pattern and stale lease expiry
+
+Stage Summary:
+- All 10+ hardcoded path issues fixed across 12+ files
+- All paths now resolve via centralized paths.ts with proper sandbox/production detection
+- Lease report fix: dns-service now reads correct Rocky 10 path (/var/lib/dnsmasq/)
+- Lease report fix: /api/kea/leases now proxies to dhcp-service + syncs to DB
+- No more sandbox-only paths in production code paths
+- Lint clean (only 2 pre-existing errors in nftables-counters.ts unrelated to changes)
+- Dev server verified working with correct path resolution

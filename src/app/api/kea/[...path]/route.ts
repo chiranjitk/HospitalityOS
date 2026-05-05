@@ -21,6 +21,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { DNSMASQ_DHCP_CONF, DNSMASQ_LEASES_FILE } from '@/lib/wifi/paths';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -196,6 +197,69 @@ async function proxyToDhcpService(path: string, method: string, body?: Record<st
   }
 }
 
+/**
+ * Sync live leases from dhcp-service (dnsmasq file) into the DhcpLease DB table.
+ * Uses delete+create pattern since DhcpLease has a compound unique [subnetId, ipAddress].
+ * This ensures the GUI always has reasonably current lease data.
+ */
+async function syncLeasesToDb(
+  liveLeases: Array<Record<string, unknown>>,
+  tenantId: string,
+  propertyId: string | null,
+): Promise<void> {
+  if (!liveLeases.length) return;
+
+  const now = new Date();
+  const propId = propertyId || tenantId;
+
+  for (const lease of liveLeases) {
+    const ip = (lease.ipAddress as string) || '';
+    const mac = ((lease.macAddress as string) || '').toLowerCase();
+    if (!ip || !mac) continue;
+
+    const leaseEnd = (lease.leaseExpires as string) || '';
+    const leaseStart = (lease.leaseStart as string) || '';
+    const hostname = (lease.hostname as string) || '';
+    const clientId = (lease.clientId as string) || '';
+    const state = (lease.state as string) || 'active';
+    const subnetId = (lease.subnetId as string) || '';
+
+    // Delete existing entry for this IP (if any) and re-create with fresh data
+    await db.dhcpLease.deleteMany({
+      where: { ipAddress: ip, tenantId },
+    }).catch(() => {});
+
+    await db.dhcpLease.create({
+      data: {
+        tenantId,
+        propertyId: propId,
+        subnetId: subnetId || propId, // fallback to propertyId if subnet unknown
+        ipAddress: ip,
+        macAddress: mac,
+        hostname: hostname || null,
+        clientId: clientId || null,
+        state: state as 'active' | 'expired' | 'released',
+        leaseStart: leaseStart ? new Date(leaseStart) : now,
+        leaseEnd: leaseEnd ? new Date(leaseEnd) : now,
+        lastSeenAt: now,
+      },
+    }).catch(() => { /* ignore individual errors */ });
+  }
+
+  // Mark leases in DB as expired if they're no longer in the live file
+  const liveIps = new Set(liveLeases.map(l => (l.ipAddress as string)).filter(Boolean));
+  if (liveIps.size > 0) {
+    await db.dhcpLease.updateMany({
+      where: {
+        tenantId,
+        state: 'active',
+        ipAddress: { notIn: Array.from(liveIps) },
+      },
+      data: { state: 'expired' },
+    }).catch(() => {});
+  }
+}
+
 // ─── Route Handlers ───────────────────────────────────────────────────────────
 
 async function handleRequest(request: NextRequest, method: string) {
@@ -236,8 +300,8 @@ async function handleRequest(request: NextRequest, method: string) {
           version: 'dnsmasq', mode: 'standalone', backend: 'dnsmasq',
           subnetCount, leaseCount, activeLeases, reservationCount,
           currentInterfaces: [], systemInterfaces: [],
-          configFile: '/etc/dnsmasq.d/staysuite-dhcp.conf',
-          leasesFile: '/var/lib/misc/dnsmasq.leases',
+          configFile: DNSMASQ_DHCP_CONF,
+          leasesFile: DNSMASQ_LEASES_FILE,
           _warning: 'dhcp-service mini-service not reachable — showing DB-only status',
         },
       });
@@ -398,6 +462,23 @@ async function handleRequest(request: NextRequest, method: string) {
     // ─── Leases ────────────────────────────────────────────────────────────
     if (segments[0] === 'leases' && segments.length === 1) {
       if (method === 'GET') {
+        // 1. Try to get live leases from dhcp-service (reads actual dnsmasq lease file)
+        const proxied = await proxyToDhcpService('/api/leases', 'GET');
+        if (proxied) {
+          // Sync live leases to DB so fallback reads also show current data
+          try {
+            const proxiedData = await proxied.clone().json() as { success: boolean; data?: Array<Record<string, unknown>> };
+            if (proxiedData.success && Array.isArray(proxiedData.data) && proxiedData.data.length > 0) {
+              await syncLeasesToDb(proxiedData.data, tenantId, propertyId);
+            }
+          } catch (syncErr) {
+            // Sync failure is non-critical — we still return the live data
+            console.error('[DHCP] Lease DB sync failed (non-critical):', syncErr);
+          }
+          return proxied;
+        }
+
+        // 2. Fallback: read from DB (may be stale but better than empty)
         const leases = await db.dhcpLease.findMany({
           where: { tenantId },
           include: { subnet: { select: { id: true, name: true } } },

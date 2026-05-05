@@ -1215,7 +1215,7 @@ app.delete('/api/forwarders/:id', async (c) => {
 
 app.get('/api/dhcp-dns', (c) => {
   try {
-    const leaseFile = SYSTEM_DNSMASQ ? '/var/lib/misc/dnsmasq.leases' : '/tmp/dnsmasq.leases';
+    const leaseFile = SYSTEM_DNSMASQ ? '/var/lib/dnsmasq/dnsmasq.leases' : '/tmp/dnsmasq-dhcp.leases';
     const entries: any[] = [];
     try {
       const content = fs.readFileSync(leaseFile, 'utf-8');

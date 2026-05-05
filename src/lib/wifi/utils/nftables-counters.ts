@@ -14,10 +14,11 @@
 
 import { execSync } from 'child_process';
 import * as path from 'path';
+import { STAYSUITE_SCRIPTS_DIR } from '@/lib/wifi/paths';
 
 // Counter script path: production uses STAYSUITE_SCRIPTS_DIR (same as login/logout),
 // dev/sandbox falls back to project-relative path.
-const SCRIPTS_DIR = process.env.STAYSUITE_SCRIPTS_DIR || '/usr/local/scripts/staysuite_core';
+const SCRIPTS_DIR = STAYSUITE_SCRIPTS_DIR;
 const COUNTER_SCRIPT_FALLBACK = path.join(process.cwd(), 'scripts/nftables/staysuite-traffic-counters.sh');
 
 function getCounterScript(): string {
