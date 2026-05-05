@@ -233,3 +233,23 @@
 2026-05-05 00:01:02 [POOL][ERR] pool 1:4 create FAILED on ifb0
 2026-05-05 08:17:34 [POOL][ERR] pool 1:2 create FAILED on ifb0
 2026-05-05 08:17:34 [POOL][ERR] pool 1:3 create FAILED on ifb0
+2026-05-05 10:20:19 [POOL][ERR] pool 1:2 create FAILED on ifb0
+2026-05-05 10:20:19 [POOL][ERR] pool 1:3 create FAILED on ifb0
+2026-05-05 10:20:19 [POOL][ERR] pool 1:4 create FAILED on ifb0
+2026-05-05 10:20:24 [LOGIN] LOGIN PARMS: -i 21.0.0.1 -a masq -P 4 -R 2000000 -C 2400000 -r 2000000 -c 2400000 -d 19744 -u 19744 -D 100000 -U 50000 -S 1777976424033-12eaec7f -X bdf33337-1e01-4b43-8306-e85c2c6920b1
+2026-05-05 10:20:24 [LOGIN] LOGIN: ip=21.0.0.1 mark=0x15000001 action=masq pool=4 dn=100000k up=50000k session=1777976424033-12eaec7f
+2026-05-05 10:20:24 [LOGIN][ERR] nft: failed to add 21.0.0.1 to loggedinusers
+2026-05-05 10:20:24 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersset
+2026-05-05 10:20:24 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersdstset
+2026-05-05 10:20:24 [LOGIN][ERR] nft: failed to add 21.0.0.1 to llusersset
+2026-05-05 10:20:24 [LOGIN][ERR] nft: failed to add 21.0.0.1 to one or more sets — cleanup
+2026-05-05 10:21:30 [LOGOUT] LOGOUT PARMS: -i 21.0.0.1
+2026-05-05 10:21:30 [LOGOUT] START: ip=21.0.0.1 mark=0x15000001 session= dn_cls=0 up_cls=0 pool=0
+2026-05-05 10:21:30 [LOGOUT] DONE: ip=21.0.0.1
+2026-05-05 10:21:31 [LOGIN] LOGIN PARMS: -i 21.0.0.1 -a masq -P 2 -R 200000 -C 240000 -r 100000 -c 120000 -d 19744 -u 19744 -D 100000 -U 50000 -S 1777976491273-fbf085b6 -X bdf33337-1e01-4b43-8306-e85c2c6920b1
+2026-05-05 10:21:31 [LOGIN] LOGIN: ip=21.0.0.1 mark=0x15000001 action=masq pool=2 dn=100000k up=50000k session=1777976491273-fbf085b6
+2026-05-05 10:21:31 [LOGIN][ERR] nft: failed to add 21.0.0.1 to loggedinusers
+2026-05-05 10:21:31 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersset
+2026-05-05 10:21:31 [LOGIN][ERR] nft: failed to add 21.0.0.1 to usersdstset
+2026-05-05 10:21:31 [LOGIN][ERR] nft: failed to add 21.0.0.1 to llusersset
+2026-05-05 10:21:31 [LOGIN][ERR] nft: failed to add 21.0.0.1 to one or more sets — cleanup
