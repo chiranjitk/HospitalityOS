@@ -27,3 +27,22 @@ Stage Summary:
 - Admin login: admin@royalstay.in / admin123
 - Platform admin: platform@staysuite.com / admin123
 - Database fully seeded with comprehensive demo data (44 WiFi categories, properties, rooms, guests, bookings, etc.)
+
+---
+Task ID: 1
+Agent: main
+Task: Fix 5 production deployment gaps in deploy-rocky10-pgsql_fr.sh
+
+Work Log:
+- Edit 1: Added missing modules detail.exec, exec, date to Step 5a REQUIRED_MODS
+- Edit 2: Changed read_clients=no to read_clients=yes + added client_table="nas" 
+- Edit 3: Enhanced post-auth query with nasipaddress + clientipaddress columns
+- Edit 4: Added Step 5g2 (post-auth business logic patches) and Step 5g3 (CoA attribute filter)
+- Edit 5: Replaced Step 15 to remove setup-production.sh dependency, added verification checks
+
+Stage Summary:
+- Critical gap fixed: Step 15 no longer calls setup-production.sh which overwrote custom SQL module
+- Post-auth business logic (IP pool, gateway push, FUP) now applied in Step 5g2
+- CoA attribute filter created in Step 5g3
+- read_clients=yes enables NAS client reading from database
+- Enhanced radpostauth logging captures source IPs

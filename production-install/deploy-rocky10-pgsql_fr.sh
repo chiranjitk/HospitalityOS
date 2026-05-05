@@ -476,7 +476,7 @@ RADD="/etc/raddb"
 
 # ── 5a: Enable required modules ──────────────────────────────────────────────
 info "Enabling required FreeRADIUS modules..."
-REQUIRED_MODS="sql pap chap mschap expr preprocess expiration logintime detail always"
+REQUIRED_MODS="sql pap chap mschap expr preprocess expiration logintime detail detail.exec exec date always"
 for mod in $REQUIRED_MODS; do
   [[ -f "${RADD}/mods-available/$mod" ]] && ln -sf "../mods-available/$mod" "${RADD}/mods-enabled/$mod" 2>/dev/null || true
 done
@@ -521,7 +521,8 @@ sql {
     connect_timeout = 5.0
   }
 
-  read_clients = no
+  read_clients = yes
+  client_table = "nas"
 
   accounting {
     reference = "%{tolower:type.%{Acct-Status-Type}.query}"
@@ -572,9 +573,11 @@ sql {
 
   post-auth {
     query = "\
-      INSERT INTO radpostauth (username, pass, reply, calledstationid, callingstationid, authdate, \"class\") \
+      INSERT INTO radpostauth (username, pass, reply, calledstationid, callingstationid, \
+        nasipaddress, clientipaddress, authdate, \"class\") \
       VALUES ('%{SQL-User-Name}', '%{%{User-Password}:-%{Chap-Password}}', '%{reply:Packet-Type}', \
-        '%{Called-Station-Id}', '%{Calling-Station-Id}', NOW(), NULLIF('%{Class}', ''))"
+        '%{Called-Station-Id}', '%{Calling-Station-Id}', \
+        '%{NAS-IP-Address}', NULLIF('%{Framed-IP-Address}', ''), NOW(), NULLIF('%{Class}', ''))"
   }
 }
 EOCONF
@@ -746,6 +749,97 @@ home_server cryptsk-coa {
 EOCLIENT
 
   success "Cryptsk Gateway NAS client configured (${CRYPTSK_IP}) — MULTIMODE ready"
+fi
+
+# ── 5g2: Apply Post-Auth Business Logic Patches ──────────────────────────
+info "Applying post-auth business logic patches to sites-available/default..."
+
+POST_AUTH_PATCH="/tmp/staysuite-post-auth-blocks.txt"
+cat > "$POST_AUTH_PATCH" << 'PAEOF'
+        # -- StaySuite: IP Pool Restriction Check ------------------------------
+        # Check if user's IP is within their assigned IP pool.
+        # Priority: User Override > Plan Pool > Default Pool > No restriction.
+        if (&Framed-IP-Address) {
+            update control {
+                &Tmp-Integer-0 := "%{sql:SELECT fn_check_ip_pool('%{User-Name}', '%{Framed-IP-Address}'::inet)}"
+            }
+            if (&control:Tmp-Integer-0 == 0) {
+                update reply {
+                    &Reply-Message := "Access denied - IP not in allowed pool for this user"
+                }
+                reject
+            }
+            # -- StaySuite: Push Gateway from IP Pool --------------------------
+            update control {
+                &Tmp-String-0 := "%{sql:SELECT fn_get_pool_attr('%{User-Name}', 'gateway')}"
+            }
+            if (&control:Tmp-String-0 && &control:Tmp-String-0 != '') {
+                update reply {
+                    &Framed-Route := "0.0.0.0/0 %{control:Tmp-String-0}"
+                }
+            }
+        }
+
+        # -- StaySuite: FUP Switch-Over Bandwidth Override ----------------------
+        # Sets BOTH Mikrotik-Rate-Limit AND Cryptsk-Rate-Limit for dual-mode.
+        update control {
+            &Tmp-String-2 := "%{sql:SELECT fn_get_mikrotik_rate_limit('%{User-Name}')}"
+        }
+        update reply {
+            &Mikrotik-Rate-Limit := "%{control:Tmp-String-2}"
+            &Cryptsk-Rate-Limit := "%{control:Tmp-String-2}"
+        }
+
+PAEOF
+
+if ! grep -q "StaySuite: IP Pool Restriction Check" "$SITES_DEFAULT"; then
+  # Insert post-auth blocks BEFORE the first '-sql' line inside the post-auth section
+  awk '/^post-auth[[:space:]]*\{/{found=1} found && /^[[:space:]]*-[[:space:]]*sql/ && !done{
+    while((getline line < "'"$POST_AUTH_PATCH"'")>0) print line
+    close("'$POST_AUTH_PATCH'")
+    done=1
+  } {print}' "$SITES_DEFAULT" > "${SITES_DEFAULT}.new" \
+    && mv "${SITES_DEFAULT}.new" "$SITES_DEFAULT" \
+    && success "Post-auth patches applied (IP pool + gateway + FUP)" \
+    || warn "Failed to apply post-auth patches — check manually"
+else
+  success "Post-auth patches already applied"
+fi
+rm -f "$POST_AUTH_PATCH"
+
+# ── 5g3: CoA Attribute Filter ───────────────────────────────────────────
+info "Setting up CoA attribute filter..."
+COA_ATTR_FILTER="${RADD}/mods-config/attr_filter/coa"
+if [[ ! -f "$COA_ATTR_FILTER" ]]; then
+  mkdir -p "${RADD}/mods-config/attr_filter"
+  cat > "$COA_ATTR_FILTER" << 'COAEOF'
+DEFAULT
+        Session-Timeout
+        Idle-Timeout
+        Termination-Action
+        Acct-Interim-Interval
+        WISPr-Bandwidth-Max-Down
+        WISPr-Bandwidth-Max-Up
+        WISPr-Volume-Total-Octets
+        Cryptsk-Rate-Limit
+        Cryptsk-Bandwidth-Max-Down
+        Cryptsk-Bandwidth-Max-Up
+        Cryptsk-Total-Limit
+        Cryptsk-FUP-Rate-Limit
+        Cryptsk-Session-Timeout
+        Cryptsk-Idle-Timeout
+        Cryptsk-Filter-Id
+        Cryptsk-Redirect-URL
+        Cryptsk-User-Profile
+        Cryptsk-Plan-Name
+        Mikrotik-Rate-Limit
+        Mikrotik-Total-Limit
+        Filter-Id
+        Reply-Message
+COAEOF
+  success "CoA attribute filter created"
+else
+  success "CoA attribute filter already exists"
 fi
 
 # ── 5h: Increase systemd timeout for radiusd (SQL pool init can be slow after fresh PG) ──
@@ -1123,24 +1217,36 @@ pm2 startup systemd -u root --hp /root 2>/dev/null || true
 success "PM2 configured — 11 services (stopped, will start at end)"
 
 # ════════════════════════════════════════════════════════════════════════════════
-# STEP 15: FreeRADIUS CoA + Post-Auth
+# STEP 15: FreeRADIUS Final Restart + Verification
 # ════════════════════════════════════════════════════════════════════════════════
-step 15 "CoA" "Finalizing FreeRADIUS CoA and post-auth configuration"
+step 15 "Verify" "FreeRADIUS final configuration restart and verification"
 
-# Apply production patches from freeradius-config-patches if available
-if [[ -f "${APP_DIR}/freeradius-config-patches/setup-production.sh" ]]; then
-  info "Applying FreeRADIUS production patches..."
-  export FR_DB_PASS="$DB_PASSWORD"
-  export FR_DB_HOST="127.0.0.1"
-  export FR_DB_PORT="5432"
-  export FR_DB_NAME="staysuite"
-  export FR_DB_USER="radius"
-  bash "${APP_DIR}/freeradius-config-patches/setup-production.sh" 2>&1 | tail -20 || true
+# All FreeRADIUS patches (post-auth, CoA, SQL module, attribute filters)
+# are now applied directly in Step 5 (5a through 5g3) — NO dependency on
+# freeradius-config-patches/setup-production.sh which would overwrite
+# the custom SQL module config (accounting + post-auth queries).
+
+# Verify post-auth patches were applied
+if ! grep -q "StaySuite: IP Pool Restriction Check" "$SITES_DEFAULT" 2>/dev/null; then
+  warn "Post-auth patches NOT found in sites-available/default!"
+  warn "IP pool checks, gateway push, and FUP bandwidth override will NOT work."
+  warn "Check: Step 5g2 may have failed. Run: grep -c 'StaySuite' ${RADD}/sites-available/default"
 else
-  # Fallback: ensure CoA is enabled manually
-  info "setup-production.sh not found — applying minimal CoA config..."
-  [[ -f "${RADD}/sites-available/coa" && ! -L "${RADD}/sites-enabled/coa" ]] && \
-    ln -sf ../sites-available/coa "${RADD}/sites-enabled/coa"
+  success "Post-auth patches verified (IP pool + gateway + FUP)"
+fi
+
+# Verify CoA site is enabled
+if [[ -L "${RADD}/sites-enabled/coa" ]]; then
+  success "CoA site enabled (port 3799)"
+else
+  warn "CoA site NOT enabled — CoA/Disconnect requests will fail"
+fi
+
+# Verify custom SQL module is intact (not overwritten by symlink)
+if [[ -f "${RADD}/mods-enabled/sql" && ! -L "${RADD}/mods-enabled/sql" ]]; then
+  success "Custom SQL module intact"
+elif [[ -L "${RADD}/mods-enabled/sql" ]]; then
+  warn "mods-enabled/sql is a SYMLINK — custom accounting/post-auth queries may be missing"
 fi
 
 # Restart FreeRADIUS with final config
@@ -1160,14 +1266,14 @@ if [[ $? -eq 0 ]]; then {
   systemctl reset-failed radiusd 2>/dev/null || true
   systemctl restart radiusd
   if wait_for_service radiusd 90; then
-    success "FreeRADIUS restarted with CoA + post-auth config"
+    success "FreeRADIUS restarted with all patches applied"
   else
     warn "FreeRADIUS restart timed out — trying stop/start..."
     systemctl stop radiusd 2>/dev/null || true
     sleep 2
     systemctl start radiusd
     if wait_for_service radiusd 90; then
-      success "FreeRADIUS started with CoA + post-auth config"
+      success "FreeRADIUS started with all patches applied"
     else
       warn "FreeRADIUS not running — check: journalctl -u radiusd -n 30"
     fi
