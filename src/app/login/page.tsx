@@ -455,9 +455,9 @@ export default function LoginPage() {
 
         {/* Clean professional background */}
         <div className="w-full lg:w-[45%] xl:w-[40%] relative flex-1 min-h-screen lg:min-h-0">
-          {/* Soft static gradient - no animation, professional look */}
+          {/* Mobile: clean solid background. Desktop: subtle gradient with glow accents */}
           <div
-            className="absolute inset-0 bg-gradient-to-br from-teal-50/80 via-white to-emerald-50/60 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950"
+            className="absolute inset-0 bg-background lg:bg-gradient-to-br lg:from-teal-50/80 lg:via-white lg:to-emerald-50/60"
           />
 
           {/* Desktop-only: two very subtle, static, non-animated glow accents */}
@@ -716,33 +716,21 @@ export default function LoginPage() {
                               "dark:from-primary dark:to-primary/70",
                               "text-primary-foreground",
                               "hover:-translate-y-0.5 active:translate-y-0",
-                              "disabled:opacity-70 disabled:hover:translate-y-0 disabled:shadow-none disabled:active:scale-100 disabled:hover:scale-100",
-                              "relative overflow-hidden group"
+                              "disabled:opacity-70 disabled:hover:translate-y-0 disabled:shadow-none disabled:active:scale-100 disabled:hover:scale-100"
                             )}
                             disabled={isLoading}
                           >
                             {isLoading ? (
-                              <span className="relative z-10 flex items-center justify-center gap-2">
+                              <span className="flex items-center justify-center gap-2">
                                 <Loader2 className="h-4 w-4 animate-spin" />
                                 {t('signingIn')}
                               </span>
                             ) : (
-                              <span className="relative z-10 flex items-center justify-center gap-1.5">
+                              <span className="flex items-center justify-center gap-1.5">
                                 {t('signIn')}
-                                <ChevronRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+                                <ChevronRight className="h-4 w-4" />
                               </span>
                             )}
-                            {/* Shimmer overlay */}
-                            <span
-                              className="absolute inset-0 pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity duration-300"
-                              style={{
-                                background: 'linear-gradient(110deg, transparent 25%, rgba(255,255,255,0.15) 45%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.15) 55%, transparent 75%)',
-                                backgroundSize: '250% 100%',
-                                animation: 'loginShimmer 3s ease-in-out infinite',
-                              }}
-                            />
-                            {/* Bottom glow */}
-                            <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-3/4 h-6 bg-orange-500/20 blur-xl rounded-full pointer-events-none" />
                           </Button>
                         </motion.div>
 

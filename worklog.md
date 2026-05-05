@@ -45,3 +45,26 @@ Stage Summary:
 - Login form background is now clean and professional on mobile
 - No more distracting animated lights/particles/colors
 - Desktop retains subtle depth with two static glow accents
+---
+Task ID: 1
+Agent: main
+Task: Fix login page console errors (styled-jsx, script tag) and mobile DJ lighting animation
+
+Work Log:
+- Analyzed login page (`src/app/login/page.tsx`) for background animations and DJ lighting effects
+- Identified `ui-style-provider.tsx` using `next-themes` NextThemesProvider causing React 19 script tag warning
+- Identified `register/page.tsx` using `<style jsx>` (styled-jsx) causing module loading error in Next.js 16
+- Removed `<style jsx>` from register page, moved keyframes to `login-animations.css`
+- Created custom `ThemeProvider` at `src/components/theme/theme-provider.tsx` replacing `next-themes` entirely
+- Updated `UIStyleProvider` to use custom ThemeProvider instead of next-themes
+- Updated 3 files importing `useTheme` from `next-themes` to use custom provider
+- Added FOUC prevention inline script in layout.tsx `<head>`
+- Cleaned login page mobile background: changed teal gradient to plain `bg-background`, kept gradient for desktop only
+- Removed shimmer animation and bottom glow from sign-in button for cleaner professional look
+- Verified all changes: login page returns 200, no TypeScript errors in changed files
+
+Stage Summary:
+- **styled-jsx error**: Fixed by removing `<style jsx>` from register/page.tsx, keyframes moved to login-animations.css
+- **Script tag error**: Fixed by replacing next-themes with custom ThemeProvider (no script injection)
+- **Mobile DJ lighting**: Fixed by using plain `bg-background` on mobile, gradient only on desktop; removed button shimmer/glow effects
+- Files changed: login/page.tsx, register/page.tsx, ui-style-provider.tsx, theme-provider.tsx (new), theme-toggle.tsx, sonner.tsx, user-profile.tsx, layout.tsx, login-animations.css

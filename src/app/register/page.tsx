@@ -423,31 +423,7 @@ export default function RegistrationPage() {
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden">
-      {/* ── Inline Keyframe Animations ── */}
-      <style jsx>{`
-        @keyframes floatOrb1 {
-          0%, 100% { transform: translate(0, 0); }
-          25% { transform: translate(20px, -15px); }
-          50% { transform: translate(-10px, 10px); }
-          75% { transform: translate(15px, -5px); }
-        }
-        @keyframes floatOrb2 {
-          0%, 100% { transform: translate(0, 0); }
-          25% { transform: translate(-15px, 20px); }
-          50% { transform: translate(10px, -10px); }
-          75% { transform: translate(-5px, 15px); }
-        }
-        @keyframes floatOrb3 {
-          0%, 100% { transform: translate(0, 0); }
-          25% { transform: translate(15px, 10px); }
-          50% { transform: translate(-20px, -15px); }
-          75% { transform: translate(10px, -10px); }
-        }
-        @keyframes shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-      `}</style>
+      {/* ── Keyframe animations defined in login-animations.css ── */}
 
       <div className="flex flex-1 min-h-0">
         {/* ═══════════════════════════════════════════

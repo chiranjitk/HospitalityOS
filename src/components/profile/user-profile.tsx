@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUIStore } from '@/store';
 import { useI18n } from '@/contexts/I18nContext';
-import { useTheme } from 'next-themes';
+import { useTheme } from '@/components/theme/theme-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';

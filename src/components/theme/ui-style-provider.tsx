@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { ThemeProvider as NextThemesProvider } from 'next-themes';
+import { ThemeProvider } from '@/components/theme/theme-provider';
 import { initializeUITheme, useUIStyleStore } from '@/lib/themes/store';
 
 interface UIStyleProviderProps {
@@ -9,24 +9,17 @@ interface UIStyleProviderProps {
 }
 
 export function UIStyleProvider({ children }: UIStyleProviderProps) {
-  // Initialize theme on mount
+  // Initialize theme on mount (handled by ThemeProvider now, but keep for store sync)
   React.useEffect(() => {
     initializeUITheme();
   }, []);
 
-  // Listen for store changes and apply them
+  // Listen for store changes and apply data-theme attribute
   React.useEffect(() => {
     const unsubscribe = useUIStyleStore.subscribe((state, prevState) => {
-      if (state.themeId !== prevState.themeId || state.mode !== prevState.mode) {
-        const effectiveMode = state.getEffectiveMode();
+      if (state.themeId !== prevState.themeId) {
         const root = document.documentElement;
         root.setAttribute('data-theme', state.themeId);
-        
-        if (effectiveMode === 'dark') {
-          root.classList.add('dark');
-        } else {
-          root.classList.remove('dark');
-        }
       }
     });
 
@@ -34,7 +27,7 @@ export function UIStyleProvider({ children }: UIStyleProviderProps) {
   }, []);
 
   return (
-    <NextThemesProvider
+    <ThemeProvider
       attribute="class"
       defaultTheme="system"
       enableSystem
@@ -42,7 +35,7 @@ export function UIStyleProvider({ children }: UIStyleProviderProps) {
       storageKey="staysuite-theme-mode-next"
     >
       {children}
-    </NextThemesProvider>
+    </ThemeProvider>
   );
 }
 
@@ -51,7 +44,7 @@ export function UIStyleProvider({ children }: UIStyleProviderProps) {
  */
 export function useUIStyle() {
   const store = useUIStyleStore();
-  
+
   return {
     // State
     themeId: store.themeId,
@@ -60,7 +53,7 @@ export function useUIStyle() {
     isDark: store.getEffectiveMode() === 'dark',
     isLight: store.getEffectiveMode() === 'light',
     isSystem: store.mode === 'system',
-    
+
     // Actions
     setTheme: store.setTheme,
     setMode: store.setMode,
