@@ -535,28 +535,13 @@ async function generateConfig(): Promise<{ success: boolean; message: string; li
 
     // Auto-detect system interfaces for subnet binding
     const systemInterfaces = getSystemInterfaces();
-    const seenInterfaces = new Set<string>();
 
-    // ── 1. Interface Bindings
-    if (subnets.length > 0) {
-      config += `# ─────────────────────────────────────────────\n`;
-      config += `# Interface Bindings\n`;
-      config += `# ─────────────────────────────────────────────\n`;
-      config += `# NOTE: bind-interfaces is NOT set here — it conflicts with\n`;
-      config += `# bind-dynamic in staysuite.conf (dns-service). The interface=\n`;
-      config += `# directives below still restrict DHCP to specific interfaces;\n`;
-      config += `# bind-dynamic handles DNS on all available interfaces.\n\n`;
-
-      for (const sub of subnets) {
-        const cidr = subnetToCidr(sub.subnet);
-        const ifaceName = findInterfaceForSubnet(cidr, systemInterfaces);
-        if (ifaceName && !seenInterfaces.has(ifaceName)) {
-          config += `interface=${ifaceName}\n`;
-          seenInterfaces.add(ifaceName);
-        }
-      }
-      config += `\n`;
-    }
+    // ── 1. Interface Bindings (skipped — intentionally empty)
+    // NOTE: We do NOT emit interface= or bind-interfaces here.
+    // Both conflict with bind-dynamic in staysuite.conf (dns-service).
+    // Instead, interface binding is embedded into each dhcp-range line
+    // using the dnsmasq dhcp-range=<interface>:<start>,<end>,... syntax.
+    // This binds DHCP to specific interfaces while keeping DNS on all.
 
     // ── 2. MAC Blacklist (dhcp-host=<mac>,ignore)
     if (blacklists.length > 0) {
@@ -638,9 +623,12 @@ async function generateConfig(): Promise<{ success: boolean; message: string; li
         config += `# Subnet: ${sub.name} (${cidr})\n`;
         config += `# ID: ${sub.id}\n`;
 
-        // dhcp-range: <start>,<end>,<netmask>,<lease>
+        // dhcp-range: <interface>:<start>,<end>,<netmask>,<lease>
+        // Interface prefix binds DHCP to the matching NIC without restricting DNS
+        const ifaceName = findInterfaceForSubnet(cidr, systemInterfaces);
+        const ifacePrefix = ifaceName ? `${ifaceName}:` : '';
         const leaseDisplay = leaseSecondsToDisplay(sub.leaseTime || 3600);
-        config += `dhcp-range=${sub.poolStart},${sub.poolEnd},${netmask},${leaseDisplay}\n`;
+        config += `dhcp-range=${ifacePrefix}${sub.poolStart},${sub.poolEnd},${netmask},${leaseDisplay}\n`;
 
         // Gateway (router option) — resolve hostnames to IPs
         if (sub.gateway) {
