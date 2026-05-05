@@ -18,6 +18,7 @@ import { locales, type Locale, defaultLocale, isValidLocale } from '@/i18n/confi
 import { I18nProvider } from '@/contexts/I18nContext';
 import { PwaRegister } from '@/components/common/pwa-register';
 import { PwaInstallPrompt } from '@/components/common/pwa-install-prompt';
+import Script from 'next/script';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -78,7 +79,9 @@ export default async function RootLayout({
     <html lang={locale} suppressHydrationWarning>
       <head>
         {/* Inline FOUC prevention — runs before React hydration */}
-        <script
+        <Script
+          id="theme-fouc-prevention"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('staysuite-theme-mode-next');var d=t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme:dark)').matches);if(d)document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark');document.documentElement.style.setProperty('color-scheme',d?'dark':'light')}catch(e){}})()`,
           }}
