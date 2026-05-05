@@ -151,3 +151,26 @@ Stage Summary:
 - **Fix**: `rm -f /etc/rc.d/init.d/ulogd2 /etc/init.d/ulogd2` before `systemctl daemon-reload && systemctl enable ulogd2`
 - Files changed: build-offline.sh (deploy.sh cleanup), README.md (7 sections updated), defaultchains_cryptsk.sh (binary name + systemctl)
 - User action needed: run `rm -f /etc/rc.d/init.d/ulogd2 && systemctl daemon-reload && systemctl enable ulogd2` on the Rocky 10 server
+
+---
+Task ID: 3
+Agent: main
+Task: Fix NFLOG rule — capture TLS ClientHello instead of SYN-only packets
+
+Work Log:
+- Analyzed why all JSON entries showed `raw.pktlen: 60` (SYN-only, no TLS payload)
+- Root cause: `ct state new` matches only the TCP SYN packet (60 bytes, zero payload)
+- TLS ClientHello (containing SNI) arrives AFTER the 3-way handshake in a separate data packet
+- By the time ClientHello is sent, conntrack state is ESTABLISHED, not NEW
+- Also fixed syntax error: `not syn` is invalid in nftables (user tried it)
+- Correct filter: `tcp flags & (fin|syn|rst) == 0 tcp length > 0` captures only data-carrying ACK packets
+- This matches the TLS ClientHello (ACK+PSH with payload ~200-500 bytes)
+- Updated defaultchains_cryptsk.sh: both group 20 (SNI/443) and group 21 (HTTP/80) rules fixed
+- Updated ulogd.conf comments to document the rule change
+
+Stage Summary:
+- **Root cause**: `ct state new` captures only SYN (60 bytes) — TLS ClientHello is a post-handshake data packet
+- **Fix**: Replace with `tcp flags & (fin|syn|rst) == 0 tcp length > 0` in nftables rule
+- **nftables syntax**: `not syn` is invalid; must use `tcp flags & (syn) == 0` or flag bitmask
+- Files changed: defaultchains_cryptsk.sh (lines 237-286), ulogd.conf (header + rule comments)
+- User must run manual fix on server to apply immediately

@@ -246,9 +246,16 @@ nft 'add rule inet mangle open udp dport 6065 accept'
 ##   nftables NFLOG (group 20) → ulogd2 → /var/log/ulogd/json/sni-queries.log
 ##   sni-parser (port 3022) reads JSON → extracts TLS SNI → ClickHouse ipdr.sni_log
 ##
-## Rule 1 (group 20): TCP SYN to port 443 → captures TLS ClientHello for SNI
-## Rule 2 (group 21): TCP SYN to port 80  → captures HTTP Host (future use)
-## Rule 3 (group 22): UDP/TCP port 53     → captures DNS queries (supplementary)
+## IMPORTANT — Why NOT "ct state new":
+##   TCP handshake: SYN → SYN-ACK → ACK → ClientHello (with SNI)
+##   "ct state new" only matches the SYN packet (60 bytes, zero payload).
+##   The TLS ClientHello arrives AFTER the handshake in a data-carrying ACK
+##   packet (tcp.psh=1, raw.pktlen ~200-500 bytes). By then ct state is
+##   ESTABLISHED, not NEW. So we must filter by payload presence instead.
+##
+## Rule 1 (group 20): TCP 443 data packets → captures TLS ClientHello for SNI
+## Rule 2 (group 21): TCP 80 data packets  → captures HTTP Host header
+## Rule 3 (group 22): UDP/TCP port 53     → captures DNS queries
 ## ============================================================================
 
 # Only install NFLOG rules if ulogd2 is installed
@@ -265,14 +272,20 @@ if command -v ulogd >/dev/null 2>&1 || [ -x /usr/local/ulogd2/sbin/ulogd ]; then
     nft 'insert rule inet mangle prerouting udp dport 53 log group 22 snaplen 512 prefix "NFLOG_DNS: "'
     nft 'insert rule inet mangle prerouting tcp dport 53 log group 22 snaplen 512 prefix "NFLOG_DNS: "'
 
-    # NFLOG group 21: HTTP Host capture (TCP port 80 new connections — future use)
-    nft 'insert rule inet mangle prerouting tcp dport 80 ct state new log group 21 snaplen 1500 prefix "NFLOG_HTTP: "'
+    # NFLOG group 21: HTTP Host capture (TCP port 80)
+    # Same logic as SNI: HTTP GET/Host header is in the FIRST data packet after handshake,
+    # NOT in the SYN. Use "tcp flags & (fin|syn|rst) == 0" + "tcp length > 0"
+    # to capture only data-carrying ACK packets (the HTTP request).
+    nft 'insert rule inet mangle prerouting tcp dport 80 tcp flags \& (fin|syn|rst) == 0 tcp length > 0 log group 21 snaplen 1500 prefix "NFLOG_HTTP: "'
 
-    # NFLOG group 20: TLS SNI capture (TCP port 443 new connections)
-    # Captures the TLS ClientHello packet which contains the SNI domain in plaintext
-    nft 'insert rule inet mangle prerouting tcp dport 443 ct state new log group 20 snaplen 1500 prefix "NFLOG_SNI: "'
+    # NFLOG group 20: TLS SNI capture (TCP port 443)
+    # CRITICAL: Do NOT use "ct state new" — it only captures SYN (60 bytes, no payload).
+    # TLS ClientHello with SNI arrives AFTER the 3-way handshake in a data packet.
+    # Filter: no FIN/SYN/RST flags (pure data ACK) + payload present (tcp length > 0).
+    # snaplen 1500 captures up to 1500 bytes — enough for the ClientHello.
+    nft 'insert rule inet mangle prerouting tcp dport 443 tcp flags \& (fin|syn|rst) == 0 tcp length > 0 log group 20 snaplen 1500 prefix "NFLOG_SNI: "'
 
-    # Start ulogd2 via systemctl (native systemd — Rocky 10 has no SysV compat layer)
+    # Restart ulogd2 to pick up the new rule change (native systemd — Rocky 10 has no SysV compat layer)
     if [ -f /etc/systemd/system/ulogd2.service ] || systemctl list-unit-files ulogd2.service >/dev/null 2>&1; then
         systemctl restart ulogd2 >/dev/null 2>&1
         echo "ulogd2 started via systemctl"
