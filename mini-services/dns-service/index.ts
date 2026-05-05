@@ -420,9 +420,8 @@ async function syncConfigToDisk(): Promise<{ success: boolean; lines: number }> 
 # ═══════════════════════════════════════════════════════════════════════
 `;
 
-  // Listen on ALL interfaces — every interface IP works as gateway/DNS for LAN clients
-  config += `# Listen on all interfaces (0.0.0.0 = all IPv4)
-listen-address=0.0.0.0
+  // bind-dynamic alone listens on ALL available interfaces (no listen-address needed)
+  config += `# Listen on all interfaces automatically
 bind-dynamic
 
 # DNS behavior
