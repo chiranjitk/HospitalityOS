@@ -25,3 +25,23 @@ Stage Summary:
 - Admin credentials: admin@royalstay.in / admin123
 - 277 tables, 6 views, 8 DB functions in staysuite database
 - Comprehensive seed data with 44 WiFi module categories, users, bookings, etc.
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix login page DJ lighting animation on mobile
+
+Work Log:
+- Analyzed login page at src/app/login/page.tsx - identified 10+ animated layers causing DJ lighting effect
+- Removed: mesh gradient base layer with shifting animation, 5 pulsing glow orbs, 3 dark mode orbs, 3 floating orbs with float keyframes, SVG grid pattern, SVG dot pattern with drift animation, 8 floating hotel-themed icons with framer-motion, 16 colored particle dots, radial glow behind form, animated shimmer border on card, pulsing glow ring, rotating gradient border, grid pattern overlay
+- Replaced with: clean static gradient (teal-50/white/emerald-50 for light, slate-950 for dark)
+- Desktop-only: two very subtle static (non-animated) glow accents
+- Clean card with simple static accent line on top edge
+- Removed unused imports (Key, Wine, Clock, Fingerprint), useMemo, floatingIcons array
+- Net reduction: -251 lines, +18 lines
+- Verified login page returns HTTP 200, no build errors
+
+Stage Summary:
+- Login form background is now clean and professional on mobile
+- No more distracting animated lights/particles/colors
+- Desktop retains subtle depth with two static glow accents
