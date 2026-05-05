@@ -246,6 +246,60 @@ nft 'add rule inet mangle prerouting ip saddr @usersset ct mark set mark'
 nft 'add rule inet mangle prerouting ip daddr @loggedinuserssnatip accept'
 nft 'add rule inet mangle prerouting ip daddr @usersdstset accept'
 nft 'add rule inet mangle prerouting ip saddr @usersset accept'
+
+## ============================================================================
+## NFLOG RULES — ulogd2 SNI Capture Pipeline
+##
+## Architecture:
+##   nftables NFLOG (group 20) → ulogd2 → /var/log/ulogd/json/sni-queries.log
+##   sni-parser (port 3022) reads JSON → extracts TLS SNI → ClickHouse ipdr.sni_log
+##
+## IMPORTANT: These are NON-TERMINATING log rules. Packets continue through
+## the chain after NFLOG capture. They do NOT accept/drop — just mirror.
+##
+## Rule 1 (group 20): TCP SYN to port 443 → captures TLS ClientHello for SNI
+## Rule 2 (group 21): TCP SYN to port 80  → captures HTTP Host (future use)
+## Rule 3 (group 22): UDP/TCP port 53     → captures DNS queries (supplementary)
+##
+## snaplen=1500: captures enough bytes for TLS ClientHello with SNI extension
+## ============================================================================
+
+# Only install NFLOG rules if ulogd2 is installed
+if command -v ulogd2 >/dev/null 2>&1 || [ -x /usr/local/ulogd2/sbin/ulogd2 ]; then
+    echo "ulogd2 detected — installing NFLOG rules for SNI capture pipeline"
+
+    # NFLOG group 20: TLS SNI capture (TCP port 443 new connections)
+    # Captures the TLS ClientHello packet which contains the SNI domain in plaintext
+    nft 'add rule inet mangle prerouting tcp dport 443 ct state new log group 20 snaplen 1500 prefix "NFLOG_SNI: "'
+
+    # NFLOG group 21: HTTP Host capture (TCP port 80 new connections — future use)
+    nft 'add rule inet mangle prerouting tcp dport 80 ct state new log group 21 snaplen 1500 prefix "NFLOG_HTTP: "'
+
+    # NFLOG group 22: DNS query capture (UDP/TCP port 53 — supplementary data)
+    # Note: DNS logs are NOT a trusted source for IPDR (users can bypass with 8.8.8.8)
+    # SNI from group 20 is the primary and authoritative domain source
+    nft 'add rule inet mangle prerouting udp dport 53 log group 22 snaplen 512 prefix "NFLOG_DNS: "'
+    nft 'add rule inet mangle prerouting tcp dport 53 log group 22 snaplen 512 prefix "NFLOG_DNS: "'
+
+    # Start ulogd2 daemon if it has a valid config
+    ULOGD2_BIN=""
+    [ -x /usr/local/ulogd2/sbin/ulogd2 ] && ULOGD2_BIN="/usr/local/ulogd2/sbin/ulogd2"
+    [ -x "$(which ulogd2 2>/dev/null)" ] && ULOGD2_BIN="$(which ulogd2)"
+
+    if [ -n "$ULOGD2_BIN" ] && [ -f /usr/local/ulogd2/etc/ulogd.conf ]; then
+        # Kill existing ulogd2 instance
+        pkill -f ulogd2 >/dev/null 2>&1
+        sleep 1
+        # Start ulogd2 daemon (background)
+        $ULOGD2_BIN -c /usr/local/ulogd2/etc/ulogd.conf >/dev/null 2>&1 &
+        echo "ulogd2 started (PID: $!)"
+    else
+        echo "WARNING: ulogd2 config not found at /usr/local/ulogd2/etc/ulogd.conf — NFLOG rules loaded but ulogd2 not started"
+    fi
+else
+    echo "ulogd2 not found — skipping NFLOG rules (SNI capture pipeline disabled)"
+fi
+
 nft 'add rule inet mangle prerouting jump open'
 # Hotelflow falls here (Appended before accountingup)
 hotelflowstatus=$(dbi -q "select servicevalue from tblclientservices where servicekey ='ishotelflow'" 2>/dev/null)

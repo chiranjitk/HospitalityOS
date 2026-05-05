@@ -12,7 +12,10 @@
 // ─── Configuration ──────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || "3022", 10);
 const CLICKHOUSE_URL = process.env.CLICKHOUSE_URL || "http://127.0.0.1:8123";
-const SNI_LOG_FILE = process.env.SNI_LOG_FILE || "/var/log/sni-queries.log";
+// Log file path — supports both simple JSON and ulogd2 JSONLOG format
+const SNI_LOG_FILE = process.env.SNI_LOG_FILE || "/var/log/ulogd/json/sni-queries.log";
+// Log format: "simple" = pre-parsed {sni_domain,...}, "ulogd2" = raw NFLOG JSON with raw.pkt hex
+const SNI_LOG_FORMAT = process.env.SNI_LOG_FORMAT || "ulogd2";
 const RING_BUFFER_SIZE = 5000;
 const BATCH_INTERVAL_MS = 2000;
 const BATCH_MAX_SIZE = 500;
@@ -188,6 +191,72 @@ const topSources = new Map<string, number>();
 const topPorts = new Map<number, number>();
 
 // ─── SNI record parser ─────────────────────────────────────────────────────
+
+/**
+ * Parse an ulogd2 JSONLOG line (raw NFLOG fields with raw.pkt hex payload).
+ * Extracts SNI from the TLS ClientHello in the raw packet data.
+ *
+ * ulogd2 JSON format example:
+ * { "oob.time.sec":1234567890, "raw.pkt":"4500...", "ip.saddr":"10.0.1.101",
+ *   "ip.daddr":"142.250.80.14", "tcp.sport":52341, "tcp.dport":443 }
+ */
+function parseUlogd2Record(obj: Record<string, unknown>): any | null {
+  // Extract raw packet hex string
+  const rawPktHex = String(obj["raw.pkt"] || "");
+  if (!rawPktHex || rawPktHex.length < 100) return null;
+
+  // Convert hex to Uint8Array
+  const pktLen = rawPktHex.length / 2;
+  const buf = new Uint8Array(pktLen);
+  for (let i = 0; i < pktLen; i++) {
+    buf[i] = parseInt(rawPktHex.substring(i * 2, i * 2 + 2), 16);
+  }
+
+  // Extract SNI and TLS version from raw packet
+  const sniDomain = extractSni(buf);
+  if (!sniDomain) return null; // Skip non-TLS or packets without SNI
+
+  const tlsVersion = extractTlsVersion(buf);
+
+  // Extract IP addresses from ulogd2 fields (dot-notation keys)
+  const srcIp = String(obj["ip.saddr"] || obj["oob.in"] || "");
+  const dstIp = String(obj["ip.daddr"] || "");
+  const dstPort = parseInt(String(obj["tcp.dport"] || obj["udp.dport"] || "443"), 10);
+
+  // Timestamp: ulogd2 gives unix epoch seconds, optionally with microseconds
+  const timeSec = Number(obj["oob.time.sec"] || 0);
+  const timeUsec = Number(obj["oob.time.usec"] || 0);
+  const timestamp = timeSec
+    ? new Date(timeSec * 1000 + Math.floor(timeUsec / 1000)).toISOString()
+    : new Date().toISOString();
+
+  return {
+    timestamp,
+    src_ip: srcIp,
+    dst_ip: dstIp,
+    dst_port: dstPort || 443,
+    sni_domain: sniDomain,
+    tls_version: tlsVersion,
+    ja3_hash: "",
+  };
+}
+
+/**
+ * Parse a simple JSON record (pre-parsed SNI, no raw packet).
+ * Format: { "timestamp": "...", "src_ip": "...", "sni_domain": "...", ... }
+ */
+function parseSimpleRecord(obj: Record<string, unknown>): any | null {
+  return {
+    timestamp: String(obj.timestamp || new Date().toISOString()),
+    src_ip: String(obj.src_ip || ""),
+    dst_ip: String(obj.dst_ip || ""),
+    dst_port: parseInt(String(obj.dst_port), 10) || 443,
+    sni_domain: String(obj.sni_domain || ""),
+    tls_version: String(obj.tls_version || "unknown"),
+    ja3_hash: String(obj.ja3_hash || ""),
+  };
+}
+
 function parseSniRecord(line: string): any | null {
   const trimmed = line.trim();
   if (!trimmed || trimmed.startsWith("#")) return null;
@@ -195,15 +264,18 @@ function parseSniRecord(line: string): any | null {
   try {
     const obj = JSON.parse(trimmed);
 
-    const record = {
-      timestamp: obj.timestamp || new Date().toISOString(),
-      src_ip: obj.src_ip || "",
-      dst_ip: obj.dst_ip || "",
-      dst_port: parseInt(String(obj.dst_port), 10) || 443,
-      sni_domain: obj.sni_domain || "",
-      tls_version: obj.tls_version || "unknown",
-      ja3_hash: obj.ja3_hash || "",
-    };
+    // Auto-detect format: ulogd2 JSON has "raw.pkt" or "oob.time.sec" keys
+    let record: any;
+    if (SNI_LOG_FORMAT === "ulogd2" || obj["raw.pkt"] || obj["oob.time.sec"]) {
+      record = parseUlogd2Record(obj);
+    } else {
+      record = parseSimpleRecord(obj);
+    }
+
+    if (!record) return null;
+
+    // Skip records without SNI domain
+    if (!record.sni_domain) return null;
 
     // Update aggregates
     if (record.sni_domain) {
@@ -391,6 +463,7 @@ function startServer(): void {
           status: "running",
           port: PORT,
           logFile: SNI_LOG_FILE,
+          logFormat: SNI_LOG_FORMAT,
           uptime: process.uptime(),
           eventsProcessed: totalEvents,
           ringBufferSize: ringBuffer.length,
@@ -553,7 +626,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
 // ─── Main ───────────────────────────────────────────────────────────────────
 async function main(): Promise<void> {
   console.log(`[${SERVICE_NAME}] Starting sni-parser service...`);
-  console.log(`[${SERVICE_NAME}] Port: ${PORT}, Log: ${SNI_LOG_FILE}, ClickHouse: ${CLICKHOUSE_URL}`);
+  console.log(`[${SERVICE_NAME}] Port: ${PORT}, Log: ${SNI_LOG_FILE}, Format: ${SNI_LOG_FORMAT}, ClickHouse: ${CLICKHOUSE_URL}`);
 
   // Ensure ClickHouse table
   await ensureClickHouseTable();

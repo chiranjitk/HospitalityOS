@@ -1,0 +1,182 @@
+#!/bin/bash
+##############################################################################
+#  ulogd2 Init Script — StaySuite-HospitalityOS
+#
+#  SysV init script for Rocky Linux 10 compatibility.
+#  Also works as a standalone control script for dev/testing.
+#
+#  Usage:
+#    bash tools/ulogd2-clickhouse/ulogd2.init start|stop|restart|status
+#
+#  Install (production):
+#    cp tools/ulogd2-clickhouse/ulogd2.init /etc/rc.d/init.d/ulogd2
+#    chmod +x /etc/rc.d/init.d/ulogd2
+#    chkconfig --add ulogd2
+#    chkconfig ulogd2 on
+#
+#  Or as systemd service (alternative):
+#    cp tools/ulogd2-clickhouse/ulogd2.service /etc/systemd/system/
+#    systemctl daemon-reload
+#    systemctl enable --now ulogd2
+##############################################################################
+
+# Source function library (Rocky/CentOS)
+[ -f /etc/rc.d/init.d/functions ] && . /etc/rc.d/init.d/functions
+
+ULOGD2_BIN="/usr/local/ulogd2/sbin/ulogd2"
+ULOGD2_CONF="/usr/local/ulogd2/etc/ulogd.conf"
+ULOGD2_PID="/var/run/ulogd2.pid"
+ULOGD2_OPTS="-c $ULOGD2_CONF"
+LOCKFILE="/var/lock/subsys/ulogd2"
+
+# ─── Sanity checks ────────────────────────────────────────────────────────
+
+if [ ! -x "$ULOGD2_BIN" ]; then
+    echo "ERROR: ulogd2 binary not found at $ULOGD2_BIN"
+    echo "       Run: bash tools/ulogd2-clickhouse/build.sh"
+    exit 1
+fi
+
+if [ ! -f "$ULOGD2_CONF" ]; then
+    echo "ERROR: ulogd2 config not found at $ULOGD2_CONF"
+    echo "       Run: cp tools/ulogd2-clickhouse/ulogd.conf $ULOGD2_CONF"
+    exit 1
+fi
+
+# ─── Ensure log directory exists ──────────────────────────────────────────
+
+mkdir -p /var/log/ulogd/json
+chmod 755 /var/log/ulogd
+chmod 755 /var/log/ulogd/json
+
+# ─── Actions ──────────────────────────────────────────────────────────────
+
+start() {
+    # Check if already running
+    if [ -f "$ULOGD2_PID" ] && kill -0 "$(cat $ULOGD2_PID)" 2>/dev/null; then
+        echo "ulogd2 is already running (PID: $(cat $ULOGD2_PID))"
+        return 0
+    fi
+
+    echo -n "Starting ulogd2: "
+    $ULOGD2_BIN $ULOGD2_OPTS
+    RETVAL=$?
+
+    if [ $RETVAL -eq 0 ]; then
+        # Wait briefly and verify
+        sleep 1
+        if [ -f "$ULOGD2_PID" ] && kill -0 "$(cat $ULOGD2_PID)" 2>/dev/null; then
+            echo_success
+            echo
+            touch "$LOCKFILE"
+            echo "  PID: $(cat $ULOGD2_PID)"
+            echo "  Config: $ULOGD2_CONF"
+            echo "  Log: /var/log/ulogd/ulogd2.log"
+            echo "  JSON output: /var/log/ulogd/json/sni-queries.log"
+            return 0
+        else
+            echo_failure
+            echo
+            echo "  ulogd2 process not found after start (check /var/log/ulogd/ulogd2.log)"
+            return 1
+        fi
+    else
+        echo_failure
+        echo
+        echo "  Start failed with exit code $RETVAL"
+        return $RETVAL
+    fi
+}
+
+stop() {
+    if [ ! -f "$ULOGD2_PID" ]; then
+        echo "ulogd2 is not running"
+        # Also try killall in case PID file was lost
+        pkill -f "$ULOGD2_BIN" 2>/dev/null
+        rm -f "$LOCKFILE"
+        return 0
+    fi
+
+    local pid=$(cat $ULOGD2_PID)
+    echo -n "Stopping ulogd2 (PID: $pid): "
+
+    kill -TERM "$pid" 2>/dev/null
+    RETVAL=$?
+
+    # Wait up to 10 seconds for graceful shutdown
+    local timeout=10
+    while [ $timeout -gt 0 ] && kill -0 "$pid" 2>/dev/null; do
+        sleep 1
+        timeout=$((timeout - 1))
+    done
+
+    # Force kill if still running
+    if kill -0 "$pid" 2>/dev/null; then
+        echo -n "(forcing) "
+        kill -9 "$pid" 2>/dev/null
+    fi
+
+    rm -f "$ULOGD2_PID" "$LOCKFILE"
+    echo_success
+    echo
+    return $RETVAL
+}
+
+restart() {
+    stop
+    sleep 2
+    start
+}
+
+status() {
+    if [ -f "$ULOGD2_PID" ] && kill -0 "$(cat $ULOGD2_PID)" 2>/dev/null; then
+        local pid=$(cat $ULOGD2_PID)
+        echo "ulogd2 is running (PID: $pid)"
+        echo "  Config: $ULOGD2_CONF"
+        echo "  Uptime: $(ps -o etimes= -p $pid 2>/dev/null | awk '{printf "%d seconds", $1}' || echo 'unknown')"
+
+        # Show recent log
+        if [ -f /var/log/ulogd/ulogd2.log ]; then
+            echo "  Recent log:"
+            tail -5 /var/log/ulogd/ulogd2.log | sed 's/^/    /'
+        fi
+
+        # Check JSON output
+        if [ -f /var/log/ulogd/json/sni-queries.log ]; then
+            local size=$(stat -c%s /var/log/ulogd/json/sni-queries.log 2>/dev/null || echo 0)
+            local lines=$(wc -l < /var/log/ulogd/json/sni-queries.log 2>/dev/null || echo 0)
+            echo "  SNI JSON log: $lines records, $(numfmt --to=iec $size 2>/dev/null || echo "${size}B")"
+        fi
+
+        return 0
+    else
+        echo "ulogd2 is not running"
+        return 3
+    fi
+}
+
+# ─── Main ─────────────────────────────────────────────────────────────────
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart)
+        restart
+        ;;
+    status)
+        status
+        ;;
+    condrestart|try-restart)
+        [ -f "$LOCKFILE" ] && restart
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status|condrestart}"
+        exit 2
+        ;;
+esac
+
+exit $?

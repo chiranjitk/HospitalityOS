@@ -1,0 +1,25 @@
+[Unit]
+Description=ulogd2 NFLOG Daemon — StaySuite SNI Capture Pipeline
+Documentation=https://www.netfilter.org/projects/ulogd/
+After=network-online.target nftables.service
+Wants=network-online.target
+
+[Service]
+Type=forking
+ExecStart=/usr/local/ulogd2/sbin/ulogd2 -c /usr/local/ulogd2/etc/ulogd.conf
+PIDFile=/var/run/ulogd2.pid
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65535
+
+# Pre-create log directories
+ExecStartPre=/bin/mkdir -p /var/log/ulogd/json
+ExecStartPre=/bin/chmod 755 /var/log/ulogd /var/log/ulogd/json
+
+# Security hardening
+NoNewPrivileges=false
+ProtectSystem=false
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target
