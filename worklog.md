@@ -101,3 +101,29 @@ Stage Summary:
 - Files created: src/app/api/wifi/mac-auth/route.ts
 - Files modified: src/components/wifi/mac-auth.tsx
 - Pushed to GitHub: commit 6b8acb45
+---
+Task ID: 1
+Agent: Main Agent
+Task: End-to-end flow test of MAC Authentication via direct DB + FreeRADIUS API
+
+Work Log:
+- Read `/api/wifi/mac-auth/route.ts` — direct Prisma DB CRUD (GET/POST/PUT/DELETE)
+- Read `/api/wifi/radius/route.ts` — FreeRADIUS proxy + direct DB fallback
+- Logged in via `/api/auth/login` — session_token cookie-based auth
+- Tested all CRUD operations on `/api/wifi/mac-auth`
+- Tested bulk import, search, status filters, check-mac
+- Tested validation (invalid MAC, empty MAC, duplicate, delete non-existent, MAC normalization)
+- Tested FreeRADIUS status (running, 7 users, 3 NAS clients)
+- Tested FreeRADIUS users list from v_wifi_users view (8 users)
+- Tested FreeRADIUS auth logs from v_auth_logs view
+- Tested sync-users (7 users synced)
+- Started freeradius-service on port 3010 (was not running)
+- Cleaned up all test entries, DB back to original 10 entries
+
+Stage Summary:
+- All 25 tests passed ✅
+- Direct DB path (Prisma) works perfectly for MAC Auth CRUD
+- FreeRADIUS daemon running (PID 14198) — status API confirms installed+running
+- FreeRADIUS proxy service (port 3010) needs STAYSUITE_CLIENT_BEGIN env var — crashes on SIGHUP sync
+- MAC Auth does NOT depend on freeradius-service proxy — uses direct DB path
+- DB state clean: 10 MAC entries (8 active, 1 inactive, 1 expired)
