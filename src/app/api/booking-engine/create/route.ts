@@ -5,6 +5,7 @@ import crypto, { randomBytes } from 'crypto';
 import { calculatePrice } from '@/lib/pricing';
 import { emailService } from '@/lib/services/email-service';
 import { notifyBookingCreated } from '@/lib/notify';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 // In-memory rate limiting (5 bookings per IP per 15 minutes)
 const bookingRateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -59,6 +60,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
     const {
       propertyId,
       roomTypeId,
@@ -72,7 +74,7 @@ export async function POST(request: NextRequest) {
       specialRequests,
       paymentMethod,
       idempotencyKey,
-    } = body;
+    } = data;
 
     // Validate required fields
     if (!propertyId || !roomTypeId || !checkIn || !checkOut || !guestDetails) {
@@ -368,7 +370,7 @@ export async function POST(request: NextRequest) {
           discount: 0,
           totalAmount,
           currency: property.currency,
-          ratePlanId,
+          ratePlanId: ratePlanId || null,
           source: 'direct',
           status: 'confirmed',
           specialRequests,

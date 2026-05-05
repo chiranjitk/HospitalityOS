@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 // GET /api/chat-conversations - List all chat conversations
 export async function GET(request: NextRequest) {
@@ -174,6 +175,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
     const tenantId = user.tenantId;
 
     const {
@@ -182,7 +184,7 @@ export async function POST(request: NextRequest) {
       bookingId,
       channel = 'app',
       assignedTo,
-    } = body;
+    } = data;
 
     if (!propertyId) {
       return NextResponse.json(
@@ -195,10 +197,10 @@ export async function POST(request: NextRequest) {
       data: {
         tenantId,
         propertyId,
-        guestId,
-        bookingId,
+        guestId: guestId || null,
+        bookingId: bookingId || null,
         channel,
-        assignedTo,
+        assignedTo: assignedTo || null,
         status: 'open',
         unreadCount: 0,
       },
@@ -234,8 +236,9 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
     const tenantId = user.tenantId;
-    const { id, status, assignedTo, unreadCount } = body;
+    const { id, status, assignedTo, unreadCount } = data;
 
     if (!id) {
       return NextResponse.json(
@@ -270,7 +273,7 @@ export async function PUT(request: NextRequest) {
     }
 
     if (assignedTo !== undefined) {
-      updateData.assignedTo = assignedTo;
+      updateData.assignedTo = assignedTo || null;
     }
 
     if (unreadCount !== undefined) {

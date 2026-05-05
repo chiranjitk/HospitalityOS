@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 // GET /api/wifi/dhcp/reservations - List reservations
 export async function GET(request: NextRequest) {
@@ -79,6 +80,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
     const tenantId = user.tenantId;
 
     const {
@@ -92,7 +94,7 @@ export async function POST(request: NextRequest) {
       linkedId,
       description,
       enabled = true,
-    } = body;
+    } = data;
 
     if (!propertyId || !subnetId || !macAddress || !ipAddress) {
       return NextResponse.json(
@@ -156,7 +158,7 @@ export async function POST(request: NextRequest) {
         hostname,
         leaseTime: leaseTime ? parseInt(leaseTime, 10) : null,
         linkedType,
-        linkedId,
+        linkedId: linkedId || null,
         description,
         enabled,
       },

@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { emailService } from '@/lib/services/email-service';
 import { smsService } from '@/lib/services/sms-service';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 const MAX_LIMIT = 100;
 
@@ -139,6 +140,7 @@ export async function POST(request: NextRequest) {
 
     const tenantId = user.tenantId;
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
     const {
       name,
       description,
@@ -148,7 +150,7 @@ export async function POST(request: NextRequest) {
       templateId,
       segmentIds = [],
       scheduledAt,
-    } = body;
+    } = data;
 
     if (!name || !type || !content) {
       return NextResponse.json(
@@ -206,7 +208,7 @@ export async function POST(request: NextRequest) {
         type,
         subject,
         content,
-        templateId,
+        templateId: templateId || null,
         targetSegments: JSON.stringify(segmentIds),
         scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
         status,

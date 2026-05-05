@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import crypto from 'crypto';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -179,6 +180,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const { id: vendorId } = await params;
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
 
     // Verify vendor exists and is active
     const vendor = await db.vendor.findFirst({
@@ -206,7 +208,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       estimatedHours,
       notes,
       attachments,
-    } = body;
+    } = data;
 
     // Validate required fields
     if (!propertyId) {
@@ -242,9 +244,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       data: {
         tenantId: user.tenantId,
         propertyId,
-        vendorId,
-        roomId,
-        assetId,
+        vendorId: vendorId || null,
+        roomId: roomId || null,
+        assetId: assetId || null,
         workOrderNumber,
         title,
         description,

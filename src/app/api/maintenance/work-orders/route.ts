@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { notifyRoomMaintenance } from '@/lib/notify';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 import crypto from 'crypto';
 
 interface RouteParams {
@@ -236,6 +237,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
 
     const {
       propertyId,
@@ -252,7 +254,7 @@ export async function POST(request: NextRequest) {
       estimatedHours,
       notes,
       attachments,
-    } = body;
+    } = data;
 
     // Validate required fields
     if (!propertyId) {
@@ -305,9 +307,9 @@ export async function POST(request: NextRequest) {
       data: {
         tenantId: user.tenantId,
         propertyId,
-        vendorId,
-        roomId,
-        assetId,
+        vendorId: vendorId || null,
+        roomId: roomId || null,
+        assetId: assetId || null,
         workOrderNumber,
         title,
         description,

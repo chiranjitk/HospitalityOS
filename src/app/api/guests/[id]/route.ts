@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { logGuest } from '@/lib/audit';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 function safeJsonParse(value: string, fallback: unknown = null): unknown {
   try {
@@ -99,6 +100,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
     
     const existingGuest = await db.guest.findUnique({
       where: { id, deletedAt: null },
@@ -161,7 +163,7 @@ export async function PUT(
       emailOptIn,
       smsOptIn,
       kycStatus,
-    } = body;
+    } = data;
     
     // If email is being changed, check for conflicts
     if (email && email !== existingGuest.email) {
@@ -210,7 +212,7 @@ export async function PUT(
         ...(isVip !== undefined && { isVip }),
         ...(vipLevel !== undefined && { vipLevel }),
         ...(source !== undefined && { source }),
-        ...(sourceId !== undefined && { sourceId }),
+        ...(sourceId !== undefined && { sourceId: sourceId || null }),
         ...(emailOptIn !== undefined && { emailOptIn }),
         ...(smsOptIn !== undefined && { smsOptIn }),
         ...(kycStatus !== undefined && { kycStatus }),

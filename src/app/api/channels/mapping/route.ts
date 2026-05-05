@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 // GET /api/channels/mapping - Get channel mappings
 export async function GET(request: NextRequest) {
@@ -155,6 +156,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
     const {
       connectionId,
       roomTypeId,
@@ -166,7 +168,7 @@ export async function POST(request: NextRequest) {
       syncInventory = true,
       syncRates = true,
       syncRestrictions = true,
-    } = body;
+    } = data;
 
     if (!connectionId || !roomTypeId || !externalRoomId) {
       return NextResponse.json(
@@ -207,7 +209,7 @@ export async function POST(request: NextRequest) {
       where: {
         connectionId: body.connectionId,
         roomTypeId: body.roomTypeId,
-        ratePlanId: body.ratePlanId || null,
+        ratePlanId: data.ratePlanId || null,
       },
     });
     if (existing) {
@@ -218,7 +220,7 @@ export async function POST(request: NextRequest) {
       data: {
         connectionId,
         roomTypeId,
-        ratePlanId,
+        ratePlanId: ratePlanId || null,
         externalRoomId,
         externalRoomName,
         externalRateId,

@@ -10,6 +10,7 @@ import { evaluateCancellationPolicy } from '@/lib/cancellation-policy-engine';
 import type { CancellationResult } from '@/lib/cancellation-policy-engine';
 import { emailService } from '@/lib/services/email-service';
 import { notifyBookingConfirmed, notifyBookingCancelled, notifyGuestCheckedIn, notifyGuestCheckedOut, notifyNoShow } from '@/lib/notify';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 // Helper: auto-close folio and generate invoice on checkout (must be called within a transaction)
 async function autoCloseFolioAndGenerateInvoice(bookingId: string, tx: Parameters<Parameters<typeof db.$transaction>[0]>[0]) {
@@ -225,6 +226,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
     
     const existingBooking = await db.booking.findUnique({
       where: { id, deletedAt: null },
@@ -275,7 +277,7 @@ export async function PUT(
       preArrivalSent,
       preArrivalCompleted,
       kycCompleted,
-    } = body;
+    } = data;
     
     // Capture old values for audit
     const oldValue = {
@@ -371,7 +373,7 @@ export async function PUT(
     const booking = await db.booking.update({
       where: { id },
       data: {
-        ...(roomId !== undefined && { roomId }),
+        ...(roomId !== undefined && { roomId: roomId || null }),
         ...(roomTypeId !== undefined && { roomTypeId }),
         ...(checkIn && { checkIn: new Date(checkIn) }),
         ...(checkOut && { checkOut: new Date(checkOut) }),
@@ -383,7 +385,7 @@ export async function PUT(
         ...(fees !== undefined && { fees }),
         ...(discount !== undefined && { discount }),
         ...(totalAmount !== undefined && { totalAmount }),
-        ...(ratePlanId !== undefined && { ratePlanId }),
+        ...(ratePlanId !== undefined && { ratePlanId: ratePlanId || null }),
         ...(promoCode !== undefined && { promoCode }),
         ...(status !== undefined && status !== '' && { status }),
         ...(specialRequests !== undefined && { specialRequests }),
@@ -986,6 +988,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
 
     // Validate that at least one field is provided
     const allowedFields = [
@@ -1053,7 +1056,7 @@ export async function PATCH(
       preArrivalSent,
       preArrivalCompleted,
       kycCompleted,
-    } = body;
+    } = data;
 
     // Capture old values for audit
     const oldValue = {
@@ -1146,7 +1149,7 @@ export async function PATCH(
 
     // Build update data with only provided fields
     const updateData: Record<string, unknown> = {};
-    if (roomId !== undefined) updateData.roomId = roomId;
+    if (roomId !== undefined) updateData.roomId = roomId || null;
     if (roomTypeId !== undefined) updateData.roomTypeId = roomTypeId;
     if (checkIn !== undefined) updateData.checkIn = new Date(checkIn);
     if (checkOut !== undefined) updateData.checkOut = new Date(checkOut);
@@ -1158,7 +1161,7 @@ export async function PATCH(
     if (fees !== undefined) updateData.fees = fees;
     if (discount !== undefined) updateData.discount = discount;
     if (totalAmount !== undefined) updateData.totalAmount = totalAmount;
-    if (ratePlanId !== undefined) updateData.ratePlanId = ratePlanId;
+    if (ratePlanId !== undefined) updateData.ratePlanId = ratePlanId || null;
     if (promoCode !== undefined) updateData.promoCode = promoCode;
     if (status !== undefined) updateData.status = status;
     if (specialRequests !== undefined) updateData.specialRequests = specialRequests;

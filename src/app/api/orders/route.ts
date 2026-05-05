@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import crypto from 'crypto';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 // Helper function to generate order number
 function generateOrderNumber(): string {
@@ -213,6 +214,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
 
     const {
       propertyId,
@@ -224,7 +226,7 @@ export async function POST(request: NextRequest) {
       notes,
       specialInstructions,
       items,
-    } = body;
+    } = data;
 
     // Validate required fields
     if (!propertyId) {
@@ -350,8 +352,8 @@ export async function POST(request: NextRequest) {
           tenantId: user.tenantId,
           propertyId,
           tableId,
-          guestId,
-          bookingId,
+          guestId: guestId || null,
+          bookingId: bookingId || null,
           guestName,
           orderType,
           orderNumber,

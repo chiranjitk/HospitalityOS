@@ -9,7 +9,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requirePermission } from '@/lib/auth/tenant-context';import crypto from 'crypto';
+import { requirePermission } from '@/lib/auth/tenant-context';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
+import crypto from 'crypto';
 import {
   getActiveNASVendors,
   generateBandwidthAttributes,
@@ -169,6 +171,7 @@ export async function POST(request: NextRequest) {    const user = await require
 
       try {
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
     const tenantId = user.tenantId;
 
     const {
@@ -186,7 +189,7 @@ export async function POST(request: NextRequest) {    const user = await require
       sessionTimeoutMinutes, // RADIUS Session-Timeout in minutes
       sessionLimit, // Max concurrent sessions
       dataLimit, // Data cap in MB
-    } = body;
+    } = data;
 
     // Validate required fields
     if (!propertyId || !validFrom || !validUntil) {
@@ -208,9 +211,9 @@ export async function POST(request: NextRequest) {    const user = await require
           propertyId,
           username: finalUsername,
           password: finalPassword,
-          guestId,
-          bookingId,
-          planId,
+          guestId: guestId || null,
+          bookingId: bookingId || null,
+          planId: planId || null,
           validFrom: new Date(validFrom),
           validUntil: new Date(validUntil),
           userType: userType || 'guest',

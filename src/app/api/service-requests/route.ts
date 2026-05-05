@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { notifyServiceRequestCreated } from '@/lib/notify';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 // GET /api/service-requests - List all service requests with filtering and pagination
 export async function GET(request: NextRequest) {
@@ -186,6 +187,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
 
     const {
       propertyId,
@@ -199,7 +201,7 @@ export async function POST(request: NextRequest) {
       priority = 'medium',
       assignedTo,
       source = 'app',
-    } = body;
+    } = data;
 
     // Validate required fields
     if (!type || !subject) {
@@ -256,16 +258,16 @@ export async function POST(request: NextRequest) {
       data: {
         tenantId: user.tenantId,
         propertyId: resolvedPropertyId,
-        guestId,
-        bookingId,
-        roomId,
+        guestId: guestId || null,
+        bookingId: bookingId || null,
+        roomId: roomId || null,
         type,
         category,
         subject,
         description,
         priority,
         status: assignedTo ? 'assigned' : 'pending',
-        assignedTo,
+        assignedTo: assignedTo || null,
         assignedAt: assignedTo ? new Date() : null,
         source,
         requestedAt: new Date(),

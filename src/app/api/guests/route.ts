@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { logGuest } from '@/lib/audit';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 function safeJsonParse(value: string, fallback: unknown = null): unknown {
   try {
@@ -119,6 +120,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
     const tenantId = user.tenantId;
 
     const {
@@ -153,7 +155,7 @@ export async function POST(request: NextRequest) {
       sourceId,
       emailOptIn = false,
       smsOptIn = false,
-    } = body;
+    } = data;
 
     // Validate required fields
     if (!firstName || !lastName) {
@@ -208,7 +210,7 @@ export async function POST(request: NextRequest) {
         isVip,
         vipLevel,
         source,
-        sourceId,
+        sourceId: sourceId || null,
         emailOptIn,
         smsOptIn,
       },

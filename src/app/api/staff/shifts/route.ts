@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 // GET /api/staff/shifts - Get shifts for a date
 export async function GET(request: NextRequest) {
@@ -128,6 +129,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
     const {
       staffId,
       date,
@@ -137,7 +139,7 @@ export async function POST(request: NextRequest) {
       notes,
       shiftTemplateId,
       propertyId,
-    } = body;
+    } = data;
 
     // Validate required fields
     if (!staffId || !date || !startTime || !endTime) {
@@ -207,7 +209,7 @@ export async function POST(request: NextRequest) {
         endTime,
         department: department || staffUser.department,
         notes,
-        shiftTemplateId,
+        shiftTemplateId: shiftTemplateId || null,
         propertyId,
         assignedBy: user.id,
         status: 'scheduled',

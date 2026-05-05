@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { notifyTaskAssigned } from '@/lib/notify';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 // GET /api/tasks - List all tasks with filtering and pagination
 export async function GET(request: NextRequest) {
@@ -188,6 +189,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
 
     const {
       propertyId,
@@ -206,7 +208,7 @@ export async function POST(request: NextRequest) {
       isRecurring = false,
       recurrenceRule,
       roomStatusBefore,
-    } = body;
+    } = data;
 
     // Validate required fields
     if (!propertyId || !type || !category || !title) {
@@ -289,7 +291,7 @@ export async function POST(request: NextRequest) {
         createdBy: currentUser.id,
         propertyId,
         roomId,
-        assignedTo,
+        assignedTo: assignedTo || null,
         type,
         category,
         title,

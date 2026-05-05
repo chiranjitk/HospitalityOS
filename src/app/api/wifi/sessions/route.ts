@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requirePermission } from '@/lib/auth/tenant-context';// GET /api/wifi/sessions - List all WiFi sessions with filtering and pagination
+import { requirePermission } from '@/lib/auth/tenant-context';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
+// GET /api/wifi/sessions - List all WiFi sessions with filtering and pagination
 export async function GET(request: NextRequest) {    const user = await requirePermission(request, 'wifi.view');
     if (user instanceof NextResponse) return user;
 
@@ -147,6 +149,7 @@ export async function POST(request: NextRequest) {    const user = await require
 
       try {
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
     const tenantId = user.tenantId;
 
     const {
@@ -160,7 +163,7 @@ export async function POST(request: NextRequest) {    const user = await require
       deviceType,
       authMethod = 'voucher',
       propertyId,
-    } = body;
+    } = data;
 
     // Validate required fields
     if (!macAddress) {
@@ -251,9 +254,9 @@ export async function POST(request: NextRequest) {    const user = await require
     const session = await db.wiFiSession.create({
       data: {
         tenantId,
-        planId,
-        guestId,
-        bookingId,
+        planId: planId || null,
+        guestId: guestId || null,
+        bookingId: bookingId || null,
         macAddress,
         ipAddress,
         deviceName,

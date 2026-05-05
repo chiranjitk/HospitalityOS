@@ -8,6 +8,7 @@ import { calculatePrice, type PriceBreakdown } from '@/lib/pricing';
 import { getTodayInTimezone } from '@/lib/timezone';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { notifyBookingCreated } from '@/lib/notify';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 // Helper function to generate confirmation code
 function generateConfirmationCode(): string {
@@ -181,6 +182,7 @@ export async function POST(request: NextRequest) {
     }
 
     body = await request.json();
+    const data = nullifyEmptyStrings(body);
     const tenantId = user.tenantId;
 
     const {
@@ -213,7 +215,7 @@ export async function POST(request: NextRequest) {
       lockSessionId, // Session ID from the lock (if booking from a locked session)
       skipLockCheck = false, // Skip lock check for internal operations
       usePricingEngine = false, // Use pricing engine to calculate prices
-    } = body;
+    } = data;
 
     // Validate required fields
     if (!propertyId || !primaryGuestId || !roomTypeId || !checkIn || !checkOut) {
@@ -555,7 +557,7 @@ export async function POST(request: NextRequest) {
           propertyId,
           confirmationCode,
           primaryGuestId,
-          roomId,
+          roomId: roomId || null,
           roomTypeId,
           checkIn: checkInDate,
           checkOut: checkOutDate,
@@ -568,15 +570,15 @@ export async function POST(request: NextRequest) {
           discount: finalDiscount,
           totalAmount: finalTotalAmount,
           currency: finalCurrency,
-          ratePlanId,
+          ratePlanId: ratePlanId || null,
           promoCode,
           source,
-          channelId,
+          channelId: channelId || null,
           status,
           specialRequests,
           notes,
           internalNotes,
-          groupId,
+          groupId: groupId || null,
           isGroupLeader,
           idempotencyKey,
         },

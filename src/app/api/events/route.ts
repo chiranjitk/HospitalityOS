@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 // GET /api/events - List all events (tenant-scoped)
 export async function GET(request: NextRequest) {
@@ -109,6 +110,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
     const {
       propertyId,
       spaceId,
@@ -133,7 +135,7 @@ export async function POST(request: NextRequest) {
       depositPaid,
       status,
       notes
-    } = body;
+    } = data;
 
     // Derive tenantId from authenticated session, NOT from request body
     const tenantId = user.tenantId;
@@ -149,7 +151,7 @@ export async function POST(request: NextRequest) {
       data: {
         tenantId, // Derived from auth session
         propertyId,
-        spaceId,
+        spaceId: spaceId || null,
         name,
         type: type || 'meeting',
         description,

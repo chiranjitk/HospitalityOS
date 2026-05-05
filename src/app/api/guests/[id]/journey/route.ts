@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/tenant-context';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 // GET /api/guests/[id]/journey - Get guest journey timeline
 export async function GET(
@@ -101,9 +102,10 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
 
     // Validate required fields
-    const { stage, eventType, title, description, metadata, source, bookingId } = body;
+    const { stage, eventType, title, description, metadata, source, bookingId } = data;
 
     const allowedStages = ['discovery', 'booking', 'pre_arrival', 'stay', 'post_stay'];
     if (!stage || !eventType || !title) {
@@ -138,7 +140,7 @@ export async function POST(
       data: {
         tenantId: guest.tenantId,
         guestId: id,
-        bookingId,
+        bookingId: bookingId || null,
         stage,
         eventType,
         title,

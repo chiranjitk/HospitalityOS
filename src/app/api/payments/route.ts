@@ -6,6 +6,7 @@ import { PaymentRequest } from '@/lib/payments/types';
 import { logPayment } from '@/lib/audit';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { notifyPaymentReceived, notifyPaymentFailed } from '@/lib/notify';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 // Helper function to generate transaction ID
 function generateTransactionId(): string {
@@ -180,6 +181,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
     const tenantId = user.tenantId;
 
     const {
@@ -197,7 +199,7 @@ export async function POST(request: NextRequest) {
       reference,
       idempotencyKey,
       description,
-    } = body;
+    } = data;
 
     // Validate required fields
     if (!folioId || !amount || !method) {
@@ -306,7 +308,7 @@ export async function POST(request: NextRequest) {
           data: {
             tenantId,
             folioId,
-            guestId,
+            guestId: guestId || null,
             amount,
             currency,
             method,
@@ -363,7 +365,7 @@ export async function POST(request: NextRequest) {
         data: {
           tenantId,
           folioId,
-          guestId,
+          guestId: guestId || null,
           amount,
           currency,
           method,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 // GET /api/events/[id]/resources - Get all resources for an event
 export async function GET(
@@ -78,6 +79,7 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
+    const data = nullifyEmptyStrings(body);
 
     const event = await db.event.findFirst({
       where: { id, tenantId: user.tenantId },
@@ -105,7 +107,7 @@ export async function POST(
       setupTime,
       teardownTime,
       notes
-    } = body;
+    } = data;
 
     if (!name || !category) {
       return NextResponse.json(
@@ -127,9 +129,9 @@ export async function POST(
         quantity: validQuantity,
         unitPrice: validUnitPrice,
         totalAmount: validQuantity * validUnitPrice,
-        vendorId,
+        vendorId: vendorId || null,
         vendorName,
-        staffId,
+        staffId: staffId || null,
         staffName,
         status: status || 'pending',
         setupTime: setupTime ? new Date(setupTime) : null,
