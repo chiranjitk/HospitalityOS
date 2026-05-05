@@ -37,8 +37,9 @@ declare -A SOURCES=(
   ["libnetfilter_conntrack-1.0.9.tar.bz2"]="https://www.netfilter.org/projects/libnetfilter_conntrack/files/libnetfilter_conntrack-1.0.9.tar.bz2"
   ["libnetfilter_acct-1.0.3.tar.bz2"]="https://www.netfilter.org/projects/libnetfilter_acct/files/libnetfilter_acct-1.0.3.tar.bz2"
 
-  # JSON-C (for JSONLOG output plugin)
-  ["json-c-0.17.tar.gz"]="https://s3.amazonaws.com/json-c_releases/releases/json-c-0.17.tar.gz"
+  # Jansson JSON library (ulogd2 2.0.8 JSON plugin uses libjansson, NOT json-c)
+  # configure.ac: PKG_CHECK_MODULES([libjansson], [jansson])
+  ["jansson-2.14.tar.gz"]="https://github.com/akheron/jansson/releases/download/v2.14/jansson-2.14.tar.gz"
 
   # libpcap (for PCAP output plugin — usually available via dnf too)
   ["libpcap-1.10.5.tar.gz"]="https://github.com/the-tcpdump-group/libpcap/archive/refs/tags/libpcap-1.10.5.tar.gz"

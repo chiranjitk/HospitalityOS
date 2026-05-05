@@ -30,7 +30,7 @@ dnf install -y gcc make autoconf automake libtool flex bison gcc-c++ zlib-devel
 ```
 
 > **Note**: All ulogd2 dependencies (libnfnetlink, libmnl, libnetfilter_log,
-> libnetfilter_conntrack, json-c, libpcap, etc.) are included in `src/`.
+> libnetfilter_conntrack, jansson, libpcap, etc.) are included in `src/`.
 > You do **NOT** need to install any `-devel` packages from the netfilter family.
 > Only the compiler toolchain is required.
 
@@ -70,8 +70,8 @@ bash build-offline.sh
 ```
 
 The build script will:
-1. Build 7 dependency libraries in correct order (libnfnetlink → libmnl → libnetfilter_log → libnetfilter_conntrack → libnetfilter_acct → json-c → libpcap)
-2. Build ulogd2 with NFLOG + JSONLOG + PCAP plugins
+1. Build 7 dependency libraries in correct order (libnfnetlink → libmnl → libnetfilter_log → libnetfilter_conntrack → libnetfilter_acct → jansson → libpcap)
+2. Build ulogd2 with NFLOG + JSON + PCAP plugins
 3. Install everything to `/usr/local/ulogd2/`
 4. Copy the StaySuite config to `/usr/local/ulogd2/etc/ulogd.conf`
 5. Create log directories at `/var/log/ulogd/json/`
@@ -83,17 +83,17 @@ The build script will:
 
 ```bash
 # Check binary
-/usr/local/ulogd2/sbin/ulogd2 -V
+/usr/local/ulogd2/sbin/ulogd -V
 
-# Check installed plugins (must see NFLOG and JSONLOG)
+# Check installed plugins (must see NFLOG and JSON)
 ls -la /usr/local/ulogd2/lib/ulogd/
 
 # Expected plugins:
 #   ulogd_inppkt_NFLOG.so    ← captures nftables NFLOG packets
-#   ulogd_inpct_NFCT.so     ← conntrack events (future use)
+#   ulogd_inpflow_NFCT.so   ← conntrack events (future use)
 #   ulogd_filter_IFINDEX.so  ← interface index filter
 #   ulogd_filter_HWHDR.so   ← hardware header filter
-#   ulogd_output_JSONLOG.so ← JSON output (critical for sni-parser)
+#   ulogd_output_JSON.so    ← JSON output (critical for sni-parser)
 #   ulogd_output_PCAP.so    ← PCAP output (optional)
 
 # Check config
@@ -140,7 +140,7 @@ bash build.sh
 ```
 
 This uses `dnf install -y libnetfilter_acct-devel libnetfilter_conntrack-devel
-libnetfilter_log-devel libnfnetlink-devel json-c-devel libpcap-devel` to get
+libnetfilter_log-devel libnfnetlink-devel jansson-devel libpcap-devel` to get
 system packages, then compiles only ulogd2.
 
 ---
@@ -417,7 +417,7 @@ echo "nf_log_ipv4" >> /etc/modules-load.d/ulogd2.conf
 | libnetfilter_log | 1.0.2 | netfilter.org | NFLOG input plugin |
 | libnetfilter_conntrack | 1.0.9 | netfilter.org | Conntrack input plugin |
 | libnetfilter_acct | 1.0.3 | netfilter.org | Accounting plugin |
-| json-c | 0.17 | s3.amazonaws.com | JSON output plugin |
+| jansson | 2.14 | github.com/akheron | JSON output plugin (ulogd2 uses libjansson, NOT json-c) |
 | libpcap | 1.10.5 | github.com/tcpdump | PCAP output plugin |
 | **ulogd2** | **2.0.8** | **netfilter.org** | **The daemon** |
 
@@ -441,7 +441,7 @@ tools/ulogd2-clickhouse/
 │   ├── libnetfilter_log-1.0.2.tar.bz2
 │   ├── libnetfilter_conntrack-1.0.9.tar.bz2
 │   ├── libnetfilter_acct-1.0.3.tar.bz2
-│   ├── json-c-0.17.tar.gz
+│   ├── jansson-2.14.tar.gz
 │   └── libpcap-1.10.5.tar.gz
 └── dist/                              # Build output
     ├── .gitkeep
@@ -460,12 +460,12 @@ tools/ulogd2-clickhouse/
 │   │   ├── ulogd_inpct_NFCT.so
 │   │   ├── ulogd_filter_IFINDEX.so
 │   │   ├── ulogd_filter_HWHDR.so
-│   │   └── ulogd_output_JSONLOG.so
+│   │   └── ulogd_output_JSON.so
 │   ├── libnfnetlink.so
 │   ├── libmnl.so
 │   ├── libnetfilter_log.so
 │   ├── libnetfilter_conntrack.so
-│   ├── libjson-c.so
+│   ├── libjansson.so
 │   └── libpcap.so
 ├── etc/
 │   └── ulogd.conf                     # StaySuite NFLOG config

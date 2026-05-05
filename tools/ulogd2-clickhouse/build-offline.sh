@@ -11,15 +11,18 @@
 #    3. libnetfilter_log      — NFLOG input plugin
 #    4. libnetfilter_conntrack — conntrack input plugin
 #    5. libnetfilter_acct     — accounting plugin
-#    6. json-c               — JSONLOG output plugin (CMAKE build)
+#    6. jansson               — JSON output plugin (autotools)
 #    7. libpcap              — PCAP output plugin
 #    8. ulogd2               — the daemon itself
+#
+#  IMPORTANT: ulogd2 2.0.8 JSON plugin uses libjansson (NOT json-c).
+#  PKG_CHECK_MODULES([libjansson], [jansson]) in configure.ac.
 #
 #  Usage:
 #    bash tools/ulogd2-clickhouse/build-offline.sh
 #
 #  System Requirements (Rocky Linux 10):
-#    dnf install -y gcc make autoconf automake libtool cmake flex bison
+#    dnf install -y gcc make autoconf automake libtool flex bison
 ##############################################################################
 
 set -euo pipefail
@@ -47,9 +50,9 @@ echo "  Install prefix: ${INSTALL_PREFIX}"
 echo "=============================================="
 
 # Check for build tools
-for tool in gcc make cmake; do
+for tool in gcc make; do
   if ! command -v "$tool" >/dev/null 2>&1; then
-    log_err "$tool not found. Install: dnf install -y gcc make cmake autoconf automake libtool flex bison"
+    log_err "$tool not found. Install: dnf install -y gcc make autoconf automake libtool flex bison"
     exit 1
   fi
 done
@@ -74,12 +77,12 @@ echo "Source tarballs: $(ls "$SRC_DIR"/*.tar.* 2>/dev/null | wc -l) files"
 
 log_step "Setting up build environment..."
 
-# Ensure we have cmake + flex/bison
+# Ensure we have flex/bison
 if command -v dnf >/dev/null 2>&1; then
-  dnf install -y cmake flex bison gcc-c++ zlib-devel 2>/dev/null | tail -3 || true
+  dnf install -y flex bison gcc-c++ zlib-devel 2>/dev/null | tail -3 || true
 fi
 
-# Export paths so later configure/cmake scripts find our built libs
+# Export paths so later configure scripts find our built libs
 export PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${INSTALL_PREFIX}/lib64/pkgconfig:${PKG_CONFIG_PATH:-}"
 export LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib:${INSTALL_PREFIX}/lib64:${LD_LIBRARY_PATH:-}"
 export CFLAGS="-I${INSTALL_PREFIX}/include ${CFLAGS:-}"
@@ -101,11 +104,9 @@ echo "LDFLAGS=$LDFLAGS"
 # After `tar xf`, find the top-level directory that was created.
 # Handles double-name prefixes from GitHub (e.g., libpcap-libpcap-1.10.5)
 find_extracted_dir() {
-  # Find any directory created in BUILD_DIR after extraction
   local latest=""
   for d in "$BUILD_DIR"/*/; do
     [ -d "$d" ] || continue
-    # Skip if it's our own marker directories
     if [ "$latest" = "" ] || [ "$d" -nt "$latest" ]; then
       latest="$d"
     fi
@@ -186,79 +187,6 @@ build_autotools() {
   return 0
 }
 
-# ─── Helper: Build a CMake project ──────────────────────────────────────
-
-build_cmake() {
-  local name="$1"
-  local tarball="$2"
-  shift 2
-  local cmake_args="$*"
-
-  log_step "Building: $name (cmake)"
-
-  if [ ! -f "$SRC_DIR/$tarball" ]; then
-    log_err "  Source not found: $SRC_DIR/$tarball"
-    return 1
-  fi
-
-  # Check cmake is available
-  if ! command -v cmake >/dev/null 2>&1; then
-    log_err "  cmake not found. Install: dnf install -y cmake"
-    return 1
-  fi
-
-  # Clear BUILD_DIR
-  cd "$BUILD_DIR"
-  rm -rf "${BUILD_DIR:?}"/*
-
-  log_step "  Extracting $tarball..."
-  tar xf "$SRC_DIR/$tarball" 2>&1
-
-  local extracted_dir
-  extracted_dir=$(find_extracted_dir)
-  if [ -z "$extracted_dir" ] || [ ! -d "$extracted_dir" ]; then
-    log_err "  Failed to extract $tarball"
-    return 1
-  fi
-
-  log_step "  Build dir: $(basename "$extracted_dir")"
-  cd "$extracted_dir"
-
-  # Create out-of-source build directory
-  mkdir -p build
-  cd build
-
-  log_step "  Running cmake..."
-  cmake .. \
-    -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-    -DCMAKE_INSTALL_LIBDIR=lib \
-    -DCMAKE_INSTALL_PKGCONFIGDIR=lib/pkgconfig \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_SHARED_LIBS=ON \
-    -DBUILD_STATIC_LIBS=OFF \
-    $cmake_args \
-    2>&1 | tail -10
-
-  log_step "  Compiling..."
-  make -j"$(nproc 2>/dev/null || echo 2)" 2>&1 | tail -3
-
-  log_step "  Installing to $INSTALL_PREFIX..."
-  make install 2>&1 | tail -3
-
-  # Post-install fixes
-  ldconfig 2>/dev/null || true
-  if [ -d "${INSTALL_PREFIX}/lib64/pkgconfig" ]; then
-    cp -f "${INSTALL_PREFIX}/lib64/pkgconfig/"*.pc "${INSTALL_PREFIX}/lib/pkgconfig/" 2>/dev/null || true
-  fi
-  if [ -d "${INSTALL_PREFIX}/lib/cmake" ]; then
-    # Some cmake projects put .pc into lib/ directly
-    cp -f "${INSTALL_PREFIX}/lib/"*.pc "${INSTALL_PREFIX}/lib/pkgconfig/" 2>/dev/null || true
-  fi
-
-  log_step "  ✓ $name built and installed"
-  return 0
-}
-
 # ─── Build Dependencies (in order) ──────────────────────────────────────
 
 BUILD_ERRORS=0
@@ -278,54 +206,28 @@ build_autotools "libnetfilter_conntrack" "libnetfilter_conntrack-1.0.9.tar.bz2" 
 # 5. libnetfilter_acct (depends on libnfnetlink, autotools)
 build_autotools "libnetfilter_acct" "libnetfilter_acct-1.0.3.tar.bz2" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
 
-# 6. json-c (no deps — CMAKE build!)
-#    cmake installs .pc to lib/pkgconfig/json-c.pc
-#    ulogd2 configure uses pkg-config to find it
-build_cmake "json-c" "json-c-0.17.tar.gz" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
+# 6. jansson — JSON library for ulogd2 JSON output plugin (autotools)
+#    ulogd2 2.0.8 configure.ac: PKG_CHECK_MODULES([libjansson], [jansson])
+#    Produces jansson.pc → pkg-config finds "jansson" module
+#    Plugin file: ulogd_output_JSON.so, registers as .name = "JSON"
+build_autotools "jansson" "jansson-2.14.tar.gz" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
 
-# ─── Fix json-c pkg-config for ulogd2 detection ──────────────────────────
-# ulogd2's configure looks for 'json-c' via pkg-config.
-# cmake-built json-c may install the .pc file with a different name or location.
-# Ensure json-c.pc exists and is findable.
-log_step "Fixing json-c pkg-config..."
-
-# Find where json-c .pc was installed
-JSON_C_PC=""
-for pc_path in \n  "${INSTALL_PREFIX}/lib/pkgconfig/json-c.pc" \n  "${INSTALL_PREFIX}/lib/pkgconfig/json-c.pc" \n  "${INSTALL_PREFIX}/lib64/pkgconfig/json-c.pc" \n  "${INSTALL_PREFIX}/lib/json-c.pc" \n  "${INSTALL_PREFIX}/lib64/json-c.pc"; do
-  if [ -f "$pc_path" ]; then
-    JSON_C_PC="$pc_path"\    break
+# ─── Verify jansson is findable via pkg-config ──────────────────────────
+log_step "Verifying jansson pkg-config..."
+if command -v pkg-config >/dev/null 2>&1; then
+  if pkg-config --exists jansson 2>/dev/null; then
+    echo "  ✓ pkg-config finds jansson"
+    echo "    pkg-config --cflags jansson: $(pkg-config --cflags jansson)"
+    echo "    pkg-config --libs jansson: $(pkg-config --libs jansson)"
+  else
+    log_err "  pkg-config cannot find jansson!"
+    log_err "  Checking .pc files:"
+    find "${INSTALL_PREFIX}" -name "jansson*.pc" -type f 2>/dev/null | while read -r pc; do
+      echo "    Found: $pc"
+      cat "$pc" | sed 's/^/      /'
+    done
+    log_err "  ulogd2 JSON plugin will NOT build without jansson"
   fi
-done
-
-# Also search for any json*.pc file
-if [ -z "$JSON_C_PC" ]; then
-  JSON_C_PC=$(find "${INSTALL_PREFIX}" -name "json*.pc" -type f 2>/dev/null | head -1)
-fi
-
-if [ -n "$JSON_C_PC" ]; then
-  echo "  Found: $JSON_C_PC"
-  # Ensure it's in the pkgconfig directory
-  if [ "$(dirname "$JSON_C_PC")" != "${INSTALL_PREFIX}/lib/pkgconfig" ]; then
-    cp -f "$JSON_C_PC" "${INSTALL_PREFIX}/lib/pkgconfig/json-c.pc"
-    echo "  Copied to ${INSTALL_PREFIX}/lib/pkgconfig/json-c.pc"
-  fi
-  # Verify pkg-config can find it
-  if command -v pkg-config >/dev/null 2>&1; then
-    if PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig" pkg-config --exists json-c 2>/dev/null; then
-      echo "  pkg-config --cflags json-c: $(PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig" pkg-config --cflags json-c)"
-      echo "  pkg-config --libs json-c: $(PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig" pkg-config --libs json-c)"
-    else
-      log_warn "  pkg-config cannot find json-c even though .pc exists!"
-      log_warn "  Content of $JSON_C_PC:"
-      cat "$JSON_C_PC" | sed 's/^/    /'
-    fi
-  fi
-else
-  log_warn "  json-c .pc file not found anywhere in $INSTALL_PREFIX"
-  log_warn "  ulogd2 JSON plugin will not build"
-  # List what was installed for debugging
-  echo "  Files in ${INSTALL_PREFIX}/lib/pkgconfig/:"
-  ls -la "${INSTALL_PREFIX}/lib/pkgconfig/" 2>/dev/null | sed 's/^/    /' || echo "    (empty)"
 fi
 
 # 7. libpcap (no deps — autotools)
@@ -337,7 +239,7 @@ build_autotools "libpcap" "libpcap-1.10.5.tar.gz" "" || BUILD_ERRORS=$((BUILD_ER
 log_step "Verifying dependency libraries..."
 
 CRITICAL_OK=true
-for lib in nfnetlink netfilter_log json-c; do
+for lib in nfnetlink netfilter_log jansson; do
   if [ -f "${INSTALL_PREFIX}/lib/lib${lib}.so" ] || [ -f "${INSTALL_PREFIX}/lib64/lib${lib}.so" ]; then
     echo "  ✓ lib${lib}"
   else
@@ -370,19 +272,35 @@ export PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${INSTALL_PREFIX}/lib64/
 
 log_step "  Configuring ulogd2..."
 
+# IMPORTANT configure flags for ulogd2 2.0.8:
+#   --disable-pgsql:  pg_config exists on system but libpq-fe.h missing
+#                    (would cause compile failure in output/pgsql/)
+#   --disable-mysql:  no MySQL installed, avoid auto-detect noise
+#   --disable-sqlite3: no SQLite3 installed
+#   --disable-dbi:    no DBI installed
+#
+# NOTE: ulogd2 uses AC_ARG_ENABLE (not AC_ARG_WITH), so flags are
+#       --disable-xxx (NOT --without-xxx). Passing --without-xxx is
+#       silently ignored with "unrecognized options" warning.
+#
+# JSON plugin: auto-detected via PKG_CHECK_MODULES([libjansson], [jansson])
+#   → requires jansson.pc in PKG_CONFIG_PATH (installed by step 6)
+# PCAP plugin: auto-detected via PKG_CHECK_MODULES([libpcap], [libpcap])
+#   → requires libpcap.pc in PKG_CONFIG_PATH (installed by step 7)
+
 ./configure \
   --prefix="$INSTALL_PREFIX" \
   --sysconfdir="$INSTALL_PREFIX/etc" \
   --libdir="${INSTALL_PREFIX}/lib" \
   --includedir="${INSTALL_PREFIX}/include" \
   --localstatedir=/var \
-  --without-pgsql \
-  --without-mysql \
-  --without-sqlite3 \
-  --without-dbi \
+  --disable-pgsql \
+  --disable-mysql \
+  --disable-sqlite3 \
+  --disable-dbi \
   --enable-static=no \
   --enable-shared=yes \
-  2>&1 | tail -20
+  2>&1 | tail -25
 
 # Show what plugins were detected
 echo ""
@@ -391,12 +309,12 @@ echo "  Plugin detection (check NFLOG and JSON lines above)"
 log_step "  Compiling ulogd2..."
 if ! make -j"$(nproc 2>/dev/null || echo 2)" 2>&1; then
   log_err "  ulogd2 compilation FAILED!"
-  log_err "  Re-running: make V=1 2>&1 | tail -40"
-  make V=1 2>&1 | tail -40
+  log_err "  Re-running: make V=1 2>&1 | tail -50"
+  make V=1 2>&1 | tail -50
   log_err "  Common causes:"
-  log_err "    - Missing json-c headers (JSON plugin: no)"
-  log_err "    - Missing pcap headers"
-  log_err "    - Check: PKG_CONFIG_PATH=$INSTALL_PREFIX/lib/pkgconfig pkg-config --cflags json-c"
+  log_err "    - Missing jansson: JSON plugin = no"
+  log_err "    - pg_config found but PostgreSQL headers missing"
+  log_err "    - Check: pkg-config --cflags --libs jansson"
   exit 1
 fi
 
@@ -428,11 +346,11 @@ fi
 
 echo ""
 echo "  Libraries (.so):"
-for lib in libnfnetlink libmnl libnetfilter_log libnetfilter_conntrack libnetfilter_acct json-c; do
-  if [ -f "${INSTALL_PREFIX}/lib/lib${lib}.so" ]; then
-    echo "    ✓ lib${lib}.so"
+for lib in libnfnetlink libmnl libnetfilter_log libnetfilter_conntrack libnetfilter_acct libjansson; do
+  if [ -f "${INSTALL_PREFIX}/lib/${lib}.so" ]; then
+    echo "    ✓ ${lib}.so"
   else
-    echo "    ✗ lib${lib}.so — MISSING"
+    echo "    ✗ ${lib}.so — MISSING"
   fi
 done
 
@@ -499,7 +417,7 @@ modprobe nfnetlink_log 2>/dev/null || true
 
 echo ""
 echo "Deploy complete! Verify:"
-echo "  ldconfig -p | grep -E 'ulogd|nfnetlink|json-c'"
+echo "  ldconfig -p | grep -E 'ulogd|nfnetlink|jansson'"
 echo "  /usr/local/ulogd2/sbin/ulogd -V"
 echo ""
 echo "Start:"
@@ -553,11 +471,13 @@ if [ "$BUILD_ERRORS" -gt 0 ]; then
   log_warn "  ulogd2 may have reduced functionality"
 fi
 
-# Check critical plugin
-if [ -f "$INSTALL_PREFIX/lib/ulogd/ulogd_output_JSONLOG.so" ]; then
-  echo "  ✓ JSONLOG plugin built — SNI capture pipeline ready"
+# Check critical plugin — the JSON output plugin (ulogd_output_JSON.so)
+# Plugin name registered as "JSON" in ulogd2 2.0.8
+if [ -f "$INSTALL_PREFIX/lib/ulogd/ulogd_output_JSON.so" ]; then
+  echo "  ✓ JSON plugin built — SNI capture pipeline ready"
 else
-  log_warn "  ✗ JSONLOG plugin NOT built — check json-c installation"
+  log_warn "  ✗ JSON plugin NOT built — check jansson installation"
+  log_warn "    Expected: $INSTALL_PREFIX/lib/ulogd/ulogd_output_JSON.so"
 fi
 
 if [ -f "$INSTALL_PREFIX/lib/ulogd/ulogd_inppkt_NFLOG.so" ]; then
