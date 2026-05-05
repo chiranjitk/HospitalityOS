@@ -2595,10 +2595,10 @@ function ChainArchitectureTab() {
   }
 
   const totalGuiRules = statusData?.ruleCounts?.guiRules ?? 0;
-  const totalGuiChains = Object.keys(archData.tables).reduce(
-    (sum, t) => sum + archData.tables[t].guiChains.length, 0
-  ) + archData.securityHooks.length;
-  const totalSets = archData.sets.length;
+  const totalGuiChains = Object.keys(archData.tables ?? {}).reduce(
+    (sum, t) => sum + (archData.tables?.[t]?.guiChains?.length ?? 0), 0
+  ) + (archData.securityHooks?.length ?? 0);
+  const totalSets = archData.sets?.length ?? 0;
 
   return (
     <div className="space-y-6">
