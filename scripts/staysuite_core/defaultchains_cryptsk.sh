@@ -233,35 +233,22 @@ nft 'add rule inet mangle open udp dport 6065 accept'
 ## MANGLE PREROUTING EXACT FLOW
 ## (Reconstructed to match exact sequence of iptables -I and -A commands)
 ## ============================================================================
-nft 'add rule inet mangle prerouting meta l4proto icmp accept'
-nft 'add rule inet mangle prerouting tcp flags & (syn|ack|rst) == syn ip daddr @usersdstset accept'
-nft 'add rule inet mangle prerouting tcp flags & (syn|ack|rst) == syn ip daddr @loggedinuserssnatip accept'
-nft 'add rule inet mangle prerouting tcp flags & (syn|ack|rst) == syn ip saddr @usersset accept'
-nft 'add rule inet mangle prerouting ip saddr @usersset meta mark set ct mark'
-nft 'add rule inet mangle prerouting ip saddr @usersset ct mark != 0 accept'
-nft 'add rule inet mangle prerouting ip saddr @llusersset jump acctup'
-nft 'add rule inet mangle prerouting jump firewallchains'
-nft 'add rule inet mangle prerouting ip saddr @usersset meta mark set mark | 0x10000000'
-nft 'add rule inet mangle prerouting ip saddr @usersset ct mark set mark'
-nft 'add rule inet mangle prerouting ip daddr @loggedinuserssnatip accept'
-nft 'add rule inet mangle prerouting ip daddr @usersdstset accept'
-nft 'add rule inet mangle prerouting ip saddr @usersset accept'
 
 ## ============================================================================
 ## NFLOG RULES — ulogd2 SNI Capture Pipeline
+##
+## MUST be at the TOP of prerouting (before any accept rules).
+## NFLOG is NON-TERMINATING — it logs AND continues processing.
+## If placed after "ip saddr @usersset accept", logged-in user traffic
+## would never reach these rules.
 ##
 ## Architecture:
 ##   nftables NFLOG (group 20) → ulogd2 → /var/log/ulogd/json/sni-queries.log
 ##   sni-parser (port 3022) reads JSON → extracts TLS SNI → ClickHouse ipdr.sni_log
 ##
-## IMPORTANT: These are NON-TERMINATING log rules. Packets continue through
-## the chain after NFLOG capture. They do NOT accept/drop — just mirror.
-##
 ## Rule 1 (group 20): TCP SYN to port 443 → captures TLS ClientHello for SNI
 ## Rule 2 (group 21): TCP SYN to port 80  → captures HTTP Host (future use)
 ## Rule 3 (group 22): UDP/TCP port 53     → captures DNS queries (supplementary)
-##
-## snaplen=1500: captures enough bytes for TLS ClientHello with SNI extension
 ## ============================================================================
 
 # Only install NFLOG rules if ulogd2 is installed
@@ -269,18 +256,21 @@ nft 'add rule inet mangle prerouting ip saddr @usersset accept'
 if command -v ulogd >/dev/null 2>&1 || [ -x /usr/local/ulogd2/sbin/ulogd ]; then
     echo "ulogd2 detected — installing NFLOG rules for SNI capture pipeline"
 
-    # NFLOG group 20: TLS SNI capture (TCP port 443 new connections)
-    # Captures the TLS ClientHello packet which contains the SNI domain in plaintext
-    nft 'add rule inet mangle prerouting tcp dport 443 ct state new log group 20 snaplen 1500 prefix "NFLOG_SNI: "'
-
-    # NFLOG group 21: HTTP Host capture (TCP port 80 new connections — future use)
-    nft 'add rule inet mangle prerouting tcp dport 80 ct state new log group 21 snaplen 1500 prefix "NFLOG_HTTP: "'
+    # Use 'insert rule index 0' to place at the TOP of prerouting chain
+    # Insert in reverse order so group 20 ends up first:
+    #   insert order: DNS(22), DNS(22), HTTP(21), SNI(20)
+    #   final order:  SNI(20), HTTP(21), DNS(22), DNS(22) ← then rest of chain
 
     # NFLOG group 22: DNS query capture (UDP/TCP port 53 — supplementary data)
-    # Note: DNS logs are NOT a trusted source for IPDR (users can bypass with 8.8.8.8)
-    # SNI from group 20 is the primary and authoritative domain source
-    nft 'add rule inet mangle prerouting udp dport 53 log group 22 snaplen 512 prefix "NFLOG_DNS: "'
-    nft 'add rule inet mangle prerouting tcp dport 53 log group 22 snaplen 512 prefix "NFLOG_DNS: "'
+    nft 'insert rule inet mangle prerouting index 0 udp dport 53 log group 22 snaplen 512 prefix "NFLOG_DNS: "'
+    nft 'insert rule inet mangle prerouting index 0 tcp dport 53 log group 22 snaplen 512 prefix "NFLOG_DNS: "'
+
+    # NFLOG group 21: HTTP Host capture (TCP port 80 new connections — future use)
+    nft 'insert rule inet mangle prerouting index 0 tcp dport 80 ct state new log group 21 snaplen 1500 prefix "NFLOG_HTTP: "'
+
+    # NFLOG group 20: TLS SNI capture (TCP port 443 new connections)
+    # Captures the TLS ClientHello packet which contains the SNI domain in plaintext
+    nft 'insert rule inet mangle prerouting index 0 tcp dport 443 ct state new log group 20 snaplen 1500 prefix "NFLOG_SNI: "'
 
     # Start ulogd2 via systemctl (native systemd — Rocky 10 has no SysV compat layer)
     if [ -f /etc/systemd/system/ulogd2.service ] || systemctl list-unit-files ulogd2.service >/dev/null 2>&1; then
@@ -298,6 +288,20 @@ if command -v ulogd >/dev/null 2>&1 || [ -x /usr/local/ulogd2/sbin/ulogd ]; then
 else
     echo "ulogd2 not found — skipping NFLOG rules (SNI capture pipeline disabled)"
 fi
+
+nft 'add rule inet mangle prerouting meta l4proto icmp accept'
+nft 'add rule inet mangle prerouting tcp flags & (syn|ack|rst) == syn ip daddr @usersdstset accept'
+nft 'add rule inet mangle prerouting tcp flags & (syn|ack|rst) == syn ip daddr @loggedinuserssnatip accept'
+nft 'add rule inet mangle prerouting tcp flags & (syn|ack|rst) == syn ip saddr @usersset accept'
+nft 'add rule inet mangle prerouting ip saddr @usersset meta mark set ct mark'
+nft 'add rule inet mangle prerouting ip saddr @usersset ct mark != 0 accept'
+nft 'add rule inet mangle prerouting ip saddr @llusersset jump acctup'
+nft 'add rule inet mangle prerouting jump firewallchains'
+nft 'add rule inet mangle prerouting ip saddr @usersset meta mark set mark | 0x10000000'
+nft 'add rule inet mangle prerouting ip saddr @usersset ct mark set mark'
+nft 'add rule inet mangle prerouting ip daddr @loggedinuserssnatip accept'
+nft 'add rule inet mangle prerouting ip daddr @usersdstset accept'
+nft 'add rule inet mangle prerouting ip saddr @usersset accept'
 
 nft 'add rule inet mangle prerouting jump open'
 # Hotelflow falls here (Appended before accountingup)
