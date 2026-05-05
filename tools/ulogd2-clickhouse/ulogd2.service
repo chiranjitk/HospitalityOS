@@ -5,9 +5,8 @@ After=network-online.target firewalld.service
 Wants=network-online.target
 
 [Service]
-Type=forking
+Type=simple
 ExecStart=/usr/local/ulogd2/sbin/ulogd -c /usr/local/ulogd2/etc/ulogd.conf
-PIDFile=/run/ulogd2.pid
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=65535
