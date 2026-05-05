@@ -1,51 +1,41 @@
 # Database Backup Marks
 
-## staysuite-backup-20260504-233811.dump
+## staysuite-backup-20260505-083436.dump
 
-- **Date**: 2026-05-05 04:38 UTC
+- **Date**: 2026-05-05 08:34 UTC
 - **Format**: PostgreSQL custom (`-Fc`) — restore with `pg_restore`
-- **Size**: ~1.1 MB
-- **Database**: staysuite (PostgreSQL)
+- **Size**: ~1.1 MB (gzip compressed)
+- **Database**: staysuite (PostgreSQL 17.4)
+- **TOC Entries**: 2,220
 
 ### What's Included
 
-- All StaySuite HospitalityOS tables (Prisma-managed + raw SQL)
-- **FreeRADIUS tables**: radacct, radpostauth, radcheck, radreply, radusergroup, nas
-- **Custom views**: v_session_history, v_active_sessions, v_auth_logs
-- **Key data**:
-  - DeviceProfile records with MAC addresses (chiranjitk user)
-  - WiFi users, guests, properties, rooms, bookings, plans
-  - Captive portal zones with autoAuthEnabled settings
-  - IP pools with WAN IP 21.0.0.1 in Guest Pool
-  - Session history and auth logs
-  - DHCP leases and DNS records
-
-### Recent Code Changes Reflected
-
-1. **Auto-auth fix**: Admin disconnect no longer deactivates DeviceProfile
-2. **MAC in all tabs**: DeviceProfile MAC fallback in radacct/radpostauth + DB views
-3. **v_session_history**: callingstationid now uses 3-way COALESCE (WiFiSession → radacct → DeviceProfile)
-4. **v_auth_logs**: calling_station_id now falls back to DeviceProfile MAC
-5. **v_active_sessions**: Rebuilt on updated v_session_history
+- **271 Tables** (all Prisma-managed + FreeRADIUS + helper tables)
+- **6 Views**: v_session_history, v_active_sessions, v_auth_logs, v_user_usage, v_wifi_users, v_fup_switch_logs
+- **8 Functions**: fn_check_fup, fn_check_ip_pool, fn_check_login_limit, fn_get_effective_bandwidth, fn_get_mikrotik_rate_limit, fn_get_pool_attr, fn_get_user_pool_info, fn_is_fup_throttled
+- **931 Indexes**, **439 FK Constraints**
+- **All seed data**: 2 tenants, 7 users, properties, rooms, guests, bookings, WiFi plans, RADIUS credentials, vouchers, network config, etc.
+- **Extensions**: citext, plpgsql
+- **All 271 tables populated** (no empty tables)
 
 ### Restore Instructions
 
 ```bash
-# Drop and recreate (destructive)
+# Destructive restore (drop + recreate)
 dropdb -U postgres -h 127.0.0.1 staysuite
 createdb -U postgres -h 127.0.0.1 staysuite
-pg_restore -U postgres -h 127.0.0.1 -d staysuite --no-owner --no-privileges staysuite-backup-20260504-233811.dump
+pg_restore -U postgres -h 127.0.0.1 -d staysuite --no-owner --no-privileges db-backup/staysuite-backup-20260505-083436.dump
 
-# Or restore into a separate database for inspection
+# Non-destructive restore into separate DB
 createdb -U postgres -h 127.0.0.1 staysuite_test
-pg_restore -U postgres -h 127.0.0.1 -d staysuite_test --no-owner --no-privileges staysuite-backup-20260504-233811.dump
+pg_restore -U postgres -h 127.0.0.1 -d staysuite_test --no-owner --no-privileges db-backup/staysuite-backup-20260505-083436.dump
 ```
 
 ---
 
 ## staysuite-full-backup.sql
 
-- **Date**: 2026-05-04 ~19:25 UTC (before auto-auth MAC changes)
+- **Date**: 2026-05-05 08:34 UTC
 - **Format**: Plain SQL
-- **Size**: ~1.1 MB
-- **Previous backup — pre MAC-fallback feature**
+- **Size**: ~1 MB
+- **Same snapshot as .dump file** — human-readable, grep-friendly
