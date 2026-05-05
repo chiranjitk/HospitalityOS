@@ -375,30 +375,18 @@ mkdir -p /var/log/ulogd/json
 chmod 755 /var/log/ulogd /var/log/ulogd/json
 echo "  ✓ Log directories: /var/log/ulogd/json/"
 
-# 3. Install SysV init script
-cp "$SCRIPT_DIR/ulogd2.init" /etc/rc.d/init.d/ulogd2
-chmod +x /etc/rc.d/init.d/ulogd2
-if command -v chkconfig >/dev/null 2>&1; then
-  chkconfig --add ulogd2 2>/dev/null || true
-  chkconfig ulogd2 on 2>/dev/null || true
-  echo "  ✓ SysV init: /etc/rc.d/init.d/ulogd2 (enabled)"
-else
-  echo "  ✓ SysV init: /etc/rc.d/init.d/ulogd2"
-fi
+# 3. Install and enable systemd service
+cp "$SCRIPT_DIR/ulogd2.service" /etc/systemd/system/ulogd2.service
+systemctl daemon-reload
+systemctl enable ulogd2
+echo "  ✓ systemd service installed and enabled: ulogd2"
 
-# 4. Install systemd unit (alternative)
-cp "$SCRIPT_DIR/ulogd2.service" /etc/systemd/system/ 2>/dev/null || true
-if command -v systemctl >/dev/null 2>&1; then
-  systemctl daemon-reload 2>/dev/null || true
-  echo "  ✓ systemd unit: /etc/systemd/system/ulogd2.service"
-fi
-
-# 5. Load kernel modules
+# 4. Load kernel modules
 modprobe nfnetlink_log 2>/dev/null && echo "  ✓ nfnetlink_log loaded" || log_warn "  nfnetlink_log module not available (may need kernel update)"
 modprobe nf_log_ipv4 2>/dev/null || true
 modprobe nf_log_ipv6 2>/dev/null || true
 
-# 6. Verify ulogd can find its shared libraries
+# 5. Verify ulogd can find its shared libraries
 echo ""
 echo "  Runtime verification:"
 if ldd "$INSTALL_PREFIX/sbin/ulogd" 2>/dev/null | grep -q "not found"; then
@@ -447,14 +435,10 @@ chmod 755 /var/log/ulogd /var/log/ulogd/json
 echo "${TARGET}/ulogd2/lib" > /etc/ld.so.conf.d/ulogd2.conf
 ldconfig
 
-# Install init script
-cp "${TARGET}/ulogd2/ulogd2.init" /etc/rc.d/init.d/ulogd2
-chmod +x /etc/rc.d/init.d/ulogd2
-chkconfig --add ulogd2 2>/dev/null || true
-
-# Install systemd unit (alternative)
-cp "${TARGET}/ulogd2/ulogd2.service" /etc/systemd/system/ 2>/dev/null || true
-systemctl daemon-reload 2>/dev/null || true
+# Install systemd service
+cp "${TARGET}/ulogd2/ulogd2.service" /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable ulogd2
 
 # Load kernel modules
 modprobe nfnetlink_log 2>/dev/null || true
@@ -465,8 +449,8 @@ echo "  ldconfig -p | grep -E 'ulogd|nfnetlink|jansson'"
 echo "  /usr/local/ulogd2/sbin/ulogd -V"
 echo ""
 echo "Start:"
-echo "  /etc/rc.d/init.d/ulogd2 start"
-echo "  OR: systemctl start ulogd2"
+echo "  systemctl start ulogd2"
+echo "  systemctl status ulogd2"
 DEPLOY_EOF
 chmod +x "$PACKAGE_DIR/ulogd2/deploy.sh"
 
@@ -532,9 +516,9 @@ fi
 
 echo ""
 echo "  Start now:"
-echo "    /etc/rc.d/init.d/ulogd2 start"
-echo "    OR: systemctl start ulogd2"
+echo "    systemctl start ulogd2"
 echo ""
 echo "  Check status:"
-echo "    /etc/rc.d/init.d/ulogd2 status"
+echo "    systemctl status ulogd2"
+echo "    journalctl -u ulogd2 -f"
 echo ""

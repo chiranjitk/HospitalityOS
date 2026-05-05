@@ -1,13 +1,13 @@
 [Unit]
 Description=ulogd2 NFLOG Daemon — StaySuite SNI Capture Pipeline
 Documentation=https://www.netfilter.org/projects/ulogd/
-After=network-online.target nftables.service
+After=network-online.target firewalld.service
 Wants=network-online.target
 
 [Service]
 Type=forking
-ExecStart=/usr/local/ulogd2/sbin/ulogd2 -c /usr/local/ulogd2/etc/ulogd.conf
-PIDFile=/var/run/ulogd2.pid
+ExecStart=/usr/local/ulogd2/sbin/ulogd -c /usr/local/ulogd2/etc/ulogd.conf
+PIDFile=/run/ulogd2.pid
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=65535
@@ -16,10 +16,8 @@ LimitNOFILE=65535
 ExecStartPre=/bin/mkdir -p /var/log/ulogd/json
 ExecStartPre=/bin/chmod 755 /var/log/ulogd /var/log/ulogd/json
 
-# Security hardening
-NoNewPrivileges=false
-ProtectSystem=false
-ProtectHome=false
+# Load kernel module if missing
+ExecStartPre=-/sbin/modprobe nfnetlink_log
 
 [Install]
 WantedBy=multi-user.target
