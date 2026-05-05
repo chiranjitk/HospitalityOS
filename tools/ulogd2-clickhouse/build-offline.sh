@@ -429,7 +429,7 @@ chmod +x "$PACKAGE_DIR/ulogd2/deploy.sh"
 
 # Create the tar.gz
 DIST_TARBALL="$DIST_DIR/ulogd2-offline-compiled.tar.gz"
-cd /tmp
+cd "$PACKAGE_DIR"
 tar czf "$DIST_TARBALL" ulogd2
 DIST_SIZE=$(stat -c%s "$DIST_TARBALL")
 
