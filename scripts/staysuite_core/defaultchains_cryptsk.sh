@@ -256,21 +256,21 @@ nft 'add rule inet mangle open udp dport 6065 accept'
 if command -v ulogd >/dev/null 2>&1 || [ -x /usr/local/ulogd2/sbin/ulogd ]; then
     echo "ulogd2 detected — installing NFLOG rules for SNI capture pipeline"
 
-    # Use 'insert rule index 0' to place at the TOP of prerouting chain
+    # Use 'insert rule' to place at the TOP of prerouting chain (position 0 by default)
     # Insert in reverse order so group 20 ends up first:
     #   insert order: DNS(22), DNS(22), HTTP(21), SNI(20)
     #   final order:  SNI(20), HTTP(21), DNS(22), DNS(22) ← then rest of chain
 
     # NFLOG group 22: DNS query capture (UDP/TCP port 53 — supplementary data)
-    nft 'insert rule inet mangle prerouting index 0 udp dport 53 log group 22 snaplen 512 prefix "NFLOG_DNS: "'
-    nft 'insert rule inet mangle prerouting index 0 tcp dport 53 log group 22 snaplen 512 prefix "NFLOG_DNS: "'
+    nft 'insert rule inet mangle prerouting udp dport 53 log group 22 snaplen 512 prefix "NFLOG_DNS: "'
+    nft 'insert rule inet mangle prerouting tcp dport 53 log group 22 snaplen 512 prefix "NFLOG_DNS: "'
 
     # NFLOG group 21: HTTP Host capture (TCP port 80 new connections — future use)
-    nft 'insert rule inet mangle prerouting index 0 tcp dport 80 ct state new log group 21 snaplen 1500 prefix "NFLOG_HTTP: "'
+    nft 'insert rule inet mangle prerouting tcp dport 80 ct state new log group 21 snaplen 1500 prefix "NFLOG_HTTP: "'
 
     # NFLOG group 20: TLS SNI capture (TCP port 443 new connections)
     # Captures the TLS ClientHello packet which contains the SNI domain in plaintext
-    nft 'insert rule inet mangle prerouting index 0 tcp dport 443 ct state new log group 20 snaplen 1500 prefix "NFLOG_SNI: "'
+    nft 'insert rule inet mangle prerouting tcp dport 443 ct state new log group 20 snaplen 1500 prefix "NFLOG_SNI: "'
 
     # Start ulogd2 via systemctl (native systemd — Rocky 10 has no SysV compat layer)
     if [ -f /etc/systemd/system/ulogd2.service ] || systemctl list-unit-files ulogd2.service >/dev/null 2>&1; then
