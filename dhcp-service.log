@@ -1,6 +1,5 @@
-[2026-05-05T00:02:01.829Z] [INFO] [dhcp-service] StaySuite DHCP Service starting {"port":3011,"systemDnsmasq":false,"configFile":"/home/z/my-project/dhcp-local/staysuite-dhcp.conf","leasesFile":"/tmp/dnsmasq-dhcp.leases"}
-[2026-05-05T00:02:01.838Z] [INFO] [dhcp-service] DHCP service listening on port 3011 (PostgreSQL backend)
-[2026-05-05T00:02:01.853Z] [WARN] [dhcp-service] PostgreSQL connection attempt 1/10 failed, retrying in 3s... {"database":"file:/home/z/my-project/db/custom.db","error":"error: password authentication failed for user \"z\""}
-[2026-05-05T00:02:04.857Z] [WARN] [dhcp-service] PostgreSQL connection attempt 2/10 failed, retrying in 3s... {"database":"file:/home/z/my-project/db/custom.db","error":"error: password authentication failed for user \"z\""}
-[2026-05-05T00:02:07.861Z] [WARN] [dhcp-service] PostgreSQL connection attempt 3/10 failed, retrying in 3s... {"database":"file:/home/z/my-project/db/custom.db","error":"error: password authentication failed for user \"z\""}
-[2026-05-05T00:02:10.864Z] [WARN] [dhcp-service] PostgreSQL connection attempt 4/10 failed, retrying in 3s... {"database":"file:/home/z/my-project/db/custom.db","error":"error: password authentication failed for user \"z\""}
+[2026-05-05T00:07:13.568Z] [INFO] [dhcp-service] StaySuite DHCP Service starting {"port":3011,"systemDnsmasq":false,"configFile":"/home/z/my-project/dhcp-local/staysuite-dhcp.conf","leasesFile":"/tmp/dnsmasq-dhcp.leases"}
+[2026-05-05T00:07:13.579Z] [INFO] [dhcp-service] DHCP service listening on port 3011 (PostgreSQL backend)
+[2026-05-05T00:07:13.596Z] [INFO] [dhcp-service] Connected to PostgreSQL {"database":"postgresql://***:***@127.0.0.1:5432/staysuite"}
+[2026-05-05T00:07:13.620Z] [INFO] [dhcp-service] Config generated: /home/z/my-project/dhcp-local/staysuite-dhcp.conf (27 directives, 4 subnets, 3 reservations, 0 blacklist, 0 tag rules, 0 hostname filters, 3 options, 0 lease scripts)
+[2026-05-05T00:07:13.620Z] [WARN] [dhcp-service] dnsmasq not found on system — install with: dnf install dnsmasq (Rocky) or apt install dnsmasq (Debian)

@@ -461,3 +461,28 @@ Stage Summary:
 - No more sandbox-only paths in production code paths
 - Lint clean (only 2 pre-existing errors in nftables-counters.ts unrelated to changes)
 - Dev server verified working with correct path resolution
+
+---
+Task ID: 5-c
+Agent: Main Agent
+Task: Configure PostgreSQL for sandbox mini-services
+
+Work Log:
+- Found PostgreSQL 17 already installed at pgsql-runtime/ and running on port 5432
+- Identified that mini-services .env files use DATABASE_URL=postgresql://staysuite:Staysuite2025@... but the `staysuite` PG role did not exist
+- Created PG role: CREATE ROLE staysuite WITH LOGIN PASSWORD 'Staysuite2025' SUPERUSER
+- Verified staysuite user can connect and read all tables
+- Updated start-services.sh to pass DATABASE_URL correctly for dhcp-service and dns-service
+- Ran start-services.sh — all 4 services healthy (dhcp=3011, dns=3012, conntrack=3020, sni-parser=3022)
+- Created test dnsmasq lease file at /tmp/dnsmasq-dhcp.leases (5 entries)
+- Verified dhcp-service reads live leases from file and maps to DB subnets
+- Verified /api/kea/status now proxies to dhcp-service (no more _warning fallback)
+- Verified /api/kea/leases proxies to dhcp-service AND syncs to DhcpLease DB table
+- Verified DB has 8 leases (5 active from file + 3 expired from previous DB data)
+- Started captive-redirect service (port 8888) — healthy
+
+Stage Summary:
+- PostgreSQL connected: all mini-services now use staysuite:Staysuite2025@127.0.0.1:5432/staysuite
+- All 5 mini-services running and healthy in sandbox
+- Full lease sync pipeline working: dnsmasq file → dhcp-service → Next.js API → DB
+- GUI lease report will now show live data from dnsmasq lease file in production
