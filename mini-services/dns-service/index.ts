@@ -484,37 +484,47 @@ edns-packet-max=4096   # Support large DNS responses (DNSSEC, large TXT)
       config += `domain=${domain}\n`;
 
       // Read records for this zone
+      let hasApexARecord = false;
+      let firstARecordIp = '';
       try {
         const recResult = await pool.query('SELECT * FROM "DnsRecord" WHERE "zoneId" = $1 AND enabled = true', [zone.id]);
         for (const r of recResult.rows) {
-          const fqdn = `${r.name}.${domain}`;
-          switch (r.type) {
-            case 'A':
-              config += `host-record=${fqdn},${r.value}\n`;
-              break;
-            case 'AAAA':
-              config += `host-record=${fqdn},${r.value}\n`;
-              break;
-            case 'CNAME':
-              config += `cname=${fqdn},${r.value}\n`;
-              break;
-            case 'MX':
-              config += `mx-host=${domain},${r.value},${r.priority || 10}\n`;
-              break;
-            case 'TXT':
-              config += `txt-record=${fqdn},${r.value}\n`;
-              break;
-            case 'SRV':
-              config += `srv-host=${fqdn},${r.value},${r.priority || 10}\n`;
-              break;
-            case 'PTR':
-              config += `ptr-record=${fqdn},${r.value}\n`;
-              break;
+          // Handle apex record: name='@' means the bare domain itself
+          const name = r.name === '@' ? domain : r.name;
+          const fqdn = `${name}.${domain}`;
+
+          if (r.type === 'A') {
+            if (!firstARecordIp) firstARecordIp = r.value;
+            // Check if this is an apex A record (name is @ or equals the domain)
+            if (r.name === '@' || r.name === domain) {
+              hasApexARecord = true;
+            }
+            config += `host-record=${fqdn},${r.value}\n`;
+          } else if (r.type === 'AAAA') {
+            config += `host-record=${fqdn},${r.value}\n`;
+          } else if (r.type === 'CNAME') {
+            config += `cname=${fqdn},${r.value}\n`;
+          } else if (r.type === 'MX') {
+            config += `mx-host=${domain},${r.value},${r.priority || 10}\n`;
+          } else if (r.type === 'TXT') {
+            config += `txt-record=${fqdn},${r.value}\n`;
+          } else if (r.type === 'SRV') {
+            config += `srv-host=${fqdn},${r.value},${r.priority || 10}\n`;
+          } else if (r.type === 'PTR') {
+            config += `ptr-record=${fqdn},${r.value}\n`;
           }
         }
       } catch (error) {
         log.warn(`Failed to read records for zone ${zone.id}`, { error: String(error) });
       }
+
+      // Auto-add apex A record if zone has no @ record but has A records
+      // This ensures the bare domain (e.g. staysuite.local) resolves
+      if (!hasApexARecord && firstARecordIp) {
+        config += `host-record=${domain},${firstARecordIp}\n`;
+        log.info(`Auto-added apex record: ${domain} → ${firstARecordIp} (no explicit @ record in zone)`);
+      }
+
       config += '\n';
     }
   } catch (error) {
