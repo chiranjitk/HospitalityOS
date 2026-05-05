@@ -232,6 +232,7 @@ build_cmake() {
   cmake .. \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DCMAKE_INSTALL_LIBDIR=lib \
+    -DCMAKE_INSTALL_PKGCONFIGDIR=lib/pkgconfig \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=ON \
     -DBUILD_STATIC_LIBS=OFF \
@@ -278,7 +279,54 @@ build_autotools "libnetfilter_conntrack" "libnetfilter_conntrack-1.0.9.tar.bz2" 
 build_autotools "libnetfilter_acct" "libnetfilter_acct-1.0.3.tar.bz2" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
 
 # 6. json-c (no deps — CMAKE build!)
+#    cmake installs .pc to lib/pkgconfig/json-c.pc
+#    ulogd2 configure uses pkg-config to find it
 build_cmake "json-c" "json-c-0.17.tar.gz" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
+
+# ─── Fix json-c pkg-config for ulogd2 detection ──────────────────────────
+# ulogd2's configure looks for 'json-c' via pkg-config.
+# cmake-built json-c may install the .pc file with a different name or location.
+# Ensure json-c.pc exists and is findable.
+log_step "Fixing json-c pkg-config..."
+
+# Find where json-c .pc was installed
+JSON_C_PC=""
+for pc_path in \n  "${INSTALL_PREFIX}/lib/pkgconfig/json-c.pc" \n  "${INSTALL_PREFIX}/lib/pkgconfig/json-c.pc" \n  "${INSTALL_PREFIX}/lib64/pkgconfig/json-c.pc" \n  "${INSTALL_PREFIX}/lib/json-c.pc" \n  "${INSTALL_PREFIX}/lib64/json-c.pc"; do
+  if [ -f "$pc_path" ]; then
+    JSON_C_PC="$pc_path"\    break
+  fi
+done
+
+# Also search for any json*.pc file
+if [ -z "$JSON_C_PC" ]; then
+  JSON_C_PC=$(find "${INSTALL_PREFIX}" -name "json*.pc" -type f 2>/dev/null | head -1)
+fi
+
+if [ -n "$JSON_C_PC" ]; then
+  echo "  Found: $JSON_C_PC"
+  # Ensure it's in the pkgconfig directory
+  if [ "$(dirname "$JSON_C_PC")" != "${INSTALL_PREFIX}/lib/pkgconfig" ]; then
+    cp -f "$JSON_C_PC" "${INSTALL_PREFIX}/lib/pkgconfig/json-c.pc"
+    echo "  Copied to ${INSTALL_PREFIX}/lib/pkgconfig/json-c.pc"
+  fi
+  # Verify pkg-config can find it
+  if command -v pkg-config >/dev/null 2>&1; then
+    if PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig" pkg-config --exists json-c 2>/dev/null; then
+      echo "  pkg-config --cflags json-c: $(PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig" pkg-config --cflags json-c)"
+      echo "  pkg-config --libs json-c: $(PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig" pkg-config --libs json-c)"
+    else
+      log_warn "  pkg-config cannot find json-c even though .pc exists!"
+      log_warn "  Content of $JSON_C_PC:"
+      cat "$JSON_C_PC" | sed 's/^/    /'
+    fi
+  fi
+else
+  log_warn "  json-c .pc file not found anywhere in $INSTALL_PREFIX"
+  log_warn "  ulogd2 JSON plugin will not build"
+  # List what was installed for debugging
+  echo "  Files in ${INSTALL_PREFIX}/lib/pkgconfig/:"
+  ls -la "${INSTALL_PREFIX}/lib/pkgconfig/" 2>/dev/null | sed 's/^/    /' || echo "    (empty)"
+fi
 
 # 7. libpcap (no deps — autotools)
 #    GitHub tarball extracts to libpcap-libpcap-1.10.5/ (double name)
@@ -289,7 +337,7 @@ build_autotools "libpcap" "libpcap-1.10.5.tar.gz" "" || BUILD_ERRORS=$((BUILD_ER
 log_step "Verifying dependency libraries..."
 
 CRITICAL_OK=true
-for lib in libnfnetlink libnetfilter_log json-c; do
+for lib in nfnetlink netfilter_log json-c; do
   if [ -f "${INSTALL_PREFIX}/lib/lib${lib}.so" ] || [ -f "${INSTALL_PREFIX}/lib64/lib${lib}.so" ]; then
     echo "  ✓ lib${lib}"
   else
@@ -328,22 +376,32 @@ log_step "  Configuring ulogd2..."
   --libdir="${INSTALL_PREFIX}/lib" \
   --includedir="${INSTALL_PREFIX}/include" \
   --localstatedir=/var \
-  --with-jsonc \
+  --without-pgsql \
+  --without-mysql \
+  --without-sqlite3 \
+  --without-dbi \
   --enable-static=no \
   --enable-shared=yes \
   2>&1 | tail -20
 
 # Show what plugins were detected
 echo ""
-echo "  ── Plugin detection results ──"
-grep -E "(NFLOG plugin|NFCT plugin|JSON plugin|PCAP plugin)" "${BUILD_DIR}/ulogd-2.0.8/config.log" 2>/dev/null | tail -10 || true
-echo ""
+echo "  Plugin detection (check NFLOG and JSON lines above)"
 
 log_step "  Compiling ulogd2..."
-make -j"$(nproc 2>/dev/null || echo 2)" 2>&1 | tail -5
+if ! make -j"$(nproc 2>/dev/null || echo 2)" 2>&1; then
+  log_err "  ulogd2 compilation FAILED!"
+  log_err "  Re-running: make V=1 2>&1 | tail -40"
+  make V=1 2>&1 | tail -40
+  log_err "  Common causes:"
+  log_err "    - Missing json-c headers (JSON plugin: no)"
+  log_err "    - Missing pcap headers"
+  log_err "    - Check: PKG_CONFIG_PATH=$INSTALL_PREFIX/lib/pkgconfig pkg-config --cflags json-c"
+  exit 1
+fi
 
 log_step "  Installing ulogd2 to $INSTALL_PREFIX..."
-make install 2>&1 | tail -5
+make install 2>&1
 
 # ─── Verify Installation ─────────────────────────────────────────────────
 
