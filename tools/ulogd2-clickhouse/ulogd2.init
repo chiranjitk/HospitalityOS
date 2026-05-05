@@ -23,7 +23,7 @@
 # Source function library (Rocky/CentOS)
 [ -f /etc/rc.d/init.d/functions ] && . /etc/rc.d/init.d/functions
 
-ULOGD2_BIN="/usr/local/ulogd2/sbin/ulogd2"
+ULOGD2_BIN="/usr/local/ulogd2/sbin/ulogd"
 ULOGD2_CONF="/usr/local/ulogd2/etc/ulogd.conf"
 ULOGD2_PID="/var/run/ulogd2.pid"
 ULOGD2_OPTS="-c $ULOGD2_CONF"
@@ -92,7 +92,7 @@ stop() {
     if [ ! -f "$ULOGD2_PID" ]; then
         echo "ulogd2 is not running"
         # Also try killall in case PID file was lost
-        pkill -f "$ULOGD2_BIN" 2>/dev/null
+        pkill -x ulogd 2>/dev/null || true
         rm -f "$LOCKFILE"
         return 0
     fi

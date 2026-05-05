@@ -361,10 +361,53 @@ mkdir -p "$INSTALL_PREFIX/etc"
 cp "$SCRIPT_DIR/ulogd.conf" "$INSTALL_PREFIX/etc/ulogd.conf"
 echo "  Config installed to $INSTALL_PREFIX/etc/ulogd.conf"
 
-# ─── Create Log Directories ─────────────────────────────────────────────
+# ─── Post-Install: Make it ready to run immediately ─────────────────────
 
+log_step "Setting up runtime environment..."
+
+# 1. Register libraries with ldconfig
+echo "/usr/local/ulogd2/lib" > /etc/ld.so.conf.d/ulogd2.conf
+ldconfig
+echo "  ✓ ldconfig configured: /etc/ld.so.conf.d/ulogd2.conf"
+
+# 2. Create log directories
 mkdir -p /var/log/ulogd/json
 chmod 755 /var/log/ulogd /var/log/ulogd/json
+echo "  ✓ Log directories: /var/log/ulogd/json/"
+
+# 3. Install SysV init script
+cp "$SCRIPT_DIR/ulogd2.init" /etc/rc.d/init.d/ulogd2
+chmod +x /etc/rc.d/init.d/ulogd2
+if command -v chkconfig >/dev/null 2>&1; then
+  chkconfig --add ulogd2 2>/dev/null || true
+  chkconfig ulogd2 on 2>/dev/null || true
+  echo "  ✓ SysV init: /etc/rc.d/init.d/ulogd2 (enabled)"
+else
+  echo "  ✓ SysV init: /etc/rc.d/init.d/ulogd2"
+fi
+
+# 4. Install systemd unit (alternative)
+cp "$SCRIPT_DIR/ulogd2.service" /etc/systemd/system/ 2>/dev/null || true
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl daemon-reload 2>/dev/null || true
+  echo "  ✓ systemd unit: /etc/systemd/system/ulogd2.service"
+fi
+
+# 5. Load kernel modules
+modprobe nfnetlink_log 2>/dev/null && echo "  ✓ nfnetlink_log loaded" || log_warn "  nfnetlink_log module not available (may need kernel update)"
+modprobe nf_log_ipv4 2>/dev/null || true
+modprobe nf_log_ipv6 2>/dev/null || true
+
+# 6. Verify ulogd can find its shared libraries
+echo ""
+echo "  Runtime verification:"
+if ldd "$INSTALL_PREFIX/sbin/ulogd" 2>/dev/null | grep -q "not found"; then
+  log_err "  ✗ Some shared libraries not found!"
+  ldd "$INSTALL_PREFIX/sbin/ulogd" 2>/dev/null | grep "not found" | sed 's/^/    /'
+  log_err "  Run: ldconfig"
+else
+  echo "  ✓ All shared libraries resolved"
+fi
 
 # ─── Create Deployable tar.gz ────────────────────────────────────────────
 
@@ -488,10 +531,10 @@ else
 fi
 
 echo ""
-echo "  On Rocky 10 — copy and deploy:"
-echo "    scp dist/ulogd2-offline-compiled.tar.gz root@rocky10:/tmp/"
-echo "    ssh root@rocky10 'cd /tmp && tar xzf ulogd2-offline-compiled.tar.gz && cd ulogd2 && bash deploy.sh'"
-echo ""
-echo "  Start:"
+echo "  Start now:"
 echo "    /etc/rc.d/init.d/ulogd2 start"
+echo "    OR: systemctl start ulogd2"
+echo ""
+echo "  Check status:"
+echo "    /etc/rc.d/init.d/ulogd2 status"
 echo ""
