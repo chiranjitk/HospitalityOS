@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
         timezone,
         currency,
         // Tax configuration
-        taxId,
+        taxId: taxId || null,
         taxType,
         defaultTaxRate,
         taxComponents: JSON.stringify(taxComponents),

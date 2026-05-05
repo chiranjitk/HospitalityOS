@@ -177,7 +177,7 @@ export async function PUT(
           ...(timezone && { timezone }),
           ...(currency && { currency }),
           // Tax configuration
-          ...(taxId !== undefined && { taxId }),
+          ...(taxId !== undefined && { taxId: taxId || null }),
           ...(taxType !== undefined && { taxType }),
           ...(defaultTaxRate !== undefined && { defaultTaxRate: parseFloat(defaultTaxRate) || 0 }),
           ...(taxComponents !== undefined && { taxComponents: JSON.stringify(taxComponents) }),
