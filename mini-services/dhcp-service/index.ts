@@ -539,9 +539,9 @@ async function generateConfig(): Promise<{ success: boolean; message: string; li
     // ── 1. Interface Bindings (skipped — intentionally empty)
     // NOTE: We do NOT emit interface= or bind-interfaces here.
     // Both conflict with bind-dynamic in staysuite.conf (dns-service).
-    // Instead, interface binding is embedded into each dhcp-range line
-    // using the dnsmasq dhcp-range=<interface>:<start>,<end>,... syntax.
-    // This binds DHCP to specific interfaces while keeping DNS on all.
+    // With bind-dynamic, dnsmasq automatically serves DHCP on any interface
+    // that has an IP address within the configured dhcp-range subnet.
+    // No interface prefix is needed or supported on dhcp-range lines.
 
     // ── 2. MAC Blacklist (dhcp-host=<mac>,ignore)
     if (blacklists.length > 0) {
@@ -623,12 +623,15 @@ async function generateConfig(): Promise<{ success: boolean; message: string; li
         config += `# Subnet: ${sub.name} (${cidr})\n`;
         config += `# ID: ${sub.id}\n`;
 
-        // dhcp-range: <interface>:<start>,<end>,<netmask>,<lease>
-        // Interface prefix binds DHCP to the matching NIC without restricting DNS
+        // dhcp-range: <start>,<end>,<netmask>,<lease>
+        // With bind-dynamic, dnsmasq auto-serves DHCP on any NIC with an IP in this subnet.
+        // Show detected interface in comment for debugging.
         const ifaceName = findInterfaceForSubnet(cidr, systemInterfaces);
-        const ifacePrefix = ifaceName ? `${ifaceName}:` : '';
+        if (ifaceName) {
+          config += `# Interface: ${ifaceName} (auto-detected)\n`;
+        }
         const leaseDisplay = leaseSecondsToDisplay(sub.leaseTime || 3600);
-        config += `dhcp-range=${ifacePrefix}${sub.poolStart},${sub.poolEnd},${netmask},${leaseDisplay}\n`;
+        config += `dhcp-range=${sub.poolStart},${sub.poolEnd},${netmask},${leaseDisplay}\n`;
 
         // Gateway (router option) — resolve hostnames to IPs
         if (sub.gateway) {
