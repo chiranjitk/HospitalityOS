@@ -274,16 +274,18 @@ if command -v ulogd >/dev/null 2>&1 || [ -x /usr/local/ulogd2/sbin/ulogd ]; then
 
     # NFLOG group 21: HTTP Host capture (TCP port 80)
     # Same logic as SNI: HTTP GET/Host header is in the FIRST data packet after handshake,
-    # NOT in the SYN. Use "tcp flags & (fin|syn|rst) == 0" + "tcp length > 0"
-    # to capture only data-carrying ACK packets (the HTTP request).
-    nft 'insert rule inet mangle prerouting tcp dport 80 tcp flags \& (fin|syn|rst) == 0 tcp length > 0 log group 21 snaplen 1500 prefix "NFLOG_HTTP: "'
+    # NOT in the SYN. Use "tcp flags & (syn|rst|fin) == 0" to capture only ACK/ACK+PSH
+    # packets (the data-carrying ones). Empty ACKs also match but are harmless.
+    nft 'insert rule inet mangle prerouting tcp dport 80 tcp flags \& (syn|rst|fin) == 0 log group 21 snaplen 1500 prefix "NFLOG_HTTP: "'
 
     # NFLOG group 20: TLS SNI capture (TCP port 443)
     # CRITICAL: Do NOT use "ct state new" — it only captures SYN (60 bytes, no payload).
     # TLS ClientHello with SNI arrives AFTER the 3-way handshake in a data packet.
-    # Filter: no FIN/SYN/RST flags (pure data ACK) + payload present (tcp length > 0).
-    # snaplen 1500 captures up to 1500 bytes — enough for the ClientHello.
-    nft 'insert rule inet mangle prerouting tcp dport 443 tcp flags \& (fin|syn|rst) == 0 tcp length > 0 log group 20 snaplen 1500 prefix "NFLOG_SNI: "'
+    # Filter: no SYN/RST/FIN flags set → matches ACK-only and ACK+PSH packets only.
+    # These are exactly the data-carrying packets. Empty ACKs also match (harmless).
+    # NOTE: "tcp length > 0" does NOT work in nftables v1.1.1 — do not add it.
+    # snaplen 1500 captures up to 1500 bytes — enough for the full ClientHello.
+    nft 'insert rule inet mangle prerouting tcp dport 443 tcp flags \& (syn|rst|fin) == 0 log group 20 snaplen 1500 prefix "NFLOG_SNI: "'
 
     # Restart ulogd2 to pick up the new rule change (native systemd — Rocky 10 has no SysV compat layer)
     if [ -f /etc/systemd/system/ulogd2.service ] || systemctl list-unit-files ulogd2.service >/dev/null 2>&1; then
