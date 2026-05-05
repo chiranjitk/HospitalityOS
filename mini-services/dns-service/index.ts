@@ -182,14 +182,25 @@ function apiToRedirectRule(body: any): { matchPattern: string; name: string; app
 
 /**
  * Convert DnsRedirectRule matchPattern to dnsmasq address= format.
+ *
+ * dnsmasq address= syntax: address=/<domain>/<ip>
+ * - Specific domain:  address=/example.com/1.2.3.4
+ * - Wildcard subdomain: address=/.example.com/1.2.3.4  (matches *.example.com)
+ * - Catch-all (all non-local): address=/#/1.2.3.4
+ *
+ * IMPORTANT: dnsmasq does NOT support * as a wildcard in address=.
+ * Only # is a special catch-all that matches any domain NOT defined locally.
  */
 function matchPatternToDnsmasq(matchPattern: string): string {
   if (matchPattern === '*') {
-    return '/*';
+    // Catch-all: redirect ALL non-local domains to captive portal
+    // # is dnsmasq's built-in wildcard for "any domain not defined locally"
+    return '/#';
   } else if (matchPattern.startsWith('*.')) {
-    return `/${matchPattern.slice(2)}`;
+    // Wildcard subdomain: *.example.com → .example.com (leading dot = subdomain match)
+    return `/${matchPattern.slice(1)}`;
   } else {
-    return matchPattern;
+    return `/${matchPattern}`;
   }
 }
 
