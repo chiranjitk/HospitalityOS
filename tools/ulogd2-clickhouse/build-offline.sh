@@ -357,6 +357,7 @@ done
 # ─── Install Our Config ──────────────────────────────────────────────────
 
 log_step "Installing StaySuite ulogd config..."
+mkdir -p "$INSTALL_PREFIX/etc"
 cp "$SCRIPT_DIR/ulogd.conf" "$INSTALL_PREFIX/etc/ulogd.conf"
 echo "  Config installed to $INSTALL_PREFIX/etc/ulogd.conf"
 
