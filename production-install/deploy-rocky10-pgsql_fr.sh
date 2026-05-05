@@ -1057,6 +1057,17 @@ info "Building Next.js (this may take a few minutes)..."
 bun run build 2>&1 | tail -10
 success "Next.js build complete"
 
+# Rebuild native addons (lzma-native for speedtest-net) inside standalone output
+# The standalone build copies .js files but native .node binaries must be
+# compiled for the production Node.js ABI version.
+if [[ -d "${APP_DIR}/.next/standalone/node_modules/lzma-native" ]]; then
+  info "Rebuilding native addons in standalone output..."
+  cd "${APP_DIR}/.next/standalone"
+  npm rebuild lzma-native 2>&1 | tail -3
+  cd "$APP_DIR"
+  success "Native addons rebuilt"
+fi
+
 # ════════════════════════════════════════════════════════════════════════════════
 # STEP 14: PM2 + All Services
 # ════════════════════════════════════════════════════════════════════════════════
