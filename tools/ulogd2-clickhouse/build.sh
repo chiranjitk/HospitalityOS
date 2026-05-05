@@ -63,13 +63,15 @@ echo "  Done."
 echo ""
 echo "[2/6] Downloading ulogd2 ${ULOGD2_VERSION}..."
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
-if [ -f "tools/ulogd2-clickhouse/ulogd-${ULOGD2_VERSION}.tar.bz2" ]; then
-    echo "  Using cached source tarball..."
-    cp "tools/ulogd2-clickhouse/ulogd-${ULOGD2_VERSION}.tar.bz2" "$BUILD_DIR/"
+if [ -f "$SCRIPT_DIR/src/ulogd-${ULOGD2_VERSION}.tar.bz2" ]; then
+    echo "  Using local source tarball (offline)..."
+    cp "$SCRIPT_DIR/src/ulogd-${ULOGD2_VERSION}.tar.bz2" "$BUILD_DIR/"
 else
+    echo "  Local source not found, downloading from internet..."
     curl -fSL "$ULOGD2_URL" -o "$BUILD_DIR/ulogd-${ULOGD2_VERSION}.tar.bz2"
 fi
 
@@ -123,8 +125,8 @@ echo ""
 echo "[6/6] Installing configuration..."
 
 # Copy our config
-if [ -f "tools/ulogd2-clickhouse/ulogd.conf" ]; then
-    cp "tools/ulogd2-clickhouse/ulogd.conf" "$INSTALL_PREFIX/etc/ulogd.conf"
+if [ -f "$SCRIPT_DIR/ulogd.conf" ]; then
+    cp "$SCRIPT_DIR/ulogd.conf" "$INSTALL_PREFIX/etc/ulogd.conf"
     echo "  Config installed to ${INSTALL_PREFIX}/etc/ulogd.conf"
 else
     echo "  WARNING: tools/ulogd2-clickhouse/ulogd.conf not found"
