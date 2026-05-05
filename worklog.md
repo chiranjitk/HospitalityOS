@@ -67,3 +67,24 @@ Stage Summary:
 - Root cause: two dnsmasq config files in same dir with conflicting bind options
 - `bind-dynamic` (from dns-service) is kept — it handles DNS on all interfaces + allows interface= directives for DHCP
 - Previous `auth-zone`/`auth-server` fix already in codebase — production just needs redeploy
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix DHCP not leasing - invalid interface prefix on dhcp-range
+
+Work Log:
+- Analyzed dnsmasq error: "DHCP range 10.10.10.254 -- 255.255.255.0 is not consistent with netmask 255.255.255.0"
+- Found dhcp-service was generating `dhcp-range=eth1:10.10.10.100,...` using invalid `interface:` prefix
+- dnsmasq does NOT support `dhcp-range=<interface>:<start>,<end>,...` — the prefix was parsed as a network-id tag, scrambling the parameter order
+- With `bind-dynamic`, dnsmasq auto-serves DHCP on any interface with an IP in the configured subnet
+- Removed the `interface:` prefix from dhcp-range generation
+- Auto-detected interface now shown in comment for debugging only
+- Fixed incorrect comment at line 540-544 that documented this non-existent syntax
+- Pushed commit 01267394
+
+Stage Summary:
+- Root cause: `dhcp-range=eth1:10.10.10.100,10.10.10.254,255.255.255.0,4h` — dnsmasq parsed `eth1` as tag, `10.10.10.254` as range start, `255.255.255.0` as range end
+- Fix: Changed to `dhcp-range=10.10.10.100,10.10.10.254,255.255.255.0,4h` (standard dnsmasq syntax)
+- File changed: `mini-services/dhcp-service/index.ts` (lines 539-544, 626-634)
+- Commit: 01267394, pushed to main
