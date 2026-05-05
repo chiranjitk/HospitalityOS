@@ -1157,7 +1157,7 @@ app.get('/api/cache', (c) => {
       data: {
         capacity: cacheSize,
         status: running ? hitRate : 'dnsmasq not running',
-        dnsmasqRunning: running,
+        serviceRunning: running,
         coldQueryMs: coldMs,
         hotQueryMs: hotMs,
         upstreamQueries,

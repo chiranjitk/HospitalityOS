@@ -662,17 +662,25 @@ async function handleRequest(request: NextRequest, method: string) {
       }
     }
 
-    // ─── Cache (stub) ──────────────────────────────────────────────────────
+    // ─── Cache — proxy to real dns-service, fall back to DB-only stub ────
     if (segments[0] === 'cache') {
       if (segments[1] === 'flush' && method === 'POST') {
-        return NextResponse.json({ success: true, message: 'DNS cache flush triggered via dnsmasq', running: true });
+        // Try real mini-service first
+        const proxied = await proxyToDnsService('/api/cache/flush', 'POST', body);
+        if (proxied) return proxied;
+        return NextResponse.json({ success: false, error: 'dns-service mini-service not reachable' });
       }
       if (segments.length === 1 && method === 'GET') {
+        // Try real mini-service first (has actual dnsmasq cache stats)
+        const proxied = await proxyToDnsService('/api/cache', 'GET');
+        if (proxied) return proxied;
+
+        // Fallback: static info (mini-service not running)
         return NextResponse.json({
           success: true,
           data: {
             capacity: 10000,
-            status: 'dnsmasq not running',
+            status: 'dns-service not reachable',
             serviceRunning: false,
             coldQueryMs: 0,
             hotQueryMs: 0,
