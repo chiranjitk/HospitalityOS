@@ -265,7 +265,8 @@ nft 'add rule inet mangle prerouting ip saddr @usersset accept'
 ## ============================================================================
 
 # Only install NFLOG rules if ulogd2 is installed
-if command -v ulogd2 >/dev/null 2>&1 || [ -x /usr/local/ulogd2/sbin/ulogd2 ]; then
+# Binary is named "ulogd" (not "ulogd2") — installed at /usr/local/ulogd2/sbin/ulogd
+if command -v ulogd >/dev/null 2>&1 || [ -x /usr/local/ulogd2/sbin/ulogd ]; then
     echo "ulogd2 detected — installing NFLOG rules for SNI capture pipeline"
 
     # NFLOG group 20: TLS SNI capture (TCP port 443 new connections)
@@ -281,18 +282,16 @@ if command -v ulogd2 >/dev/null 2>&1 || [ -x /usr/local/ulogd2/sbin/ulogd2 ]; th
     nft 'add rule inet mangle prerouting udp dport 53 log group 22 snaplen 512 prefix "NFLOG_DNS: "'
     nft 'add rule inet mangle prerouting tcp dport 53 log group 22 snaplen 512 prefix "NFLOG_DNS: "'
 
-    # Start ulogd2 daemon if it has a valid config
-    ULOGD2_BIN=""
-    [ -x /usr/local/ulogd2/sbin/ulogd2 ] && ULOGD2_BIN="/usr/local/ulogd2/sbin/ulogd2"
-    [ -x "$(which ulogd2 2>/dev/null)" ] && ULOGD2_BIN="$(which ulogd2)"
-
-    if [ -n "$ULOGD2_BIN" ] && [ -f /usr/local/ulogd2/etc/ulogd.conf ]; then
-        # Kill existing ulogd2 instance
-        pkill -f ulogd2 >/dev/null 2>&1
+    # Start ulogd2 via systemctl (native systemd — Rocky 10 has no SysV compat layer)
+    if [ -f /etc/systemd/system/ulogd2.service ] || systemctl list-unit-files ulogd2.service >/dev/null 2>&1; then
+        systemctl restart ulogd2 >/dev/null 2>&1
+        echo "ulogd2 started via systemctl"
+    elif [ -f /usr/local/ulogd2/etc/ulogd.conf ]; then
+        # Fallback: start directly if no systemd service but config exists
+        pkill -f "ulogd.*ulogd.conf" >/dev/null 2>&1
         sleep 1
-        # Start ulogd2 daemon (background)
-        $ULOGD2_BIN -c /usr/local/ulogd2/etc/ulogd.conf >/dev/null 2>&1 &
-        echo "ulogd2 started (PID: $!)"
+        /usr/local/ulogd2/sbin/ulogd -c /usr/local/ulogd2/etc/ulogd.conf >/dev/null 2>&1 &
+        echo "ulogd2 started manually (PID: $!)"
     else
         echo "WARNING: ulogd2 config not found at /usr/local/ulogd2/etc/ulogd.conf — NFLOG rules loaded but ulogd2 not started"
     fi

@@ -147,24 +147,11 @@ system packages, then compiles only ulogd2.
 
 ## Post-Installation
 
-### Install as SysV Service (Rocky Linux 10)
+### Install as systemd Service (Rocky Linux 10)
 
-```bash
-cp /usr/local/ulogd2/ulogd2.init /etc/rc.d/init.d/ulogd2
-chmod +x /etc/rc.d/init.d/ulogd2
-
-# Register and enable
-chkconfig --add ulogd2
-chkconfig ulogd2 on
-
-# Start
-/etc/rc.d/init.d/ulogd2 start
-
-# Check status
-/etc/rc.d/init.d/ulogd2 status
-```
-
-### Install as systemd Service (alternative)
+> **Note:** Rocky 10 removed the SysV compatibility layer (`systemd-sysv-install`).
+> Always use native systemd. If you previously installed the SysV init script, remove it first:
+> `rm -f /etc/rc.d/init.d/ulogd2 /etc/init.d/ulogd2`
 
 ```bash
 cp /usr/local/ulogd2/ulogd2.service /etc/systemd/system/
@@ -181,7 +168,7 @@ The NFLOG rules are automatically loaded when you run your firewall script:
 bash /usr/local/scripts/defaultchains_cryptsk.sh
 ```
 
-If ulogd2 is installed at `/usr/local/ulogd2/sbin/ulogd2`, the script will:
+If ulogd2 is installed at `/usr/local/ulogd2/sbin/ulogd`, the script will:
 - Detect ulogd2 binary
 - Add NFLOG rules to nftables (group 20, 21, 22)
 - Auto-start the ulogd2 daemon
@@ -189,7 +176,7 @@ If ulogd2 is installed at `/usr/local/ulogd2/sbin/ulogd2`, the script will:
 You can also start ulogd2 manually:
 
 ```bash
-/usr/local/ulogd2/sbin/ulogd2 -c /usr/local/ulogd2/etc/ulogd.conf
+systemctl start ulogd2
 ```
 
 ---
@@ -197,17 +184,11 @@ You can also start ulogd2 manually:
 ## Service Management
 
 ```bash
-# SysV (Rocky Linux)
-/etc/rc.d/init.d/ulogd2 start      # Start daemon
-/etc/rc.d/init.d/ulogd2 stop       # Stop daemon
-/etc/rc.d/init.d/ulogd2 restart    # Restart daemon
-/etc/rc.d/init.d/ulogd2 status     # Check status + recent logs
-
-# systemd (alternative)
-systemctl start ulogd2
-systemctl stop ulogd2
-systemctl restart ulogd2
-systemctl status ulogd2
+systemctl start ulogd2              # Start daemon
+systemctl stop ulogd2               # Stop daemon
+systemctl restart ulogd2            # Restart daemon
+systemctl status ulogd2             # Check status
+journalctl -u ulogd2 -f            # Follow live logs
 ```
 
 ### Log Files
@@ -239,7 +220,7 @@ Create `/etc/logrotate.d/ulogd2`:
     notifempty
     copytruncate
     postrotate
-        /etc/rc.d/init.d/ulogd2 restart >/dev/null 2>&1 || true
+        systemctl restart ulogd2 >/dev/null 2>&1 || true
     endscript
 }
 ```
@@ -305,9 +286,8 @@ Groups 21 and 22 are available for future expansion (add `[stack2]`, `[stack3]` 
 ### Step 1: Check ulogd2 is Running
 
 ```bash
-/etc/rc.d/init.d/ulogd2 status
-# OR
-ps aux | grep ulogd
+systemctl status ulogd2
+journalctl -u ulogd2 --no-pager -n 20
 ```
 
 **If not running:**
@@ -315,9 +295,10 @@ ps aux | grep ulogd
 ```bash
 # Check daemon log
 cat /var/log/ulogd/ulogd2.log
+journalctl -u ulogd2 -xe
 
 # Try starting manually (see full output)
-/usr/local/ulogd2/sbin/ulogd2 -c /usr/local/ulogd2/etc/ulogd.conf -v
+/usr/local/ulogd2/sbin/ulogd -c /usr/local/ulogd2/etc/ulogd.conf -v
 ```
 
 ### Step 2: Check NFLOG Rules Are Loaded
@@ -432,8 +413,8 @@ tools/ulogd2-clickhouse/
 ├── build.sh                           # Online build (uses system packages)
 ├── download-deps.sh                   # Download all source tarballs
 ├── ulogd.conf                         # ulogd2 daemon config (NFLOG → JSON)
-├── ulogd2.init                        # SysV init script (Rocky Linux)
-├── ulogd2.service                     # systemd unit file
+├── ulogd2.service                     # systemd unit file (Rocky Linux 10+)
+├── ulogd2.init                        # [LEGACY] SysV init — do NOT use on Rocky 10
 ├── src/                               # Source tarballs (3.2MB, committed to Git)
 │   ├── ulogd-2.0.8.tar.bz2
 │   ├── libnfnetlink-1.0.2.tar.bz2
@@ -469,5 +450,5 @@ tools/ulogd2-clickhouse/
 │   └── libpcap.so
 ├── etc/
 │   └── ulogd.conf                     # StaySuite NFLOG config
-└── ulogd2.init                        # Init script (also copied here)
+└── ulogd2.service                     # systemd unit file (also copied here)
 ```

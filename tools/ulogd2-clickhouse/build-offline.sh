@@ -375,7 +375,12 @@ mkdir -p /var/log/ulogd/json
 chmod 755 /var/log/ulogd /var/log/ulogd/json
 echo "  ✓ Log directories: /var/log/ulogd/json/"
 
-# 3. Install and enable systemd service
+# 3. Install and enable systemd service (native — no SysV compatibility)
+#    Rocky 10 removed systemd-sysv-install, so we MUST remove any old SysV
+#    init script first, otherwise systemctl enable fails with:
+#      "Failed to execute /usr/lib/systemd/systemd-sysv-install: No such file or directory"
+rm -f /etc/rc.d/init.d/ulogd2
+rm -f /etc/init.d/ulogd2
 cp "$SCRIPT_DIR/ulogd2.service" /etc/systemd/system/ulogd2.service
 systemctl daemon-reload
 systemctl enable ulogd2
@@ -412,8 +417,7 @@ mkdir -p "$PACKAGE_DIR/ulogd2"
 # Copy installed files
 cp -a "$INSTALL_PREFIX"/* "$PACKAGE_DIR/ulogd2/" 2>/dev/null
 
-# Copy init/service scripts
-cp "$SCRIPT_DIR/ulogd2.init" "$PACKAGE_DIR/ulogd2/"
+# Copy systemd service file (SysV init not needed on Rocky 10+)
 cp "$SCRIPT_DIR/ulogd2.service" "$PACKAGE_DIR/ulogd2/"
 
 # Create a simple deploy script
@@ -435,7 +439,8 @@ chmod 755 /var/log/ulogd /var/log/ulogd/json
 echo "${TARGET}/ulogd2/lib" > /etc/ld.so.conf.d/ulogd2.conf
 ldconfig
 
-# Install systemd service
+# Install systemd service (remove old SysV init — Rocky 10 has no systemd-sysv-install)
+rm -f /etc/rc.d/init.d/ulogd2 /etc/init.d/ulogd2
 cp "${TARGET}/ulogd2/ulogd2.service" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable ulogd2
@@ -472,7 +477,6 @@ tar czf "$SOURCE_TARBALL" \
   build.sh \
   download-deps.sh \
   ulogd.conf \
-  ulogd2.init \
   ulogd2.service \
   src/
 SRC_SIZE=$(stat -c%s "$SOURCE_TARBALL")

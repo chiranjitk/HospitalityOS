@@ -127,3 +127,27 @@ Stage Summary:
 - FreeRADIUS proxy service (port 3010) needs STAYSUITE_CLIENT_BEGIN env var — crashes on SIGHUP sync
 - MAC Auth does NOT depend on freeradius-service proxy — uses direct DB path
 - DB state clean: 10 MAC entries (8 active, 1 inactive, 1 expired)
+
+---
+Task ID: 2
+Agent: main
+Task: Replace SysV init with native systemd for ulogd2 on Rocky 10
+
+Work Log:
+- Analyzed the error: `systemctl enable ulogd2` fails with "Failed to execute /usr/lib/systemd/systemd-sysv-install: No such file or directory"
+- Root cause: Rocky 10 removed the SysV compatibility layer (`systemd-sysv-install`). When a SysV init script exists at `/etc/rc.d/init.d/ulogd2` alongside a `.service` file, systemd tries to use the missing compat shim.
+- Fixed `build-offline.sh` (already had rm -f cleanup at lines 382-383, confirmed working)
+- Added `rm -f /etc/rc.d/init.d/ulogd2 /etc/init.d/ulogd2` cleanup to embedded `deploy.sh` (line 443) for target deployments
+- Removed `ulogd2.init` from source tarball creation (no longer needed in dist)
+- Updated `README.md`: all 7 SysV references replaced with native systemd commands, added Rocky 10 warning note about missing compat layer
+- Fixed `scripts/staysuite_core/defaultchains_cryptsk.sh`:
+  - Binary detection: `command -v ulogd2` → `command -v ulogd` (binary is named "ulogd", not "ulogd2")
+  - Path check: `/usr/local/ulogd2/sbin/ulogd2` → `/usr/local/ulogd2/sbin/ulogd`
+  - Daemon start: manual `$ULOGD2_BIN -c ... &` → `systemctl restart ulogd2` (primary), with manual fallback
+  - pkill pattern: `pkill -f ulogd2` → `pkill -f "ulogd.*ulogd.conf"` (more precise)
+
+Stage Summary:
+- **Root cause**: Rocky 10 has no `systemd-sysv-install` — SysV init scripts must be removed before using `systemctl enable`
+- **Fix**: `rm -f /etc/rc.d/init.d/ulogd2 /etc/init.d/ulogd2` before `systemctl daemon-reload && systemctl enable ulogd2`
+- Files changed: build-offline.sh (deploy.sh cleanup), README.md (7 sections updated), defaultchains_cryptsk.sh (binary name + systemctl)
+- User action needed: run `rm -f /etc/rc.d/init.d/ulogd2 && systemctl daemon-reload && systemctl enable ulogd2` on the Rocky 10 server
