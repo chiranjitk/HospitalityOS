@@ -360,6 +360,7 @@ async function handleRequest(request: NextRequest, method: string) {
             ipv6PoolEnd: (b.ipv6PoolEnd as string) || null,
             ipv6LeaseTime: b.ipv6LeaseTime ? parseInt(String(b.ipv6LeaseTime), 10) : 3600,
             ipv6RAType: (b.ipv6RAType as string) || 'slaac',
+            description: (b.interface as string) || null,
           },
         });
         return NextResponse.json({ success: true, data: transformSubnet(created), message: 'Subnet created', persisted: true });
@@ -387,6 +388,7 @@ async function handleRequest(request: NextRequest, method: string) {
         if (b.ipv6PoolEnd !== undefined) updateData.ipv6PoolEnd = b.ipv6PoolEnd;
         if (b.ipv6LeaseTime !== undefined) updateData.ipv6LeaseTime = parseInt(String(b.ipv6LeaseTime), 10);
         if (b.ipv6RAType !== undefined) updateData.ipv6RAType = b.ipv6RAType;
+        if (b.interface !== undefined) updateData.description = (b.interface as string) || null;
 
         const updated = await db.dhcpSubnet.update({
           where: { id },
