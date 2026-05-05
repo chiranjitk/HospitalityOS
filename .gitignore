@@ -111,7 +111,6 @@ tools/src/
 tools/clickhouse/install/
 tools/clickhouse.tgz
 tools/*.tgz
-tools/ulogd*
 /core
 # e2guardian: track configs and lists, exclude runtime logs and sensitive private keys
 data/e2guardian/logs/
