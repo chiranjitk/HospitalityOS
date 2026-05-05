@@ -608,14 +608,13 @@ async function handleRequest(request: NextRequest, method: string) {
         if (method === 'POST') {
           const b = body!;
           const id = crypto.randomUUID();
-          await db.$executeRawUnsafe(
-            `INSERT INTO "DnsForwarder" (id, "tenantId", "propertyId", address, port, description, enabled)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             ON CONFLICT ON CONSTRAINT "DnsForwarder_address_port_propertyId_key" DO NOTHING`,
-            [id, tenantId, propertyId || tenantId, (b.address as string) || '', (b.port as number) || 53, (b.description as string) || null, b.enabled !== false]
+          await db.$executeRaw(
+            Prisma.sql`INSERT INTO "DnsForwarder" (id, "tenantId", "propertyId", address, port, description, enabled)
+             VALUES (${id}, ${tenantId}, ${propertyId || tenantId}, ${(b.address as string) || ''}, ${(b.port as number) || 53}, ${(b.description as string) || null}, ${b.enabled !== false})
+             ON CONFLICT ON CONSTRAINT "DnsForwarder_address_port_propertyId_key" DO NOTHING`
           );
-          const rows = await db.$queryRawUnsafe<DnsForwarderRow[]>(
-            `SELECT * FROM "DnsForwarder" WHERE id = $1`, [id]
+          const rows = await db.$queryRaw<DnsForwarderRow[]>(
+            Prisma.sql`SELECT * FROM "DnsForwarder" WHERE id = ${id}`
           );
           return NextResponse.json({
             success: true,
@@ -629,24 +628,34 @@ async function handleRequest(request: NextRequest, method: string) {
         const id = segments[1];
         // DELETE /forwarders/:id
         if (method === 'DELETE') {
-          await db.$executeRawUnsafe(`DELETE FROM "DnsForwarder" WHERE id = $1`, [id]);
+          await db.$executeRaw`DELETE FROM "DnsForwarder" WHERE id = ${id}`;
           return NextResponse.json({ success: true, message: 'Forwarder removed' });
         }
         // PUT /forwarders/:id
         if (method === 'PUT') {
           const b = body!;
-          const fields: string[] = [];
-          const values: unknown[] = [];
-          let paramIdx = 1;
-          if (b.address !== undefined) { fields.push(`address = $${paramIdx++}`); values.push(b.address); }
-          if (b.port !== undefined) { fields.push(`port = $${paramIdx++}`); values.push(parseInt(String(b.port), 10)); }
-          if (b.description !== undefined) { fields.push(`description = $${paramIdx++}`); values.push(b.description); }
-          if (b.enabled !== undefined) { fields.push(`enabled = $${paramIdx++}`); values.push(b.enabled); }
-          fields.push(`"updatedAt" = NOW()`);
-          values.push(id);
-          await db.$executeRawUnsafe(
-            `UPDATE "DnsForwarder" SET ${fields.join(', ')} WHERE id = $${paramIdx}`,
-            values
+          const setClauses: Prisma.Sql[] = [];
+
+          if (b.address !== undefined) {
+            setClauses.push(Prisma.sql`address = ${b.address}`);
+          }
+          if (b.port !== undefined) {
+            setClauses.push(Prisma.sql`port = ${parseInt(String(b.port), 10)}`);
+          }
+          if (b.description !== undefined) {
+            setClauses.push(Prisma.sql`description = ${b.description}`);
+          }
+          if (b.enabled !== undefined) {
+            setClauses.push(Prisma.sql`enabled = ${b.enabled}`);
+          }
+          setClauses.push(Prisma.raw('"updatedAt" = NOW()'));
+
+          if (setClauses.length === 0) {
+            return NextResponse.json({ success: false, error: 'No fields to update' }, { status: 400 });
+          }
+
+          await db.$executeRaw(
+            Prisma.sql`UPDATE "DnsForwarder" SET ${Prisma.join(setClauses, ', ')} WHERE id = ${id}`
           );
           return NextResponse.json({ success: true, message: 'Forwarder updated' });
         }
