@@ -276,7 +276,7 @@ if command -v ulogd >/dev/null 2>&1 || [ -x /usr/local/ulogd2/sbin/ulogd ]; then
     # Same logic as SNI: HTTP GET/Host header is in the FIRST data packet after handshake,
     # NOT in the SYN. Use "tcp flags & (syn|rst|fin) == 0" to capture only ACK/ACK+PSH
     # packets (the data-carrying ones). Empty ACKs also match but are harmless.
-    nft 'insert rule inet mangle prerouting tcp dport 80 tcp flags \& (syn|rst|fin) == 0 log group 21 snaplen 1500 prefix "NFLOG_HTTP: "'
+    nft 'insert rule inet mangle prerouting tcp dport 80 tcp flags & (syn|rst|fin) == 0 log group 21 snaplen 1500 prefix "NFLOG_HTTP: "'
 
     # NFLOG group 20: TLS SNI capture (TCP port 443)
     # CRITICAL: Do NOT use "ct state new" — it only captures SYN (60 bytes, no payload).
@@ -285,7 +285,7 @@ if command -v ulogd >/dev/null 2>&1 || [ -x /usr/local/ulogd2/sbin/ulogd ]; then
     # These are exactly the data-carrying packets. Empty ACKs also match (harmless).
     # NOTE: "tcp length > 0" does NOT work in nftables v1.1.1 — do not add it.
     # snaplen 1500 captures up to 1500 bytes — enough for the full ClientHello.
-    nft 'insert rule inet mangle prerouting tcp dport 443 tcp flags \& (syn|rst|fin) == 0 log group 20 snaplen 1500 prefix "NFLOG_SNI: "'
+    nft 'insert rule inet mangle prerouting tcp dport 443 tcp flags & (syn|rst|fin) == 0 log group 20 snaplen 1500 prefix "NFLOG_SNI: "'
 
     # Restart ulogd2 to pick up the new rule change (native systemd — Rocky 10 has no SysV compat layer)
     if [ -f /etc/systemd/system/ulogd2.service ] || systemctl list-unit-files ulogd2.service >/dev/null 2>&1; then
