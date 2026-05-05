@@ -5,11 +5,11 @@
  *
  * MAC address whitelist management for automatic device authentication.
  * Supports add/edit/delete, check MAC, import/export.
- * Fetch from: /api/wifi/radius?action=mac-auth
+ * Direct DB access via /api/wifi/mac-auth (no freeradius-service proxy).
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,11 +61,9 @@ import {
   Upload,
   CheckCircle,
   XCircle,
-  Wifi,
   Shield,
   Eye,
-  Clock,
-  AlertTriangle,
+  Fingerprint,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -84,22 +82,25 @@ interface WiFiPlan {
 }
 
 interface MacAuthEntry {
-  id?: string;
+  id: string;
   macAddress: string;
-  username?: string;
-  guestName?: string;
-  description?: string;
+  username?: string | null;
+  guestName?: string | null;
+  description?: string | null;
   autoLogin: boolean;
   validFrom?: string;
-  validUntil?: string;
-  lastSeen?: string;
-  status: 'active' | 'inactive' | 'expired';
-  bandwidthDown?: number;
-  bandwidthUp?: number;
-  sessionTimeout?: number;
-  dataLimitMB?: number;
-  groupName?: string;
-  planId?: string;
+  validUntil?: string | null;
+  lastSeenAt?: string | null;
+  status: string;
+  bandwidthDown?: number | null;
+  bandwidthUp?: number | null;
+  sessionTimeout?: number | null;
+  dataLimitMB?: number | null;
+  groupName?: string | null;
+  planId?: string | null;
+  loginCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────────
@@ -109,7 +110,7 @@ export default function MacAuth() {
   const [entries, setEntries] = useState<MacAuthEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const [activeStatusFilter, setActiveStatusFilter] = useState<string>('all');
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -147,15 +148,19 @@ export default function MacAuth() {
     groupName: '',
   });
 
-  // ─── Fetch ──────────────────────────────────────────────────────────────────
+  // ─── Fetch Entries ──────────────────────────────────────────────────────────
 
   const fetchEntries = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/wifi/radius?action=mac-auth');
+      const params = new URLSearchParams();
+      if (activeStatusFilter !== 'all') params.set('status', activeStatusFilter);
+      if (searchQuery) params.set('search', searchQuery);
+
+      const res = await fetch(`/api/wifi/mac-auth?${params.toString()}`);
       const data = await res.json();
-      if (data.success && data.data) {
-        setEntries(Array.isArray(data.data) ? data.data : []);
+      if (data.success && Array.isArray(data.data)) {
+        setEntries(data.data);
       } else {
         setEntries([]);
       }
@@ -165,19 +170,13 @@ export default function MacAuth() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [activeStatusFilter, searchQuery]);
 
   useEffect(() => {
     fetchEntries();
   }, [fetchEntries]);
 
-  useEffect(() => {
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, []);
-
-  // ─── Form Helpers ───────────────────────────────────────────────────────────
-
-  // ─── Plans ─────────────────────────────────────────────────────────────
+  // ─── Fetch Plans ────────────────────────────────────────────────────────────
 
   const fetchPlans = useCallback(async () => {
     try {
@@ -193,6 +192,8 @@ export default function MacAuth() {
 
   useEffect(() => { fetchPlans(); }, [fetchPlans]);
 
+  // ─── Plan Change Handler ────────────────────────────────────────────────────
+
   const handlePlanChange = (planId: string) => {
     setSelectedPlanId(planId);
     if (!planId) {
@@ -201,7 +202,7 @@ export default function MacAuth() {
     }
     const plan = plans.find(p => p.id === planId);
     if (plan) {
-      const minutes = plan.validityMinutes || plan.validityDays * 1440;
+      const minutes = plan.validityMinutes || (plan.validityDays ? plan.validityDays * 1440 : 0);
       const validUntil = minutes
         ? new Date(Date.now() + minutes * 60 * 1000).toISOString().split('T')[0]
         : '';
@@ -217,6 +218,8 @@ export default function MacAuth() {
       }));
     }
   };
+
+  // ─── Form Helpers ───────────────────────────────────────────────────────────
 
   const resetForm = () => {
     setForm({ macAddress: '', username: '', guestName: '', description: '', autoLogin: true, validFrom: '', validUntil: '', bandwidthDown: '', bandwidthUp: '', sessionTimeout: '', dataLimitMB: '', groupName: '' });
@@ -249,7 +252,7 @@ export default function MacAuth() {
     setDialogOpen(true);
   };
 
-  // ─── CRUD ───────────────────────────────────────────────────────────────────
+  // ─── CRUD Operations ────────────────────────────────────────────────────────
 
   const handleSave = async () => {
     if (!form.macAddress.trim()) {
@@ -257,27 +260,65 @@ export default function MacAuth() {
       return;
     }
 
+    // Basic MAC format validation
+    const cleaned = form.macAddress.replace(/[^0-9a-fA-F]/g, '');
+    if (cleaned.length !== 12) {
+      toast({ title: 'Error', description: 'Invalid MAC address format', variant: 'destructive' });
+      return;
+    }
+
     setSavingEntry(true);
     try {
-      const action = editingEntry ? 'update-mac-auth' : 'create-mac-auth';
-      const body = editingEntry 
-        ? { id: editingEntry.id, ...form, planId: selectedPlanId || undefined } 
-        : { ...form, planId: selectedPlanId || undefined };
+      const payload = {
+        macAddress: form.macAddress,
+        username: form.username || undefined,
+        guestName: form.guestName || undefined,
+        description: form.description || undefined,
+        autoLogin: form.autoLogin,
+        validFrom: form.validFrom || undefined,
+        validUntil: form.validUntil || undefined,
+        bandwidthDown: form.bandwidthDown || undefined,
+        bandwidthUp: form.bandwidthUp || undefined,
+        sessionTimeout: form.sessionTimeout || undefined,
+        dataLimitMB: form.dataLimitMB || undefined,
+        groupName: form.groupName || undefined,
+        planId: selectedPlanId || undefined,
+      };
 
-      const res = await fetch('/api/wifi/radius', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, ...body }),
-      });
+      let res: Response;
+      let action: string;
+
+      if (editingEntry) {
+        // Update
+        res = await fetch('/api/wifi/mac-auth', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingEntry.id, ...payload }),
+        });
+        action = 'updated';
+      } else {
+        // Create
+        res = await fetch('/api/wifi/mac-auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        action = 'created';
+      }
+
       const data = await res.json();
 
       if (data.success) {
-        toast({ title: 'Success', description: `MAC entry ${editingEntry ? 'updated' : 'created'} successfully` });
+        toast({ title: 'Success', description: `MAC entry ${action} successfully` });
         setDialogOpen(false);
         resetForm();
         fetchEntries();
       } else {
-        toast({ title: 'Error', description: data.error || `Failed to ${editingEntry ? 'update' : 'create'} entry`, variant: 'destructive' });
+        toast({
+          title: 'Error',
+          description: data.error?.message || data.error || `Failed to ${action} entry`,
+          variant: 'destructive',
+        });
       }
     } catch {
       toast({ title: 'Error', description: `Failed to save MAC entry`, variant: 'destructive' });
@@ -289,17 +330,15 @@ export default function MacAuth() {
   const handleDelete = async () => {
     if (!deleteEntryId) return;
     try {
-      const res = await fetch('/api/wifi/radius', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete-mac-auth', id: deleteEntryId }),
+      const res = await fetch(`/api/wifi/mac-auth?id=${encodeURIComponent(deleteEntryId)}`, {
+        method: 'DELETE',
       });
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Success', description: 'MAC entry deleted' });
         fetchEntries();
       } else {
-        toast({ title: 'Error', description: data.error || 'Failed to delete', variant: 'destructive' });
+        toast({ title: 'Error', description: data.error?.message || 'Failed to delete', variant: 'destructive' });
       }
     } catch {
       toast({ title: 'Error', description: 'Failed to delete', variant: 'destructive' });
@@ -315,10 +354,10 @@ export default function MacAuth() {
     setCheckingMac(true);
     setCheckMacResult(null);
     try {
-      const res = await fetch(`/api/wifi/radius?action=check-mac&mac=${encodeURIComponent(checkMacInput.trim())}`);
+      const res = await fetch(`/api/wifi/mac-auth?check=${encodeURIComponent(checkMacInput.trim())}`);
       const data = await res.json();
       setCheckMacResult({
-        found: data.success && data.data ? true : false,
+        found: data.found && data.data ? true : false,
         entry: data.data || undefined,
       });
     } catch {
@@ -338,19 +377,23 @@ export default function MacAuth() {
     }
     setImporting(true);
     try {
-      const res = await fetch('/api/wifi/radius', {
+      const res = await fetch('/api/wifi/mac-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'import-mac-auth', macs }),
+        body: JSON.stringify({ action: 'import', macs }),
       });
       const data = await res.json();
       if (data.success) {
-        toast({ title: 'Import Complete', description: `Imported ${macs.length} MAC addresses` });
+        const { created, skipped } = data.data || {};
+        toast({
+          title: 'Import Complete',
+          description: `Imported ${created} MAC addresses${skipped ? `, ${skipped} skipped` : ''}`,
+        });
         setImportDialogOpen(false);
         setImportText('');
         fetchEntries();
       } else {
-        toast({ title: 'Error', description: data.error || 'Import failed', variant: 'destructive' });
+        toast({ title: 'Error', description: data.error?.message || 'Import failed', variant: 'destructive' });
       }
     } catch {
       toast({ title: 'Error', description: 'Import failed', variant: 'destructive' });
@@ -360,7 +403,7 @@ export default function MacAuth() {
   };
 
   const handleExport = () => {
-    const csv = ['MAC Address,Username,Guest Name,Description,Auto Login,Valid Until,Status'];
+    const csv = ['MAC Address,Username,Guest Name,Description,Auto Login,Valid Until,Status,Bandwidth Down,Bandwidth Up,Session Timeout,Data Limit MB'];
     const csvEscape = (val: string | undefined | null) => {
       if (!val) return '';
       if (val.includes(',') || val.includes('"') || val.includes('\n')) {
@@ -369,7 +412,9 @@ export default function MacAuth() {
       return val;
     };
     entries.forEach(e => {
-      csv.push(`${csvEscape(e.macAddress)},${csvEscape(e.username)},${csvEscape(e.guestName)},${csvEscape(e.description)},${e.autoLogin},${csvEscape(e.validUntil)},${csvEscape(e.status)}`);
+      csv.push(
+        `${csvEscape(e.macAddress)},${csvEscape(e.username)},${csvEscape(e.guestName)},${csvEscape(e.description)},${e.autoLogin},${csvEscape(e.validUntil?.split('T')[0])},${csvEscape(e.status)},${e.bandwidthDown || ''},${e.bandwidthUp || ''},${e.sessionTimeout || ''},${e.dataLimitMB || ''}`
+      );
     });
     const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -381,17 +426,12 @@ export default function MacAuth() {
     toast({ title: 'Exported', description: 'MAC whitelist exported as CSV' });
   };
 
-  // ─── Filtering ──────────────────────────────────────────────────────────────
+  // ─── Status counts for filter tabs ─────────────────────────────────────────
 
-  const filteredEntries = entries.filter(e => {
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      return e.macAddress.toLowerCase().includes(q) ||
-        (e.username || '').toLowerCase().includes(q) ||
-        (e.guestName || '').toLowerCase().includes(q);
-    }
-    return true;
-  });
+  const statusCounts = entries.reduce((acc, e) => {
+    acc[e.status] = (acc[e.status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
@@ -401,14 +441,14 @@ export default function MacAuth() {
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold flex items-center gap-2">
-            <Monitor className="h-5 w-5" />
+            <Fingerprint className="h-5 w-5 text-teal-600 dark:text-teal-400" />
             MAC Authentication
           </h2>
           <p className="text-sm text-muted-foreground">
             Manage MAC address whitelist for automatic device authentication
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={fetchEntries}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
@@ -428,8 +468,56 @@ export default function MacAuth() {
         </div>
       </div>
 
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2">
+              <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold tabular-nums">{entries.length}</p>
+              <p className="text-xs text-muted-foreground">Total Entries</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2">
+              <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold tabular-nums">{statusCounts['active'] || 0}</p>
+              <p className="text-xs text-muted-foreground">Active</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="rounded-lg bg-gray-50 dark:bg-gray-950/30 p-2">
+              <XCircle className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold tabular-nums">{statusCounts['expired'] || 0}</p>
+              <p className="text-xs text-muted-foreground">Expired</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="rounded-lg bg-gray-50 dark:bg-gray-950/30 p-2">
+              <Monitor className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold tabular-nums">{statusCounts['inactive'] || 0}</p>
+              <p className="text-xs text-muted-foreground">Inactive</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Check MAC */}
-      <Card>
+      <Card className="border-0 shadow-sm">
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
@@ -466,78 +554,104 @@ export default function MacAuth() {
         </CardContent>
       </Card>
 
-      {/* Search */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by MAC address, username, or guest name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Search + Status Filter */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by MAC, username, or guest name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <div className="flex gap-1 bg-muted/50 rounded-lg p-1">
+          {['all', 'active', 'inactive', 'expired'].map((status) => (
+            <button
+              key={status}
+              onClick={() => setActiveStatusFilter(status)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                activeStatusFilter === status
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {status.charAt(0).toUpperCase() + status.slice(1)}
+              {status !== 'all' && (statusCounts[status] || 0) > 0 && (
+                <span className="ml-1 text-[10px] text-muted-foreground">({statusCounts[status]})</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Table */}
-      <Card>
+      <Card className="border-0 shadow-sm">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          ) : filteredEntries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
+          ) : entries.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="rounded-full bg-muted/50 p-4 mb-3">
-                <Monitor className="h-8 w-8 text-muted-foreground/40" />
+                <Fingerprint className="h-8 w-8 text-muted-foreground/40" />
               </div>
-              <h3 className="text-sm font-medium text-muted-foreground">No MAC auth entries</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">
+                {searchQuery || activeStatusFilter !== 'all'
+                  ? 'No matching MAC auth entries'
+                  : 'No MAC auth entries'}
+              </h3>
               <p className="text-xs text-muted-foreground/60 mt-1">
-                Add MAC addresses to enable automatic device authentication
+                {searchQuery || activeStatusFilter !== 'all'
+                  ? 'Try adjusting your search or filter'
+                  : 'Add MAC addresses to enable automatic device authentication'}
               </p>
             </div>
           ) : (
-            <div className="max-h-[500px] overflow-y-auto">
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>MAC Address</TableHead>
-                    <TableHead>Username</TableHead>
+                    <TableHead className="w-[180px]">MAC Address</TableHead>
                     <TableHead>Guest Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Auto Login</TableHead>
-                    <TableHead>Valid Until</TableHead>
-                    <TableHead>Last Seen</TableHead>
+                    <TableHead className="hidden md:table-cell">Description</TableHead>
+                    <TableHead className="hidden lg:table-cell">Auto Login</TableHead>
+                    <TableHead className="hidden sm:table-cell">Valid Until</TableHead>
+                    <TableHead className="hidden lg:table-cell">Last Seen</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredEntries.map((entry) => (
-                    <TableRow key={entry.id || entry.macAddress}>
+                  {entries.map((entry) => (
+                    <TableRow key={entry.id}>
                       <TableCell>
                         <p className="font-mono text-sm font-medium">{entry.macAddress}</p>
+                        {entry.groupName && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{entry.groupName}</p>
+                        )}
                       </TableCell>
                       <TableCell>
-                        <p className="text-sm">{entry.username || '—'}</p>
+                        <p className="text-sm">{entry.guestName || entry.username || '—'}</p>
+                        {entry.guestName && entry.username && (
+                          <p className="text-[10px] text-muted-foreground">@{entry.username}</p>
+                        )}
                       </TableCell>
-                      <TableCell>
-                        <p className="text-sm">{entry.guestName || '—'}</p>
-                      </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <p className="text-xs text-muted-foreground max-w-[150px] truncate">{entry.description || '—'}</p>
                       </TableCell>
-                      <TableCell>
-                        <Switch checked={entry.autoLogin} disabled />
+                      <TableCell className="hidden lg:table-cell">
+                        <Switch checked={entry.autoLogin} disabled size="sm" />
                       </TableCell>
-                      <TableCell>
-                        <span className="text-xs">{entry.validUntil ? new Date(entry.validUntil).toLocaleDateString() : '—'}</span>
+                      <TableCell className="hidden sm:table-cell">
+                        <span className="text-xs">
+                          {entry.validUntil ? new Date(entry.validUntil).toLocaleDateString() : '—'}
+                        </span>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden lg:table-cell">
                         <span className="text-xs text-muted-foreground">
-                          {entry.lastSeen ? formatDistanceToNow(new Date(entry.lastSeen)) + ' ago' : 'Never'}
+                          {entry.lastSeenAt ? formatDistanceToNow(new Date(entry.lastSeenAt)) + ' ago' : 'Never'}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -556,7 +670,7 @@ export default function MacAuth() {
                           <Button variant="ghost" size="sm" onClick={() => openEdit(entry)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setDeleteEntryId(entry.id || entry.macAddress)}>
+                          <Button variant="ghost" size="sm" onClick={() => setDeleteEntryId(entry.id)}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>
@@ -720,7 +834,7 @@ export default function MacAuth() {
             <Textarea
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
-              placeholder="AA:BB:CC:DD:EE:FF&#10;11:22:33:44:55:66&#10;..."
+              placeholder={"AA:BB:CC:DD:EE:FF\n11:22:33:44:55:66\n..."}
               className="font-mono min-h-[200px]"
             />
             <p className="text-xs text-muted-foreground mt-2">
