@@ -51,6 +51,7 @@ export function usePropertyId() {
     propertyId: currentProperty?.id || '',
     property: currentProperty || null,
     properties,
+    setCurrentProperty,
     loading: false,
   };
 }
