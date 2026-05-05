@@ -68,3 +68,36 @@ Stage Summary:
 - **Script tag error**: Fixed by replacing next-themes with custom ThemeProvider (no script injection)
 - **Mobile DJ lighting**: Fixed by using plain `bg-background` on mobile, gradient only on desktop; removed button shimmer/glow effects
 - Files changed: login/page.tsx, register/page.tsx, ui-style-provider.tsx, theme-provider.tsx (new), theme-toggle.tsx, sonner.tsx, user-profile.tsx, layout.tsx, login-animations.css
+---
+Task ID: 3
+Agent: main
+Task: Remove freeradius-service dependency for MAC Auth - direct DB access
+
+Work Log:
+- Analyzed current architecture: Frontend → /api/wifi/radius → freeradius-service:3010 → DB (freeradius-service not in repo)
+- Verified RadiusMacAuth Prisma model exists (propertyId, macAddress, plan fields, status, bandwidth, etc.)
+- Created `/api/wifi/mac-auth/route.ts` with full direct Prisma CRUD:
+  - GET: List entries with search/status/sort/pagination, check MAC via ?check= param
+  - POST: Single create, bulk import via { action: 'import', macs: [...] }
+  - PUT: Update entry fields
+  - DELETE: Remove entry by ID
+- MAC address validation and normalization (AA:BB:CC:DD:EE:FF format)
+- Auto-expire entries whose validUntil has passed on every GET
+- Tenant isolation via propertyId (resolved from user context)
+- Permission check: wifi.manage
+- Updated `mac-auth.tsx` frontend to use new direct endpoints:
+  - Replaced all `/api/wifi/radius?action=mac-auth` calls with `/api/wifi/mac-auth`
+  - Added stats cards (Total, Active, Expired, Inactive)
+  - Added status filter tabs (All/Active/Inactive/Expired)
+  - Server-side search filtering (removed client-side filter)
+  - Improved responsive table with hidden columns on mobile
+  - Better empty states with contextual messaging
+- Seeded 10 test entries (8 active, 1 inactive, 1 expired) with realistic data
+
+Stage Summary:
+- **Architecture**: MAC Auth now goes direct to PostgreSQL via Prisma, no freeradius-service proxy needed
+- Before: Frontend → /api/wifi/radius → freeradius-service:3010 → DB
+- After:  Frontend → /api/wifi/mac-auth → Next.js API → Prisma → DB
+- Files created: src/app/api/wifi/mac-auth/route.ts
+- Files modified: src/components/wifi/mac-auth.tsx
+- Pushed to GitHub: commit 6b8acb45
