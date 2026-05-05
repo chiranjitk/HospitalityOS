@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import dns from 'dns';
 import fs from 'fs';
 import net from 'net';
@@ -460,6 +460,9 @@ setInterval(
   300_000,
 ).unref();
 
+// Ookla speedtest CLI paths (deploy script installs to /usr/bin/speedtest)
+const SPEEDTEST_BIN = process.env.SPEEDTEST_BIN || '/usr/bin/speedtest';
+
 /** Start a background speed test, return testId immediately for polling */
 function handleSpeedTest() {
   const testId = Math.random().toString(36).slice(2, 10);
@@ -476,104 +479,160 @@ function handleSpeedTest() {
   return { testId, phase: 'starting' as const };
 }
 
-/** Background worker: runs Ookla speedtest with progress streaming */
+/** Background worker: runs Ookla speedtest CLI with real-time progress streaming */
 async function runSpeedTest(testId: string, session: SpeedTestSession) {
-  try {
-    const speedTestMod = await import('speedtest-net');
-    const speedTest = speedTestMod.default as (
-      opts?: Record<string, unknown>,
-    ) => Promise<Record<string, unknown>>;
+  return new Promise<void>((resolve) => {
+    let stdoutBuf = '';
 
-    // speedtest-net never emits 'result' progress event type.
-    // The actual final result is the resolved promise — capture it directly.
-    const finalResult = await speedTest({
-      acceptLicense: true,
-      acceptGdpr: true,
-      progress: (event: Record<string, unknown>) => {
-        const type = event.type as string;
-        session.progress = Number(event.progress ?? 0);
+    try {
+      const child = spawn(
+        SPEEDTEST_BIN,
+        ['--accept-license', '--accept-gdpr', '--progress=yes', '--format=json-pretty'],
+        { timeout: 120_000 },
+      );
 
-        if (type === 'testStart' || type === 'ping') {
-          session.phase = 'ping';
-          const pg = event.ping as { latency: number; jitter: number } | undefined;
-          if (pg) session.ping = { latency: pg.latency, jitter: pg.jitter };
-        } else if (type === 'download') {
-          session.phase = 'download';
-          const dl = event.download as { bandwidth: number; bytes: number } | undefined;
-          if (dl) {
-            const speed = (dl.bandwidth * 8) / 1_000_000;
-            const prev = session.download;
-            session.download = {
-              currentSpeed: parseFloat(speed.toFixed(2)),
-              maxSpeed: parseFloat(Math.max(prev?.maxSpeed || 0, speed).toFixed(2)),
-              bytes: dl.bytes,
-            };
-          }
-        } else if (type === 'upload') {
-          session.phase = 'upload';
-          const ul = event.upload as { bandwidth: number; bytes: number } | undefined;
-          if (ul) {
-            const speed = (ul.bandwidth * 8) / 1_000_000;
-            const prev = session.upload;
-            session.upload = {
-              currentSpeed: parseFloat(speed.toFixed(2)),
-              maxSpeed: parseFloat(Math.max(prev?.maxSpeed || 0, speed).toFixed(2)),
-              bytes: ul.bytes,
-            };
+      // Real-time progress comes on stderr as JSON lines
+      child.stderr.on('data', (chunk: Buffer) => {
+        const text = chunk.toString();
+        for (const line of text.split('\n')) {
+          if (!line.trim()) continue;
+          try {
+            const obj = JSON.parse(line);
+            const type = obj.type as string;
+            session.progress = Number(obj.progress ?? session.progress);
+
+            if (type === 'testStart') {
+              session.phase = 'ping';
+            } else if (type === 'ping') {
+              session.phase = 'ping';
+              const pg = obj.ping as { latency: number; jitter: number } | undefined;
+              if (pg) session.ping = { latency: pg.latency, jitter: pg.jitter };
+            } else if (type === 'download') {
+              session.phase = 'download';
+              const dl = obj.download as { bandwidth: number; bytes: number } | undefined;
+              if (dl) {
+                const speed = (dl.bandwidth * 8) / 1_000_000;
+                const prev = session.download;
+                session.download = {
+                  currentSpeed: parseFloat(speed.toFixed(2)),
+                  maxSpeed: parseFloat(Math.max(prev?.maxSpeed || 0, speed).toFixed(2)),
+                  bytes: dl.bytes,
+                };
+              }
+            } else if (type === 'upload') {
+              session.phase = 'upload';
+              const ul = obj.upload as { bandwidth: number; bytes: number } | undefined;
+              if (ul) {
+                const speed = (ul.bandwidth * 8) / 1_000_000;
+                const prev = session.upload;
+                session.upload = {
+                  currentSpeed: parseFloat(speed.toFixed(2)),
+                  maxSpeed: parseFloat(Math.max(prev?.maxSpeed || 0, speed).toFixed(2)),
+                  bytes: ul.bytes,
+                };
+              }
+            }
+          } catch {
+            // Not JSON — ignore non-progress stderr lines
           }
         }
-      },
-    });
+      });
 
-    // Build final result from the resolved promise (not progress events)
-    const r = finalResult || {};
-    const dl = r.download as { bandwidth: number; bytes: number; elapsed: number } | undefined;
-    const ul = r.upload as { bandwidth: number; bytes: number; elapsed: number } | undefined;
-    const pg = r.ping as { latency: number; jitter: number } | undefined;
-    const srv = r.server as { host: string; name: string; location: string; country: string } | undefined;
-    const iface = r.interface as { externalIp: string; internalIp: string; name: string } | undefined;
+      // Final result comes on stdout as JSON
+      child.stdout.on('data', (chunk: Buffer) => {
+        stdoutBuf += chunk.toString();
+      });
 
-    // Log final result for debugging
-    console.log('[speedtest] Final result:', JSON.stringify({
-      dlBandwidth: dl?.bandwidth,
-      ulBandwidth: ul?.bandwidth,
-      dlMbps: dl ? ((dl.bandwidth * 8) / 1_000_000).toFixed(2) : 'N/A',
-      ulMbps: ul ? ((ul.bandwidth * 8) / 1_000_000).toFixed(2) : 'N/A',
-      pingLatency: pg?.latency,
-      progressDlCurrent: session.download?.currentSpeed,
-      progressUlCurrent: session.upload?.currentSpeed,
-    }));
+      child.on('error', (err) => {
+        session.phase = 'error';
+        if (err.message.includes('ENOENT')) {
+          session.error = `Speedtest CLI not found at ${SPEEDTEST_BIN}. Install with: yum install speedtest or download from https://www.speedtest.net/apps/cli`;
+        } else {
+          session.error = `Failed to run speedtest: ${err.message}`;
+        }
+        resolve();
+      });
 
-    session.phase = 'complete';
-    session.result = {
-      download: {
-        megabitsPerSecond: dl ? parseFloat(((dl.bandwidth * 8) / 1_000_000).toFixed(2)) : session.download?.currentSpeed || 0,
-        bytes: dl?.bytes ?? session.download?.bytes ?? 0,
-        totalMB: dl ? parseFloat((dl.bytes / 1_048_576).toFixed(2)) : session.download ? parseFloat((session.download.bytes / 1_048_576).toFixed(2)) : 0,
-        elapsed: dl ? parseFloat((dl.elapsed / 1000).toFixed(1)) : 0,
-      },
-      upload: {
-        megabitsPerSecond: ul ? parseFloat(((ul.bandwidth * 8) / 1_000_000).toFixed(2)) : session.upload?.currentSpeed || 0,
-        bytes: ul?.bytes ?? session.upload?.bytes ?? 0,
-        totalMB: ul ? parseFloat((ul.bytes / 1_048_576).toFixed(2)) : session.upload ? parseFloat((session.upload.bytes / 1_048_576).toFixed(2)) : 0,
-        elapsed: ul ? parseFloat((ul.elapsed / 1000).toFixed(1)) : 0,
-      },
-      ping: {
-        latency: pg?.latency ?? session.ping?.latency ?? 0,
-        jitter: pg?.jitter ?? session.ping?.jitter ?? 0,
-      },
-      server: srv ? { host: srv.host, name: srv.name, location: srv.location, country: srv.country } : null,
-      isp: String(r.isp ?? ''),
-      packetLoss: Number(r.packetLoss ?? 0),
-      interface: iface ? { externalIp: iface.externalIp, internalIp: iface.internalIp, name: iface.name } : null,
-    };
+      child.on('close', (code) => {
+        if (code !== 0 && !stdoutBuf.trim()) {
+          session.phase = 'error';
+          session.error = `Speedtest exited with code ${code}`;
+          resolve();
+          return;
+        }
 
-    // Auto-cleanup completed session after 2 minutes
-    setTimeout(() => speedTestSessions.delete(testId), 120_000).unref();
-  } catch (err: unknown) {
-    session.phase = 'error';
-    session.error = err instanceof Error ? err.message : 'Speed test failed';
-  }
+        try {
+          if (!stdoutBuf.trim()) {
+            session.phase = 'error';
+            session.error = 'Speed test produced no output';
+            resolve();
+            return;
+          }
+
+          // The final result is the last JSON object in stdout
+          const lines = stdoutBuf.trim().split('\n');
+          let finalResult: Record<string, unknown> = {};
+
+          // Try from bottom up — the final result is the last valid JSON
+          for (let i = lines.length - 1; i >= 0; i--) {
+            try {
+              const parsed = JSON.parse(lines[i]);
+              if (parsed.download || parsed.upload) {
+                finalResult = parsed;
+                break;
+              }
+            } catch { /* skip */ }
+          }
+
+          // If no result found bottom-up, try parsing the whole buffer
+          if (!finalResult.download && !finalResult.upload) {
+            try { finalResult = JSON.parse(stdoutBuf); } catch { /* skip */ }
+          }
+
+          const r = finalResult;
+          const dl = r.download as { bandwidth: number; bytes: number; elapsed: number } | undefined;
+          const ul = r.upload as { bandwidth: number; bytes: number; elapsed: number } | undefined;
+          const pg = r.ping as { latency: number; jitter: number } | undefined;
+          const srv = r.server as { host: string; name: string; location: string; country: string } | undefined;
+          const iface = r.interface as { externalIp: string; internalIp: string; name: string } | undefined;
+
+          session.phase = 'complete';
+          session.result = {
+            download: {
+              megabitsPerSecond: dl ? parseFloat(((dl.bandwidth * 8) / 1_000_000).toFixed(2)) : session.download?.currentSpeed || 0,
+              bytes: dl?.bytes ?? session.download?.bytes ?? 0,
+              totalMB: dl ? parseFloat((dl.bytes / 1_048_576).toFixed(2)) : session.download ? parseFloat((session.download.bytes / 1_048_576).toFixed(2)) : 0,
+              elapsed: dl ? parseFloat((dl.elapsed / 1000).toFixed(1)) : 0,
+            },
+            upload: {
+              megabitsPerSecond: ul ? parseFloat(((ul.bandwidth * 8) / 1_000_000).toFixed(2)) : session.upload?.currentSpeed || 0,
+              bytes: ul?.bytes ?? session.upload?.bytes ?? 0,
+              totalMB: ul ? parseFloat((ul.bytes / 1_048_576).toFixed(2)) : session.upload ? parseFloat((session.upload.bytes / 1_048_576).toFixed(2)) : 0,
+              elapsed: ul ? parseFloat((ul.elapsed / 1000).toFixed(1)) : 0,
+            },
+            ping: {
+              latency: pg?.latency ?? session.ping?.latency ?? 0,
+              jitter: pg?.jitter ?? session.ping?.jitter ?? 0,
+            },
+            server: srv ? { host: srv.host, name: srv.name, location: srv.location, country: srv.country } : null,
+            isp: String(r.isp ?? ''),
+            packetLoss: Number(r.packetLoss ?? 0),
+            interface: iface ? { externalIp: iface.externalIp, internalIp: iface.internalIp, name: iface.name } : null,
+          };
+
+          setTimeout(() => speedTestSessions.delete(testId), 120_000).unref();
+        } catch (parseErr) {
+          session.phase = 'error';
+          session.error = `Failed to parse speedtest output: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`;
+        }
+        resolve();
+      });
+    } catch (err: unknown) {
+      session.phase = 'error';
+      session.error = err instanceof Error ? err.message : 'Speed test failed';
+      resolve();
+    }
+  });
 }
 
 /** Poll live speed test progress by testId */

@@ -1057,15 +1057,20 @@ info "Building Next.js (this may take a few minutes)..."
 bun run build 2>&1 | tail -10
 success "Next.js build complete"
 
-# Rebuild native addons (lzma-native for speedtest-net) inside standalone output
-# The standalone build copies .js files but native .node binaries must be
-# compiled for the production Node.js ABI version.
-if [[ -d "${APP_DIR}/.next/standalone/node_modules/lzma-native" ]]; then
-  info "Rebuilding native addons in standalone output..."
-  cd "${APP_DIR}/.next/standalone"
-  npm rebuild lzma-native 2>&1 | tail -3
-  cd "$APP_DIR"
-  success "Native addons rebuilt"
+# Install Ookla speedtest CLI (used by Gateway Diagnostics > Speed Test)
+# No native Node.js modules needed — just a standalone binary.
+if ! command -v speedtest &>/dev/null; then
+  info "Installing Ookla speedtest CLI..."
+  # Official install method: https://www.speedtest.net/apps/cli
+  curl -s https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.rpm.sh | bash 2>&1 | tail -3
+  yum install -y speedtest 2>&1 | tail -3
+  if command -v speedtest &>/dev/null; then
+    success "Ookla speedtest CLI installed: $(speedtest --version 2>/dev/null || echo 'installed')"
+  else
+    warn "Could not install Ookla speedtest CLI — Speed Test feature will not work"
+  fi
+else
+  info "Ookla speedtest CLI already installed"
 fi
 
 # ════════════════════════════════════════════════════════════════════════════════
