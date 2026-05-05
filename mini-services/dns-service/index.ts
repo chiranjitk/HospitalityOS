@@ -607,6 +607,27 @@ async function fullSync(): Promise<{ config: any; reload: any }> {
     }
   } catch {}
 
+  // Seed default forwarders if DnsForwarder table is empty
+  // This ensures the GUI shows the same servers that are in the config file
+  try {
+    const fwCountResult = await pool.query('SELECT COUNT(*) as c FROM "DnsForwarder"');
+    if (parseInt(fwCountResult.rows[0]?.c) === 0) {
+      log.info('DnsForwarder table is empty, seeding default upstream DNS servers');
+      for (const addr of DEFAULT_UPSTREAM_DNS) {
+        await pool.query(
+          'INSERT INTO "DnsForwarder" (id, "tenantId", "propertyId", address, port, description, enabled) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING',
+          [generateId(), 'default', 'default', addr, 53,
+            addr === '8.8.8.8' ? 'Google DNS Primary' :
+            addr === '8.8.4.4' ? 'Google DNS Secondary' :
+            addr === '1.1.1.1' ? 'Cloudflare DNS Primary' :
+            'Cloudflare DNS Secondary',
+            true]
+        );
+      }
+      log.info(`Seeded ${DEFAULT_UPSTREAM_DNS.length} default forwarders`);
+    }
+  } catch {}
+
   // Generate dnsmasq config
   await syncConfigToDisk();
 
