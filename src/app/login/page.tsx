@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslations } from 'next-intl';
@@ -22,13 +22,9 @@ import {
   ChevronRight,
   Sparkles,
   Bed,
-  Key,
   ConciergeBell,
-  Wine,
   Bath,
   Star,
-  Clock,
-  Fingerprint,
   ChevronLeft,
   Zap,
   AlertCircle,
@@ -51,18 +47,6 @@ const slideshowImages = [
 ];
 
 const SLIDE_INTERVAL = 6000; // 6 seconds per slide
-
-// Floating icon configuration
-const floatingIcons = [
-  { Icon: Bed, x: '8%', y: '15%', size: 22, delay: 0, duration: 18, rotate: -5 },
-  { Icon: Key, x: '82%', y: '10%', size: 18, delay: 2.5, duration: 22, rotate: 15 },
-  { Icon: ConciergeBell, x: '75%', y: '70%', size: 20, delay: 4, duration: 20, rotate: -10 },
-  { Icon: Wine, x: '15%', y: '75%', size: 16, delay: 1.5, duration: 24, rotate: 8 },
-  { Icon: Bath, x: '88%', y: '40%', size: 18, delay: 3, duration: 19, rotate: -12 },
-  { Icon: Star, x: '5%', y: '50%', size: 14, delay: 5, duration: 21, rotate: 20 },
-  { Icon: Clock, x: '70%', y: '25%', size: 15, delay: 1, duration: 23, rotate: -8 },
-  { Icon: Fingerprint, x: '25%', y: '88%', size: 17, delay: 3.5, duration: 17, rotate: 5 },
-];
 
 // Framer-motion variants
 const containerVariants = {
@@ -259,9 +243,6 @@ export default function LoginPage() {
     setError('');
   };
 
-  // Memoize floating icons to avoid re-renders
-  const memoizedFloatingIcons = useMemo(() => floatingIcons, []);
-
   // Show loading while checking auth state
   if (authLoading) {
     return (
@@ -291,31 +272,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden">
-      {/* ── Inline Keyframe Animations ── */}
-      <style jsx>{`
-        @keyframes floatOrb1 {
-          0%, 100% { transform: translate(0, 0); }
-          25% { transform: translate(20px, -15px); }
-          50% { transform: translate(-10px, 10px); }
-          75% { transform: translate(15px, -5px); }
-        }
-        @keyframes floatOrb2 {
-          0%, 100% { transform: translate(0, 0); }
-          25% { transform: translate(-15px, 20px); }
-          50% { transform: translate(10px, -10px); }
-          75% { transform: translate(-5px, 15px); }
-        }
-        @keyframes floatOrb3 {
-          0%, 100% { transform: translate(0, 0); }
-          25% { transform: translate(15px, 10px); }
-          50% { transform: translate(-20px, -15px); }
-          75% { transform: translate(10px, -10px); }
-        }
-        @keyframes shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-      `}</style>
       <div className="flex flex-1 min-h-0">
         {/* ═══════════════════════════════════════════
             LEFT SIDE - Brand with AI Image Slideshow
@@ -497,203 +453,24 @@ export default function LoginPage() {
             RIGHT SIDE - Login Form
             ═══════════════════════════════════════════ */}
 
-        {/* Animated mesh gradient background */}
+        {/* Clean professional background */}
         <div className="w-full lg:w-[45%] xl:w-[40%] relative flex-1 min-h-screen lg:min-h-0">
-          {/* Mobile-only gradient background */}
+          {/* Soft static gradient - no animation, professional look */}
           <div
-            className="absolute inset-0 lg:hidden"
-            style={{
-              background: 'linear-gradient(160deg, #f0fdfa, #ecfdf5 40%, #f0fdfa 70%, #ecfdf5)',
-            }}
-          />
-          {/* Mesh gradient base layer */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `
-                linear-gradient(-45deg,
-                  #f0fdfa, #ecfdf5, #f0f9ff, #fefce8,
-                  #faf5ff, #fdf2f8, #f0fdfa, #ecfdf5)
-              `,
-              backgroundSize: '400% 400%',
-              animation: 'loginGradientShift 20s ease infinite',
-            }}
+            className="absolute inset-0 bg-gradient-to-br from-teal-50/80 via-white to-emerald-50/60 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950"
           />
 
-          {/* Mesh gradient orbs - colorful theme */}
+          {/* Desktop-only: two very subtle, static, non-animated glow accents */}
           <div
-            className="absolute top-[5%] left-[10%] w-[500px] h-[500px] rounded-full opacity-40 blur-[120px]"
+            className="hidden lg:block absolute top-[10%] left-[5%] w-[400px] h-[400px] rounded-full opacity-20 blur-[120px] pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, rgba(20,184,166,0.25) 0%, transparent 70%)',
-              animation: 'loginGlowPulse 10s ease-in-out infinite',
+              background: 'radial-gradient(circle, rgba(20,184,166,0.18) 0%, transparent 70%)',
             }}
           />
           <div
-            className="absolute bottom-[5%] right-[5%] w-[450px] h-[450px] rounded-full opacity-35 blur-[110px]"
+            className="hidden lg:block absolute bottom-[10%] right-[5%] w-[350px] h-[350px] rounded-full opacity-15 blur-[100px] pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, rgba(139,92,246,0.20) 0%, transparent 70%)',
-              animation: 'loginGlowPulse 12s ease-in-out infinite 3s',
-            }}
-          />
-          <div
-            className="absolute top-[45%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-30 blur-[140px]"
-            style={{
-              background: 'radial-gradient(circle, rgba(6,182,212,0.15) 0%, transparent 70%)',
-              animation: 'loginGlowPulse 14s ease-in-out infinite 6s',
-            }}
-          />
-          <div
-            className="absolute top-[20%] right-[20%] w-[350px] h-[350px] rounded-full opacity-25 blur-[100px]"
-            style={{
-              background: 'radial-gradient(circle, rgba(245,158,11,0.18) 0%, transparent 70%)',
-              animation: 'loginGlowPulse 11s ease-in-out infinite 1.5s',
-            }}
-          />
-          <div
-            className="absolute bottom-[25%] left-[5%] w-[300px] h-[300px] rounded-full opacity-20 blur-[90px]"
-            style={{
-              background: 'radial-gradient(circle, rgba(236,72,153,0.15) 0%, transparent 70%)',
-              animation: 'loginGlowPulse 13s ease-in-out infinite 4.5s',
-            }}
-          />
-
-          {/* Dark mode gradient orbs */}
-          <div className="hidden dark:block absolute inset-0">
-            <div
-              className="absolute top-[5%] left-[10%] w-[500px] h-[500px] rounded-full opacity-20 blur-[120px]"
-              style={{
-                background: 'radial-gradient(circle, rgba(20,184,166,0.15) 0%, transparent 70%)',
-                animation: 'loginGlowPulse 10s ease-in-out infinite',
-              }}
-            />
-            <div
-              className="absolute bottom-[5%] right-[5%] w-[450px] h-[450px] rounded-full opacity-15 blur-[110px]"
-              style={{
-                background: 'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)',
-                animation: 'loginGlowPulse 12s ease-in-out infinite 3s',
-              }}
-            />
-            <div
-              className="absolute top-[20%] right-[20%] w-[350px] h-[350px] rounded-full opacity-12 blur-[100px]"
-              style={{
-                background: 'radial-gradient(circle, rgba(245,158,11,0.10) 0%, transparent 70%)',
-                animation: 'loginGlowPulse 11s ease-in-out infinite 1.5s',
-              }}
-            />
-          </div>
-
-          {/* ══ Animated floating orbs with float keyframes ══ */}
-          <div
-            className="absolute -top-20 -left-20 w-72 h-72 rounded-full blur-3xl pointer-events-none opacity-50"
-            style={{
-              background: 'linear-gradient(135deg, rgba(16,185,129,0.35), rgba(20,184,166,0.25))',
-              animation: 'floatOrb1 8s ease-in-out infinite',
-            }}
-          />
-          <div
-            className="absolute -bottom-16 -right-16 w-80 h-80 rounded-full blur-3xl pointer-events-none opacity-45"
-            style={{
-              background: 'linear-gradient(135deg, rgba(245,158,11,0.35), rgba(249,115,22,0.25))',
-              animation: 'floatOrb2 10s ease-in-out infinite',
-            }}
-          />
-          <div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full blur-3xl pointer-events-none opacity-30"
-            style={{
-              background: 'linear-gradient(135deg, rgba(139,92,246,0.30), rgba(167,139,250,0.20))',
-              animation: 'floatOrb3 12s ease-in-out infinite',
-            }}
-          />
-
-          {/* Decorative grid pattern */}
-          <svg
-            className="absolute inset-0 w-full h-full opacity-[0.035] pointer-events-none"
-            aria-hidden="true"
-          >
-            <defs>
-              <pattern id="loginGridPattern" x="0" y="0" width="48" height="48" patternUnits="userSpaceOnUse">
-                <path d="M 48 0 L 0 0 0 48" fill="none" stroke="currentColor" strokeWidth="0.5" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#loginGridPattern)" style={{ color: '#0d9488' }} />
-          </svg>
-
-          {/* Dot pattern overlay */}
-          <svg
-            className="absolute inset-0 w-full h-full opacity-[0.04] pointer-events-none"
-            aria-hidden="true"
-            style={{ animation: 'loginPatternDrift 30s linear infinite' }}
-          >
-            <defs>
-              <pattern id="loginDotPattern" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-                <circle cx="2" cy="2" r="1" fill="currentColor" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#loginDotPattern)" style={{ color: '#5eead4' }} />
-          </svg>
-
-          {/* Floating hotel-themed icons */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-            {memoizedFloatingIcons.map(({ Icon, x, y, size, delay, duration, rotate }, i) => (
-              <motion.div
-                key={i}
-                className="absolute"
-                style={{ left: x, top: y }}
-                initial={{ opacity: 0, rotate: 0 }}
-                animate={{
-                  opacity: [0, 0.12, 0.08, 0.12, 0],
-                  y: [0, -20, -10, -25, 0],
-                  x: [0, 8, -6, 4, 0],
-                  rotate: [0, rotate, -rotate, rotate * 0.5, 0],
-                }}
-                transition={{
-                  duration,
-                  delay,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                }}
-              >
-                <Icon
-                  className="text-teal-500/40 dark:text-teal-400/15"
-                  style={{ width: size, height: size }}
-                />
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Floating particle animation layer */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-            {Array.from({ length: 16 }).map((_, i) => (
-              <div
-                key={`particle-${i}`}
-                className="absolute rounded-full"
-                style={{
-                  width: `${3 + (i % 4) * 1.5}px`,
-                  height: `${3 + (i % 4) * 1.5}px`,
-                  left: `${6 + (i * 6.5) % 88}%`,
-                  top: `${8 + (i * 12) % 80}%`,
-                  background: i % 5 === 0
-                    ? 'rgba(20, 184, 166, 0.30)'
-                    : i % 5 === 1
-                      ? 'rgba(139, 92, 246, 0.25)'
-                      : i % 5 === 2
-                        ? 'rgba(6, 182, 212, 0.22)'
-                        : i % 5 === 3
-                          ? 'rgba(245, 158, 11, 0.20)'
-                          : 'rgba(236, 72, 153, 0.18)',
-                  animation: `loginParticle ${5 + (i % 5) * 1.5}s ease-out infinite`,
-                  animationDelay: `${i * 0.6}s`,
-                }}
-              />
-            ))}
-          </div>
-
-          {/* Subtle radial glow behind form */}
-          <div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full pointer-events-none"
-            style={{
-              background: 'radial-gradient(circle, rgba(20,184,166,0.08) 0%, rgba(139,92,246,0.05) 40%, transparent 70%)',
-              animation: 'loginGlowPulse 8s ease-in-out infinite',
+              background: 'radial-gradient(circle, rgba(245,158,11,0.12) 0%, transparent 70%)',
             }}
           />
 
@@ -718,42 +495,30 @@ export default function LoginPage() {
                 </div>
               </motion.div>
 
-              {/* ── Glassmorphism Card with Rotating Gradient Border ── */}
+              {/* ── Clean Card ── */}
               <motion.div
-                className="rounded-2xl border border-border/40 dark:border-white/[0.08] bg-card/80 dark:bg-slate-950/60 backdrop-blur-xl shadow-2xl shadow-primary/5 dark:shadow-[0_8px_40px_-12px_rgba(0,0,0,0.5),0_0_80px_-20px_rgba(20,184,166,0.10)] relative overflow-hidden border-gradient-rotate"
+                className="rounded-2xl border border-border/40 dark:border-white/[0.08] bg-card/90 dark:bg-slate-950/70 backdrop-blur-xl shadow-lg dark:shadow-[0_8px_40px_-12px_rgba(0,0,0,0.5)] relative overflow-hidden"
                 variants={cardVariants}
                 initial="hidden"
                 animate="visible"
                 whileHover={{
-                  boxShadow: '0_20px_60px_-12px_rgba(0,0,0,0.15),0_0_100px_-20px_rgba(20,184,166,0.10)',
-                  y: -2,
-                  transition: { duration: 0.4, ease: 'easeOut' },
+                  boxShadow: '0_16px_48px_-12px_rgba(0,0,0,0.12)',
+                  y: -1,
+                  transition: { duration: 0.3, ease: 'easeOut' },
                 }}
               >
-                {/* Animated gradient border on top edge with shimmer */}
+                {/* Simple static gradient accent line on top */}
                 <div
                   className="absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl z-10"
                   style={{
-                    background: 'linear-gradient(90deg, #10b981, #14b8a6, #06b6d4, #10b981)',
-                    backgroundSize: '300% 100%',
-                    animation: 'shimmer 3s ease-in-out infinite',
+                    background: 'linear-gradient(90deg, #10b981, #14b8a6, #06b6d4)',
                   }}
                 />
-                {/* Subtle animated border glow on top edge */}
-                <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-emerald-400/30 to-transparent" style={{ animation: 'loginGlowPulse 4s ease-in-out infinite' }} />
-
-                {/* Inner glass highlight */}
-                <div className="absolute inset-0 bg-gradient-to-b from-white/[0.08] to-transparent dark:from-white/[0.03] pointer-events-none" />
-
-                {/* Subtle animated grid pattern overlay */}
-                <div className="absolute inset-0 grid-pattern-overlay pointer-events-none" />
 
                 <div className="p-5 sm:p-6 lg:p-8 relative z-10">
 
                   {/* Header */}
                   <div className="mb-7">
-                    {/* Pulsing glow ring behind StaySuite logo area */}
-                    <div className="absolute -top-16 -left-16 w-32 h-32 rounded-full bg-gradient-to-br from-emerald-400/20 via-teal-400/15 to-cyan-400/10 blur-2xl pulsing-glow-ring pointer-events-none" />
                     <motion.div
                       className="flex items-center gap-2 mb-2"
                       variants={headerVariants}
