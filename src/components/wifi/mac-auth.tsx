@@ -105,7 +105,11 @@ interface MacAuthEntry {
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 
-export default function MacAuth() {
+interface MacAuthProps {
+  propertyId?: string;
+}
+
+export default function MacAuth({ propertyId }: MacAuthProps) {
   const { toast } = useToast();
   const [entries, setEntries] = useState<MacAuthEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -154,6 +158,7 @@ export default function MacAuth() {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
+      if (propertyId) params.set('propertyId', propertyId);
       if (activeStatusFilter !== 'all') params.set('status', activeStatusFilter);
       if (searchQuery) params.set('search', searchQuery);
 
@@ -170,7 +175,7 @@ export default function MacAuth() {
     } finally {
       setIsLoading(false);
     }
-  }, [activeStatusFilter, searchQuery]);
+  }, [activeStatusFilter, searchQuery, propertyId]);
 
   useEffect(() => {
     fetchEntries();
@@ -301,7 +306,7 @@ export default function MacAuth() {
         res = await fetch('/api/wifi/mac-auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ ...payload, propertyId: propertyId || undefined }),
         });
         action = 'created';
       }
@@ -330,7 +335,10 @@ export default function MacAuth() {
   const handleDelete = async () => {
     if (!deleteEntryId) return;
     try {
-      const res = await fetch(`/api/wifi/mac-auth?id=${encodeURIComponent(deleteEntryId)}`, {
+      const deleteParams = new URLSearchParams();
+      if (propertyId) deleteParams.set('propertyId', propertyId);
+      deleteParams.set('id', deleteEntryId);
+      const res = await fetch(`/api/wifi/mac-auth?${deleteParams.toString()}`, {
         method: 'DELETE',
       });
       const data = await res.json();
@@ -354,7 +362,10 @@ export default function MacAuth() {
     setCheckingMac(true);
     setCheckMacResult(null);
     try {
-      const res = await fetch(`/api/wifi/mac-auth?check=${encodeURIComponent(checkMacInput.trim())}`);
+      const checkParams = new URLSearchParams();
+      if (propertyId) checkParams.set('propertyId', propertyId);
+      checkParams.set('check', checkMacInput.trim());
+      const res = await fetch(`/api/wifi/mac-auth?${checkParams.toString()}`);
       const data = await res.json();
       setCheckMacResult({
         found: data.found && data.data ? true : false,
@@ -380,7 +391,7 @@ export default function MacAuth() {
       const res = await fetch('/api/wifi/mac-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'import', macs }),
+        body: JSON.stringify({ action: 'import', macs, propertyId: propertyId || undefined }),
       });
       const data = await res.json();
       if (data.success) {

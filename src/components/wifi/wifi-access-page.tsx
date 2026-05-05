@@ -1,13 +1,15 @@
 'use client';
 
 import React, { lazy, useState, useEffect, useCallback, Suspense } from 'react';
-import { Wifi, Users, UserPlus, Ticket, BarChart3, Gauge, RefreshCw, QrCode, Server, ShieldCheck, ShieldAlert, Fingerprint, Activity, History, TrendingUp, Network, Layers } from 'lucide-react';
+import { Wifi, Users, UserPlus, Ticket, BarChart3, Gauge, RefreshCw, QrCode, Server, ShieldCheck, ShieldAlert, Fingerprint, Activity, History, TrendingUp, Network, Layers, Building2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { ErrorBoundary } from '@/components/common/error-boundary';
+import { usePropertyId } from '@/hooks/use-property';
 
 // ─── Lazy imports for tab content ─────────────────────────────────────────
 // Keep 10 essential tabs — removed: Bandwidth Scheduler, Content Filter, Smart Bandwidth,
@@ -229,6 +231,7 @@ const tabs: TabEntry[] = [
 export function WifiAccessPage() {
   const [activeTab, setActiveTab] = useState<TabId>('live-sessions');
   const [refreshKey, setRefreshKey] = useState(0);
+  const { propertyId, properties, setCurrentProperty } = usePropertyId();
 
   const handleRefresh = useCallback(() => {
     setRefreshKey(prev => prev + 1);
@@ -237,6 +240,14 @@ export function WifiAccessPage() {
   const handleSwitchToVouchers = useCallback(() => {
     setActiveTab('vouchers');
   }, []);
+
+  const handlePropertyChange = useCallback((newPropertyId: string) => {
+    const prop = properties.find(p => p.id === newPropertyId);
+    if (prop) setCurrentProperty(prop);
+  }, [properties, setCurrentProperty]);
+
+  // Key changes when propertyId changes → forces all tabs to re-mount and re-fetch
+  const propertyKey = propertyId || 'none';
 
   return (
     <div className="space-y-6">
@@ -251,6 +262,22 @@ export function WifiAccessPage() {
             Manage active sessions, vouchers, bandwidth plans, and usage logs
           </p>
         </div>
+        {/* Property Switcher */}
+        {properties.length > 1 && (
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+            <Select value={propertyId} onValueChange={handlePropertyChange}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Select property" />
+              </SelectTrigger>
+              <SelectContent>
+                {properties.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {/* RADIUS Server Status */}
@@ -305,7 +332,7 @@ export function WifiAccessPage() {
       </div>
 
       {/* Tab Content */}
-      <div className="mt-2" key={refreshKey}>
+      <div className="mt-2" key={`${refreshKey}-${propertyKey}`}>
         <Suspense fallback={<TabSkeleton />}>
           <ErrorBoundary section="Active Users">
             {/* Live */}
@@ -342,7 +369,7 @@ export function WifiAccessPage() {
             {activeTab === 'vouchers' && <WifiVouchers />}
           </ErrorBoundary>
           <ErrorBoundary section="MAC Auth">
-            {activeTab === 'mac-auth' && <MacAuthTab />}
+            {activeTab === 'mac-auth' && <MacAuthTab propertyId={propertyId} />}
           </ErrorBoundary>
           <ErrorBoundary section="Event WiFi">
             {activeTab === 'event-wifi' && <EventWifiTab />}
