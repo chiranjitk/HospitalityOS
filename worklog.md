@@ -46,3 +46,24 @@ Stage Summary:
 - CoA attribute filter created in Step 5g3
 - read_clients=yes enables NAS client reading from database
 - Enhanced radpostauth logging captures source IPs
+
+---
+Task ID: dnsmasq-fix
+Agent: Main Agent
+Task: Fix dnsmasq startup failure — bind-interfaces and bind-dynamic conflict
+
+Work Log:
+- Diagnosed error: `cannot set --bind-interfaces and --bind-dynamic`
+- Identified TWO config files in `/etc/dnsmasq.d/`:
+  - `staysuite.conf` (dns-service port 3012) → has `bind-dynamic`
+  - `staysuite-dhcp.conf` (dhcp-service port 3011) → has `bind-interfaces`
+- These are mutually exclusive dnsmasq options
+- Removed `bind-interfaces` from `mini-services/dhcp-service/index.ts` (line 545)
+- Added comment explaining why `bind-interfaces` is not used (conflicts with `bind-dynamic` in dns-service)
+- Verified `auth-server=0.0.0.0` fix for `auth-zone` is already present in dns-service (line 539)
+
+Stage Summary:
+- Fix applied: `mini-services/dhcp-service/index.ts` — removed `bind-interfaces` from DHCP config generation
+- Root cause: two dnsmasq config files in same dir with conflicting bind options
+- `bind-dynamic` (from dns-service) is kept — it handles DNS on all interfaces + allows interface= directives for DHCP
+- Previous `auth-zone`/`auth-server` fix already in codebase — production just needs redeploy

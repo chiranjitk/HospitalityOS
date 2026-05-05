@@ -541,8 +541,11 @@ async function generateConfig(): Promise<{ success: boolean; message: string; li
     if (subnets.length > 0) {
       config += `# ─────────────────────────────────────────────\n`;
       config += `# Interface Bindings\n`;
-      config += `# ─────────────────────────────────────────────\n\n`;
-      config += `bind-interfaces\n`;
+      config += `# ─────────────────────────────────────────────\n`;
+      config += `# NOTE: bind-interfaces is NOT set here — it conflicts with\n`;
+      config += `# bind-dynamic in staysuite.conf (dns-service). The interface=\n`;
+      config += `# directives below still restrict DHCP to specific interfaces;\n`;
+      config += `# bind-dynamic handles DNS on all available interfaces.\n\n`;
 
       for (const sub of subnets) {
         const cidr = subnetToCidr(sub.subnet);
