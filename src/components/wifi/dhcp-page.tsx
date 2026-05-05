@@ -1626,97 +1626,97 @@ export default function DhcpPage() {
                 />
               </div>
 
-              {/* Interface Selector + VLAN */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="subnet-iface-select">
-                    <span className="flex items-center gap-1.5">
-                      <Monitor className="h-3.5 w-3.5" />
-                      Interface
-                    </span>
-                  </Label>
-                  {loadingInterfaces ? (
-                    <Skeleton className="h-9 w-full" />
-                  ) : eligibleInterfaces.length > 0 ? (
-                    <Select
-                      value={subnetForm.iface}
-                      onValueChange={handleInterfaceSelect}
-                    >
-                      <SelectTrigger id="subnet-iface-select" className="font-mono">
-                        <SelectValue placeholder="Select interface..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {eligibleInterfaces.map((iface) => (
-                          <SelectItem key={iface.deviceName} value={iface.deviceName}>
-                            <span className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-mono">
-                                {iface.type === 'vlan' ? 'VLAN' : iface.type === 'bridge' ? 'BR' : iface.type === 'bond' ? 'BOND' : 'PHY'}
-                              </Badge>
-                              <span className="font-mono font-medium">{iface.deviceName}</span>
-                              <span className="text-muted-foreground text-xs">
-                                {iface.ipv4Address}/{iface.ipv4Cidr}
-                              </span>
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  'text-[10px] px-1.5 py-0 h-4',
-                                  iface.state === 'up'
-                                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-300'
-                                    : 'bg-gray-500/15 text-gray-600 border-gray-300'
-                                )}
-                              >
-                                {iface.nettypeLabel}
-                              </Badge>
-                              {iface.state !== 'up' && (
-                                <AlertTriangle className="h-3 w-3 text-amber-500 dark:text-amber-400" />
-                              )}
+              {/* Interface Selector */}
+              <div className="space-y-2">
+                <Label htmlFor="subnet-iface-select">
+                  <span className="flex items-center gap-1.5">
+                    <Monitor className="h-3.5 w-3.5" />
+                    Interface
+                  </span>
+                </Label>
+                {loadingInterfaces ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : eligibleInterfaces.length > 0 ? (
+                  <Select
+                    value={subnetForm.iface}
+                    onValueChange={handleInterfaceSelect}
+                  >
+                    <SelectTrigger id="subnet-iface-select" className="font-mono">
+                      <SelectValue placeholder="Select interface..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {eligibleInterfaces.map((iface) => (
+                        <SelectItem key={iface.deviceName} value={iface.deviceName}>
+                          <span className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-mono">
+                              {iface.type === 'vlan' ? 'VLAN' : iface.type === 'bridge' ? 'BR' : iface.type === 'bond' ? 'BOND' : 'PHY'}
+                            </Badge>
+                            <span className="font-mono font-medium">{iface.deviceName}</span>
+                            <span className="text-muted-foreground text-xs">
+                              {iface.ipv4Address}/{iface.ipv4Cidr}
                             </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="relative">
-                      <Input
-                        id="subnet-iface"
-                        value={subnetForm.iface}
-                        onChange={e => setSubnetForm(p => ({ ...p, iface: e.target.value }))}
-                        placeholder="e.g. eth0.10 (manual)"
-                        className="font-mono pr-8"
-                      />
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                              <AlertTriangle className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>No eligible interfaces found from Network Manager.</p>
-                            <p>You can type the interface name manually.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Select from Network Manager (excludes WAN) or type manually
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="subnet-vlan">VLAN ID</Label>
-                  <Input
-                    id="subnet-vlan"
-                    type="number"
-                    value={subnetForm.vlanId}
-                    onChange={e => setSubnetForm(p => ({ ...p, vlanId: e.target.value }))}
-                    placeholder="e.g. 10"
-                    disabled={!!subnetForm.iface && eligibleInterfaces.some(i => i.deviceName === subnetForm.iface && !!i.vlanId)}
-                  />
-                  {subnetForm.iface && eligibleInterfaces.some(i => i.deviceName === subnetForm.iface && !!i.vlanId) && (
-                    <p className="text-xs text-muted-foreground">Auto-filled from VLAN interface</p>
-                  )}
-                </div>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                'text-[10px] px-1.5 py-0 h-4',
+                                iface.state === 'up'
+                                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-300'
+                                  : 'bg-gray-500/15 text-gray-600 border-gray-300'
+                              )}
+                            >
+                              {iface.nettypeLabel}
+                            </Badge>
+                            {iface.state !== 'up' && (
+                              <AlertTriangle className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                            )}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="relative">
+                    <Input
+                      id="subnet-iface"
+                      value={subnetForm.iface}
+                      onChange={e => setSubnetForm(p => ({ ...p, iface: e.target.value }))}
+                      placeholder="e.g. eth0.10 (manual)"
+                      className="font-mono pr-8"
+                    />
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>No eligible interfaces found from Network Manager.</p>
+                          <p>You can type the interface name manually.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Select from Network Manager (excludes WAN) or type manually
+                </p>
+              </div>
+
+              {/* VLAN ID */}
+              <div className="space-y-2">
+                <Label htmlFor="subnet-vlan">VLAN ID</Label>
+                <Input
+                  id="subnet-vlan"
+                  type="number"
+                  value={subnetForm.vlanId}
+                  onChange={e => setSubnetForm(p => ({ ...p, vlanId: e.target.value }))}
+                  placeholder="e.g. 10"
+                  disabled={!!subnetForm.iface && eligibleInterfaces.some(i => i.deviceName === subnetForm.iface && !!i.vlanId)}
+                />
+                {subnetForm.iface && eligibleInterfaces.some(i => i.deviceName === subnetForm.iface && !!i.vlanId) && (
+                  <p className="text-xs text-muted-foreground">Auto-filled from VLAN interface</p>
+                )}
               </div>
 
               {/* Auto-fill info banner */}
