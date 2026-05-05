@@ -10,20 +10,16 @@
 #    2. libmnl        — minimalistic netlink library
 #    3. libnetfilter_log      — NFLOG input plugin
 #    4. libnetfilter_conntrack — conntrack input plugin
-#    5. libnetfilter_acct     — accounting input plugin
-#    6. json-c               — JSONLOG output plugin
+#    5. libnetfilter_acct     — accounting plugin
+#    6. json-c               — JSONLOG output plugin (CMAKE build)
 #    7. libpcap              — PCAP output plugin
 #    8. ulogd2               — the daemon itself
 #
 #  Usage:
 #    bash tools/ulogd2-clickhouse/build-offline.sh
 #
-#  Output:
-#    /usr/local/ulogd2/  — installed binary + plugins + config
-#    dist/               — self-contained tar.gz for deployment
-#
 #  System Requirements (Rocky Linux 10):
-#    dnf install -y gcc make autoconf automake libtool flex bison
+#    dnf install -y gcc make autoconf automake libtool cmake flex bison
 ##############################################################################
 
 set -euo pipefail
@@ -51,10 +47,16 @@ echo "  Install prefix: ${INSTALL_PREFIX}"
 echo "=============================================="
 
 # Check for build tools
-for tool in gcc make autoconf automake libtool; do
+for tool in gcc make cmake; do
   if ! command -v "$tool" >/dev/null 2>&1; then
-    log_err "$tool not found. Install: dnf install -y gcc make autoconf automake libtool flex bison"
+    log_err "$tool not found. Install: dnf install -y gcc make cmake autoconf automake libtool flex bison"
     exit 1
+  fi
+done
+
+for tool in autoconf automake libtool; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    log_warn "$tool not found — some autotools builds may fail"
   fi
 done
 echo "Build tools: OK"
@@ -72,15 +74,16 @@ echo "Source tarballs: $(ls "$SRC_DIR"/*.tar.* 2>/dev/null | wc -l) files"
 
 log_step "Setting up build environment..."
 
-# Ensure we have flex/bison for some dependency parsers
+# Ensure we have cmake + flex/bison
 if command -v dnf >/dev/null 2>&1; then
-  dnf install -y flex bison gcc-c++ zlib-devel 2>/dev/null | tail -3 || true
+  dnf install -y cmake flex bison gcc-c++ zlib-devel 2>/dev/null | tail -3 || true
 fi
 
-# Export PKG_CONFIG_PATH so later configure scripts find our built libs
+# Export paths so later configure/cmake scripts find our built libs
 export PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${INSTALL_PREFIX}/lib64/pkgconfig:${PKG_CONFIG_PATH:-}"
 export LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib:${INSTALL_PREFIX}/lib64:${LD_LIBRARY_PATH:-}"
 export CFLAGS="-I${INSTALL_PREFIX}/include ${CFLAGS:-}"
+export CPPFLAGS="-I${INSTALL_PREFIX}/include ${CPPFLAGS:-}"
 export LDFLAGS="-L${INSTALL_PREFIX}/lib -L${INSTALL_PREFIX}/lib64 -Wl,-rpath,${INSTALL_PREFIX}/lib ${LDFLAGS:-}"
 
 # Create build area
@@ -90,60 +93,73 @@ mkdir -p "$INSTALL_PREFIX/lib/pkgconfig"
 mkdir -p "$INSTALL_PREFIX/lib64/pkgconfig"
 
 echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
-echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
 echo "CFLAGS=$CFLAGS"
 echo "LDFLAGS=$LDFLAGS"
 
-# ─── Helper: Build a generic autotools project ───────────────────────────
+# ─── Helper: Find extracted directory ────────────────────────────────────
 
-build_project() {
+# After `tar xf`, find the top-level directory that was created.
+# Handles double-name prefixes from GitHub (e.g., libpcap-libpcap-1.10.5)
+find_extracted_dir() {
+  # Find any directory created in BUILD_DIR after extraction
+  local latest=""
+  for d in "$BUILD_DIR"/*/; do
+    [ -d "$d" ] || continue
+    # Skip if it's our own marker directories
+    if [ "$latest" = "" ] || [ "$d" -nt "$latest" ]; then
+      latest="$d"
+    fi
+  done
+  if [ -n "$latest" ] && [ -d "$latest" ]; then
+    echo "${latest%/}"
+    return 0
+  fi
+  return 1
+}
+
+# ─── Helper: Build an autotools project ──────────────────────────────────
+
+build_autotools() {
   local name="$1"
   local tarball="$2"
-  local configure_args="${3:-}"
+  shift 2
+  local configure_args="$*"
 
-  log_step "Building: $name"
+  log_step "Building: $name (autotools)"
 
   if [ ! -f "$SRC_DIR/$tarball" ]; then
-    log_err "Source not found: $SRC_DIR/$tarball"
+    log_err "  Source not found: $SRC_DIR/$tarball"
     return 1
   fi
 
-  # Extract
+  # Clear BUILD_DIR to make find_extracted_dir work
   cd "$BUILD_DIR"
-  rm -rf "${name}"*
+  rm -rf "${BUILD_DIR:?}"/*
 
-  local ext=""
-  case "$tarball" in
-    *.tar.bz2) ext=".tar.bz2" ;;
-    *.tar.gz)  ext=".tar.gz" ;;
-    *.tar.xz)  ext=".tar.xz" ;;
-  esac
-
-  local base_name="${tarball%$ext}"
   log_step "  Extracting $tarball..."
-
   tar xf "$SRC_DIR/$tarball" 2>&1
 
-  # Find the extracted directory (may have version suffix)
-  local extracted_dir=""
-  for d in "$BUILD_DIR"/${base_name}*; do
-    [ -d "$d" ] && extracted_dir="$d" && break
-  done
-
+  local extracted_dir
+  extracted_dir=$(find_extracted_dir)
   if [ -z "$extracted_dir" ] || [ ! -d "$extracted_dir" ]; then
     log_err "  Failed to extract $tarball"
     return 1
   fi
 
+  log_step "  Build dir: $(basename "$extracted_dir")"
   cd "$extracted_dir"
 
-  # Run autoreconf if no configure script (common for git archives)
+  # Run autoreconf if no configure script
   if [ ! -x ./configure ]; then
-    log_step "  Running autoreconf..."
-    autoreconf -fi 2>&1 | tail -3
+    if [ -f configure.ac ] || [ -f configure.in ]; then
+      log_step "  Running autoreconf..."
+      autoreconf -fi 2>&1 | tail -3
+    else
+      log_err "  No configure.ac and no ./configure — cannot build with autotools"
+      return 1
+    fi
   fi
 
-  # Configure
   log_step "  Configuring..."
   ./configure \
     --prefix="$INSTALL_PREFIX" \
@@ -152,24 +168,90 @@ build_project() {
     --enable-shared=yes \
     --enable-static=no \
     $configure_args \
-    2>&1 | tail -5
+    2>&1 | tail -8
 
-  # Build
   log_step "  Compiling..."
   make -j"$(nproc 2>/dev/null || echo 2)" 2>&1 | tail -3
 
-  # Install
   log_step "  Installing to $INSTALL_PREFIX..."
   make install 2>&1 | tail -3
 
-  # Update library cache
-  if [ -d "${INSTALL_PREFIX}/lib" ]; then
-    ldconfig 2>/dev/null || true
-  fi
-
-  # Fix pkg-config files if they were installed to lib64 instead of lib
+  # Post-install fixes
+  ldconfig 2>/dev/null || true
   if [ -d "${INSTALL_PREFIX}/lib64/pkgconfig" ]; then
     cp -f "${INSTALL_PREFIX}/lib64/pkgconfig/"*.pc "${INSTALL_PREFIX}/lib/pkgconfig/" 2>/dev/null || true
+  fi
+
+  log_step "  ✓ $name built and installed"
+  return 0
+}
+
+# ─── Helper: Build a CMake project ──────────────────────────────────────
+
+build_cmake() {
+  local name="$1"
+  local tarball="$2"
+  shift 2
+  local cmake_args="$*"
+
+  log_step "Building: $name (cmake)"
+
+  if [ ! -f "$SRC_DIR/$tarball" ]; then
+    log_err "  Source not found: $SRC_DIR/$tarball"
+    return 1
+  fi
+
+  # Check cmake is available
+  if ! command -v cmake >/dev/null 2>&1; then
+    log_err "  cmake not found. Install: dnf install -y cmake"
+    return 1
+  fi
+
+  # Clear BUILD_DIR
+  cd "$BUILD_DIR"
+  rm -rf "${BUILD_DIR:?}"/*
+
+  log_step "  Extracting $tarball..."
+  tar xf "$SRC_DIR/$tarball" 2>&1
+
+  local extracted_dir
+  extracted_dir=$(find_extracted_dir)
+  if [ -z "$extracted_dir" ] || [ ! -d "$extracted_dir" ]; then
+    log_err "  Failed to extract $tarball"
+    return 1
+  fi
+
+  log_step "  Build dir: $(basename "$extracted_dir")"
+  cd "$extracted_dir"
+
+  # Create out-of-source build directory
+  mkdir -p build
+  cd build
+
+  log_step "  Running cmake..."
+  cmake .. \
+    -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+    -DCMAKE_INSTALL_LIBDIR=lib \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_SHARED_LIBS=ON \
+    -DBUILD_STATIC_LIBS=OFF \
+    $cmake_args \
+    2>&1 | tail -10
+
+  log_step "  Compiling..."
+  make -j"$(nproc 2>/dev/null || echo 2)" 2>&1 | tail -3
+
+  log_step "  Installing to $INSTALL_PREFIX..."
+  make install 2>&1 | tail -3
+
+  # Post-install fixes
+  ldconfig 2>/dev/null || true
+  if [ -d "${INSTALL_PREFIX}/lib64/pkgconfig" ]; then
+    cp -f "${INSTALL_PREFIX}/lib64/pkgconfig/"*.pc "${INSTALL_PREFIX}/lib/pkgconfig/" 2>/dev/null || true
+  fi
+  if [ -d "${INSTALL_PREFIX}/lib/cmake" ]; then
+    # Some cmake projects put .pc into lib/ directly
+    cp -f "${INSTALL_PREFIX}/lib/"*.pc "${INSTALL_PREFIX}/lib/pkgconfig/" 2>/dev/null || true
   fi
 
   log_step "  ✓ $name built and installed"
@@ -180,26 +262,46 @@ build_project() {
 
 BUILD_ERRORS=0
 
-# 1. libnfnetlink (no deps — base library)
-build_project "libnfnetlink" "libnfnetlink-1.0.2.tar.bz2" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
+# 1. libnfnetlink (no deps — base library, autotools)
+build_autotools "libnfnetlink" "libnfnetlink-1.0.2.tar.bz2" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
 
-# 2. libmnl (no deps — minimal netlink)
-build_project "libmnl" "libmnl-1.0.5.tar.bz2" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
+# 2. libmnl (no deps — minimal netlink, autotools)
+build_autotools "libmnl" "libmnl-1.0.5.tar.bz2" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
 
-# 3. libnetfilter_log (depends on libnfnetlink)
-build_project "libnetfilter_log" "libnetfilter_log-1.0.2.tar.bz2" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
+# 3. libnetfilter_log (depends on libnfnetlink, autotools)
+build_autotools "libnetfilter_log" "libnetfilter_log-1.0.2.tar.bz2" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
 
-# 4. libnetfilter_conntrack (depends on libnfnetlink)
-build_project "libnetfilter_conntrack" "libnetfilter_conntrack-1.0.9.tar.bz2" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
+# 4. libnetfilter_conntrack (depends on libnfnetlink, autotools)
+build_autotools "libnetfilter_conntrack" "libnetfilter_conntrack-1.0.9.tar.bz2" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
 
-# 5. libnetfilter_acct (depends on libnfnetlink)
-build_project "libnetfilter_acct" "libnetfilter_acct-1.0.3.tar.bz2" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
+# 5. libnetfilter_acct (depends on libnfnetlink, autotools)
+build_autotools "libnetfilter_acct" "libnetfilter_acct-1.0.3.tar.bz2" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
 
-# 6. json-c (no deps)
-build_project "json-c" "json-c-0.17.tar.gz" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
+# 6. json-c (no deps — CMAKE build!)
+build_cmake "json-c" "json-c-0.17.tar.gz" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
 
-# 7. libpcap (no deps)
-build_project "libpcap" "libpcap-1.10.5.tar.gz" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
+# 7. libpcap (no deps — autotools)
+#    GitHub tarball extracts to libpcap-libpcap-1.10.5/ (double name)
+build_autotools "libpcap" "libpcap-1.10.5.tar.gz" "" || BUILD_ERRORS=$((BUILD_ERRORS + 1))
+
+# ─── Verify critical libraries before building ulogd2 ────────────────────
+
+log_step "Verifying dependency libraries..."
+
+CRITICAL_OK=true
+for lib in libnfnetlink libnetfilter_log json-c; do
+  if [ -f "${INSTALL_PREFIX}/lib/lib${lib}.so" ] || [ -f "${INSTALL_PREFIX}/lib64/lib${lib}.so" ]; then
+    echo "  ✓ lib${lib}"
+  else
+    echo "  ✗ lib${lib} — NOT FOUND"
+    CRITICAL_OK=false
+  fi
+done
+
+if [ "$CRITICAL_OK" = false ]; then
+  log_err "Critical libraries missing! ulogd2 build will likely fail."
+  log_err "Check the build errors above for details."
+fi
 
 # ─── Build ulogd2 (the main target) ──────────────────────────────────────
 
@@ -211,11 +313,11 @@ if [ ! -f "$SRC_DIR/ulogd-2.0.8.tar.bz2" ]; then
 fi
 
 cd "$BUILD_DIR"
-rm -rf ulogd-2.0.8*
+rm -rf "${BUILD_DIR:?}"/*
 tar xf "$SRC_DIR/ulogd-2.0.8.tar.bz2"
 cd "$BUILD_DIR/ulogd-2.0.8"
 
-# Refresh PKG_CONFIG_PATH after building all deps
+# Refresh PKG_CONFIG_PATH after all dep builds
 export PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${INSTALL_PREFIX}/lib64/pkgconfig:${PKG_CONFIG_PATH:-}"
 
 log_step "  Configuring ulogd2..."
@@ -227,10 +329,15 @@ log_step "  Configuring ulogd2..."
   --includedir="${INSTALL_PREFIX}/include" \
   --localstatedir=/var \
   --with-jsonc \
-  --with-pcap \
   --enable-static=no \
   --enable-shared=yes \
-  2>&1 | tail -15
+  2>&1 | tail -20
+
+# Show what plugins were detected
+echo ""
+echo "  ── Plugin detection results ──"
+grep -E "(NFLOG plugin|NFCT plugin|JSON plugin|PCAP plugin)" "${BUILD_DIR}/ulogd-2.0.8/config.log" 2>/dev/null | tail -10 || true
+echo ""
 
 log_step "  Compiling ulogd2..."
 make -j"$(nproc 2>/dev/null || echo 2)" 2>&1 | tail -5
@@ -244,23 +351,32 @@ log_step "Verifying installation..."
 
 echo ""
 echo "  Binary:"
-ls -la "$INSTALL_PREFIX/sbin/ulogd" 2>/dev/null || ls -la "$INSTALL_PREFIX/sbin/ulogd2" 2>/dev/null || echo "    WARNING: ulogd2 binary not found in sbin/"
+if [ -f "$INSTALL_PREFIX/sbin/ulogd" ]; then
+  echo "    ✓ $INSTALL_PREFIX/sbin/ulogd"
+  $INSTALL_PREFIX/sbin/ulogd -V 2>&1 | head -2 | sed 's/^/    /'
+else
+  echo "    ✗ ulogd binary NOT FOUND"
+fi
 
 echo ""
 echo "  Plugins (.so):"
-ls -la "$INSTALL_PREFIX/lib/ulogd/"*.so 2>/dev/null | while read line; do
-  echo "    $(echo "$line" | awk '{print $NF}')"
-done || echo "    WARNING: No .so plugins found!"
+if ls "$INSTALL_PREFIX/lib/ulogd/"*.so 1>/dev/null 2>&1; then
+  ls -la "$INSTALL_PREFIX/lib/ulogd/"*.so 2>/dev/null | while read line; do
+    echo "    $(echo "$line" | awk '{print $NF}')"
+  done
+else
+  echo "    ✗ No plugins found!"
+fi
 
 echo ""
 echo "  Libraries (.so):"
-ls -la "$INSTALL_PREFIX/lib/"lib{nfnetlink,mnl,netfilter*,json-c,pcap}*.so* 2>/dev/null | while read line; do
-  echo "    $(echo "$line" | awk '{print $NF}')"
-done || echo "    WARNING: No shared libraries found!"
-
-echo ""
-echo "  Config: $INSTALL_PREFIX/etc/ulogd.conf"
-ls -la "$INSTALL_PREFIX/etc/ulogd.conf" 2>/dev/null || echo "    (will be installed from tools/ulogd2-clickhouse/ulogd.conf)"
+for lib in libnfnetlink libmnl libnetfilter_log libnetfilter_conntrack libnetfilter_acct json-c; do
+  if [ -f "${INSTALL_PREFIX}/lib/lib${lib}.so" ]; then
+    echo "    ✓ lib${lib}.so"
+  else
+    echo "    ✗ lib${lib}.so — MISSING"
+  fi
+done
 
 # ─── Install Our Config ──────────────────────────────────────────────────
 
@@ -307,7 +423,8 @@ cp -a "$SCRIPT_DIR" "${TARGET}/ulogd2"
 mkdir -p /var/log/ulogd/json
 chmod 755 /var/log/ulogd /var/log/ulogd/json
 
-# Update library cache
+# Add to ldconfig
+echo "${TARGET}/ulogd2/lib" > /etc/ld.so.conf.d/ulogd2.conf
 ldconfig
 
 # Install init script
@@ -319,7 +436,15 @@ chkconfig --add ulogd2 2>/dev/null || true
 cp "${TARGET}/ulogd2/ulogd2.service" /etc/systemd/system/ 2>/dev/null || true
 systemctl daemon-reload 2>/dev/null || true
 
-echo "Deploy complete! Start with:"
+# Load kernel modules
+modprobe nfnetlink_log 2>/dev/null || true
+
+echo ""
+echo "Deploy complete! Verify:"
+echo "  ldconfig -p | grep -E 'ulogd|nfnetlink|json-c'"
+echo "  /usr/local/ulogd2/sbin/ulogd -V"
+echo ""
+echo "Start:"
 echo "  /etc/rc.d/init.d/ulogd2 start"
 echo "  OR: systemctl start ulogd2"
 DEPLOY_EOF
@@ -370,13 +495,24 @@ if [ "$BUILD_ERRORS" -gt 0 ]; then
   log_warn "  ulogd2 may have reduced functionality"
 fi
 
-echo "  What to copy to Rocky 10:"
-echo "    dist/ulogd2-offline-compiled.tar.gz"
-echo "      → Extract and run deploy.sh (binary + libs, no build needed)"
+# Check critical plugin
+if [ -f "$INSTALL_PREFIX/lib/ulogd/ulogd_output_JSONLOG.so" ]; then
+  echo "  ✓ JSONLOG plugin built — SNI capture pipeline ready"
+else
+  log_warn "  ✗ JSONLOG plugin NOT built — check json-c installation"
+fi
+
+if [ -f "$INSTALL_PREFIX/lib/ulogd/ulogd_inppkt_NFLOG.so" ]; then
+  echo "  ✓ NFLOG plugin built — nftables integration ready"
+else
+  log_warn "  ✗ NFLOG plugin NOT built"
+fi
+
 echo ""
-echo "    dist/ulogd2-offline-sources.tar.gz"
-echo "      → For full rebuild from source (bash build-offline.sh)"
+echo "  On Rocky 10 — copy and deploy:"
+echo "    scp dist/ulogd2-offline-compiled.tar.gz root@rocky10:/tmp/"
+echo "    ssh root@rocky10 'cd /tmp && tar xzf ulogd2-offline-compiled.tar.gz && cd ulogd2 && bash deploy.sh'"
 echo ""
-echo "  Start ulogd2:"
-echo "    /usr/local/ulogd2/sbin/ulogd2 -c /usr/local/ulogd2/etc/ulogd.conf"
+echo "  Start:"
+echo "    /etc/rc.d/init.d/ulogd2 start"
 echo ""
