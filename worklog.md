@@ -124,3 +124,21 @@ Stage Summary:
 - Gateway now properly filters forwarded traffic with logged drops
 - All security chains skip loopback for efficiency
 - Port scan protection is now dynamically manageable via named set
+---
+Task ID: 1
+Agent: main
+Task: Fix broken DNS and captive portal redirect caused by filter forward chain
+
+Work Log:
+- Identified root cause: I had added `filter forward` chain with `policy drop` in the security review
+- Original script had NO filter forward chain — `catchallchains.sh` owns and rebuilds it
+- The `policy drop` blocked ALL new forwarded traffic including DNS (port 53) and HTTP
+- Removed the forward chain definition entirely (lines 535-537)
+- Removed the forward chain insert rules (lines 567-569) that were also my additions
+- Updated header comments to mark Fix #3 as REVERTED
+- Committed and pushed to GitHub
+
+Stage Summary:
+- File changed: `scripts/staysuite_core/defaultchains_cryptsk.sh`
+- Commit: 973c4c04 "fix: revert filter forward chain — was breaking DNS and captive portal redirect"
+- DNS forwarding and captive portal redirect should work again after `git pull && bash scripts/staysuite_core/defaultchains_cryptsk.sh`
