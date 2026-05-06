@@ -358,19 +358,19 @@ export async function GET(request: NextRequest) {
         if (uniqueIps.length > 0) {
           try {
             const sessions = await db.wiFiSession.findMany({
-              where: { assignedIp: { in: uniqueIps } },
+              where: { ipAddress: { in: uniqueIps } },
               select: {
-                sessionId: true,
+                id: true,
                 guestId: true,
-                assignedIp: true,
+                ipAddress: true,
                 guest: { select: { firstName: true, lastName: true } },
               },
             });
             for (const s of sessions) {
-              if (s.guest && s.assignedIp) {
+              if (s.guest && s.ipAddress) {
                 const name = `${s.guest.firstName ?? ''} ${s.guest.lastName ?? ''}`.trim();
                 if (name) {
-                  ipToGuest.set(s.assignedIp, name);
+                  ipToGuest.set(s.ipAddress, name);
                 }
               }
             }

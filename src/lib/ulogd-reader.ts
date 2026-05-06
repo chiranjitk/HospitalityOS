@@ -444,17 +444,12 @@ export async function resolveGuestNames(
   try {
     const uniqueIps = Array.from(new Set(ips));
 
-    // Try assignedIp first (used in web-surfing route)
     const sessions = await db.wiFiSession.findMany({
       where: {
         ...(tenantId ? { tenantId } : {}),
-        OR: [
-          { assignedIp: { in: uniqueIps } },
-          { ipAddress: { in: uniqueIps } },
-        ],
+        ipAddress: { in: uniqueIps },
       },
       select: {
-        assignedIp: true,
         ipAddress: true,
         guestId: true,
         guest: { select: { firstName: true, lastName: true } },
@@ -465,7 +460,7 @@ export async function resolveGuestNames(
     const ipToGuestId = new Map<string, string>();
 
     for (const s of sessions) {
-      const ip = s.assignedIp || s.ipAddress;
+      const ip = s.ipAddress;
       if (ip && s.guestId) {
         ipToGuestId.set(ip, s.guestId);
         guestIds.push(s.guestId);
