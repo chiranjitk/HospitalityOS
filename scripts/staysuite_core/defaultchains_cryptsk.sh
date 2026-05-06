@@ -517,26 +517,24 @@ nft "add rule inet filter input tcp dport $OPENPORTS ct state new accept"
 nft 'add rule inet filter input udp dport { 1812, 1813 } accept'
 # Allow DHCP server
 nft 'add rule inet filter input udp dport 67 accept'
+# Allow DNS from LAN (gateway runs DNS relay/caching for guest network)
+nft "add rule inet filter input udp dport $DNS_PORTS accept"
+nft 'add rule inet filter input tcp dport 53 accept'
+# Allow SNMP (read-only from monitoring)
+nft "add rule inet filter input udp dport $SNMP_PORTS accept"
 # Allow ICMP (ping the gateway for diagnostics)
 nft 'add rule inet filter input meta l4proto icmp accept'
 
 ## FIX #2: Jump to drop_log at end — catches everything that falls through
 nft 'add rule inet filter input jump drop_log'
 
-## ─── FORWARD chain (FIX #3: gateway must filter forwarded traffic) ───
+## ─── FORWARD chain base ───
+## NOTE: catchallchains.sh (called below) rebuilds the forward chain.
+## So we only define the chain + essential base rules here.
+## The meta mark accept rule is re-inserted AFTER all external scripts.
 nft 'add chain inet filter forward { type filter hook forward priority filter; policy drop; }'
-
-# Allow established/related forwarded connections
 nft 'add rule inet filter forward ct state established,related accept'
-
-# Drop invalid forwarded packets
 nft 'add rule inet filter forward ct state invalid drop'
-
-# Allow forwarded traffic for logged-in users (marked by mangle prerouting)
-nft 'add rule inet filter forward meta mark != 0 accept'
-
-# Log and drop everything else (visible in journalctl/dmesg)
-nft 'add rule inet filter forward log prefix "STAYSUITE_DROP_FORWARD: " flags all drop'
 
 ## ============================================================================
 ## IPv6 SUPPORT
@@ -555,9 +553,21 @@ if [ "$ipv6" = "y" ] || [ "$ipv6" = "Y" ]; then
 fi
 
 ## ============================================================================
-## PERSISTENCE & WRAP UP
+## FORWARD chain FINAL RULES (after ALL external scripts including applyallchains.sh)
+## catchallchains.sh / applyallchains.sh rebuild the forward chain.
+## These rules MUST be inserted AFTER they run, otherwise they get wiped.
+## Use 'insert' to place at the TOP (before any jump/drop from external scripts).
 ## ============================================================================
 [ -x /usr/local/scripts/applyallchains.sh ] && sh /usr/local/scripts/applyallchains.sh >> /var/log/nftables_restore.log 2>&1 &
+
+# Wait briefly for applyallchains.sh to finish its forward chain setup
+sleep 1
+
+# Allow logged-in user traffic (marked by mangle prerouting) — critical for internet access
+nft 'insert rule inet filter forward position 0 ct state established,related accept'
+nft 'insert rule inet filter forward position 0 ct state invalid drop'
+nft 'insert rule inet filter forward position 0 meta mark != 0 accept'
+
 [ -x /etc/rc.d/init.d/dnssniffer ] && /etc/rc.d/init.d/dnssniffer restart 2>/dev/null
 
 mkdir -p /etc/nftables
