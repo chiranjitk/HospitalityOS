@@ -208,11 +208,11 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'user-bw', label: 'User Bandwidth', icon: Users },
   { id: 'web-surfing', label: 'Web Surfing', icon: Globe },
   { id: 'nat-logs', label: 'NAT Logs', icon: Shield },
+  { id: 'syslog', label: 'Syslog Forwarding', icon: Radio },
   { id: 'voucher', label: 'Voucher Report', icon: Ticket },
   { id: 'sys-health', label: 'System Health', icon: Activity },
   { id: 'coa-audit', label: 'CoA Audit', icon: FileCheck },
   { id: 'user-status-history', label: 'User History', icon: History },
-  { id: 'syslog', label: 'Syslog', icon: Radio },
 ];
 
 // ==================== MAIN COMPONENT ====================

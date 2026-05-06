@@ -84,6 +84,25 @@ interface SyslogEntry {
   raw: string;
 }
 
+// API may return entries as strings (raw syslog lines) or objects
+function normalizeEntries(raw: any[]): SyslogEntry[] {
+  return raw.map((e, i) => {
+    if (typeof e === 'string') {
+      return { id: `entry-${i}`, timestamp: '', severity: 'info', facility: '', host: '', app: '', message: '', raw: e };
+    }
+    return {
+      id: e.id || `entry-${i}`,
+      timestamp: e.timestamp || '',
+      severity: e.severity || '',
+      facility: e.facility || '',
+      host: e.host || '',
+      app: e.app || '',
+      message: e.message || '',
+      raw: e.raw || e.message || JSON.stringify(e),
+    };
+  });
+}
+
 interface ServerFormData {
   name: string;
   host: string;
@@ -269,7 +288,7 @@ export default function SyslogTab() {
       const result = await res.json();
       if (result.success) {
         setServers(result.data?.servers || []);
-        setEntries(result.data?.entries || []);
+        setEntries(normalizeEntries(result.data?.entries || []));
       } else {
         toast({
           title: 'Failed to load syslog data',
@@ -313,7 +332,7 @@ export default function SyslogTab() {
         if (cancelled) return;
         if (result.success) {
           setServers(result.data?.servers || []);
-          setEntries(result.data?.entries || []);
+          setEntries(normalizeEntries(result.data?.entries || []));
         }
       } catch {
         if (cancelled) return;
