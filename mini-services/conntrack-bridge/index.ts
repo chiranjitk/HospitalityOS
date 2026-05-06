@@ -244,10 +244,10 @@ async function flushBatch(): Promise<void> {
   const values = items
     .map(
       (e) =>
-        `'${toClickHouseDateTime(e.timestamp)}', '${e.proto}', '${e.eventType}', ${e.conntrack_id}, ` +
+        `('${toClickHouseDateTime(e.timestamp)}', '${e.proto}', '${e.eventType}', ${e.conntrack_id}, ` +
         `'${e.src_ip}', ${e.src_port}, '${e.dst_ip}', ${e.dst_port}, ` +
         `'${e.nat_src_ip}', ${e.nat_src_port}, '${e.nat_dst_ip}', ${e.nat_dst_port}, ` +
-        `${e.bytes}, ${e.packets}, ${e.duration}, '${e.status}'`
+        `${e.bytes}, ${e.packets}, ${e.duration}, '${e.status}')`
     )
     .join(",");
 

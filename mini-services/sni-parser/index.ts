@@ -414,7 +414,7 @@ async function flushBatch(): Promise<void> {
   const values = items
     .map(
       (e) =>
-        `'${fmtTs(e.timestamp)}', '${e.src_ip}', '${e.dst_ip}', ${e.dst_port}, ` +
+        `('${fmtTs(e.timestamp)}', '${e.src_ip}', '${e.dst_ip}', ${e.dst_port}, ` +
         `'${escapeSql(e.sni_domain)}', '${escapeSql(e.tls_version)}', '${escapeSql(e.ja3_hash)}')`
     )
     .join(",");
