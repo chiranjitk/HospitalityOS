@@ -121,8 +121,14 @@ export async function query<T extends Record<string, unknown> = Record<string, u
   if (IS_DEV) console.log(`[clickhouse] query: ${sql.slice(0, 300)}`);
 
   const url = new URL(CLICKHOUSE_URL);
-  // Use TSVWithNames — first row is column names, data rows follow
-  url.searchParams.set('query', sql);
+  // ClickHouse HTTP API defaults to TabSeparated (no column names).
+  // parseTSV() requires the first row to be column headers, so we
+  // must explicitly request TSVWithNames unless the query already
+  // specifies a FORMAT clause.
+  const formattedSql = /\bFORMAT\b/i.test(sql)
+    ? sql
+    : `${sql.trimEnd()} FORMAT TSVWithNames`;
+  url.searchParams.set('query', formattedSql);
 
   const body = await request(url.toString(), { method: 'GET' });
   if (body === null) return [];
