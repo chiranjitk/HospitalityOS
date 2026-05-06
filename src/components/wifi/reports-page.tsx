@@ -219,31 +219,46 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<TabId>('bandwidth');
+  const tabsRef = useRef<HTMLDivElement>(null);
+
+  const scrollToTab = (tabId: string) => {
+    setActiveTab(tabId as TabId);
+    // Scroll the clicked tab into view
+    setTimeout(() => {
+      const el = document.getElementById(`tab-btn-${tabId}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }, 50);
+  };
 
   return (
     <TooltipProvider>
       <div className="space-y-4">
         {/* Tab Navigation */}
-        <div className="flex gap-1 rounded-lg bg-muted/50 p-1 overflow-x-auto">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap',
-                  isActive
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            );
-          })}
+        <div className="relative">
+          <div ref={tabsRef} className="flex gap-1 rounded-lg bg-muted/50 p-1 overflow-x-auto scrollbar-thin" style={{ scrollbarWidth: 'thin' }}>
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  id={`tab-btn-${tab.id}`}
+                  onClick={() => scrollToTab(tab.id)}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap shrink-0',
+                    isActive
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+          {/* Scroll hint arrows */}
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent pointer-events-none rounded-r-lg" />
         </div>
 
         {/* Tab Content */}
