@@ -1,9 +1,10 @@
 {
-  "lastSyncAt": "2026-05-03T04:47:06.780Z",
+  "lastSyncAt": "2026-05-06T22:02:57.058Z",
   "tenantId": "444017d5-e022-4c5f-ac07-ea0d51f4609b",
-  "totalDomains": 1256,
-  "categoriesCount": 12,
-  "filtersActive": 15,
+  "propertyId": "600daed4-4d6a-4cb2-a07e-46bec7f4c43b",
+  "totalDomains": 0,
+  "categoriesCount": 0,
+  "filtersActive": 0,
   "configFiles": [
     "e2guardianf1.conf",
     "e2guardianf2.conf",
