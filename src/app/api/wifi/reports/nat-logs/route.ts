@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { query, isAvailable } from '@/lib/clickhouse';
+import { getNatLogsFromUlogd, resolveGuestNames } from '@/lib/ulogd-reader';
 
 // ─── Static data for demo fallback ──────────────────────────────
 
@@ -346,7 +347,43 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ── Fallback demo data ──────────────────────────────────────
+    // ── Fallback 2: ulogd2 JSON files (NFLOG SNI + NFCT flow) ──
+    // Data source: /var/log/ulogd2/sni.json + /var/log/ulogd2/flow.json
+    // This is the live data path when ClickHouse is not set up.
+    {
+      const ulogdData = await getNatLogsFromUlogd({
+        sourceIp: sourceIp ?? undefined,
+        protocol: protocol ?? undefined,
+        maxRecords: 500,
+      });
+
+      if (ulogdData.length > 0) {
+        // Resolve guest names from WiFi sessions
+        const uniqueIps = [...new Set(ulogdData.map((d) => d.source_ip))];
+        const guestMap = await resolveGuestNames(uniqueIps, user.tenantId);
+
+        // Attach guest names
+        for (const entry of ulogdData) {
+          entry.guestName = guestMap.get(entry.source_ip) ?? '';
+        }
+
+        // Apply action filter if needed
+        const filtered = action
+          ? ulogdData.filter((row) => row.action === action)
+          : ulogdData;
+
+        const summary = computeSummary(filtered);
+
+        return NextResponse.json({
+          success: true,
+          data: filtered,
+          summary,
+          dataSource: 'ulogd2',
+        });
+      }
+    }
+
+    // ── Fallback 3: deterministic demo data ──────────────────────
     if (!enriched || enriched.length === 0) {
       const demoData = generateDemoData(100);
 

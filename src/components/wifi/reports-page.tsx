@@ -1051,7 +1051,7 @@ function WebSurfingTab() {
           <p className="text-sm text-muted-foreground">Domain-level access logs only. Full URL tracking disabled for guest privacy (GDPR/PIPL).</p>
           <Badge variant={dataSource === 'clickhouse' ? 'default' : 'secondary'} className={cn('mt-1 text-xs', dataSource === 'clickhouse' && 'bg-emerald-600')}>
             <Database className="h-3 w-3 mr-1" />
-            {dataSource === 'clickhouse' ? 'ClickHouse Live' : 'Demo Data'}
+            {dataSource === 'clickhouse' ? 'ClickHouse Live' : dataSource === 'ulogd2' ? 'ulogd2 Live' : 'Demo Data'}
           </Badge>
         </div>
       </div>
@@ -1249,7 +1249,7 @@ function NATLogsTab() {
           <div className="flex gap-2 mt-1">
             <Badge variant={dataSource === 'clickhouse' ? 'default' : 'secondary'} className={cn('text-xs', dataSource === 'clickhouse' && 'bg-emerald-600')}>
               <Database className="h-3 w-3 mr-1" />
-              {dataSource === 'clickhouse' ? 'ClickHouse Live' : 'Demo Data'}
+              {dataSource === 'clickhouse' ? 'ClickHouse Live' : dataSource === 'ulogd2' ? 'ulogd2 Live' : 'Demo Data'}
             </Badge>
             <Badge variant="outline" className="text-xs"><Shield className="h-3 w-3 mr-1" />IPDR Compliant</Badge>
           </div>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { query, isAvailable } from '@/lib/clickhouse';
+import { getWebSurfingFromUlogd, resolveGuestNames } from '@/lib/ulogd-reader';
 
 // ─── Constants ──────────────────────────────────────────────────
 
@@ -425,7 +426,36 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ── Fallback: deterministic demo data ───────────────────────
+    // ── Fallback 2: ulogd2 JSON files (NFLOG SNI + NFCT flow) ──
+    // Data source: /var/log/ulogd2/sni.json + /var/log/ulogd2/flow.json
+    // This is the live data path when ClickHouse is not set up.
+    // ulogd2 captures TLS SNI via NFLOG and connection tracking via NFCT.
+    {
+      const ulogdData = await getWebSurfingFromUlogd({ search, category });
+
+      if (ulogdData.length > 0) {
+        // Resolve guest names from WiFi sessions
+        const uniqueIps = [...new Set(ulogdData.map((d) => d.sourceIp))];
+        const guestMap = await resolveGuestNames(uniqueIps, user.tenantId);
+
+        // Attach guest names
+        for (const entry of ulogdData) {
+          entry.guestName = guestMap.get(entry.sourceIp) ?? '';
+        }
+
+        const summary = computeSummary(ulogdData);
+
+        return NextResponse.json({
+          success: true,
+          data: ulogdData,
+          summary,
+          categories: [...ALL_CATEGORIES],
+          dataSource: 'ulogd2',
+        });
+      }
+    }
+
+    // ── Fallback 3: deterministic demo data ──────────────────────
     const demoData = generateDemoData();
     const filtered = applyFilters(demoData, search, category);
     const summary = computeSummary(filtered);
