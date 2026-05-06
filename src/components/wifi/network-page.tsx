@@ -39,7 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
+
 import {
   Network,
   Wifi,
@@ -58,7 +58,7 @@ import {
   ArrowRightLeft,
   Server,
   Monitor,
-  Radio,
+
   ToggleLeft,
   ToggleRight,
   Search,
@@ -167,14 +167,7 @@ interface PortForwardRule {
 
 
 
-interface FilterCategory {
-  id: string;
-  name: string;
-  icon: string;
-  domainCount: number;
-  enabled: boolean;
-  domains: string[];
-}
+
 
 
 
@@ -353,24 +346,9 @@ const protocolBadgeColor: Record<string, string> = {
   'TCP/UDP': 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
 };
 
-const filterCategoryIcons: Record<string, React.ReactNode> = {
-  Globe: <Globe className="h-6 w-6" />,
-  Monitor: <Monitor className="h-6 w-6" />,
-  Shield: <Shield className="h-6 w-6" />,
-  Radio: <Radio className="h-6 w-6" />,
-  AlertCircle: <AlertCircle className="h-6 w-6" />,
-  Edit2: <Edit2 className="h-6 w-6" />,
-};
 
-const filterCategoryColors: Record<string, string> = {
-  'Social Media': 'from-rose-500 to-pink-600',
-  'Streaming': 'from-violet-500 to-purple-600',
-  'Adult Content': 'from-red-600 to-rose-700',
-  'Gaming': 'from-emerald-500 to-teal-600',
-  'Malware': 'from-red-500 to-orange-600',
-  'Ads & Trackers': 'from-amber-500 to-yellow-600',
-  'Custom': 'from-slate-500 to-gray-600',
-};
+
+
 
 const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -402,7 +380,7 @@ function TrafficGraph({ rx, tx }: { rx: number; tx: number }) {
 
 // ─── TAB CONFIG ──────────────────────────────────────────────────────────────
 
-type TabId = 'interfaces' | 'vlans' | 'bridges-bonds' | 'routes' | 'multiwan' | 'content-filtering' | 'schedules' | 'backup';
+type TabId = 'interfaces' | 'vlans' | 'bridges-bonds' | 'routes' | 'multiwan' | 'schedules' | 'backup';
 
 const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'interfaces', label: 'Interfaces', icon: <Network className="h-4 w-4" /> },
@@ -410,7 +388,6 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'bridges-bonds', label: 'Bridges & Bonds', icon: <ArrowRightLeft className="h-4 w-4" /> },
   { id: 'routes', label: 'Routes', icon: <Route className="h-4 w-4" /> },
   { id: 'multiwan', label: 'Multi-WAN', icon: <Workflow className="h-4 w-4" /> },
-  { id: 'content-filtering', label: 'Content Filtering', icon: <Shield className="h-4 w-4" /> },
   { id: 'schedules', label: 'Schedules', icon: <Clock className="h-4 w-4" /> },
   { id: 'backup', label: 'Backup', icon: <Download className="h-4 w-4" /> },
 ];
@@ -435,16 +412,11 @@ export default function NetworkPage() {
   const [editPortForwardOpen, setEditPortForwardOpen] = useState(false);
   const [selectedPortForward, setSelectedPortForward] = useState<PortForwardRule | null>(null);
 
-  const [editFilterOpen, setEditFilterOpen] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState<FilterCategory | null>(null);
-
-  const [addFilterOpen, setAddFilterOpen] = useState(false);
   const [addScheduleOpen, setAddScheduleOpen] = useState(false);
 
   // Loading states
   const [loadingInterfaces, setLoadingInterfaces] = useState(true);
   const [loadingVlans, setLoadingVlans] = useState(true);
-  const [loadingFilters, setLoadingFilters] = useState(true);
   const [loadingSchedules, setLoadingSchedules] = useState(true);
   const [loadingBackups, setLoadingBackups] = useState(true);
 
@@ -455,7 +427,6 @@ export default function NetworkPage() {
   const [bonds, setBonds] = useState<BondEntry[]>([]);
   const [roles, setRoles] = useState<InterfaceRole[]>([]);
   const [portForwards, setPortForwards] = useState<PortForwardRule[]>([]);
-  const [filterCategories, setFilterCategories] = useState<FilterCategory[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [backups, setBackups] = useState<BackupSnapshot[]>([]);
 
@@ -503,9 +474,6 @@ export default function NetworkPage() {
   const [loadingBridges, setLoadingBridges] = useState(false);
   const [loadingBonds, setLoadingBonds] = useState(false);
 
-  const [editFilterDomains, setEditFilterDomains] = useState('');
-
-  const [newFilter, setNewFilter] = useState({ name: '', category: 'custom', enabled: true });
   const [newSchedule, setNewSchedule] = useState({ name: '', days: [true, true, true, true, true, false, false] as boolean[], startTime: '06:00', endTime: '22:00', applyTo: 'Guest VLAN', action: 'Allow', enabled: true });
 
   // ── API data fetchers ──
@@ -717,47 +685,6 @@ export default function NetworkPage() {
     }
   }, [propertyId, toast]);
 
-  const fetchFilters = useCallback(async () => {
-    setLoadingFilters(true);
-    try {
-      const params = new URLSearchParams();
-      if (propertyId) params.set('propertyId', propertyId);
-      const res = await fetch(`/api/wifi/firewall/content-filter?${params.toString()}`);
-      const result = await res.json();
-      if (result.success && Array.isArray(result.data)) {
-        const categoryIcons: Record<string, string> = {
-          social_media: 'Globe', streaming: 'Monitor', adult: 'Shield',
-          gaming: 'Radio', malware: 'AlertCircle', ads: 'Shield', custom: 'Edit2'
-        };
-        const categoryNames: Record<string, string> = {
-          social_media: 'Social Media', streaming: 'Streaming', adult: 'Adult Content',
-          gaming: 'Gaming', malware: 'Malware', ads: 'Ads & Trackers', custom: 'Custom'
-        };
-        const mapped: FilterCategory[] = result.data.map((row: Record<string, unknown>) => {
-          const cat = (row.category as string) || 'custom';
-          let domains: string[] = [];
-          try { domains = JSON.parse((row.domains as string) || '[]'); } catch { domains = []; }
-          return {
-            id: row.id as string,
-            name: (row.name as string) || categoryNames[cat] || cat,
-            icon: categoryIcons[cat] || 'Shield',
-            domainCount: domains.length,
-            enabled: (row.enabled as boolean) ?? true,
-            domains,
-          };
-        });
-        setFilterCategories(mapped);
-      } else {
-        setFilterCategories([]);
-      }
-    } catch {
-      setFilterCategories([]);
-      toast({ title: 'Error', description: 'Failed to load content filters', variant: 'destructive' });
-    } finally {
-      setLoadingFilters(false);
-    }
-  }, [propertyId, toast]);
-
   const fetchSchedules = useCallback(async () => {
     setLoadingSchedules(true);
     try {
@@ -799,10 +726,6 @@ export default function NetworkPage() {
   useEffect(() => {
     fetchVlans();
   }, [fetchVlans]);
-
-  useEffect(() => {
-    fetchFilters();
-  }, [fetchFilters]);
 
   useEffect(() => {
     fetchSchedules();
@@ -1664,97 +1587,6 @@ export default function NetworkPage() {
     setPortForwards(prev => prev.map(p => ({ ...p, enabled })));
   };
 
-  // ── Filter handlers ──
-  const handleToggleFilter = async (id: string) => {
-    const filter = filterCategories.find(f => f.id === id);
-    if (!filter) return;
-    setFilterCategories(prev => prev.map(f => f.id === id ? { ...f, enabled: !f.enabled } : f));
-    try {
-      const res = await fetch(`/api/wifi/firewall/content-filter/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: !filter.enabled }),
-      });
-      const result = await res.json();
-      if (!result.success) {
-        setFilterCategories(prev => prev.map(f => f.id === id ? { ...f, enabled: filter.enabled } : f));
-        toast({ title: 'Error', description: result.error?.message || 'Failed to update filter', variant: 'destructive' });
-      } else {
-        toast({ title: 'Updated', description: `${filter.name} ${!filter.enabled ? 'enabled' : 'disabled'}` });
-      }
-    } catch {
-      setFilterCategories(prev => prev.map(f => f.id === id ? { ...f, enabled: filter.enabled } : f));
-      toast({ title: 'Error', description: 'Failed to update filter', variant: 'destructive' });
-    }
-  };
-
-  const handleOpenEditFilter = (cat: FilterCategory) => {
-    setSelectedFilter(cat);
-    setEditFilterDomains(cat.domains.join('\n'));
-    setEditFilterOpen(true);
-  };
-
-  const handleSaveEditFilter = async () => {
-    if (!selectedFilter) return;
-    const domains = editFilterDomains.split('\n').map(d => d.trim()).filter(Boolean);
-    try {
-      const res = await fetch(`/api/wifi/firewall/content-filter/${selectedFilter.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domains }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        setFilterCategories(prev => prev.map(f => f.id === selectedFilter.id ? { ...f, domains, domainCount: domains.length } : f));
-        setEditFilterOpen(false);
-        toast({ title: 'Saved', description: 'Domain list updated' });
-      } else {
-        toast({ title: 'Error', description: result.error?.message || 'Failed to save', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Error', description: 'Failed to save domains', variant: 'destructive' });
-    }
-  };
-
-  const handleCreateFilter = async () => {
-    if (!newFilter.name || !propertyId) return;
-    try {
-      const res = await fetch('/api/wifi/firewall/content-filter', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ propertyId, name: newFilter.name, category: newFilter.category, enabled: newFilter.enabled, domains: [] }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        setAddFilterOpen(false);
-        setNewFilter({ name: '', category: 'custom', enabled: true });
-        fetchFilters();
-        toast({ title: 'Created', description: 'Filter category added' });
-      } else {
-        toast({ title: 'Error', description: result.error?.message || 'Failed to create filter', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Error', description: 'Failed to create filter', variant: 'destructive' });
-    }
-  };
-
-  const handleDeleteFilter = async (id: string) => {
-    const filter = filterCategories.find(f => f.id === id);
-    if (!filter) return;
-    try {
-      const res = await fetch(`/api/wifi/firewall/content-filter/${id}`, { method: 'DELETE' });
-      const result = await res.json();
-      if (result.success) {
-        setFilterCategories(prev => prev.filter(f => f.id !== id));
-        toast({ title: 'Deleted', description: `${filter.name} removed` });
-      } else {
-        toast({ title: 'Error', description: result.error?.message || 'Failed to delete', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Error', description: 'Failed to delete filter', variant: 'destructive' });
-    }
-  };
-
   // ── Schedule handlers ──
   const handleToggleSchedule = async (id: string) => {
     const schedule = schedules.find(s => s.id === id);
@@ -1839,7 +1671,7 @@ export default function NetworkPage() {
             Network Management
           </h2>
           <p className="text-sm text-muted-foreground">
-            Configure interfaces, VLANs, routing, firewall rules, and content filtering
+            Configure interfaces, VLANs, routing, firewall rules, and network policies
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -3296,164 +3128,7 @@ export default function NetworkPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ═══════ TAB 5: CONTENT FILTERING ═══════ */}
-        {activeTab === 'content-filtering' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <p className="text-sm text-muted-foreground">
-                Manage DNS-based content filtering categories. Block or allow specific website categories for guest and staff networks.
-              </p>
-              <Button onClick={() => setAddFilterOpen(true)} className="bg-teal-600 hover:bg-teal-700">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Filter
-              </Button>
-            </div>
-
-            {loadingFilters ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="h-8 w-8 animate-spin text-teal-500 dark:text-teal-400" />
-                <span className="ml-3 text-sm text-muted-foreground">Loading content filters…</span>
-              </div>
-            ) : filterCategories.length === 0 ? (
-              <Card className="border-dashed"><CardContent className="p-12 text-center"><Shield className="h-10 w-10 mx-auto mb-3 text-muted-foreground" /><p className="text-sm text-muted-foreground">No content filters configured. Add a filter category to block or allow specific domains.</p></CardContent></Card>
-            ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filterCategories.map((cat) => (
-                <Card
-                  key={cat.id}
-                  className="transition-all duration-200 hover:scale-[1.01] hover:shadow-md border-border/50"
-                >
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <div className={cn(
-                        'p-2.5 rounded-xl bg-gradient-to-br text-white shadow-sm',
-                        filterCategoryColors[cat.name] || 'from-slate-500 to-gray-600'
-                      )}>
-                        {filterCategoryIcons[cat.icon] || <Shield className="h-6 w-6" />}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Switch checked={cat.enabled} onCheckedChange={() => handleToggleFilter(cat.id)} />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-red-600 dark:text-red-400"
-                          onClick={() => handleDeleteFilter(cat.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <CardTitle className="text-sm font-semibold mb-1">{cat.name}</CardTitle>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Badge variant="outline" className="text-[10px]">
-                        {cat.domainCount.toLocaleString()} domains
-                      </Badge>
-                      {cat.enabled ? (
-                        <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-[10px]">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />Active
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-[10px]">
-                          <XCircle className="h-3 w-3 mr-1" />Disabled
-                        </Badge>
-                      )}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full text-xs"
-                      onClick={() => handleOpenEditFilter(cat)}
-                    >
-                      <Edit2 className="h-3.5 w-3.5 mr-1.5" />
-                      Edit Domains
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            )}
-
-            {/* Edit Filter Dialog */}
-            <Dialog open={editFilterOpen} onOpenChange={setEditFilterOpen}>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Edit Category — {selectedFilter?.name}</DialogTitle>
-                  <DialogDescription>Manage the domain list for this filter category. One domain per line.</DialogDescription>
-                </DialogHeader>
-                <div className="py-2">
-                  <Label className="mb-2 block">Domain List</Label>
-                  <Textarea
-                    value={editFilterDomains}
-                    onChange={e => setEditFilterDomains(e.target.value)}
-                    rows={10}
-                    className="font-mono text-xs"
-                    placeholder="Enter one domain per line..."
-                  />
-                  {selectedFilter?.name === 'Adult Content' || selectedFilter?.name === 'Malware' ? (
-                    <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" />
-                      This category uses an automatically maintained blocklist. Custom entries will be merged.
-                    </p>
-                  ) : null}
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setEditFilterOpen(false)}>Cancel</Button>
-                  <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleSaveEditFilter}>Save Domains</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            {/* Add Filter Dialog */}
-            <Dialog open={addFilterOpen} onOpenChange={setAddFilterOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add Filter Category</DialogTitle>
-                  <DialogDescription>Create a new DNS-based content filter category</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-2">
-                  <div className="space-y-2">
-                    <Label>Filter Name</Label>
-                    <Input
-                      placeholder="e.g., Social Media"
-                      value={newFilter.name}
-                      onChange={e => setNewFilter(prev => ({ ...prev, name: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Category</Label>
-                    <Select value={newFilter.category} onValueChange={value => setNewFilter(prev => ({ ...prev, category: value }))}>
-                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="social_media">Social Media</SelectItem>
-                        <SelectItem value="streaming">Streaming</SelectItem>
-                        <SelectItem value="adult">Adult Content</SelectItem>
-                        <SelectItem value="gaming">Gaming</SelectItem>
-                        <SelectItem value="malware">Malware</SelectItem>
-                        <SelectItem value="ads">Ads & Trackers</SelectItem>
-                        <SelectItem value="custom">Custom</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      checked={newFilter.enabled}
-                      onCheckedChange={checked => setNewFilter(prev => ({ ...prev, enabled: checked }))}
-                    />
-                    <Label>Enable immediately</Label>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setAddFilterOpen(false)}>Cancel</Button>
-                  <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleCreateFilter}>Create Filter</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-        )}
-
-        {/* ═══════ TAB 7: SCHEDULES ═══════ */}
+        {/* ═══════ TAB 6: SCHEDULES ═══════ */}
         {activeTab === 'schedules' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
