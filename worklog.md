@@ -27,3 +27,39 @@ Stage Summary:
 - Admin login: admin@royalstay.in / admin123
 - Platform admin: platform@staysuite.com / admin123
 - nftables warning expected (sandbox kernel limitation, session engine runs in fallback mode)
+
+---
+Task ID: 2
+Agent: Main Fix Agent
+Task: Fix bytes showing zero + guest name missing in web-surfing and nat-logs
+
+Work Log:
+- Read conntrack-bridge/index.ts (545 lines) — found event insertion on line 287-307
+- Read web-surfing/route.ts (505 lines) — found nat_log query on line 340-348
+- Read nat-logs/route.ts (429 lines) — found nat_log query on line 224-229
+- Read ulogd-reader.ts resolveGuestNames() — found single-step WiFiSession lookup
+
+Applied 5 fixes across 4 files:
+
+Fix 1 — conntrack-bridge/index.ts:
+  - Added filter: only push to ClickHouse when bytes > 0 OR eventType === 'DESTROY'
+  - Prevents zero-byte NEW events from diluting SUM(bytes) queries
+
+Fix 2 — web-surfing/route.ts:
+  - Added AND bytes > 0 to ClickHouse nat_log query
+  - Enhanced guest name resolution with DHCP lease + DeviceProfile fallback
+
+Fix 3 — nat-logs/route.ts:
+  - Added AND bytes > 0 to ClickHouse nat_log WHERE clause
+  - Enhanced guest name resolution: WiFiSession → DhcpLease → DeviceProfile → WiFiUser → Guest
+
+Fix 4 — ulogd-reader.ts resolveGuestNames():
+  - Added same DHCP lease + DeviceProfile MAC fallback for ulogd2 data path
+
+Fix 5 — All files passed ESLint with zero warnings
+
+Stage Summary:
+- Commit: fix: zero-byte NAT events + enhanced guest name resolution (3b87425e)
+- Pushed to origin/main successfully
+- Next.js restarted, responding HTTP 200
+- Guest resolution now has 3-tier fallback: WiFiSession → DhcpLease → DeviceProfile
