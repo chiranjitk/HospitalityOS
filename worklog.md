@@ -142,3 +142,25 @@ Stage Summary:
 - File changed: `scripts/staysuite_core/defaultchains_cryptsk.sh`
 - Commit: 973c4c04 "fix: revert filter forward chain — was breaking DNS and captive portal redirect"
 - DNS forwarding and captive portal redirect should work again after `git pull && bash scripts/staysuite_core/defaultchains_cryptsk.sh`
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Fix conntrack-bridge and sni-parser for ClickHouse data ingestion
+
+Work Log:
+- Diagnosed two ClickHouse ingestion failures from server logs
+- conntrack-bridge: DateTime parse error — ISO 8601 `2026-05-06T17:24:14.567Z` not accepted by ClickHouse DateTime column
+- sni-parser: Wrong file path (`/var/log/ulogd/json/sni-queries.log`) and wrong format parser (raw NFLOG hex instead of PRINTSNI)
+
+Fixes Applied:
+1. conntrack-bridge: Added `toClickHouseDateTime()` helper that converts ISO → `YYYY-MM-DD HH:MM:SS`
+2. sni-parser: Changed default file path from `/var/log/ulogd/json/sni-queries.log` → `/var/log/ulogd2/sni.json`
+3. sni-parser: Added `parsePrintsniRecord()` parser for ulogd2 PRINTSNI format (`sni.hostname`, `sni.tls.version`, `src_ip`, `dest_ip`)
+4. sni-parser: Added auto-detection: checks for `sni.hostname` (printsni), `raw.pkt` (ulogd2 raw), or falls back to simple
+5. sni-parser: Added `fmtTs()` in flushBatch to convert timestamps for ClickHouse
+
+Stage Summary:
+- Files modified: mini-services/conntrack-bridge/index.ts, mini-services/sni-parser/index.ts
+- After git pull + pm2 restart conntrack-bridge sni-parser, data should flow to ClickHouse
+- Verify with: clickhouse-client --query "SELECT count() FROM ipdr.sni_log"

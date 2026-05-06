@@ -226,6 +226,14 @@ async function ensureClickHouseTable(): Promise<void> {
   }
 }
 
+/** Convert ISO 8601 timestamp to ClickHouse DateTime format (YYYY-MM-DD HH:MM:SS) */
+function toClickHouseDateTime(iso: string): string {
+  // ClickHouse DateTime expects 'YYYY-MM-DD HH:MM:SS' (no T, no Z, no ms)
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return new Date().toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
+  return d.toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
+}
+
 async function flushBatch(): Promise<void> {
   if (batch.length === 0) return;
 
@@ -236,10 +244,10 @@ async function flushBatch(): Promise<void> {
   const values = items
     .map(
       (e) =>
-        `('${e.timestamp}', '${e.proto}', '${e.eventType}', ${e.conntrack_id}, ` +
+        `'${toClickHouseDateTime(e.timestamp)}', '${e.proto}', '${e.eventType}', ${e.conntrack_id}, ` +
         `'${e.src_ip}', ${e.src_port}, '${e.dst_ip}', ${e.dst_port}, ` +
         `'${e.nat_src_ip}', ${e.nat_src_port}, '${e.nat_dst_ip}', ${e.nat_dst_port}, ` +
-        `${e.bytes}, ${e.packets}, ${e.duration}, '${e.status}')`
+        `${e.bytes}, ${e.packets}, ${e.duration}, '${e.status}'`
     )
     .join(",");
 

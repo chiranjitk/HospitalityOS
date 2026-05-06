@@ -12,10 +12,11 @@
 // ─── Configuration ──────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || "3022", 10);
 const CLICKHOUSE_URL = process.env.CLICKHOUSE_URL || "http://127.0.0.1:8123";
-// Log file path — supports both simple JSON and ulogd2 JSONLOG format
-const SNI_LOG_FILE = process.env.SNI_LOG_FILE || "/var/log/ulogd/json/sni-queries.log";
+// Log file path — supports ulogd2 PRINTSNI output, simple JSON, and raw NFLOG JSON
+const SNI_LOG_FILE = process.env.SNI_LOG_FILE || "/var/log/ulogd2/sni.json";
 // Log format: "simple" = pre-parsed {sni_domain,...}, "ulogd2" = raw NFLOG JSON with raw.pkt hex
-const SNI_LOG_FORMAT = process.env.SNI_LOG_FORMAT || "ulogd2";
+// Auto-detected if not set: if file has "sni.hostname" → printsni, if has "raw.pkt" → ulogd2, else simple
+const SNI_LOG_FORMAT = process.env.SNI_LOG_FORMAT || "auto";
 const RING_BUFFER_SIZE = 5000;
 const BATCH_INTERVAL_MS = 2000;
 const BATCH_MAX_SIZE = 500;
@@ -257,6 +258,45 @@ function parseSimpleRecord(obj: Record<string, unknown>): any | null {
   };
 }
 
+/**
+ * Parse ulogd2 PRINTSNI output (the format our ulogd2 stack produces).
+ * Fields: sni.hostname, sni.tls.version, src_ip, dest_ip, timestamp, raw.pktlen, oob.in
+ * This is the standard StaySuite ulogd2 stack: NFLOG → inp:ip → PRINTSNI → JSON
+ */
+function parsePrintsniRecord(obj: Record<string, unknown>): any | null {
+  // PRINTSNI plugin outputs "sni.hostname" key
+  const sniDomain = String(obj["sni.hostname"] || obj["sni_domain"] || "").trim();
+  if (!sniDomain) return null;
+
+  const srcIp = String(obj.src_ip || obj["ip.saddr"] || "");
+  const dstIp = String(obj.dest_ip || obj.dst_ip || obj["ip.daddr"] || "");
+  const dstPort = parseInt(String(obj.dest_port || obj["tcp.dport"] || "443"), 10);
+  const tlsVersion = String(obj["sni.tls.version"] || obj.tls_version || "unknown");
+
+  // Timestamp: ulogd2 outputs ISO-like string or epoch seconds
+  let timestamp: string;
+  const tsRaw = String(obj.timestamp || "");
+  if (tsRaw && !isNaN(Date.parse(tsRaw))) {
+    timestamp = new Date(tsRaw).toISOString();
+  } else {
+    const timeSec = Number(obj.timestamp || obj["oob.time.sec"] || 0);
+    timestamp = timeSec ? new Date(timeSec * 1000).toISOString() : new Date().toISOString();
+  }
+
+  return {
+    timestamp,
+    src_ip: srcIp,
+    dst_ip: dstIp,
+    dst_port: dstPort || 443,
+    sni_domain: sniDomain,
+    tls_version: tlsVersion,
+    ja3_hash: "",
+  };
+}
+
+// Track detected format for auto-detection
+let detectedFormat: string | null = null;
+
 function parseSniRecord(line: string): any | null {
   const trimmed = line.trim();
   if (!trimmed || trimmed.startsWith("#")) return null;
@@ -264,9 +304,26 @@ function parseSniRecord(line: string): any | null {
   try {
     const obj = JSON.parse(trimmed);
 
-    // Auto-detect format: ulogd2 JSON has "raw.pkt" or "oob.time.sec" keys
+    // Auto-detect format on first non-empty record
+    if (!detectedFormat) {
+      if (SNI_LOG_FORMAT !== "auto") {
+        detectedFormat = SNI_LOG_FORMAT;
+      } else if (obj["sni.hostname"]) {
+        detectedFormat = "printsni";
+        console.log(`[${SERVICE_NAME}] Auto-detected log format: printsni (ulogd2 PRINTSNI output)`);
+      } else if (obj["raw.pkt"]) {
+        detectedFormat = "ulogd2";
+        console.log(`[${SERVICE_NAME}] Auto-detected log format: ulogd2 (raw NFLOG packet hex)`);
+      } else {
+        detectedFormat = "simple";
+        console.log(`[${SERVICE_NAME}] Auto-detected log format: simple (pre-parsed JSON)`);
+      }
+    }
+
     let record: any;
-    if (SNI_LOG_FORMAT === "ulogd2" || obj["raw.pkt"] || obj["oob.time.sec"]) {
+    if (detectedFormat === "printsni" || obj["sni.hostname"]) {
+      record = parsePrintsniRecord(obj);
+    } else if (detectedFormat === "ulogd2" || obj["raw.pkt"] || obj["oob.time.sec"]) {
       record = parseUlogd2Record(obj);
     } else {
       record = parseSimpleRecord(obj);
@@ -349,10 +406,15 @@ async function flushBatch(): Promise<void> {
   batch = [];
   totalBatches++;
 
+  /** Convert ISO 8601 to ClickHouse DateTime format (YYYY-MM-DD HH:MM:SS) */
+  function fmtTs(iso: string): string {
+    return iso.replace('T', ' ').replace('Z', '').replace(/\.\d{3}$/, '').slice(0, 19);
+  }
+
   const values = items
     .map(
       (e) =>
-        `('${e.timestamp}', '${e.src_ip}', '${e.dst_ip}', ${e.dst_port}, ` +
+        `'${fmtTs(e.timestamp)}', '${e.src_ip}', '${e.dst_ip}', ${e.dst_port}, ` +
         `'${escapeSql(e.sni_domain)}', '${escapeSql(e.tls_version)}', '${escapeSql(e.ja3_hash)}')`
     )
     .join(",");
