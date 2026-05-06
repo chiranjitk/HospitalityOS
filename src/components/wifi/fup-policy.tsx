@@ -614,41 +614,41 @@ export default function WifiFupPolicy() {
           </div>
         </Card>
 
-        {/* Total Policies */}
+        {/* Active Policies */}
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-teal-500/10">
               <Gauge className="h-5 w-5 text-teal-500 dark:text-teal-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold tabular-nums">{policies.length}</div>
-              <div className="text-xs text-muted-foreground">Total Policies</div>
+              <div className="text-2xl font-bold tabular-nums">{activePolicies.length}<span className="text-sm font-normal text-muted-foreground">/{policies.length}</span></div>
+              <div className="text-xs text-muted-foreground">Active Policies</div>
             </div>
           </div>
         </Card>
 
-        {/* Users Throttled */}
+        {/* Daily Cycles */}
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-amber-500/10">
               <Smartphone className="h-5 w-5 text-amber-500 dark:text-amber-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold tabular-nums">0</div>
-              <div className="text-xs text-muted-foreground">Users Throttled</div>
+              <div className="text-2xl font-bold tabular-nums">{policies.filter(p => p.cycleType === 'daily').length}</div>
+              <div className="text-xs text-muted-foreground">Daily Cycles</div>
             </div>
           </div>
         </Card>
 
-        {/* Bandwidth Saved */}
+        {/* Data Limits Enforced */}
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-purple-500/10">
               <Database className="h-5 w-5 text-purple-500 dark:text-purple-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold">--</div>
-              <div className="text-xs text-muted-foreground">Bandwidth Saved</div>
+              <div className="text-2xl font-bold tabular-nums">{activePolicies.length}</div>
+              <div className="text-xs text-muted-foreground">Limits Enforced</div>
             </div>
           </div>
         </Card>

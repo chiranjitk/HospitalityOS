@@ -239,8 +239,8 @@ export default function FapPolicies() {
         dataLimit: Number(form.dataLimit),
         unit: form.unit,
         throttlePolicyId: form.throttlePolicyId || null,
-        resetHours: Number(form.resetHours),
-        resetMinutes: Number(form.resetMinutes),
+        cycleResetHour: Number(form.resetHours),
+        cycleResetMinute: Number(form.resetMinutes),
         enabled: form.enabled,
         applicableOn: form.applicableOn,
       };

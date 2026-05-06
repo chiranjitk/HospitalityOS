@@ -65,6 +65,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { formatDistanceToNow } from 'date-fns';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -859,8 +860,8 @@ export default function FupDashboard() {
                 <TrendingUp className="h-5 w-5 text-purple-500 dark:text-purple-400" />
               </div>
               <div>
-                <div className="text-2xl font-bold">—</div>
-                <div className="text-xs text-muted-foreground">BW Saved</div>
+                <div className="text-2xl font-bold tabular-nums">{policyBreakdowns.reduce((sum, b) => sum + b.exceeded, 0)}</div>
+                <div className="text-xs text-muted-foreground">Users Exceeded</div>
               </div>
             </div>
           </Card>

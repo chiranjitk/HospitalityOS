@@ -77,8 +77,6 @@ import {
   RefreshCw,
   Zap,
 } from 'lucide-react';
-const FapPolicies = lazy(() => import('./fap-policies'));
-
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { usePropertyId } from '@/hooks/use-property';
@@ -404,7 +402,7 @@ function TrafficGraph({ rx, tx }: { rx: number; tx: number }) {
 
 // ─── TAB CONFIG ──────────────────────────────────────────────────────────────
 
-type TabId = 'interfaces' | 'vlans' | 'bridges-bonds' | 'routes' | 'multiwan' | 'content-filtering' | 'schedules' | 'fap-policies' | 'backup';
+type TabId = 'interfaces' | 'vlans' | 'bridges-bonds' | 'routes' | 'multiwan' | 'content-filtering' | 'schedules' | 'backup';
 
 const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'interfaces', label: 'Interfaces', icon: <Network className="h-4 w-4" /> },
@@ -414,7 +412,6 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'multiwan', label: 'Multi-WAN', icon: <Workflow className="h-4 w-4" /> },
   { id: 'content-filtering', label: 'Content Filtering', icon: <Shield className="h-4 w-4" /> },
   { id: 'schedules', label: 'Schedules', icon: <Clock className="h-4 w-4" /> },
-  { id: 'fap-policies', label: 'FAP Policies', icon: <Radio className="h-4 w-4" /> },
   { id: 'backup', label: 'Backup', icon: <Download className="h-4 w-4" /> },
 ];
 
@@ -3652,19 +3649,7 @@ export default function NetworkPage() {
           </div>
         )}
 
-        {/* ═══════ TAB 8: FAP POLICIES ═══════ */}
-        {activeTab === 'fap-policies' && (
-          <Suspense fallback={
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-teal-500 dark:text-teal-400" />
-              <span className="ml-3 text-sm text-muted-foreground">Loading FAP Policies…</span>
-            </div>
-          }>
-            <FapPolicies />
-          </Suspense>
-        )}
-
-        {/* ═══════ TAB 9: BACKUP ═══════ */}
+        {/* ═══════ TAB 8: BACKUP ═══════ */}
         {activeTab === 'backup' && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between gap-3">
