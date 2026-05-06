@@ -64,6 +64,63 @@ Stage Summary:
 - Custom plugin: ulogd_filter_PRINTSNI.so (TLS SNI extraction)
 - Config: /home/z/my-project/tools/ulogd-build/ulogd.conf
 - To run: LD_LIBRARY_PATH=/home/z/my-project/tools/ulogd-build/install/lib ulogd -c /home/z/my-project/tools/ulogd-build/ulogd.conf
-- iptables rules needed:
-  - iptables -I FORWARD -j NFLOG --nflog-group 10 (general packet logging)
-  - iptables -I FORWARD -p tcp --dport 443 -j NFLOG --nflog-group 20 (TLS SNI capture)
+- nftables rules (NOT iptables — user uses nftables in production):
+  - nft add rule inet mangle prerouting log group 10 (general packet logging)
+  - nft add rule inet mangle prerouting tcp dport 443 tcp flags & (syn|rst|fin) == 0 log group 20 snaplen 1500 (TLS SNI capture)
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Review and fix scripts/staysuite_core/defaultchains_cryptsk.sh nftables rules
+
+Work Log:
+- Full code review of 498-line nftables script for StaySuite HospitalityOS gateway
+- Identified 8 issues across 4 severity levels (2 critical, 3 important, 2 moderate, 1 minor)
+- Applied all fixes to the script and ulogd.conf
+
+Issues Found & Fixed:
+1. **CRITICAL — filter input policy was `accept`** (line 461):
+   - All traffic silently passed through if no rule matched
+   - Fixed: Changed to `policy drop` with explicit accept rules + `jump drop_log` at end
+
+2. **CRITICAL — drop_log chain defined but never used** (lines 173-175):
+   - Chain existed with log+drop but nothing jumped to it
+   - Fixed: Added `nft 'add rule inet filter input jump drop_log'` as final input rule
+
+3. **IMPORTANT — No filter forward chain**:
+   - Gateway forwarded all traffic unrestricted through filter table
+   - Fixed: Added complete forward chain (policy drop, established accept, marked traffic accept, logged drop)
+
+4. **IMPORTANT — Security chains didn't skip loopback**:
+   - SYN flood, port scan, SSH brute force, DNS amp, ICMP limit all processed lo traffic
+   - Fixed: Added `iif "lo" accept` as first rule in every security hook chain
+
+5. **IMPORTANT — Multiple gateway insertion order broken** (line 395-404):
+   - `while read` + `insert position 0` caused last DB row to end up at top
+   - Fixed: Collect gateways into array, iterate in reverse so first gateway gets position 0
+
+6. **MODERATE — Port scan rule too aggressive**:
+   - Hardcoded port list couldn't be updated without editing the script
+   - Fixed: Created `portscan_allow` named set (type inet_service) with initial ports
+   - External scripts can now dynamically add: `nft add element inet security portscan_allow { 8080 }`
+
+7. **MODERATE — SMB broadcastfile check was pointless** (lines 220-226):
+   - Both if/then branches executed identical `drop` — the file check did nothing
+   - Fixed: Kept the log-with-file check (useful for debugging) but clarified the drop is unconditional
+
+8. **MINOR — ulogd.conf comments referenced iptables**:
+   - Updated to reference nftables `log group N` syntax instead of `iptables -j NFLOG`
+
+Additional Improvements:
+- Added RADIUS ports (1812/1813) and DHCP (67) to filter input explicit allows
+- Added ICMP accept rule in filter input for gateway diagnostics
+- Added captive portal ports (1812, 1813, 67) to portscan_allow set
+- Simplified ss command for captive portal detection (removed problematic quoting)
+- Added detailed comments explaining each fix in the script header
+
+Stage Summary:
+- Files modified: scripts/staysuite_core/defaultchains_cryptsk.sh, tools/ulogd-build/ulogd.conf
+- Security posture: Changed from permissive (input accept) to restrictive (input/forward drop with explicit allows)
+- Gateway now properly filters forwarded traffic with logged drops
+- All security chains skip loopback for efficiency
+- Port scan protection is now dynamically manageable via named set

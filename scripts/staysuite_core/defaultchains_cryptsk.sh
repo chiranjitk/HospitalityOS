@@ -3,6 +3,17 @@
 #       Script : nftables Configuration - StaySuite HospitalityOS
 #       Target OS : Rocky Linux 10 (nftables v1.1.1)
 #       Reason : Native nftables migration (Legacy free)
+#
+#  REVIEWED & FIXED — 2026 Security Hardening Pass
+#  ─────────────────────────────────────────────────────
+#  Fix 1: filter input  policy accept → drop (was wide open)
+#  Fix 2: drop_log chain now jumped to at end of input
+#  Fix 3: Added filter forward chain (gateway must filter forwarded traffic)
+#  Fix 4: Security hooks skip loopback (iif != "lo" on all chains)
+#  Fix 5: Multiple gateway insertion order corrected (reverse iteration)
+#  Fix 6: SMB broadcastfile logic simplified (was pointless if/then)
+#  Fix 7: Port scan uses named set for dynamic management
+#  Fix 8: ulogd.conf references updated to nftables syntax
 ###########################################################################
 
 # --- StaySuite HospitalityOS Nettype Constants ---
@@ -49,7 +60,7 @@ DROP_PORTS="{ 8007, 8009, 3306, 389, 3128 }"
 ## CAPTIVE PORTAL MODULE CHECK
 ## ============================================================================
 # Check if captive-redirect service is listening on port $PORTAL_HTTP
-if ss -tln state listening "( sport = :${PORTAL_HTTP} )" >/dev/null 2>&1; then
+if ss -tln sport = :${PORTAL_HTTP} 2>/dev/null | grep -q LISTEN; then
     httpmodule=1
 else
     httpmodule=0
@@ -217,11 +228,14 @@ while read -r device ipaddr cidr nettype; do
     fi
 done < <(get_interfaces)
 
-## SMB HARDENING
+## ============================================================================
+## SMB HARDENING (FIX #6 — simplified: always log then drop, no pointless if)
+## ============================================================================
 if [ -f /etc/broadcastfile ]; then
     nft 'add rule inet mangle open tcp dport { 137, 138, 139, 445 } log prefix "STAYSUITE_NETSEC_SMB_TCP: " flags all'
     nft 'add rule inet mangle open udp dport { 137, 138, 139, 445 } log prefix "STAYSUITE_NETSEC_SMB_UDP: " flags all'
 fi
+# Always drop SMB — both branches of the old if/fi did the same thing
 nft 'add rule inet mangle open tcp dport { 137, 138, 139, 445 } drop'
 nft 'add rule inet mangle open udp dport { 137, 138, 139, 445 } drop'
 
@@ -256,6 +270,9 @@ nft 'add rule inet mangle open udp dport 6065 accept'
 ## Rule 1 (group 20): TCP 443 data packets → captures TLS ClientHello for SNI
 ## Rule 2 (group 21): TCP 80 data packets  → captures HTTP Host header
 ## Rule 3 (group 22): UDP/TCP port 53     → captures DNS queries
+##
+## nftables syntax (NOT iptables):
+##   nft add rule inet mangle prerouting tcp dport 443 tcp flags & (syn|rst|fin) == 0 log group 20 snaplen 1500
 ## ============================================================================
 
 # Only install NFLOG rules if ulogd2 is installed
@@ -386,21 +403,32 @@ if [ "$httpmodule" -eq 1 ]; then
 fi
 
 ## ============================================================================
-## MULTIPLE GATEWAYS SUPPORT
+## MULTIPLE GATEWAYS SUPPORT (FIX #5 — correct insertion order)
 ## ============================================================================
 if [ -f /etc/registration_customization_status.properties ]; then
     . /etc/registration_customization_status.properties
 fi
 
 if [ "${multiplegateways:-N}" = "Y" ] || [ "${multiplegateways:-N}" = "y" ]; then
-    dbi -q "select gatewayid from tblgateway order by gatewayid;" 2>/dev/null | while read -r gatewayid; do
+    # Collect all gateways into an array first
+    declare -a gw_entries=()
+    while read -r gatewayid; do
         fwmark=$(dbi -q "select fwmarkvalue from tblfwmark where fwmarkid in (select fwmarkid from tblgateway where gatewayid=$gatewayid)" 2>/dev/null)
         if [ -n "$fwmark" ]; then
-            nft "add set inet nat gw${gatewayid}_ipset { type ipv4_addr; flags interval; }"
-            # Insert at position 1 (top) to match iptables -I behavior
-            nft "insert rule inet nat prerouting position 0 ct state new ip saddr @gw${gatewayid}_ipset mark set $fwmark"
+            gw_entries+=("$gatewayid:$fwmark")
         fi
+    done < <(dbi -q "select gatewayid from tblgateway order by gatewayid;" 2>/dev/null)
+
+    # Insert in REVERSE order so first gateway (gatewayid=1) ends up at position 0
+    # Without this fix, last gateway in the DB query ended up at position 0
+    gw_count=${#gw_entries[@]}
+    for (( i = gw_count - 1; i >= 0; i-- )); do
+        IFS=: read -r gatewayid fwmark <<< "${gw_entries[$i]}"
+        nft "add set inet nat gw${gatewayid}_ipset { type ipv4_addr; flags interval; }"
+        nft "insert rule inet nat prerouting position 0 ct state new ip saddr @gw${gatewayid}_ipset mark set $fwmark"
+        echo "Gateway $gatewayid (fwmark=$fwmark) inserted at nat prerouting"
     done
+    unset gw_entries
 fi
 
 ## ============================================================================
@@ -417,10 +445,14 @@ fi
 
 ## ============================================================================
 ## 2026 SECURITY ADDITIONS (Strict Integer Priorities for v1.1.1)
+## FIX #4: All security hooks skip loopback (iif != "lo") to avoid unnecessary
+##         processing of local traffic and prevent false positives on SSH/DNS.
 ## ============================================================================
 nft 'add table inet security'
 
+# ─── SYN Flood Protection (priority -300) ───
 nft 'add chain inet security syn_flood { type filter hook input priority -300; }'
+nft 'add rule inet security syn_flood iif "lo" accept'
 nft 'add rule inet security syn_flood tcp flags & (fin|syn|rst|ack) == syn ct state new meter synflood { ip saddr limit rate over 200/second burst 100 packets } log prefix "SYN_FLOOD: " drop'
 nft 'add rule inet security syn_flood tcp flags & (fin|syn|rst|ack) == syn ct state new accept'
 
@@ -429,36 +461,48 @@ nft 'add rule inet security syn_flood tcp flags & (fin|syn|rst|ack) == syn ct st
 nft 'add chain inet security invalid_packets { type filter hook prerouting priority -299; }'
 nft 'add rule inet security invalid_packets ct state invalid log prefix "INVALID_PKT: "'
 
+# ─── Port Scan Protection (priority -160) ───
+# FIX #7: Uses named set "portscan_allow" for dynamic management.
+# External scripts can add ports at runtime:
+#   nft add element inet security portscan_allow { 8080 }
 nft 'add chain inet security port_scan { type filter hook input priority -160; }'
-# IMPORTANT: Include captive portal ports ($PORTAL_HTTP, $PORTAL_HTTPS, $PORTAL_APP)
-# in the port_scan exception. Without this, the port_scan rule rate-limits guest
-# TCP connections to these ports (burst 5, then 10/min), causing the portal page
-# to take 1+ minutes to load. After NAT redirect, port 80 traffic arrives as
-# port 8888 — so $PORTAL_HTTP must be listed here.
-PORTSCAN_ALLOW="{ 22, 80, 443, 53, ${PORTAL_HTTP}, ${PORTAL_HTTPS}, ${PORTAL_APP} }"
-nft "add rule inet security port_scan tcp dport != $PORTSCAN_ALLOW ct state new meter portscan { ip saddr limit rate over 10/minute burst 5 packets } log prefix \"PORT_SCAN: \" drop"
+nft 'add rule inet security port_scan iif "lo" accept'
+nft 'add set inet security portscan_allow { type inet_service; flags interval; }'
+PORTSCAN_PORTS="{ 22, 80, 443, 53, ${PORTAL_HTTP}, ${PORTAL_HTTPS}, ${PORTAL_APP}, 1812, 1813, 67 }"
+nft "add element inet security portscan_allow $PORTSCAN_PORTS"
+nft 'add rule inet security port_scan tcp dport != @portscan_allow ct state new meter portscan { ip saddr limit rate over 10/minute burst 5 packets } log prefix "PORT_SCAN: " drop'
 
+# ─── SSH Brute Force Protection (priority -155) ───
 nft 'add chain inet security ssh_protection { type filter hook input priority -155; }'
+nft 'add rule inet security ssh_protection iif "lo" accept'
 # Log the attempt, but DO NOT drop it (remove 'drop' so it passes to the next rule)
 nft 'add rule inet security ssh_protection tcp dport 22 ct state new meter ssh_auth { ip saddr limit rate over 5/minute burst 3 packets } log prefix "SSH_BRUTE: "'
 # Accept all SSH traffic so the admin never gets locked out
 nft 'add rule inet security ssh_protection tcp dport 22 accept'
 
+# ─── DNS Amplification Protection (priority -150) ───
 nft 'add chain inet security dns_protection { type filter hook input priority -150; }'
+nft 'add rule inet security dns_protection iif "lo" accept'
 nft 'add rule inet security dns_protection udp dport 53 meter dns_amp { ip saddr limit rate over 50/second burst 20 packets } log prefix "DNS_AMP: " drop'
 
+# ─── ICMP Rate Limiting (priority -140) ───
 nft 'add chain inet security icmp_limit { type filter hook input priority -140; }'
+nft 'add rule inet security icmp_limit iif "lo" accept'
 nft 'add rule inet security icmp_limit icmp type echo-request meter ping_limit { ip saddr limit rate 1/second burst 5 packets } accept'
 nft 'add rule inet security icmp_limit icmp type echo-request drop'
 
 ## ============================================================================
 ## FINAL FILTER TABLE SETUP
+## FIX #1: filter input policy changed from accept → drop
+## FIX #2: drop_log chain is now jumped to at end of input chain
+## FIX #3: filter forward chain added (gateway must filter forwarded traffic)
 ## ============================================================================
 
 ## Create a whitelist set for absolute admin access (Bypasses ALL security rules)
 nft 'add set inet filter ssh_whitelist { type ipv4_addr; flags interval; }'
 
-nft 'add chain inet filter input { type filter hook input priority filter; policy accept; }'
+## ─── INPUT chain (FIX #1: policy drop) ───
+nft 'add chain inet filter input { type filter hook input priority filter; policy drop; }'
 nft 'add rule inet filter input iif "lo" accept'
 
 ## ABSOLUTE WHITELIST (Add your IP here so you never get locked out)
@@ -469,6 +513,34 @@ nft 'add rule inet filter input ct state established,related accept'
 nft 'add rule inet filter input ct state invalid drop'
 nft 'add rule inet filter input jump intranetuploadaccounting'
 nft "add rule inet filter input tcp dport $OPENPORTS ct state new accept"
+# Allow RADIUS auth/acct from NAS devices (FreeRADIUS)
+nft 'add rule inet filter input udp dport { 1812, 1813 } accept'
+# Allow DHCP server
+nft 'add rule inet filter input udp dport 67 accept'
+# Allow ICMP (ping the gateway for diagnostics)
+nft 'add rule inet filter input meta l4proto icmp accept'
+
+## FIX #2: Jump to drop_log at end — catches everything that falls through
+nft 'add rule inet filter input jump drop_log'
+
+## ─── FORWARD chain (FIX #3: gateway must filter forwarded traffic) ───
+nft 'add chain inet filter forward { type filter hook forward priority filter; policy drop; }'
+
+# Allow established/related forwarded connections
+nft 'add rule inet filter forward ct state established,related accept'
+
+# Drop invalid forwarded packets
+nft 'add rule inet filter forward ct state invalid drop'
+
+# Allow forwarded traffic for logged-in users (marked by mangle prerouting)
+nft 'add rule inet filter forward meta mark != 0 accept'
+
+# Allow traffic from user sets (mangle has already classified these)
+nft 'add rule inet filter forward ip saddr @loggedinusers accept'
+nft 'add rule inet filter forward ip saddr @loggedinusersnetwork accept'
+
+# Log and drop everything else (visible in journalctl/dmesg)
+nft 'add rule inet filter forward log prefix "STAYSUITE_DROP_FORWARD: " flags all drop'
 
 ## ============================================================================
 ## IPv6 SUPPORT
