@@ -132,7 +132,7 @@ const EMPTY_FORM: ServerFormData = {
   formatRaw: 'ietf',
   facility: 'local0',
   severity: 'info',
-  categories: [],
+  categories: ['nat'],
   enabled: true,
 };
 
@@ -175,13 +175,13 @@ const SEVERITY_OPTIONS = [
 ] as const;
 
 const CATEGORY_OPTIONS = [
-  { value: 'auth', label: 'Auth', description: 'Authentication events' },
-  { value: 'firewall', label: 'Firewall', description: 'Firewall rule events' },
-  { value: 'dhcp', label: 'DHCP', description: 'DHCP lease events' },
-  { value: 'dns', label: 'DNS', description: 'DNS query logs' },
-  { value: 'portal', label: 'Portal', description: 'Captive portal events' },
-  { value: 'radius', label: 'RADIUS', description: 'RADIUS accounting' },
-  { value: 'system', label: 'System', description: 'System-level events' },
+  { value: 'nat', label: 'NAT Logs', description: 'Source/destination NAT, bytes, packets, connection tracking' },
+  { value: 'sni', label: 'SNI / DNS', description: 'Domain names from TLS SNI and DNS queries' },
+  { value: 'auth', label: 'Auth', description: 'RADIUS authentication & authorization events' },
+  { value: 'firewall', label: 'Firewall', description: 'Firewall rule hit/allow/deny events' },
+  { value: 'dhcp', label: 'DHCP', description: 'DHCP lease requests, renewals, releases' },
+  { value: 'portal', label: 'Portal', description: 'Captive portal login/logout events' },
+  { value: 'system', label: 'System', description: 'Gateway health, service status, errors' },
 ] as const;
 
 const FORMAT_DISPLAY: Record<string, string> = {
@@ -615,7 +615,7 @@ export default function SyslogTab() {
             <h2 className="text-xl font-semibold tracking-tight">Syslog Forwarding</h2>
           </div>
           <p className="text-sm text-muted-foreground">
-            Forward NAT/connection logs to external syslog collectors for SIEM integration and compliance
+            Forward NAT connection logs to external syslog collectors for SIEM integration and IPDR compliance
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -753,7 +753,7 @@ export default function SyslogTab() {
                 No syslog servers configured
               </h3>
               <p className="text-sm text-muted-foreground/70 max-w-sm">
-                Add a syslog server to start forwarding NAT and connection logs to your SIEM or log collector.
+                Add a syslog server to start forwarding NAT and connection tracking logs to your SIEM or log collector.
               </p>
             </div>
             <Button onClick={openAddDialog} className="mt-2">
@@ -1258,11 +1258,24 @@ function ServerCard({
         {/* Categories */}
         {server.categories && server.categories.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {server.categories.map((cat) => (
-              <Badge key={cat} variant="outline" className="text-[10px] font-normal">
-                {cat}
-              </Badge>
-            ))}
+            {server.categories.map((cat) => {
+              const catConfig = CATEGORY_OPTIONS.find((c) => c.value === cat);
+              const isNat = cat === 'nat';
+              return (
+                <Badge
+                  key={cat}
+                  variant="outline"
+                  className={cn(
+                    'text-[10px] font-medium',
+                    isNat
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800'
+                      : 'text-muted-foreground'
+                  )}
+                >
+                  {catConfig?.label || cat}
+                </Badge>
+              );
+            })}
           </div>
         )}
 
