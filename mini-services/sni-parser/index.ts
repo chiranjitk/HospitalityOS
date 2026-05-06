@@ -5,7 +5,7 @@
  * parses and aggregates them, and batches them into ClickHouse ipdr.sni_log.
  *
  * Port: 3022 (env PORT)
- * Log file: env SNI_LOG_FILE (default /var/log/sni-queries.log)
+ * Log file: env SNI_LOG_FILE (default /var/log/ulogd2/sni.json)
  * ClickHouse: env CLICKHOUSE_URL (default http://127.0.0.1:8123)
  */
 

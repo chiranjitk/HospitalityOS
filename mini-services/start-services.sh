@@ -56,7 +56,7 @@ echo "conntrack-bridge Service started (PID: $CONNTRACK_PID, Port: 3020)"
 # It reads TLS SNI captured via NFLOG from port 443 SYN packets.
 cd "$SNI_PARSER_DIR"
 CLICKHOUSE_URL="${CLICKHOUSE_URL:-http://127.0.0.1:8123}" \
-SNI_LOG_FILE="${SNI_LOG_FILE:-/var/log/ulogd/json/sni-queries.log}" \
+SNI_LOG_FILE="${SNI_LOG_FILE:-/var/log/ulogd2/sni.json}" \
 nohup bun index.ts >> /tmp/sni-parser.log 2>&1 &
 SNI_PARSER_PID=$!
 echo "sni-parser Service started (PID: $SNI_PARSER_PID, Port: 3022)"
