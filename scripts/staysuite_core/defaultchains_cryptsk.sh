@@ -535,10 +535,6 @@ nft 'add rule inet filter forward ct state invalid drop'
 # Allow forwarded traffic for logged-in users (marked by mangle prerouting)
 nft 'add rule inet filter forward meta mark != 0 accept'
 
-# Allow traffic from user sets (mangle has already classified these)
-nft 'add rule inet filter forward ip saddr @loggedinusers accept'
-nft 'add rule inet filter forward ip saddr @loggedinusersnetwork accept'
-
 # Log and drop everything else (visible in journalctl/dmesg)
 nft 'add rule inet filter forward log prefix "STAYSUITE_DROP_FORWARD: " flags all drop'
 
