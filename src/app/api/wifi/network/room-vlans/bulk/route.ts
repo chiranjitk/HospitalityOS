@@ -96,10 +96,13 @@ interface GenerateBody {
   subnetBase: string;
   floors: { floor: number; rooms: string[] }[];
   roomType?: string;
+  parentInterfaceId?: string;
+  role?: string;
+  mtu?: number;
 }
 
 async function handleGenerate(tenantId: string, body: GenerateBody) {
-  const { propertyId, vlanBase, subnetBase, floors, roomType = 'standard' } = body;
+  const { propertyId, vlanBase, subnetBase, floors, roomType = 'standard', parentInterfaceId, role = 'guest', mtu = 1500 } = body;
 
   if (!vlanBase || !subnetBase || !floors || !floors.length) {
     return NextResponse.json(
@@ -144,6 +147,9 @@ async function handleGenerate(tenantId: string, body: GenerateBody) {
             vlanId,
             subnet,
             gateway,
+            ...(parentInterfaceId && { parentInterface: { connect: { id: parentInterfaceId } } }),
+            role,
+            mtu,
             floor: floorDef.floor,
             roomType,
             status: 'active',

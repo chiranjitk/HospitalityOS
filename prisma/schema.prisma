@@ -3349,6 +3349,7 @@ model NetworkInterface {
   vlans        VlanConfig[]
   bondMembers  BondMember[]
   aliases      InterfaceAlias[]
+  roomVlans    RoomVlan[]
 
   @@unique([propertyId, name])
   @@index([tenantId])
@@ -4089,25 +4090,29 @@ model Property {
 /// Assigns a dedicated VLAN to each hotel room for Layer 2 guest isolation.
 /// Feature-gated behind 'room_vlan_isolation' feature flag.
 model RoomVlan {
-  id              String    @id @default(uuid()) @db.Uuid
-  tenantId        String    @db.Uuid
-  propertyId      String    @db.Uuid
-  roomNumber      String                               // "101", "302", "Suite-Penthouse"
-  vlanId          Int                                 // 1101, 1302
-  subnet          String    @default("10.1.0.0/28")   // Room's IP subnet
-  gateway         String    @default("10.1.0.1")      // VLAN gateway
-  floor           Int       @default(1)
-  roomType        String    @default("standard")       // standard, suite, conference, vip
-  bandwidthPlanId String?   @db.Uuid                   // Link to BandwidthPolicy
-  status          String    @default("active")         // active, maintenance, disabled, reserved
-  description     String?
-  firewallRulesGenerated Boolean  @default(false)      // Whether nftables chains were pushed
-  lastProvisionedAt  DateTime?  @db.Timestamptz
-  createdAt       DateTime  @default(now()) @db.Timestamptz
-  updatedAt       DateTime  @updatedAt @db.Timestamptz
-  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  bandwidthPolicy  BandwidthPolicy? @relation(fields: [bandwidthPlanId], references: [id])
+  id                String           @id @default(uuid()) @db.Uuid
+  tenantId          String           @db.Uuid
+  propertyId        String           @db.Uuid
+  roomNumber        String                                // "101", "302", "Suite-Penthouse"
+  vlanId            Int                                   // 1101, 1302
+  subnet            String           @default("10.1.0.0/28") // Room's IP subnet
+  gateway           String           @default("10.1.0.1")    // VLAN gateway
+  parentInterfaceId String?          @db.Uuid               // Trunk interface (eth1, bridge0, etc.)
+  role              String           @default("guest")       // wan, lan, dmz, management, wifi, guest, iot, unused
+  mtu               Int              @default(1500)
+  floor             Int              @default(1)
+  roomType          String           @default("standard")    // standard, suite, conference, vip
+  bandwidthPlanId   String?          @db.Uuid               // Link to BandwidthPolicy
+  status            String           @default("active")      // active, maintenance, disabled, reserved
+  description       String?
+  firewallRulesGenerated Boolean     @default(false)         // Whether nftables chains were pushed
+  lastProvisionedAt    DateTime?     @db.Timestamptz
+  createdAt         DateTime         @default(now()) @db.Timestamptz
+  updatedAt         DateTime         @updatedAt @db.Timestamptz
+  property          Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parentInterface   NetworkInterface? @relation(fields: [parentInterfaceId], references: [id], onDelete: SetNull)
+  bandwidthPolicy   BandwidthPolicy? @relation(fields: [bandwidthPlanId], references: [id])
 
   @@unique([propertyId, roomNumber])
   @@unique([propertyId, vlanId])
@@ -4116,6 +4121,7 @@ model RoomVlan {
   @@index([vlanId])
   @@index([status])
   @@index([floor])
+  @@index([parentInterfaceId])
 }
 
 model PurchaseOrder {

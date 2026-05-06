@@ -20,6 +20,7 @@ import {
   Layers, Plus, Trash2, Edit2, RefreshCw, Download,
   Shield, AlertCircle, CheckCircle2, XCircle,
   Building, Loader2, Search, Zap, ChevronDown, Eye, Copy,
+  Network, Cpu, Tag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -31,6 +32,10 @@ interface RoomVlan {
   vlanId: number;
   subnet: string;
   gateway: string;
+  parentInterfaceId: string | null;
+  parentInterfaceName: string | null;
+  role: string;
+  mtu: number;
   floor: number;
   roomType: 'standard' | 'suite' | 'conference' | 'vip';
   status: 'active' | 'maintenance' | 'disabled';
@@ -40,6 +45,14 @@ interface RoomVlan {
   description: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+interface NetworkInterface {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  description: string | null;
 }
 
 interface BandwidthPolicy {
@@ -59,6 +72,9 @@ interface BulkGenerateForm {
   subnetBase: string;
   floors: FloorConfig[];
   roomType: 'standard' | 'suite' | 'conference' | 'vip';
+  parentInterfaceId: string;
+  role: string;
+  mtu: number;
 }
 
 interface RoomVlanForm {
@@ -66,6 +82,9 @@ interface RoomVlanForm {
   vlanId: number;
   subnet: string;
   gateway: string;
+  parentInterfaceId: string;
+  role: string;
+  mtu: number;
   floor: number;
   roomType: 'standard' | 'suite' | 'conference' | 'vip';
   bandwidthPolicyId: string;
@@ -90,11 +109,36 @@ const STATUS_BADGE: Record<string, string> = {
   disabled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-700',
 };
 
+const ROLE_OPTIONS = [
+  { value: 'guest', label: 'Guest', description: 'Guest room network — isolated VLAN per room' },
+  { value: 'wan', label: 'WAN', description: 'Wide Area Network / uplink' },
+  { value: 'lan', label: 'LAN', description: 'Local Area Network / staff network' },
+  { value: 'wifi', label: 'WiFi', description: 'Wireless network' },
+  { value: 'management', label: 'Management', description: 'Out-of-band management' },
+  { value: 'dmz', label: 'DMZ', description: 'Demilitarized Zone' },
+  { value: 'iot', label: 'IoT', description: 'Internet of Things devices' },
+  { value: 'unused', label: 'Unused', description: 'Interface not in use' },
+];
+
+const ROLE_BADGE: Record<string, string> = {
+  guest: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300 border-teal-200 dark:border-teal-700',
+  wan: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-orange-200 dark:border-orange-700',
+  lan: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-700',
+  wifi: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 border-violet-200 dark:border-violet-700',
+  management: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300 border-gray-200 dark:border-gray-700',
+  dmz: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-700',
+  iot: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700',
+  unused: 'bg-slate-100 text-slate-500 dark:bg-slate-900/30 dark:text-slate-400 border-slate-200 dark:border-slate-700',
+};
+
 const emptyForm: RoomVlanForm = {
   roomNumber: '',
   vlanId: 1001,
   subnet: '',
   gateway: '',
+  parentInterfaceId: '',
+  role: 'guest',
+  mtu: 1500,
   floor: 1,
   roomType: 'standard',
   bandwidthPolicyId: '',
@@ -107,6 +151,9 @@ const emptyBulkForm: BulkGenerateForm = {
   subnetBase: '10.1',
   floors: [{ floor: 1, roomRange: '101-110' }],
   roomType: 'standard',
+  parentInterfaceId: '',
+  role: 'guest',
+  mtu: 1500,
 };
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
@@ -229,6 +276,7 @@ export default function RoomVlanManager() {
   const [floorFilter, setFloorFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [bandwidthPolicies, setBandwidthPolicies] = useState<BandwidthPolicy[]>([]);
+  const [interfaces, setInterfaces] = useState<NetworkInterface[]>([]);
 
   // Dialog states
   const [formOpen, setFormOpen] = useState(false);
@@ -254,7 +302,14 @@ export default function RoomVlanManager() {
       const res = await fetch(`${API_BASE}?${params.toString()}`);
       const result = await res.json();
       if (result.success && Array.isArray(result.data)) {
-        setRoomVlans(result.data);
+        // Map API response to UI types
+        const mapped = result.data.map((rv: Record<string, unknown>) => ({
+          ...rv,
+          parentInterfaceName: (rv.parentInterface as Record<string, unknown> | null)?.name || null,
+          bandwidthPolicyName: (rv.bandwidthPolicy as Record<string, unknown> | null)?.name || null,
+          firewallEnabled: Boolean(rv.firewallRulesGenerated),
+        }));
+        setRoomVlans(mapped as RoomVlan[]);
       } else {
         setRoomVlans([]);
       }
@@ -265,6 +320,19 @@ export default function RoomVlanManager() {
       setLoading(false);
     }
   }, [propertyId, toast]);
+
+  const fetchInterfaces = useCallback(async () => {
+    try {
+      const res = await fetch('/api/wifi/network/interfaces');
+      const result = await res.json();
+      if (result.success && Array.isArray(result.data)) {
+        // Only ethernet and bridge types as VLAN parents (same as VLANs tab)
+        setInterfaces(result.data.filter((i: NetworkInterface) => i.type === 'ethernet' || i.type === 'bridge'));
+      }
+    } catch {
+      // Silently ignore
+    }
+  }, []);
 
   const fetchBandwidthPolicies = useCallback(async () => {
     try {
@@ -283,12 +351,12 @@ export default function RoomVlanManager() {
     const load = async () => {
       await fetchRoomVlans();
       if (!cancelled) {
-        await fetchBandwidthPolicies();
+        await Promise.all([fetchInterfaces(), fetchBandwidthPolicies()]);
       }
     };
     load();
     return () => { cancelled = true; };
-  }, [fetchRoomVlans, fetchBandwidthPolicies]);
+  }, [fetchRoomVlans, fetchInterfaces, fetchBandwidthPolicies]);
 
   // ── Computed ──
 
@@ -332,6 +400,9 @@ export default function RoomVlanManager() {
       vlanId: rv.vlanId,
       subnet: rv.subnet,
       gateway: rv.gateway,
+      parentInterfaceId: rv.parentInterfaceId || '',
+      role: rv.role || 'guest',
+      mtu: rv.mtu || 1500,
       floor: rv.floor,
       roomType: rv.roomType,
       bandwidthPolicyId: rv.bandwidthPolicyId || '',
@@ -475,6 +546,9 @@ export default function RoomVlanManager() {
             roomType: bulkForm.roomType,
             status: 'active',
           })),
+          parentInterfaceId: bulkForm.parentInterfaceId || undefined,
+          role: bulkForm.role,
+          mtu: bulkForm.mtu,
         }),
       });
       const result = await res.json();
@@ -688,11 +762,12 @@ export default function RoomVlanManager() {
                   <TableRow>
                     <TableHead className="w-28">Room Number</TableHead>
                     <TableHead className="w-20">VLAN ID</TableHead>
-                    <TableHead className="w-44">Subnet</TableHead>
-                    <TableHead className="w-20">Floor</TableHead>
-                    <TableHead className="w-28">Room Type</TableHead>
-                    <TableHead className="w-28">Status</TableHead>
-                    <TableHead className="w-28">BW Policy</TableHead>
+                    <TableHead className="w-36">Interface</TableHead>
+                    <TableHead className="w-24">Role</TableHead>
+                    <TableHead className="w-40">Subnet</TableHead>
+                    <TableHead className="w-16">Floor</TableHead>
+                    <TableHead className="w-24">Room Type</TableHead>
+                    <TableHead className="w-24">Status</TableHead>
                     <TableHead className="w-20">Firewall</TableHead>
                     <TableHead className="w-24 text-right">Actions</TableHead>
                   </TableRow>
@@ -708,6 +783,23 @@ export default function RoomVlanManager() {
                       <TableCell>
                         <Badge variant="outline" className="font-mono text-xs">
                           {rv.vlanId}
+                        </Badge>
+                      </TableCell>
+                      {/* Parent Interface */}
+                      <TableCell>
+                        {rv.parentInterfaceName ? (
+                          <div className="flex items-center gap-1.5">
+                            <Network className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="font-mono text-xs">{rv.parentInterfaceName}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      {/* Role */}
+                      <TableCell>
+                        <Badge variant="outline" className={cn('text-xs font-medium capitalize', ROLE_BADGE[rv.role] || ROLE_BADGE.unused)}>
+                          {rv.role}
                         </Badge>
                       </TableCell>
                       {/* Subnet */}
@@ -734,12 +826,6 @@ export default function RoomVlanManager() {
                             {rv.status}
                           </Badge>
                         </div>
-                      </TableCell>
-                      {/* BW Policy */}
-                      <TableCell>
-                        <span className="text-xs text-muted-foreground">
-                          {rv.bandwidthPolicyName || 'Default'}
-                        </span>
                       </TableCell>
                       {/* Firewall */}
                       <TableCell>
@@ -844,6 +930,54 @@ export default function RoomVlanManager() {
               </div>
             </div>
 
+            {/* Parent Interface & Role */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <Network className="h-3.5 w-3.5" />
+                  Parent Interface
+                </Label>
+                <Select value={form.parentInterfaceId || '__none__'} onValueChange={(v) => setForm((prev) => ({ ...prev, parentInterfaceId: v === '__none__' ? '' : v }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select interface…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No interface</SelectItem>
+                    {interfaces.map((iface) => (
+                      <SelectItem key={iface.id} value={iface.id}>
+                        <span className="flex items-center gap-2">
+                          <span className="font-mono">{iface.name}</span>
+                          <span className="text-muted-foreground text-xs capitalize">{iface.type}</span>
+                          {iface.status === 'up' && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <Tag className="h-3.5 w-3.5" />
+                  Role
+                </Label>
+                <Select value={form.role} onValueChange={(v) => setForm((prev) => ({ ...prev, role: v }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROLE_OPTIONS.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>
+                        <span className="flex items-center justify-between gap-4">
+                          <span>{r.label}</span>
+                          <span className="text-xs text-muted-foreground max-w-[140px] truncate">{r.description}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             {/* Subnet & Gateway */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -851,7 +985,7 @@ export default function RoomVlanManager() {
                 <Input
                   value={form.subnet}
                   onChange={(e) => setForm((prev) => ({ ...prev, subnet: e.target.value }))}
-                  placeholder="e.g. 10.0.3.0/24"
+                  placeholder="e.g. 10.0.3.0/28"
                   className="font-mono text-xs"
                 />
               </div>
@@ -867,7 +1001,7 @@ export default function RoomVlanManager() {
             </div>
 
             {/* Floor & Room Type */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Floor</Label>
                 <Input
@@ -875,6 +1009,16 @@ export default function RoomVlanManager() {
                   value={form.floor}
                   onChange={(e) => setForm((prev) => ({ ...prev, floor: parseInt(e.target.value, 10) || 1 }))}
                   min={1}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>MTU</Label>
+                <Input
+                  type="number"
+                  value={form.mtu}
+                  onChange={(e) => setForm((prev) => ({ ...prev, mtu: parseInt(e.target.value, 10) || 1500 }))}
+                  min={576}
+                  max={9000}
                 />
               </div>
               <div className="space-y-2">
@@ -983,6 +1127,61 @@ export default function RoomVlanManager() {
                   className="font-mono"
                 />
                 <p className="text-xs text-muted-foreground">Base subnet prefix (e.g. 10.1 → 10.1.x.y)</p>
+              </div>
+            </div>
+
+            {/* Parent Interface & Role & MTU */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <Network className="h-3.5 w-3.5" />
+                  Trunk Interface
+                </Label>
+                <Select value={bulkForm.parentInterfaceId || '__none__'} onValueChange={(v) => setBulkForm((prev) => ({ ...prev, parentInterfaceId: v === '__none__' ? '' : v }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select interface…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No interface</SelectItem>
+                    {interfaces.map((iface) => (
+                      <SelectItem key={iface.id} value={iface.id}>
+                        <span className="font-mono">{iface.name}</span>
+                        <span className="text-muted-foreground text-xs capitalize ml-2">({iface.type})</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">All room VLANs trunked on this interface</p>
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <Tag className="h-3.5 w-3.5" />
+                  Role
+                </Label>
+                <Select value={bulkForm.role} onValueChange={(v) => setBulkForm((prev) => ({ ...prev, role: v }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROLE_OPTIONS.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <Cpu className="h-3.5 w-3.5" />
+                  MTU
+                </Label>
+                <Input
+                  type="number"
+                  value={bulkForm.mtu}
+                  onChange={(e) => setBulkForm((prev) => ({ ...prev, mtu: parseInt(e.target.value, 10) || 1500 }))}
+                  min={576}
+                  max={9000}
+                  className="font-mono"
+                />
               </div>
             </div>
 

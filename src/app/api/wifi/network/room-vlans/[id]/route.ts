@@ -35,6 +35,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       where: { id, tenantId },
       include: {
         bandwidthPolicy: { select: { id: true, name: true } },
+        parentInterface: { select: { id: true, name: true, type: true, status: true, description: true } },
         property: { select: { id: true, name: true } },
       },
     });
@@ -89,6 +90,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       vlanId,
       subnet,
       gateway,
+      parentInterfaceId,
+      role,
+      mtu,
       floor,
       roomType,
       bandwidthPlanId,
@@ -145,6 +149,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         ...(vlanId !== undefined && { vlanId: parseInt(vlanId, 10) }),
         ...(computedSubnet !== undefined && { subnet: computedSubnet }),
         ...(computedGateway !== undefined && { gateway: computedGateway }),
+        ...(parentInterfaceId !== undefined && {
+          parentInterface: parentInterfaceId
+            ? { connect: { id: parentInterfaceId } }
+            : { disconnect: true },
+        }),
+        ...(role !== undefined && { role }),
+        ...(mtu !== undefined && { mtu: parseInt(mtu, 10) }),
         ...(floor !== undefined && { floor: parseInt(floor, 10) }),
         ...(roomType !== undefined && { roomType }),
         ...(status !== undefined && { status }),
@@ -159,6 +170,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
       include: {
         bandwidthPolicy: { select: { id: true, name: true } },
+        parentInterface: { select: { id: true, name: true, type: true, status: true, description: true } },
         property: { select: { id: true, name: true } },
       },
     });
