@@ -4,7 +4,7 @@
  * sni-parser (3022) → ipdr.sni_log
  */
 
-const BUN_PATH = process.env.BUN_PATH || '/root/.bun/bin/bun';
+const BUN_PATH = process.env.BUN_PATH || '/usr/local/bin/bun';
 const APP_DIR = __dirname;
 
 module.exports = {

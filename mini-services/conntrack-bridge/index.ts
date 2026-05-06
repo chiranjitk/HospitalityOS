@@ -7,7 +7,10 @@
  * Port: 3020 (env PORT)
  * ClickHouse: env CLICKHOUSE_URL (default http://127.0.0.1:8123)
  *
- * Graceful degradation: runs in simulation mode if conntrack binary unavailable.
+ * Features:
+ * - ReplacingMergeTree deduplication (latest timestamp per conntrack_id wins)
+ * - Optional syslog forwarding (UDP/TCP) to external collectors
+ * - Graceful degradation: runs in simulation mode if conntrack binary unavailable.
  */
 
 // ─── Configuration ──────────────────────────────────────────────────────────
@@ -17,6 +20,153 @@ const RING_BUFFER_SIZE = 5000;
 const BATCH_INTERVAL_MS = 2000;
 const BATCH_MAX_SIZE = 500;
 const SERVICE_NAME = "conntrack-bridge";
+const HOSTNAME = process.env.HOSTNAME || "staysuite-gw";
+
+// ─── Syslog Configuration ───────────────────────────────────────────────────
+interface SyslogServerConfig {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  protocol: "udp" | "tcp" | "tls";
+  format: "bsd" | "ietf" | "json";
+  facility: string;
+  severity: string;
+  enabled: boolean;
+}
+
+let syslogServers: SyslogServerConfig[] = [];
+let totalSyslogSent = 0;
+let totalSyslogErrors = 0;
+
+// Facility and severity numerical values (RFC 5424)
+const FACILITY_MAP: Record<string, number> = {
+  kern: 0, user: 8, mail: 16, daemon: 24, auth: 32, syslog: 40,
+  lpr: 48, news: 56, uucp: 64, cron: 72, authpriv: 80, ftp: 88,
+  ntp: 96, security: 104, console: 112, solaris: 120,
+  local0: 128, local1: 136, local2: 144, local3: 152,
+  local4: 160, local5: 168, local6: 176, local7: 184,
+};
+
+const SEVERITY_MAP: Record<string, number> = {
+  emerg: 0, alert: 1, crit: 2, error: 3, warning: 4, notice: 5, info: 6, debug: 7,
+};
+
+// ─── Syslog Formatters ───────────────────────────────────────────────────────
+
+function formatSyslogBSD(event: any, server: SyslogServerConfig): string {
+  const pri = (FACILITY_MAP[server.facility] || 136) + (SEVERITY_MAP[server.severity] || 6);
+  const now = new Date();
+  const month = now.toLocaleString("en-US", { month: "short" });
+  const day = now.getDate().toString().padStart(2, " ");
+  const time = now.toTimeString().slice(0, 8);
+  const msg = `NAT ${event.proto} ${event.src_ip}:${event.src_port} -> ${event.dst_ip}:${event.dst_port} bytes=${event.bytes} pkts=${event.packets} event=${event.eventType}`;
+  return `<${pri}>${month} ${day} ${time} ${HOSTNAME} ${SERVICE_NAME}: ${msg}`;
+}
+
+function formatSyslogIETF(event: any, server: SyslogServerConfig): string {
+  const pri = (FACILITY_MAP[server.facility] || 136) + (SEVERITY_MAP[server.severity] || 6);
+  const ts = event.timestamp.replace("T", " ").replace("Z", "").slice(0, 19);
+  const msg = `NAT ${event.proto} ${event.src_ip}:${event.src_port} -> ${event.dst_ip}:${event.dst_port} bytes=${event.bytes} pkts=${event.packets} event=${event.eventType}`;
+  return `<${pri}>1 ${ts} ${HOSTNAME} ${SERVICE_NAME} - - ${msg}`;
+}
+
+function formatSyslogJSON(event: any, server: SyslogServerConfig): string {
+  const obj = {
+    timestamp: event.timestamp,
+    facility: server.facility,
+    severity: server.severity,
+    hostname: HOSTNAME,
+    app: SERVICE_NAME,
+    proto: event.proto,
+    event_type: event.eventType,
+    conntrack_id: event.conntrack_id,
+    src_ip: event.src_ip,
+    src_port: event.src_port,
+    dst_ip: event.dst_ip,
+    dst_port: event.dst_port,
+    nat_src_ip: event.nat_src_ip,
+    nat_src_port: event.nat_src_port,
+    bytes: event.bytes,
+    packets: event.packets,
+    duration: event.duration,
+    status: event.status,
+  };
+  return JSON.stringify(obj);
+}
+
+function formatSyslogMessage(event: any, server: SyslogServerConfig): string {
+  switch (server.format) {
+    case "bsd": return formatSyslogBSD(event, server);
+    case "ietf": return formatSyslogIETF(event, server);
+    case "json": return formatSyslogJSON(event, server);
+    default: return formatSyslogBSD(event, server);
+  }
+}
+
+// ─── Syslog Sender ───────────────────────────────────────────────────────────
+
+async function sendSyslogUDP(host: string, port: number, message: string): Promise<void> {
+  try {
+    const dgram = require("dgram") as typeof import("dgram");
+    const socket = dgram.createSocket("udp4");
+    const buffer = Buffer.from(message + "\n");
+    await new Promise<void>((resolve, reject) => {
+      socket.send(buffer, 0, buffer.length, port, host, (err) => {
+        socket.close();
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  } catch (err: any) {
+    throw new Error(`UDP send to ${host}:${port} failed: ${err.message}`);
+  }
+}
+
+async function sendSyslogTCP(host: string, port: number, message: string): Promise<void> {
+  try {
+    const net = require("net") as typeof import("net");
+    await new Promise<void>((resolve, reject) => {
+      const socket = net.createConnection(port, host, () => {
+        socket.write(message + "\n", () => {
+          socket.end();
+          resolve();
+        });
+      });
+      socket.setTimeout(5000);
+      socket.on("timeout", () => { socket.destroy(); reject(new Error("TCP timeout")); });
+      socket.on("error", (err) => { reject(err); });
+    });
+  } catch (err: any) {
+    throw new Error(`TCP send to ${host}:${port} failed: ${err.message}`);
+  }
+}
+
+async function forwardToSyslog(events: any[]): Promise<void> {
+  const enabled = syslogServers.filter((s) => s.enabled);
+  if (enabled.length === 0 || events.length === 0) return;
+
+  for (const server of enabled) {
+    for (const event of events) {
+      const message = formatSyslogMessage(event, server);
+      try {
+        if (server.protocol === "tcp") {
+          await sendSyslogTCP(server.host, server.port, message);
+        } else {
+          // UDP (and TLS falls back to UDP in this implementation — TLS requires separate cert setup)
+          await sendSyslogUDP(server.host, server.port, message);
+        }
+        totalSyslogSent++;
+      } catch (err: any) {
+        totalSyslogErrors++;
+        // Log every 100th error to avoid log spam
+        if (totalSyslogErrors % 100 === 1) {
+          console.error(`[${SERVICE_NAME}] Syslog error (${server.name}): ${err.message}`);
+        }
+      }
+    }
+  }
+}
 
 // ─── Ring Buffer ────────────────────────────────────────────────────────────
 class RingBuffer<T> {
@@ -65,22 +215,16 @@ const activeConnections = new Map<
 
 // ─── Conntrack line parser ──────────────────────────────────────────────────
 function parseConntrackLine(line: string): any | null {
-  // Example: [NEW] tcp 6 120 src=10.0.1.101 dst=142.250.80.14 sport=52341 dport=443 src=172.217.5.14 dst=10.0.1.101 sport=443 dport=52341 [UNREPLIED] mark=0 use=1
-  // Also: [UPDATE] udp 6 30 [ASSURED] src=10.0.1.55 dst=8.8.8.8 sport=45231 dport=53 src=8.8.8.8 dst=192.168.1.1 sport=53 dport=45231 packets=3 bytes=285
-  // Also: [DESTROY] tcp 6 src=10.0.1.101 dst=142.250.80.14 sport=52341 dport=443 src=172.217.5.14 dst=10.0.1.101 sport=443 dport=52341
-
   const eventMatch = line.match(/^\s*\[([A-Z]+)\]\s+(.+)/);
   if (!eventMatch) return null;
 
   const eventType = eventMatch[1];
   const rest = eventMatch[2].trim();
 
-  // Extract protocol
   const protoMatch = rest.match(/^(\w+)\s+(\d+)/);
   if (!protoMatch) return null;
   const proto = protoMatch[1].toLowerCase();
 
-  // Extract all key=value pairs
   const kvPattern = /(\w+)=([^\s\[\]]+)/g;
   const kvPairs: Record<string, string> = {};
   let match: RegExpExecArray | null;
@@ -88,26 +232,20 @@ function parseConntrackLine(line: string): any | null {
     kvPairs[match[1]] = match[2];
   }
 
-  // Extract status from brackets
   let status = "OK";
   const statusMatch = rest.match(/\[(UNREPLIED|ASSURED)\]/);
   if (statusMatch) {
     status = statusMatch[1];
   }
 
-  // Extract bytes and packets (may appear in UPDATE events)
   const bytes = parseInt(kvPairs["bytes"] || "0", 10);
   const packets = parseInt(kvPairs["packets"] || "0", 10);
 
-  // Original and NAT tuples
   const srcIp = kvPairs["src"] || "";
   const srcPort = parseInt(kvPairs["sport"] || "0", 10);
   const dstIp = kvPairs["dst"] || "";
   const dstPort = parseInt(kvPairs["dport"] || "0", 10);
 
-  // NAT reversed tuple (second set of src/dst)
-  // For NAT'd connections, there's a second src/dst pair
-  // We detect by finding all occurrences - the second pair is NAT
   const allSrcs = [...rest.matchAll(/src=([^\s\[\]]+)/g)];
   const allDst = [...rest.matchAll(/dst=([^\s\[\]]+)/g)];
   const allSports = [...rest.matchAll(/sport=([^\s\[\]]+)/g)];
@@ -125,17 +263,12 @@ function parseConntrackLine(line: string): any | null {
     natDstPort = allDports.length >= 2 ? parseInt(allDports[1][1], 10) : 0;
   }
 
-  // Build a connection key for tracking duration
   const connKey = `${proto}:${srcIp}:${srcPort}:${dstIp}:${dstPort}`;
   const now = Date.now();
   let duration = 0;
 
   if (eventType === "NEW") {
-    activeConnections.set(connKey, {
-      startTime: now,
-      bytes: 0,
-      packets: 0,
-    });
+    activeConnections.set(connKey, { startTime: now, bytes: 0, packets: 0 });
   } else if (eventType === "UPDATE") {
     const existing = activeConnections.get(connKey);
     if (existing) {
@@ -145,7 +278,7 @@ function parseConntrackLine(line: string): any | null {
   } else if (eventType === "DESTROY") {
     const existing = activeConnections.get(connKey);
     if (existing) {
-      duration = (now - existing.startTime) / 1000; // seconds
+      duration = (now - existing.startTime) / 1000;
       activeConnections.delete(connKey);
     }
   }
@@ -182,6 +315,8 @@ function hashConnKey(key: string): number {
 
 // ─── ClickHouse helpers ─────────────────────────────────────────────────────
 async function ensureClickHouseTable(): Promise<void> {
+  // ReplacingMergeTree: latest row (by timestamp) per conntrack_id automatically
+  // deduplicates UPDATE events, keeping only the most recent state per flow.
   const sql = `
     CREATE TABLE IF NOT EXISTS ipdr.nat_log (
       timestamp DateTime,
@@ -201,9 +336,9 @@ async function ensureClickHouseTable(): Promise<void> {
       duration Float64,
       status String
     )
-    ENGINE = MergeTree()
+    ENGINE = ReplacingMergeTree(timestamp)
     PARTITION BY toYYYYMMDD(timestamp)
-    ORDER BY (timestamp, proto, src_ip, dst_ip)
+    ORDER BY (conntrack_id, timestamp)
     TTL timestamp + INTERVAL 13 MONTH
   `;
 
@@ -213,7 +348,7 @@ async function ensureClickHouseTable(): Promise<void> {
       body: sql,
     });
     if (res.ok) {
-      console.log(`[${SERVICE_NAME}] ClickHouse table ipdr.nat_log ensured`);
+      console.log(`[${SERVICE_NAME}] ClickHouse table ipdr.nat_log ensured (ReplacingMergeTree)`);
     } else {
       console.error(
         `[${SERVICE_NAME}] ClickHouse table creation error: ${await res.text()}`
@@ -228,7 +363,6 @@ async function ensureClickHouseTable(): Promise<void> {
 
 /** Convert ISO 8601 timestamp to ClickHouse DateTime format (YYYY-MM-DD HH:MM:SS) */
 function toClickHouseDateTime(iso: string): string {
-  // ClickHouse DateTime expects 'YYYY-MM-DD HH:MM:SS' (no T, no Z, no ms)
   const d = new Date(iso);
   if (isNaN(d.getTime())) return new Date().toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
   return d.toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
@@ -241,6 +375,7 @@ async function flushBatch(): Promise<void> {
   batch = [];
   totalBatches++;
 
+  // Build ClickHouse INSERT
   const values = items
     .map(
       (e) =>
@@ -274,6 +409,9 @@ async function flushBatch(): Promise<void> {
       `[${SERVICE_NAME}] ClickHouse flush error: ${err.message}`
     );
   }
+
+  // Forward to syslog servers (fire-and-forget, non-blocking)
+  forwardToSyslog(items).catch(() => { /* errors already counted inside */ });
 }
 
 // ─── Conntrack spawner ──────────────────────────────────────────────────────
@@ -404,7 +542,7 @@ function corsHeaders(): Record<string, string> {
   return {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
   };
 }
@@ -420,7 +558,7 @@ function json(data: any, status = 200): Response {
 function startServer(): void {
   const server = Bun.serve({
     port: PORT,
-    fetch(req: Request): Response {
+    async fetch(req: Request): Promise<Response> {
       const url = new URL(req.url);
 
       // CORS preflight
@@ -442,6 +580,12 @@ function startServer(): void {
           pendingBatch: batch.length,
           batchesFlushed: totalBatches,
           clickHouseErrors: totalClickHouseErrors,
+          syslog: {
+            serversConfigured: syslogServers.length,
+            serversEnabled: syslogServers.filter((s) => s.enabled).length,
+            totalSent: totalSyslogSent,
+            totalErrors: totalSyslogErrors,
+          },
         });
       }
 
@@ -487,7 +631,92 @@ function startServer(): void {
             .sort((a, b) => b[1] - a[1])
             .slice(0, 10)
             .map(([k, v]) => ({ ip: k, count: v })),
+          syslog: {
+            serversConfigured: syslogServers.length,
+            serversEnabled: syslogServers.filter((s) => s.enabled).length,
+            totalSent: totalSyslogSent,
+            totalErrors: totalSyslogErrors,
+          },
         });
+      }
+
+      // ─── Syslog Config Endpoints ────────────────────────────────────────
+
+      // GET /api/syslog-config — Return current syslog server config
+      if (url.pathname === "/api/syslog-config" && req.method === "GET") {
+        return json({
+          success: true,
+          data: syslogServers,
+          stats: {
+            totalSent: totalSyslogSent,
+            totalErrors: totalSyslogErrors,
+          },
+        });
+      }
+
+      // POST /api/syslog-config — Update syslog server config (called by Next.js API)
+      if (url.pathname === "/api/syslog-config" && req.method === "POST") {
+        try {
+          const body = await req.json();
+          const servers: SyslogServerConfig[] = (body.servers || []).map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            host: s.host,
+            port: parseInt(String(s.port), 10) || 514,
+            protocol: s.protocol || "udp",
+            format: s.format || "bsd",
+            facility: s.facility || "local1",
+            severity: s.severity || "info",
+            enabled: Boolean(s.enabled),
+          }));
+          syslogServers = servers;
+          console.log(
+            `[${SERVICE_NAME}] Syslog config updated: ${servers.length} server(s), ${servers.filter((s) => s.enabled).length} enabled`
+          );
+          return json({ success: true, message: `Configured ${servers.length} syslog server(s)` });
+        } catch (err: any) {
+          return json({ success: false, error: err.message }, 400);
+        }
+      }
+
+      // POST /api/syslog-test — Send a test message to a specific server
+      if (url.pathname === "/api/syslog-test" && req.method === "POST") {
+        try {
+          const body = await req.json();
+          const { host, port = 514, protocol = "udp", format = "bsd", facility = "local1", severity = "info" } = body;
+
+          const testServer: SyslogServerConfig = {
+            id: "test", name: "test", host, port, protocol, format, facility, severity, enabled: true,
+          };
+          const testEvent = {
+            timestamp: new Date().toISOString(),
+            proto: "tcp",
+            eventType: "TEST",
+            conntrack_id: 0,
+            src_ip: "127.0.0.1",
+            src_port: 12345,
+            dst_ip: "93.184.216.34",
+            dst_port: 443,
+            nat_src_ip: "",
+            nat_src_port: 0,
+            nat_dst_ip: "",
+            nat_dst_port: 0,
+            bytes: 1024,
+            packets: 8,
+            duration: 0,
+            status: "TEST",
+          };
+
+          const message = formatSyslogMessage(testEvent, testServer);
+          if (protocol === "tcp") {
+            await sendSyslogTCP(host, port, message);
+          } else {
+            await sendSyslogUDP(host, port, message);
+          }
+          return json({ success: true, message: `Test message sent to ${host}:${port}` });
+        } catch (err: any) {
+          return json({ success: false, error: err.message }, 500);
+        }
       }
 
       return json({ error: "Not Found" }, 404);
@@ -513,7 +742,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
     await flushBatch();
   }
 
-  console.log(`[${SERVICE_NAME}] Shutdown complete. Total events: ${totalEvents}`);
+  console.log(`[${SERVICE_NAME}] Shutdown complete. Total events: ${totalEvents}, Syslog sent: ${totalSyslogSent}`);
   process.exit(0);
 }
 

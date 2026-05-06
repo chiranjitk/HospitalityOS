@@ -6,6 +6,37 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
+// Notify conntrack-bridge of config changes (fire-and-forget)
+async function notifyConntrackBridge(): Promise<void> {
+  try {
+    const servers = await db.syslogServer.findMany({
+      where: { enabled: true },
+      select: {
+        id: true,
+        name: true,
+        host: true,
+        port: true,
+        protocol: true,
+        format: true,
+        facility: true,
+        severity: true,
+        enabled: true,
+      },
+    });
+    const res = await fetch('http://127.0.0.1:3020/api/syslog-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ servers }),
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) {
+      console.warn(`[syslog] Failed to notify conntrack-bridge: ${res.status}`);
+    }
+  } catch (err: any) {
+    console.warn(`[syslog] conntrack-bridge notification failed: ${err.message}`);
+  }
+}
+
 // GET /api/wifi/reports/syslog/[id] - Get single syslog server configuration
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const user = await requirePermission(request, 'network.manage');
@@ -77,6 +108,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     });
 
+    // Notify conntrack-bridge of config change
+    notifyConntrackBridge();
+
     // Format the response for the frontend
     let parsedCategories: string[] = [];
     try {
@@ -90,11 +124,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       port: server.port,
       protocol: server.protocol,
       format: server.format === 'ietf' ? 'RFC5424' : server.format === 'bsd' ? 'RFC3164' : server.format.toUpperCase(),
+      formatRaw: server.format,
       facility: server.facility,
       severity: server.severity,
       categories: parsedCategories,
       status: server.enabled ? 'connected' : 'disconnected',
+      enabled: server.enabled,
       tlsVerify: server.tlsVerify,
+      createdAt: server.createdAt,
+      updatedAt: server.updatedAt,
     };
 
     return NextResponse.json({ success: true, data: formatted });
@@ -127,6 +165,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     await db.syslogServer.delete({ where: { id } });
+
+    // Notify conntrack-bridge of config change
+    notifyConntrackBridge();
 
     return NextResponse.json({
       success: true,

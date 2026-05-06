@@ -2,6 +2,38 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 
+// Notify conntrack-bridge of config changes (fire-and-forget)
+async function notifyConntrackBridge(): Promise<void> {
+  try {
+    const servers = await db.syslogServer.findMany({
+      where: { enabled: true },
+      select: {
+        id: true,
+        name: true,
+        host: true,
+        port: true,
+        protocol: true,
+        format: true,
+        facility: true,
+        severity: true,
+        enabled: true,
+      },
+    });
+    const res = await fetch('http://127.0.0.1:3020/api/syslog-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ servers }),
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) {
+      console.warn(`[syslog] Failed to notify conntrack-bridge: ${res.status}`);
+    }
+  } catch (err: any) {
+    // Non-blocking — conntrack-bridge may not be running
+    console.warn(`[syslog] conntrack-bridge notification failed: ${err.message}`);
+  }
+}
+
 // GET /api/wifi/reports/syslog - List syslog server configurations
 export async function GET(request: NextRequest) {
   const user = await requirePermission(request, 'network.manage');
@@ -29,11 +61,15 @@ export async function GET(request: NextRequest) {
           port: s.port,
           protocol: s.protocol,
           format: s.format === 'ietf' ? 'RFC5424' : s.format === 'bsd' ? 'RFC3164' : s.format.toUpperCase(),
+          formatRaw: s.format,
           facility: s.facility,
           severity: s.severity,
           categories,
           status: s.enabled ? 'connected' : 'disconnected',
+          enabled: s.enabled,
           tlsVerify: s.tlsVerify,
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt,
         };
       });
 
@@ -54,11 +90,15 @@ export async function GET(request: NextRequest) {
       port: number;
       protocol: string;
       format: string;
+      formatRaw: string;
       facility: string;
       severity: string;
       categories: string[];
       status: string;
+      enabled: boolean;
       tlsVerify: boolean;
+      createdAt: string;
+      updatedAt: string;
     }[] = [
       {
         id: 'syslog-1',
@@ -67,11 +107,15 @@ export async function GET(request: NextRequest) {
         port: 514,
         protocol: 'udp',
         format: 'RFC5424',
+        formatRaw: 'ietf',
         facility: 'local1',
         severity: 'info',
         categories: ['auth', 'firewall', 'radius'],
         status: 'connected',
+        enabled: true,
         tlsVerify: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       },
       {
         id: 'syslog-2',
@@ -80,11 +124,15 @@ export async function GET(request: NextRequest) {
         port: 6514,
         protocol: 'tls',
         format: 'RFC5424',
+        formatRaw: 'ietf',
         facility: 'local0',
         severity: 'warning',
         categories: ['dhcp', 'dns', 'system'],
         status: 'connected',
+        enabled: true,
         tlsVerify: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       },
       {
         id: 'syslog-3',
@@ -93,11 +141,15 @@ export async function GET(request: NextRequest) {
         port: 514,
         protocol: 'tcp',
         format: 'RFC3164',
+        formatRaw: 'bsd',
         facility: 'auth',
         severity: 'notice',
         categories: ['auth', 'portal'],
         status: 'disconnected',
+        enabled: false,
         tlsVerify: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       },
     ];
 
@@ -181,6 +233,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Notify conntrack-bridge of config change
+    notifyConntrackBridge();
+
     return NextResponse.json({ success: true, data: server }, { status: 201 });
   } catch (error) {
     console.error('Error creating syslog server:', error);
@@ -197,11 +252,11 @@ function generateSyslogEntries(activeServers: { name: string; host: string; port
   const entries: string[] = [];
 
   const logTemplates = [
-    '<{pri}>1 {timestamp} {hostname} freeradius {pid} - - Auth request received from 10.0.1.101',
-    '<{pri}>1 {timestamp} {hostname} kea-dhcp4 {pid} - - DHCPDISCOVER from AA:BB:CC:01:01:01',
-    '<{pri}>1 {timestamp} {hostname} captive-portal {pid} - - Guest guest-101 authenticated via voucher',
-    '<{pri}>1 {timestamp} {hostname} iptables {pid} - - NAT: 10.0.1.101:54321 -> 142.250.80.46:443 ALLOW',
-    '<{pri}>1 {timestamp} {hostname} dns-resolver {pid} - - Query: A youtube.com from 10.0.2.104',
+    '<{pri}>1 {timestamp} {hostname} conntrack-bridge - - NAT tcp 10.0.1.101:52341 -> 142.250.80.46:443 bytes=45231 pkts=312 event=DESTROY',
+    '<{pri}>1 {timestamp} {hostname} conntrack-bridge - - NAT tcp 10.0.1.55:49182 -> 52.216.100.205:443 bytes=8912 pkts=67 event=UPDATE',
+    '<{pri}>1 {timestamp} {hostname} conntrack-bridge - - NAT udp 10.0.2.33:54321 -> 8.8.8.8:53 bytes=285 pkts=3 event=DESTROY',
+    '<{pri}>1 {timestamp} {hostname} conntrack-bridge - - NAT tcp 10.0.1.88:51234 -> 151.101.1.140:443 bytes=128450 pkts=891 event=DESTROY',
+    '<{pri}>1 {timestamp} {hostname} conntrack-bridge - - NAT tcp 10.0.3.12:48921 -> 157.240.1.35:443 bytes=245678 pkts=1523 event=DESTROY',
   ];
 
   const severityMap: Record<string, number> = {
@@ -218,14 +273,13 @@ function generateSyslogEntries(activeServers: { name: string; host: string; port
     const severity = severityMap[server.severity] ?? 6;
     const pri = facility + severity;
     const ts = new Date(now.getTime() - i * 60000);
-    const timestamp = ts.toISOString();
+    const timestamp = ts.toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
 
     entries.push(
       template
         .replace('{pri}', String(pri))
         .replace('{timestamp}', timestamp)
         .replace('{hostname}', 'staysuite-gw-01')
-        .replace('{pid}', String(1000 + i * 234))
     );
   }
 

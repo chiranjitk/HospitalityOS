@@ -112,6 +112,7 @@ import { usePropertyId } from '@/hooks/use-property';
 
 const CoaAuditTab = lazy(() => import('./coa-audit'));
 const UserStatusHistoryTab = lazy(() => import('./user-status-history'));
+const SyslogTab = lazy(() => import('./syslog-tab'));
 
 // ==================== LOADING SPINNER ====================
 
@@ -196,7 +197,7 @@ function CircularGauge({ value, label, color, size = 120 }: { value: number; lab
 
 // ==================== TAB TYPES ====================
 
-type TabId = 'bandwidth' | 'user-bw' | 'web-surfing' | 'nat-logs' | 'voucher' | 'sys-health' | 'coa-audit' | 'user-status-history';
+type TabId = 'bandwidth' | 'user-bw' | 'web-surfing' | 'nat-logs' | 'voucher' | 'sys-health' | 'coa-audit' | 'user-status-history' | 'syslog';
 
 function SortIcon({ col, isActive }: { col: string; isActive: boolean }) {
   return <ArrowUpDown className={cn('h-3 w-3 ml-1 inline', isActive ? 'opacity-100' : 'opacity-30')} />;
@@ -211,6 +212,7 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'sys-health', label: 'System Health', icon: Activity },
   { id: 'coa-audit', label: 'CoA Audit', icon: FileCheck },
   { id: 'user-status-history', label: 'User History', icon: History },
+  { id: 'syslog', label: 'Syslog', icon: Radio },
 ];
 
 // ==================== MAIN COMPONENT ====================
@@ -260,6 +262,11 @@ export default function ReportsPage() {
           {activeTab === 'user-status-history' && (
             <Suspense fallback={<LoadingSpinner message="Loading User History..." />}>
               <UserStatusHistoryTab />
+            </Suspense>
+          )}
+          {activeTab === 'syslog' && (
+            <Suspense fallback={<LoadingSpinner message="Loading Syslog Forwarding..." />}>
+              <SyslogTab />
             </Suspense>
           )}
         </div>
