@@ -318,6 +318,27 @@ if ! make -j"$(nproc 2>/dev/null || echo 2)" 2>&1; then
   exit 1
 fi
 
+# ─── Patch BASE plugin to pass through raw.pkt ──────────────────────────
+# The BASE plugin consumes raw.pkt from NFLOG input but doesn't include it in
+# its output keys array. Without this, the JSON plugin never sees raw.pkt.
+# CRITICAL: We must set key->len (okey_set_ptr() does NOT set len), otherwise
+# the JSON plugin's "key->len > 0" check fails and raw.pkt is silently dropped.
+log_step "  Patching BASE plugin for raw.pkt passthrough..."
+BASE_C="filter/raw2packet/ulogd_raw2packet_BASE.c"
+if ! grep -q "KEY_RAW_PKT" "$BASE_C"; then
+  cp "$BASE_C" "${BASE_C}.orig"
+  python3 "$SCRIPT_DIR/patch-base-plugin.py" "$BASE_C"
+  if grep -q "ret\[KEY_RAW_PKT\].*\.len.*=.*raw_src->len" "$BASE_C"; then
+    echo "    ✓ Patched: $BASE_C (raw.pkt passthrough with len field)"
+    make -C filter/raw2packet/ 2>&1 | tail -3
+  else
+    echo "    ✗ Patch FAILED — raw.pkt will NOT be in output!"
+    echo "      Run tools/ulogd2-clickhouse/patch-base-plugin.sh on target server."
+  fi
+else
+  echo "    ✓ Already patched (KEY_RAW_PKT found)"
+fi
+
 # ─── Patch JSON plugin to include raw.pkt as hex ────────────────────────
 # ulogd2 2.0.8 JSON output silently drops ULOGD_RET_RAW fields (the actual
 # packet payload). Without raw.pkt in JSON, TLS SNI extraction is impossible.

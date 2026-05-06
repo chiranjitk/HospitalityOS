@@ -174,3 +174,28 @@ Stage Summary:
 - **nftables syntax**: `not syn` is invalid; must use `tcp flags & (syn) == 0` or flag bitmask
 - Files changed: defaultchains_cryptsk.sh (lines 237-286), ulogd.conf (header + rule comments)
 - User must run manual fix on server to apply immediately
+
+---
+Task ID: 4
+Agent: main
+Task: Fix raw.pkt not appearing in JSON output — BASE plugin missing len field
+
+Work Log:
+- Analyzed ulogd2 source code (ulogd_raw2packet_BASE.c, ulogd_output_JSON.c, ulogd.h)
+- Found ROOT CAUSE: Previous BASE patch used `okey_set_ptr()` which sets ptr + VALID flag but NOT `key->len`
+- JSON plugin checks `key->len > 0` before hex conversion — without len, condition fails, raw.pkt silently dropped
+- Created `patch-base-plugin.py` — Python script with 3 surgical modifications to BASE source:
+  1. Add `KEY_RAW_PKT` to output_keys enum (after KEY_SCTP_CSUM)
+  2. Add `raw.pkt` ULOGD_RET_RAW entry to iphdr_rets[] array
+  3. In `_interp_pkt()`: copy ptr AND len AND VALID flag (the critical fix: `ret[KEY_RAW_PKT].len = raw_src->len`)
+- Created `patch-base-plugin.sh` — shell wrapper that runs Python patch, rebuilds .so, installs
+- Built both patched .so binaries (BASE: 25504 bytes, JSON: 24816 bytes)
+- Updated `build-offline.sh` to include BASE patch step before JSON patch
+- Both .so files pushed to GitHub repo
+
+Stage Summary:
+- ROOT CAUSE: `okey_set_ptr()` in ulogd.h does NOT set `key->len` — JSON plugin's `key->len > 0` check fails silently
+- FIX: Explicit copy: `ret[KEY_RAW_PKT].len = raw_src->len` (not just ptr and VALID flag)
+- New files: patch-base-plugin.py, patch-base-plugin.sh
+- Updated files: build-offline.sh (BASE patch step added), ulogd_raw2packet_BASE.so, ulogd_output_JSON.so
+- User must: `git pull`, copy both .so files, restart ulogd2, verify raw.pkt in JSON
