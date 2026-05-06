@@ -76,10 +76,14 @@ import {
   MapPin,
   RefreshCw,
   Zap,
+  Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { usePropertyId } from '@/hooks/use-property';
+import { useFeature } from '@/contexts/FeatureFlagsContext';
+
+const RoomVlansTab = lazy(() => import('@/components/wifi/room-vlans'));
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
 
@@ -380,7 +384,7 @@ function TrafficGraph({ rx, tx }: { rx: number; tx: number }) {
 
 // ─── TAB CONFIG ──────────────────────────────────────────────────────────────
 
-type TabId = 'interfaces' | 'vlans' | 'bridges-bonds' | 'routes' | 'multiwan' | 'schedules' | 'backup';
+type TabId = 'interfaces' | 'vlans' | 'bridges-bonds' | 'routes' | 'multiwan' | 'room-vlans' | 'schedules' | 'backup';
 
 const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'interfaces', label: 'Interfaces', icon: <Network className="h-4 w-4" /> },
@@ -388,6 +392,7 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'bridges-bonds', label: 'Bridges & Bonds', icon: <ArrowRightLeft className="h-4 w-4" /> },
   { id: 'routes', label: 'Routes', icon: <Route className="h-4 w-4" /> },
   { id: 'multiwan', label: 'Multi-WAN', icon: <Workflow className="h-4 w-4" /> },
+  { id: 'room-vlans', label: 'Room VLANs', icon: <Layers className="h-4 w-4" /> },
   { id: 'schedules', label: 'Schedules', icon: <Clock className="h-4 w-4" /> },
   { id: 'backup', label: 'Backup', icon: <Download className="h-4 w-4" /> },
 ];
@@ -398,6 +403,7 @@ export default function NetworkPage() {
   const [activeTab, setActiveTab] = useState<TabId>('interfaces');
   const { toast } = useToast();
   const { propertyId } = usePropertyId();
+  const roomVlanEnabled = useFeature('room_vlan_isolation');
 
   // Dialog states
   const [addInterfaceOpen, setAddInterfaceOpen] = useState(false);
@@ -1733,7 +1739,7 @@ export default function NetworkPage() {
       {/* Custom Tab Switcher */}
       <div className="relative">
         <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin">
-          {tabs.map((tab) => (
+          {tabs.filter(tab => tab.id !== 'room-vlans' || roomVlanEnabled).map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -3322,6 +3328,13 @@ export default function NetworkPage() {
               </DialogContent>
             </Dialog>
           </div>
+        )}
+
+        {/* ═══════ TAB 7: ROOM VLANs (Feature-Gated) ═══════ */}
+        {activeTab === 'room-vlans' && roomVlanEnabled && (
+          <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-teal-500" /></div>}>
+            <RoomVlansTab />
+          </Suspense>
         )}
 
         {/* ═══════ TAB 8: BACKUP ═══════ */}

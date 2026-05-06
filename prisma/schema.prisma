@@ -261,6 +261,7 @@ model BandwidthPolicy {
   updatedAt         DateTime @updatedAt @db.Timestamptz
   property          Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  roomVlans         RoomVlan[]
 
   @@index([tenantId])
   @@index([propertyId])
@@ -4077,10 +4078,44 @@ model Property {
   fromTransfers          InventoryTransfer[]  @relation("FromProperty")
   toTransfers            InventoryTransfer[]  @relation("ToProperty")
   deviceProfiles         DeviceProfile[]
+  roomVlans              RoomVlan[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
   @@index([brandId])
+}
+
+/// RoomVlan - Room-per-VLAN isolation mapping
+/// Assigns a dedicated VLAN to each hotel room for Layer 2 guest isolation.
+/// Feature-gated behind 'room_vlan_isolation' feature flag.
+model RoomVlan {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String    @db.Uuid
+  roomNumber      String                               // "101", "302", "Suite-Penthouse"
+  vlanId          Int                                 // 1101, 1302
+  subnet          String    @default("10.1.0.0/28")   // Room's IP subnet
+  gateway         String    @default("10.1.0.1")      // VLAN gateway
+  floor           Int       @default(1)
+  roomType        String    @default("standard")       // standard, suite, conference, vip
+  bandwidthPlanId String?   @db.Uuid                   // Link to BandwidthPolicy
+  status          String    @default("active")         // active, maintenance, disabled, reserved
+  description     String?
+  firewallRulesGenerated Boolean  @default(false)      // Whether nftables chains were pushed
+  lastProvisionedAt  DateTime?  @db.Timestamptz
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bandwidthPolicy  BandwidthPolicy? @relation(fields: [bandwidthPlanId], references: [id])
+
+  @@unique([propertyId, roomNumber])
+  @@unique([propertyId, vlanId])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([vlanId])
+  @@index([status])
+  @@index([floor])
 }
 
 model PurchaseOrder {
@@ -5903,6 +5938,7 @@ model Tenant {
   campaignAbTests           CampaignAbTest[]
   competitorSyncLogs        CompetitorSyncLog[]
   deviceProfiles            DeviceProfile[]
+  roomVlans                 RoomVlan[]
 }
 
 model Experience {

@@ -32,6 +32,7 @@ const FEATURE_NAMES: Record<string, string> = {
   crm: 'CRM & Marketing',
   notifications: 'Notifications',
   wifi: 'WiFi Management',
+  room_vlan_isolation: 'Room-per-VLAN Isolation',
   ai_features: 'AI Features',
   automation: 'Automation & Workflows',
   webhooks: 'Webhooks',

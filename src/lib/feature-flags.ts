@@ -182,6 +182,16 @@ export const FEATURES: Record<string, FeatureConfig> = {
     menuItems: ['wifi-access', 'wifi-sessions', 'wifi-vouchers', 'wifi-plans', 'wifi-logs', 'wifi-gateway-radius', 'wifi-gateway', 'wifi-aaa', 'wifi-network', 'wifi-dhcp', 'wifi-dns', 'wifi-portal', 'wifi-firewall', 'wifi-content-filter', 'wifi-reports'],
     apiRoutes: ['/api/wifi', '/api/wifi/sessions', '/api/wifi/vouchers'],
   },
+  room_vlan_isolation: {
+    id: 'room_vlan_isolation',
+    name: 'Room-per-VLAN Isolation',
+    description: 'Dedicated VLAN per hotel room for Layer 2 isolation, per-room bandwidth, auto firewall rules, and PMS-driven provisioning',
+    category: 'addons',
+    subcategory: 'Connectivity',
+    menuItems: ['wifi-room-vlans'],
+    apiRoutes: ['/api/wifi/network/room-vlans'],
+    dependencies: ['wifi'],
+  },
 
   // =====================================================
   // ADDON MODULES - Revenue & Channels
