@@ -132,6 +132,22 @@ mkdir -p "${LIB_DIR}"
 mkdir -p "$(dirname "${CONF_PATH}")"
 mkdir -p "${LOG_DIR}"
 
+## ── Enable conntrack byte/packet accounting ──
+## Required for flow.json to show actual BYTES/PKTS (not 0)
+## Persists across reboots via sysctl.d
+SYSCTL_FILE="/etc/sysctl.d/99-staysuite-conntrack.conf"
+echo "  Enabling conntrack accounting (byte/packet counters)..."
+if [ ! -f "${SYSCTL_FILE}" ] || ! grep -q "nf_conntrack_acct" "${SYSCTL_FILE}" 2>/dev/null; then
+    cat > "${SYSCTL_FILE}" <<EOFSYSCTL
+# StaySuite: Enable per-connection byte/packet counters in conntrack
+# Required by ulogd2 NFCT plugin for flow.json bandwidth accounting
+net.netfilter.nf_conntrack_acct = 1
+EOFSYSCTL
+    chmod 644 "${SYSCTL_FILE}"
+fi
+sysctl -w net.netfilter.nf_conntrack_acct=1 >/dev/null 2>&1 || true
+echo "  → conntrack accounting enabled (PKTS/BYTES will now count)"
+
 ## ============================================================================
 ## INSTALL BINARY
 ## ============================================================================
@@ -225,9 +241,9 @@ stack=ct1:NFCT,ct_ip:IP2STR,ct_print:PRINTFLOW,ct_json:JSON
 # nftables: nft add rule inet mangle prerouting log group 10
 stack=pkt1:NFLOG,pkt_base:BASE,pkt_if:IFINDEX,pkt_ip:IP2STR,pkt_mac:HWHDR,pkt_json:JSON
 
-# Stack 3: TLS SNI extraction (NFLOG -> PRINTSNI -> JSON)
+# Stack 3: TLS SNI extraction (NFLOG -> BASE -> IP2STR -> IFINDEX -> PRINTSNI -> JSON)
 # nftables: nft add rule inet mangle prerouting tcp dport 443 tcp flags & (syn|rst|fin) == 0 log group 20 snaplen 1500
-stack=sni:NFLOG,sni_sni:PRINTSNI,sni_json:JSON
+stack=sni:NFLOG,sni_base:BASE,sni_ip:IP2STR,sni_if:IFINDEX,sni_sni:PRINTSNI,sni_json:JSON
 
 # Stack 4: Raw TLS PCAP (DISABLED — conflicts with Stack 3 on group 20)
 # stack=sni_pcap:NFLOG,sni_pcap_base:BASE,sni_pcap_out:PCAP
