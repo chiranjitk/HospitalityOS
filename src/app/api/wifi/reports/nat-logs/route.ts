@@ -319,9 +319,13 @@ export async function GET(request: NextRequest) {
         }
 
         // ── Build enriched response ───────────────────────────
-        enriched = natRows.map((row, idx) => ({
+        enriched = natRows.map((row, idx) => {
+          const rawTs = String(row.timestamp ?? '');
+          // ClickHouse DateTime: 'YYYY-MM-DD HH:MM:SS' → ISO 8601 for JavaScript Date
+          const ts = rawTs.includes('T') ? rawTs : rawTs.replace(' ', 'T');
+          return {
           id: `nl-${idx + 1}`,
-          timestamp: String(row.timestamp ?? ''),
+          timestamp: ts,
           source_ip: String(row.src_ip ?? ''),
           src_port: Number(row.src_port ?? 0),
           dest_ip: String(row.dst_ip ?? ''),
@@ -338,7 +342,8 @@ export async function GET(request: NextRequest) {
           domain: domainMap.get(String(row.dst_ip ?? '')) ?? '',
           guestName: guestMap.get(String(row.src_ip ?? '')) ?? '',
           action: 'allow',
-        }));
+        };
+        });
 
         // Apply action filter if needed
         if (action) {

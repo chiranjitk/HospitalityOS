@@ -74,6 +74,7 @@ export interface NatLogEntry {
 
 export interface SurfingEntry {
   id: string;
+  timestamp: string;
   domain: string;
   sourceIp: string;
   source_ip: string;
@@ -231,9 +232,12 @@ export async function getNatLogsFromUlogd(
   const maxRecords = options?.maxRecords ?? 500;
   const limited = flows.slice(0, maxRecords);
 
-  return limited.map((flow, idx) => ({
+  return limited.map((flow, idx) => {
+    const rawTs = flow.timestamp;
+    const ts = rawTs.includes('T') ? rawTs : rawTs.replace(' ', 'T');
+    return {
     id: `ulogd-${idx + 1}`,
-    timestamp: flow.timestamp,
+    timestamp: ts,
     source_ip: flow.src_ip,
     src_port: flow.src_port,
     dest_ip: flow.dest_ip,
@@ -250,7 +254,8 @@ export async function getNatLogsFromUlogd(
     domain: domainMap.get(flow.dest_ip) ?? '',
     guestName: '', // Will be filled by API route from WiFiSession
     action: 'allow',
-  }));
+    };
+  });
 }
 
 /**
@@ -344,16 +349,21 @@ export async function getWebSurfingFromUlogd(
       }
     }
 
+    // Normalize ulogd timestamp for JavaScript Date compatibility
+    const tsRaw = sniData.lastSeen;
+    const tsNorm = tsRaw.includes('T') ? tsRaw : tsRaw.replace(' ', 'T');
+
     entries.push({
       id: `ulogd-${entries.length + 1}`,
+      timestamp: tsNorm,
       domain: sniData.domain,
       sourceIp: sniData.src_ip,
       source_ip: sniData.src_ip,
       category: classifyDomain(sniData.domain),
       totalBytes,
       connections: sniData.count,
-      lastAccess: sniData.lastSeen,
-      last_access: sniData.lastSeen,
+      lastAccess: tsNorm,
+      last_access: tsNorm,
       guestName: '', // Will be filled by API route from WiFiSession
     });
   }

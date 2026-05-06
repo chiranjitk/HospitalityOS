@@ -173,6 +173,7 @@ function generateDemoData() {
 
     entries.push({
       id: `ws-${i + 1}`,
+      timestamp: lastAccessStr,
       domain,
       sourceIp: ip,
       source_ip: ip,
@@ -195,6 +196,7 @@ function generateDemoData() {
 
 interface SurfingEntry {
   id: string;
+  timestamp: string;
   domain: string;
   sourceIp: string;
   source_ip: string;
@@ -395,9 +397,12 @@ export async function GET(request: NextRequest) {
             }
           }
 
-          const lastAccess = String(r.last_seen ?? '');
+          const rawTs = String(r.last_seen ?? '');
+          // ClickHouse DateTime: 'YYYY-MM-DD HH:MM:SS' → ISO 8601 for JavaScript Date
+          const lastAccess = rawTs.includes('T') ? rawTs : rawTs.replace(' ', 'T');
           return {
             id: `ws-${idx + 1}`,
+            timestamp: lastAccess,
             domain,
             sourceIp: srcIp,
             source_ip: srcIp,
