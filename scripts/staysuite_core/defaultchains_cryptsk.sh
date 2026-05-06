@@ -8,7 +8,8 @@
 #  ─────────────────────────────────────────────────────
 #  Fix 1: filter input  policy accept → drop (was wide open)
 #  Fix 2: drop_log chain now jumped to at end of input
-#  Fix 3: Added filter forward chain (gateway must filter forwarded traffic)
+#  ~~ Fix 3: REVERTED — filter forward chain REMOVED (broke DNS/redirect) ~~~~
+#           catchallchains.sh owns the forward chain. Do NOT define it here.
 #  Fix 4: Security hooks skip loopback (iif != "lo" on all chains)
 #  Fix 5: Multiple gateway insertion order corrected (reverse iteration)
 #  Fix 6: SMB broadcastfile logic simplified (was pointless if/then)
@@ -495,7 +496,7 @@ nft 'add rule inet security icmp_limit icmp type echo-request drop'
 ## FINAL FILTER TABLE SETUP
 ## FIX #1: filter input policy changed from accept → drop
 ## FIX #2: drop_log chain is now jumped to at end of input chain
-## FIX #3: filter forward chain added (gateway must filter forwarded traffic)
+## ~~ FIX #3: REVERTED — forward chain NOT defined here (catchallchains.sh owns it) ~~
 ## ============================================================================
 
 ## Create a whitelist set for absolute admin access (Bypasses ALL security rules)
@@ -528,13 +529,11 @@ nft 'add rule inet filter input meta l4proto icmp accept'
 ## FIX #2: Jump to drop_log at end — catches everything that falls through
 nft 'add rule inet filter input jump drop_log'
 
-## ─── FORWARD chain base ───
-## NOTE: catchallchains.sh (called below) rebuilds the forward chain.
-## So we only define the chain + essential base rules here.
-## The meta mark accept rule is re-inserted AFTER all external scripts.
-nft 'add chain inet filter forward { type filter hook forward priority filter; policy drop; }'
-nft 'add rule inet filter forward ct state established,related accept'
-nft 'add rule inet filter forward ct state invalid drop'
+## ─── FORWARD chain ───
+## REVERTED: Do NOT define filter forward here.
+## catchallchains.sh (called below) owns and rebuilds the forward chain.
+## Defining it here with policy drop broke DNS forwarding and captive portal redirect.
+## The mangle table handles all authorization via marks/sets — filter forward is NOT needed.
 
 ## ============================================================================
 ## IPv6 SUPPORT
@@ -553,20 +552,9 @@ if [ "$ipv6" = "y" ] || [ "$ipv6" = "Y" ]; then
 fi
 
 ## ============================================================================
-## FORWARD chain FINAL RULES (after ALL external scripts including applyallchains.sh)
-## catchallchains.sh / applyallchains.sh rebuild the forward chain.
-## These rules MUST be inserted AFTER they run, otherwise they get wiped.
-## Use 'insert' to place at the TOP (before any jump/drop from external scripts).
+## EXTERNAL SCRIPTS (applyallchains.sh owns the forward chain)
 ## ============================================================================
 [ -x /usr/local/scripts/applyallchains.sh ] && sh /usr/local/scripts/applyallchains.sh >> /var/log/nftables_restore.log 2>&1 &
-
-# Wait briefly for applyallchains.sh to finish its forward chain setup
-sleep 1
-
-# Allow logged-in user traffic (marked by mangle prerouting) — critical for internet access
-nft 'insert rule inet filter forward position 0 ct state established,related accept'
-nft 'insert rule inet filter forward position 0 ct state invalid drop'
-nft 'insert rule inet filter forward position 0 meta mark != 0 accept'
 
 [ -x /etc/rc.d/init.d/dnssniffer ] && /etc/rc.d/init.d/dnssniffer restart 2>/dev/null
 
