@@ -185,17 +185,14 @@ for real_file in "${LIB_DIR}"/.so.*.*.*; do
 done
 
 ## ============================================================================
-## INSTALL CONFIG (rewrite all paths to standard locations)
+## INSTALL CONFIG
+## Config already has production paths (/usr/local/lib/ulogd/, /var/log/ulogd2/).
+## Just copy it — no sed rewriting needed.
 ## ============================================================================
 echo "[6/7] Installing ulogd.conf..."
 
 if [ -f "${SRC_DIR}/ulogd.conf" ]; then
-    sed \
-        -e "s|${SRC_DIR}/install/lib/ulogd/|${PLUGIN_DIR}/|g" \
-        -e "s|${SRC_DIR}/log/|${LOG_DIR}/|g" \
-        -e "s|/home/z/my-project/tools/ulogd-build/|/usr/local/|g" \
-        -e "s|/opt/staysuite/ulogd2/|/usr/local/|g" \
-        "${SRC_DIR}/ulogd.conf" > "${CONF_PATH}"
+    cp -f "${SRC_DIR}/ulogd.conf" "${CONF_PATH}"
 else
     cat > "${CONF_PATH}" <<EOFCONF
 # ulogd.conf - StaySuite HospitalityOS (Production)
