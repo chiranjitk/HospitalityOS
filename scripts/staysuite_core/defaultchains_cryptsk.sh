@@ -276,8 +276,8 @@ nft 'add rule inet mangle open udp dport 6065 accept'
 ## ============================================================================
 
 # Only install NFLOG rules if ulogd2 is installed
-# Binary is named "ulogd" (not "ulogd2") — installed at /usr/local/ulogd2/sbin/ulogd
-if command -v ulogd >/dev/null 2>&1 || [ -x /usr/local/ulogd2/sbin/ulogd ]; then
+# Binary is named "ulogd" (not "ulogd2") — installed at /opt/staysuite/ulogd2/sbin/ulogd
+if command -v ulogd >/dev/null 2>&1 || [ -x /opt/staysuite/ulogd2/sbin/ulogd ]; then
     echo "ulogd2 detected — installing NFLOG rules for SNI capture pipeline"
 
     # Use 'insert rule' to place at the TOP of prerouting chain (position 0 by default)
@@ -308,14 +308,14 @@ if command -v ulogd >/dev/null 2>&1 || [ -x /usr/local/ulogd2/sbin/ulogd ]; then
     if [ -f /etc/systemd/system/ulogd2.service ] || systemctl list-unit-files ulogd2.service >/dev/null 2>&1; then
         systemctl restart ulogd2 >/dev/null 2>&1
         echo "ulogd2 started via systemctl"
-    elif [ -f /usr/local/ulogd2/etc/ulogd.conf ]; then
+    elif [ -f /opt/staysuite/ulogd2/etc/ulogd.conf ]; then
         # Fallback: start directly if no systemd service but config exists
         pkill -f "ulogd.*ulogd.conf" >/dev/null 2>&1
         sleep 1
-        /usr/local/ulogd2/sbin/ulogd -c /usr/local/ulogd2/etc/ulogd.conf >/dev/null 2>&1 &
+        /opt/staysuite/ulogd2/sbin/ulogd -c /opt/staysuite/ulogd2/etc/ulogd.conf >/dev/null 2>&1 &
         echo "ulogd2 started manually (PID: $!)"
     else
-        echo "WARNING: ulogd2 config not found at /usr/local/ulogd2/etc/ulogd.conf — NFLOG rules loaded but ulogd2 not started"
+        echo "WARNING: ulogd2 config not found at /opt/staysuite/ulogd2/etc/ulogd.conf — NFLOG rules loaded but ulogd2 not started"
     fi
 else
     echo "ulogd2 not found — skipping NFLOG rules (SNI capture pipeline disabled)"
