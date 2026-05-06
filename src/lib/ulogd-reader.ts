@@ -454,6 +454,7 @@ export async function resolveGuestNames(
   try {
     const uniqueIps = Array.from(new Set(ips));
 
+    // WiFiSession has no `guest` relation — do a two-step lookup
     const sessions = await db.wiFiSession.findMany({
       where: {
         ...(tenantId ? { tenantId } : {}),
@@ -462,10 +463,10 @@ export async function resolveGuestNames(
       select: {
         ipAddress: true,
         guestId: true,
-        guest: { select: { firstName: true, lastName: true } },
       },
     });
 
+    // Collect valid guest IDs and build IP → guestId map
     const guestIds: string[] = [];
     const ipToGuestId = new Map<string, string>();
 
@@ -474,15 +475,10 @@ export async function resolveGuestNames(
       if (ip && s.guestId) {
         ipToGuestId.set(ip, s.guestId);
         guestIds.push(s.guestId);
-        // Also set name directly if guest is populated
-        if (s.guest) {
-          const name = [s.guest.firstName, s.guest.lastName].filter(Boolean).join(' ');
-          if (name) guestMap.set(ip, name);
-        }
       }
     }
 
-    // Batch-resolve any missing guest names
+    // Batch-resolve guest names from Guest table
     if (guestIds.length > 0) {
       const uniqueGuestIds = Array.from(new Set(guestIds));
       const guests = await db.guest.findMany({
@@ -490,15 +486,17 @@ export async function resolveGuestNames(
         select: { id: true, firstName: true, lastName: true },
       });
 
+      const guestNameMap = new Map<string, string>();
       for (const g of guests) {
         const name = [g.firstName, g.lastName].filter(Boolean).join(' ');
-        if (name) {
-          // Find all IPs mapped to this guest
-          ipToGuestId.forEach((gId, ip) => {
-            if (gId === g.id) guestMap.set(ip, name);
-          });
-        }
+        if (name) guestNameMap.set(g.id, name);
       }
+
+      // Map IP → guest name
+      ipToGuestId.forEach((gId, ip) => {
+        const name = guestNameMap.get(gId);
+        if (name) guestMap.set(ip, name);
+      });
     }
   } catch {
     // Guest resolution is best-effort

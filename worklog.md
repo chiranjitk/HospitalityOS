@@ -164,3 +164,22 @@ Stage Summary:
 - Files modified: mini-services/conntrack-bridge/index.ts, mini-services/sni-parser/index.ts
 - After git pull + pm2 restart conntrack-bridge sni-parser, data should flow to ClickHouse
 - Verify with: clickhouse-client --query "SELECT count() FROM ipdr.sni_log"
+
+---
+Task ID: 1
+Agent: main
+Task: Fix Prisma error "Unknown field `guest` for select statement on model WiFiSession" in web-surfing route and ulogd-reader
+
+Work Log:
+- Analyzed user's pm2 logs showing repeated Prisma error: `Unknown field 'guest' for select statement on model 'WiFiSession'`
+- Read WiFiSession model in prisma/schema.prisma (line 6656) — confirmed NO `guest` relation exists; only `plan` and `tenant` relations
+- `guestId` field exists as a UUID but has no `@relation` to the Guest model
+- Fixed `src/app/api/wifi/reports/web-surfing/route.ts` (line 360-402): Replaced single Prisma query with `guest` relation to a two-step lookup: (1) query WiFiSession for ipAddress + guestId, (2) query Guest model for firstName/lastName, (3) build IP → guest name map
+- Fixed `src/lib/ulogd-reader.ts` resolveGuestNames function (line 454-503): Same two-step approach
+- Verified NAT logs route and realtime-service do NOT have this issue (they query Booking model which has `guest` relation)
+- Confirmed fix: pm2 logs no longer show Prisma errors
+
+Stage Summary:
+- Root cause: WiFiSession model has `guestId` field but no `@relation` decorator linking to Guest table
+- Two files fixed with two-step guest name resolution pattern
+- Prisma error spam eliminated from server logs

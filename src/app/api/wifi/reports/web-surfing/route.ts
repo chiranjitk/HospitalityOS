@@ -359,22 +359,42 @@ export async function GET(request: NextRequest) {
 
         if (uniqueIps.length > 0) {
           try {
+            // WiFiSession has no `guest` relation — do a two-step lookup
             const sessions = await db.wiFiSession.findMany({
               where: { ipAddress: { in: uniqueIps } },
-              select: {
-                id: true,
-                guestId: true,
-                ipAddress: true,
-                guest: { select: { firstName: true, lastName: true } },
-              },
+              select: { id: true, guestId: true, ipAddress: true },
             });
+
+            // Collect valid guest IDs
+            const guestIds = sessions
+              .map((s) => s.guestId)
+              .filter((g): g is string => !!g);
+            const uniqueGuestIds = [...new Set(guestIds)];
+
+            // Build IP → guestId map
+            const ipToGuestId = new Map<string, string>();
             for (const s of sessions) {
-              if (s.guest && s.ipAddress) {
-                const name = `${s.guest.firstName ?? ''} ${s.guest.lastName ?? ''}`.trim();
-                if (name) {
-                  ipToGuest.set(s.ipAddress, name);
-                }
+              if (s.ipAddress && s.guestId) {
+                ipToGuestId.set(s.ipAddress, s.guestId);
               }
+            }
+
+            // Batch-fetch guest names
+            if (uniqueGuestIds.length > 0) {
+              const guests = await db.guest.findMany({
+                where: { id: { in: uniqueGuestIds } },
+                select: { id: true, firstName: true, lastName: true },
+              });
+              const guestNameMap = new Map<string, string>();
+              for (const g of guests) {
+                const name = `${g.firstName ?? ''} ${g.lastName ?? ''}`.trim();
+                if (name) guestNameMap.set(g.id, name);
+              }
+              // Map IP → guest name
+              ipToGuestId.forEach((guestId, ip) => {
+                const name = guestNameMap.get(guestId);
+                if (name) ipToGuest.set(ip, name);
+              });
             }
           } catch {
             // Guest resolution is best-effort; continue without names
