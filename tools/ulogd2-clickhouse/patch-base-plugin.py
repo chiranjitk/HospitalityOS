@@ -34,7 +34,7 @@ def main():
     changes = 0
 
     # ── Change 1: Add KEY_RAW_PKT to output_keys enum ──────────────────────
-    # Find the line "	KEY_SCTP_CSUM," followed by blank line and "};"
+    # Find the line "   KEY_SCTP_CSUM," followed by blank line and "};"
     for i, line in enumerate(lines):
         if re.match(r'\tKEY_SCTP_CSUM,\s*$', line):
             if i + 2 < len(lines) and lines[i + 1].strip() == '' and lines[i + 2].strip() == '};':
@@ -81,6 +81,9 @@ def main():
 
     # ── Change 3: Copy raw.pkt in _interp_pkt() ────────────────────────────
     # Find "okey_set_u16(&ret[KEY_OOB_PROTOCOL]," then insert after the statement
+    # IMPORTANT: NFLOG sets raw.pkt via okey_set_ptr() which does NOT set key->len.
+    # So raw_src->len is always 0. We must use the 'len' variable already obtained
+    # from INKEY_RAW_PCKTLEN (raw.pktlen) which IS set correctly via okey_set_u32().
     for i, line in enumerate(lines):
         if 'okey_set_u16(&ret[KEY_OOB_PROTOCOL]' in line:
             j = i
@@ -92,11 +95,13 @@ def main():
                     insert_lines = [
                         '\n',
                         '\t/* Pass through raw.pkt for TLS SNI extraction */\n',
+                        '\t/* NFLOG sets raw.pkt via okey_set_ptr() which does NOT set len, */\n',
+                        '\t/* so we use len from raw.pktlen (ULOGD_RET_UINT32) instead. */\n',
                         '\t{\n',
                         '\t\tstruct ulogd_key *raw_src = pi->input.keys[INKEY_RAW_PCKT].u.source;\n',
                         '\t\tif (raw_src && (raw_src->flags & ULOGD_RETF_VALID)) {\n',
                         '\t\t\tret[KEY_RAW_PKT].u.value.ptr = raw_src->u.value.ptr;\n',
-                        '\t\t\tret[KEY_RAW_PKT].len = raw_src->len;\n',
+                        '\t\t\tret[KEY_RAW_PKT].len = len;\n',
                         '\t\t\tret[KEY_RAW_PKT].flags |= ULOGD_RETF_VALID;\n',
                         '\t\t}\n',
                         '\t}\n',
