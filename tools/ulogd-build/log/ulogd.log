@@ -1,0 +1,73 @@
+Wed May  6 14:39:34 2026 <7> ulogd.c:282 unknown config key "plugin_dirs"
+Wed May  6 14:39:34 2026 <8> ulogd.c:1617 unable to parse config file
+Wed May  6 14:39:47 2026 <7> ulogd.c:282 unknown config key "netlink_monitor"
+Wed May  6 14:39:47 2026 <8> ulogd.c:1617 unable to parse config file
+Wed May  6 14:40:03 2026 <5> ulogd.c:467 registering plugin `NFLOG'
+Wed May  6 14:40:03 2026 <5> ulogd.c:467 registering plugin `NFCT'
+Wed May  6 14:40:03 2026 <5> ulogd.c:467 registering plugin `BASE'
+Wed May  6 14:40:03 2026 <5> ulogd.c:467 registering plugin `IFINDEX'
+Wed May  6 14:40:03 2026 <5> ulogd.c:467 registering plugin `IP2STR'
+Wed May  6 14:40:03 2026 <5> ulogd.c:467 registering plugin `HWHDR'
+Wed May  6 14:40:03 2026 <5> ulogd.c:467 registering plugin `PRINTFLOW'
+Wed May  6 14:40:03 2026 <5> ulogd.c:454 plugin `PRINTSNI' has incompatible version 2.0.9-sni1.0
+Wed May  6 14:40:03 2026 <5> ulogd.c:467 registering plugin `JSON'
+Wed May  6 14:40:03 2026 <5> ulogd.c:467 registering plugin `PCAP'
+Wed May  6 14:40:03 2026 <5> ulogd.c:1047 building new pluginstance stack: 'ct1:NFCT,ct_ip:IP2STR,ct_print:PRINTFLOW,ct_json:JSON'
+Wed May  6 14:40:03 2026 <8> ulogd_inpflow_NFCT.c:1311 error opening ctnetlink
+Wed May  6 14:40:03 2026 <7> ulogd.c:1014 error starting `ct1'
+Wed May  6 14:40:03 2026 <5> ulogd.c:1047 building new pluginstance stack: 'pkt1:NFLOG,pkt_base:BASE,pkt_if:IFINDEX,pkt_ip:IP2STR,pkt_mac:HWHDR,pkt_json:JSON'
+Wed May  6 14:40:03 2026 <7> ulogd_inppkt_NFLOG.c:609 unable to bind to log group 10
+Wed May  6 14:40:03 2026 <7> ulogd.c:1014 error starting `pkt1'
+Wed May  6 14:40:03 2026 <5> ulogd.c:1047 building new pluginstance stack: 'sni:NFLOG,sni_base:BASE,sni_sni:PRINTSNI,sni_json:JSON'
+Wed May  6 14:40:03 2026 <7> ulogd.c:1074 can't find requested plugin PRINTSNI
+Wed May  6 14:40:03 2026 <5> ulogd.c:1047 building new pluginstance stack: 'sni_pcap:NFLOG,sni_pcap_base:BASE,sni_pcap_out:PCAP'
+Wed May  6 14:40:03 2026 <7> ulogd_inppkt_NFLOG.c:609 unable to bind to log group 20
+Wed May  6 14:40:03 2026 <7> ulogd.c:1014 error starting `sni_pcap'
+Wed May  6 14:40:03 2026 <8> ulogd.c:1622 not even a single working plugin stack
+Wed May  6 14:40:23 2026 <5> ulogd.c:467 registering plugin `NFLOG'
+Wed May  6 14:40:23 2026 <5> ulogd.c:467 registering plugin `NFCT'
+Wed May  6 14:40:23 2026 <5> ulogd.c:467 registering plugin `BASE'
+Wed May  6 14:40:23 2026 <5> ulogd.c:467 registering plugin `IFINDEX'
+Wed May  6 14:40:23 2026 <5> ulogd.c:467 registering plugin `IP2STR'
+Wed May  6 14:40:23 2026 <5> ulogd.c:467 registering plugin `HWHDR'
+Wed May  6 14:40:23 2026 <5> ulogd.c:467 registering plugin `PRINTFLOW'
+Wed May  6 14:40:23 2026 <5> ulogd.c:467 registering plugin `PRINTSNI'
+Wed May  6 14:40:23 2026 <5> ulogd.c:467 registering plugin `JSON'
+Wed May  6 14:40:23 2026 <5> ulogd.c:467 registering plugin `PCAP'
+Wed May  6 14:40:23 2026 <5> ulogd.c:1047 building new pluginstance stack: 'ct1:NFCT,ct_ip:IP2STR,ct_print:PRINTFLOW,ct_json:JSON'
+Wed May  6 14:40:23 2026 <8> ulogd_inpflow_NFCT.c:1311 error opening ctnetlink
+Wed May  6 14:40:23 2026 <7> ulogd.c:1014 error starting `ct1'
+Wed May  6 14:40:23 2026 <5> ulogd.c:1047 building new pluginstance stack: 'pkt1:NFLOG,pkt_base:BASE,pkt_if:IFINDEX,pkt_ip:IP2STR,pkt_mac:HWHDR,pkt_json:JSON'
+Wed May  6 14:40:23 2026 <7> ulogd_inppkt_NFLOG.c:609 unable to bind to log group 10
+Wed May  6 14:40:23 2026 <7> ulogd.c:1014 error starting `pkt1'
+Wed May  6 14:40:23 2026 <5> ulogd.c:1047 building new pluginstance stack: 'sni:NFLOG,sni_base:BASE,sni_sni:PRINTSNI,sni_json:JSON'
+Wed May  6 14:40:23 2026 <7> ulogd.c:923 type mismatch between PRINTSNI and BASE in stack
+Wed May  6 14:40:23 2026 <7> ulogd_inppkt_NFLOG.c:609 unable to bind to log group 20
+Wed May  6 14:40:23 2026 <7> ulogd.c:1014 error starting `sni'
+Wed May  6 14:40:23 2026 <5> ulogd.c:1047 building new pluginstance stack: 'sni_pcap:NFLOG,sni_pcap_base:BASE,sni_pcap_out:PCAP'
+Wed May  6 14:40:23 2026 <7> ulogd_inppkt_NFLOG.c:609 unable to bind to log group 20
+Wed May  6 14:40:23 2026 <7> ulogd.c:1014 error starting `sni_pcap'
+Wed May  6 14:40:23 2026 <8> ulogd.c:1622 not even a single working plugin stack
+Wed May  6 14:41:37 2026 <5> ulogd.c:467 registering plugin `NFLOG'
+Wed May  6 14:41:37 2026 <5> ulogd.c:467 registering plugin `NFCT'
+Wed May  6 14:41:37 2026 <5> ulogd.c:467 registering plugin `BASE'
+Wed May  6 14:41:37 2026 <5> ulogd.c:467 registering plugin `IFINDEX'
+Wed May  6 14:41:37 2026 <5> ulogd.c:467 registering plugin `IP2STR'
+Wed May  6 14:41:37 2026 <5> ulogd.c:467 registering plugin `HWHDR'
+Wed May  6 14:41:37 2026 <5> ulogd.c:467 registering plugin `PRINTFLOW'
+Wed May  6 14:41:37 2026 <5> ulogd.c:467 registering plugin `PRINTSNI'
+Wed May  6 14:41:37 2026 <5> ulogd.c:467 registering plugin `JSON'
+Wed May  6 14:41:37 2026 <5> ulogd.c:467 registering plugin `PCAP'
+Wed May  6 14:41:37 2026 <5> ulogd.c:1047 building new pluginstance stack: 'ct1:NFCT,ct_ip:IP2STR,ct_print:PRINTFLOW,ct_json:JSON'
+Wed May  6 14:41:37 2026 <8> ulogd_inpflow_NFCT.c:1311 error opening ctnetlink
+Wed May  6 14:41:37 2026 <7> ulogd.c:1014 error starting `ct1'
+Wed May  6 14:41:37 2026 <5> ulogd.c:1047 building new pluginstance stack: 'pkt1:NFLOG,pkt_base:BASE,pkt_if:IFINDEX,pkt_ip:IP2STR,pkt_mac:HWHDR,pkt_json:JSON'
+Wed May  6 14:41:37 2026 <7> ulogd_inppkt_NFLOG.c:609 unable to bind to log group 10
+Wed May  6 14:41:37 2026 <7> ulogd.c:1014 error starting `pkt1'
+Wed May  6 14:41:37 2026 <5> ulogd.c:1047 building new pluginstance stack: 'sni:NFLOG,sni_sni:PRINTSNI,sni_json:JSON'
+Wed May  6 14:41:37 2026 <7> ulogd_inppkt_NFLOG.c:609 unable to bind to log group 20
+Wed May  6 14:41:37 2026 <7> ulogd.c:1014 error starting `sni'
+Wed May  6 14:41:37 2026 <5> ulogd.c:1047 building new pluginstance stack: 'sni_pcap:NFLOG,sni_pcap_base:BASE,sni_pcap_out:PCAP'
+Wed May  6 14:41:37 2026 <7> ulogd_inppkt_NFLOG.c:609 unable to bind to log group 20
+Wed May  6 14:41:37 2026 <7> ulogd.c:1014 error starting `sni_pcap'
+Wed May  6 14:41:37 2026 <8> ulogd.c:1622 not even a single working plugin stack

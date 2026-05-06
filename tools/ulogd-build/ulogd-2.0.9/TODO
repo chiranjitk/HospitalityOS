@@ -1,0 +1,3 @@
+- add support for capabilities to run as non-root
+- support for static linking
+- problem wrt. ulogd_BASE and fragments

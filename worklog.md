@@ -58,12 +58,12 @@ Work Log:
 - Verified all plugins register correctly with ulogd
 
 Stage Summary:
-- All binaries at: /home/z/ulogd-build/install/
-- ulogd binary: /home/z/ulogd-build/install/sbin/ulogd (v2.0.9)
-- 26 plugins at: /home/z/ulogd-build/install/lib/ulogd/
+- All binaries at: /home/z/my-project/tools/ulogd-build/install/
+- ulogd binary: /home/z/my-project/tools/ulogd-build/install/sbin/ulogd (v2.0.9)
+- 26 plugins at: /home/z/my-project/tools/ulogd-build/install/lib/ulogd/
 - Custom plugin: ulogd_filter_PRINTSNI.so (TLS SNI extraction)
-- Config: /home/z/ulogd-build/ulogd.conf
-- To run: LD_LIBRARY_PATH=/home/z/ulogd-build/install/lib ulogd -c /home/z/ulogd-build/ulogd.conf
+- Config: /home/z/my-project/tools/ulogd-build/ulogd.conf
+- To run: LD_LIBRARY_PATH=/home/z/my-project/tools/ulogd-build/install/lib ulogd -c /home/z/my-project/tools/ulogd-build/ulogd.conf
 - iptables rules needed:
   - iptables -I FORWARD -j NFLOG --nflog-group 10 (general packet logging)
   - iptables -I FORWARD -p tcp --dport 443 -j NFLOG --nflog-group 20 (TLS SNI capture)

@@ -1,0 +1,9 @@
+if BUILD_NFCT
+    OPT_SUBDIR_FLOW = flow
+endif
+
+if BUILD_NFACCT
+    OPT_SUBDIR_SUM = sum
+endif
+
+SUBDIRS = packet $(OPT_SUBDIR_FLOW) $(OPT_SUBDIR_SUM)
