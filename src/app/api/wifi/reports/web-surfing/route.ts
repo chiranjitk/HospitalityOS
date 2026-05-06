@@ -342,6 +342,7 @@ export async function GET(request: NextRequest) {
               FROM ipdr.nat_log
               WHERE timestamp >= now() - INTERVAL 30 DAY
                 AND dst_ip IN (${ipList})
+                AND bytes > 0
               GROUP BY src_ip, dst_ip
               LIMIT 10000
             `);
@@ -353,13 +354,14 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // ── Guest name resolution via WiFiSession ──────────────
+        // ── Guest name resolution via WiFiSession + DHCP lease + DeviceProfile ──
         const uniqueIps = [...new Set(sniRows.map((r) => String(r.src_ip ?? '')))];
         const ipToGuest = new Map<string, string>();
+        const resolvedIps = new Set<string>();
 
         if (uniqueIps.length > 0) {
           try {
-            // WiFiSession has no `guest` relation — do a two-step lookup
+            // Step 1: Match by WiFiSession.ipAddress (primary lookup)
             const sessions = await db.wiFiSession.findMany({
               where: { ipAddress: { in: uniqueIps } },
               select: { id: true, guestId: true, ipAddress: true },
@@ -376,6 +378,7 @@ export async function GET(request: NextRequest) {
             for (const s of sessions) {
               if (s.ipAddress && s.guestId) {
                 ipToGuestId.set(s.ipAddress, s.guestId);
+                resolvedIps.add(s.ipAddress);
               }
             }
 
@@ -395,6 +398,67 @@ export async function GET(request: NextRequest) {
                 const name = guestNameMap.get(guestId);
                 if (name) ipToGuest.set(ip, name);
               });
+            }
+
+            // Step 2: For unresolved IPs, try DHCP lease table (MAC→IP→guest mapping)
+            const unresolvedIps = uniqueIps.filter((ip) => !resolvedIps.has(ip));
+            if (unresolvedIps.length > 0) {
+              const dhcpLeases = await db.dhcpLease.findMany({
+                where: { ipAddress: { in: unresolvedIps } },
+                select: {
+                  ipAddress: true,
+                  macAddress: true,
+                  linkedType: true,
+                  linkedId: true,
+                },
+              });
+
+              for (const lease of dhcpLeases) {
+                if (ipToGuest.has(lease.ipAddress)) continue;
+                // Check if lease is linked to a guest
+                if (lease.linkedType === 'guest' && lease.linkedId) {
+                  try {
+                    const guest = await db.guest.findUnique({
+                      where: { id: lease.linkedId },
+                      select: { id: true, firstName: true, lastName: true },
+                    });
+                    if (guest) {
+                      const name = `${guest.firstName ?? ''} ${guest.lastName ?? ''}`.trim();
+                      if (name) ipToGuest.set(lease.ipAddress, name);
+                    }
+                  } catch { /* skip */ }
+                }
+                // Also try matching MAC via DeviceProfile → WiFiUser → Guest
+                if (lease.macAddress && !ipToGuest.has(lease.ipAddress)) {
+                  try {
+                    const device = await db.deviceProfile.findFirst({
+                      where: {
+                        macAddress: lease.macAddress,
+                        isActive: true,
+                      },
+                      select: { guestId: true, wifiUserId: true },
+                    });
+                    let targetGuestId = device?.guestId;
+                    if (!targetGuestId && device?.wifiUserId) {
+                      const wu = await db.wiFiUser.findUnique({
+                        where: { id: device.wifiUserId },
+                        select: { guestId: true },
+                      });
+                      targetGuestId = wu?.guestId;
+                    }
+                    if (targetGuestId) {
+                      const guest = await db.guest.findUnique({
+                        where: { id: targetGuestId },
+                        select: { id: true, firstName: true, lastName: true },
+                      });
+                      if (guest) {
+                        const name = `${guest.firstName ?? ''} ${guest.lastName ?? ''}`.trim();
+                        if (name) ipToGuest.set(lease.ipAddress, name);
+                      }
+                    }
+                  } catch { /* skip */ }
+                }
+              }
             }
           } catch {
             // Guest resolution is best-effort; continue without names

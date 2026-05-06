@@ -453,6 +453,7 @@ export async function resolveGuestNames(
 
   try {
     const uniqueIps = Array.from(new Set(ips));
+    const resolvedIps = new Set<string>();
 
     // WiFiSession has no `guest` relation — do a two-step lookup
     const sessions = await db.wiFiSession.findMany({
@@ -475,6 +476,7 @@ export async function resolveGuestNames(
       if (ip && s.guestId) {
         ipToGuestId.set(ip, s.guestId);
         guestIds.push(s.guestId);
+        resolvedIps.add(ip);
       }
     }
 
@@ -497,6 +499,67 @@ export async function resolveGuestNames(
         const name = guestNameMap.get(gId);
         if (name) guestMap.set(ip, name);
       });
+    }
+
+    // Step 2: For unresolved IPs, try DHCP lease table (MAC→IP→guest mapping)
+    const unresolvedIps = uniqueIps.filter((ip) => !resolvedIps.has(ip));
+    if (unresolvedIps.length > 0) {
+      const dhcpLeases = await db.dhcpLease.findMany({
+        where: { ipAddress: { in: unresolvedIps } },
+        select: {
+          ipAddress: true,
+          macAddress: true,
+          linkedType: true,
+          linkedId: true,
+        },
+      });
+
+      for (const lease of dhcpLeases) {
+        if (guestMap.has(lease.ipAddress)) continue;
+        // Check if lease is linked to a guest
+        if (lease.linkedType === 'guest' && lease.linkedId) {
+          try {
+            const guest = await db.guest.findUnique({
+              where: { id: lease.linkedId },
+              select: { id: true, firstName: true, lastName: true },
+            });
+            if (guest) {
+              const name = [guest.firstName, guest.lastName].filter(Boolean).join(' ');
+              if (name) guestMap.set(lease.ipAddress, name);
+            }
+          } catch { /* skip */ }
+        }
+        // Also try matching MAC via DeviceProfile → WiFiUser → Guest
+        if (lease.macAddress && !guestMap.has(lease.ipAddress)) {
+          try {
+            const device = await db.deviceProfile.findFirst({
+              where: {
+                macAddress: lease.macAddress,
+                isActive: true,
+              },
+              select: { guestId: true, wifiUserId: true },
+            });
+            let targetGuestId = device?.guestId;
+            if (!targetGuestId && device?.wifiUserId) {
+              const wu = await db.wiFiUser.findUnique({
+                where: { id: device.wifiUserId },
+                select: { guestId: true },
+              });
+              targetGuestId = wu?.guestId;
+            }
+            if (targetGuestId) {
+              const guest = await db.guest.findUnique({
+                where: { id: targetGuestId },
+                select: { id: true, firstName: true, lastName: true },
+              });
+              if (guest) {
+                const name = [guest.firstName, guest.lastName].filter(Boolean).join(' ');
+                if (name) guestMap.set(lease.ipAddress, name);
+              }
+            }
+          } catch { /* skip */ }
+        }
+      }
     }
   } catch {
     // Guest resolution is best-effort

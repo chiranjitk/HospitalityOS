@@ -291,11 +291,16 @@ function startConntrack(): boolean {
         if (!trimmed) continue;
         const parsed = parseConntrackLine(trimmed);
         if (parsed) {
-          ringBuffer.push(parsed);
-          batch.push(parsed);
-          totalEvents++;
-          if (batch.length >= BATCH_MAX_SIZE) {
-            flushBatch();
+          // Only flush events that carry byte data or are DESTROY (final accounting).
+          // NEW events always have bytes=0 — including them dilutes SUM(bytes) queries
+          // and wastes ClickHouse storage with zero-byte noise records.
+          if (parsed.bytes > 0 || parsed.eventType === 'DESTROY') {
+            ringBuffer.push(parsed);
+            batch.push(parsed);
+            totalEvents++;
+            if (batch.length >= BATCH_MAX_SIZE) {
+              flushBatch();
+            }
           }
         }
       }
