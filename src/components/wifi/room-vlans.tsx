@@ -896,12 +896,12 @@ export default function RoomVlanManager() {
             {/* Bandwidth Plan */}
             <div className="space-y-2">
               <Label>Bandwidth Plan</Label>
-              <Select value={form.bandwidthPolicyId} onValueChange={(v) => setForm((prev) => ({ ...prev, bandwidthPolicyId: v }))}>
+              <Select value={form.bandwidthPolicyId || '__none__'} onValueChange={(v) => setForm((prev) => ({ ...prev, bandwidthPolicyId: v === '__none__' ? '' : v }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Default (no policy)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Default (no policy)</SelectItem>
+                  <SelectItem value="__none__">Default (no policy)</SelectItem>
                   {bandwidthPolicies.map((bp) => (
                     <SelectItem key={bp.id} value={bp.id}>
                       {bp.name} ({bp.downloadRate}/{bp.uploadRate})
