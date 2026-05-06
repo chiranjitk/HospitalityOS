@@ -153,6 +153,31 @@ done
 echo "  → ${lib_count} shared libraries installed to ${INSTALL_PREFIX}/lib/"
 
 ## ============================================================================
+## FIX LIBRARY SYMLINKS
+## The sandbox build copies real files instead of creating symlinks.
+## ldconfig expects .so.1 → .so.1.x.y symlink chain. Fix it:
+##   1. Keep only the fully-versioned real files (e.g., libpcap.so.1.10.6)
+##   2. Delete the short-name copies (e.g., libpcap.so.1)
+##   3. Let ldconfig recreate proper symlinks
+## ============================================================================
+echo "      Fixing library symlinks..."
+for real_file in "${INSTALL_PREFIX}/lib/".so.*.*.*; do
+    [ -f "$real_file" ] || continue
+    base=$(basename "$real_file")
+    # Extract .so.X.Y from .so.X.Y.Z (e.g., libpcap.so.1.10 from libpcap.so.1.10.6)
+    short_ver=$(echo "$base" | sed -E 's/(\.[0-9]+\.[0-9]+)\.[0-9]+$/\1/')
+    short_unversioned=$(echo "$base" | sed -E 's/(\.so)$/\1/')
+    # Remove the .so.X copy if it's a real file (not a symlink)
+    if [ -f "${INSTALL_PREFIX}/lib/${short_ver}" ] && [ ! -L "${INSTALL_PREFIX}/lib/${short_ver}" ]; then
+        rm -f "${INSTALL_PREFIX}/lib/${short_ver}"
+    fi
+    # Remove the .so copy if it's a real file (not a symlink)
+    if [ -f "${INSTALL_PREFIX}/lib/${short_unversioned}" ] && [ ! -L "${INSTALL_PREFIX}/lib/${short_unversioned}" ]; then
+        rm -f "${INSTALL_PREFIX}/lib/${short_unversioned}"
+    fi
+done
+
+## ============================================================================
 ## INSTALL CONFIG (rewrite paths for production)
 ## ============================================================================
 echo "[6/7] Installing production ulogd.conf..."
