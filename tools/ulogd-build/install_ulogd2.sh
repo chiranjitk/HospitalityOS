@@ -229,8 +229,8 @@ stack=pkt1:NFLOG,pkt_base:BASE,pkt_if:IFINDEX,pkt_ip:IP2STR,pkt_mac:HWHDR,pkt_js
 # nftables: nft add rule inet mangle prerouting tcp dport 443 tcp flags & (syn|rst|fin) == 0 log group 20 snaplen 1500
 stack=sni:NFLOG,sni_sni:PRINTSNI,sni_json:JSON
 
-# Stack 4: Raw TLS PCAP capture
-stack=sni_pcap:NFLOG,sni_pcap_base:BASE,sni_pcap_out:PCAP
+# Stack 4: Raw TLS PCAP (DISABLED — conflicts with Stack 3 on group 20)
+# stack=sni_pcap:NFLOG,sni_pcap_base:BASE,sni_pcap_out:PCAP
 
 [ct1]
 [ct_json]
@@ -252,11 +252,8 @@ file="${LOG_DIR}/sni.json"
 sync=1
 timestamp=1
 
-[sni_pcap]
-group=20
-[sni_pcap_out]
-file="${LOG_DIR}/sni_raw.pcap"
-sync=1
+# [sni_pcap] — DISABLED (would conflict with sni on group 20)
+# [sni_pcap_out]
 EOFCONF
 fi
 chmod 644 "${CONF_PATH}"
