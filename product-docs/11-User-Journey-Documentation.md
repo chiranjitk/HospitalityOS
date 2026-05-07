@@ -2,7 +2,7 @@
 ## Complete User Lifecycle & Experience Flows
 
 **Version**: 1.0  
-**Last Updated**: March 2026  
+**Last Updated: May 2026  
 **Author**: Cryptsk Pvt Ltd
 
 ---

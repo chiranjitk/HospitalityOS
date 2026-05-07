@@ -1,8 +1,8 @@
 # StaySuite Administrator Guide
 ## System Administration Manual
 
-**Version**: 1.0  
-**Last Updated**: March 2026
+**Version**: 2.0  
+**Last Updated**: May 2026
 
 ---
 
@@ -31,10 +31,12 @@
 
 | Field | Description |
 |-------|-------------|
-| Tenant Name | Organization name |
+| Tenant Name | Organization name (e.g., "Royal Stay Hotels") |
 | Subdomain | `tenant.staysuite.io` |
 | Plan | Subscription tier |
-| Admin Email | Primary admin contact |
+| Admin Email | Primary admin contact (e.g., admin@royalstay.in) |
+| City | Tenant city |
+| Timezone | Operating timezone |
 | Max Properties | Property limit |
 | Max Users | User limit |
 | Max Rooms | Room inventory limit |
@@ -61,29 +63,32 @@ Trial → Active → Suspended → Cancelled → Archived
 2. Configure:
 
 **General Settings:**
-- Timezone
-- Currency
-- Language
-- Logo
-- Branding colors
+- Timezone, Currency, Language
+- Logo, Branding colors
 
 **Resource Limits:**
-- Storage quota
-- API rate limits
-- User limits
-- Property limits
+- Storage quota, API rate limits
+- User limits, Property limits
 
 **Feature Flags:**
-- Enable/disable modules per tenant
+- Enable/disable addon modules per tenant
 
-### 1.4 Usage Tracking
+### 1.4 Demo Tenants
+
+The system includes pre-configured demo tenants:
+
+| Tenant | Email | Password | Properties |
+|--------|-------|----------|------------|
+| Royal Stay Hotels | admin@royalstay.in | admin123 | Royal Stay Kolkata (120 rooms), Royal Stay Darjeeling (50 rooms) |
+| Ocean View Resorts | admin@oceanview.com | admin123 | - |
+| Platform Admin | platform@staysuite.com | admin123 | (All tenants) |
+
+### 1.5 Usage Tracking
 
 1. Navigate to **Admin → Usage Tracking**
 2. View metrics per tenant:
-   - API calls
-   - Storage used
-   - Active users
-   - Booking count
+   - API calls, Storage used
+   - Active users, Booking count
    - WiFi sessions
 
 ---
@@ -92,22 +97,25 @@ Trial → Active → Suspended → Cancelled → Archived
 
 ### 2.1 Role Configuration
 
-Default roles:
+9 Default roles:
 
 | Role | Access Level |
 |------|--------------|
-| **Admin** | Full system access |
+| **Admin** | Full system access (`*`) |
 | **Manager** | Operations + Reports |
-| **Front Desk** | Bookings, Check-in/out |
-| **Housekeeping** | Tasks, Room status |
-| **Accountant** | Billing, Reports |
-| **Guest** | Self-service only |
+| **Front Desk** | Bookings, Check-in/out, Billing |
+| **Housekeeping** | Tasks, Room status, Maintenance |
+| **Night Auditor** | Dashboard, Billing, Reports, Check-in/out |
+| **Revenue Manager** | Reports, Revenue, Pricing, Channels |
+| **Marketing** | Dashboard, Guests, CRM, Marketing |
+| **Accountant** | Dashboard, Billing, Reports |
+| **Maintenance** | Dashboard, Rooms, Tasks, Assets, IoT |
 
 ### 2.2 Creating Custom Roles
 
 1. Navigate to **Admin → Role Permissions**
 2. Click **Add Role**
-3. Set permissions per module:
+3. Set permissions per module (module.action format):
 
 ```
 ┌─────────────────┬───────┬───────┬───────┬───────┐
@@ -127,47 +135,29 @@ Default roles:
 
 1. Navigate to **Admin → User Management**
 2. Click **Add User**
-3. Configure:
-   - Email
-   - Name
-   - Role
-   - Properties (if multi-property)
-   - Two-factor requirement
+3. Configure: Email, Name, Role, Properties, 2FA requirement
 4. Send invitation
 
 ### 2.4 SSO Configuration
 
 **SAML 2.0 Setup:**
 
-1. Navigate to **Settings → Security → SSO**
+1. Navigate to **Security Center → SSO Configuration**
 2. Click **Add SAML Connection**
-3. Configure:
-   - Identity Provider URL
-   - SSO URL
-   - Certificate
-   - Attribute mapping
+3. Configure: Identity Provider URL, SSO URL, Certificate, Attribute mapping
 4. Test connection
 5. Enable for users
 
 **OIDC Setup:**
 
 1. Click **Add OIDC Connection**
-2. Configure:
-   - Discovery URL
-   - Client ID
-   - Client Secret
-   - Scope
+2. Configure: Discovery URL, Client ID, Client Secret, Scope
 3. Test and enable
 
 **LDAP Setup:**
 
 1. Click **Add LDAP Connection**
-2. Configure:
-   - Server URL
-   - Bind DN
-   - Base DN
-   - Filter
-   - Attribute mapping
+2. Configure: Server URL, Bind DN, Base DN, Filter, Attribute mapping
 3. Test connection
 
 ---
@@ -181,51 +171,42 @@ Default roles:
 
 | Setting | Value |
 |---------|-------|
-| Minimum Length | 8-16 characters |
-| Require Uppercase | Yes/No |
-| Require Lowercase | Yes/No |
-| Require Numbers | Yes/No |
-| Require Special Chars | Yes/No |
-| Password Expiry | Days (0 = never) |
+| Minimum Length | 8 characters |
+| Require Uppercase | Yes |
+| Require Lowercase | Yes |
+| Require Numbers | Yes |
+| Require Special Chars | Yes |
+| Password Expiry | Configurable per tenant (default: 90 days) |
 | Password History | Remember last N passwords |
 
 ### 3.2 Two-Factor Authentication
 
-1. Navigate to **Settings → Security → 2FA**
+1. Navigate to **Security Center → Two-Factor Auth**
 2. Configure:
-   - Require 2FA for all users
-   - Require 2FA for admins only
+   - Require 2FA for all users or admins only
    - Allowed methods (TOTP, SMS, Email)
+3. Users set up 2FA via Profile → Security
 
 ### 3.3 Session Management
 
-1. Navigate to **Settings → Security → Sessions**
+1. Navigate to **Security Center → Device Sessions**
 2. Configure:
-   - Session timeout (minutes)
+   - Session timeout (default: 30 min idle)
    - Concurrent sessions limit
    - Force logout on password change
 
-### 3.4 IP Whitelist
+### 3.4 Account Lockout
 
-1. Navigate to **Settings → Security → IP Whitelist**
-2. Add allowed IP ranges:
-   - IP/CIDR notation
-   - Description
-3. Enable whitelist enforcement
+- 5 failed login attempts → 30 minute lockout
+- Configurable via Security Settings
 
 ### 3.5 Audit Logs
 
-1. Navigate to **Admin → Audit Logs**
+1. Navigate to **Security Center → Audit Logs**
 2. View all system activity:
-   - User actions
-   - Data changes
-   - Login attempts
-   - API calls
-3. Filter by:
-   - User
-   - Module
-   - Action type
-   - Date range
+   - User actions, Data changes
+   - Login attempts, API calls
+3. Filter by: User, Module, Action type, Date range
 4. Export logs
 
 ---
@@ -234,140 +215,84 @@ Default roles:
 
 ### 4.1 API Access
 
-1. Navigate to **Settings → Integrations → API**
-2. Generate API keys:
-   - Key name
-   - Expiration date
-   - Scopes/permissions
+1. Navigate to **Settings → System Integrations → API**
+2. Generate API keys: Key name, Expiration date, Scopes
 3. Copy and store securely (shown only once)
 
 ### 4.2 Webhooks
 
-1. Navigate to **Settings → Integrations → Webhooks**
-2. Add webhook endpoint:
-   - URL
-   - Secret (for signature verification)
-   - Events to subscribe
-3. Test webhook
-4. Enable
+1. Navigate to **Webhooks** module
+2. Add webhook endpoint: URL, Secret, Events
+3. Monitor delivery in **Delivery Logs**
+4. Retry failed deliveries from **Retry Queue**
 
 ### 4.3 Third-Party API Connections
 
-1. Navigate to **Settings → Integrations → Third-Party APIs**
-2. Configure external services:
-   - API endpoint
-   - Authentication method
-   - Rate limits
-   - Retry policy
+1. Navigate to **Integrations → Third-Party APIs**
+2. Configure external services: API endpoint, Authentication, Rate limits
 
 ---
 
 ## 5. WiFi Gateway Configuration
 
-### 5.1 Gateway Setup Overview
+### 5.1 FreeRADIUS Architecture
+
+StaySuite includes FreeRADIUS v3.2.7 compiled from source with native PostgreSQL SQL module:
 
 ```
-┌─────────────┐     RADIUS      ┌─────────────┐
-│   Gateway   │ ◄─────────────► │  StaySuite  │
-│ (MikroTik)  │                 │   Server    │
-└─────────────┘                 └─────────────┘
-       │
-       │ Captive Portal
-       ▼
-┌─────────────┐
-│   Guest     │
-│   Device    │
-└─────────────┘
+┌─────────────┐     RADIUS      ┌──────────────────┐
+│   Gateway   │ ◄─────────────► │  FreeRADIUS       │
+│ (MikroTik)  │                 │  v3.2.7           │
+└─────────────┘                 │  (PostgreSQL SQL) │
+       │                        └──────────────────┘
+       │ Captive Portal                     │
+       ▼                                     │
+┌─────────────┐                       ┌─────────────┐
+│   Guest     │ ◄───────────────────── │  PostgreSQL│
+│   Device    │  Captive Redirect (8888)│     v17     │
+└─────────────┘                       └─────────────┘
 ```
 
 ### 5.2 Adding a WiFi Gateway
 
-1. Navigate to **Integrations → WiFi Gateways**
-2. Click **Add Gateway**
-3. Select vendor type
-4. Configure:
+1. Navigate to **WiFi → RADIUS & Gateway**
+2. Add RADIUS client:
+   - Gateway IP (NAS IP)
+   - Shared Secret
+   - Auth Port (1812), Acct Port (1813)
+   - Vendor type
+3. Configure NAS settings
+4. Test connection
+5. Save configuration
 
-**RADIUS Settings:**
-| Setting | Description |
-|---------|-------------|
-| NAS IP | Gateway IP address |
-| Shared Secret | RADIUS shared secret |
-| Auth Port | Typically 1812 |
-| Acct Port | Typically 1813 |
+### 5.3 Captive Portal
 
-**Captive Portal:**
-| Setting | Description |
-|---------|-------------|
-| Portal URL | Login page URL |
-| Splash Page | Custom HTML/branding |
-| Redirect URL | Post-login redirect |
-
-5. Test connection
-6. Save configuration
-
-### 5.3 Vendor-Specific Configurations
-
-**MikroTik:**
-```
-/radius add address=staysuite.io secret=SHARED_SECRET service=hotspot
-/ip hotspot profile set [find] login-by=http-chap,http-pap,cookie
-/ip hotspot user profile set [find] rate-limit=5M/5M
-```
-
-**Cisco WLC:**
-```
-config radius auth add 1 staysuite.io 1812 SHARED_SECRET
-config radius acct add 1 staysuite.io 1813 SHARED_SECRET
-config wlan create 2 GuestWiFi
-config wlan security web-auth enable 2
-```
-
-**Ruckus:**
-```
-ZoneDirector → Configure → RADIUS
-Add Server:
-  - Auth Server: staysuite.io:1812
-  - Acct Server: staysuite.io:1813
-  - Secret: SHARED_SECRET
-```
+The captive portal redirect service runs on port 8888:
+- Redirects guests to StaySuite portal on port 3000
+- Configurable whitelist for portal-exempt URLs
+- Template-based portal pages
 
 ### 5.4 Bandwidth Plans
 
-1. Navigate to **WiFi → Plans**
-2. Create plans:
+6 pre-configured WiFi plans:
 
-| Plan Name | Download | Upload | Data Cap | Price |
-|-----------|----------|--------|----------|-------|
-| Basic | 5 Mbps | 2 Mbps | 1 GB | Free |
-| Standard | 20 Mbps | 10 Mbps | 5 GB | $5 |
-| Premium | 50 Mbps | 25 Mbps | Unlimited | $10 |
+| Plan | Download | Upload | Data Cap |
+|------|----------|--------|----------|
+| Free | 2 Mbps | 1 Mbps | 500 MB/day |
+| Basic | 5 Mbps | 2 Mbps | 1 GB/day |
+| Standard | 10 Mbps | 5 Mbps | 3 GB/day |
+| Premium | 25 Mbps | 10 Mbps | 10 GB/day |
+| Business | 50 Mbps | 25 Mbps | Unlimited |
+| Enterprise | 100 Mbps | 50 Mbps | Unlimited |
 
-3. Map plans to RADIUS attributes:
-   - `WISPr-Bandwidth-Max-Down`
-   - `WISPr-Bandwidth-Max-Up`
+### 5.5 Advanced Network Features
 
-### 5.5 Captive Portal Customization
-
-1. Navigate to **WiFi → Gateway Integration**
-2. Edit portal template
-3. Customize:
-   - Logo
-   - Background image
-   - Colors
-   - Welcome text
-   - Terms & conditions
-4. Preview changes
-5. Publish
-
-### 5.6 FreeRADIUS Integration (Self-Hosted)
-
-1. Navigate to **WiFi → Radius Server**
-2. Configure FreeRADIUS settings:
-   - Database connection
-   - SQL queries
-   - Accounting interval
-3. Download configuration files
-4. Deploy to FreeRADIUS server
+- **DHCP Server**: Subnet management, reservations, hostname filters
+- **DNS Server**: DNS records, redirect rules, zones
+- **Firewall**: Zone-based firewall, bandwidth pools, rate limiting
+- **Content Filter**: Web category blocking with scheduling
+- **VLAN Management**: Per-room and per-floor VLAN configuration
+- **Multi-WAN**: Failover and load balancing configuration
 
 ---
 
@@ -377,46 +302,19 @@ Add Server:
 
 1. Navigate to **Channel Manager → OTA Connections**
 2. Click **Add Connection → Booking.com**
-3. Enter credentials:
-   - Hotel ID
-   - API Key
-   - API Secret
+3. Enter credentials: Hotel ID, API Key, API Secret
 4. Test connection
 5. Enable connection
 
-### 6.2 Connecting Airbnb
-
-1. Click **Add Connection → Airbnb**
-2. Authorize via OAuth:
-   - Click "Connect with Airbnb"
-   - Login to Airbnb
-   - Grant permissions
-3. Map listings
-
-### 6.3 Connecting Expedia
-
-1. Click **Add Connection → Expedia**
-2. Enter credentials:
-   - Hotel ID
-   - API Key
-   - API Secret
-3. Configure rate plans
-4. Enable connection
-
-### 6.4 Channel Mapping
+### 6.2 Channel Mapping
 
 1. Navigate to **Channel Manager → Mapping**
-2. For each channel:
-   - Map room types
-   - Map rate plans
-   - Set default values
-3. Verify mappings
-4. Enable sync
+2. Map room types: Internal room type ↔ OTA room type
+3. Map rate plans: Internal rate plan ↔ OTA rate plan
+4. Verify mappings
+5. Enable sync
 
-### 6.5 Sync Configuration
-
-1. Navigate to **Channel Manager → Sync Settings**
-2. Configure:
+### 6.3 Sync Configuration
 
 | Setting | Value |
 |---------|-------|
@@ -432,48 +330,23 @@ Add Server:
 
 ### 7.1 Stripe Integration
 
-1. Navigate to **Integrations → Payment Gateways**
-2. Click **Add Gateway → Stripe**
-3. Configure:
-   - API Key (Publishable)
-   - API Key (Secret)
-   - Webhook Secret
-4. Set webhook URL in Stripe dashboard
-5. Test payment
-6. Enable
+1. Navigate to **Integrations → Payment Gateways → Stripe**
+2. Configure: Publishable Key, Secret Key, Webhook Secret
+3. Set webhook URL in Stripe dashboard
+4. Test payment
+5. Enable
 
 ### 7.2 Razorpay Integration (India)
 
 1. Click **Add Gateway → Razorpay**
-2. Configure:
-   - Key ID
-   - Key Secret
-   - Webhook Secret
-3. Enable payment methods:
-   - Cards
-   - UPI
-   - NetBanking
-   - Wallets
+2. Configure: Key ID, Key Secret, Webhook Secret
+3. Enable payment methods: Cards, UPI, NetBanking, Wallets
 4. Test and enable
 
-### 7.3 PayPal Integration
-
-1. Click **Add Gateway → PayPal**
-2. Configure:
-   - Client ID
-   - Client Secret
-   - Sandbox/Live mode
-3. Set webhook URL
-4. Test and enable
-
-### 7.4 Multi-Gateway Routing
+### 7.3 Multi-Gateway Routing
 
 1. Navigate to **Integrations → Payment Gateways → Routing**
-2. Configure routing rules:
-   - Primary gateway
-   - Fallback gateway
-   - Routing by currency
-   - Routing by amount
+2. Configure: Primary gateway, Fallback gateway, Routing by currency/amount
 3. Enable routing
 
 ---
@@ -482,39 +355,30 @@ Add Server:
 
 ### 8.1 Automated Backups
 
-Backups are configured automatically:
-
 | Type | Frequency | Retention |
 |------|-----------|-----------|
 | Full | Daily | 30 days |
 | Incremental | Hourly | 7 days |
-| Transaction Logs | Continuous | 24 hours |
+| Transaction Logs (WAL) | Continuous | 24 hours |
 
 ### 8.2 Manual Backup
 
-1. Navigate to **Admin → Backup & Recovery**
-2. Click **Create Backup**
-3. Select scope:
-   - Full backup
-   - Database only
-   - Files only
-4. Download backup file
+```bash
+pg_dump staysuite > /backups/staysuite_$(date +%Y%m%d).sql
+gzip /backups/staysuite_$(date +%Y%m%d).sql
+```
 
 ### 8.3 Data Export (GDPR)
 
-1. Navigate to **Admin → GDPR → Export Data**
-2. Select tenant
-3. Choose data scope
-4. Generate export
-5. Download archive
+1. Navigate to **Settings → GDPR → Export Data**
+2. Select tenant and data scope
+3. Generate and download archive
 
 ### 8.4 Recovery
 
-1. Navigate to **Admin → Backup & Recovery**
-2. Select backup from list
-3. Click **Restore**
-4. Confirm restoration
-5. Verify data integrity
+```bash
+psql -U postgres -d staysuite < /backups/staysuite_YYYYMMDD.sql
+```
 
 ---
 
@@ -524,39 +388,35 @@ Backups are configured automatically:
 
 1. Navigate to **Admin → System Health**
 2. View metrics:
+   - API Response Time
+   - Database Connections
+   - FreeRADIUS Status
+   - Realtime Service Status
+   - Memory Usage
+   - CPU Usage
 
-| Metric | Description |
-|--------|-------------|
-| API Response Time | Average API latency |
-| Database Connections | Active DB connections |
-| Queue Backlog | Pending jobs in queue |
-| Memory Usage | Server memory |
-| CPU Usage | Server CPU load |
-| Storage | Disk space used |
+### 9.2 PM2 Process Management
 
-### 9.2 Alert Configuration
+The platform runs 4 services:
 
-1. Navigate to **Admin → Alerts**
-2. Configure alerts:
+| Service | Port | Description |
+|---------|------|-------------|
+| staysuite-nextjs | 3000 | Main application |
+| staysuite-freeradius | 1812/1813 | RADIUS authentication |
+| staysuite-captive-redirect | 8888 | Captive portal redirect |
+| staysuite-realtime | 3003 | WebSocket real-time |
 
-| Alert | Threshold | Notification |
-|-------|-----------|--------------|
-| High API Latency | > 500ms | Email, Slack |
-| Queue Backlog | > 100 jobs | Email |
-| High Memory | > 85% | Email |
-| Low Storage | < 10% | Email |
-| Sync Failure | Any | Email |
+```bash
+pm2 status              # Check all services
+pm2 logs staysuite-nextjs  # View logs
+pm2 restart all         # Restart all
+```
 
-### 9.3 Log Management
+### 9.3 Health Check Endpoint
 
-1. Navigate to **Admin → Logs**
-2. View logs by type:
-   - Application logs
-   - API logs
-   - Error logs
-   - Access logs
-3. Filter and search
-4. Export logs
+```http
+GET /api/health
+```
 
 ---
 
@@ -580,22 +440,21 @@ Backups are configured automatically:
 | Gateway timeout | Check gateway status |
 | Invalid card | Verify card details |
 | 3DS failure | Check 3DS configuration |
-| Webhook not received | Verify webhook URL |
 
 **WiFi Issues:**
 
 | Issue | Solution |
 |-------|----------|
-| User can't connect | Check RADIUS config |
+| User can't connect | Check RADIUS config, NAS health |
 | Bandwidth not applied | Verify plan mapping |
-| Session not tracked | Check accounting config |
-| Portal not loading | Check captive portal URL |
+| Session not tracked | Check accounting interval |
+| Portal not loading | Check captive redirect service (port 8888) |
 
 ### 10.2 Diagnostic Tools
 
-1. **API Test**: Test API endpoints directly
-2. **Webhook Test**: Send test webhook
-3. **RADIUS Test**: Test authentication
+1. **Gateway Diagnostics**: WiFi → Gateway Diagnostics → Speed test
+2. **Webhook Test**: Send test webhook from Webhooks module
+3. **RADIUS Test**: Check NAS health and reload logs
 4. **Connection Test**: Test gateway connections
 
 ### 10.3 Support Escalation

@@ -2,7 +2,7 @@
 ## WiFi AAA Gateway & Network Flow
 
 **Version**: 1.0  
-**Last Updated**: March 2026  
+**Last Updated: May 2026  
 **Author**: Cryptsk Pvt Ltd
 
 ---

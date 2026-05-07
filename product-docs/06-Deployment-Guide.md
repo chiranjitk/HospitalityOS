@@ -1,70 +1,82 @@
 # StaySuite Deployment Guide
 ## Installation and Configuration Manual
 
-**Version**: 1.0  
-**Last Updated**: March 2026
+**Version**: 2.0  
+**Last Updated**: May 2026
 
 ---
 
 ## Table of Contents
 
 1. [Deployment Options](#1-deployment-options)
-2. [Cloud SaaS Deployment](#2-cloud-saas-deployment)
-3. [On-Premise Deployment](#3-on-premise-deployment)
+2. [Development Setup](#2-development-setup)
+3. [Production Deployment](#3-production-deployment)
 4. [Environment Configuration](#4-environment-configuration)
 5. [Database Setup](#5-database-setup)
-6. [SSL/TLS Configuration](#6-ssltls-configuration)
-7. [Monitoring Setup](#7-monitoring-setup)
-8. [Backup Configuration](#8-backup-configuration)
-9. [Scaling Guidelines](#9-scaling-guidelines)
-10. [Troubleshooting](#10-troubleshooting)
+6. [FreeRADIUS Setup](#6-freeradius-setup)
+7. [SSL/TLS Configuration](#7-ssltls-configuration)
+8. [Monitoring Setup](#8-monitoring-setup)
+9. [Backup Configuration](#9-backup-configuration)
+10. [Scaling Guidelines](#10-scaling-guidelines)
+11. [Troubleshooting](#11-troubleshooting)
 
 ---
 
 ## 1. Deployment Options
 
-### 1.1 Cloud SaaS
-
-| Feature | Description |
-|---------|-------------|
-| **Hosting** | Managed by Cryptsk |
-| **Updates** | Automatic |
-| **Scaling** | Automatic |
-| **Backup** | Automatic |
-| **SLA** | 99.9% uptime |
-
-### 1.2 On-Premise
-
-| Feature | Description |
-|---------|-------------|
-| **Hosting** | Customer infrastructure |
-| **Updates** | Manual |
-| **Scaling** | Manual |
-| **Backup** | Customer responsibility |
-| **Data Location** | Customer controlled |
+| Option | Description |
+|--------|-------------|
+| **Cloud SaaS** | Managed by Cryptsk, 99.9% SLA |
+| **On-Premise** | Self-hosted with PM2 process management |
+| **Hybrid** | Cloud management with local processing |
 
 ---
 
-## 2. Cloud SaaS Deployment
+## 2. Development Setup
 
-### 2.1 Getting Started
+### 2.1 Prerequisites
 
-1. Contact sales@cryptsk.com
-2. Sign subscription agreement
-3. Receive tenant credentials
-4. Access at `https://[tenant].staysuite.io`
+| Requirement | Version |
+|-------------|---------|
+| Bun | Latest (1.x) |
+| PostgreSQL | 17 |
+| Node.js | 20+ (for Next.js tooling) |
 
-### 2.2 Tenant Setup
+### 2.2 Installation
 
-1. Login with admin credentials
-2. Configure property settings
-3. Add users and roles
-4. Set up integrations
-5. Configure branding
+```bash
+# Clone the repository
+git clone https://github.com/chiranjitk/StaySuite-HospitalityOS.git
+cd StaySuite-HospitalityOS
+
+# Install dependencies
+bun install
+
+# Copy and configure environment variables
+cp .env.example .env
+nano .env
+
+# Generate Prisma client
+npx prisma generate
+
+# Sync database schema
+npx prisma db push
+
+# Optional: seed the database with demo data
+bun run db:seed
+```
+
+### 2.3 Running in Development
+
+```bash
+bun run dev
+```
+
+The app runs on port 3000. Turbopack is disabled (`NEXT_DISABLE_TURBOPACK=1`).
 
 ---
 
-## 3. On-Premise Deployment
+## 3. Production Deployment
 
 ### 3.1 System Requirements
 
@@ -90,176 +102,184 @@
 
 | Software | Version |
 |----------|---------|
-| Node.js | 20.x LTS |
-| PostgreSQL | 15+ |
-| Redis | 7+ |
-| Nginx | 1.24+ |
-| Docker | 24+ (optional) |
+| PostgreSQL | 17 |
+| Bun | Latest |
+| FreeRADIUS | v3.2.7 (compiled from source) |
+| PM2 | Latest |
+| Caddy / Nginx | Latest (reverse proxy) |
 
-### 3.3 Docker Deployment
-
-**docker-compose.yml:**
-
-```yaml
-version: '3.8'
-
-services:
-  app:
-    image: cryptsk/staysuite:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - DATABASE_URL=postgresql://user:pass@db:5432/staysuite
-      - REDIS_URL=redis://redis:6379
-      - NODE_ENV=production
-    depends_on:
-      - db
-      - redis
-    restart: unless-stopped
-
-  db:
-    image: postgres:15
-    environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=pass
-      - POSTGRES_DB=staysuite
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redisdata:/data
-    restart: unless-stopped
-
-volumes:
-  pgdata:
-  redisdata:
-```
-
-**Deployment:**
+### 3.3 Production Build
 
 ```bash
-# Pull latest images
-docker-compose pull
+# Build for production (standalone output)
+NODE_OPTIONS='--max-old-space-size=8192' bun run build
 
-# Start services
-docker-compose up -d
-
-# Run migrations
-docker-compose exec app npx prisma migrate deploy
-
-# Check logs
-docker-compose logs -f app
+# Copy static assets for standalone mode
+cp -r .next/static .next/standalone/.next/
+cp -r public .next/standalone/
 ```
 
-### 3.4 Manual Deployment
+### 3.4 PM2 Process Management
 
-**Step 1: Install Node.js**
+The platform runs 4 services managed by PM2 (via `ecosystem.config.cjs`):
+
+| Service | Script | Port | Description |
+|---------|--------|------|-------------|
+| staysuite-freeradius | radiusd (FreeRADIUS v3.2.7) | 1812/1813 | RADIUS authentication |
+| staysuite-nextjs | bun run dev | 3000 | Main application |
+| staysuite-captive-redirect | bun --hot index.ts | 8888 | Captive portal redirect |
+| staysuite-realtime | bun index.ts | 3003 | WebSocket real-time |
 
 ```bash
-# Using nvm
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-nvm install 20
-nvm use 20
+pm2 start ecosystem.config.cjs
+pm2 status
+pm2 logs
 ```
 
-**Step 2: Install PostgreSQL**
+### 3.5 Systemd Alternative
+
+See `DEPLOYMENT.md` for systemd service file templates.
+
+---
+
+## 4. Environment Configuration
+
+### 4.1 Required Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/staysuite` |
+| `NEXTAUTH_SECRET` | Random secret for sessions | `staysecret-dev-key-2024` |
+| `NEXTAUTH_URL` | Public URL of application | `http://localhost:3000` |
+| `CRON_SECRET` | Secret for cron job authentication | `staysuite-cron-secret-2025` |
+
+### 4.2 Optional Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | 3000 | Application port |
+| `LD_LIBRARY_PATH` | - | FreeRADIUS/PostgreSQL library path |
+| `STAYSUITE_SCRIPTS_DIR` | - | Firewall scripts directory |
+
+### 4.3 FreeRADIUS Library Path
+
+```
+LD_LIBRARY_PATH=/home/z/my-project/freeradius-install/lib:/home/z/my-project/pgsql-runtime/lib
+```
+
+---
+
+## 5. Database Setup
+
+### 5.1 PostgreSQL 17 Configuration
+
+```ini
+# postgresql.conf
+shared_buffers = 256MB
+effective_cache_size = 768MB
+work_mem = 16MB
+max_connections = 200
+log_min_duration_statement = 500
+```
+
+### 5.2 Schema Management
 
 ```bash
-# Ubuntu/Debian
-sudo apt update
-sudo apt install postgresql postgresql-contrib
+# Sync schema to database (development)
+npx prisma db push
 
-# Create database
-sudo -u postgres psql
-CREATE DATABASE staysuite;
-CREATE USER staysuite WITH PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE staysuite TO staysuite;
-```
-
-**Step 3: Install Redis**
-
-```bash
-# Ubuntu/Debian
-sudo apt install redis-server
-sudo systemctl enable redis-server
-```
-
-**Step 4: Clone and Configure**
-
-```bash
-# Clone repository
-git clone https://github.com/your-org/staysuite.git
-cd staysuite
-
-# Install dependencies
-npm install
-
-# Copy environment file
-cp .env.example .env
-```
-
-**Step 5: Configure Environment**
-
-Edit `.env`:
-
-```env
-# Database
-DATABASE_URL="postgresql://staysuite:password@localhost:5432/staysuite"
-
-# Redis
-REDIS_URL="redis://localhost:6379"
-
-# App
-NODE_ENV=production
-PORT=3000
-NEXT_PUBLIC_APP_URL=https://your-domain.com
-
-# Auth
-NEXTAUTH_SECRET=your-random-secret-key
-NEXTAUTH_URL=https://your-domain.com
-
-# Encryption
-ENCRYPTION_KEY=your-32-byte-encryption-key
-```
-
-**Step 6: Run Migrations**
-
-```bash
-npx prisma generate
+# Run migrations (production recommended)
 npx prisma migrate deploy
+
+# Create new migration
+npx prisma migrate dev --name description
+
+# Check migration status
+npx prisma migrate status
 ```
 
-**Step 7: Build and Start**
+### 5.3 Database Schema
+
+- **294 Prisma models** defined in `prisma/schema.prisma`
+- All tenant-scoped models include `tenantId` field
+- All models have `createdAt` and `updatedAt` (auto-managed)
+- Soft delete: `deletedAt` field on critical models
+
+### 5.4 Seed Data
 
 ```bash
-npm run build
-npm start
+bun run db:seed
 ```
 
-### 3.5 Nginx Configuration
+Demo data includes:
+- 2 tenants (Royal Stay Hotels, Ocean View Resorts)
+- 3 users per tenant with role-based access
+- 2 properties (Royal Stay Kolkata 120 rooms, Royal Stay Darjeeling 50 rooms)
+- 6 room types, sample bookings, group bookings
+- 6 WiFi plans
 
-**/etc/nginx/sites-available/staysuite:**
+---
+
+## 6. FreeRADIUS Setup
+
+### 6.1 Compilation from Source
+
+FreeRADIUS v3.2.7 is compiled from source with PostgreSQL SQL module:
+
+```bash
+# FreeRADIUS installed to:
+/home/z/my-project/freeradius-install/
+
+# Configuration directory:
+/home/z/my-project/freeradius-install/etc/raddb
+
+# Libraries:
+/home/z/my-project/freeradius-install/lib
+```
+
+### 6.2 PostgreSQL SQL Module
+
+FreeRADIUS uses a native PostgreSQL SQL module for:
+- User authentication (check-in creates RADIUS user)
+- Accounting (session tracking in radacct table)
+- Bandwidth policy application (via RADIUS attributes)
+- CoA (Change of Authorization) for dynamic policy changes
+
+### 6.3 WiFi Seed Plans
+
+6 plans seeded via `wifi-seed.ts`:
+- Free (2 Mbps, 500 MB/day) — Complimentary
+- Basic (5 Mbps, 1 GB/day) — Complimentary
+- Standard (10 Mbps, 3 GB/day) — ₹99/day
+- Premium (25 Mbps, 10 GB/day) — ₹199/day
+- Business (50 Mbps, Unlimited) — ₹399/day
+- Enterprise (100 Mbps, Unlimited) — ₹699/day
+
+---
+
+## 7. SSL/TLS Configuration
+
+### 7.1 Caddy (Recommended)
+
+```
+staysuite.example.com {
+    reverse_proxy localhost:3000
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    }
+}
+```
+
+### 7.2 Nginx Alternative
 
 ```nginx
 server {
-    listen 80;
-    server_name your-domain.com;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
     listen 443 ssl http2;
     server_name your-domain.com;
-
     ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
-
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
-    ssl_prefer_server_ciphers off;
 
     location / {
         proxy_pass http://localhost:3000;
@@ -267,15 +287,10 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
     }
 
-    # WebSocket support
     location /socket.io/ {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:3003;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -285,188 +300,46 @@ server {
 
 ---
 
-## 4. Environment Configuration
+## 8. Monitoring Setup
 
-### 4.1 Required Variables
-
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `REDIS_URL` | Redis connection string |
-| `NEXTAUTH_SECRET` | Random secret for sessions |
-| `NEXTAUTH_URL` | Public URL of application |
-| `ENCRYPTION_KEY` | 32-byte key for data encryption |
-
-### 4.2 Optional Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | 3000 | Application port |
-| `LOG_LEVEL` | info | Logging level |
-| `RATE_LIMIT_MAX` | 300 | Max requests per minute |
-| `SESSION_TIMEOUT` | 43200 | Session timeout (seconds) |
-
-### 4.3 Feature Flags
-
-```env
-FEATURE_WIFI_ENABLED=true
-FEATURE_POS_ENABLED=true
-FEATURE_CHANNEL_MANAGER_ENABLED=true
-FEATURE_AI_ENABLED=true
-```
-
----
-
-## 5. Database Setup
-
-### 5.1 PostgreSQL Configuration
-
-**postgresql.conf optimizations:**
-
-```ini
-# Memory
-shared_buffers = 256MB
-effective_cache_size = 768MB
-work_mem = 16MB
-
-# Connections
-max_connections = 200
-
-# Logging
-log_min_duration_statement = 500
-log_checkpoints = on
-log_connections = on
-log_disconnections = on
-```
-
-### 5.2 Database Migrations
-
-```bash
-# Apply migrations
-npx prisma migrate deploy
-
-# Check migration status
-npx prisma migrate status
-
-# Create new migration (development)
-npx prisma migrate dev --name description
-```
-
-### 5.3 Database Backups
-
-**Automated backup script:**
-
-```bash
-#!/bin/bash
-# backup.sh
-
-DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="/backups"
-DB_NAME="staysuite"
-
-pg_dump $DB_NAME > $BACKUP_DIR/staysuite_$DATE.sql
-
-# Compress
-gzip $BACKUP_DIR/staysuite_$DATE.sql
-
-# Keep last 30 days
-find $BACKUP_DIR -name "*.sql.gz" -mtime +30 -delete
-```
-
-**Cron job:**
-
-```bash
-0 2 * * * /path/to/backup.sh
-```
-
----
-
-## 6. SSL/TLS Configuration
-
-### 6.1 Let's Encrypt
-
-```bash
-# Install certbot
-sudo apt install certbot python3-certbot-nginx
-
-# Obtain certificate
-sudo certbot --nginx -d your-domain.com
-
-# Auto-renewal
-sudo certbot renew --dry-run
-```
-
-### 6.2 Custom Certificate
-
-```nginx
-ssl_certificate /path/to/certificate.crt;
-ssl_certificate_key /path/to/private.key;
-ssl_certificate_chain /path/to/chain.crt;
-```
-
----
-
-## 7. Monitoring Setup
-
-### 7.1 Health Check Endpoint
+### 8.1 Health Check Endpoint
 
 ```http
 GET /api/health
 ```
 
-Response:
-```json
-{
-  "status": "healthy",
-  "timestamp": "2026-03-15T10:00:00Z",
-  "checks": {
-    "database": "connected",
-    "redis": "connected",
-    "storage": "available"
-  }
-}
+### 8.2 System Health Dashboard
+
+Navigate to **Admin → System Health** for:
+- API Response Time
+- Database Connections
+- FreeRADIUS Status
+- Realtime Service Status
+- Memory/CPU Usage
+
+### 8.3 PM2 Monitoring
+
+```bash
+pm2 status
+pm2 monit
+pm2 logs staysuite-nextjs --lines 100
 ```
-
-### 7.2 Logging
-
-Logs are written to stdout in JSON format:
-
-```json
-{
-  "level": "info",
-  "timestamp": "2026-03-15T10:00:00Z",
-  "message": "Booking created",
-  "tenant_id": "tn_001",
-  "booking_id": "bk_123",
-  "user_id": "usr_001"
-}
-```
-
-### 7.3 Metrics
-
-Available metrics:
-- API response times
-- Database query times
-- Queue depth
-- Memory usage
-- CPU usage
-- Active connections
 
 ---
 
-## 8. Backup Configuration
+## 9. Backup Configuration
 
-### 8.1 Backup Strategy
+### 9.1 Automated Backup Script
 
-| Type | Frequency | Retention |
-|------|-----------|-----------|
-| Full | Daily | 30 days |
-| Incremental | Hourly | 7 days |
-| Transaction logs | Continuous | 24 hours |
+```bash
+#!/bin/bash
+DATE=$(date +%Y%m%d_%H%M%S)
+pg_dump staysuite > /backups/staysuite_$DATE.sql
+gzip /backups/staysuite_$DATE.sql
+find /backups -name "*.sql.gz" -mtime +30 -delete
+```
 
-### 8.2 Point-in-Time Recovery
-
-Enable WAL archiving in PostgreSQL:
+### 9.2 Point-in-Time Recovery
 
 ```ini
 # postgresql.conf
@@ -477,9 +350,9 @@ archive_command = 'cp %p /archive/%f'
 
 ---
 
-## 9. Scaling Guidelines
+## 10. Scaling Guidelines
 
-### 9.1 Horizontal Scaling
+### 10.1 Horizontal Scaling
 
 ```
                     ┌──────────┐
@@ -490,9 +363,8 @@ archive_command = 'cp %p /archive/%f'
         ┌────────────────┼────────────────┐
         │                │                │
    ┌────▼────┐     ┌────▼────┐     ┌────▼────┐
-   │ App     │     │ App     │     │ App     │
-   │ Instance│     │ Instance│     │ Instance│
-   │ 1       │     │ 2       │     │ 3       │
+   │ Next.js │     │ Next.js │     │ Next.js │
+   │   1     │     │   2     │     │   3     │
    └────┬────┘     └────┬────┘     └────┬────┘
         │                │                │
         └────────────────┼────────────────┘
@@ -500,82 +372,55 @@ archive_command = 'cp %p /archive/%f'
               ┌──────────┴──────────┐
               │                     │
          ┌────▼────┐          ┌────▼────┐
-         │PostgreSQL│          │  Redis  │
-         │ Primary  │          │ Cluster │
+         │PostgreSQL│          │FreeRADIUS│
+         │   v17    │          │  v3.2.7  │
          └──────────┘          └─────────┘
 ```
 
-### 9.2 Database Scaling
-
-- Read replicas for read-heavy workloads
-- Connection pooling with PgBouncer
-- Partitioning for large tables
-
-### 9.3 Caching Strategy
-
-- Redis for session storage
-- Redis for API response caching
-- CDN for static assets
-
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
-### 10.1 Common Issues
-
-**Application won't start:**
+### 11.1 FreeRADIUS Issues
 
 ```bash
-# Check logs
-docker-compose logs app
+# Check FreeRADIUS status
+pm2 logs staysuite-freeradius
 
-# Check database connection
-npx prisma db pull
+# Test RADIUS authentication
+radtest testuser testpass localhost 1812 testing123
 
-# Verify environment
-node -e "console.log(process.env.DATABASE_URL)"
+# Check NAS health
+# Navigate to WiFi → Gateway Diagnostics in the UI
 ```
 
-**Database connection errors:**
+### 11.2 Database Issues
 
 ```bash
 # Check PostgreSQL status
 sudo systemctl status postgresql
 
 # Check connection
-psql -U staysuite -d staysuite -h localhost
+psql -U postgres -d staysuite -h localhost
+
+# Reset database
+npx prisma db push --force-reset
+bun run db:seed
 ```
 
-**Redis connection errors:**
+### 11.3 Memory Issues
 
 ```bash
-# Check Redis status
-redis-cli ping
+# Increase Node.js memory
+NODE_OPTIONS='--max-old-space-size=8192' bun run dev
 
-# Check Redis logs
-sudo journalctl -u redis-server
+# PM2 auto-restart at memory limit
+# Already configured: max_memory_restart: '2G'
 ```
-
-### 10.2 Performance Issues
-
-**Slow API responses:**
-
-1. Check database query times
-2. Review slow query log
-3. Add missing indexes
-4. Increase connection pool
-
-**High memory usage:**
-
-1. Check for memory leaks
-2. Reduce cache TTL
-3. Scale horizontally
 
 ---
 
 ## Support
-
-For deployment support:
 
 - **Email**: support@cryptsk.com
 - **Emergency**: +91 XXX XXX XXXX

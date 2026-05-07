@@ -1,8 +1,8 @@
 # StaySuite FAQ
 ## Frequently Asked Questions
 
-**Version**: 1.0  
-**Last Updated**: March 2026
+**Version**: 2.0  
+**Last Updated**: May 2026
 
 ---
 
@@ -10,17 +10,20 @@
 
 ### What is StaySuite?
 
-StaySuite is an All-in-One Hospitality Operating System that combines Property Management, Channel Management, Guest Experience, WiFi AAA, Revenue Management, and more into a single platform.
+StaySuite is an All-in-One Hospitality Operating System that combines Property Management, Channel Management, Guest Experience, WiFi AAA (FreeRADIUS v3.2.7), Revenue Management, and 30+ modules into a single platform with 294 database models, 614 API routes, and 529 React components.
 
 ### How is StaySuite different from traditional PMS?
 
 | Traditional PMS | StaySuite |
 |-----------------|-----------|
 | Property-focused | Guest journey-focused |
-| Separate systems for channels | Built-in channel manager |
-| No WiFi integration | Native WiFi AAA gateway |
+| Separate systems for channels | Built-in channel manager (46+ OTAs) |
+| No WiFi integration | Native FreeRADIUS v3.2.7 with PostgreSQL |
 | Manual pricing | AI-powered dynamic pricing |
-| Multiple logins | Unified platform |
+| Multiple logins | Unified platform (30 modules) |
+| Limited POS | Full Restaurant & POS (15 sub-features) |
+| Basic housekeeping | 11 housekeeping sub-features |
+| Separate IoT | Built-in Smart Hotel / IoT module |
 
 ### Is StaySuite cloud-based?
 
@@ -33,9 +36,30 @@ Yes, StaySuite is cloud-native SaaS with optional on-premise deployment for ente
 3. Configure your property
 4. Start using the platform
 
+### What is the platform scale?
+
+| Metric | Count |
+|--------|-------|
+| Database Models | 294 |
+| API Routes | 614 |
+| React Components | 529 |
+| Component Directories | 44 |
+| Navigation Modules | 30 |
+| shadcn/ui Components | 51 |
+| Supported Languages | 15 |
+
 ---
 
 ## Account & Access
+
+### What are the demo credentials?
+
+| Role | Email | Password |
+|------|-------|----------|
+| Property Admin | admin@royalstay.in | admin123 |
+| Front Desk | frontdesk@royalstay.in | admin123 |
+| Housekeeping | housekeeping@royalstay.in | admin123 |
+| Platform Admin | platform@staysuite.com | admin123 |
 
 ### How do I reset my password?
 
@@ -47,7 +71,7 @@ Yes, StaySuite is cloud-native SaaS with optional on-premise deployment for ente
 ### How do I enable two-factor authentication?
 
 1. Login to your account
-2. Go to **Profile → Security**
+2. Go to **Security Center → Two-Factor Auth**
 3. Click **Enable 2FA**
 4. Scan QR code with authenticator app
 5. Enter verification code
@@ -55,14 +79,7 @@ Yes, StaySuite is cloud-native SaaS with optional on-premise deployment for ente
 
 ### What if I'm locked out of my account?
 
-Contact your property administrator or email support@cryptsk.com with:
-- Your email address
-- Property name
-- Verification information
-
-### How do I change my user role?
-
-User roles can only be changed by administrators. Contact your property admin or email support@cryptsk.com.
+Contact your property administrator or email support@cryptsk.com.
 
 ---
 
@@ -71,104 +88,59 @@ User roles can only be changed by administrators. Contact your property admin or
 ### How do I create a new booking?
 
 1. Navigate to **Bookings → Calendar View**
-2. Click **New Booking** button
-3. Enter guest details
-4. Select room and dates
-5. Choose rate plan
-6. Click **Confirm**
+2. Click **New Booking**
+3. Enter guest details, select room and dates
+4. Choose rate plan
+5. Click **Confirm**
 
-### How do I modify an existing booking?
+### What booking states are supported?
 
-1. Find booking in calendar or list
-2. Click on booking to open
-3. Click **Edit** button
-4. Make changes
-5. Click **Save**
-
-### How do I cancel a booking?
-
-1. Open the booking
-2. Click **Cancel** button
-3. Select cancellation reason
-4. Choose refund policy
-5. Confirm cancellation
+Draft → Confirmed → Checked In → Checked Out → Cancelled
 
 ### Can I overbook rooms?
 
-Yes, with proper permissions. Configure overbooking settings in **PMS → Overbooking Settings**.
+Yes. Configure overbooking thresholds in **PMS → Overbooking Settings**.
 
 ### How do group bookings work?
 
 1. Navigate to **Bookings → Group Bookings**
 2. Create group booking with multiple rooms
-3. Manage as single unit or individually
-4. Apply group rates and restrictions
+3. Set group rate, deposit, and block dates
 
 ---
 
 ## Guests
 
-### How do I add a new guest?
-
-1. Navigate to **Guests → Guest List**
-2. Click **Add Guest**
-3. Enter guest information
-4. Save profile
-
 ### Can I merge duplicate guest profiles?
 
-Yes. Open one profile, click **Merge**, select duplicate profile, confirm merge.
+Yes. Open one profile, click **Merge**, select duplicate, confirm.
 
-### How do I track guest preferences?
+### How does the loyalty program work?
 
-Each guest profile has a **Preferences** tab where you can record:
-- Room preferences
-- Dietary restrictions
-- Pillow type
-- Newspaper preference
-- And more
-
-### What is guest loyalty?
-
-Loyalty program allows you to:
-- Award points for stays
-- Create tier levels
-- Redeem points for benefits
-- Track repeat guests
+Multi-tier loyalty system with point earning and redemption rules configured in **Guests → Loyalty & Points**.
 
 ---
 
 ## Front Desk
 
-### How do I check in a guest?
+### What happens on check-in?
 
-1. Navigate to **Front Desk → Check-in**
-2. Find the booking
-3. Verify guest identity
-4. Assign room if needed
-5. Click **Check In**
+- WiFi account auto-provisioned (FreeRADIUS user created)
+- Digital key generated (if enabled)
+- Room status updated to occupied
+- Housekeeping task created for departure prep
 
-WiFi access and digital keys are automatically provisioned.
+### What happens on check-out?
 
-### How do I check out a guest?
+- WiFi access revoked
+- Digital key deactivated
+- Housekeeping task created
+- Loyalty points awarded
+- Feedback request sent
 
-1. Navigate to **Front Desk → Check-out**
-2. Find the booking
-3. Review folio charges
-4. Process payment
-5. Click **Check Out**
+### Is there an express kiosk?
 
-### How do I handle walk-ins?
-
-1. Navigate to **Front Desk → Walk-in**
-2. Check availability
-3. Create booking
-4. Process payment
-5. Check in immediately
-
-### Can I change a guest's room?
-
-Yes. Open booking, click **Change Room**, select new room, confirm change.
+Yes. Navigate to **Front Desk → Express Kiosk** for self-service check-in/out with ID scanning and e-signature.
 
 ---
 
@@ -176,88 +148,41 @@ Yes. Open booking, click **Change Room**, select new room, confirm change.
 
 ### How does WiFi integration work?
 
-1. Guest checks in → WiFi account created
-2. Guest connects to network → Redirected to portal
-3. Guest authenticates → Access granted
-4. Usage tracked automatically
+StaySuite uses FreeRADIUS v3.2.7 compiled from source with native PostgreSQL SQL module:
+
+1. Guest checks in → WiFi user created in PostgreSQL
+2. Guest connects to network → RADIUS auth via FreeRADIUS
+3. Guest authenticated → Access granted per plan
+4. Usage tracked in radacct table
 5. Guest checks out → Access revoked
 
 ### What WiFi vendors are supported?
 
-- Cisco
-- MikroTik
-- Ruckus
-- Huawei
-- Juniper
-- Fortinet
-- Aruba
-- D-Link
-- Netgear
-- Grandstream
-- Ubiquiti
+Cisco, MikroTik, Ruckus, Huawei, Juniper, Fortinet, Aruba, D-Link, Netgear, Grandstream, Ubiquiti (11+ vendors)
 
-### How do I create WiFi vouchers?
+### How many WiFi plans are available?
 
-1. Navigate to **WiFi → Vouchers**
-2. Click **Generate Vouchers**
-3. Specify quantity and validity
-4. Print or distribute vouchers
+6 plans: Free (2 Mbps), Basic (5 Mbps), Standard (10 Mbps), Premium (25 Mbps), Business (50 Mbps), Enterprise (100 Mbps)
 
-### How do I limit bandwidth?
+### Does StaySuite include a captive portal?
 
-1. Navigate to **WiFi → Plans**
-2. Create or edit plan
-3. Set speed limits (up/down)
-4. Set data caps
-5. Apply to users
+Yes. The captive portal redirect service runs on port 8888 and redirects guests to the branded login page.
 
 ---
 
 ## Billing & Payments
 
-### How do I add charges to a folio?
-
-1. Open booking
-2. Go to **Folio** tab
-3. Click **Add Charge**
-4. Select charge type
-5. Enter amount and description
-6. Save
-
-### How do I process a payment?
-
-1. Open folio
-2. Click **Add Payment**
-3. Select payment method
-4. Enter amount
-5. Process payment
-
 ### What payment gateways are supported?
 
-- Stripe
-- PayPal
-- Razorpay (India)
-- Square
-- Adyen
-- Authorize.net
-- CCAvenue (India)
-- PayU
+Stripe, PayPal, Razorpay, Square, Adyen, Authorize.net, CCAvenue, PayU
 
-### How do I issue a refund?
+### What is Night Audit?
 
-1. Navigate to **Billing → Refunds**
-2. Select original payment
-3. Enter refund amount
-4. Select reason
-5. Process refund
+Navigate to **Billing → Night Audit** for daily reconciliation of transactions, postings, and payments before closing the business day.
 
-### How do I generate an invoice?
+### Is multi-currency supported?
 
-1. Open folio
-2. Click **Generate Invoice**
-3. Review charges
-4. Select template
-5. Print or email
+Yes. Navigate to **Billing → Multi-Currency** to configure exchange rates and process in guest's preferred currency.
 
 ---
 
@@ -265,40 +190,11 @@ Yes. Open booking, click **Change Room**, select new room, confirm change.
 
 ### What OTAs are supported?
 
-**Global:** Booking.com, Expedia, Airbnb, Agoda, TripAdvisor
-
-**India:** MakeMyTrip, Goibibo, Yatra, OYO, Cleartrip
-
-**Others:** HRS, Jalan, Rakuten, and 35+ more
-
-### How do I connect an OTA?
-
-1. Navigate to **Channel Manager → OTA Connections**
-2. Click **Add Connection**
-3. Select OTA
-4. Enter API credentials
-5. Test and enable
-
-### How do I map rooms to OTAs?
-
-1. Navigate to **Channel Manager → Mapping**
-2. Select OTA
-3. Map internal room types to OTA room types
-4. Map rate plans
-5. Save mapping
-
-### What if sync fails?
-
-1. Check **Channel Manager → Sync Logs**
-2. Review error details
-3. Fix mapping or credentials
-4. Retry sync manually
+46+ channels including Booking.com, Expedia, Airbnb, Agoda, MakeMyTrip, Goibibo, and more.
 
 ### How often does sync happen?
 
-- Real-time for booking events
-- Every 5 minutes for inventory
-- Manual sync available anytime
+Real-time for booking events; every 5 minutes for inventory. Manual sync available anytime.
 
 ---
 
@@ -306,69 +202,19 @@ Yes. Open booking, click **Change Room**, select new room, confirm change.
 
 ### What reports are available?
 
-- Revenue reports
-- Occupancy reports
-- ADR / RevPAR reports
-- Guest analytics
-- Staff performance
-- Payment reports
-- WiFi usage reports
-
-### How do I schedule a report?
-
-1. Navigate to **Reports → Scheduled Reports**
-2. Create schedule
-3. Select report type
-4. Set frequency
-5. Add recipients
-6. Enable
-
-### Can I export reports?
-
-Yes. All reports can be exported as:
-- PDF
-- Excel (XLSX)
-- CSV
-
-### What is ADR?
-
-ADR (Average Daily Rate) = Room Revenue ÷ Room Nights Sold
-
-### What is RevPAR?
-
-RevPAR (Revenue Per Available Room) = ADR × Occupancy Rate
+Revenue, Occupancy, ADR/RevPAR, Guest Analytics, Staff Performance, Scheduled Reports — all exportable to PDF, Excel, CSV.
 
 ---
 
 ## Integrations
 
-### How do I connect door locks?
-
-1. Navigate to **Integrations → Door Locks**
-2. Select vendor
-3. Enter API credentials
-4. Map rooms to lock IDs
-5. Test and enable
-
 ### What door lock brands are supported?
 
-- Assa Abloy
-- dormakaba
-- Salto
-- ONITY
-- August
+Assa Abloy, dormakaba, Salto, ONITY, August
 
-### How do digital keys work?
+### Is there a REST API?
 
-1. Guest checks in
-2. Digital key generated
-3. Key sent to guest's phone
-4. Guest unlocks door via Bluetooth
-5. Key expires on check-out
-
-### Can I integrate my POS?
-
-Yes. Navigate to **Integrations → POS** and configure your POS system for automatic charge posting to folios.
+Yes. 614 API routes across 134 directories with OpenAPI documentation.
 
 ---
 
@@ -376,27 +222,16 @@ Yes. Navigate to **Integrations → POS** and configure your POS system for auto
 
 ### Is my data secure?
 
-Yes. StaySuite uses:
 - TLS 1.3 encryption in transit
-- AES-256 encryption at rest
-- Regular security audits
-- SOC 2 Type II compliance
+- AES-256-GCM encryption at rest
+- Custom session auth with httpOnly cookies
+- Account lockout after 5 failed attempts
+- Complete audit logging
+- GDPR compliance tools
 
 ### Is StaySuite GDPR compliant?
 
-Yes. Full GDPR compliance including:
-- Data subject rights
-- Consent management
-- Data export/deletion
-- Processing records
-
-### How do I export my data?
-
-Navigate to **Settings → GDPR → Export Data** to download all your data.
-
-### How do I delete my account?
-
-Contact support@cryptsk.com for account deletion requests.
+Yes. Full GDPR compliance including data subject rights, consent management, data export/deletion, processing records.
 
 ---
 
@@ -404,81 +239,16 @@ Contact support@cryptsk.com for account deletion requests.
 
 ### What browsers are supported?
 
-- Chrome 90+
-- Firefox 88+
-- Safari 14+
-- Edge 90+
+Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
 
-### Is there a mobile app?
+### What is the tech stack?
 
-StaySuite has a responsive web app that works on any device. Dedicated mobile apps are on the roadmap.
-
-### What is the API rate limit?
-
-| Plan | Requests/minute |
-|------|-----------------|
-| Starter | 60 |
-| Professional | 300 |
-| Enterprise | 1,000+ |
-
-### How do I access the API?
-
-1. Navigate to **Settings → Integrations → API**
-2. Generate API key
-3. Set permissions
-4. Use key in Authorization header
-
----
-
-## Support
-
-### How do I get help?
-
-- In-app chat support
-- Email: support@cryptsk.com
-- Help Center: docs.staysuite.io
-
-### What are support hours?
-
-- Critical issues: 24/7
-- General support: Business hours (IST)
-- Enterprise: Dedicated support
-
-### How do I report a bug?
-
-Email support@cryptsk.com with:
-- Description of issue
-- Steps to reproduce
-- Screenshots
-- Browser/device information
-
----
-
-## Billing
-
-### How is StaySuite priced?
-
-Contact sales@cryptsk.com for pricing information.
-
-### Can I change my plan?
-
-Yes. Contact sales@cryptsk.com to discuss plan changes.
-
-### How do I update payment details?
-
-Navigate to **Settings → Billing → Payment Methods** to update your payment information.
-
-### What payment methods are accepted?
-
-- Credit/Debit cards
-- Bank transfer
-- UPI (India)
+Next.js 16.1, React 19, PostgreSQL 17, FreeRADIUS v3.2.7, Tailwind CSS 4, Prisma 6, Zustand 5, TanStack Query 5
 
 ---
 
 ## More Questions?
 
-Contact us at:
 - **Sales**: sales@cryptsk.com
 - **Support**: support@cryptsk.com
 - **Website**: www.staysuite.io

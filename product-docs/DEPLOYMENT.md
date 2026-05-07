@@ -1,26 +1,25 @@
 # StaySuite Production Deployment Guide (Debian 13)
 
+**Last Updated**: May 2026
+
+---
+
 ## Prerequisites
 
 | Requirement | Minimum Version |
 |---|---|
-| Node.js | 20+ |
 | Bun | Latest (1.x) |
-| PostgreSQL | 15+ (for production) |
+| PostgreSQL | 17 |
 | Debian | 13 (Trixie) |
 
 ### Install prerequisites on Debian 13
 
 ```bash
-# Node.js 20 via NodeSource
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
-sudo apt install -y nodejs
-
 # Bun
 curl -fsSL https://bun.sh/install | bash
 
-# PostgreSQL 15+
-sudo apt install -y postgresql postgresql-contrib
+# PostgreSQL 17
+sudo apt install -y postgresql-17 postgresql-17-contrib
 sudo systemctl enable --now postgresql
 
 # Caddy (reverse proxy with auto TLS)
@@ -49,54 +48,61 @@ bun install
 # Generate Prisma client
 npx prisma generate
 
-# Set up database (pick one)
-npx prisma db push          # Fresh install — syncs schema to DB
+# Set up database
+npx prisma db push          # Fresh install — syncs schema to PostgreSQL 17
 # OR
 npx prisma migrate deploy  # Run pending migrations (production recommended)
 
 # Optional: seed the database
-npx prisma db seed
+bun run db:seed
 
 # Build for production
-bun run build
+NODE_OPTIONS='--max-old-space-size=8192' bun run build
+cp -r .next/static .next/standalone/.next/
+cp -r public .next/standalone/
 ```
 
 ---
 
 ## Running in Production
 
-### Main Next.js App
+### PM2 Process Management (Recommended)
+
+The platform runs 4 services managed by PM2 via `ecosystem.config.cjs`:
+
+| Service | Port | Description |
+|---------|------|-------------|
+| staysuite-freeradius | 1812/1813 | FreeRADIUS v3.2.7 server |
+| staysuite-nextjs | 3000 | Main Next.js application |
+| staysuite-captive-redirect | 8888 | Captive portal redirect service |
+| staysuite-realtime | 3003 | WebSocket real-time service |
 
 ```bash
-PORT=3000 NODE_ENV=production bun run start
+pm2 start ecosystem.config.cjs
+pm2 status
+pm2 logs
+```
+
+### Manual Start
+
+```bash
+# Main Next.js app (standalone mode)
+PORT=3000 NODE_ENV=production NODE_OPTIONS='--max-old-space-size=1536' bun .next/standalone/server.js
 ```
 
 ### Mini-Services
-
-Each service can be started independently:
 
 ```bash
 # Realtime WebSocket service (port 3003)
 cd mini-services/realtime-service && bun index.ts &
 
-# Availability service (port 3002)
-cd mini-services/availability-service && bun server.ts &
-
-# FreeRADIUS management service (port 3010)
-cd mini-services/freeradius-service && bun index.ts &
-```
-
-Or use the provided script:
-
-```bash
-cd mini-services && bash start-services.sh
+# Captive portal redirect (port 8888)
+cd mini-services/captive-redirect && bun --hot index.ts &
 ```
 
 ---
 
 ## Systemd Service Files
-
-Create these files under `/etc/systemd/system/`.
 
 ### staysuite.service (Main Next.js App)
 
@@ -111,90 +117,33 @@ User=staysuite
 Group=staysuite
 WorkingDirectory=/opt/staysuite
 EnvironmentFile=/opt/staysuite/.env
-ExecStart=/usr/bin/bun run start
+ExecStart=/usr/local/bin/bun .next/standalone/server.js
 Restart=on-failure
 RestartSec=5
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=staysuite
-
-# Hardening
-NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=/opt/staysuite/.next /opt/staysuite/prisma
-PrivateTmp=true
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=NODE_OPTIONS=--max-old-space-size-1536
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-### staysuite-realtime.service (Realtime WebSocket)
+### staysuite-freeradius.service
 
 ```ini
 [Unit]
-Description=StaySuite Realtime WebSocket Service
+Description=StaySuite FreeRADIUS Server v3.2.7
 After=network.target
 
 [Service]
 Type=simple
 User=staysuite
 Group=staysuite
-WorkingDirectory=/opt/staysuite/mini-services/realtime-service
-EnvironmentFile=/opt/staysuite/.env
-ExecStart=/usr/bin/bun index.ts
+WorkingDirectory=/opt/staysuite
+Environment=LD_LIBRARY_PATH=/opt/staysuite/freeradius-install/lib:/opt/staysuite/pgsql-runtime/lib
+ExecStart=/opt/staysuite/freeradius-install/sbin/radiusd -d /opt/staysuite/freeradius-install/etc/raddb -D /opt/staysuite/freeradius-install/share/freeradius -f
 Restart=on-failure
 RestartSec=5
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=staysuite-realtime
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### staysuite-availability.service (Availability Service)
-
-```ini
-[Unit]
-Description=StaySuite Availability Service
-After=network.target
-
-[Service]
-Type=simple
-User=staysuite
-Group=staysuite
-WorkingDirectory=/opt/staysuite/mini-services/availability-service
-EnvironmentFile=/opt/staysuite/.env
-ExecStart=/usr/bin/bun server.ts
-Restart=on-failure
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=staysuite-availability
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### staysuite-freeradius.service (FreeRADIUS Management)
-
-```ini
-[Unit]
-Description=StaySuite FreeRADIUS Management Service
-After=network.target
-
-[Service]
-Type=simple
-User=staysuite
-Group=staysuite
-WorkingDirectory=/opt/staysuite/mini-services/freeradius-service
-EnvironmentFile=/opt/staysuite/.env
-ExecStart=/usr/bin/bun index.ts
-Restart=on-failure
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=staysuite-freeradius
 
 [Install]
 WantedBy=multi-user.target
@@ -205,19 +154,15 @@ WantedBy=multi-user.target
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now staysuite
-sudo systemctl enable --now staysuite-realtime
-sudo systemctl enable --now staysuite-availability
 sudo systemctl enable --now staysuite-freeradius
-
-# Check status
-sudo systemctl status staysuite staysuite-realtime staysuite-availability staysuite-freeradius
+sudo systemctl status staysuite staysuite-freeradius
 ```
 
 ---
 
-## Database Migration (SQLite to PostgreSQL)
+## Database Setup
 
-### Step 1: Set up PostgreSQL
+### PostgreSQL 17 Configuration
 
 ```bash
 sudo -u postgres psql
@@ -227,106 +172,71 @@ GRANT ALL PRIVILEGES ON DATABASE staysuite TO staysuite;
 \q
 ```
 
-### Step 2: Update .env
-
-```bash
-# Change DATABASE_URL in .env
-DATABASE_URL="postgresql://staysuite:your-strong-password@localhost:5432/staysuite"
-```
-
-### Step 3: Enable required PostgreSQL extensions
+### Enable PostgreSQL Extensions
 
 ```sql
--- Connect to your database
-sudo -u postgres psql -d staysuite
-
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "citext";
-\q
 ```
 
-### Step 4: Migrate schema
+### Update .env
 
-```bash
-# Option A: Fresh PostgreSQL install (no existing data)
-npx prisma db push --force-reset
-
-# Option B: Use migrations
-npx prisma migrate dev --name init
-npx prisma migrate deploy
+```env
+DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/staysuite"
 ```
 
-### Step 5: (Optional) Migrate existing SQLite data
+---
 
-Use `pgloader` or export/import:
+## FreeRADIUS Setup
 
-```bash
-sudo apt install -y pgloader
+FreeRADIUS v3.2.7 is compiled from source with native PostgreSQL SQL module.
 
-# Create a pgloader script (migrate.load)
-pgloader migrate.load
-```
+The compiled installation is at:
+- **Binaries**: `/home/z/my-project/freeradius-install/sbin/`
+- **Config**: `/home/z/my-project/freeradius-install/etc/raddb/`
+- **Libraries**: `/home/z/my-project/freeradius-install/lib/`
 
-Example `migrate.load`:
-
-```
-LOAD DATABASE
-    FROM sqlite:///opt/staysuite/prisma/dev.db
-    INTO postgresql://staysuite:your-password@localhost:5432/staysuite
-WITH include drop, create tables, create indexes, reset sequences
-CAST type integer to integer drop typemod,
-     type text to varchar drop typemod
-SET maintenance_work_mem to '128MB',
-    work_mem to '12MB'
-BEFORE LOAD DO
-    $$ ALTER SCHEMA public RENAME TO old; CREATE SCHEMA public; $$;
-AFTER LOAD DO
-    $$ DROP SCHEMA old CASCADE; $$;
+Set LD_LIBRARY_PATH:
+```env
+LD_LIBRARY_PATH=/home/z/my-project/freeradius-install/lib:/home/z/my-project/pgsql-runtime/lib
 ```
 
 ---
 
 ## Seed Data
 
-The application includes comprehensive seed data for demo/testing:
-
 ```bash
-npx prisma db seed
+bun run db:seed
 ```
 
-**Note**: Seed data uses CUID string IDs (e.g., `tenant-1`, `user-1`). For PostgreSQL,
-you must either:
+Creates demo tenants, properties, users, room types, WiFi plans, bookings, and group bookings.
 
-1. Use the provided SQLite schema for development, or
-2. Run the `seed.postgresql.ts` script (if provided) with UUID-compatible seed data
+**Demo Credentials:**
+
+| Role | Email | Password |
+|------|-------|----------|
+| Property Admin | admin@royalstay.in | admin123 |
+| Front Desk | frontdesk@royalstay.in | admin123 |
+| Housekeeping | housekeeping@royalstay.in | admin123 |
+| Platform Admin | platform@staysuite.com | admin123 |
 
 ---
 
 ## Caddy Reverse Proxy
 
-Edit `/etc/caddy/Caddyfile`:
-
 ```
 staysuite.example.com {
     reverse_proxy localhost:3000
 
-    # Security headers (Caddy adds most automatically)
     header {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "SAMEORIGIN"
-        Referrer-Policy "strict-origin-when-cross-origin"
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
     }
 
-    # Logging
     log {
         output file /var/log/caddy/staysuite.log
     }
-}
-
-# Realtime WebSocket service (if exposed directly)
-realtime.staysuite.example.com {
-    reverse_proxy localhost:3003
 }
 ```
 
@@ -343,6 +253,8 @@ sudo apt install -y ufw
 sudo ufw allow 22/tcp     # SSH
 sudo ufw allow 80/tcp     # HTTP (Caddy)
 sudo ufw allow 443/tcp    # HTTPS (Caddy)
+sudo ufw allow 1812/tcp   # RADIUS Auth
+sudo ufw allow 1813/tcp   # RADIUS Acct
 sudo ufw enable
 ```
 
@@ -351,15 +263,29 @@ sudo ufw enable
 ## Useful Commands
 
 ```bash
+# PM2 process management
+pm2 status
+pm2 restart all
+pm2 logs staysuite-nextjs --lines 100
+
 # View logs
 sudo journalctl -u staysuite -f
-sudo journalctl -u staysuite-realtime -f
 
 # Restart after code update
 cd /opt/staysuite && git pull && bun install && bun run build
-sudo systemctl restart staysuite
+pm2 restart staysuite
 
 # Database migrations after schema change
 npx prisma migrate deploy
-sudo systemctl restart staysuite
+pm2 restart staysuite
+
+# Check database
+psql -U postgres -d staysuite -c "SELECT count(*) FROM \"User\";"
 ```
+
+---
+
+## Support
+
+- **Email**: support@cryptsk.com
+- **Documentation**: docs.staysuite.io

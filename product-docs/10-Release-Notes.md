@@ -1,7 +1,110 @@
 # StaySuite Release Notes
 ## Version History
 
-**Last Updated**: March 2026
+**Last Updated**: May 2026
+
+---
+
+## Version 2.0.0 (May 2026)
+
+### Major Update — Platform Scale-Up
+
+StaySuite 2.0 represents a major platform expansion from the initial 1.0 release, delivering a production-grade hospitality operating system with comprehensive coverage of hotel operations.
+
+### Scale Metrics
+
+| Metric | v1.0 | v2.0 | Change |
+|--------|------|------|--------|
+| Database Models | 100+ | 294 | +194% |
+| API Routes | 289 | 614 | +112% |
+| React Components | 201 | 529 | +163% |
+| Component Directories | 20+ | 44 | +120% |
+| Navigation Modules | ~20 | 30 | +50% |
+| API Route Directories | - | 134 | New |
+| shadcn/ui Components | 51 | 51 | Stable |
+| Supported Languages | 15 | 15 | Stable |
+
+### Infrastructure Changes
+
+| Component | v1.0 | v2.0 |
+|-----------|------|------|
+| Database | PostgreSQL 17 | PostgreSQL 17 |
+| WiFi AAA | Basic RADIUS | FreeRADIUS v3.2.7 (compiled from source) |
+| Runtime | Node.js | Bun |
+| Frontend | Next.js 16 + React 18 | Next.js 16.1 + React 19 |
+| Styling | Tailwind CSS 4 | Tailwind CSS 4 + shadcn/ui |
+| State Management | Zustand | Zustand 5.0+ |
+| Server Cache | Custom | TanStack Query 5.82+ |
+| Forms | React Hook Form + Zod 3 | React Hook Form 7.60 + Zod 4 |
+
+### New Modules
+
+**Restaurant & POS** (expanded from 5 to 15 sub-features):
+- Added: Room Service, Restaurant Reports, Recipes, Staff Assignment, Receipt Templates, POS Inventory, Menu Modifiers, Menu Variants, Table Layout, Reservations, Customer Display, Order Split, Order Discounts, Menu Image Upload
+
+**Housekeeping** (expanded from 5 to 11 sub-features):
+- Added: Inspection Checklists, Lost & Found, Minibar, Laundry, Housekeeping Automation
+
+**WiFi** (expanded from 6 to 10 sub-features):
+- Added: DHCP Server, DNS Server, Captive Portal, Firewall & Bandwidth, Content Filter, Gateway Diagnostics
+- Full FreeRADIUS v3.2.7 with native PostgreSQL SQL module
+- 6 WiFi plans (Free through Enterprise)
+
+**Billing** (expanded from 6 to 15 sub-features):
+- Added: Folio Transfer, Payment Plans, Credit Notes, Multi-Currency, Night Audit, City Ledger, Commissions, Posting Rules, Scheduled Charges
+
+**Experience** (expanded from 5 to 13 sub-features):
+- Added: Experience Catalog, Experience Bookings, Pricing & Availability, Vendor Management, Revenue Analytics, Calendar, Guest Feedback, Chat Transfer, Chat Attachment
+
+**Front Desk** (expanded from 4 to 9 sub-features):
+- Added: Registration Card, Express Kiosk, Kiosk Settings, Room Move, Auto-Assign, KYC Document Upload, Signature Pad, Key Card Manager, Kiosk Payment
+
+**Bookings** (expanded from 4 to 6 sub-features):
+- Added: No-Show Automation, Conflicts
+
+**PMS** (expanded from 7 to 12 sub-features):
+- Added: Room Rate Calendar, Room Out-of-Order, Package Plans, Floor Plan Editor, Room Image Gallery
+
+**Guests** (expanded from 5 to 8 sub-features):
+- Added: Guest Merge, WiFi Session History, Guest Journey
+
+**New Standalone Modules:**
+- Digital Advertising (4 sub-features)
+- Events / MICE (4 sub-features)
+- Smart Hotel / IoT (3 sub-features)
+- Chain Management (3 sub-features)
+- SaaS Billing (3 sub-features)
+- Marketing (4 sub-features)
+- Staff Management (6 sub-features)
+- Security Center (5 sub-features)
+
+**Enhanced Infrastructure:**
+- PM2 process management for 4 services (Next.js, FreeRADIUS, Captive Redirect, Realtime)
+- Captive portal redirect service (port 8888)
+- Realtime WebSocket service (port 3003)
+- FreeRADIUS compiled from source with PostgreSQL SQL module
+
+### Database
+
+- **PostgreSQL 17** is the exclusive database backend
+- **294 Prisma models** covering all aspects of hotel operations
+- Complete tenant isolation via `tenantId` on all models
+- Soft delete with `deletedAt` on critical models
+- UUID primary keys for all models
+
+### Updated Demo Data
+
+| Tenant | Properties |
+|--------|------------|
+| Royal Stay Hotels | Royal Stay Kolkata (120 rooms), Royal Stay Darjeeling (50 rooms) |
+| Ocean View Resorts | - |
+
+| User | Email | Role |
+|------|-------|------|
+| Rajesh Sharma | admin@royalstay.in | Admin |
+| Priya Das | frontdesk@royalstay.in | Front Desk |
+| Anita Roy | housekeeping@royalstay.in | Housekeeping |
+| Platform Admin | platform@staysuite.com | Platform Admin |
 
 ---
 
@@ -9,155 +112,32 @@
 
 ### Initial Release
 
-StaySuite 1.0 is the first production release of the All-in-One Hospitality Operating System.
+StaySuite 1.0 was the first production release of the All-in-One Hospitality Operating System.
 
-### Core Modules
+**Core Modules:**
+- Property Management, Booking Engine, Guest Management, Front Desk
+- Guest Experience, WiFi Management (basic RADIUS), Billing & Payments
+- Channel Manager (OTA connections), Revenue Management, Housekeeping
+- Reports & BI, AI Assistant, Automation, Admin
 
-**Property Management System (PMS)**
-- Multi-property support
-- Room type and room management
-- Inventory calendar
-- Rate plans and pricing rules
-- Overbooking settings
+**Integrations:**
+- Payment Gateways: Stripe, PayPal, Razorpay, Square, Adyen
+- WiFi Gateways: 11+ vendors
+- Door Locks: Assa Abloy, dormakaba, Salto, ONITY
 
-**Booking Engine**
-- Calendar view with drag-drop
-- Booking lifecycle management
-- Group bookings
-- Waitlist management
-- Conflict detection
-
-**Guest Management**
-- Guest profiles
-- KYC/document management
-- Preferences tracking
-- Stay history
-- Loyalty program
-
-**Front Desk**
-- Check-in/check-out workflow
-- Walk-in booking
-- Room grid
-- Room assignment
-
-**Guest Experience**
-- Service requests
-- Guest chat
-- In-room portal
-- Digital keys
-
-**WiFi Management**
-- Multi-vendor gateway support
-- Voucher management
-- Bandwidth plans
-- Usage tracking
-- Captive portal
-
-**Billing & Payments**
-- Folio management
-- Invoice generation
-- Multi-gateway payments
-- Refunds
-- Discounts
-
-**Channel Manager**
-- OTA connections (Booking.com, Airbnb, Expedia)
-- Inventory sync
-- Rate sync
-- Booking import
-- CRS
-
-**Revenue Management**
-- Dynamic pricing
-- Pricing rules engine
-- Demand forecasting
-- AI recommendations
-
-**Housekeeping**
-- Task management
-- Kanban board
-- Room status
-- Maintenance requests
-- Asset management
-
-**Reports**
-- Revenue reports
-- Occupancy reports
-- ADR/RevPAR
-- Guest analytics
-- Staff performance
-- Scheduled reports
-
-### Integrations
-
-**Payment Gateways**
-- Stripe
-- PayPal
-- Razorpay
-- Square
-- Adyen
-
-**WiFi Gateways**
-- Cisco
-- MikroTik
-- Ruckus
-- Huawei
-- Juniper
-- Fortinet
-- Aruba
-
-**Door Locks**
-- Assa Abloy
-- dormakaba
-- Salto
-- ONITY
-
-### Security
-
-- JWT authentication
-- Two-factor authentication (TOTP)
-- Role-based access control (RBAC)
-- Audit logging
-- GDPR compliance tools
-
-### Localization
-
-- 15+ languages
-- Multi-currency
-- Timezone support
+**Security:**
+- Custom session-based auth, 2FA (TOTP), RBAC (9 roles), Audit logging, GDPR compliance
 
 ---
 
-## Upcoming Features
-
-### Version 1.1 (Planned)
-
-- WhatsApp Business API integration
-- Google Hotel Ads integration
-- Advanced AI Copilot
-- Kitchen Display System (KDS) enhancements
-- Mobile app (iOS/Android)
-
-### Version 1.2 (Planned)
-
-- SAML SSO
-- Advanced revenue management
-- Competitor rate shopping
-- Reputation management dashboard
-- Energy management IoT
-
----
-
-## Release Notes Archive
-
-### Version 0.9.0 (Beta - February 2026)
+## Version 0.9.0 (Beta — February 2026)
 
 - Beta release for testing
 - Core PMS functionality
 - Basic booking engine
 - Initial WiFi integration
 
-### Version 0.8.0 (Alpha - January 2026)
+## Version 0.8.0 (Alpha — January 2026)
 
 - Alpha release
 - Basic property management
@@ -168,41 +148,40 @@ StaySuite 1.0 is the first production release of the All-in-One Hospitality Oper
 
 ## Upgrade Notes
 
-### Upgrading to 1.0.0
+### Upgrading from 1.0.0 to 2.0.0
 
-For existing beta users:
+```bash
+# Pull the latest code
+git pull origin main
 
-1. Backup database
-2. Run migrations:
-   ```bash
-   npx prisma migrate deploy
-   ```
-3. Clear cache:
-   ```bash
-   redis-cli FLUSHALL
-   ```
-4. Restart application
+# Install dependencies
+bun install
 
-### Breaking Changes
+# Generate Prisma client
+npx prisma generate
 
-- API v1 endpoints changed
-- Webhook payload format updated
-- Authentication flow modified
+# Sync schema to PostgreSQL 17
+npx prisma db push
 
-### Deprecations
+# Seed with demo data (optional)
+bun run db:seed
+```
 
-- Legacy API endpoints removed
-- Old webhook format no longer supported
+**Breaking Changes:**
+- API routes expanded from 289 to 614
+- New middleware and auth helpers
+- FreeRADIUS now requires PostgreSQL SQL module (v3.2.7 compiled from source)
+- React upgraded to 19, Next.js to 16.1
 
 ---
 
 ## Known Issues
 
-### Version 1.0.0
+### Version 2.0.0
 
 | Issue | Workaround | Fix Version |
 |-------|------------|-------------|
-| None reported | - | - |
+| Turbopack memory issues with many imports | Use `NEXT_DISABLE_TURBOPACK=1` (already set) | - |
 
 ---
 
@@ -234,7 +213,6 @@ For existing beta users:
 
 ## Support
 
-For questions about releases:
 - **Support**: support@cryptsk.com
 - **Documentation**: docs.staysuite.io
 

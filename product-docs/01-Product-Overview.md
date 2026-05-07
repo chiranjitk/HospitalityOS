@@ -1,8 +1,8 @@
 # StaySuite Product Overview
 ## All-in-One Hospitality Operating System
 
-**Version**: 1.0  
-**Last Updated**: March 2026  
+**Version**: 2.0  
+**Last Updated**: May 2026  
 **Author**: Cryptsk Pvt Ltd
 
 ---
@@ -12,6 +12,8 @@
 ### 1.1 Product Definition
 
 **StaySuite** is an enterprise-grade, cloud-native hospitality operating system that unifies all aspects of hotel operations into a single, intelligent platform. Unlike traditional Property Management Systems (PMS), StaySuite is positioned as a complete **Hospitality Operating System** — covering guest journey, revenue, operations, marketing, and intelligence.
+
+The platform comprises **294 database models**, **614 API routes**, and **529 React components** organized across **44 component directories**, making it one of the most comprehensive hospitality platforms in the industry.
 
 ### 1.2 Target Market
 
@@ -28,11 +30,12 @@
 
 | Differentiator | Description |
 |----------------|-------------|
-| **WiFi AAA Gateway** | Industry-first native RADIUS/AAA integration with multi-vendor support |
-| **AI Revenue Engine** | Machine learning for dynamic pricing and demand forecasting |
-| **Unified Channel Manager** | 46+ OTA connections with real-time sync |
+| **WiFi AAA Gateway** | Industry-first native FreeRADIUS v3.2.7 integration with PostgreSQL SQL module, 11+ vendor support |
+| **AI Revenue Engine** | Machine learning for dynamic pricing, demand forecasting, and competitor analysis |
+| **Unified Channel Manager** | 46+ OTA connections with real-time sync and CRS |
 | **Guest Journey Engine** | Complete lifecycle management from discovery to retention |
 | **Unified Communication Hub** | Single inbox for OTA, WhatsApp, Email, SMS |
+| **Scale** | 294 DB models, 614 API routes, 529 components, 30 navigation modules |
 
 ---
 
@@ -62,208 +65,277 @@ To modernize hospitality operations with intelligent, reliable, and scalable sof
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
 │  │   Web App   │  │  Guest App  │  │  Staff App  │          │
+│  │  (Next.js)  │  │   (PWA)     │  │   (PWA)     │          │
 │  └─────────────┘  └─────────────┘  └─────────────┘          │
 ├─────────────────────────────────────────────────────────────┤
-│                      API Gateway                             │
-├─────────────────────────────────────────────────────────────┤
+│                      API Layer (614 Routes)                  │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐            │
 │  │   PMS   │ │Booking  │ │Billing  │ │  WiFi   │            │
 │  └─────────┘ └─────────┘ └─────────┘ └─────────┘            │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐            │
 │  │   CRM   │ │Channel  │ │Revenue  │ │   AI    │            │
 │  └─────────┘ └─────────┘ └─────────┘ └─────────┘            │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐            │
+│  │   POS   │ │  IoT    │ │  Staff  │ │ Events  │            │
+│  └─────────┘ └─────────┘ └─────────┘ └─────────┘            │
 ├─────────────────────────────────────────────────────────────┤
 │                    Core Services                             │
 │  ┌───────────┐ ┌───────────┐ ┌───────────┐                  │
-│  │   Auth    │ │  Events   │ │  Queue    │                  │
+│  │  NextAuth │ │  Socket   │ │   Node    │                  │
+│  │   v4      │ │   .io     │ │  Cron     │                  │
 │  └───────────┘ └───────────┘ └───────────┘                  │
 ├─────────────────────────────────────────────────────────────┤
 │                    Data Layer                                │
 │  ┌───────────┐ ┌───────────┐ ┌───────────┐                  │
-│  │PostgreSQL │ │   Redis   │ │   S3      │                  │
+│  │PostgreSQL │ │ FreeRADIUS│ │   S3      │                  │
+│  │   v17     │ │  v3.2.7   │ │           │                  │
 │  └───────────┘ └───────────┘ └───────────┘                  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### 3.2 Technology Stack
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | Next.js 16, React 18, TypeScript |
-| Backend | Node.js, Next.js API Routes |
-| Database | PostgreSQL with Prisma ORM |
-| Real-time | WebSocket with Socket.io |
-| Queue | BullMQ |
-| Cache | Redis |
-| Storage | S3-compatible object storage |
+| Layer | Technology | Version |
+|-------|------------|---------|
+| Frontend | Next.js, React, TypeScript | 16.1, 19, 5 |
+| Styling | Tailwind CSS, shadcn/ui | 4 |
+| Backend | Next.js API Routes, Bun | 16.1, latest |
+| Database | PostgreSQL | 17 |
+| ORM | Prisma | 6.19+ |
+| Auth | NextAuth.js | v4 |
+| Real-time | Socket.io | 4.7+ |
+| State | Zustand | 5.0+ |
+| Server Cache | TanStack Query | 5.82+ |
+| WiFi AAA | FreeRADIUS (compiled from source) | v3.2.7 |
+| Forms | React Hook Form + Zod | 7.60, 4.0 |
+| Charts | Recharts | 2.15+ |
 
 ### 3.3 Multi-Tenant Architecture
 
 ```
-Request → Middleware → Resolve Tenant → Attach tenant_id → Enforce RLS → Process
+Request → Middleware → Resolve Tenant → Attach tenant_id → Enforce Scoping → Process
 ```
 
-- Complete tenant isolation at database level
-- Row-Level Security (RLS) enforcement
-- Tenant-specific configurations and branding
+- Complete tenant isolation at database level (tenantId on all models)
+- Scoped queries on every API route
+- Tenant-specific configurations, branding, and feature flags
+- Platform admin role for cross-tenant management
+
+### 3.4 Platform Statistics
+
+| Metric | Count |
+|--------|-------|
+| Prisma Database Models | 294 |
+| API Routes | 614 |
+| React Components | 529 |
+| Component Subdirectories | 44 |
+| Navigation Modules | 30 |
+| API Route Directories | 134 |
+| Mini-Services | 4 (Next.js, FreeRADIUS, Realtime, Captive Redirect) |
+| shadcn/ui Components | 51 |
+| Supported Locales | 15 (8 Indian + 7 Global) |
 
 ---
 
 ## 4. Core Modules
 
-### 4.1 Property Management System (PMS)
+The platform is organized into **8 base modules** (always enabled) and **22 addon modules** (toggleable via feature flags).
+
+### 4.1 Property Management System (PMS) — Base
 
 | Module | Description |
 |--------|-------------|
 | Properties | Multi-property configuration |
-| Room Types | Logical room categories |
-| Rooms | Physical inventory with status |
-| Inventory Calendar | Date-wise availability |
-| Rate Plans | Pricing models |
-| Pricing Rules | Dynamic adjustments |
+| Room Types | Logical room categories with amenities and pricing |
+| Rooms | Physical inventory with 12+ status types |
+| Inventory Calendar | Date-wise availability with visual calendar |
+| Availability Control | Open/close inventory, restrictions |
+| Inventory Locking | DB-level row locking to prevent overbooking |
+| Rate Plans & Pricing | Pricing models (BAR, seasonal, corporate) |
+| Overbooking Settings | Configurable thresholds with alerts |
+| Floor Plans | Visual drag-drop floor plan editor |
+| Room Rate Calendar | Date-grid rate management |
+| Room Out-of-Order | Maintenance-based room unavailability |
+| Package Plans | Bundled room + service packages |
 
-### 4.2 Booking Engine
-
-| Module | Description |
-|--------|-------------|
-| Calendar View | Visual booking interface |
-| Bookings | Reservation management |
-| Group Bookings | Multi-room bookings |
-| Waitlist | Queue management |
-| Conflicts | Overlap detection |
-
-### 4.3 Guest Management
+### 4.2 Bookings — Base
 
 | Module | Description |
 |--------|-------------|
-| Guest Profiles | Guest directory |
-| KYC/Documents | Identity management |
-| Preferences | Guest preferences |
-| Stay History | Visit timeline |
-| Loyalty | Rewards program |
+| Calendar View | Visual booking interface with drag-drop |
+| Group Bookings | Multi-room bookings for events/tours |
+| Waitlist | Queue management when no availability |
+| Conflicts | Overlap detection and resolution |
+| No-Show Automation | Automatic no-show processing |
+| Audit Logs | Complete booking change history |
 
-### 4.4 Front Desk Operations
-
-| Module | Description |
-|--------|-------------|
-| Check-in | Arrival processing |
-| Check-out | Departure processing |
-| Walk-in | Direct bookings |
-| Room Grid | Status dashboard |
-
-### 4.5 Guest Experience
+### 4.3 Front Desk — Base
 
 | Module | Description |
 |--------|-------------|
-| Service Requests | Guest requests |
-| Guest Chat | Messaging |
-| In-Room Portal | QR-based access |
-| Digital Keys | Mobile access |
+| Check-in | Arrival processing with auto-triggers |
+| Check-out | Departure processing with folio settlement |
+| Walk-in Booking | Direct booking without prior reservation |
+| Room Grid | Live color-coded status dashboard |
+| Room Assignment | Smart room assignment with filters |
+| Registration Card | Digital registration with e-signature |
+| Express Kiosk | Self-service kiosk for check-in/out |
+| Kiosk Settings | Kiosk configuration and branding |
+| Room Move | Room change during stay |
 
-### 4.6 WiFi Management
-
-| Module | Description |
-|--------|-------------|
-| Sessions | Active connections |
-| Vouchers | Access codes |
-| Plans | Bandwidth tiers |
-| Usage | Data consumption |
-| Gateway | Equipment config |
-
-### 4.7 Billing & Payments
+### 4.4 Guest Management — Base
 
 | Module | Description |
 |--------|-------------|
-| Folios | Charge containers |
-| Invoices | Billing documents |
-| Payments | Transaction tracking |
-| Refunds | Reversals |
-| Discounts | Price adjustments |
+| Guest List | Guest directory with search and filters |
+| KYC/Documents | Identity document upload and management |
+| Preferences | Guest preferences tracking |
+| Stay History | Complete visit timeline |
+| Loyalty & Points | Multi-tier rewards program |
+| Guest Profile | 360-degree guest view |
 
-### 4.8 Restaurant & POS
-
-| Module | Description |
-|--------|-------------|
-| Orders | Order management |
-| Tables | Seating |
-| Kitchen (KDS) | Display system |
-| Menu | Items and pricing |
-
-### 4.9 Housekeeping & Maintenance
+### 4.5 Housekeeping — Base
 
 | Module | Description |
 |--------|-------------|
-| Tasks | Cleaning tasks |
-| Kanban | Workflow board |
-| Room Status | Clean/dirty tracking |
-| Maintenance | Issue tracking |
-| Assets | Equipment |
+| Tasks | Cleaning and operations task management |
+| Kanban Board | Visual workflow board |
+| Room Status | Clean/dirty/maintenance tracking |
+| Maintenance Requests | Issue tracking with prioritization |
+| Preventive Maintenance | Scheduled equipment checks |
+| Asset Management | Equipment lifecycle tracking |
+| Inspection Checklists | Quality assurance workflows |
+| Automation Rules | Auto-assignment and triggers |
+| Lost & Found | Item tracking and guest notification |
+| Minibar | Consumption tracking and restocking |
+| Laundry | Order tracking and status |
 
-### 4.10 Inventory & Procurement
-
-| Module | Description |
-|--------|-------------|
-| Stock | Inventory items |
-| Consumption | Usage tracking |
-| Alerts | Low stock |
-| Vendors | Suppliers |
-| Purchase Orders | Procurement |
-
-### 4.11 Channel Manager
+### 4.6 Billing — Base
 
 | Module | Description |
 |--------|-------------|
-| OTA Connections | Channel setup |
-| Inventory Sync | Availability push |
-| Rate Sync | Pricing push |
-| Booking Import | Reservation import |
-| Restrictions | Stop-sell rules |
-| CRS | Central reservation |
+| Folios | Booking-linked charge containers |
+| Invoices | PDF generation with templates |
+| Payments | Multi-gateway transaction tracking |
+| Refunds | Transaction reversal processing |
+| Discounts | Manual and automatic discounts |
+| Cancellation Policies | Configurable penalty rules |
+| Folio Transfer | Cross-folio charge transfers |
+| Payment Plans | Scheduled payment schedules |
+| Credit Notes | Credit memo management |
+| Multi-Currency | Exchange rate management |
+| Night Audit | Daily reconciliation and close |
+| City Ledger | Account-based billing |
+| Commissions | Travel agent commission tracking |
+| Posting Rules | Auto-posting configuration |
+| Scheduled Charges | Recurring charge automation |
 
-### 4.12 Revenue Management
-
-| Module | Description |
-|--------|-------------|
-| Pricing Rules | Dynamic rules |
-| Demand Forecast | Predictions |
-| Competitor Pricing | Rate shopping |
-| AI Suggestions | Recommendations |
-
-### 4.13 CRM & Marketing
-
-| Module | Description |
-|--------|-------------|
-| Segments | Guest grouping |
-| Campaigns | Marketing outreach |
-| Loyalty Programs | Rewards |
-| Feedback | Reviews |
-
-### 4.14 Automation
+### 4.7 Guest Experience — Addon
 
 | Module | Description |
 |--------|-------------|
-| Workflows | Event-triggered actions |
-| Rules Engine | Condition logic |
-| Templates | Reusable flows |
-| Execution Logs | Run history |
+| Service Requests | Real-time guest request management |
+| Unified Inbox | Single inbox for all communication channels |
+| Guest Chat | Real-time messaging with chat transfer |
+| In-Room Portal | QR-based web portal for guest self-service |
+| Digital Keys | Mobile-based room access |
+| Guest App Controls | Mobile service and preference management |
+| Experience Catalog | Activity and service marketplace |
+| Experience Bookings | Activity booking management |
+| Pricing & Availability | Dynamic experience pricing |
+| Vendor Management | Activity provider management |
+| Revenue Analytics | Experience revenue tracking |
+| Calendar | Activity scheduling |
+| Guest Feedback | In-stay feedback collection |
 
-### 4.15 Reports & BI
+### 4.8 Restaurant & POS — Addon
 
 | Module | Description |
 |--------|-------------|
-| Revenue | Income reports |
-| Occupancy | Room utilization |
-| ADR/RevPAR | KPIs |
-| Guest Analytics | Behavior |
-| Staff Performance | Productivity |
+| Orders | Complete order lifecycle management |
+| Tables | Seating layout and allocation |
+| Kitchen (KDS) | Real-time kitchen display system |
+| Menu Management | Items, categories, pricing, images |
+| Restaurant Billing | F&B charge processing |
+| Room Service | In-room dining orders |
+| Restaurant Reports | F&B analytics |
+| Recipes | Recipe management with ingredients |
+| Staff Assignment | Wait staff allocation |
+| Receipt Templates | Customizable receipt formats |
+| Inventory | F&B stock management |
+| Menu Modifiers | Customization options (size, extras) |
+| Menu Variants | Multiple presentation options |
+| Table Layout | Visual floor plan editor |
+| Reservations | Restaurant table reservations |
 
-### 4.16 AI Module
+### 4.9 WiFi Management — Addon
 
 | Module | Description |
 |--------|-------------|
-| Copilot | Natural language queries |
-| Insights | AI recommendations |
-| Provider Settings | LLM configuration |
+| WiFi Access | Session management and monitoring |
+| RADIUS & Gateway | FreeRADIUS v3.2.7 with PostgreSQL SQL module |
+| Network | Network configuration and VLANs |
+| DHCP Server | DHCP management with reservations |
+| DNS Server | DNS configuration and redirect rules |
+| Captive Portal | Branded login pages |
+| Firewall & Bandwidth | QoS policies and firewall rules |
+| Content Filter | Web category blocking and scheduling |
+| Gateway Diagnostics | Speed tests and network health |
+| Reports | Usage analytics and session history |
+
+### 4.10 Channel Manager — Addon
+
+| Module | Description |
+|--------|-------------|
+| OTA Connections | 46+ channel integrations |
+| Inventory Sync | Real-time availability push |
+| Rate Sync | Dynamic pricing synchronization |
+| Booking Sync | Automated reservation import |
+| Restrictions | Stop-sell, MLOS, CTA rules |
+| Channel Mapping | Room type and rate plan mapping |
+| Sync Logs | Debug and monitoring |
+| CRS | Central Reservation System |
+
+### 4.11 Revenue Management — Addon
+
+| Module | Description |
+|--------|-------------|
+| Dynamic Pricing | Real-time rate adjustments |
+| Demand Forecasting | ML-based occupancy predictions |
+| Competitor Pricing | Automated rate shopping |
+| AI Suggestions | Actionable pricing recommendations |
+
+### 4.12 CRM & Marketing — Addon
+
+| Module | Description |
+|--------|-------------|
+| Guest Segments | VIP, repeat, high-spend grouping |
+| Campaigns | Email/SMS/WhatsApp marketing |
+| Loyalty Programs | Multi-tier rewards |
+| Feedback & Reviews | Review aggregation and response |
+| Retention Analytics | Churn prediction and retention metrics |
+
+### 4.13 Additional Addon Modules
+
+| Module | Description |
+|--------|-------------|
+| **Inventory** | Stock items, consumption logs, POs, vendors |
+| **Parking** | Slot management, vehicle tracking, billing |
+| **Surveillance** | Camera management, live view, playback, incidents |
+| **Smart Hotel / IoT** | Device management, room controls, energy dashboard |
+| **Events / MICE** | Event spaces, booking, resources, calendar |
+| **Staff Management** | Shift scheduling, attendance, tasks, communication, skills |
+| **Digital Advertising** | Ad campaigns, Google Hotel Ads, ROI analytics |
+| **Reports & BI** | Revenue, occupancy, ADR/RevPAR, guest analytics, staff performance |
+| **Automation** | Workflow builder, rules engine, templates, execution logs |
+| **AI Assistant** | AI Copilot, insights, provider settings |
+| **Security Center** | Security overview, audit logs, 2FA, sessions, SSO |
+| **Integrations** | Payment gateways, SMS, POS, third-party APIs |
+| **Notifications** | Templates, delivery logs, channel settings |
+| **Webhooks** | Event logs, delivery logs, retry queue |
+| **Admin** | Tenant management, lifecycle, roles, users, usage, revenue, health |
+| **Chain Management** | Brand management, chain dashboard, cross-property analytics |
+| **SaaS Billing** | Plans, subscriptions, usage billing |
 
 ---
 
@@ -273,7 +345,7 @@ Request → Middleware → Resolve Tenant → Attach tenant_id → Enforce RLS �
 
 - Booking.com, Expedia, Airbnb, Agoda
 - MakeMyTrip, Goibibo, Yatra, OYO
-- Amadeus, Sabre, Travelport
+- Amadeus, Sabre, Travelport (GDS)
 - Google Hotel Ads, TripAdvisor, Trivago
 
 ### 5.2 Payment Gateway Integrations
@@ -284,9 +356,10 @@ Request → Middleware → Resolve Tenant → Attach tenant_id → Enforce RLS �
 
 ### 5.3 WiFi Gateway Integrations
 
+FreeRADIUS v3.2.7 compiled from source with native PostgreSQL SQL module:
 - Cisco, MikroTik, Ruckus
 - Huawei, Juniper, Fortinet
-- Aruba, Ubiquiti, D-Link
+- Aruba, Ubiquiti, D-Link, Netgear, Grandstream
 
 ### 5.4 Door Lock Integrations
 
@@ -305,30 +378,34 @@ Request → Middleware → Resolve Tenant → Attach tenant_id → Enforce RLS �
 
 ### 6.1 Authentication
 
-- JWT with refresh tokens
+- Custom session-based auth with httpOnly cookies
 - Two-factor authentication (TOTP)
 - SSO (SAML 2.0, OIDC, LDAP)
 - Device session management
+- Account lockout (5 failed attempts → 30 min lock)
 
 ### 6.2 Authorization
 
-- Role-Based Access Control (RBAC)
+- Role-Based Access Control (RBAC) with 9 default roles
 - Attribute-Based Access Control (ABAC)
-- Granular permissions per module
+- Granular permissions per module (module.action format)
+- Feature flags (plan-based access)
 
 ### 6.3 Data Protection
 
 - TLS 1.3 encryption in transit
-- AES-256 encryption at rest
+- AES-256-GCM encryption at rest
 - PCI-compliant tokenization
-- GDPR compliance tools
+- GDPR compliance tools (consent, export, erasure)
+- Soft delete for all critical data
 
 ### 6.4 Audit & Compliance
 
-- Complete audit logging
-- Soft delete for critical data
-- Data export for GDPR
-- Retention policies
+- Complete audit logging for all mutations
+- Password hashing with bcrypt
+- Idle session timeout (configurable per tenant)
+- Password expiry (configurable per tenant)
+- Data retention policies
 
 ---
 
@@ -336,23 +413,60 @@ Request → Middleware → Resolve Tenant → Attach tenant_id → Enforce RLS �
 
 | Option | Description |
 |--------|-------------|
-| **Cloud SaaS** | Multi-tenant hosted |
-| **Private Cloud** | Single-tenant dedicated |
-| **On-Premise** | Self-hosted |
-| **Hybrid** | Mixed deployment |
+| **Cloud SaaS** | Multi-tenant hosted by Cryptsk |
+| **Private Cloud** | Single-tenant dedicated instance |
+| **On-Premise** | Self-hosted with enterprise support |
+| **Hybrid** | Mixed deployment model |
+
+### Deployment Architecture
+
+The platform runs **4 services** managed by PM2:
+1. **staysuite-nextjs** — Main application (port 3000)
+2. **staysuite-freeradius** — FreeRADIUS v3.2.7 server
+3. **staysuite-captive-redirect** — Captive portal redirect service (port 8888)
+4. **staysuite-realtime** — WebSocket real-time service (port 3003)
 
 ---
 
-## 8. Support & Maintenance
+## 8. Demo Instance
 
-### 8.1 Support Channels
+### Demo Credentials
+
+| Role | Email | Password |
+|------|-------|----------|
+| Property Admin | admin@royalstay.in | admin123 |
+| Front Desk | frontdesk@royalstay.in | admin123 |
+| Housekeeping | housekeeping@royalstay.in | admin123 |
+| Platform Admin | platform@staysuite.com | admin123 |
+
+### Demo Tenant
+
+| Tenant | City | Properties |
+|--------|------|------------|
+| Royal Stay Hotels | Kolkata, India | Royal Stay Kolkata (120 rooms), Royal Stay Darjeeling (50 rooms) |
+| Ocean View Resorts | - | - |
+
+### Demo Room Types (Royal Stay Kolkata)
+
+| Type | Code | Base Price (INR) | Rooms |
+|------|------|-------------------|-------|
+| Standard Room | STD | 3,500 | 40 |
+| Deluxe Room | DLX | 5,500 | 35 |
+| Executive Suite | EXEC | 12,000 | 25 |
+| Presidential Suite | PRES | 35,000 | 5 |
+
+---
+
+## 9. Support & Maintenance
+
+### 9.1 Support Channels
 
 - Email: support@cryptsk.com
 - In-app chat
-- Help center
+- Help center with articles and tutorials
 - Documentation portal
 
-### 8.2 Support Tiers
+### 9.2 Support Tiers
 
 | Priority | Response Time |
 |----------|---------------|
@@ -363,7 +477,7 @@ Request → Middleware → Resolve Tenant → Attach tenant_id → Enforce RLS �
 
 ---
 
-## 9. Contact
+## 10. Contact
 
 **Cryptsk Pvt Ltd**
 

@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-StaySuite-HospitalityOS is a comprehensive hotel property management system with 33 navigation sections spanning PMS, bookings, WiFi management, CRM, billing, revenue, housekeeping, IoT, and more. The system uses Next.js 14 (standalone), Prisma ORM with SQLite, 6 Bun-based mini-services, PM2 process management, and Caddy as a gateway.
+StaySuite-HospitalityOS is a comprehensive hotel property management system with 33 navigation sections spanning PMS, bookings, WiFi management, CRM, billing, revenue, housekeeping, IoT, and more. The system uses Next.js 14 (standalone), Prisma ORM with PostgreSQL 17, 6 Bun-based mini-services, PM2 process management, and Caddy as a gateway.
 
 ### Overall Product Readiness Score: **59 / 100** (Updated after 100% scan)
 
@@ -288,7 +288,7 @@ StaySuite-HospitalityOS is a comprehensive hotel property management system with
 
 **Strengths**:
 - DNS service with real dnsmasq integration and config generation
-- FreeRADIUS service with SQLite persistence and config file writes
+- FreeRADIUS service with PostgreSQL 17 persistence and config file writes
 - nftables service for real firewall management
 - Kea DHCP service with real Kea API integration
 - Availability and realtime WebSocket services with proper auth
@@ -297,7 +297,7 @@ StaySuite-HospitalityOS is a comprehensive hotel property management system with
 - 3 of 5 infrastructure services (DNS, nftables, Kea) have ZERO authentication
 - Hardcoded NEXTAUTH_SECRET in PM2 config
 - Hardcoded CRON_SECRET in PM2 config
-- 4 services lack graceful shutdown handlers (SQLite corruption risk)
+- 4 services lack graceful shutdown handlers (PostgreSQL 17 corruption risk)
 - Potential command injection in Kea service
 - kea-service missing from PM2 ecosystem config
 - Content filtering is a stub (comments only, no rules generated)
@@ -433,7 +433,7 @@ Math.random() is used in production code in **35+ locations** across the codebas
 5. **Missing tenantId** — 10+ API routes missing tenant isolation
 6. **Hardcoded secrets** — NEXTAUTH_SECRET and CRON_SECRET in source code
 7. **Code duplication** — Booking PUT/PATCH duplication, confirmation code generation
-8. **No graceful shutdown** — 4 mini-services risk SQLite corruption on PM2 restart
+8. **No graceful shutdown** — 4 mini-services risk PostgreSQL 17 corruption on PM2 restart
 
 ---
 

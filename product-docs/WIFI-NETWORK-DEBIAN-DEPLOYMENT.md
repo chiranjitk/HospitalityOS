@@ -192,7 +192,7 @@ All API routes use Prisma ORM for database operations. Routes that interact with
 
 #### FreeRADIUS Service (Port 3010)
 - **Runtime**: Bun + Hono
-- **Database**: SQLite (`/opt/StaySuite/db/freeradius-service.db`)
+- **Database**: PostgreSQL 17 (`/opt/StaySuite/db/freeradius-service.db`)
 - **Config Writes**: `/etc/freeradius/3.0/clients.conf` (StaySuite section)
 - **System Commands**: `systemctl start/stop/restart/reload freeradius`
 - **Auth**: Bearer token (`FREERADIUS_SERVICE_AUTH_SECRET` env var)
@@ -205,7 +205,7 @@ All API routes use Prisma ORM for database operations. Routes that interact with
 
 #### DNS Service (Port 3012)
 - **Runtime**: Bun + Hono
-- **Database**: SQLite (`/opt/StaySuite/db/dns-service.db`) + Prisma DB sync
+- **Database**: PostgreSQL 17 (`/opt/StaySuite/db/dns-service.db`) + Prisma DB sync
 - **Config Writes**: `/etc/dnsmasq.d/staysuite.conf`
 - **System Commands**: `dnsmasq` start/stop/reload
 - **Sync**: Auto-syncs from Prisma DB on startup, manual sync endpoints
@@ -301,7 +301,7 @@ modprobe 8021q bonding bridge nf_conntrack nf_nat
 ```
 /opt/StaySuite/
 ├── app/                        # Next.js application
-├── db/                         # SQLite databases
+├── db/                         # PostgreSQL 17 databases
 │   ├── custom.db               # Main Prisma database
 │   ├── freeradius-service.db   # FreeRADIUS service database
 │   └── dns-service.db          # DNS service database
@@ -563,7 +563,7 @@ Guest Device → Access Point → FreeRADIUS → StaySuite API → Allow/Deny
 
 ### 6.4 Data Persistence
 
-FreeRADIUS service uses SQLite (`freeradius-service.db`) for persistent storage:
+FreeRADIUS service uses PostgreSQL 17 (`freeradius-service.db`) for persistent storage:
 - `nas_clients` - NAS client definitions
 - `radius_users` - RADIUS user credentials and attributes
 - `radius_groups` - RADIUS group definitions
@@ -624,7 +624,7 @@ Most WiFi pages use a "Kea first, DB fallback" pattern:
 ```
 StaySuite UI → Next.js API → DNS Service (port 3012) → dnsmasq daemon
                                    │
-                                   ├── SQLite DB (own tables)
+                                   ├── PostgreSQL 17 DB (own tables)
                                    └── Prisma DB sync (cross-database)
 ```
 
@@ -676,7 +676,7 @@ On startup, DNS service auto-syncs from the Prisma database:
 1. Opens Prisma DB (`custom.db`) in read-only mode
 2. Reads `DnsZone`, `DnsRecord`, `DnsRedirectRule` tables
 3. Maps fields (handles schema differences)
-4. Upserts into DNS service's own SQLite tables
+4. Upserts into DNS service's own PostgreSQL 17 tables
 5. Regenerates dnsmasq config
 
 Manual sync endpoints:
@@ -1240,7 +1240,7 @@ nft add rule ip staysuite input udp dport { 67, 68, 53, 1812, 1813 } accept
 
 | Service | Bug | Fix |
 |---------|-----|-----|
-| FreeRADIUS | All data in-memory (lost on restart) | SQLite persistence |
+| FreeRADIUS | All data in-memory (lost on restart) | PostgreSQL 17 persistence |
 | FreeRADIUS | Config writes commented out | Enabled with section markers |
 | FreeRADIUS | No authentication | Bearer token auth middleware |
 | FreeRADIUS | Fake RADIUS test | Real `radtest` command |

@@ -3,7 +3,7 @@
 ## 📋 Overview
 
 **Module**: WiFi AAA (Authentication, Authorization, Accounting)  
-**Architecture**: PMS (Next.js) → PostgreSQL/SQLite → FreeRADIUS SQL Module → Gateway/AP  
+**Architecture**: PMS (Next.js) → PostgreSQL/PostgreSQL 17 → FreeRADIUS SQL Module → Gateway/AP  
 **Last Updated**: March 2025
 
 ---

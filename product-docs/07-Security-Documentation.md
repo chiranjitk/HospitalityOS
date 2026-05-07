@@ -1,8 +1,8 @@
 # StaySuite Security Documentation
 ## Security and Compliance Manual
 
-**Version**: 1.0  
-**Last Updated**: March 2026
+**Version**: 2.0  
+**Last Updated**: May 2026
 
 ---
 
@@ -30,6 +30,7 @@
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
 │  │    Input    │  │    Auth     │  │   Output    │ │
 │  │ Validation  │  │   Checks    │  │ Sanitization│ │
+│  │  (Zod v4)  │  │  (bcrypt)  │  │             │ │
 │  └─────────────┘  └─────────────┘  └─────────────┘ │
 ├─────────────────────────────────────────────────────┤
 │                    Service Layer                     │
@@ -40,8 +41,8 @@
 ├─────────────────────────────────────────────────────┤
 │                     Data Layer                       │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
-│  │ Encryption  │  │    Row      │  │   Backup    │ │
-│  │ at Rest     │  │  Security   │  │   & DR      │ │
+│  │ Encryption  │  │    Tenant   │  │   Backup    │ │
+│  │ AES-256-GCM │  │  Scoping    │  │   & DR      │ │
 │  └─────────────┘  └─────────────┘  └─────────────┘ │
 └─────────────────────────────────────────────────────┘
 ```
@@ -60,73 +61,63 @@
 
 ## 2. Authentication
 
-### 2.1 Authentication Methods
+### 2.1 Authentication System
+
+StaySuite uses a **custom session-based authentication** system (not standard NextAuth flow):
+
+```
+1. POST /api/auth/login with { email, password }
+2. Validate credentials via bcrypt
+3. Create Session record in PostgreSQL (token = 32-byte random hex)
+4. Set session_token as httpOnly cookie
+5. Return { user, token }
+```
+
+### 2.2 Authentication Methods
 
 | Method | Use Case |
 |--------|----------|
-| Email/Password | Default |
-| Two-Factor (TOTP) | Enhanced security |
-| SSO (SAML) | Enterprise |
+| Email/Password | Default (bcrypt hashing) |
+| Two-Factor (TOTP) | Enhanced security (otplib) |
+| SSO (SAML 2.0) | Enterprise |
 | SSO (OIDC) | Enterprise |
 | SSO (LDAP) | Corporate |
-| OAuth (Google) | User convenience |
 
-### 2.2 Password Requirements
+### 2.3 Password Requirements
 
 | Requirement | Value |
 |-------------|-------|
 | Minimum Length | 8 characters |
 | Maximum Length | 128 characters |
-| Complexity | Configurable |
-| History | Last 5 passwords |
-| Expiry | Configurable (default: none) |
+| Complexity | Upper + lower + digit + special |
+| History | Last N passwords |
+| Expiry | Configurable per tenant (default: 90 days) |
+| Hashing | bcrypt |
 
-### 2.3 Session Management
+### 2.4 Session Management
 
 | Setting | Default |
 |---------|---------|
-| Session Timeout | 12 hours |
+| Session Timeout (Idle) | 30 minutes (configurable per tenant) |
 | Absolute Timeout | 7 days |
 | Concurrent Sessions | 5 sessions |
-| Refresh Token Life | 30 days |
+| Cookie | httpOnly, secure flag |
 
-### 2.4 Two-Factor Authentication
+### 2.5 Account Lockout
+
+- 5 failed login attempts → 30 minute lockout
+- Configurable via security settings
+
+### 2.6 Two-Factor Authentication
 
 **Supported Methods:**
-- TOTP (Google Authenticator, Authy)
+- TOTP (Google Authenticator, Authy) — primary
 - SMS (fallback)
 - Email (backup)
 
-**Configuration:**
+### 2.7 Single Sign-On (SSO)
 
-1. Navigate to **Settings → Security → 2FA**
-2. Enable for all users or specific roles
-3. Configure recovery codes
-4. Set backup methods
-
-### 2.5 Single Sign-On (SSO)
-
-**SAML 2.0:**
-
-```xml
-<EntityDescriptor>
-  <SPSSODescriptor>
-    <NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</NameIDFormat>
-    <AssertionConsumerService Location="https://tenant.staysuite.io/auth/saml/acs"/>
-  </SPSSODescriptor>
-</EntityDescriptor>
-```
-
-**OIDC:**
-
-```json
-{
-  "issuer": "https://tenant.staysuite.io",
-  "authorization_endpoint": "https://tenant.staysuite.io/auth/oidc/authorize",
-  "token_endpoint": "https://tenant.staysuite.io/auth/oidc/token",
-  "userinfo_endpoint": "https://tenant.staysuite.io/auth/oidc/userinfo"
-}
-```
+**SAML 2.0**, **OIDC**, and **LDAP** configurations available in Security Center → SSO Configuration.
 
 ---
 
@@ -134,42 +125,44 @@
 
 ### 3.1 Role-Based Access Control (RBAC)
 
-**Default Roles:**
+9 Default Roles:
 
 | Role | Permissions |
 |------|-------------|
-| Super Admin | Full system access |
-| Admin | Property management |
-| Manager | Operations + reports |
-| Front Desk | Bookings, check-in/out |
-| Housekeeping | Tasks, room status |
-| Accountant | Billing, reports |
-| Guest | Self-service |
+| **Admin** | `*` — full system access |
+| **Manager** | dashboard, bookings, guests, rooms, housekeeping, billing, reports, frontdesk |
+| **Front Desk** | dashboard ops, bookings CRUD, guests CRUD, rooms view, frontdesk, billing, chat |
+| **Housekeeping** | dashboard HK, rooms view/status, tasks, housekeeping, maintenance, assets |
+| **Night Auditor** | dashboard ops, bookings view, guests view, billing, reports, checkin/checkout |
+| **Revenue Manager** | dashboard, reports, revenue, pricing, channels, bookings view, inventory |
+| **Marketing** | dashboard, guests, CRM, marketing, reports, communication |
+| **Accountant** | dashboard, billing, reports revenue/occupancy, invoices, payments |
+| **Maintenance** | dashboard HK, rooms view, tasks, maintenance, assets, IoT |
 
-### 3.2 Attribute-Based Access Control (ABAC)
+### 3.2 Permission Format
 
-Conditions for access:
-
-```json
-{
-  "condition": {
-    "user.role": "manager",
-    "resource.type": "booking",
-    "resource.property_id": "user.assigned_properties",
-    "action": "read"
-  }
-}
+```
+"module.action"  — e.g., "bookings.view", "rooms.manage"
+"*"              — all permissions (admin)
+"module.*"       — all actions in module
 ```
 
-### 3.3 Permission Matrix
+### 3.3 Three-Layer Access Control
 
-| Module | Admin | Manager | Front Desk |
-|--------|-------|---------|------------|
-| Bookings | CRUD | CRUD | CRU |
-| Guests | CRUD | CRU | CRU |
-| Billing | CRUD | CRU | R |
-| Reports | Full | Property | Limited |
-| Settings | Full | Limited | None |
+```
+Layer 1: Authentication (is user logged in?)
+  └── Layer 2: Permissions (does user have permission X?)
+        └── Layer 3: Feature Flags (is feature X enabled for this plan?)
+```
+
+### 3.4 Tenant Scoping
+
+All API queries are automatically scoped to the authenticated user's tenant:
+```typescript
+const where = { deletedAt: null, tenantId: ctx.tenantId };
+```
+
+Platform admins can bypass tenant scoping when needed.
 
 ---
 
@@ -182,6 +175,7 @@ Conditions for access:
 | In Transit | TLS 1.3 |
 | At Rest | AES-256-GCM |
 | Database | PostgreSQL encryption |
+| Passwords | bcrypt |
 | Backups | AES-256 |
 
 ### 4.2 Sensitive Data Handling
@@ -190,20 +184,17 @@ Conditions for access:
 - Guest identification numbers
 - Payment card tokens
 - Passwords (bcrypt)
-- Personal notes
+- Session tokens
 
 **Masked Fields:**
 - Card numbers (show last 4)
 - Phone numbers (partial)
-- Email addresses (partial)
 
-### 4.3 Payment Card Data
+### 4.3 Payment Card Data (PCI-DSS)
 
-**PCI-DSS Compliance:**
 - No raw card data stored
 - Tokenization via payment gateways
 - Secure transmission only
-- Regular security scans
 
 ### 4.4 Data Retention
 
@@ -227,6 +218,11 @@ Conditions for access:
 |------|--------|---------|
 | 443 | Any | HTTPS |
 | 80 | Any | HTTP → HTTPS redirect |
+| 1812 | WiFi Gateways | RADIUS Auth |
+| 1813 | WiFi Gateways | RADIUS Acct |
+| 3000 | Internal | Next.js App |
+| 3003 | Internal | Realtime WebSocket |
+| 8888 | Internal | Captive Portal Redirect |
 
 **Outbound:**
 
@@ -234,17 +230,9 @@ Conditions for access:
 |------|-------------|---------|
 | 443 | Payment gateways | Payment processing |
 | 443 | OTA APIs | Channel sync |
-| 1812/1813 | WiFi gateways | RADIUS |
+| 5432 | localhost | PostgreSQL |
 
-### 5.2 IP Whitelisting
-
-1. Navigate to **Settings → Security → IP Whitelist**
-2. Add IP ranges:
-   - CIDR notation (e.g., 192.168.1.0/24)
-   - Description
-3. Enable enforcement
-
-### 5.3 Rate Limiting
+### 5.2 Rate Limiting
 
 | Endpoint | Limit | Window |
 |----------|-------|--------|
@@ -260,50 +248,24 @@ Conditions for access:
 
 | Right | Implementation |
 |-------|----------------|
-| Access | Export via API/UI |
+| Access | Export via API/UI (Settings → GDPR) |
 | Rectification | Edit in UI |
-| Erasure | Delete with audit |
+| Erasure | Delete with audit trail |
 | Portability | JSON/CSV export |
 | Objection | Opt-out mechanisms |
 
 ### 6.2 Consent Management
 
-1. Navigate to **Settings → GDPR → Consent**
-2. Configure consent types:
-   - Marketing emails
-   - Analytics tracking
-   - Third-party sharing
-3. Set default consent policy
-
-### 6.3 Data Export
-
-**API Endpoint:**
-
-```http
-POST /api/v1/gdpr/export
-```
-
-Response includes:
-- Guest profile
-- Booking history
-- Payment history
-- Preferences
-- Communications
-
-### 6.4 Right to Erasure
-
-1. Navigate to **Guests → [Profile] → GDPR**
-2. Click **Delete Personal Data**
-3. Confirm with reason
-4. Data anonymized within 30 days
-
-### 6.5 Data Processing Records
-
-Maintained automatically for:
-- Data categories
-- Processing purposes
+Navigate to **Settings → GDPR** to configure consent types:
+- Marketing emails
+- Analytics tracking
 - Third-party sharing
-- Retention periods
+
+### 6.3 Data Export / Erasure
+
+- **GDPRRequest** and **ConsentRecord** models track all data subject requests
+- Export generates comprehensive archive of all guest data
+- Erasure anonymizes data within 30 days with audit trail
 
 ---
 
@@ -313,51 +275,36 @@ Maintained automatically for:
 
 | Category | Events |
 |----------|--------|
-| Authentication | Login, logout, password change, 2FA |
+| Authentication | Login, logout, password change, 2FA, session creation |
 | Authorization | Role change, permission update |
 | Data Access | View sensitive data, export data |
 | Data Modification | Create, update, delete operations |
 | System | Configuration changes, integrations |
+| Security | Failed logins, lockouts, suspicious activity |
 
-### 7.2 Log Format
+### 7.2 Audit Log Model
 
-```json
-{
-  "timestamp": "2026-03-15T10:00:00Z",
-  "tenant_id": "tn_001",
-  "user_id": "usr_001",
-  "action": "booking.update",
-  "resource": {
-    "type": "booking",
-    "id": "bk_123"
-  },
-  "changes": {
-    "before": { "status": "confirmed" },
-    "after": { "status": "checked_in" }
-  },
-  "ip_address": "192.168.1.1",
-  "user_agent": "Mozilla/5.0...",
-  "correlation_id": "req_abc123"
-}
+```typescript
+await db.auditLog.create({
+  data: {
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+    module: 'users',
+    action: 'update',
+    entityType: 'User',
+    entityId: id,
+    newValue: JSON.stringify(updatedFields),
+  }
+});
 ```
 
 ### 7.3 Log Retention
 
 | Period | Storage |
 |--------|---------|
-| 0-90 days | Hot storage |
+| 0-90 days | Hot storage (database) |
 | 90 days - 2 years | Cold storage |
 | 2+ years | Deleted |
-
-### 7.4 Log Access
-
-1. Navigate to **Admin → Audit Logs**
-2. Filter by:
-   - User
-   - Action type
-   - Date range
-   - Resource
-3. Export for compliance
 
 ---
 
@@ -374,37 +321,11 @@ Maintained automatically for:
 
 ### 8.2 Response Procedure
 
-**Step 1: Identification**
-- Detect incident via monitoring
-- Validate severity
-- Begin documentation
-
-**Step 2: Containment**
-- Isolate affected systems
-- Revoke compromised credentials
-- Block malicious IPs
-
-**Step 3: Eradication**
-- Remove threat
-- Patch vulnerabilities
-- Update credentials
-
-**Step 4: Recovery**
-- Restore from backup if needed
-- Monitor for recurrence
-- Resume operations
-
-**Step 5: Lessons Learned**
-- Document incident
-- Update procedures
-- Train team
-
-### 8.3 Contact Information
-
-| Role | Contact |
-|------|---------|
-| Security Team | security@cryptsk.com |
-| Emergency | +91 XXX XXX XXXX |
+1. **Identification**: Detect via monitoring, validate severity
+2. **Containment**: Isolate systems, revoke credentials, block IPs
+3. **Eradication**: Remove threat, patch vulnerabilities
+4. **Recovery**: Restore from backup, monitor for recurrence
+5. **Lessons Learned**: Document, update procedures, train team
 
 ---
 
@@ -412,71 +333,26 @@ Maintained automatically for:
 
 ### 9.1 For Administrators
 
-- [ ] Enable 2FA for all admin accounts
-- [ ] Review audit logs weekly
-- [ ] Rotate API keys quarterly
-- [ ] Update passwords every 90 days
-- [ ] Review user access quarterly
-- [ ] Test backup restoration monthly
+- Enable 2FA for all admin accounts
+- Review audit logs weekly
+- Rotate API keys quarterly
+- Update passwords per expiry policy
+- Review user access quarterly
+- Test backup restoration monthly
 
-### 9.2 For Users
+### 9.2 Security Checklist
 
-- [ ] Use strong, unique passwords
-- [ ] Enable 2FA on your account
-- [ ] Lock computer when away
-- [ ] Report suspicious activity
-- [ ] Don't share credentials
-
-### 9.3 Security Checklist
-
-**Daily:**
-- Monitor security alerts
-- Review failed login attempts
-
-**Weekly:**
-- Review audit logs
-- Check integration health
-
-**Monthly:**
-- User access review
-- Password policy compliance
-- Backup verification
-
-**Quarterly:**
-- Penetration testing
-- Vulnerability scan
-- Security training
-
----
-
-## 10. Compliance Certifications
-
-### 10.1 SOC 2 Type II
-
-StaySuite is SOC 2 Type II compliant covering:
-- Security
-- Availability
-- Confidentiality
-
-### 10.2 GDPR
-
-Full GDPR compliance with:
-- Data subject rights
-- Processing records
-- Consent management
-- Data protection impact assessments
-
-### 10.3 PCI-DSS
-
-PCI-DSS Level 1 Service Provider for payment processing.
+**Daily:** Monitor security alerts, review failed logins  
+**Weekly:** Review audit logs, check integration health  
+**Monthly:** User access review, password compliance  
+**Quarterly:** Penetration testing, security training
 
 ---
 
 ## Security Contact
 
 **Security Team**: security@cryptsk.com  
-**Bug Bounty**: security@cryptsk.com  
-**Compliance**: compliance@cryptsk.com
+**Bug Bounty**: security@cryptsk.com
 
 ---
 

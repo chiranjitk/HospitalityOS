@@ -3,9 +3,31 @@
 
 ---
 
+**Last Updated**: May 2026
+
+---
+
 ## Product Overview
 
 **StaySuite** by **Cryptsk Pvt Ltd** is a cloud-native, multi-tenant SaaS platform — an All-in-One Hospitality Operating System built on modern technologies for reliability, scalability, and security.
+
+---
+
+## Platform Scale
+
+| Metric | Value |
+|--------|-------|
+| Prisma Database Models | 294 |
+| API Routes | 614 |
+| React Components | 529 |
+| Component Subdirectories | 44 |
+| API Route Directories | 134 |
+| Navigation Modules | 30 |
+| shadcn/ui Components | 51 |
+| FreeRADIUS | v3.2.7 (compiled from source) |
+| Supported Locales | 15 |
+| Zustand Stores | 5 |
+| React Contexts | 8 |
 
 ---
 
@@ -13,32 +35,70 @@
 
 ### Platform Stack
 
-| Layer | Technology |
-|-------|------------|
-| **Frontend Framework** | Next.js 16 (React 18) with TypeScript |
-| **Backend Runtime** | Node.js with Next.js API Routes |
-| **Database** | PostgreSQL (Production) / SQLite (Development) |
-| **ORM** | Prisma 6 |
-| **Real-time** | WebSocket with Socket.io |
-| **Queue System** | BullMQ for background jobs |
-| **Cache Layer** | In-memory caching with Redis support |
-| **File Storage** | Cloud storage (S3-compatible) |
-| **Authentication** | JWT + NextAuth.js with OAuth 2.0/OIDC |
+| Layer | Technology | Version |
+|-------|------------|---------|
+| **Frontend Framework** | Next.js (App Router) | 16.1 |
+| **UI Library** | React | 19 |
+| **Language** | TypeScript | 5 |
+| **Styling** | Tailwind CSS | 4 |
+| **Component Library** | shadcn/ui (New York style) | Latest |
+| **Backend Runtime** | Next.js API Routes + Bun | - |
+| **Database** | PostgreSQL | 17 |
+| **ORM** | Prisma | 6.19+ |
+| **Auth** | Custom Session + NextAuth.js | v4 |
+| **State** | Zustand | 5.0+ |
+| **Server Cache** | TanStack Query | 5.82+ |
+| **Tables** | TanStack Table | 8.21+ |
+| **Charts** | Recharts | 2.15+ |
+| **Forms** | React Hook Form + Zod | 7.60, 4.0 |
+| **Real-time** | Socket.io | 4.7+ |
+| **Animations** | Framer Motion | 12.23+ |
+| **WiFi AAA** | FreeRADIUS | v3.2.7 |
+| **Package Manager** | Bun | Latest |
+
+### Deployment Architecture
+
+4 PM2-managed services:
+
+| Service | Port | Technology |
+|---------|------|-----------|
+| staysuite-nextjs | 3000 | Next.js + Bun |
+| staysuite-freeradius | 1812/1813 | FreeRADIUS v3.2.7 |
+| staysuite-captive-redirect | 8888 | Bun |
+| staysuite-realtime | 3003 | Socket.io + Bun |
 
 ### Deployment Options
 
 | Option | Description |
 |--------|-------------|
 | **Cloud SaaS** | Multi-tenant hosted solution |
-| **Private Cloud** | Single-tenant dedicated instance |
-| **On-Premise** | Self-hosted with enterprise support |
-| **Hybrid** | Cloud management with local processing |
+| **On-Premise** | Self-hosted with PM2 + Systemd |
 
 ---
 
 ## 🔌 WiFi AAA Gateway Specifications
 
-### Supported Network Vendors
+### FreeRADIUS v3.2.7
+
+Compiled from source with native PostgreSQL SQL module:
+
+| Feature | Specification |
+|---------|---------------|
+| Version | 3.2.7 |
+| Compilation | From source |
+| SQL Backend | PostgreSQL 17 (native module) |
+| Auth Port | 1812 |
+| Acct Port | 1813 |
+| CoA Support | Yes |
+| Voucher System | Yes (WiFiVoucher model) |
+| Bandwidth Plans | 6 (Free through Enterprise) |
+| Captive Portal | Redirect service (port 8888) |
+| DHCP Server | Built-in management |
+| DNS Server | Built-in management |
+| Firewall | Zone-based with bandwidth pools |
+| Content Filter | Web category blocking |
+
+### Supported Network Vendors (11+)
 
 | Vendor | Protocols | Integration Type |
 |--------|-----------|------------------|
@@ -58,75 +118,37 @@
 
 | Method | Description |
 |--------|-------------|
-| **Room-Based** | Guest name + room number |
+| **Room-Based** | Guest name + room number (auto on check-in) |
 | **Voucher-Based** | Pre-paid access codes |
 | **Social Auth** | Google, Facebook, WhatsApp |
 | **Email/SMS OTP** | One-time password verification |
 | **LDAP/AD** | Corporate guest accounts |
 | **Captive Portal** | Custom branded login pages |
 
-### AAA Features
+### WiFi Plans
 
-| Feature | Capability |
-|---------|------------|
-| Session Tracking | Start/stop times, duration |
-| Data Usage | Upload/download bytes |
-| Bandwidth Control | Rate limiting per user |
-| Session Timeout | Auto-disconnect policies |
-| Idle Timeout | Inactivity detection |
-| CoA Support | Dynamic policy changes |
-| Accounting | RADIUS radacct synchronization |
-
-### WiFi Flow
-
-```
-Check-in → Create WiFi User → Gateway Auth → Session Start → Usage Track → Session End → Billing
-```
+| Plan | Speed | Data Cap | Price |
+|------|-------|----------|-------|
+| Free | 2 Mbps | 500 MB/day | Complimentary |
+| Basic | 5 Mbps | 1 GB/day | Complimentary |
+| Standard | 10 Mbps | 3 GB/day | ₹99/day |
+| Premium | 25 Mbps | 10 GB/day | ₹199/day |
+| Business | 50 Mbps | Unlimited | ₹399/day |
+| Enterprise | 100 Mbps | Unlimited | ₹699/day |
 
 ---
 
 ## 📡 Channel Manager Integration
 
-### Supported Channels
+### Supported Channels (46+)
 
-#### Global OTAs
-- Booking.com
-- Expedia (Hotels.com, Vrbo)
-- Agoda
-- Airbnb
-- TripAdvisor
-- Hostelworld
+**Global OTAs**: Booking.com, Expedia, Airbnb, Agoda, TripAdvisor, Hostelworld
 
-#### Regional OTAs (India/Asia)
-- MakeMyTrip
-- Goibibo
-- Yatra
-- OYO
-- Cleartrip
-- EaseMyTrip
-- Travelguru
-- FabHotels
-- Treebo
+**India**: MakeMyTrip, Goibibo, Yatra, OYO, Cleartrip, EaseMyTrip, Travelguru, FabHotels, Treebo
 
-#### Regional OTAs (EMEA/Americas)
-- HRS
-- Hotel.de
-- Despegar
-- Decolar
-- Jalan
-- Rakuten Travel
+**GDS**: Amadeus, Sabre, Travelport
 
-#### GDS Networks
-- Amadeus
-- Sabre
-- Travelport (Galileo, Apollo, Worldspan)
-
-#### Metasearch
-- Google Hotel Ads
-- TripAdvisor
-- Trivago
-- Kayak
-- Skyscanner
+**Metasearch**: Google Hotel Ads, TripAdvisor, Trivago, Kayak, Skyscanner
 
 ### Sync Capabilities
 
@@ -134,25 +156,12 @@ Check-in → Create WiFi User → Gateway Auth → Session Start → Usage Track
 |---------|-------------|
 | Inventory Sync | Real-time availability updates |
 | Rate Sync | Dynamic pricing synchronization |
-| Restrictions | Stop-sell, MLOS, closed to arrival |
-| Booking Import | Automatic reservation creation |
+| Restrictions | Stop-sell, MLOS, CTA |
+| Booking Import | Automatic with idempotency keys |
 | Channel Mapping | Room type and rate plan mapping |
-| Conflict Handling | Automated resolution with alerts |
+| Conflict Handling | Dead letter queue + manual resolution |
 | Retry Queue | Exponential backoff (5 retries) |
-| Reconciliation | Periodic full sync (every 6h) |
-
-### OTA Webhook Handling
-
-**Security**:
-- HMAC signature validation
-- IP allowlist support
-- Rate limiting
-- Replay protection with timestamps
-
-**Idempotency**:
-- All operations use idempotency keys
-- Safe retry mechanisms
-- No double-bookings
+| Reconciliation | Periodic full sync |
 
 ---
 
@@ -165,27 +174,22 @@ Check-in → Create WiFi User → Gateway Auth → Session Start → Usage Track
 | **Stripe** | 46+ countries | Cards, Apple Pay, Google Pay |
 | **PayPal** | 200+ countries | PayPal, Venmo, Cards |
 | **Razorpay** | India | UPI, Cards, NetBanking |
-| **Square** | US, Canada, others | Cards, Afterpay |
+| **Square** | US, Canada | Cards, Afterpay |
 | **Adyen** | Global | 250+ payment methods |
 | **Authorize.net** | US, Canada | Cards, eCheck |
 | **CCAvenue** | India | Multi-bank support |
 | **PayU** | 50+ countries | Local payment methods |
 
-### Payment Features
-
-| Feature | Capability |
-|---------|------------|
-| Tokenization | Secure card storage |
-| 3D Secure 2.0 | SCA compliance |
-| Multi-Currency | Local currency processing |
-| Failover Routing | Gateway1 fail → Gateway2 |
-| Split Payments | Multiple payment methods |
-| Scheduled Payments | Future-dated charges |
-| Auto Reconciliation | Matching with bookings |
-
 ---
 
 ## 🏨 Property Management Specifications
+
+### Database Schema
+
+- **294 Prisma models** in `prisma/schema.prisma`
+- All tenant-scoped models include `tenantId` field
+- All models have `createdAt` and `updatedAt` (auto-managed)
+- Soft delete: `deletedAt` field on critical models
 
 ### Booking State Machine
 
@@ -204,16 +208,6 @@ Draft → Confirmed → Checked_In → Checked_Out → Cancelled
 | Inventory Locking | DB-level row locking |
 | Overbooking | Configurable thresholds |
 
-### Rate Management
-
-| Feature | Specification |
-|---------|---------------|
-| Rate Plans | Unlimited |
-| Pricing Rules | Condition-based engine |
-| Seasonality | Multiple seasons per year |
-| Derivative Rates | Percentage/fixed adjustments |
-| Promotions | Discount codes, packages |
-
 ---
 
 ## 🤖 AI & Machine Learning
@@ -222,76 +216,44 @@ Draft → Confirmed → Checked_In → Checked_Out → Cancelled
 
 | Feature | Capability |
 |---------|------------|
-| Demand Forecasting | Occupancy predictions |
-| Dynamic Pricing | Real-time rate recommendations |
-| Competitor Analysis | Rate shopping across channels |
-| Event Detection | Local events impacting demand |
-| Market Intelligence | Weekly market reports |
-
-### Operations AI
-
-| Feature | Capability |
-|---------|------------|
-| Task Optimization | AI-assigned housekeeping routes |
-| Predictive Maintenance | Equipment failure prediction |
-| Guest Sentiment | Review sentiment analysis |
-| AI Copilot | Natural language queries |
-| Smart Recommendations | Personalized suggestions |
+| Demand Forecasting | Occupancy predictions (DemandForecast model) |
+| Dynamic Pricing | Real-time rate recommendations (PricingRule model) |
+| Competitor Analysis | Rate shopping across channels (CompetitorPrice model) |
+| AI Suggestions | Actionable recommendations (AISuggestion model) |
 
 ---
 
 ## 🔐 Security & Compliance
 
-### Data Security
-
 | Feature | Specification |
 |---------|---------------|
-| Encryption | AES-256 at rest, TLS 1.3 in transit |
-| Tokenization | PCI-compliant payment data |
-| Backup | Daily automated backups |
-| Disaster Recovery | Cross-region failover |
-| Audit Logging | Complete activity trail |
-| Soft Delete | No hard deletes for critical data |
-
-### Authentication
-
-| Method | Support |
-|--------|---------|
-| Password | Bcrypt hashing, complexity rules |
-| Two-Factor | TOTP, SMS, Email |
+| Auth System | Custom session-based (httpOnly cookies) |
+| Password Hashing | bcrypt |
+| Two-Factor | TOTP (otplib), SMS, Email |
 | SSO | SAML 2.0, OIDC, LDAP |
-| Session | JWT with refresh tokens |
-| Device Trust | Device fingerprinting |
-
-### Compliance
-
-| Standard | Status |
-|----------|--------|
-| GDPR | Full compliance |
-| SOC2 | Ready |
-| PCI-DSS | Level 1 Service Provider |
+| Account Lockout | 5 attempts → 30 min lock |
+| Idle Timeout | Configurable per tenant |
+| Encryption | AES-256-GCM at rest, TLS 1.3 in transit |
+| PCI-DSS | Tokenization via payment gateways |
+| GDPR | Full compliance (export, erasure, consent) |
+| Audit Logging | Complete activity trail (AuditLog model) |
+| Soft Delete | No hard deletes for critical data |
+| RBAC | 9 default roles + custom |
+| Feature Flags | Plan-based module access |
 
 ---
 
 ## 📱 Guest-Facing Applications
 
-### Mobile Web App (PWA)
+### PWA (Progressive Web App)
 
 | Feature | Specification |
 |---------|---------------|
 | Installable | Works on any device |
-| Offline Mode | Basic functionality offline |
-| Languages | 15+ languages supported |
-| White-label | Custom branding available |
-
-### Digital Key Integration
-
-| Vendor | Protocol |
-|--------|----------|
-| Assa Abloy | BLE, NFC |
-| dormakaba | BLE |
-| Salto | BLE, NFC |
-| ONITY | BLE |
+| Languages | 15 languages |
+| White-label | Custom branding |
+| In-Room Portal | QR-based access |
+| Digital Keys | QR code generation |
 
 ---
 
@@ -301,74 +263,45 @@ Draft → Confirmed → Checked_In → Checked_Out → Cancelled
 
 | Feature | Specification |
 |---------|---------------|
-| Versioning | URL-based (/v1, /v2) |
-| Authentication | OAuth 2.0, API Keys |
+| Routes | 614 |
+| Versioning | URL-based (/v1) |
+| Authentication | Session cookies + API Keys |
 | Rate Limiting | Per tenant, user, endpoint |
-| Documentation | OpenAPI 3.0 (Swagger) |
+| Idempotency | Supported via IdempotencyKey model |
+| Webhooks | Event-driven with retry queue |
+| Tenant Isolation | All queries scoped to tenantId |
 
-### API Endpoints (Core)
+### Mini-Services
 
-```
-/api/v1/bookings
-/api/v1/guests
-/api/v1/rooms
-/api/v1/room-types
-/api/v1/properties
-/api/v1/invoices
-/api/v1/folios
-/api/v1/payments
-/api/v1/wifi/users
-/api/v1/wifi/vouchers
-/api/v1/wifi/sessions
-/api/v1/auth/login
-/api/v1/auth/session
-/api/v1/availability
-```
-
-### Webhooks
-
-| Event Category | Events |
-|----------------|--------|
-| Booking | created, modified, cancelled, checked_in, checked_out |
-| Payment | initiated, completed, failed, refunded |
-| Guest | created, updated, loyalty_updated |
-| WiFi | session_started, session_stopped, limit_reached |
-| Inventory | updated, low_stock |
-
-### Webhook Contract
-
-```json
-{
-  "event": "booking.created",
-  "tenant_id": "xxx",
-  "data": {},
-  "timestamp": "2026-03-15T10:00:00Z",
-  "signature": "sha256=xxx"
-}
-```
+| Service | Port | Purpose |
+|---------|------|---------|
+| Next.js | 3000 | Main application |
+| Captive Redirect | 8888 | WiFi captive portal |
+| Realtime | 3003 | Socket.IO real-time |
+| Availability | 3002 | Room availability |
+| FreeRADIUS Mgmt | 3010 | RADIUS management API |
+| FreeRADIUS Server | 1812/1813 | RADIUS auth/acct |
 
 ---
 
 ## 🌍 Localization
 
-### Supported Languages
+### Supported Languages (15)
 
-| Language | Code | Language | Code |
-|----------|------|----------|------|
-| English | en | Hindi | hi |
-| Bengali | bn | Tamil | ta |
-| Telugu | te | Marathi | mr |
-| Gujarati | gu | Malayalam | ml |
-| Spanish | es | French | fr |
-| German | de | Portuguese | pt |
-| Arabic | ar | Chinese | zh |
-| Japanese | ja | | |
+| Indian | Global |
+|--------|--------|
+| English (en) | Spanish (es) |
+| Hindi (hi) | French (fr) |
+| Bengali (bn) | German (de) |
+| Tamil (ta) | Portuguese (pt) |
+| Telugu (te) | Arabic (ar) |
+| Marathi (mr) | Chinese (zh) |
+| Gujarati (gu) | Japanese (ja) |
+| Malayalam (ml) | |
 
 ---
 
 ## 📈 Performance & Scalability
-
-### System Performance
 
 | Metric | Target |
 |--------|--------|
@@ -378,22 +311,9 @@ Draft → Confirmed → Checked_In → Checked_Out → Cancelled
 | Concurrent Users | 10,000+ |
 | Transactions/Second | 1,000+ |
 
-### Scalability
-
-| Resource | Scaling Model |
-|----------|---------------|
-| Compute | Horizontal auto-scaling |
-| Database | Read replicas |
-| Cache | Distributed cache |
-| Storage | Unlimited |
-
 ---
 
 ## 📋 System Requirements
-
-### For Cloud SaaS
-- Modern web browser (Chrome, Firefox, Safari, Edge)
-- Stable internet connection (5 Mbps+)
 
 ### For On-Premise
 
@@ -403,12 +323,14 @@ Draft → Confirmed → Checked_In → Checked_Out → Cancelled
 | RAM | 16 GB | 32+ GB |
 | Storage | 100 GB SSD | 500+ GB SSD |
 | Network | 100 Mbps | 1 Gbps |
+| PostgreSQL | 17 | 17 |
+| FreeRADIUS | v3.2.2+ | v3.2.7 |
+| Bun | Latest | Latest |
+| PM2 | Latest | Latest |
 
 ---
 
 ## 📞 Technical Support
-
-### Support Channels
 
 | Channel | Contact |
 |---------|---------|
@@ -418,6 +340,6 @@ Draft → Confirmed → Checked_In → Checked_Out → Cancelled
 
 ---
 
-*Document Version: 2.0*
-*Last Updated: March 2026*
+*Document Version: 3.0*
+*Last Updated: May 2026*
 *© 2026 Cryptsk Pvt Ltd*

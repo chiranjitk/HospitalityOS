@@ -3,7 +3,7 @@
 
 **Version**: v1  
 **Base URL**: `https://api.staysuite.io/v1`  
-**Last Updated**: March 2026
+**Last Updated**: May 2026
 
 ---
 
@@ -14,19 +14,51 @@
 3. [Response Format](#3-response-format)
 4. [Pagination](#4-pagination)
 5. [Errors](#5-errors)
-6. [Bookings API](#6-bookings-api)
-7. [Guests API](#7-guests-api)
-8. [Rooms API](#8-rooms-api)
-9. [Availability API](#9-availability-api)
-10. [Payments API](#10-payments-api)
-11. [WiFi API](#11-wifi-api)
-12. [Webhooks](#12-webhooks)
+6. [API Route Registry](#6-api-route-registry)
+7. [Bookings API](#7-bookings-api)
+8. [Guests API](#8-guests-api)
+9. [Rooms API](#9-rooms-api)
+10. [Availability API](#10-availability-api)
+11. [Payments API](#11-payments-api)
+12. [WiFi API](#12-wifi-api)
+13. [Webhooks](#13-webhooks)
 
 ---
 
 ## 1. Authentication
 
-### 1.1 API Key Authentication
+### 1.1 Session-Based Authentication
+
+StaySuite uses custom session-based auth. Login via the API sets an httpOnly cookie:
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@royalstay.in",
+  "password": "admin123"
+}
+```
+
+Response:
+```json
+{
+  "user": {
+    "id": "...",
+    "email": "admin@royalstay.in",
+    "firstName": "Rajesh",
+    "lastName": "Sharma",
+    "tenantId": "...",
+    "isPlatformAdmin": false
+  },
+  "token": "..."
+}
+```
+
+The session token is set as an `httpOnly` cookie. All subsequent requests must include this cookie.
+
+### 1.2 API Key Authentication (for external integrations)
 
 Include API key in the header:
 
@@ -34,13 +66,6 @@ Include API key in the header:
 Authorization: Bearer YOUR_API_KEY
 X-Tenant-ID: YOUR_TENANT_ID
 ```
-
-### 1.2 Getting API Keys
-
-1. Navigate to **Settings → Integrations → API**
-2. Click **Generate API Key**
-3. Set permissions (scopes)
-4. Copy key (shown only once)
 
 ### 1.3 Scopes
 
@@ -54,6 +79,10 @@ X-Tenant-ID: YOUR_TENANT_ID
 | `payments:write` | Process payments |
 | `wifi:read` | Read WiFi sessions |
 | `wifi:write` | Manage WiFi access |
+| `rooms:read` | Read room data |
+| `rooms:manage` | Manage rooms |
+| `inventory:read` | Read inventory |
+| `inventory:write` | Update inventory |
 
 ---
 
@@ -82,9 +111,7 @@ All responses are JSON:
 ```json
 {
   "success": true,
-  "data": {
-    // Response data
-  },
+  "data": { ... },
   "meta": {
     "page": 1,
     "limit": 20,
@@ -106,17 +133,9 @@ Query parameters:
 | `sort` | created_at | - |
 | `order` | desc | asc/desc |
 
-Example:
-
-```http
-GET /v1/bookings?page=2&limit=50&sort=check_in&order=asc
-```
-
 ---
 
 ## 5. Errors
-
-Error response format:
 
 ```json
 {
@@ -124,15 +143,10 @@ Error response format:
   "error": {
     "code": "VALIDATION_ERROR",
     "message": "Invalid date format",
-    "details": {
-      "field": "check_in",
-      "expected": "YYYY-MM-DD"
-    }
+    "details": { "field": "check_in", "expected": "YYYY-MM-DD" }
   }
 }
 ```
-
-Error codes:
 
 | Code | HTTP Status | Description |
 |------|-------------|-------------|
@@ -146,489 +160,237 @@ Error codes:
 
 ---
 
-## 6. Bookings API
+## 6. API Route Registry
 
-### 6.1 List Bookings
+The platform provides **614 API routes** across **134 directories**:
+
+| Module | Routes | Directory |
+|--------|--------|-----------|
+| accounting | - | /api/accounting |
+| activity | - | /api/activity |
+| admin | - | /api/admin |
+| ads | - | /api/ads |
+| ai | - | /api/ai |
+| amenities | - | /api/amenities |
+| assets | - | /api/assets |
+| audit-logs | - | /api/audit-logs |
+| auth | - | /api/auth |
+| automation | - | /api/automation |
+| availability | - | /api/availability |
+| billing | - | /api/billing |
+| bookings | - | /api/bookings |
+| brands | - | /api/brands |
+| campaigns | - | /api/campaigns |
+| cancellation-policies | - | /api/cancellation-policies |
+| channel-manager | - | /api/channel-manager |
+| channels | - | /api/channels |
+| chat-conversations | - | /api/chat-conversations |
+| city-ledger | - | /api/city-ledger |
+| commissions | - | /api/commissions |
+| communication | - | /api/communication |
+| crm | - | /api/crm |
+| dashboard | - | /api/dashboard |
+| digital-keys | - | /api/digital-keys |
+| discounts | - | /api/discounts |
+| dns | - | /api/dns |
+| events | - | /api/events |
+| experience-* | - | /api/experience-* |
+| floor-plans | - | /api/floor-plans |
+| folio | - | /api/folio |
+| frontdesk | - | /api/frontdesk |
+| gdpr | - | /api/gdpr |
+| group-bookings | - | /api/group-bookings |
+| guests | - | /api/guests |
+| health | - | /api/health |
+| help | - | /api/help |
+| housekeeping | - | /api/housekeeping |
+| integrations | - | /api/integrations |
+| inventory | - | /api/inventory |
+| invoices | - | /api/invoices |
+| iot | - | /api/iot |
+| kiosk | - | /api/kiosk |
+| laundry | - | /api/laundry |
+| lost-found | - | /api/lost-found |
+| loyalty | - | /api/loyalty |
+| maintenance | - | /api/maintenance |
+| marketing | - | /api/marketing |
+| mini-services | - | /api/mini-services |
+| networking | - | /api/networking |
+| night-audit | - | /api/night-audit |
+| notifications | - | /api/notifications |
+| orders | - | /api/orders |
+| parking | - | /api/parking |
+| payments | - | /api/payments |
+| pos | - | /api/pos |
+| pricing | - | /api/pricing |
+| properties | - | /api/properties |
+| rate-plans | - | /api/rate-plans |
+| reservations | - | /api/reservations |
+| reports | - | /api/reports |
+| revenue | - | /api/revenue |
+| rooms | - | /api/rooms |
+| security | - | /api/security |
+| settings | - | /api/settings |
+| staff | - | /api/staff |
+| tenants | - | /api/tenants |
+| vehicles | - | /api/vehicles |
+| vendors | - | /api/vendors |
+| version | - | /api/version |
+| waitlist | - | /api/waitlist |
+| webhooks | - | /api/webhooks |
+| wifi | - | /api/wifi |
+| v1 | - | /api/v1 |
+
+---
+
+## 7. Bookings API
+
+### 7.1 List Bookings
 
 ```http
-GET /v1/bookings
+GET /api/bookings
 ```
 
-Query parameters:
+Query parameters: `status`, `check_in_from`, `check_in_to`, `guest_id`, `room_id`, `source`
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `status` | string | Filter by status |
-| `check_in_from` | date | Check-in date from |
-| `check_in_to` | date | Check-in date to |
-| `guest_id` | string | Filter by guest |
-| `room_id` | string | Filter by room |
-| `source` | string | Filter by source |
+### 7.2 Create Booking
 
-Response:
+```http
+POST /api/bookings
+```
 
 ```json
 {
-  "success": true,
-  "data": [
-    {
-      "id": "bk_123456",
-      "confirmation_number": "SS-2026-001234",
-      "status": "confirmed",
-      "check_in": "2026-04-01",
-      "check_out": "2026-04-03",
-      "room": {
-        "id": "rm_001",
-        "number": "101",
-        "type": "Deluxe Room"
-      },
-      "guest": {
-        "id": "gst_001",
-        "name": "John Doe",
-        "email": "john@example.com"
-      },
-      "rate_plan": {
-        "id": "rp_001",
-        "name": "Best Available Rate"
-      },
-      "total_amount": 500.00,
-      "currency": "USD",
-      "source": "direct",
-      "created_at": "2026-03-15T10:00:00Z",
-      "updated_at": "2026-03-15T10:00:00Z"
-    }
-  ],
-  "meta": {
-    "page": 1,
-    "limit": 20,
-    "total": 1
-  }
-}
-```
-
-### 6.2 Get Booking
-
-```http
-GET /v1/bookings/{id}
-```
-
-Response: Single booking object
-
-### 6.3 Create Booking
-
-```http
-POST /v1/bookings
-```
-
-Request body:
-
-```json
-{
-  "guest": {
-    "email": "john@example.com",
-    "first_name": "John",
-    "last_name": "Doe",
-    "phone": "+1234567890"
-  },
-  "room_type_id": "rt_001",
-  "rate_plan_id": "rp_001",
-  "check_in": "2026-04-01",
-  "check_out": "2026-04-03",
+  "guest": { "email": "guest@example.com", "firstName": "John", "lastName": "Doe" },
+  "roomTypeId": "rt_001",
+  "ratePlanId": "rp_001",
+  "checkIn": "2026-05-01",
+  "checkOut": "2026-05-03",
   "adults": 2,
-  "children": 0,
-  "special_requests": "Late check-in around 10 PM",
-  "source": "api",
-  "idempotency_key": "unique-request-id"
+  "specialRequests": "Late check-in"
 }
 ```
 
-Response:
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "bk_123456",
-    "confirmation_number": "SS-2026-001234",
-    "status": "confirmed",
-    // ... full booking object
-  }
-}
-```
-
-### 6.4 Update Booking
+### 7.3 Check In
 
 ```http
-PATCH /v1/bookings/{id}
+POST /api/bookings/{id}/check-in
 ```
 
-Request body:
-
-```json
-{
-  "check_out": "2026-04-04",
-  "special_requests": "Extended stay by 1 night"
-}
-```
-
-### 6.5 Cancel Booking
+### 7.4 Check Out
 
 ```http
-POST /v1/bookings/{id}/cancel
-```
-
-Request body:
-
-```json
-{
-  "reason": "Guest request",
-  "refund": true
-}
-```
-
-### 6.6 Check In
-
-```http
-POST /v1/bookings/{id}/check-in
-```
-
-Request body:
-
-```json
-{
-  "room_id": "rm_101",
-  "actual_check_in_time": "2026-04-01T14:30:00Z"
-}
-```
-
-### 6.7 Check Out
-
-```http
-POST /v1/bookings/{id}/check-out
+POST /api/bookings/{id}/check-out
 ```
 
 ---
 
-## 7. Guests API
+## 8. Guests API
 
-### 7.1 List Guests
-
-```http
-GET /v1/guests
-```
-
-Query parameters:
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `search` | string | Search by name/email |
-| `vip` | boolean | Filter VIP guests |
-| `created_from` | date | Created from date |
-| `created_to` | date | Created to date |
-
-### 7.2 Get Guest
+### 8.1 List Guests
 
 ```http
-GET /v1/guests/{id}
+GET /api/guests
 ```
 
-### 7.3 Create Guest
+### 8.2 Get Guest Loyalty
 
 ```http
-POST /v1/guests
+GET /api/guests/{id}/loyalty
 ```
 
-Request body:
-
-```json
-{
-  "email": "jane@example.com",
-  "first_name": "Jane",
-  "last_name": "Smith",
-  "phone": "+1234567890",
-  "address": {
-    "street": "123 Main St",
-    "city": "New York",
-    "state": "NY",
-    "country": "US",
-    "postal_code": "10001"
-  },
-  "preferences": {
-    "room_floor": "high",
-    "pillow_type": "firm",
-    "newspaper": "NYT"
-  },
-  "vip": true,
-  "notes": "Prefers quiet rooms"
-}
-```
-
-### 7.4 Update Guest
+### 8.3 Get Guest Stay History
 
 ```http
-PATCH /v1/guests/{id}
-```
-
-### 7.5 Get Guest Stay History
-
-```http
-GET /v1/guests/{id}/stays
-```
-
-### 7.6 Get Guest Loyalty
-
-```http
-GET /v1/guests/{id}/loyalty
+GET /api/guests/{id}/stays
 ```
 
 ---
 
-## 8. Rooms API
+## 9. Rooms API
 
-### 8.1 List Rooms
-
-```http
-GET /v1/rooms
-```
-
-Query parameters:
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `room_type_id` | string | Filter by type |
-| `status` | string | Filter by status |
-| `floor` | integer | Filter by floor |
-
-### 8.2 Get Room
+### 9.1 List Rooms
 
 ```http
-GET /v1/rooms/{id}
+GET /api/rooms
 ```
 
-### 8.3 Update Room Status
+### 9.2 Update Room Status
 
 ```http
-PATCH /v1/rooms/{id}/status
-```
-
-Request body:
-
-```json
-{
-  "status": "clean",
-  "notes": "Deep cleaning completed"
-}
+PATCH /api/rooms/{id}/status
 ```
 
 ---
 
-## 9. Availability API
+## 10. Availability API
 
-### 9.1 Check Availability
+### 10.1 Check Availability
 
 ```http
-GET /v1/availability
-```
-
-Query parameters:
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `check_in` | date | Yes | Check-in date |
-| `check_out` | date | Yes | Check-out date |
-| `room_type_id` | string | No | Filter by room type |
-| `adults` | integer | No | Number of adults |
-| `children` | integer | No | Number of children |
-
-Response:
-
-```json
-{
-  "success": true,
-  "data": {
-    "check_in": "2026-04-01",
-    "check_out": "2026-04-03",
-    "available": [
-      {
-        "room_type": {
-          "id": "rt_001",
-          "name": "Deluxe Room",
-          "max_occupancy": 2
-        },
-        "available_rooms": 5,
-        "total_rooms": 10,
-        "rates": [
-          {
-            "date": "2026-04-01",
-            "rate": 150.00
-          },
-          {
-            "date": "2026-04-02",
-            "rate": 150.00
-          }
-        ],
-        "total": 300.00,
-        "currency": "USD"
-      }
-    ]
-  }
-}
+GET /api/availability?check_in=2026-05-01&check_out=2026-05-03&adults=2
 ```
 
 ---
 
-## 10. Payments API
+## 11. Payments API
 
-### 10.1 Process Payment
-
-```http
-POST /v1/payments
-```
-
-Request body:
-
-```json
-{
-  "booking_id": "bk_123456",
-  "amount": 300.00,
-  "currency": "USD",
-  "payment_method": {
-    "type": "card",
-    "token": "tok_visa_xxx"
-  },
-  "idempotency_key": "unique-payment-id"
-}
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "pay_001",
-    "status": "completed",
-    "amount": 300.00,
-    "currency": "USD",
-    "payment_method": "card",
-    "last_four": "4242",
-    "created_at": "2026-03-15T10:00:00Z"
-  }
-}
-```
-
-### 10.2 List Payments
+### 11.1 Process Payment
 
 ```http
-GET /v1/payments
+POST /api/payments
 ```
 
-### 10.3 Refund Payment
+### 11.2 Refund Payment
 
 ```http
-POST /v1/payments/{id}/refund
-```
-
-Request body:
-
-```json
-{
-  "amount": 150.00,
-  "reason": "Partial cancellation"
-}
+POST /api/payments/{id}/refund
 ```
 
 ---
 
-## 11. WiFi API
+## 12. WiFi API
 
-### 11.1 Create WiFi User
+### 12.1 Create WiFi User
 
 ```http
-POST /v1/wifi/users
+POST /api/wifi/users
 ```
-
-Request body:
 
 ```json
 {
-  "booking_id": "bk_123456",
+  "bookingId": "bk_123",
   "username": "guest_101",
-  "password": "auto",
-  "plan_id": "wp_standard",
-  "devices_limit": 3
+  "planId": "wp_standard",
+  "devicesLimit": 3
 }
 ```
 
-Response:
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "wu_001",
-    "username": "guest_101",
-    "password": "Abc123xyz",
-    "plan": "Standard",
-    "devices_limit": 3,
-    "valid_from": "2026-04-01T14:00:00Z",
-    "valid_until": "2026-04-03T11:00:00Z",
-    "status": "active"
-  }
-}
-```
-
-### 11.2 List WiFi Sessions
+### 12.2 List WiFi Sessions
 
 ```http
-GET /v1/wifi/sessions
+GET /api/wifi/sessions
 ```
 
-### 11.3 Disconnect WiFi Session
+### 12.3 Create Vouchers
 
 ```http
-POST /v1/wifi/sessions/{id}/disconnect
+POST /api/wifi/vouchers
 ```
 
-### 11.4 Create Vouchers
+### 12.4 FreeRADIUS Management
 
-```http
-POST /v1/wifi/vouchers
-```
-
-Request body:
-
-```json
-{
-  "quantity": 10,
-  "plan_id": "wp_basic",
-  "validity_hours": 24
-}
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "data": {
-    "vouchers": [
-      "WIFI-ABCD1234",
-      "WIFI-EFGH5678",
-      // ... more vouchers
-    ],
-    "plan": "Basic",
-    "validity_hours": 24,
-    "created_at": "2026-03-15T10:00:00Z"
-  }
-}
-```
+WiFi authentication uses FreeRADIUS v3.2.7 with native PostgreSQL SQL module. The system automatically:
+- Creates RADIUS users on guest check-in
+- Removes users on check-out
+- Applies bandwidth policies via RADIUS attributes
+- Tracks sessions in PostgreSQL via radacct
 
 ---
 
-## 12. Webhooks
+## 13. Webhooks
 
-### 12.1 Webhook Events
+### 13.1 Webhook Events
 
 | Event | Description |
 |-------|-------------|
@@ -645,24 +407,7 @@ Response:
 | `guest.created` | New guest profile |
 | `inventory.updated` | Availability changed |
 
-### 12.2 Webhook Payload
-
-```json
-{
-  "event": "booking.created",
-  "id": "evt_123456",
-  "tenant_id": "tn_001",
-  "data": {
-    "id": "bk_123456",
-    "confirmation_number": "SS-2026-001234",
-    // ... full booking object
-  },
-  "timestamp": "2026-03-15T10:00:00Z",
-  "signature": "sha256=abc123..."
-}
-```
-
-### 12.3 Signature Verification
+### 13.2 Signature Verification
 
 ```javascript
 const crypto = require('crypto');
@@ -672,12 +417,11 @@ function verifySignature(payload, signature, secret) {
     .createHmac('sha256', secret)
     .update(JSON.stringify(payload))
     .digest('hex');
-  
   return `sha256=${expected}` === signature;
 }
 ```
 
-### 12.4 Retry Policy
+### 13.3 Retry Policy
 
 | Attempt | Delay |
 |---------|-------|
@@ -691,62 +435,11 @@ After 5 failures, webhook is disabled and alert sent.
 
 ---
 
-## SDK Examples
-
-### JavaScript/Node.js
-
-```javascript
-const StaySuite = require('@staysuite/sdk');
-
-const client = new StaySuite({
-  apiKey: 'your-api-key',
-  tenantId: 'your-tenant-id'
-});
-
-// Create booking
-const booking = await client.bookings.create({
-  guest: {
-    email: 'guest@example.com',
-    first_name: 'John',
-    last_name: 'Doe'
-  },
-  room_type_id: 'rt_001',
-  rate_plan_id: 'rp_001',
-  check_in: '2026-04-01',
-  check_out: '2026-04-03'
-});
-```
-
-### Python
-
-```python
-from staysuite import Client
-
-client = Client(
-    api_key='your-api-key',
-    tenant_id='your-tenant-id'
-)
-
-# Check availability
-availability = client.availability.check(
-    check_in='2026-04-01',
-    check_out='2026-04-03',
-    adults=2
-)
-```
-
----
-
 ## OpenAPI Specification
 
 Full OpenAPI 3.0 specification available at:
 ```
-GET /v1/docs/openapi.json
-```
-
-Interactive documentation at:
-```
-GET /v1/docs
+GET /api/docs/openapi.json
 ```
 
 ---

@@ -1,8 +1,8 @@
 # StaySuite Integration Guide
 ## Third-Party Integration Manual
 
-**Version**: 1.0  
-**Last Updated**: March 2026
+**Version**: 2.0  
+**Last Updated**: May 2026
 
 ---
 
@@ -21,7 +21,7 @@
 
 ## 1. Overview
 
-StaySuite provides multiple integration options:
+StaySuite provides multiple integration options across 134 API route directories:
 
 | Integration Type | Methods |
 |------------------|---------|
@@ -31,7 +31,7 @@ StaySuite provides multiple integration options:
 | OTAs | API, Webhooks |
 | IoT Devices | MQTT, API |
 | POS Systems | API, Webhooks |
-| Custom | REST API, Webhooks |
+| Custom | REST API (614 routes), Webhooks |
 
 ---
 
@@ -54,154 +54,30 @@ StaySuite provides multiple integration options:
 │StaySuite │ ──────────► │Lock Cloud│ ◄─────────► │  Guest   │
 │          │             │          │             │  Phone   │
 └──────────┘             └──────────┘             └──────────┘
-     │                        │
-     │   Check-in Event       │
-     └───────────────────────►│
-                              │
-     ┌────────────────────────┤
-     │   Generate Key         │
-     │   - Key ID             │
-     │   - Validity           │
-     │   - Room Number        │
-     └───────────────────────►│
+     │
+     │   Check-in Event → Generate Key → Send to Guest
+     │   Check-out Event → Revoke Key
+     └───────────────────────────────────────────────►
 ```
-
-### 2.3 Assa Abloy Integration
-
-**Prerequisites:**
-- Assa Abloy Vision Access account
-- Property ID
-- API credentials
-
-**Configuration:**
-
-1. Navigate to **Integrations → Door Locks → Assa Abloy**
-2. Enter credentials:
-   - Client ID
-   - Client Secret
-   - Property ID
-3. Configure mapping:
-   - Room number ↔ Lock ID
-4. Test connection
-5. Enable integration
-
-**API Endpoints:**
-
-```http
-POST /api/integrations/door-locks/assa-abloy/generate-key
-```
-
-Request:
-```json
-{
-  "booking_id": "bk_123",
-  "room_number": "101",
-  "valid_from": "2026-04-01T14:00:00Z",
-  "valid_until": "2026-04-03T11:00:00Z"
-}
-```
-
-Response:
-```json
-{
-  "success": true,
-  "key_id": "key_abc123",
-  "mobile_key_url": "staysuite://key/abc123"
-}
-```
-
-### 2.4 Salto Integration
-
-**Configuration:**
-
-1. Navigate to **Integrations → Door Locks → Salto**
-2. Enter Salto KS credentials:
-   - Site ID
-   - API Key
-3. Configure lock mapping
-4. Enable integration
-
-**Key Generation:**
-
-Keys are automatically generated on:
-- Check-in event
-- Manual trigger from booking
-
-Keys are automatically revoked on:
-- Check-out event
-- Manual revocation
 
 ---
 
 ## 3. Payment Gateway Integration
 
-### 3.1 Stripe Integration
+### 3.1 Supported Gateways
 
-**Setup:**
+| Gateway | Regions | Features |
+|---------|---------|----------|
+| **Stripe** | 46+ countries | Cards, Apple Pay, Google Pay |
+| **PayPal** | 200+ countries | PayPal, Venmo, Cards |
+| **Razorpay** | India | UPI, Cards, NetBanking |
+| **Square** | US, Canada | Cards, Afterpay |
+| **Adyen** | Global | 250+ payment methods |
+| **Authorize.net** | US, Canada | Cards, eCheck |
+| **CCAvenue** | India | Multi-bank support |
+| **PayU** | 50+ countries | Local payment methods |
 
-1. Create Stripe account at stripe.com
-2. Get API keys from Dashboard
-3. Configure webhook endpoint
-
-**StaySuite Configuration:**
-
-1. Navigate to **Integrations → Payment Gateways → Stripe**
-2. Enter credentials:
-   - Publishable Key
-   - Secret Key
-   - Webhook Signing Secret
-3. Set webhook URL in Stripe:
-   ```
-   https://api.staysuite.io/webhooks/stripe
-   ```
-4. Select events to receive:
-   - `payment_intent.succeeded`
-   - `payment_intent.payment_failed`
-   - `charge.refunded`
-   - `customer.source.expiring`
-
-**Testing:**
-
-Use Stripe test cards:
-| Card Number | Result |
-|-------------|--------|
-| 4242424242424242 | Success |
-| 4000000000000002 | Decline |
-| 4000000000009995 | Insufficient funds |
-
-### 3.2 Razorpay Integration (India)
-
-**Setup:**
-
-1. Create Razorpay account
-2. Generate API keys
-3. Configure webhook
-
-**StaySuite Configuration:**
-
-1. Navigate to **Integrations → Payment Gateways → Razorpay**
-2. Enter credentials:
-   - Key ID
-   - Key Secret
-   - Webhook Secret
-3. Configure webhook URL:
-   ```
-   https://api.staysuite.io/webhooks/paypal
-   ```
-
-**Payment Methods:**
-
-| Method | Supported |
-|--------|-----------|
-| Credit/Debit Cards | ✅ |
-| UPI | ✅ |
-| NetBanking | ✅ |
-| Wallets | ✅ |
-| EMI | ✅ |
-
-### 3.3 Multi-Gateway Routing
-
-Configure automatic failover:
+### 3.2 Multi-Gateway Routing
 
 ```json
 {
@@ -209,14 +85,8 @@ Configure automatic failover:
     "primary": "stripe",
     "fallback": ["razorpay", "paypal"],
     "rules": [
-      {
-        "currency": "INR",
-        "gateway": "razorpay"
-      },
-      {
-        "amount_min": 10000,
-        "gateway": "stripe"
-      }
+      { "currency": "INR", "gateway": "razorpay" },
+      { "amount_min": 10000, "gateway": "stripe" }
     ]
   }
 }
@@ -226,25 +96,41 @@ Configure automatic failover:
 
 ## 4. WiFi Gateway Integration
 
-### 4.1 RADIUS Configuration
+### 4.1 FreeRADIUS Architecture
 
-**Architecture:**
+StaySuite includes FreeRADIUS v3.2.7 compiled from source with native PostgreSQL SQL module:
 
 ```
-┌──────────┐    Auth     ┌──────────┐    Auth    ┌──────────┐
-│  Guest   │ ──────────► │  NAS     │ ────────► │StaySuite │
-│  Device  │             │ (Gateway)│            │  RADIUS  │
-└──────────┘             └──────────┘            └──────────┘
-                               │
-                               │ Acct
-                               ▼
-                         ┌──────────┐
-                         │  Usage   │
-                         │   DB     │
-                         └──────────┘
+┌──────────┐    Auth     ┌──────────┐    Auth    ┌──────────────┐
+│  Guest   │ ──────────► │  NAS     │ ────────► │ FreeRADIUS   │
+│  Device  │             │ (Gateway)│            │  v3.2.7      │
+└──────────┘             └──────────┘            │  PostgreSQL  │
+                               │                    │  SQL Module  │
+                               │ Acct               └──────┬───────┘
+                               ▼                           │
+                         ┌──────────┐                  ┌────▼────┐
+                         │  Usage   │                  │  Postgres│
+                         │   Logs   │                  │   v17    │
+                         └──────────┘                  └─────────┘
 ```
 
-**RADIUS Parameters:**
+### 4.2 Supported Network Vendors (11+)
+
+| Vendor | Protocol | Integration Type |
+|--------|----------|------------------|
+| **Cisco** | RADIUS, CoA | WLC, ISE |
+| **MikroTik** | RADIUS, API | Hotspot, User Manager |
+| **Ruckus** | RADIUS, CoA | ZoneDirector, SmartZone |
+| **Huawei** | RADIUS | AC Integration |
+| **Juniper** | RADIUS, CoA | Mist Cloud Support |
+| **Fortinet** | RADIUS, API | FortiGate, FortiWiFi |
+| **Aruba** | RADIUS, CoA | Mobility Controller |
+| **D-Link** | RADIUS | Unified Wireless |
+| **Netgear** | RADIUS | Insight Integration |
+| **Grandstream** | RADIUS | GWN Series |
+| **Ubiquiti** | RADIUS | UniFi Controller |
+
+### 4.3 RADIUS Parameters
 
 | Parameter | Value |
 |-----------|-------|
@@ -252,100 +138,25 @@ Configure automatic failover:
 | Acct Port | 1813 |
 | Protocol | RADIUS |
 | Authentication | PAP/CHAP |
+| Server | FreeRADIUS v3.2.7 (compiled from source) |
+| Database | PostgreSQL 17 (native SQL module) |
 
-**Attributes Used:**
-
-| Attribute | Description |
-|-----------|-------------|
-| User-Name | Guest username |
-| User-Password | Guest password |
-| NAS-IP-Address | Gateway IP |
-| NAS-Identifier | Gateway name |
-| Called-Station-Id | SSID |
-| Acct-Session-Id | Session ID |
-| Acct-Input-Octets | Download bytes |
-| Acct-Output-Octets | Upload bytes |
-
-### 4.2 MikroTik Configuration
-
-**Step 1: Configure RADIUS**
+### 4.4 MikroTik Configuration
 
 ```
 /radius
-add address=radius.staysuite.io \
-    secret=YOUR_SHARED_SECRET \
-    service=hotspot \
-    authentication-port=1812 \
-    accounting-port=1813 \
-    timeout=3000ms
-```
+add address=YOUR_SERVER_IP secret=YOUR_SHARED_SECRET service=hotspot
 
-**Step 2: Configure Hotspot**
-
-```
 /ip hotspot profile
-set [find name=default] \
-    login-by=http-chap,http-pap,cookie \
-    html-directory=hotspot \
-    radius-default-domain="" \
-    use-radius=yes
+set [find name=default] login-by=http-chap,http-pap,cookie use-radius=yes
 ```
 
-**Step 3: Configure Walled Garden**
+### 4.5 Captive Portal
 
-```
-/ip hotspot walled-garden
-add dst-host="*.staysuite.io" action=allow
-add dst-host="*.google.com" action=allow
-add dst-host="*.facebook.com" action=allow
-```
-
-### 4.3 Cisco WLC Configuration
-
-**Step 1: Add RADIUS Server**
-
-```
-config radius auth add 1 radius.staysuite.io 1812 YOUR_SECRET
-config radius acct add 1 radius.staysuite.io 1813 YOUR_SECRET
-```
-
-**Step 2: Configure WLAN**
-
-```
-config wlan create 2 GuestWiFi
-config wlan security web-auth enable 2
-config wlan radius_server auth add 2 1
-config wlan radius_server acct add 2 1
-```
-
-**Step 3: Configure ACL**
-
-```
-config acl create GuestACL
-config acl rule add GuestACL 1 permit any any
-config wlan acl 2 GuestACL
-```
-
-### 4.4 Captive Portal Customization
-
-**Portal URL:**
-
-Guests are redirected to:
-```
-https://wifi.staysuite.io/portal/{tenant_id}
-```
-
-**Custom Branding:**
-
-1. Navigate to **WiFi → Portal Settings**
-2. Upload:
-   - Logo (PNG, max 200KB)
-   - Background image (max 1MB)
-3. Customize:
-   - Primary color
-   - Welcome text
-   - Terms & conditions
-   - Privacy policy link
+- Portal redirect service on port 8888
+- Redirects to StaySuite main app on port 3000
+- Configurable whitelist, templates, and branding
+- 6 WiFi plans: Free, Basic, Standard, Premium, Business, Enterprise
 
 ---
 
@@ -363,78 +174,22 @@ https://wifi.staysuite.io/portal/{tenant_id}
       └────────────────────────────────────────────┘
 ```
 
-### 5.2 Booking.com Integration
+### 5.2 Supported Channels (46+)
 
-**Prerequisites:**
-- Booking.com hotel ID
-- API credentials from Connectivity Partner
+**Global:** Booking.com, Expedia, Airbnb, Agoda, TripAdvisor, Hostelworld
 
-**Configuration:**
+**India:** MakeMyTrip, Goibibo, Yatra, OYO, Cleartrip, EaseMyTrip, Travelguru, FabHotels, Treebo
 
-1. Navigate to **Channel Manager → OTA Connections**
-2. Click **Add Connection → Booking.com**
-3. Enter:
-   - Hotel ID
-   - API Key
-   - API Secret
-4. Test connection
+**GDS:** Amadeus, Sabre, Travelport
 
-**Mapping:**
+**Metasearch:** Google Hotel Ads, TripAdvisor, Trivago, Kayak, Skyscanner
 
-```json
-{
-  "room_mappings": [
-    {
-      "internal_id": "rt_001",
-      "ota_id": "1234567",
-      "name": "Deluxe Room"
-    }
-  ],
-  "rate_mappings": [
-    {
-      "internal_id": "rp_001",
-      "ota_id": "2345678",
-      "name": "Best Available Rate"
-    }
-  ]
-}
-```
+### 5.3 Inventory Sync
 
-### 5.3 Airbnb Integration
-
-**OAuth Flow:**
-
-1. Navigate to **Channel Manager → Airbnb**
-2. Click **Connect with Airbnb**
-3. Authorize StaySuite
-4. Select listings to connect
-
-**Webhook Events:**
-
-| Event | Action |
-|-------|--------|
-| `reservation_created` | Import booking |
-| `reservation_updated` | Update booking |
-| `reservation_cancelled` | Cancel booking |
-
-### 5.4 Inventory Sync
-
-**Real-time Sync:**
-
-Inventory changes are pushed immediately:
-- Booking created → Decrease availability
-- Booking cancelled → Increase availability
-- Manual update → Push to all channels
-
-**Conflict Resolution:**
-
-When OTA booking conflicts with PMS:
-1. Log conflict
-2. Alert operations team
-3. Apply configurable policy:
-   - Prefer OTA (auto-reallocate)
-   - Prefer PMS (reject OTA)
-   - Manual resolution
+- Real-time: Inventory changes pushed immediately
+- Conflict resolution: Log → Alert → Configurable policy
+- Idempotent operations with safe retry mechanisms
+- Dead letter queue for failed syncs
 
 ---
 
@@ -453,175 +208,66 @@ When OTA booking conflicts with PMS:
 
 ```
 Check-in Event
-     │
      ├──► Set temperature to guest preference
      ├──► Turn on lights
      ├──► Close curtains
      └──► Enable voice assistant
 
 Check-out Event
-     │
      ├──► Set temperature to eco mode
      ├──► Turn off all lights
      ├──► Open curtains
      └──► Reset voice assistant
 ```
 
-### 6.3 MQTT Integration
-
-**Configuration:**
-
-1. Navigate to **Integrations → IoT → MQTT**
-2. Configure broker:
-   - Host
-   - Port (1883/8883)
-   - Username/Password
-   - TLS settings
-
-**Topics:**
-
-| Topic | Direction | Purpose |
-|-------|-----------|---------|
-| `staysuite/{tenant}/room/{room}/command` | Publish | Send commands |
-| `staysuite/{tenant}/room/{room}/status` | Subscribe | Receive status |
-| `staysuite/{tenant}/room/{room}/sensor` | Subscribe | Sensor data |
-
-**Command Examples:**
-
-```json
-{
-  "command": "set_temperature",
-  "value": 22,
-  "unit": "celsius"
-}
-```
-
-```json
-{
-  "command": "set_lights",
-  "value": {
-    "on": true,
-    "brightness": 80,
-    "color": "#FFFFFF"
-  }
-}
-```
-
 ---
 
 ## 7. POS System Integration
 
-### 7.1 POS Integration Flow
+### 7.1 Built-in POS
 
-```
-┌──────────┐   Order    ┌──────────┐   Post    ┌──────────┐
-│  POS     │ ─────────► │StaySuite │ ────────► │  Folio   │
-│  System  │            │   API    │           │          │
-└──────────┘            └──────────┘           └──────────┘
-```
+StaySuite includes a full-featured Restaurant & POS module with 15+ sub-features:
+- Orders, Tables, Kitchen Display, Menu Management
+- Room Service, Receipts, Recipes, Modifiers
+- Billing, Inventory, Staff Assignment, Layout
 
-### 7.2 Generic POS Integration
-
-**API Endpoint:**
+### 7.2 External POS Integration
 
 ```http
-POST /api/v1/pos/orders
+POST /api/pos/orders
 ```
 
-Request:
-```json
-{
-  "booking_id": "bk_123",
-  "room_number": "101",
-  "order_id": "POS-001",
-  "items": [
-    {
-      "name": "Room Service - Breakfast",
-      "quantity": 2,
-      "price": 25.00
-    }
-  ],
-  "total": 50.00,
-  "tax": 5.00,
-  "timestamp": "2026-03-15T10:00:00Z"
-}
-```
-
-### 7.3 Order Posting Rules
-
-1. Order is created in POS
-2. POS sends to StaySuite API
-3. StaySuite validates booking is active
-4. Charge posted to guest folio
-5. Confirmation sent back to POS
+Orders are validated against active bookings and posted to guest folios automatically.
 
 ---
 
 ## 8. Custom Integrations
 
-### 8.1 Using the REST API
+### 8.1 REST API
 
-See API Documentation for complete reference.
+See API Documentation for complete reference. 614 API routes available.
 
-**Quick Start:**
+### 8.2 Webhooks
 
-```bash
-# Get access token
-curl -X POST https://api.staysuite.io/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"password"}'
-
-# Create booking
-curl -X POST https://api.staysuite.io/v1/bookings \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "X-Tenant-ID: YOUR_TENANT_ID" \
-  -H "Content-Type: application/json" \
-  -d '{"guest":{"email":"guest@example.com"},...}'
-```
-
-### 8.2 Using Webhooks
-
-**Setup:**
-
-1. Navigate to **Settings → Integrations → Webhooks**
+1. Navigate to **Webhooks** module
 2. Add endpoint URL
 3. Select events
 4. Set secret for signature verification
 
-**Verification:**
+### 8.3 Mini-Services
 
-```javascript
-const crypto = require('crypto');
-
-app.post('/webhook', (req, res) => {
-  const signature = req.headers['x-staysuite-signature'];
-  const secret = 'YOUR_WEBHOOK_SECRET';
-  
-  const expected = crypto
-    .createHmac('sha256', secret)
-    .update(JSON.stringify(req.body))
-    .digest('hex');
-  
-  if (signature !== `sha256=${expected}`) {
-    return res.status(401).send('Invalid signature');
-  }
-  
-  // Process webhook
-  const { event, data } = req.body;
-  
-  // Respond quickly
-  res.status(200).send('OK');
-  
-  // Process asynchronously
-  processWebhook(event, data);
-});
-```
+| Service | Port | Protocol | Purpose |
+|---------|------|----------|---------|
+| Next.js (main) | 3000 | HTTP | Main application (614 API routes) |
+| Captive Redirect | 8888 | HTTP | WiFi captive portal redirect |
+| Realtime | 3003 | Socket.IO | Real-time updates |
+| Availability | 3002 | Socket.IO | Room availability |
+| FreeRADIUS Mgmt | 3010 | HTTP | RADIUS management API |
+| FreeRADIUS Server | 1812/1813 | RADIUS | Authentication/Accounting |
 
 ---
 
 ## Support
-
-For integration support:
 
 - **Email**: integrations@cryptsk.com
 - **Documentation**: docs.staysuite.io/integrations

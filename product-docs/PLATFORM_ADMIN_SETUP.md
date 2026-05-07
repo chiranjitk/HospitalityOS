@@ -2,6 +2,10 @@
 
 This guide explains how to set up and manage platform administrators in StaySuite.
 
+**Last Updated**: May 2026
+
+---
+
 ## Overview
 
 Platform administrators have special privileges that allow them to:
@@ -9,10 +13,13 @@ Platform administrators have special privileges that allow them to:
 - View all tenants across the platform
 - Manage tenant subscriptions and limits
 - Access system-wide analytics
+- Manage FreeRADIUS and system health
 
 ## Requirements
 
 A user must have `isPlatformAdmin: true` in the database to access platform-level features.
+
+---
 
 ## Setup Methods
 
@@ -23,65 +30,31 @@ This is the easiest way to create or fix platform admin users.
 #### Step 1: Check if user exists and has platform admin access
 
 ```bash
-# Check user status
 curl -X GET "https://your-domain.com/api/admin/ensure-platform-admin?email=platform@staysuite.com"
-```
-
-Response example:
-```json
-{
-  "exists": true,
-  "user": {
-    "id": "user-platform",
-    "email": "platform@staysuite.com",
-    "firstName": "Platform",
-    "lastName": "Admin",
-    "isPlatformAdmin": false,
-    "status": "active"
-  },
-  "canAccessTenantManagement": false,
-  "hint": "User exists but isPlatformAdmin is false. Use POST endpoint to fix."
-}
 ```
 
 #### Step 2: Create or update platform admin
 
 ```bash
-# Create new or update existing platform admin
 curl -X POST "https://your-domain.com/api/admin/ensure-platform-admin" \
   -H "Content-Type: application/json" \
   -d '{
     "secretKey": "setup-platform-admin-2024",
     "email": "platform@staysuite.com",
-    "password": "your-secure-password"
+    "password": "admin123"
   }'
-```
-
-Response example:
-```json
-{
-  "success": true,
-  "message": "Platform admin updated successfully. Please logout and login again.",
-  "user": {
-    "id": "user-platform",
-    "email": "platform@staysuite.com",
-    "firstName": "Platform",
-    "lastName": "Admin",
-    "isPlatformAdmin": true
-  }
-}
 ```
 
 #### Step 3: Logout and Login Again
 
-After creating/updating the platform admin, you must:
+After creating/updating the platform admin:
 1. Logout from the application
-2. Login again with the new credentials
+2. Login again with the credentials
 3. The session will now include `isPlatformAdmin: true`
 
 ### Method 2: Direct Database Update (PostgreSQL)
 
-If you have direct database access, run this SQL:
+If you have direct database access:
 
 ```sql
 -- Update existing user to be platform admin
@@ -94,17 +67,24 @@ FROM "User" WHERE email = 'platform@staysuite.com';
 
 ### Method 3: Using Seed Data (Development Only)
 
-For development environments, you can run the seed script which creates a platform admin:
+For development environments, run the seed script:
 
 ```bash
 bun run db:seed
 ```
 
-Default credentials from seed:
-- Email: `platform@staysuite.com`
-- Password: `admin123`
+This creates platform admin and tenant admin users:
+
+| Role | Email | Password |
+|------|-------|----------|
+| Platform Admin | platform@staysuite.com | admin123 |
+| Property Admin | admin@royalstay.in | admin123 |
+| Front Desk | frontdesk@royalstay.in | admin123 |
+| Housekeeping | housekeeping@royalstay.in | admin123 |
 
 **Warning:** Running seed will clear and re-seed all data. Do not use in production.
+
+---
 
 ## Security Configuration
 
@@ -113,7 +93,6 @@ Default credentials from seed:
 Set the `PLATFORM_ADMIN_SECRET` environment variable in production:
 
 ```env
-# .env or environment configuration
 PLATFORM_ADMIN_SECRET=your-very-secure-random-string-here
 ```
 
@@ -121,11 +100,13 @@ This secret is required to use the ensure-platform-admin API and prevents unauth
 
 ### Production Recommendations
 
-1. **Use strong passwords** - At least 12 characters with mixed case, numbers, and symbols
-2. **Change the default secret key** - Use a cryptographically secure random string
-3. **Enable Two-Factor Authentication** - After login, enable 2FA in Profile > Security
-4. **Limit platform admins** - Only grant platform admin to trusted users
-5. **Monitor audit logs** - Review admin actions in Security Center > Audit Logs
+1. **Use strong passwords** — At least 12 characters with mixed case, numbers, and symbols
+2. **Change the default secret key** — Use a cryptographically secure random string
+3. **Enable Two-Factor Authentication** — After login, enable 2FA in Security Center
+4. **Limit platform admins** — Only grant platform admin to trusted users
+5. **Monitor audit logs** — Review admin actions in Security Center → Audit Logs
+
+---
 
 ## Troubleshooting
 
@@ -139,7 +120,7 @@ This secret is required to use the ensure-platform-admin API and prevents unauth
 
 **Cause:** Your session still has the old user data cached
 
-**Solution:** 
+**Solution:**
 1. Clear browser cookies
 2. Logout and login again
 3. Or use a private/incognito window
@@ -152,6 +133,8 @@ This secret is required to use the ensure-platform-admin API and prevents unauth
 1. Refresh the page (F5)
 2. Clear browser cache
 3. Logout and login again
+
+---
 
 ## API Reference
 
@@ -179,9 +162,9 @@ Create or update a platform admin user.
 **Request Body:**
 ```json
 {
-  "secretKey": string,     // Required: PLATFORM_ADMIN_SECRET or default
-  "email": string,         // Optional: Default "platform@staysuite.com"
-  "password": string       // Optional: Default "admin123"
+  "secretKey": string,
+  "email": string,
+  "password": string
 }
 ```
 
@@ -200,8 +183,20 @@ Create or update a platform admin user.
 }
 ```
 
+---
+
+## Demo Tenants
+
+The seed script creates these tenants:
+
+| Tenant | Admin Email | Properties |
+|--------|-----------|------------|
+| Royal Stay Hotels | admin@royalstay.in | Royal Stay Kolkata (120 rooms), Royal Stay Darjeeling (50 rooms) |
+| Ocean View Resorts | admin@oceanview.com | - |
+
+---
+
 ## Related Documentation
 
-- [Multi-Tenant Architecture](./postgresql-migration-notes.md)
-- [Audit Log Implementation](./AUDIT_LOG_IMPLEMENTATION.md)
-- [Feature Implementation Report](./FEATURE_IMPLEMENTATION_REPORT.md)
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [DEPLOYMENT.md](./DEPLOYMENT.md)

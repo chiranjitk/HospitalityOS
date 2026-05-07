@@ -69,7 +69,7 @@
 | **TypeScript** | 5 | Language (strict mode) |
 | **React** | 19 | UI library |
 | **Tailwind CSS** | 4 | Styling |
-| **Prisma** | 6.x | ORM (SQLite only) |
+| **Prisma** | 6.x | ORM (PostgreSQL 17 only) |
 | **Bun** | latest | Package manager & runtime |
 
 ### Libraries (Use these, do NOT add alternatives)
@@ -183,7 +183,7 @@ prisma/
 └── seed.ts                       # Database seed script
 
 db/
-└── custom.db                     # SQLite database file
+└── custom.db                     # PostgreSQL 17 database file
 
 mini-services/                    # Independent Bun services
 ├── realtime-service/             # Port 3003 — Socket.IO
@@ -628,7 +628,7 @@ await db.auditLog.create({
 
 ### Configuration
 
-- **Database**: SQLite at `file:/home/z/my-project/db/custom.db`
+- **Database**: PostgreSQL 17 at `file:/home/z/my-project/db/custom.db`
 - **Schema**: `prisma/schema.prisma` (4296 lines, 100+ models)
 - **Client**: `import { db } from '@/lib/db'` — singleton pattern
 - **Migrations**: `bun run db:push` (use this, not `db:migrate` for dev)
@@ -884,7 +884,7 @@ Key components used frequently:
 
 - **Port 3000** only for Next.js (sandbox restriction)
 - **Single external port** — Caddy gateway on port 81 handles routing
-- **SQLite only** — no MySQL/PostgreSQL
+- **PostgreSQL 17 only** — no MySQL/PostgreSQL
 - **No build** — use `bun run dev` only
 
 ### Common Mistakes
@@ -1273,7 +1273,7 @@ When starting a new AI session, paste this:
 
 ## Current Task: [describe ONE specific task]
 
-## Tech Stack: Next.js 16, TypeScript, Tailwind CSS 4, Prisma (SQLite), Zustand, shadcn/ui
+## Tech Stack: Next.js 16, TypeScript, Tailwind CSS 4, Prisma (PostgreSQL 17), Zustand, shadcn/ui
 ## Key Constraint: 3-tier lazy loading system — DO NOT modify section loading mechanism
 ## Server Start: bun run dev (port 3000, already running in background)
 ## Lint Check: bun run lint
