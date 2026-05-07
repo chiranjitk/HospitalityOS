@@ -439,7 +439,16 @@
     "help-tutorials": "Progression des tutoriels",
     "surveillance": "Surveillance",
     "iot": "Hôtel intelligent / IoT",
-    "wifi-diagnostics": "Diagnostics de Passerelle"
+    "wifi-diagnostics": "Diagnostics de Passerelle",
+    "pms-package-plans": "Forfaits",
+    "billing-night-audit": "Audit de Nuit",
+    "billing-city-ledger": "Grand Livre Ville",
+    "billing-commissions": "Commissions",
+    "billing-posting-rules": "Règles de Comptabilisation",
+    "billing-scheduled-charges": "Frais Planifiés",
+    "housekeeping-lost-found": "Objets Trouvés",
+    "housekeeping-minibar": "Minibar",
+    "housekeeping-laundry": "Blanchisserie"
   },
   "layout": {
     "searchNavigation": "Rechercher dans la navigation...",

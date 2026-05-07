@@ -439,7 +439,16 @@
     "help-tutorials": "チュートリアル進捗",
     "surveillance": "監視",
     "iot": "スマートホテル / IoT",
-    "wifi-diagnostics": "ゲートウェイ診断"
+    "wifi-diagnostics": "ゲートウェイ診断",
+    "pms-package-plans": "パッケージプラン",
+    "billing-night-audit": "ナイト監査",
+    "billing-city-ledger": "シティ元帳",
+    "billing-commissions": "コミッション",
+    "billing-posting-rules": "転記ルール",
+    "billing-scheduled-charges": "予定料金",
+    "housekeeping-lost-found": "遺失物管理",
+    "housekeeping-minibar": "ミニバー",
+    "housekeeping-laundry": "ランドリー"
   },
   "layout": {
     "searchNavigation": "ナビゲーションを検索...",

@@ -439,7 +439,16 @@
     "help-tutorials": "பயிற்சி முன்னேற்றம்",
     "surveillance": "கண்காணிப்பு",
     "iot": "ஸ்மார்ட் ஹோட்டல் / IoT",
-    "wifi-diagnostics": "கேட்வே பரிசோதனை"
+    "wifi-diagnostics": "கேட்வே பரிசோதனை",
+    "pms-package-plans": "தொகுப்புத் திட்டங்கள்",
+    "billing-night-audit": "இரவு தணிக்கை",
+    "billing-city-ledger": "நகர பேரேடு",
+    "billing-commissions": "கமிஷன்கள்",
+    "billing-posting-rules": "பதிவு விதிகள்",
+    "billing-scheduled-charges": "திட்டமிடப்பட்ட கட்டணங்கள்",
+    "housekeeping-lost-found": "தொலைந்த-கண்டுபிடிக்கப்பட்ட",
+    "housekeeping-minibar": "மினிபார்",
+    "housekeeping-laundry": "துணி அலவை"
   },
   "layout": {
     "searchNavigation": "வழிசெலுத்தலைத் தேடு...",

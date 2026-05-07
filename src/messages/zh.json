@@ -439,7 +439,16 @@
     "help-tutorials": "教程进度",
     "surveillance": "监控",
     "iot": "智慧酒店 / IoT",
-    "wifi-diagnostics": "网关诊断"
+    "wifi-diagnostics": "网关诊断",
+    "pms-package-plans": "套餐计划",
+    "billing-night-audit": "夜间审计",
+    "billing-city-ledger": "城市分类账",
+    "billing-commissions": "佣金",
+    "billing-posting-rules": "过账规则",
+    "billing-scheduled-charges": "计划费用",
+    "housekeeping-lost-found": "失物招领",
+    "housekeeping-minibar": "迷你吧",
+    "housekeeping-laundry": "洗衣服务"
   },
   "layout": {
     "searchNavigation": "搜索导航...",

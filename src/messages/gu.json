@@ -439,7 +439,16 @@
     "help-tutorials": "ટ્યુટોરિયલ પ્રગતિ",
     "surveillance": "સર્વેલન્સ",
     "iot": "સ્માર્ટ હોટેલ / IoT",
-    "wifi-diagnostics": "ગેટવે ડાયગ્નોસ્ટિક્સ"
+    "wifi-diagnostics": "ગેટવે ડાયગ્નોસ્ટિક્સ",
+    "pms-package-plans": "પેકેજ પ્લાન",
+    "billing-night-audit": "નાઇટ ઓડિટ",
+    "billing-city-ledger": "સિટી લેજર",
+    "billing-commissions": "કમિશન",
+    "billing-posting-rules": "પોસ્ટિંગ નિયમો",
+    "billing-scheduled-charges": "શેડ્યુલ્ડ ચાર્જીસ",
+    "housekeeping-lost-found": "ખોવાયેલ-મળેલ",
+    "housekeeping-minibar": "મિનિબાર",
+    "housekeeping-laundry": "લોન્ડ્રી"
   },
   "layout": {
     "searchNavigation": "નેવિગેશન શોધો...",

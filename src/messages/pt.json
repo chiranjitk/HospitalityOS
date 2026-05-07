@@ -439,7 +439,16 @@
     "help-tutorials": "Progresso dos tutoriais",
     "surveillance": "Vigilância",
     "iot": "Hotel Inteligente / IoT",
-    "wifi-diagnostics": "Diagnóstico de Gateway"
+    "wifi-diagnostics": "Diagnóstico de Gateway",
+    "pms-package-plans": "Planos de Pacotes",
+    "billing-night-audit": "Auditoria Noturna",
+    "billing-city-ledger": "Livro-Cidade",
+    "billing-commissions": "Comissões",
+    "billing-posting-rules": "Regras de Lançamento",
+    "billing-scheduled-charges": "Cobranças Agendadas",
+    "housekeeping-lost-found": "Achados e Perdidos",
+    "housekeeping-minibar": "Minibar",
+    "housekeeping-laundry": "Lavanderia"
   },
   "layout": {
     "searchNavigation": "Pesquisar navegação...",

@@ -439,7 +439,16 @@
     "help-tutorials": "ട്യൂട്ടോറിയൽ പ്രോഗ്രസ്",
     "surveillance": "സർവെയിലൻസ്",
     "iot": "സ്മാർട്ട് ഹോട്ടൽ / IoT",
-    "wifi-diagnostics": "ഗേറ്റ്‌വേ ഡയഗ്നോസ്റ്റിക്സ്"
+    "wifi-diagnostics": "ഗേറ്റ്‌വേ ഡയഗ്നോസ്റ്റിക്സ്",
+    "pms-package-plans": "പാക്കേജ് പ്ലാനുകൾ",
+    "billing-night-audit": "നൈറ്റ് ഓഡിറ്റ്",
+    "billing-city-ledger": "സിറ്റി ലെഡ്ജർ",
+    "billing-commissions": "കമ്മീഷനുകൾ",
+    "billing-posting-rules": "പോസ്റ്റിംഗ് നിയമങ്ങൾ",
+    "billing-scheduled-charges": "ഷെഡ്യൂൾഡ് ചാർജുകൾ",
+    "housekeeping-lost-found": "നഷ്ടമായ-കണ്ടെത്തിയ",
+    "housekeeping-minibar": "മിനിബാർ",
+    "housekeeping-laundry": "ലോണ്ടറി"
   },
   "layout": {
     "searchNavigation": "നാവിഗേഷൻ തിരയുക...",

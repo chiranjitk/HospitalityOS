@@ -439,7 +439,16 @@
     "help-tutorials": "ట్యుటోరియల్ ప్రోగ్రెస్",
     "surveillance": "సర్వైలెన్స్",
     "iot": "స్మార్ట్ హోటల్ / IoT",
-    "wifi-diagnostics": "గేట్‌వే డయాగ్నాస్టిక్స్"
+    "wifi-diagnostics": "గేట్‌వే డయాగ్నాస్టిక్స్",
+    "pms-package-plans": "ప్యాకేజీ ప్లాన్లు",
+    "billing-night-audit": "నైట్ ఆడిట్",
+    "billing-city-ledger": "సిటీ లెడ్జర్",
+    "billing-commissions": "కమిషన్లు",
+    "billing-posting-rules": "పోస్టింగ్ నియమాలు",
+    "billing-scheduled-charges": "షెడ్యూల్డ్ చార్జీలు",
+    "housekeeping-lost-found": "లాస్ట్ & ఫౌండ్",
+    "housekeeping-minibar": "మినిబార్",
+    "housekeeping-laundry": "లాండ్రీ"
   },
   "layout": {
     "searchNavigation": "నావిగేషన్ వెతకండి...",

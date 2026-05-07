@@ -439,7 +439,16 @@
     "help-tutorials": "Tutorial-Fortschritt",
     "surveillance": "Überwachung",
     "iot": "Smart Hotel / IoT",
-    "wifi-diagnostics": "Gateway-Diagnose"
+    "wifi-diagnostics": "Gateway-Diagnose",
+    "pms-package-plans": "Paketpläne",
+    "billing-night-audit": "Nachtprüfung",
+    "billing-city-ledger": "Stadthauptbuch",
+    "billing-commissions": "Provisionen",
+    "billing-posting-rules": "Buchungsregeln",
+    "billing-scheduled-charges": "Geplante Gebühren",
+    "housekeeping-lost-found": "Fundbüro",
+    "housekeeping-minibar": "Minibar",
+    "housekeeping-laundry": "Wäscherei"
   },
   "layout": {
     "searchNavigation": "Navigation durchsuchen...",

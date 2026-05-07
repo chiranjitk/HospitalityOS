@@ -439,7 +439,16 @@
     "help-tutorials": "تقدم البرامج التعليمية",
     "surveillance": "المراقبة",
     "iot": "الفندق الذكي / إنترنت الأشياء",
-    "wifi-diagnostics": "تشخيص البوابة"
+    "wifi-diagnostics": "تشخيص البوابة",
+    "pms-package-plans": "باقات التخطيط",
+    "billing-night-audit": "تدقيق ليلي",
+    "billing-city-ledger": "دفتر المدينة",
+    "billing-commissions": "عمولات",
+    "billing-posting-rules": "قواعد الترحيل",
+    "billing-scheduled-charges": "رسوم مجدولة",
+    "housekeeping-lost-found": "مفقودات وموجودات",
+    "housekeeping-minibar": "ميني بار",
+    "housekeeping-laundry": "غسيل"
   },
   "layout": {
     "searchNavigation": "البحث في التنقل...",

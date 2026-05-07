@@ -439,7 +439,16 @@
     "help-tutorials": "টিউটোরিয়াল অগ্রগতি",
     "surveillance": "সার্ভিল্যান্স",
     "iot": "স্মার্ট হোটেল / IoT",
-    "wifi-diagnostics": "গেটওয়ে ডায়াগনস্টিক্স"
+    "wifi-diagnostics": "গেটওয়ে ডায়াগনস্টিক্স",
+    "pms-package-plans": "প্যাকেজ পরিকল্পনা",
+    "billing-night-audit": "নাইট অডিট",
+    "billing-city-ledger": "সিটি লেজার",
+    "billing-commissions": "কমিশন",
+    "billing-posting-rules": "পোস্টিং নিয়ম",
+    "billing-scheduled-charges": "নির্ধারিত চার্জ",
+    "housekeeping-lost-found": "হারানো-পাওনা",
+    "housekeeping-minibar": "মিনিবার",
+    "housekeeping-laundry": "লন্ড্রি"
   },
   "layout": {
     "searchNavigation": "নেভিগেশন খুঁজুন...",
