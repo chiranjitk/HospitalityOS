@@ -1807,15 +1807,24 @@ model FirewallRule {
   tenantId     String       @db.Uuid
   propertyId   String       @db.Uuid
   zoneId       String       @db.Uuid
-  chain        String       @default("input") // input, forward, output, prerouting, postrouting
+  chain        String?      @default("input") // nullable for auto-resolve mode; input, forward, output, prerouting, postrouting
   protocol     String? // tcp, udp, icmp, or null for all
   sourceIp     String?
-  sourcePort   Int?
+  sourceMac    String?      // Source MAC address filter (ether saddr)
+  sourcePort   String?      // String to support ranges like "8000-9000"
+  sourcePortType String?   // 'include' or 'exclude'
   destIp       String?
-  destPort     Int?
-  action       String       @default("accept") // accept, drop, reject, log, jump
+  destPort     String?      // String to support ranges like "8000-9000"
+  destPortType String?      // 'include' or 'exclude'
+  action       String       @default("accept") // accept, drop, reject, log, jump, proxy, dnat, snat, masquerade, mark
   jumpTarget   String? // For jump action
   logPrefix    String?
+  proxyTo      String?      // Proxy address:port for DNAT redirect
+  sourceIpType     String?  @default("ip")    // Auto-detected: 'ip', 'cidr', 'domain'
+  destIpType       String?  @default("ip")    // Auto-detected: 'ip', 'cidr', 'domain'
+  sourceIpResolved String?                 // JSON array of resolved IPs when type=domain
+  destIpResolved   String?                 // JSON array of resolved IPs when type=domain
+  name              String   @default("Unnamed Rule") @db.VarChar(255)
   enabled      Boolean      @default(true)
   comment      String?
   priority     Int          @default(0)
@@ -3790,6 +3799,7 @@ model PortForwardRule {
   externalPort Int
   internalIp   String
   internalPort Int
+  sourceIp     String?  // Source IP restriction (CIDR) for DNAT rule
   interfaceId  String?  @db.Uuid
   enabled      Boolean  @default(true)
   description  String?

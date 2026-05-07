@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission, resolvePropertyId } from '@/lib/auth/tenant-context';
 import { fullApplyToNftables } from '@/lib/nftables-helper';
+import { resolveRuleAddresses } from '@/lib/dns-resolver';
 
 // GET /api/wifi/firewall/gui-rules — List all FirewallRules for the property
 export async function GET(request: NextRequest) {
@@ -52,9 +53,12 @@ export async function POST(request: NextRequest) {
       chain = 'prerouting',
       protocol,
       sourceIp,
+      sourceMac,
       sourcePort,
+      sourcePortType,
       destIp,
       destPort,
+      destPortType,
       action = 'accept',
       jumpTarget,
       logPrefix,
@@ -62,6 +66,7 @@ export async function POST(request: NextRequest) {
       comment,
       priority = 0,
       scheduleId,
+      proxyTo,
     } = body;
 
     const propertyId = await resolvePropertyId(user, explicitPropertyId);
@@ -103,24 +108,58 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Validate port types: only 'include' or 'exclude' accepted
+    if (sourcePortType && sourcePortType !== 'include' && sourcePortType !== 'exclude') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid sourcePortType: must be "include" or "exclude"' },
+        { status: 400 },
+      );
+    }
+    if (destPortType && destPortType !== 'include' && destPortType !== 'exclude') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid destPortType: must be "include" or "exclude"' },
+        { status: 400 },
+      );
+    }
+
+    // Validate proxy action: if action === 'proxy', proxyTo must be provided
+    if (action === 'proxy' && !proxyTo) {
+      return NextResponse.json(
+        { success: false, error: 'proxyTo is required when action is "proxy"' },
+        { status: 400 },
+      );
+    }
+
+    // Resolve DNS for sourceIp and destIp
+    const resolved = await resolveRuleAddresses({ sourceIp, destIp });
+
     const rule = await db.firewallRule.create({
       data: {
         tenantId: user.tenantId,
         propertyId,
         zoneId,
-        chain,
+        chain: chain || null,
         protocol: protocol || null,
         sourceIp: sourceIp || null,
-        sourcePort: sourcePort !== undefined ? parseInt(sourcePort, 10) : null,
+        sourceMac: sourceMac || null,
+        sourcePort: sourcePort || null,
+        sourcePortType: (sourcePortType === 'include' || sourcePortType === 'exclude') ? sourcePortType : null,
         destIp: destIp || null,
-        destPort: destPort !== undefined ? parseInt(destPort, 10) : null,
+        destPort: destPort || null,
+        destPortType: (destPortType === 'include' || destPortType === 'exclude') ? destPortType : null,
         action,
         jumpTarget: jumpTarget || null,
         logPrefix: logPrefix || null,
+        proxyTo: proxyTo || null,
         enabled,
         comment: comment || null,
         priority: parseInt(priority, 10) || 0,
         scheduleId: scheduleId || null,
+        name: body.name || 'Unnamed Rule',
+        sourceIpType: resolved.sourceIpType,
+        destIpType: resolved.destIpType,
+        sourceIpResolved: resolved.sourceIpResolved.length > 0 ? JSON.stringify(resolved.sourceIpResolved) : null,
+        destIpResolved: resolved.destIpResolved.length > 0 ? JSON.stringify(resolved.destIpResolved) : null,
       },
       include: {
         firewallZone: { select: { id: true, name: true } },
@@ -131,7 +170,7 @@ export async function POST(request: NextRequest) {
     // Fire-and-forget apply
     try { fullApplyToNftables(user.tenantId); } catch {}
 
-    return NextResponse.json({ success: true, data: rule }, { status: 201 });
+    return NextResponse.json({ success: true, data: rule, dnsWarnings: resolved.dnsWarnings }, { status: 201 });
   } catch (error) {
     console.error('[gui-rules] POST error:', error);
     return NextResponse.json(

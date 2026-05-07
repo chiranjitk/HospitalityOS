@@ -54,13 +54,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const { name, protocol, externalPort, internalIp, internalPort, interfaceId, enabled, description } = body;
+    const { name, protocol, sourceIp, externalPort, internalIp, internalPort, interfaceId, enabled, description } = body;
 
     const rule = await db.portForwardRule.update({
       where: { id },
       data: {
         ...(name !== undefined && { name }),
         ...(protocol !== undefined && { protocol }),
+        ...(sourceIp !== undefined && { sourceIp: sourceIp || null }),
         ...(externalPort !== undefined && { externalPort: parseInt(externalPort, 10) }),
         ...(internalIp !== undefined && { internalIp }),
         ...(internalPort !== undefined && { internalPort: parseInt(internalPort, 10) }),

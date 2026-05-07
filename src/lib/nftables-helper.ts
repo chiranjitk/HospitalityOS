@@ -59,6 +59,57 @@ export const ALL_GUI_CHAINS = [
 /** Type representing any of the 6 GUI chain names. */
 export type GuiChain = (typeof ALL_GUI_CHAINS)[number];
 
+// ─── Action → Chain Auto-Resolution ──────────────────────────────────────────
+
+/** Special action value marking proxy redirect rules */
+export const PROXY_ACTION = 'proxy';
+
+/** Actions that support auto-resolving to appropriate nftables chains */
+export type ResolvableAction =
+  | 'accept' | 'drop' | 'reject' | 'log'
+  | 'proxy' | 'dnat' | 'snat' | 'masquerade' | 'mark';
+
+/**
+ * Map a firewall action to the appropriate nftables chains.
+ * This eliminates the need for manual chain selection in the GUI.
+ */
+export function resolveChains(action: string): string[] {
+  switch (action) {
+    case 'accept':
+    case 'drop':
+    case 'reject':
+    case 'log':
+      // Filter actions → all 4 mangle chains
+      return [
+        'firewallchains',
+        'firewallchainsdn',
+        'firewallchains_conn',
+        'firewallchainsdn_conn',
+      ];
+    case 'proxy':
+      // Proxy redirect → both NAT chains (pre for DNAT, post for possible SNAT)
+      return ['frchainspre', 'frchainspost'];
+    case 'dnat':
+      // Destination NAT → prerouting only
+      return ['frchainspre'];
+    case 'snat':
+    case 'masquerade':
+      // Source NAT → postrouting only
+      return ['frchainspost'];
+    case 'mark':
+      // Packet marking → conntrack chains only
+      return ['firewallchains_conn', 'firewallchainsdn_conn'];
+    default:
+      // Fallback: all 4 mangle chains (safety)
+      return [
+        'firewallchains',
+        'firewallchainsdn',
+        'firewallchains_conn',
+        'firewallchainsdn_conn',
+      ];
+  }
+}
+
 // ─── Chain Metadata ──────────────────────────────────────────────────────────
 
 /**

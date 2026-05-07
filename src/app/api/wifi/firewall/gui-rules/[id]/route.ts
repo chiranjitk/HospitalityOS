@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { fullApplyToNftables } from '@/lib/nftables-helper';
+import { resolveRuleAddresses } from '@/lib/dns-resolver';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -60,26 +61,64 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const {
-      chain, protocol, sourceIp, sourcePort, destIp, destPort,
-      action, jumpTarget, logPrefix, enabled, comment, priority, scheduleId,
+      chain, protocol, sourceIp, sourceMac, sourcePort, sourcePortType,
+      destIp, destPort, destPortType,
+      action, jumpTarget, logPrefix, enabled, comment, priority, scheduleId, proxyTo,
     } = body;
+
+    // Validate port types: only 'include' or 'exclude' accepted
+    if (sourcePortType && sourcePortType !== 'include' && sourcePortType !== 'exclude') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid sourcePortType: must be "include" or "exclude"' },
+        { status: 400 },
+      );
+    }
+    if (destPortType && destPortType !== 'include' && destPortType !== 'exclude') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid destPortType: must be "include" or "exclude"' },
+        { status: 400 },
+      );
+    }
+
+    // Validate proxy action: if action === 'proxy', proxyTo must be provided
+    if (action === 'proxy' && !proxyTo) {
+      return NextResponse.json(
+        { success: false, error: 'proxyTo is required when action is "proxy"' },
+        { status: 400 },
+      );
+    }
+
+    // Resolve DNS for sourceIp and destIp (use existing values if not provided)
+    const resolved = await resolveRuleAddresses({
+      sourceIp: sourceIp !== undefined ? sourceIp : existing.sourceIp,
+      destIp: destIp !== undefined ? destIp : existing.destIp,
+    });
 
     const rule = await db.firewallRule.update({
       where: { id },
       data: {
-        ...(chain !== undefined && { chain }),
+        ...(chain !== undefined && { chain: chain || null }),
         ...(protocol !== undefined && { protocol: protocol || null }),
         ...(sourceIp !== undefined && { sourceIp: sourceIp || null }),
-        ...(sourcePort !== undefined && { sourcePort: sourcePort ? parseInt(sourcePort, 10) : null }),
+        ...(sourceMac !== undefined && { sourceMac: sourceMac || null }),
+        ...(sourcePort !== undefined && { sourcePort: sourcePort || null }),
+        ...(sourcePortType !== undefined && { sourcePortType: (sourcePortType === 'include' || sourcePortType === 'exclude') ? sourcePortType : null }),
         ...(destIp !== undefined && { destIp: destIp || null }),
-        ...(destPort !== undefined && { destPort: destPort ? parseInt(destPort, 10) : null }),
+        ...(destPort !== undefined && { destPort: destPort || null }),
+        ...(destPortType !== undefined && { destPortType: (destPortType === 'include' || destPortType === 'exclude') ? destPortType : null }),
         ...(action !== undefined && { action }),
         ...(jumpTarget !== undefined && { jumpTarget: jumpTarget || null }),
         ...(logPrefix !== undefined && { logPrefix: logPrefix || null }),
+        ...(proxyTo !== undefined && { proxyTo: proxyTo || null }),
         ...(enabled !== undefined && { enabled }),
         ...(comment !== undefined && { comment: comment || null }),
         ...(priority !== undefined && { priority: parseInt(priority, 10) || 0 }),
         ...(scheduleId !== undefined && { scheduleId: scheduleId || null }),
+        ...(body.name !== undefined && { name: body.name || 'Unnamed Rule' }),
+        sourceIpType: resolved.sourceIpType,
+        destIpType: resolved.destIpType,
+        sourceIpResolved: resolved.sourceIpResolved.length > 0 ? JSON.stringify(resolved.sourceIpResolved) : null,
+        destIpResolved: resolved.destIpResolved.length > 0 ? JSON.stringify(resolved.destIpResolved) : null,
       },
       include: {
         firewallZone: { select: { id: true, name: true } },
@@ -90,7 +129,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Fire-and-forget apply
     try { fullApplyToNftables(user.tenantId); } catch {}
 
-    return NextResponse.json({ success: true, data: rule });
+    return NextResponse.json({ success: true, data: rule, dnsWarnings: resolved.dnsWarnings });
   } catch (error) {
     console.error('[gui-rules/:id] PUT error:', error);
     return NextResponse.json(

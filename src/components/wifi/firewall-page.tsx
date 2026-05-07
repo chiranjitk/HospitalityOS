@@ -95,6 +95,7 @@ import {
   ChevronRight,
   Play,
   Trash,
+  Fingerprint,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -121,13 +122,21 @@ interface GuiRule {
   chain: string;
   protocol: string;
   sourceIp: string;
+  sourceMac: string;
+  sourcePort: string;
+  sourcePortType: string;
   destIp: string;
   destPort: string;
+  destPortType: string;
   action: string;
+  proxyTo: string;
+  sourceIpType: string;
+  destIpType: string;
+  sourceIpResolved: string;
+  destIpResolved: string;
   enabled: boolean;
   comment: string;
   priority: number;
-  handle: number;
   createdAt: string;
 }
 
@@ -140,8 +149,9 @@ interface PortForward {
   internalPort: number;
   sourceIp: string;
   enabled: boolean;
-  handle: number;
+  description: string | null;
   createdAt: string;
+  interfaceId: string | null;
 }
 
 interface RateLimit {
@@ -161,9 +171,10 @@ interface QuickBlock {
   id: string;
   type: string;
   value: string;
-  reason: string;
-  blockedAt: string;
-  handle: number;
+  reason: string | null;
+  enabled: boolean;
+  expiresAt: string | null;
+  createdAt: string;
 }
 
 interface Preset {
@@ -260,6 +271,7 @@ function ActionBadge({ action }: { action: string }) {
     drop: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-700',
     reject: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-orange-200 dark:border-orange-700',
     log: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-700',
+    masquerade: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700',
   };
   return (
     <Badge variant="outline" className={cn('text-xs font-semibold', colors[action] || '')}>
@@ -273,9 +285,23 @@ function BlockTypeBadge({ type }: { type: string }) {
     ip: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700',
     subnet: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border-purple-200 dark:border-purple-700',
     mac: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300 border-pink-200 dark:border-pink-700',
+    domain: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 border-sky-200 dark:border-sky-700',
   };
   return (
     <Badge variant="outline" className={cn('text-xs font-semibold', colors[type] || '')}>
+      {type.toUpperCase()}
+    </Badge>
+  );
+}
+
+function IpTypeBadge({ type }: { type: string }) {
+  const colors: Record<string, string> = {
+    ip: 'bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-300 border-slate-200 dark:border-slate-700',
+    cidr: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 border-violet-200 dark:border-violet-700',
+    domain: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 border-sky-200 dark:border-sky-700',
+  };
+  return (
+    <Badge variant="outline" className={cn('text-[9px] font-bold tracking-wide px-1.5 py-0', colors[type] || '')}>
       {type.toUpperCase()}
     </Badge>
   );
@@ -327,6 +353,24 @@ function ChainBadge({ chain }: { chain: string }) {
       </TooltipContent>
     </Tooltip>
   );
+}
+
+function parseResolvedIps(json: string | null): string[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function clientSideDetectType(val: string | null | undefined): 'ip' | 'cidr' | 'domain' | null {
+  if (!val) return null;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(val)) return 'ip';
+  if (/^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$/.test(val)) return 'cidr';
+  if (/[a-z]/.test(val) && val.includes('.')) return 'domain';
+  return null;
 }
 
 const RATE_PRESETS = [
@@ -444,17 +488,23 @@ function RulesTab() {
   const [filters, setFilters] = useState({ protocol: 'all', action: 'all', chain: 'all' });
   const [nftablesMode, setNftablesMode] = useState<'production' | 'simulation' | null>(null);
 
-  const [form, setForm] = useState({
+  const DEFAULT_RULE_FORM = {
     name: '',
     chain: 'firewallchains',
     protocol: 'tcp',
     sourceIp: '',
     destIp: '',
+    sourceMac: '',
+    sourcePort: '',
+    sourcePortType: 'include',
     destPort: '',
+    destPortType: 'include',
     action: 'accept',
     comment: '',
     enabled: true,
-  });
+  };
+
+  const [form, setForm] = useState(DEFAULT_RULE_FORM);
 
   const fetchRules = useCallback(async () => {
     try {
@@ -492,20 +542,24 @@ function RulesTab() {
 
   const openAdd = () => {
     setEditingRule(null);
-    setForm({ name: '', chain: 'firewallchains', protocol: 'tcp', sourceIp: '', destIp: '', destPort: '', action: 'accept', comment: '', enabled: true });
+    setForm(DEFAULT_RULE_FORM);
     setDialogOpen(true);
   };
 
   const openEdit = (r: GuiRule) => {
     setEditingRule(r);
     setForm({
-      name: r.name,
+      name: r.name || '',
       chain: r.chain || 'firewallchains',
-      protocol: r.protocol,
+      protocol: r.protocol || 'tcp',
       sourceIp: r.sourceIp || '',
       destIp: r.destIp || '',
+      sourceMac: r.sourceMac || '',
+      sourcePort: r.sourcePort || '',
+      sourcePortType: r.sourcePortType || 'include',
       destPort: r.destPort || '',
-      action: r.action,
+      destPortType: r.destPortType || 'include',
+      action: r.action || 'accept',
       comment: r.comment || '',
       enabled: r.enabled,
     });
@@ -517,6 +571,19 @@ function RulesTab() {
       toast({ title: 'Validation Error', description: 'Rule name is required', variant: 'destructive' });
       return;
     }
+    if (form.sourceMac && !/^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/.test(form.sourceMac.trim())) {
+      toast({ title: 'Validation Error', description: 'Invalid MAC address format (expected: AA:BB:CC:DD:EE:FF)', variant: 'destructive' });
+      return;
+    }
+    const portRegex = /^(\d{1,5}(-\d{1,5})?)(,\d{1,5}(-\d{1,5})?)*$/;
+    if (form.sourcePort && !portRegex.test(form.sourcePort.trim())) {
+      toast({ title: 'Validation Error', description: 'Invalid source port format (expected: 80, 8000-9000)', variant: 'destructive' });
+      return;
+    }
+    if (form.destPort && !portRegex.test(form.destPort.trim())) {
+      toast({ title: 'Validation Error', description: 'Invalid destination port format', variant: 'destructive' });
+      return;
+    }
     try {
       setSaving(true);
       if (editingRule) {
@@ -525,6 +592,11 @@ function RulesTab() {
           body: JSON.stringify(form),
         });
         showApplyToast(toast, res.nftables, `Rule "${form.name}" updated`);
+        if (res.data && (res.data as any).dnsWarnings && (res.data as any).dnsWarnings.length > 0) {
+          (res.data as any).dnsWarnings.forEach((w: string) => {
+            toast({ title: 'DNS Warning', description: w, variant: 'destructive' });
+          });
+        }
       } else {
         const maxP = rules.length > 0 ? Math.max(...rules.map((r) => r.priority)) : 0;
         const res = await apiFetch(`${API_BASE}/gui-rules`, {
@@ -532,6 +604,11 @@ function RulesTab() {
           body: JSON.stringify({ ...form, priority: maxP + 10 }),
         });
         showApplyToast(toast, res.nftables, `Rule "${form.name}" created`);
+        if (res.data && (res.data as any).dnsWarnings && (res.data as any).dnsWarnings.length > 0) {
+          (res.data as any).dnsWarnings.forEach((w: string) => {
+            toast({ title: 'DNS Warning', description: w, variant: 'destructive' });
+          });
+        }
       }
       setDialogOpen(false);
       await fetchRules();
@@ -561,7 +638,7 @@ function RulesTab() {
     const rule = rules.find((r) => r.id === id);
     if (!rule) return;
     try {
-      const res = await apiFetch(`${API_BASE}/gui-rules/${id}/toggle`, {
+      const res = await apiFetch(`${API_BASE}/gui-rules/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({ enabled: !rule.enabled }),
       });
@@ -578,22 +655,18 @@ function RulesTab() {
     if ((dir === 'up' && idx <= 0) || (dir === 'down' && idx >= sorted.length - 1)) return;
 
     const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
-    const tempP = sorted[idx].priority;
-    sorted[idx] = { ...sorted[idx], priority: sorted[swapIdx].priority };
-    sorted[swapIdx] = { ...sorted[swapIdx], priority: tempP };
-    setRules(sorted);
+    const newSorted = [...sorted];
+    const temp = newSorted[idx];
+    newSorted[idx] = newSorted[swapIdx];
+    newSorted[swapIdx] = temp;
+    const orderedIds = newSorted.map((r) => r.id);
+    setRules(newSorted);
 
     try {
-      await Promise.all([
-        apiFetch(`${API_BASE}/gui-rules/${sorted[idx].id}`, {
-          method: 'PUT',
-          body: JSON.stringify({ priority: sorted[idx].priority }),
-        }),
-        apiFetch(`${API_BASE}/gui-rules/${sorted[swapIdx].id}`, {
-          method: 'PUT',
-          body: JSON.stringify({ priority: sorted[swapIdx].priority }),
-        }),
-      ]);
+      await apiFetch(`${API_BASE}/gui-rules`, {
+        method: 'PATCH',
+        body: JSON.stringify({ _action: 'reorder', orderedIds }),
+      });
     } catch {
       toast({ title: 'Error', description: 'Failed to reorder rules', variant: 'destructive' });
       await fetchRules();
@@ -613,10 +686,12 @@ function RulesTab() {
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-9 w-24" />
         </div>
-        <TableSkeleton cols={9} rows={5} />
+        <TableSkeleton cols={11} rows={5} />
       </div>
     );
   }
+
+  if (!form) { setForm(DEFAULT_RULE_FORM); return null; }
 
   return (
     <div className="space-y-4">
@@ -710,23 +785,25 @@ function RulesTab() {
           action={filters.protocol === 'all' && filters.action === 'all' && filters.chain === 'all' ? { label: 'Add Rule', onClick: openAdd } : undefined}
         />
       ) : (
-        <Card className="overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-teal-500 to-emerald-500" />
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+          <Card className="overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-teal-500 to-emerald-500" />
           <CardContent className="p-0">
             <div className="max-h-96 overflow-y-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-16">Pri</TableHead>
-                    <TableHead className="w-28">Chain</TableHead>
                     <TableHead>Name</TableHead>
-                    <TableHead>Protocol</TableHead>
+                    <TableHead>Proto</TableHead>
                     <TableHead>Source</TableHead>
-                    <TableHead>Dest</TableHead>
-                    <TableHead>Port</TableHead>
+                    <TableHead className="w-28">Src MAC</TableHead>
+                    <TableHead className="w-28">Src Port</TableHead>
+                    <TableHead>Destination</TableHead>
+                    <TableHead className="w-28">Dst Port</TableHead>
                     <TableHead>Action</TableHead>
-                    <TableHead className="w-16">On</TableHead>
-                    <TableHead className="w-28 text-right">Actions</TableHead>
+                    <TableHead className="w-12">On</TableHead>
+                    <TableHead className="w-24 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -764,13 +841,10 @@ function RulesTab() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <ChainBadge chain={rule.chain} />
-                      </TableCell>
-                      <TableCell>
                         <div>
                           <span className="font-medium text-sm">{rule.name}</span>
                           {rule.comment && (
-                            <p className="text-xs text-muted-foreground truncate max-w-40">{rule.comment}</p>
+                            <p className="text-xs text-muted-foreground truncate max-w-32">{rule.comment}</p>
                           )}
                         </div>
                       </TableCell>
@@ -779,9 +853,79 @@ function RulesTab() {
                           {rule.protocol.toUpperCase()}
                         </Badge>
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{rule.sourceIp || '—'}</TableCell>
-                      <TableCell className="font-mono text-xs">{rule.destIp || '—'}</TableCell>
-                      <TableCell className="font-mono text-xs">{rule.destPort || '—'}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1">
+                            {rule.sourceIpType && <IpTypeBadge type={rule.sourceIpType} />}
+                            <span className="font-mono text-xs">{rule.sourceIp || '—'}</span>
+                          </div>
+                          {rule.sourceIpResolved && parseResolvedIps(rule.sourceIpResolved).length > 0 && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-[10px] text-muted-foreground truncate max-w-28 cursor-default">
+                                  → {parseResolvedIps(rule.sourceIpResolved).join(', ')}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs text-xs font-mono">
+                                {parseResolvedIps(rule.sourceIpResolved).map((ip, i) => (
+                                  <div key={i}>{ip}</div>
+                                ))}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{rule.sourceMac || '—'}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          {rule.sourcePort && (
+                            <>
+                              {rule.sourcePortType && (
+                                <Badge variant="outline" className="text-[9px] font-bold px-1 py-0 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border-amber-200 dark:border-amber-700">
+                                  {rule.sourcePortType === 'include' ? 'INCL' : 'EXCL'}
+                                </Badge>
+                              )}
+                              <span className="font-mono text-xs">{rule.sourcePort}</span>
+                            </>
+                          ) || '—'}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1">
+                            {rule.destIpType && <IpTypeBadge type={rule.destIpType} />}
+                            <span className="font-mono text-xs">{rule.destIp || '—'}</span>
+                          </div>
+                          {rule.destIpResolved && parseResolvedIps(rule.destIpResolved).length > 0 && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-[10px] text-muted-foreground truncate max-w-28 cursor-default">
+                                  → {parseResolvedIps(rule.destIpResolved).join(', ')}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs text-xs font-mono">
+                                {parseResolvedIps(rule.destIpResolved).map((ip, i) => (
+                                  <div key={i}>{ip}</div>
+                                ))}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          {rule.destPort && (
+                            <>
+                              {rule.destPortType && (
+                                <Badge variant="outline" className="text-[9px] font-bold px-1 py-0 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border-amber-200 dark:border-amber-700">
+                                  {rule.destPortType === 'include' ? 'INCL' : 'EXCL'}
+                                </Badge>
+                              )}
+                              <span className="font-mono text-xs">{rule.destPort}</span>
+                            </>
+                          ) || '—'}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <ActionBadge action={rule.action} />
                       </TableCell>
@@ -820,6 +964,7 @@ function RulesTab() {
             </div>
           </CardContent>
         </Card>
+        </motion.div>
       )}
 
       {/* Add/Edit Dialog */}
@@ -892,35 +1037,93 @@ function RulesTab() {
                     <SelectItem value="drop">Drop</SelectItem>
                     <SelectItem value="reject">Reject</SelectItem>
                     <SelectItem value="log">Log</SelectItem>
+                    <SelectItem value="dnat">DNAT</SelectItem>
+                    <SelectItem value="snat">SNAT</SelectItem>
+                    <SelectItem value="masquerade">Masquerade</SelectItem>
+                    <SelectItem value="mark">Mark</SelectItem>
+                    <SelectItem value="proxy">Proxy</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Source IP / CIDR</Label>
+                <div className="flex items-center gap-1">
+                  <Label>Source IP / CIDR / Domain</Label>
+                  {form.sourceIp && clientSideDetectType(form.sourceIp) && (
+                    <IpTypeBadge type={clientSideDetectType(form.sourceIp)!} />
+                  )}
+                </div>
                 <Input
                   value={form.sourceIp}
                   onChange={(e) => setForm((p) => ({ ...p, sourceIp: e.target.value }))}
-                  placeholder="e.g. 10.0.0.0/24"
+                  placeholder="e.g. 10.0.0.0/24 or example.com"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Dest IP / CIDR</Label>
+                <div className="flex items-center gap-1">
+                  <Label>Dest IP / CIDR / Domain</Label>
+                  {form.destIp && clientSideDetectType(form.destIp) && (
+                    <IpTypeBadge type={clientSideDetectType(form.destIp)!} />
+                  )}
+                </div>
                 <Input
                   value={form.destIp}
                   onChange={(e) => setForm((p) => ({ ...p, destIp: e.target.value }))}
-                  placeholder="e.g. 10.0.0.50"
+                  placeholder="e.g. 10.0.0.50 or api.example.com"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Destination Port</Label>
+              <div className="flex items-center gap-2">
+                <Fingerprint className="h-3.5 w-3.5 text-muted-foreground" />
+                <Label>Source MAC (optional)</Label>
+              </div>
               <Input
-                value={form.destPort}
-                onChange={(e) => setForm((p) => ({ ...p, destPort: e.target.value }))}
-                placeholder="e.g. 5432 or 8000-9000"
+                value={form.sourceMac}
+                onChange={(e) => setForm((p) => ({ ...p, sourceMac: e.target.value }))}
+                placeholder="e.g. AA:BB:CC:DD:EE:FF"
               />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Label className="shrink-0">Source Port</Label>
+                  <Select value={form.sourcePortType} onValueChange={(v) => setForm((p) => ({ ...p, sourcePortType: v }))}>
+                    <SelectTrigger className="w-20 h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="include">INCL</SelectItem>
+                      <SelectItem value="exclude">EXCL</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Input
+                  value={form.sourcePort}
+                  onChange={(e) => setForm((p) => ({ ...p, sourcePort: e.target.value }))}
+                  placeholder="e.g. 80, 8000-9000"
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Label className="shrink-0">Dest Port</Label>
+                  <Select value={form.destPortType} onValueChange={(v) => setForm((p) => ({ ...p, destPortType: v }))}>
+                    <SelectTrigger className="w-20 h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="include">INCL</SelectItem>
+                      <SelectItem value="exclude">EXCL</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Input
+                  value={form.destPort}
+                  onChange={(e) => setForm((p) => ({ ...p, destPort: e.target.value }))}
+                  placeholder="e.g. 5432 or 8000-9000"
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Comment</Label>
@@ -979,15 +1182,13 @@ function PortForwardTab() {
   const [editingFwd, setEditingFwd] = useState<PortForward | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const [form, setForm] = useState({
-    name: '',
-    protocol: 'tcp',
-    externalPort: '',
-    internalIp: '',
-    internalPort: '',
-    sourceIp: '',
-    enabled: true,
-  });
+  const blankForm = { name: '', protocol: 'tcp', externalPort: '', internalIp: '', internalPort: '', sourceIp: '', enabled: true, description: '' };
+
+  const [form, setForm] = useState<{
+    name: string; protocol: string; externalPort: string;
+    internalIp: string; internalPort: string; sourceIp: string;
+    enabled: boolean; description: string;
+  } | null>(null);
 
   const fetchForwards = useCallback(async () => {
     try {
@@ -1007,7 +1208,7 @@ function PortForwardTab() {
 
   const openAdd = () => {
     setEditingFwd(null);
-    setForm({ name: '', protocol: 'tcp', externalPort: '', internalIp: '', internalPort: '', sourceIp: '', enabled: true });
+    setForm({ ...blankForm });
     setDialogOpen(true);
   };
 
@@ -1021,21 +1222,38 @@ function PortForwardTab() {
       internalPort: String(f.internalPort),
       sourceIp: f.sourceIp || '',
       enabled: f.enabled,
+      description: f.description || '',
     });
     setDialogOpen(true);
   };
 
   const saveForward = async () => {
+    if (!form) return;
     if (!form.name.trim() || !form.externalPort || !form.internalIp || !form.internalPort) {
       toast({ title: 'Validation Error', description: 'Name, ports, and internal IP are required', variant: 'destructive' });
+      return;
+    }
+    const extPort = parseInt(form.externalPort, 10);
+    const intPort = parseInt(form.internalPort, 10);
+    if (isNaN(extPort) || extPort < 1 || extPort > 65535) {
+      toast({ title: 'Validation Error', description: 'External port must be between 1 and 65535', variant: 'destructive' });
+      return;
+    }
+    if (isNaN(intPort) || intPort < 1 || intPort > 65535) {
+      toast({ title: 'Validation Error', description: 'Internal port must be between 1 and 65535', variant: 'destructive' });
+      return;
+    }
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
+    if (!ipRegex.test(form.internalIp)) {
+      toast({ title: 'Validation Error', description: 'Invalid internal IP format', variant: 'destructive' });
       return;
     }
     try {
       setSaving(true);
       const body = {
         ...form,
-        externalPort: parseInt(form.externalPort, 10),
-        internalPort: parseInt(form.internalPort, 10),
+        externalPort: extPort,
+        internalPort: intPort,
       };
       if (editingFwd) {
         await apiFetch(`${API_BASE}/port-forwards/${editingFwd.id}`, { method: 'PUT', body: JSON.stringify(body) });
@@ -1072,7 +1290,7 @@ function PortForwardTab() {
     const fwd = forwards.find((f) => f.id === id);
     if (!fwd) return;
     try {
-      await apiFetch(`${API_BASE}/port-forwards/${id}/toggle`, {
+      await apiFetch(`${API_BASE}/port-forwards/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({ enabled: !fwd.enabled }),
       });
@@ -1093,6 +1311,8 @@ function PortForwardTab() {
       </div>
     );
   }
+
+  if (!form) { setForm({ ...blankForm }); return null; }
 
   return (
     <div className="space-y-4">
@@ -1123,68 +1343,78 @@ function PortForwardTab() {
           action={{ label: 'Add Port Forward', onClick: openAdd }}
         />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="max-h-96 overflow-y-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Protocol</TableHead>
-                    <TableHead>Ext Port</TableHead>
-                    <TableHead>Internal IP</TableHead>
-                    <TableHead>Int Port</TableHead>
-                    <TableHead>Source Restriction</TableHead>
-                    <TableHead className="w-16">On</TableHead>
-                    <TableHead className="w-24 text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {forwards.map((fwd) => (
-                    <TableRow key={fwd.id} className={cn(!fwd.enabled && 'opacity-50')}>
-                      <TableCell className="font-medium text-sm">{fwd.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs font-mono">{fwd.protocol.toUpperCase()}</Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">{fwd.externalPort}</TableCell>
-                      <TableCell className="font-mono text-sm">{fwd.internalIp}</TableCell>
-                      <TableCell className="font-mono text-sm">{fwd.internalPort}</TableCell>
-                      <TableCell className="font-mono text-xs">{fwd.sourceIp || '—'}</TableCell>
-                      <TableCell>
-                        <Switch checked={fwd.enabled} onCheckedChange={() => toggleForward(fwd.id)} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(fwd)}>
-                                <Edit2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Edit</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-destructive"
-                                onClick={() => setDeleteId(fwd.id)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Delete</TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </TableCell>
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+          <Card className="overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-teal-500 to-emerald-500" />
+            <CardContent className="p-0">
+              <div className="max-h-96 overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>External → Internal</TableHead>
+                      <TableHead>Source Restriction</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="w-12">On</TableHead>
+                      <TableHead className="w-24 text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {forwards.map((fwd) => (
+                      <TableRow key={fwd.id} className={cn(!fwd.enabled && 'opacity-50')}>
+                        <TableCell>
+                          <div>
+                            <span className="font-medium text-sm">{fwd.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5 font-mono text-xs">
+                            <Badge variant="outline" className="text-xs font-mono shrink-0">{fwd.protocol.toUpperCase()}</Badge>
+                            <span className="text-teal-600 dark:text-teal-400 font-bold">:{fwd.externalPort}</span>
+                            <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <span className="text-emerald-600 dark:text-emerald-400">{fwd.internalIp}</span>
+                            <span className="text-muted-foreground">:</span>
+                            <span className="font-bold">{fwd.internalPort}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{fwd.sourceIp || '—'}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-32 truncate">{fwd.description || '—'}</TableCell>
+                        <TableCell>
+                          <Switch checked={fwd.enabled} onCheckedChange={() => toggleForward(fwd.id)} />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(fwd)}>
+                                  <Edit2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Edit</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-destructive"
+                                  onClick={() => setDeleteId(fwd.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Delete</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       )}
 
       {/* Add/Edit Dialog */}
@@ -1201,13 +1431,13 @@ function PortForwardTab() {
               <Label>Name *</Label>
               <Input
                 value={form.name}
-                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                onChange={(e) => setForm((p) => p ? { ...p, name: e.target.value } : p)}
                 placeholder="e.g. RDP to Front Desk"
               />
             </div>
             <div className="space-y-2">
               <Label>Protocol</Label>
-              <Select value={form.protocol} onValueChange={(v) => setForm((p) => ({ ...p, protocol: v }))}>
+              <Select value={form.protocol} onValueChange={(v) => setForm((p) => p ? { ...p, protocol: v } : p)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="tcp">TCP</SelectItem>
@@ -1222,7 +1452,7 @@ function PortForwardTab() {
                 <Input
                   type="number"
                   value={form.externalPort}
-                  onChange={(e) => setForm((p) => ({ ...p, externalPort: e.target.value }))}
+                  onChange={(e) => setForm((p) => p ? { ...p, externalPort: e.target.value } : p)}
                   placeholder="e.g. 3389"
                 />
               </div>
@@ -1231,7 +1461,7 @@ function PortForwardTab() {
                 <Input
                   type="number"
                   value={form.internalPort}
-                  onChange={(e) => setForm((p) => ({ ...p, internalPort: e.target.value }))}
+                  onChange={(e) => setForm((p) => p ? { ...p, internalPort: e.target.value } : p)}
                   placeholder="e.g. 3389"
                 />
               </div>
@@ -1240,7 +1470,7 @@ function PortForwardTab() {
               <Label>Internal IP *</Label>
               <Input
                 value={form.internalIp}
-                onChange={(e) => setForm((p) => ({ ...p, internalIp: e.target.value }))}
+                onChange={(e) => setForm((p) => p ? { ...p, internalIp: e.target.value } : p)}
                 placeholder="e.g. 10.0.0.50"
               />
             </div>
@@ -1248,13 +1478,21 @@ function PortForwardTab() {
               <Label>Source IP Restriction (optional)</Label>
               <Input
                 value={form.sourceIp}
-                onChange={(e) => setForm((p) => ({ ...p, sourceIp: e.target.value }))}
+                onChange={(e) => setForm((p) => p ? { ...p, sourceIp: e.target.value } : p)}
                 placeholder="e.g. 203.0.113.0/24"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description (optional)</Label>
+              <Input
+                value={form.description}
+                onChange={(e) => setForm((p) => p ? { ...p, description: e.target.value } : p)}
+                placeholder="e.g. Front desk RDP access"
               />
             </div>
             <div className="flex items-center justify-between">
               <Label>Enabled</Label>
-              <Switch checked={form.enabled} onCheckedChange={(c) => setForm((p) => ({ ...p, enabled: c }))} />
+              <Switch checked={form.enabled} onCheckedChange={(c) => setForm((p) => p ? { ...p, enabled: c } : p)} />
             </div>
           </div>
           <DialogFooter>
@@ -1615,7 +1853,11 @@ function QuickBlockTab() {
   const [type, setType] = useState('ip');
   const [value, setValue] = useState('');
   const [reason, setReason] = useState('');
+  const [expiry, setExpiry] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editReason, setEditReason] = useState('');
+  const [editExpiry, setEditExpiry] = useState('');
 
   const fetchBlocks = useCallback(async () => {
     try {
@@ -1633,20 +1875,45 @@ function QuickBlockTab() {
     fetchBlocks();
   }, [fetchBlocks]);
 
+  const typePlaceholder: Record<string, string> = {
+    ip: 'e.g. 103.21.44.5',
+    subnet: 'e.g. 198.51.100.0/24',
+    mac: 'e.g. AA:BB:CC:DD:EE:FF',
+    domain: 'e.g. malware.example.com',
+  };
+
+  const typeValidators: Record<string, RegExp> = {
+    ip: /^\d{1,3}(\.\d{1,3}){3}$/,
+    subnet: /^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$/,
+    mac: /^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/,
+    domain: /^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+  };
+
   const handleBlock = async () => {
     if (!value.trim()) {
       toast({ title: 'Validation Error', description: 'Please enter a value to block', variant: 'destructive' });
+      return;
+    }
+    const validator = typeValidators[type];
+    if (validator && !validator.test(value.trim())) {
+      toast({ title: 'Validation Error', description: `Invalid ${type} format`, variant: 'destructive' });
       return;
     }
     try {
       setBlocking(true);
       await apiFetch(`${API_BASE}/quick-blocks`, {
         method: 'POST',
-        body: JSON.stringify({ type, value: value.trim(), reason: reason.trim() || 'Manual block' }),
+        body: JSON.stringify({
+          type,
+          value: value.trim(),
+          reason: reason.trim() || null,
+          expiresAt: expiry || null,
+        }),
       });
       toast({ title: 'Blocked', description: `${type.toUpperCase()} ${value} has been blocked.` });
       setValue('');
       setReason('');
+      setExpiry('');
       await fetchBlocks();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to block';
@@ -1670,17 +1937,52 @@ function QuickBlockTab() {
     }
   };
 
-  const typePlaceholder: Record<string, string> = {
-    ip: 'e.g. 103.21.44.5',
-    subnet: 'e.g. 198.51.100.0/24',
-    mac: 'e.g. AA:BB:CC:DD:EE:FF',
+  const toggleBlock = async (id: string) => {
+    const block = blocks.find((b) => b.id === id);
+    if (!block) return;
+    const newEnabled = !block.enabled;
+    setBlocks(blocks.map((b) => (b.id === id ? { ...b, enabled: newEnabled } : b)));
+    try {
+      await apiFetch(`${API_BASE}/quick-blocks/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled: newEnabled }),
+      });
+    } catch {
+      setBlocks(blocks.map((b) => (b.id === id ? { ...b, enabled: block.enabled } : b)));
+      toast({ title: 'Error', description: 'Failed to toggle block', variant: 'destructive' });
+    }
+  };
+
+  const openEdit = (block: QuickBlock) => {
+    setEditId(block.id);
+    setEditReason(block.reason || '');
+    setEditExpiry(block.expiresAt ? block.expiresAt.slice(0, 16) : '');
+  };
+
+  const saveEdit = async () => {
+    if (!editId) return;
+    try {
+      await apiFetch(`${API_BASE}/quick-blocks/${editId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          reason: editReason.trim() || null,
+          expiresAt: editExpiry ? new Date(editExpiry).toISOString() : null,
+        }),
+      });
+      toast({ title: 'Block Updated' });
+      setEditId(null);
+      await fetchBlocks();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to update block';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    }
   };
 
   if (loading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-24 w-full rounded-lg" />
-        <TableSkeleton cols={5} rows={4} />
+        <TableSkeleton cols={7} rows={4} />
       </div>
     );
   }
@@ -1688,49 +1990,62 @@ function QuickBlockTab() {
   return (
     <div className="space-y-6">
       {/* Quick Add Form */}
-      <Card className="border-teal-200 bg-teal-50/30 dark:bg-teal-950/10 dark:border-teal-800">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base tracking-tight flex items-center gap-2">
-            <Ban className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-            Quick Block
-          </CardTitle>
-          <CardDescription>
-            Instantly block an IP address, subnet, or MAC address from accessing the network.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Select value={type} onValueChange={setType}>
-              <SelectTrigger className="w-full sm:w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ip">IP</SelectItem>
-                <SelectItem value="subnet">Subnet</SelectItem>
-                <SelectItem value="mac">MAC</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder={typePlaceholder[type]}
-              className="flex-1"
-              onKeyDown={(e) => e.key === 'Enter' && handleBlock()}
-            />
-            <Input
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Reason (optional)"
-              className="flex-1"
-              onKeyDown={(e) => e.key === 'Enter' && handleBlock()}
-            />
-            <Button onClick={handleBlock} disabled={blocking || !value.trim()}>
-              {blocking ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Ban className="h-4 w-4 mr-2" />}
-              Block
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+        <Card className="border-red-200 bg-red-50/30 dark:bg-red-950/10 dark:border-red-800">
+          <div className="h-1 bg-gradient-to-r from-red-500 to-orange-500" />
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base tracking-tight flex items-center gap-2">
+              <Ban className="h-4 w-4 text-red-600 dark:text-red-400" />
+              Quick Block
+            </CardTitle>
+            <CardDescription>
+              Instantly block an IP address, subnet, MAC address, or domain from accessing the network.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Select value={type} onValueChange={setType}>
+                <SelectTrigger className="w-full sm:w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ip">IP</SelectItem>
+                  <SelectItem value="subnet">Subnet</SelectItem>
+                  <SelectItem value="mac">MAC</SelectItem>
+                  <SelectItem value="domain">Domain</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder={typePlaceholder[type]}
+                className="flex-1"
+                onKeyDown={(e) => e.key === 'Enter' && handleBlock()}
+              />
+              <Input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Reason (optional)"
+                className="flex-1"
+                onKeyDown={(e) => e.key === 'Enter' && handleBlock()}
+              />
+              <div className="relative">
+                <Input
+                  type="datetime-local"
+                  value={expiry}
+                  onChange={(e) => setExpiry(e.target.value)}
+                  className="w-full sm:w-48"
+                  title="Expiry date/time (optional)"
+                />
+              </div>
+              <Button onClick={handleBlock} disabled={blocking || !value.trim()}>
+                {blocking ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Ban className="h-4 w-4 mr-2" />}
+                Block
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Recent Blocks */}
       <div className="flex items-center justify-between">
@@ -1749,56 +2064,86 @@ function QuickBlockTab() {
         <EmptyState
           icon={ShieldBan}
           title="No active blocks"
-          description="Blocked IPs, subnets, and MAC addresses will appear here. Use the form above to add one."
+          description="Blocked IPs, subnets, MAC addresses, and domains will appear here. Use the form above to add one."
         />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="max-h-96 overflow-y-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Value</TableHead>
-                    <TableHead>Reason</TableHead>
-                    <TableHead>Blocked At</TableHead>
-                    <TableHead className="w-24 text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {blocks.map((block) => (
-                    <TableRow key={block.id}>
-                      <TableCell>
-                        <BlockTypeBadge type={block.type} />
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">{block.value}</TableCell>
-                      <TableCell className="text-sm">{block.reason}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {block.blockedAt ? new Date(block.blockedAt).toLocaleString() : '—'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-teal-600 dark:text-teal-400 hover:text-teal-700 hover:bg-teal-50"
-                              onClick={() => setDeleteId(block.id)}
-                            >
-                              <Unlock className="h-3.5 w-3.5 mr-1" />
-                              Unblock
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Remove block</TooltipContent>
-                        </Tooltip>
-                      </TableCell>
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+          <Card className="overflow-hidden">
+            <CardContent className="p-0">
+              <div className="max-h-96 overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Value</TableHead>
+                      <TableHead>Reason</TableHead>
+                      <TableHead className="w-12">On</TableHead>
+                      <TableHead className="w-32">Expires</TableHead>
+                      <TableHead className="w-32">Created</TableHead>
+                      <TableHead className="w-24 text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {blocks.map((block) => (
+                      <TableRow key={block.id} className={cn(!block.enabled && 'opacity-50')}>
+                        <TableCell>
+                          <BlockTypeBadge type={block.type} />
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">{block.value}</TableCell>
+                        <TableCell className="text-sm">{block.reason || '—'}</TableCell>
+                        <TableCell>
+                          <Switch checked={block.enabled} onCheckedChange={() => toggleBlock(block.id)} />
+                        </TableCell>
+                        <TableCell>
+                          {block.expiresAt ? (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Timer className="h-3 w-3" />
+                              {new Date(block.expiresAt).toLocaleString()}
+                            </div>
+                          ) : '—'}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {block.createdAt ? new Date(block.createdAt).toLocaleString() : '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => openEdit(block)}
+                                >
+                                  <Edit2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Edit</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => setDeleteId(block.id)}
+                                >
+                                  <Unlock className="h-3.5 w-3.5 mr-1" />
+                                  Unblock
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Remove block</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       )}
 
       {/* Unblock Confirmation */}
@@ -1818,6 +2163,41 @@ function QuickBlockTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editId} onOpenChange={(open) => { if (!open) setEditId(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Block</DialogTitle>
+            <DialogDescription>
+              Update the reason and expiry for this block entry.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Reason</Label>
+              <Input
+                value={editReason}
+                onChange={(e) => setEditReason(e.target.value)}
+                placeholder="Reason for the block"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Expiry (optional)</Label>
+              <Input
+                type="datetime-local"
+                value={editExpiry}
+                onChange={(e) => setEditExpiry(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Leave empty for no expiry.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditId(null)}>Cancel</Button>
+            <Button onClick={saveEdit}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
