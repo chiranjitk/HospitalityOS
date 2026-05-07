@@ -120,3 +120,6 @@ data/e2guardian/private/
 
 # Worklog
 worklog.md
+
+# StaySuite login logs
+.staysuite/logs/staysuite_login.log
