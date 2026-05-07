@@ -1,7 +1,7 @@
 # StaySuite Glossary
 ## Terms and Definitions
 
-**Version**: 2.0  
+**Version**: 2.1  
 **Last Updated**: May 2026
 
 ---
@@ -12,7 +12,7 @@
 The average price at which rooms are sold. Calculated as total room revenue divided by total rooms sold.
 
 ### API (Application Programming Interface)
-A set of protocols allowing different software applications to communicate with StaySuite. The platform exposes 614 API routes across 134 directories.
+A set of protocols allowing different software applications to communicate with StaySuite. The platform exposes 617 API routes across 134 directories.
 
 ### Audit Log
 A chronological record of system activities tracked via the `AuditLog` model, recording who did what and when across all 294 database models.
@@ -61,6 +61,9 @@ A web page that guests must view before accessing WiFi. StaySuite runs a redirec
 ### Channel Manager
 A system that distributes inventory and rates across multiple booking channels (46+ OTAs). Includes CRS (Central Reservation System).
 
+### City Ledger
+Account-based billing system for corporate accounts and travel agents that allows credit terms and invoice-based payments.
+
 ### Check-in
 The process of registering a guest's arrival and assigning a room. Auto-triggers WiFi provisioning and digital key generation.
 
@@ -70,11 +73,17 @@ The process of finalizing a guest's stay, settling charges, and releasing the ro
 ### CoA (Change of Authorization)
 A RADIUS protocol extension allowing dynamic policy changes during an active session.
 
+### Commission Rule
+Configurable rule defining how commissions are calculated for travel agents (percentage, fixed amount, or tiered).
+
 ### CRS (Central Reservation System)
 The single source of truth for inventory and rates, synchronizing with all 46+ channels.
 
 ### CRM (Customer Relationship Management)
 The module for managing guest segments, campaigns, loyalty programs, and retention analytics.
+
+### Cron Job
+Automated background task that runs on a schedule (e.g., auto room posting, channel sync, session monitoring).
 
 ---
 
@@ -192,6 +201,12 @@ The number of days between booking date and check-in date.
 ### Length of Stay (LOS)
 The number of nights in a booking.
 
+### Laundry Order
+Housekeeping service request for guest laundry with item-level tracking.
+
+### Lost & Found
+System for tracking items lost or found on property with guest notification.
+
 ### Loyalty Program
 A system rewarding repeat guests with points, tiers, and benefits. Managed via `LoyaltyTier`, `LoyaltyReward`, and `LoyaltyPointTransaction` models.
 
@@ -201,6 +216,12 @@ A system rewarding repeat guests with points, tiers, and benefits. Managed via `
 
 ### MICE (Meetings, Incentives, Conferences, Events)
 The segment of hospitality focused on group events and conferences. Managed via `Event`, `EventSpace`, and `EventResource` models.
+
+### Mini-Service
+Independent Bun-based microservice that handles specific infrastructure tasks (DHCP, DNS, RADIUS, etc.).
+
+### Minibar
+In-room refreshment service with consumption tracking and automatic billing.
 
 ### Minimum Stay
 The shortest booking length accepted for specific dates or rate plans.
@@ -219,7 +240,7 @@ The network gateway device (router/AP) that communicates with the RADIUS server 
 The React framework (v16.1) used for StaySuite's frontend and API layer with App Router.
 
 ### Night Audit
-The overnight process of reconciling daily transactions and preparing reports. Managed via `NightAudit`, `NightAuditLog`, and `NightAuditStep` models.
+Daily end-of-day reconciliation process that verifies all financial transactions, posts charges, and closes the business day. Managed via `NightAudit`, `NightAuditLog`, and `NightAuditStep` models.
 
 ### No-Show
 A guest with a confirmed booking who doesn't arrive and doesn't cancel. Managed via `NoShowAutomation` (in bookings module).
@@ -241,6 +262,9 @@ Accepting more bookings than available rooms, typically to offset expected cance
 
 ## P
 
+### Package Plan
+Bundled offering combining room accommodation with additional services (meals, spa, transfers, etc.).
+
 ### Payment Gateway
 A service that processes credit card and other electronic payments (Stripe, Razorpay, PayPal, etc.).
 
@@ -249,6 +273,9 @@ Software for managing hotel operations including reservations, check-in/out, and
 
 ### POS (Point of Sale)
 The Restaurant & POS module with 15 sub-features for food & beverage operations.
+
+### Posting Rule
+Automated rule that posts charges to guest folios based on triggers (daily, check-in, check-out, etc.).
 
 ### PostgreSQL
 The relational database (v17) used exclusively by StaySuite. 294 models managed via Prisma 6 ORM.
@@ -275,12 +302,18 @@ A pricing configuration including base rate, inclusions, and conditions.
 ### RevPAR (Revenue Per Available Room)
 Total room revenue divided by total available rooms. A key hotel performance metric.
 
+### Revenue Account
+Chart of accounts code used to categorize revenue transactions.
+
 ### RBAC (Role-Based Access Control)
 Access control system with 9 default roles and granular module.action permissions.
 
 ---
 
 ## S
+
+### Scheduled Charge
+Recurring charge that automatically posts to guest folios on a configurable schedule.
 
 ### Seasonality
 Variations in demand and rates based on time of year.
@@ -300,6 +333,9 @@ A hotel group or brand on the multi-tenant platform. Each tenant has complete da
 
 ### Throughput
 The number of transactions processed per time period.
+
+### Travel Agent
+Third-party booking agent with configurable commission rates and credit terms.
 
 ### Two-Factor Authentication (2FA)
 A security method requiring two forms of identification (TOTP, SMS, Email).

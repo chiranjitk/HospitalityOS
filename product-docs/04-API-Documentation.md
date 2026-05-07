@@ -1,9 +1,9 @@
 # StaySuite API Documentation
 ## REST API Reference
 
-**Version**: v1  
+**Version**: v2.1  
 **Base URL**: `https://api.staysuite.io/v1`  
-**Last Updated**: May 2026
+**Last Updated**: July 2025
 
 ---
 
@@ -20,8 +20,12 @@
 9. [Rooms API](#9-rooms-api)
 10. [Availability API](#10-availability-api)
 11. [Payments API](#11-payments-api)
-12. [WiFi API](#12-wifi-api)
-13. [Webhooks](#13-webhooks)
+12. [Billing API Extensions](#12-billing-api-extensions)
+13. [Housekeeping API Extensions](#13-housekeeping-api-extensions)
+14. [Cron Jobs API](#14-cron-jobs-api)
+15. [Travel Agents API](#15-travel-agents-api)
+16. [WiFi API](#16-wifi-api)
+17. [Webhooks](#17-webhooks)
 
 ---
 
@@ -162,7 +166,7 @@ Query parameters:
 
 ## 6. API Route Registry
 
-The platform provides **614 API routes** across **134 directories**:
+The platform provides **617 API routes** across **134 directories**:
 
 | Module | Routes | Directory |
 |--------|--------|-----------|
@@ -185,10 +189,11 @@ The platform provides **614 API routes** across **134 directories**:
 | channel-manager | - | /api/channel-manager |
 | channels | - | /api/channels |
 | chat-conversations | - | /api/chat-conversations |
-| city-ledger | - | /api/city-ledger |
-| commissions | - | /api/commissions |
+| city-ledger | CRUD + items | /api/city-ledger |
+| commissions | rules + records + payments | /api/commissions |
 | communication | - | /api/communication |
 | crm | - | /api/crm |
+| cron | Multiple scheduled jobs | /api/cron |
 | dashboard | - | /api/dashboard |
 | digital-keys | - | /api/digital-keys |
 | discounts | - | /api/discounts |
@@ -209,30 +214,36 @@ The platform provides **614 API routes** across **134 directories**:
 | invoices | - | /api/invoices |
 | iot | - | /api/iot |
 | kiosk | - | /api/kiosk |
-| laundry | - | /api/laundry |
-| lost-found | - | /api/lost-found |
+| laundry | items + orders | /api/laundry |
+| lost-found | CRUD + notify | /api/lost-found |
 | loyalty | - | /api/loyalty |
 | maintenance | - | /api/maintenance |
 | marketing | - | /api/marketing |
+| minibar | items + consumption + setup | /api/minibar |
 | mini-services | - | /api/mini-services |
 | networking | - | /api/networking |
-| night-audit | - | /api/night-audit |
+| night-audit | CRUD + execute-step | /api/night-audit |
 | notifications | - | /api/notifications |
 | orders | - | /api/orders |
 | parking | - | /api/parking |
 | payments | - | /api/payments |
+| posting-rules | CRUD | /api/posting-rules |
 | pos | - | /api/pos |
 | pricing | - | /api/pricing |
 | properties | - | /api/properties |
 | rate-plans | - | /api/rate-plans |
+| recurring-invoices | - | /api/recurring-invoices |
 | reservations | - | /api/reservations |
 | reports | - | /api/reports |
 | revenue | - | /api/revenue |
+| revenue-accounts | CRUD | /api/revenue-accounts |
 | rooms | - | /api/rooms |
+| scheduled-charges | CRUD + history, pause, resume | /api/scheduled-charges |
 | security | - | /api/security |
 | settings | - | /api/settings |
 | staff | - | /api/staff |
 | tenants | - | /api/tenants |
+| travel-agents | CRUD | /api/travel-agents |
 | vehicles | - | /api/vehicles |
 | vendors | - | /api/vendors |
 | version | - | /api/version |
@@ -349,9 +360,137 @@ POST /api/payments/{id}/refund
 
 ---
 
-## 12. WiFi API
+## 12. Billing API Extensions
 
-### 12.1 Create WiFi User
+### Posting Rules API
+
+```http
+GET    /api/posting-rules          # List all posting rules
+POST   /api/posting-rules          # Create posting rule
+GET    /api/posting-rules/{id}     # Get posting rule
+PUT    /api/posting-rules/{id}     # Update posting rule
+DELETE /api/posting-rules/{id}     # Delete posting rule
+```
+
+### Scheduled Charges API
+
+```http
+GET    /api/scheduled-charges              # List all scheduled charges
+POST   /api/scheduled-charges              # Create scheduled charge
+GET    /api/scheduled-charges/{id}         # Get scheduled charge
+PUT    /api/scheduled-charges/{id}         # Update scheduled charge
+DELETE /api/scheduled-charges/{id}         # Delete scheduled charge
+GET    /api/scheduled-charges/{id}/history # Get execution history
+POST   /api/scheduled-charges/{id}/pause   # Pause scheduled charge
+POST   /api/scheduled-charges/{id}/resume  # Resume scheduled charge
+```
+
+### City Ledger API
+
+```http
+GET    /api/city-ledger            # List city ledger invoices
+POST   /api/city-ledger            # Create city ledger invoice
+GET    /api/city-ledger/{id}       # Get city ledger invoice
+GET    /api/city-ledger/{id}/items # Get invoice line items
+```
+
+### Commissions API
+
+```http
+GET    /api/commissions/rules          # List commission rules
+POST   /api/commissions/rules          # Create commission rule
+GET    /api/commissions/rules/{id}     # Get commission rule
+GET    /api/commissions/records        # List commission records
+GET    /api/commissions/payments       # List commission payments
+```
+
+### Revenue Accounts API
+
+```http
+GET    /api/revenue-accounts      # List revenue accounts
+POST   /api/revenue-accounts      # Create revenue account
+GET    /api/revenue-accounts/{id} # Get revenue account
+```
+
+### Night Audit API
+
+```http
+GET    /api/night-audit                    # List night audit records
+POST   /api/night-audit                    # Start night audit
+GET    /api/night-audit/{id}               # Get night audit
+POST   /api/night-audit/{id}/execute-step  # Execute audit step
+```
+
+---
+
+## 13. Housekeeping API Extensions
+
+### Laundry API
+
+```http
+GET    /api/laundry/items       # List laundry item catalog
+POST   /api/laundry/items       # Create laundry item
+GET    /api/laundry/orders      # List laundry orders
+POST   /api/laundry/orders      # Create laundry order
+GET    /api/laundry/orders/{id} # Get laundry order
+```
+
+### Lost & Found API
+
+```http
+GET    /api/lost-found            # List lost & found items
+POST   /api/lost-found            # Report lost & found item
+GET    /api/lost-found/{id}       # Get item details
+POST   /api/lost-found/{id}/notify # Notify guest about found item
+```
+
+### Minibar API
+
+```http
+GET    /api/minibar/items           # List minibar item catalog
+POST   /api/minibar/items           # Create minibar item
+GET    /api/minibar/setup/{roomId}  # Get room minibar setup
+POST   /api/minibar/setup/{roomId}  # Configure room minibar
+GET    /api/minibar/consumption     # List consumption records
+POST   /api/minibar/consumption/{id} # Record consumption
+```
+
+---
+
+## 14. Cron Jobs API
+
+### Cron Job Endpoints
+
+```http
+POST   /api/cron/auto-room-posting              # Trigger auto room posting
+POST   /api/cron/channel-sync                   # Trigger channel sync
+POST   /api/cron/execute-scheduled-charges      # Execute scheduled charges
+POST   /api/cron/expiration                     # Process expirations
+POST   /api/cron/no-show-detection              # Run no-show detection
+POST   /api/cron/pm-autotrigger                 # Trigger preventive maintenance
+POST   /api/cron/process-notifications          # Process scheduled notifications
+POST   /api/cron/recurring-invoices             # Generate recurring invoices
+POST   /api/cron/recurring-tasks                # Execute recurring tasks
+POST   /api/cron/reports                        # Generate scheduled reports
+POST   /api/cron/session-engine                 # Monitor WiFi sessions
+```
+
+---
+
+## 15. Travel Agents API
+
+```http
+GET    /api/travel-agents      # List travel agents
+POST   /api/travel-agents      # Create travel agent
+GET    /api/travel-agents/{id} # Get travel agent
+PUT    /api/travel-agents/{id} # Update travel agent
+```
+
+---
+
+## 16. WiFi API
+
+### 16.1 Create WiFi User
 
 ```http
 POST /api/wifi/users
@@ -366,19 +505,19 @@ POST /api/wifi/users
 }
 ```
 
-### 12.2 List WiFi Sessions
+### 16.2 List WiFi Sessions
 
 ```http
 GET /api/wifi/sessions
 ```
 
-### 12.3 Create Vouchers
+### 16.3 Create Vouchers
 
 ```http
 POST /api/wifi/vouchers
 ```
 
-### 12.4 FreeRADIUS Management
+### 16.4 FreeRADIUS Management
 
 WiFi authentication uses FreeRADIUS v3.2.7 with native PostgreSQL SQL module. The system automatically:
 - Creates RADIUS users on guest check-in
@@ -388,9 +527,9 @@ WiFi authentication uses FreeRADIUS v3.2.7 with native PostgreSQL SQL module. Th
 
 ---
 
-## 13. Webhooks
+## 17. Webhooks
 
-### 13.1 Webhook Events
+### 17.1 Webhook Events
 
 | Event | Description |
 |-------|-------------|
@@ -407,7 +546,7 @@ WiFi authentication uses FreeRADIUS v3.2.7 with native PostgreSQL SQL module. Th
 | `guest.created` | New guest profile |
 | `inventory.updated` | Availability changed |
 
-### 13.2 Signature Verification
+### 17.2 Signature Verification
 
 ```javascript
 const crypto = require('crypto');
@@ -421,7 +560,7 @@ function verifySignature(payload, signature, secret) {
 }
 ```
 
-### 13.3 Retry Policy
+### 17.3 Retry Policy
 
 | Attempt | Delay |
 |---------|-------|

@@ -1,7 +1,7 @@
 # StaySuite FAQ
 ## Frequently Asked Questions
 
-**Version**: 2.0  
+**Version**: 2.1  
 **Last Updated**: May 2026
 
 ---
@@ -10,7 +10,7 @@
 
 ### What is StaySuite?
 
-StaySuite is an All-in-One Hospitality Operating System that combines Property Management, Channel Management, Guest Experience, WiFi AAA (FreeRADIUS v3.2.7), Revenue Management, and 30+ modules into a single platform with 294 database models, 614 API routes, and 529 React components.
+StaySuite is an All-in-One Hospitality Operating System that combines Property Management, Channel Management, Guest Experience, WiFi AAA (FreeRADIUS v3.2.7), Revenue Management, and 30+ modules into a single platform with 294 database models, 617 API routes, and 529 React components.
 
 ### How is StaySuite different from traditional PMS?
 
@@ -41,7 +41,7 @@ Yes, StaySuite is cloud-native SaaS with optional on-premise deployment for ente
 | Metric | Count |
 |--------|-------|
 | Database Models | 294 |
-| API Routes | 614 |
+| API Routes | 617 |
 | React Components | 529 |
 | Component Directories | 44 |
 | Navigation Modules | 30 |
@@ -178,7 +178,7 @@ Stripe, PayPal, Razorpay, Square, Adyen, Authorize.net, CCAvenue, PayU
 
 ### What is Night Audit?
 
-Navigate to **Billing → Night Audit** for daily reconciliation of transactions, postings, and payments before closing the business day.
+Night Audit is a multi-step daily reconciliation process that verifies room charges, recalculates taxes, processes scheduled charges, posts commissions, and closes the business day. Navigate to **Billing → Night Audit** to run it.
 
 ### Is multi-currency supported?
 
@@ -206,6 +206,34 @@ Revenue, Occupancy, ADR/RevPAR, Guest Analytics, Staff Performance, Scheduled Re
 
 ---
 
+## New Features (v2.1)
+
+### What is City Ledger?
+
+City Ledger is an account-based billing system for corporate accounts and travel agents. It allows you to create invoices, add line items, track payments, and manage credit terms.
+
+### How do Scheduled Charges work?
+
+Scheduled Charges are recurring charges that automatically post to guest folios based on configurable rules (daily, per stay, custom frequency). You can pause/resume them and view execution history.
+
+### What is Night Audit?
+
+Night Audit is a multi-step daily reconciliation process that verifies room charges, recalculates taxes, processes scheduled charges, posts commissions, and closes the business day.
+
+### How does the Commission system work?
+
+You can configure commission rules (percentage, fixed, tiered) for travel agents. Commissions are automatically calculated when bookings are made through travel agents.
+
+### What is the Posting Rules system?
+
+Posting Rules allow automatic posting of charges to folios based on triggers (daily, check-in, check-out, booking, custom cron). Examples: daily room charges, resort fees, breakfast charges.
+
+### How many mini-services does StaySuite use?
+
+11 mini-services including Next.js, FreeRADIUS, Realtime WebSocket, Captive Portal Redirect, Availability Service, DHCP Server, DNS Resolver, DNS Parser, RADIUS Server, Conntrack Bridge, and SNI Parser.
+
+---
+
 ## Integrations
 
 ### What door lock brands are supported?
@@ -214,7 +242,7 @@ Assa Abloy, dormakaba, Salto, ONITY, August
 
 ### Is there a REST API?
 
-Yes. 614 API routes across 134 directories with OpenAPI documentation.
+Yes. 617 API routes across 134 directories with OpenAPI documentation.
 
 ---
 

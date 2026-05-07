@@ -59,9 +59,49 @@ src/
 │   │   └── [id]/route.ts         # Room update/delete audit
 │   ├── payments/
 │   │   └── route.ts              # Payment audit
-│   └── wifi/
-│       └── vouchers/
-│           └── route.ts          # WiFi voucher audit
+│   ├── wifi/
+│   │   └── vouchers/
+│   │       └── route.ts          # WiFi voucher audit
+│   ├── city-ledger/
+│   │   ├── route.ts              # City ledger invoice audit
+│   │   └── [id]/
+│   │       ├── route.ts          # City ledger operations audit
+│   │       └── items/route.ts    # City ledger item operations audit
+│   ├── commissions/
+│   │   ├── rules/route.ts        # Commission rule audit
+│   │   ├── rules/[id]/route.ts   # Commission rule update audit
+│   │   ├── payments/route.ts     # Commission payment audit
+│   │   └── records/route.ts      # Commission records audit
+│   ├── night-audit/
+│   │   ├── route.ts              # Night audit operations audit
+│   │   └── [id]/
+│   │       ├── route.ts          # Night audit detail audit
+│   │       └── execute-step/route.ts  # Night audit step audit
+│   ├── posting-rules/
+│   │   ├── route.ts              # Posting rule audit
+│   │   └── [id]/route.ts         # Posting rule operations audit
+│   ├── scheduled-charges/
+│   │   ├── route.ts              # Scheduled charge audit
+│   │   └── [id]/
+│   │       ├── route.ts          # Scheduled charge operations audit
+│   │       ├── pause/route.ts    # Pause charge audit
+│   │       ├── resume/route.ts   # Resume charge audit
+│   │       ├── execute/route.ts  # Execute charge audit
+│   │       └── history/route.ts  # Charge history audit
+│   ├── laundry/
+│   │   ├── orders/route.ts       # Laundry order audit
+│   │   ├── orders/[id]/route.ts  # Laundry order status audit
+│   │   └── items/route.ts        # Laundry item audit
+│   ├── lost-found/
+│   │   ├── route.ts              # Lost & found report audit
+│   │   └── [id]/
+│   │       ├── route.ts          # Lost & found operations audit
+│   │       └── notify/route.ts   # Guest notification audit
+│   └── minibar/
+│       ├── consumption/route.ts  # Minibar consumption audit
+│       ├── consumption/[id]/route.ts  # Consumption detail audit
+│       ├── items/route.ts        # Minibar item management audit
+│       └── setup/route.ts        # Minibar setup audit
 │
 └── components/
     └── audit/
@@ -297,6 +337,319 @@ await logWifi(request, 'voucher_create', 'voucher', voucher.id, {
 
 ---
 
+### 7. City Ledger Module
+
+**File:** `src/app/api/city-ledger/route.ts`, `src/app/api/city-ledger/[id]/route.ts`, `src/app/api/city-ledger/[id]/items/route.ts`
+
+**Actions Logged:**
+| Action | Description | Metadata Captured |
+|--------|-------------|-------------------|
+| `create_invoice` | City ledger invoice created | invoiceNumber, accountName, propertyId, status |
+| `update_invoice` | Invoice updated | invoiceNumber, accountName, status |
+| `close_invoice` | Invoice closed | invoiceNumber, accountName, totalAmount |
+| `add_item` | Line item added to invoice | invoiceNumber, description, amount, chargeType |
+| `remove_item` | Line item removed from invoice | invoiceNumber, description, amount |
+| `record_payment` | Payment recorded against invoice | invoiceNumber, amount, paymentMethod, reference |
+| `apply_credit` | Credit note applied | invoiceNumber, creditAmount, creditNoteNumber |
+| `void_invoice` | Invoice voided | invoiceNumber, accountName, reason |
+
+**Example Usage:**
+```typescript
+import { logCityLedger } from '@/lib/audit';
+
+// Log city ledger invoice creation
+await logCityLedger(request, 'create_invoice', invoice.id, undefined, {
+  invoiceNumber: invoice.invoiceNumber,
+  accountName: invoice.accountName,
+  propertyId: invoice.propertyId,
+  status: invoice.status,
+});
+
+// Log adding item to invoice
+await logCityLedger(request, 'add_item', invoice.id, undefined, {
+  invoiceNumber: invoice.invoiceNumber,
+  description: item.description,
+  amount: item.amount,
+  chargeType: item.chargeType,
+});
+```
+
+---
+
+### 8. Commission Module
+
+**File:** `src/app/api/commissions/rules/route.ts`, `src/app/api/commissions/rules/[id]/route.ts`, `src/app/api/commissions/payments/route.ts`, `src/app/api/commissions/records/route.ts`
+
+**Actions Logged:**
+| Action | Description | Metadata Captured |
+|--------|-------------|-------------------|
+| `create_rule` | Commission rule created | ruleName, commissionType, rate, threshold, appliesTo |
+| `update_rule` | Commission rule updated | Old & New: ruleName, rate, threshold, isActive |
+| `delete_rule` | Commission rule deleted | ruleName, commissionType, reason |
+| `calculate_commission` | Commission calculated | ruleName, bookingAmount, commissionAmount, agentName |
+| `process_payment` | Commission payment processed | ruleName, agentName, amount, paymentMethod |
+| `reverse_commission` | Commission reversed | ruleName, agentName, amount, reason |
+
+**Example Usage:**
+```typescript
+import { logCommission } from '@/lib/audit';
+
+// Log commission rule creation
+await logCommission(request, 'create_rule', rule.id, undefined, {
+  ruleName: rule.name,
+  commissionType: rule.type,
+  rate: rule.rate,
+  threshold: rule.threshold,
+  appliesTo: rule.appliesTo,
+});
+
+// Log commission payment processing
+await logCommission(request, 'process_payment', payment.id, undefined, {
+  ruleName: rule.name,
+  agentName: agent.name,
+  amount: payment.amount,
+  paymentMethod: payment.method,
+});
+```
+
+---
+
+### 9. Night Audit Module
+
+**File:** `src/app/api/night-audit/route.ts`, `src/app/api/night-audit/[id]/route.ts`, `src/app/api/night-audit/[id]/execute-step/route.ts`
+
+**Actions Logged:**
+| Action | Description | Metadata Captured |
+|--------|-------------|-------------------|
+| `start_audit` | Night audit started | auditDate, propertyId, operatorName |
+| `execute_step` | Audit step executed | stepName, stepType, recordsProcessed, status |
+| `complete_step` | Audit step completed | stepName, duration, recordsProcessed, errors |
+| `close_audit` | Night audit closed | auditDate, propertyId, totalSteps, totalErrors, operatorName |
+| `rollback_step` | Audit step rolled back | stepName, reason, previousState |
+| `restart_audit` | Night audit restarted | auditDate, propertyId, operatorName, reason |
+
+**Example Usage:**
+```typescript
+import { logNightAudit } from '@/lib/audit';
+
+// Log night audit start
+await logNightAudit(request, 'start_audit', audit.id, undefined, {
+  auditDate: audit.auditDate,
+  propertyId: audit.propertyId,
+  operatorName: user.name,
+});
+
+// Log step execution
+await logNightAudit(request, 'execute_step', audit.id, undefined, {
+  stepName: step.name,
+  stepType: step.type,
+  recordsProcessed: step.recordsProcessed,
+  status: step.status,
+});
+
+// Log night audit close
+await logNightAudit(request, 'close_audit', audit.id, undefined, {
+  auditDate: audit.auditDate,
+  propertyId: audit.propertyId,
+  totalSteps: audit.totalSteps,
+  totalErrors: audit.totalErrors,
+  operatorName: user.name,
+});
+```
+
+---
+
+### 10. Posting Rules Module
+
+**File:** `src/app/api/posting-rules/route.ts`, `src/app/api/posting-rules/[id]/route.ts`
+
+**Actions Logged:**
+| Action | Description | Metadata Captured |
+|--------|-------------|-------------------|
+| `create_rule` | Posting rule created | ruleName, ruleType, chargeCode, amount, frequency |
+| `update_rule` | Posting rule updated | Old & New: ruleName, amount, frequency, isActive |
+| `delete_rule` | Posting rule deleted | ruleName, ruleType, reason |
+| `execute_posting` | Posting rule executed | ruleName, roomsAffected, totalPosted, totalAmount |
+| `skip_posting` | Posting rule skipped | ruleName, roomsAffected, reason |
+
+**Example Usage:**
+```typescript
+import { logPostingRule } from '@/lib/audit';
+
+// Log posting rule creation
+await logPostingRule(request, 'create_rule', rule.id, undefined, {
+  ruleName: rule.name,
+  ruleType: rule.type,
+  chargeCode: rule.chargeCode,
+  amount: rule.amount,
+  frequency: rule.frequency,
+});
+
+// Log posting execution
+await logPostingRule(request, 'execute_posting', rule.id, undefined, {
+  ruleName: rule.name,
+  roomsAffected: result.roomsAffected,
+  totalPosted: result.totalPosted,
+  totalAmount: result.totalAmount,
+});
+```
+
+---
+
+### 11. Scheduled Charges Module
+
+**File:** `src/app/api/scheduled-charges/route.ts`, `src/app/api/scheduled-charges/[id]/route.ts`, `src/app/api/scheduled-charges/[id]/pause/route.ts`, `src/app/api/scheduled-charges/[id]/resume/route.ts`, `src/app/api/scheduled-charges/[id]/execute/route.ts`
+
+**Actions Logged:**
+| Action | Description | Metadata Captured |
+|--------|-------------|-------------------|
+| `create` | Scheduled charge created | chargeName, chargeType, amount, frequency, startDate |
+| `update` | Scheduled charge updated | Old & New: amount, frequency, endDate |
+| `pause` | Scheduled charge paused | chargeName, reason |
+| `resume` | Scheduled charge resumed | chargeName |
+| `execute` | Scheduled charge executed | chargeName, bookingId, roomNumber, amount |
+| `cancel` | Scheduled charge cancelled | chargeName, reason |
+| `execute_failure` | Scheduled charge execution failed | chargeName, bookingId, error |
+
+**Example Usage:**
+```typescript
+import { logScheduledCharge } from '@/lib/audit';
+
+// Log scheduled charge creation
+await logScheduledCharge(request, 'create', charge.id, undefined, {
+  chargeName: charge.name,
+  chargeType: charge.type,
+  amount: charge.amount,
+  frequency: charge.frequency,
+  startDate: charge.startDate,
+});
+
+// Log scheduled charge execution
+await logScheduledCharge(request, 'execute', charge.id, undefined, {
+  chargeName: charge.name,
+  bookingId: charge.bookingId,
+  roomNumber: charge.booking?.room?.number,
+  amount: charge.amount,
+});
+```
+
+---
+
+### 12. Laundry Module
+
+**File:** `src/app/api/laundry/orders/route.ts`, `src/app/api/laundry/orders/[id]/route.ts`, `src/app/api/laundry/items/route.ts`, `src/app/api/laundry/items/[id]/route.ts`
+
+**Actions Logged:**
+| Action | Description | Metadata Captured |
+|--------|-------------|-------------------|
+| `create_order` | Laundry order created | orderNumber, guestName, roomNumber, itemCount, serviceType |
+| `update_status` | Order status changed | orderNumber, Old & New: status (pending/picked_up/washing/dried/ironed/delivered) |
+| `add_item` | Item added to order | orderNumber, itemType, quantity, specialInstructions |
+| `remove_item` | Item removed from order | orderNumber, itemType, quantity, reason |
+| `complete_order` | Order marked completed | orderNumber, guestName, roomNumber, totalAmount |
+| `cancel_order` | Order cancelled | orderNumber, guestName, reason |
+
+**Example Usage:**
+```typescript
+import { logLaundry } from '@/lib/audit';
+
+// Log laundry order creation
+await logLaundry(request, 'create_order', order.id, undefined, {
+  orderNumber: order.orderNumber,
+  guestName: order.guest ? `${order.guest.firstName} ${order.guest.lastName}` : undefined,
+  roomNumber: order.room?.number,
+  itemCount: order.items.length,
+  serviceType: order.serviceType,
+});
+
+// Log order status update
+await logLaundry(request, 'update_status', order.id, 
+  { status: 'picked_up' },
+  { status: 'washing' }
+);
+```
+
+---
+
+### 13. Lost & Found Module
+
+**File:** `src/app/api/lost-found/route.ts`, `src/app/api/lost-found/[id]/route.ts`, `src/app/api/lost-found/[id]/notify/route.ts`
+
+**Actions Logged:**
+| Action | Description | Metadata Captured |
+|--------|-------------|-------------------|
+| `report_item` | Item reported lost or found | itemName, category, location, type (lost/found), reporterName, roomNumber |
+| `claim_item` | Item claimed by guest | itemName, claimantName, verificationMethod |
+| `return_item` | Item returned to guest | itemName, guestName, roomNumber, returnedBy |
+| `dispose_item` | Item disposed | itemName, category, reason, disposedBy |
+| `notify_guest` | Guest notified about found item | itemName, guestName, roomNumber, notificationMethod |
+| `match_item` | Lost item matched to found item | itemName, matchConfidence, matchDetails |
+| `update_status` | Item status changed | Old & New: status (reported/claimed/returned/disposed) |
+
+**Example Usage:**
+```typescript
+import { logLostFound } from '@/lib/audit';
+
+// Log reporting a lost item
+await logLostFound(request, 'report_item', item.id, undefined, {
+  itemName: item.name,
+  category: item.category,
+  location: item.locationFound,
+  type: item.type, // 'lost' or 'found'
+  reporterName: item.reporter?.name,
+  roomNumber: item.room?.number,
+});
+
+// Log guest notification
+await logLostFound(request, 'notify_guest', item.id, undefined, {
+  itemName: item.name,
+  guestName: guest.name,
+  roomNumber: guest.room?.number,
+  notificationMethod: notification.method, // 'sms', 'email', 'in_person'
+});
+```
+
+---
+
+### 14. Minibar Module
+
+**File:** `src/app/api/minibar/consumption/route.ts`, `src/app/api/minibar/consumption/[id]/route.ts`, `src/app/api/minibar/items/route.ts`, `src/app/api/minibar/items/[id]/route.ts`, `src/app/api/minibar/setup/route.ts`
+
+**Actions Logged:**
+| Action | Description | Metadata Captured |
+|--------|-------------|-------------------|
+| `record_consumption` | Minibar consumption recorded | roomNumber, guestName, itemName, quantity, unitPrice, totalAmount |
+| `void_consumption` | Consumption voided | roomNumber, itemName, quantity, reason |
+| `restock` | Minibar restocked | roomNumber, itemsRestocked, restockedBy |
+| `update_item` | Minibar item updated | Old & New: name, price, category, isAvailable |
+| `add_item` | Item added to minibar catalog | name, category, price, sku |
+| `remove_item` | Item removed from catalog | name, category, reason |
+| `setup_room` | Minibar setup for room | roomNumber, itemsConfigured, setupType (initial/refresh) |
+
+**Example Usage:**
+```typescript
+import { logMinibar } from '@/lib/audit';
+
+// Log minibar consumption
+await logMinibar(request, 'record_consumption', consumption.id, undefined, {
+  roomNumber: consumption.room?.number,
+  guestName: consumption.guest ? `${consumption.guest.firstName} ${consumption.guest.lastName}` : undefined,
+  itemName: consumption.item?.name,
+  quantity: consumption.quantity,
+  unitPrice: consumption.unitPrice,
+  totalAmount: consumption.quantity * consumption.unitPrice,
+});
+
+// Log minibar restock
+await logMinibar(request, 'restock', room.id, undefined, {
+  roomNumber: room.number,
+  itemsRestocked: restockDetails.length,
+  restockedBy: user.name,
+});
+```
+
+---
+
 ## Helper Functions
 
 ### Location: `src/lib/audit/middleware.ts`
@@ -319,6 +672,14 @@ await logWifi(request, 'voucher_create', 'voucher', voucher.id, {
 | `logChannel()` | Channel Manager | OTA sync events |
 | `logSecurity()` | Security | Security alerts and events |
 | `logSystem()` | System | Automated operations |
+| `logCityLedger()` | City Ledger | Invoice and item operations |
+| `logCommission()` | Commissions | Rule and payment operations |
+| `logNightAudit()` | Night Audit | Audit lifecycle and step operations |
+| `logPostingRule()` | Posting Rules | Rule and execution operations |
+| `logScheduledCharge()` | Scheduled Charges | Charge lifecycle operations |
+| `logLaundry()` | Laundry | Order and item operations |
+| `logLostFound()` | Lost & Found | Item reporting and return operations |
+| `logMinibar()` | Minibar | Consumption and restock operations |
 | `audit()` | Generic | Any module/action |
 
 ### Request Context Extraction
@@ -406,13 +767,24 @@ Get audit log statistics for dashboard.
       "bookings": 2100,
       "guests": 850,
       "payments": 720,
-      "wifi": 500
+      "wifi": 500,
+      "city_ledger": 280,
+      "commissions": 150,
+      "night_audit": 60,
+      "posting_rules": 90,
+      "scheduled_charges": 120,
+      "laundry": 200,
+      "lost_found": 80,
+      "minibar": 180
     },
     "byAction": {
       "create": 2100,
       "update": 1800,
       "login": 850,
-      "delete": 320
+      "delete": 320,
+      "record_consumption": 180,
+      "execute_step": 60,
+      "execute_posting": 90
     },
     "byUser": [
       { "userId": "user1", "userName": "John Doe", "count": 450 }
@@ -510,6 +882,14 @@ Create a custom audit log entry.
 | housekeeping | History | Teal |
 | channel | Globe | Indigo |
 | security | Shield | Red |
+| city_ledger | FileText | Slate |
+| commissions | Percent | Violet |
+| night_audit | Moon | Dark Blue |
+| posting_rules | ArrowRightLeft | Emerald |
+| scheduled_charges | Clock | Yellow |
+| laundry | Shirt | Sky |
+| lost_found | Search | Pink |
+| minibar | Wine | Orange |
 
 ---
 
@@ -534,6 +914,14 @@ The Audit Log viewer is accessible from:
 - [x] Bookings (create, update, check_in, check_out, cancel, confirm, no_show)
 - [x] Payments (payment, refund, void)
 - [x] WiFi (voucher_create, voucher_use, delete)
+- [x] City Ledger (create_invoice, update_invoice, close_invoice, add_item, remove_item, record_payment, apply_credit, void_invoice)
+- [x] Commissions (create_rule, update_rule, delete_rule, calculate_commission, process_payment, reverse_commission)
+- [x] Night Audit (start_audit, execute_step, complete_step, close_audit, rollback_step, restart_audit)
+- [x] Posting Rules (create_rule, update_rule, delete_rule, execute_posting, skip_posting)
+- [x] Scheduled Charges (create, update, pause, resume, execute, cancel, execute_failure)
+- [x] Laundry (create_order, update_status, add_item, remove_item, complete_order, cancel_order)
+- [x] Lost & Found (report_item, claim_item, return_item, dispose_item, notify_guest, match_item, update_status)
+- [x] Minibar (record_consumption, void_consumption, restock, update_item, add_item, remove_item, setup_room)
 
 ### Pending Modules (Future Implementation)
 
@@ -545,6 +933,8 @@ The Audit Log viewer is accessible from:
 - [ ] Folios (create, update, close, invoice)
 - [ ] IoT (device_control, energy_event)
 - [ ] Reports (report_generate, report_export)
+- [ ] Maintenance (work_order_create, work_order_complete)
+- [ ] Key Cards (key_issue, key_return, key_deactivate)
 
 ---
 
@@ -606,6 +996,23 @@ try {
 }
 ```
 
+### 5. Use Correlation IDs for Multi-Step Operations
+
+```typescript
+// Generate a correlation ID for related operations
+const correlationId = crypto.randomUUID();
+
+await logCityLedger(request, 'create_invoice', invoice.id, undefined, 
+  { invoiceNumber: 'CL-001' }, { correlationId }
+);
+await logCityLedger(request, 'add_item', invoice.id, undefined, 
+  { description: 'Room Charge', amount: 150 }, { correlationId }
+);
+await logCityLedger(request, 'record_payment', invoice.id, undefined, 
+  { amount: 150, method: 'cash' }, { correlationId }
+);
+```
+
 ---
 
 ## Performance Considerations
@@ -614,6 +1021,7 @@ try {
 2. **Database Indexes**: Indexes on `tenantId`, `userId`, `entityType`, `entityId`, `createdAt`
 3. **Pagination**: Default limit of 50 records per page
 4. **Export Limits**: Maximum 10,000 records per export
+5. **Module Filtering**: Statistics endpoint aggregates by module for fast dashboard rendering
 
 ---
 
@@ -623,6 +1031,8 @@ try {
 2. **Sensitive Data**: Passwords and tokens are never logged
 3. **IP Tracking**: Captures real IP behind proxies (x-forwarded-for, x-real-ip)
 4. **User Agent**: Full user agent string for forensic analysis
+5. **Financial Data**: Monetary amounts logged for compliance but masked in UI for non-privileged users
+6. **Guest PII**: Guest names logged but can be anonymized via GDPR export endpoint
 
 ---
 
@@ -634,6 +1044,10 @@ The audit service includes a `deleteOlderThan` method for implementing retention
 // Delete audit logs older than 90 days
 const deleted = await auditLogService.deleteOlderThan(90, tenantId);
 console.log(`Deleted ${deleted} old audit logs`);
+
+// Module-specific retention (e.g., keep security events longer)
+const deletedAuth = await auditLogService.deleteOlderThan(90, tenantId, { module: 'auth' });
+const deletedSecurity = await auditLogService.deleteOlderThan(365, tenantId, { module: 'security' });
 ```
 
 ---
@@ -646,6 +1060,7 @@ console.log(`Deleted ${deleted} old audit logs`);
 4. **Audit Log Signatures**: Cryptographic signing for tamper-proof logs
 5. **External Storage**: Integration with external log storage (ELK, Splunk)
 6. **AI-powered Analysis**: Anomaly detection in audit patterns
+7. **Module-specific Dashboards**: Dedicated audit views per module (financial, operational, security)
 
 ---
 
@@ -665,6 +1080,10 @@ console.log(`Deleted ${deleted} old audit logs`);
    - Consider truncating large `oldValue`/`newValue` objects
    - Exclude binary data from logging
 
+4. **Missing Module Icons**
+   - Add new module entries to the icon/color map in `audit-logs-viewer.tsx`
+   - Ensure the module name matches the logged `module` field
+
 ---
 
 ## Version History
@@ -672,6 +1091,7 @@ console.log(`Deleted ${deleted} old audit logs`);
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0.0 | 2025-01-15 | Initial implementation with Auth, Guests, Rooms, Bookings, Payments, WiFi modules |
+| 1.1.0 | 2025-07-01 | Added City Ledger, Commissions, Night Audit, Posting Rules, Scheduled Charges, Laundry, Lost & Found, Minibar audit logging |
 
 ---
 

@@ -1,10 +1,12 @@
 # StaySuite
 ## All-in-One Hospitality Operating System
 
+**Version 2.1**
+
 ---
 
 **by Cryptsk Pvt Ltd**  
-**Last Updated**: May 2026
+**Last Updated**: June 2026
 
 ---
 
@@ -14,7 +16,7 @@
 
 **Positioning**: Not just a PMS — an All-in-One Hospitality Operating System.
 
-**Scale**: 294 database models, 614 API routes, 529 React components, 30 navigation modules, 44 component directories.
+**Scale**: 294 database models, 617 API routes, 532 React components, 11 mini-services, 30 navigation modules, 44 component directories.
 
 ---
 
@@ -69,8 +71,8 @@ Transform every touchpoint of the guest lifecycle:
 
 ### Base Modules (8 — Always Enabled)
 
-#### 🏨 Property Management System (12 features)
-Multi-property, room types, rooms, inventory calendar, availability control, inventory locking, rate plans, overbooking, floor plans, room rate calendar, room out-of-order, package plans
+#### 🏨 Property Management System (13 features)
+Multi-property, room types, rooms, inventory calendar, availability control, inventory locking, rate plans, overbooking, floor plans, room rate calendar, room out-of-order, package plans, travel agent management
 
 #### 📅 Booking Engine (6 features)
 Calendar view, group bookings, waitlist, conflicts, no-show automation, audit logs
@@ -82,10 +84,10 @@ Check-in/out, walk-in, room grid, room assignment, registration card, express ki
 Guest profiles, KYC/documents, stay history, preferences, loyalty & points, guest merge, guest journey, WiFi session history
 
 #### 🧹 Housekeeping (11 features)
-Tasks, kanban board, room status, maintenance, preventive maintenance, assets, inspection checklists, automation, lost & found, minibar, laundry
+Tasks, kanban board, room status, maintenance, preventive maintenance, assets, inspection checklists, automation, lost & found tracking, minibar management, laundry management
 
-#### 💰 Billing & Payments (15 features)
-Folios, invoices, payments, refunds, discounts, cancellation policies, folio transfer, payment plans, credit notes, multi-currency, night audit, city ledger, commissions, posting rules, scheduled charges
+#### 💰 Billing & Payments (16 features)
+Folios, invoices, payments, refunds, discounts, cancellation policies, folio transfer, payment plans, credit notes, multi-currency, night audit (multi-step reconciliation), city ledger billing, commissions management, posting rules (automated folio posting), scheduled charges (recurring automation), revenue accounts
 
 #### ⚙️ Settings (8 features)
 General, tax & currency, localization, feature flags, license keys, GDPR, security, system integrations
@@ -125,8 +127,8 @@ Ad campaigns, Google Hotel Ads, performance tracking, ROI analytics
 #### 🤖 AI Assistant (3 features)
 AI copilot, AI insights, provider settings
 
-#### 🤖 Automation (4 features)
-Workflow builder, rules engine, templates, execution logs
+#### 🤖 Automation (5 features)
+Workflow builder, rules engine, templates, execution logs, 11 automated cron jobs
 
 #### 🎉 Events / MICE (4 features)
 Event spaces, calendar, bookings, resources
@@ -217,6 +219,8 @@ Plans, subscriptions, usage billing
 ### Enterprise Features
 
 - **Multi-Tenant SaaS**: Complete tenant isolation across 294 models
+- **11 Mini-Services**: Dedicated microservices for WiFi, real-time events, cron scheduling, email, SMS, and more
+- **11 Automated Cron Jobs**: Scheduled tasks for night audit, rate sync, housekeeping reminders, backup, and other recurring operations
 - **Feature Flags**: 8 base + 22 addon modules toggleable per plan
 - **Rate Limiting**: Per tenant, user, and API endpoint
 - **Idempotency**: Safe retries for all critical operations

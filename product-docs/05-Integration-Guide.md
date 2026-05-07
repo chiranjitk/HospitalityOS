@@ -1,8 +1,8 @@
 # StaySuite Integration Guide
 ## Third-Party Integration Manual
 
-**Version**: 2.0  
-**Last Updated**: May 2026
+**Version**: 2.1  
+**Last Updated**: June 2026
 
 ---
 
@@ -16,12 +16,14 @@
 6. [IoT Device Integration](#6-iot-device-integration)
 7. [POS System Integration](#7-pos-system-integration)
 8. [Custom Integrations](#8-custom-integrations)
+9. [New Integration Endpoints](#9-new-integration-endpoints)
+10. [Webhook Events](#10-webhook-events)
 
 ---
 
 ## 1. Overview
 
-StaySuite provides multiple integration options across 134 API route directories:
+StaySuite provides multiple integration options across 134 API route directories with **617 API routes** and **294 data models**:
 
 | Integration Type | Methods |
 |------------------|---------|
@@ -31,7 +33,7 @@ StaySuite provides multiple integration options across 134 API route directories
 | OTAs | API, Webhooks |
 | IoT Devices | MQTT, API |
 | POS Systems | API, Webhooks |
-| Custom | REST API (614 routes), Webhooks |
+| Custom | REST API (617 routes), Webhooks |
 
 ---
 
@@ -245,25 +247,172 @@ Orders are validated against active bookings and posted to guest folios automati
 
 ### 8.1 REST API
 
-See API Documentation for complete reference. 614 API routes available.
+See API Documentation for complete reference. 617 API routes available across 294 data models.
 
 ### 8.2 Webhooks
 
 1. Navigate to **Webhooks** module
 2. Add endpoint URL
-3. Select events
+3. Select events (see [Section 10](#10-webhook-events) for full event list)
 4. Set secret for signature verification
 
 ### 8.3 Mini-Services
 
 | Service | Port | Protocol | Purpose |
 |---------|------|----------|---------|
-| Next.js (main) | 3000 | HTTP | Main application (614 API routes) |
+| Next.js (main) | 3000 | HTTP | Main application (617 API routes) |
 | Captive Redirect | 8888 | HTTP | WiFi captive portal redirect |
 | Realtime | 3003 | Socket.IO | Real-time updates |
 | Availability | 3002 | Socket.IO | Room availability |
 | FreeRADIUS Mgmt | 3010 | HTTP | RADIUS management API |
 | FreeRADIUS Server | 1812/1813 | RADIUS | Authentication/Accounting |
+
+---
+
+## 9. New Integration Endpoints
+
+The following endpoints are available as of version 2.1:
+
+### 9.1 Travel Agents API
+
+```http
+GET    /api/travel-agents
+POST   /api/travel-agents
+GET    /api/travel-agents/[id]
+PUT    /api/travel-agents/[id]
+DELETE /api/travel-agents/[id]
+```
+
+Manage travel agent profiles, commissions, and agreements.
+
+### 9.2 Scheduled Charges API
+
+```http
+GET    /api/scheduled-charges
+POST   /api/scheduled-charges
+GET    /api/scheduled-charges/[id]
+PUT    /api/scheduled-charges/[id]
+DELETE /api/scheduled-charges/[id]
+POST   /api/scheduled-charges/[id]/pause
+POST   /api/scheduled-charges/[id]/resume
+```
+
+Create and manage recurring charges on guest folios. Use the pause/resume endpoints to temporarily halt scheduled charges without deleting them.
+
+### 9.3 City Ledger API
+
+```http
+GET    /api/city-ledger
+POST   /api/city-ledger
+GET    /api/city-ledger/[id]
+PUT    /api/city-ledger/[id]
+DELETE /api/city-ledger/[id]
+```
+
+Manage city ledger accounts for direct bill, corporate accounts, and non-guest postings.
+
+### 9.4 Commissions API
+
+```http
+GET    /api/commissions
+POST   /api/commissions
+GET    /api/commissions/[id]
+PUT    /api/commissions/[id]
+DELETE /api/commissions/[id]
+```
+
+Track and manage commissions for travel agents, OTAs, and referral partners.
+
+### 9.5 Revenue Accounts API
+
+```http
+GET    /api/revenue-accounts
+POST   /api/revenue-accounts
+GET    /api/revenue-accounts/[id]
+PUT    /api/revenue-accounts/[id]
+DELETE /api/revenue-accounts/[id]
+```
+
+Configure revenue account codes and categories for financial reporting and posting rules.
+
+### 9.6 Night Audit API
+
+```http
+POST   /api/night-audit
+GET    /api/night-audit
+GET    /api/night-audit/[id]
+```
+
+Trigger and review night audit operations including end-of-day closing, room charge posting, and financial roll-ups.
+
+### 9.7 Cron Jobs API
+
+```http
+GET    /api/cron/*
+POST   /api/cron/*
+```
+
+> **Authentication**: All Cron Jobs API endpoints require `CRON_SECRET` header authentication.
+>
+> ```http
+> CRON_SECRET: your-cron-secret-value
+> ```
+
+The Cron Jobs API manages scheduled background tasks including automated night audit triggers, report generation, and system maintenance jobs.
+
+---
+
+## 10. Webhook Events
+
+StaySuite supports webhook notifications for the following events:
+
+### 10.1 Core Events
+
+| Event | Description |
+|-------|-------------|
+| `booking.created` | New booking created |
+| `booking.updated` | Booking modified |
+| `booking.cancelled` | Booking cancelled |
+| `booking.checked_in` | Guest checked in |
+| `booking.checked_out` | Guest checked out |
+
+### 10.2 Financial Events
+
+| Event | Description |
+|-------|-------------|
+| `payment.completed` | Payment processed successfully |
+| `payment.failed` | Payment attempt failed |
+| `refund.processed` | Refund issued |
+| `invoice.created` | Invoice generated |
+
+### 10.3 Scheduled Charges Events
+
+| Event | Description |
+|-------|-------------|
+| `scheduled_charge.executed` | A scheduled charge was successfully posted to a folio |
+| `scheduled_charge.paused` | A scheduled charge has been paused |
+| `scheduled_charge.resumed` | A paused scheduled charge has been resumed |
+
+### 10.4 Night Audit Events
+
+| Event | Description |
+|-------|-------------|
+| `night_audit.started` | Night audit process has begun |
+| `night_audit.completed` | Night audit process finished successfully |
+
+### 10.5 Commission Events
+
+| Event | Description |
+|-------|-------------|
+| `commission.created` | A new commission record was created |
+
+### 10.6 Hotel Services Events
+
+| Event | Description |
+|-------|-------------|
+| `laundry.order.created` | New laundry order placed |
+| `laundry.order.updated` | Laundry order status or details changed |
+| `minibar.consumption.recorded` | Minibar consumption posted to guest folio |
 
 ---
 

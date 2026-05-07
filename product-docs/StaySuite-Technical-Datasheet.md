@@ -18,12 +18,14 @@
 | Metric | Value |
 |--------|-------|
 | Prisma Database Models | 294 |
-| API Routes | 614 |
-| React Components | 529 |
-| Component Subdirectories | 44 |
+| API Routes | 617 |
+| React Components | 532 |
+| Component Subdirectories | 52 |
 | API Route Directories | 134 |
 | Navigation Modules | 30 |
-| shadcn/ui Components | 51 |
+| shadcn/ui Components | 56 |
+| Production Dependencies | 80 |
+| Dev Dependencies | 22 |
 | FreeRADIUS | v3.2.7 (compiled from source) |
 | Supported Locales | 15 |
 | Zustand Stores | 5 |
@@ -73,6 +75,75 @@
 |--------|-------------|
 | **Cloud SaaS** | Multi-tenant hosted solution |
 | **On-Premise** | Self-hosted with PM2 + Systemd |
+
+---
+
+## 🧩 Integrated Modules
+
+StaySuite includes 24+ integrated modules covering every aspect of hotel operations:
+
+### Property Management (PMS)
+| Module | Features |
+|--------|----------|
+| **Properties** | Multi-property management, chain support |
+| **Room Types** | Unlimited room types with amenities |
+| **Rooms** | Room inventory with 12+ status types |
+| **Floor Plans** | Visual drag-drop editor |
+| **Rate Plans** | Dynamic pricing, seasonal rates |
+| **Inventory Control** | Calendar-based availability, locking |
+| **Travel Agents** | Agent management, commissions, allotments |
+| **Package Plans** | Room + service bundles, component-based pricing |
+
+### Reservations & Front Desk
+| Module | Features |
+|--------|----------|
+| **Bookings** | Calendar, groups, waitlist, no-show automation |
+| **Front Desk** | Check-in, check-out, walk-in, room assignment |
+| **Room Grid** | Visual room status dashboard |
+
+### Guest Experience
+| Module | Features |
+|--------|----------|
+| **Guests** | Profiles, KYC, preferences, stay history |
+| **Loyalty** | Points, tiers, rewards |
+| **CRM** | Segments, campaigns, feedback |
+| **Events** | Event spaces, banquet management |
+
+### Billing & Finance
+| Module | Features |
+|--------|----------|
+| **Folio Management** | Guest folios with line items |
+| **Invoicing** | Automatic invoice generation |
+| **Payments** | Multi-gateway support |
+| **City Ledger** | Corporate accounts, direct billing, aging reports |
+| **Commissions** | Commission rules, tracking, and payments |
+| **Night Audit** | Automated end-of-day reconciliation |
+| **Posting Rules** | Configurable auto-posting rules |
+| **Scheduled Charges** | Recurring automated charges |
+| **Revenue Accounts** | Revenue categorization and tracking |
+
+### Operations
+| Module | Features |
+|--------|----------|
+| **Housekeeping** | Tasks, kanban board, inspections |
+| **Laundry** | Item tracking, order management |
+| **Lost & Found** | Item logging, guest matching |
+| **Minibar** | Setup, consumption tracking, auto-posting |
+| **Staff Management** | Scheduling, attendance, performance |
+| **POS** | Orders, kitchen display, menu management |
+
+### Revenue & Distribution
+| Module | Features |
+|--------|----------|
+| **Revenue Management** | Pricing rules, forecasting, competitor analysis |
+| **Channel Manager** | 46+ OTA integrations, real-time sync |
+
+### Infrastructure
+| Module | Features |
+|--------|----------|
+| **Cron Jobs** | 11 automated jobs (rate sync, audit, cleanup, etc.) |
+| **Webhooks** | Event-driven integrations with retry queue |
+| **Automation** | Rule-based automation engine |
 
 ---
 
@@ -187,6 +258,7 @@ Compiled from source with native PostgreSQL SQL module:
 ### Database Schema
 
 - **294 Prisma models** in `prisma/schema.prisma`
+- **Source of truth**: `complete-database.sql` — 278 tables, 6 views, 53 functions
 - All tenant-scoped models include `tenantId` field
 - All models have `createdAt` and `updatedAt` (auto-managed)
 - Soft delete: `deletedAt` field on critical models
@@ -263,7 +335,7 @@ Draft → Confirmed → Checked_In → Checked_Out → Cancelled
 
 | Feature | Specification |
 |---------|---------------|
-| Routes | 614 |
+| Routes | 617 |
 | Versioning | URL-based (/v1) |
 | Authentication | Session cookies + API Keys |
 | Rate Limiting | Per tenant, user, endpoint |
@@ -271,16 +343,23 @@ Draft → Confirmed → Checked_In → Checked_Out → Cancelled
 | Webhooks | Event-driven with retry queue |
 | Tenant Isolation | All queries scoped to tenantId |
 
-### Mini-Services
+### Mini-Services (11)
 
-| Service | Port | Purpose |
-|---------|------|---------|
-| Next.js | 3000 | Main application |
-| Captive Redirect | 8888 | WiFi captive portal |
-| Realtime | 3003 | Socket.IO real-time |
-| Availability | 3002 | Room availability |
-| FreeRADIUS Mgmt | 3010 | RADIUS management API |
-| FreeRADIUS Server | 1812/1813 | RADIUS auth/acct |
+| # | Service | Port | Protocol | Purpose |
+|---|---------|------|----------|---------|
+| 1 | Next.js (Main App) | 3000 | HTTP | Core application server |
+| 2 | Captive Redirect | 8888 | HTTP | WiFi captive portal redirect |
+| 3 | Realtime Service | 3003 | WebSocket (Socket.IO) | Live updates, notifications, chat |
+| 4 | Availability Service | 3002 | WebSocket (Socket.IO) | Room availability real-time |
+| 5 | FreeRADIUS Mgmt API | 3010 | HTTP (Hono) | RADIUS user & NAS management |
+| 6 | nftables Firewall | 3013 | HTTP (Hono) | Firewall rule management API |
+| 7 | DHCP Service | 67/68 | UDP | Custom DHCP server for guest network |
+| 8 | DNS Service | 53 | UDP/TCP | Custom DNS resolver for captive portal |
+| 9 | DNS Parser | — | Internal | DNS packet parsing library |
+| 10 | RADIUS Server | 1812/1813 | UDP (RADIUS) | Authentication & accounting |
+| 11 | Conntrack Bridge | — | Netlink | Linux connection tracking bridge |
+
+> **Note**: Additional supporting utilities include **SNI Parser** (TLS hostname extraction) and **shared** (common logging library). All mini-services are independent Bun projects under `mini-services/`.
 
 ---
 
@@ -340,6 +419,6 @@ Draft → Confirmed → Checked_In → Checked_Out → Cancelled
 
 ---
 
-*Document Version: 3.0*
+*Document Version: 2.1*
 *Last Updated: May 2026*
 *© 2026 Cryptsk Pvt Ltd*

@@ -1,8 +1,8 @@
 # StaySuite Network Architecture Documentation
 ## WiFi AAA Gateway & Network Flow
 
-**Version**: 1.0  
-**Last Updated: May 2026  
+**Version**: 2.1  
+**Last Updated: June 2026  
 **Author**: Cryptsk Pvt Ltd
 
 ---
@@ -18,6 +18,7 @@
 7. [Bandwidth Management](#7-bandwidth-management)
 8. [Security Architecture](#8-security-architecture)
 9. [Supported Vendors](#9-supported-vendors)
+10. [Mini-Services Architecture](#10-mini-services-architecture)
 
 ---
 
@@ -1110,17 +1111,184 @@ StaySuite's WiFi AAA Gateway integration is a unique differentiator that enables
 
 ---
 
+## 10. Mini-Services Architecture
+
+### 10.1 Service Overview
+
+StaySuite's network layer is composed of 11 specialized mini-services, each handling a specific domain of the WiFi and network gateway infrastructure. These services run as lightweight, independently deployable processes that communicate via internal APIs and shared databases.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    STAYSUITE MINI-SERVICES ARCHITECTURE                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐  │
+│  │                       APPLICATION LAYER                             │  │
+│  │                                                                      │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │  │
+│  │  │   Next.js     │  │  FreeRADIUS   │  │   Realtime   │              │  │
+│  │  │   Service     │  │   Service     │  │   Service    │              │  │
+│  │  │  Port 3000    │  │  Port 3010    │  │  Port 3003   │              │  │
+│  │  │   HTTP        │  │   HTTP        │  │  WebSocket   │              │  │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘              │  │
+│  │                                                                      │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │  │
+│  │  │   Captive    │  │ Availability │  │    DHCP      │              │  │
+│  │  │   Redirect   │  │   Service     │  │   Service    │              │  │
+│  │  │  Port 8888    │  │  Port 3002    │  │  Port 67-68  │              │  │
+│  │  │   HTTP        │  │  WebSocket   │  │   UDP        │              │  │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘              │  │
+│  │                                                                      │  │
+│  └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐  │
+│  │                      NETWORK SERVICES LAYER                         │  │
+│  │                                                                      │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │  │
+│  │  │     DNS      │  │     DNS      │  │   RADIUS     │              │  │
+│  │  │   Service    │  │   Parser     │  │   Server     │              │  │
+│  │  │  Port 53     │  │  (internal)  │  │ Port 1812-   │              │  │
+│  │  │  UDP+TCP     │  │              │  │    1813      │              │  │
+│  │  └──────────────┘  └──────────────┘  │    UDP       │              │  │
+│  │                                        └──────────────┘              │  │
+│  │  ┌──────────────┐  ┌──────────────┐                                │  │
+│  │  │  Conntrack   │  │  SNI Parser  │                                │  │
+│  │  │   Bridge     │  │  (internal)  │                                │  │
+│  │  │  (internal/  │  │              │                                │  │
+│  │  │  Netlink)    │  │              │                                │  │
+│  │  └──────────────┘  └──────────────┘                                │  │
+│  │                                                                      │  │
+│  └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 10.2 Service Details
+
+| # | Service | Port | Protocol | Description |
+|---|---------|------|----------|-------------|
+| 1 | **Next.js Service** | 3000 | HTTP | Primary application server serving the StaySuite web dashboard, PMS UI, booking engine, and REST API endpoints for all client-facing operations |
+| 2 | **FreeRADIUS Service** | 3010 | HTTP | Management API for the RADIUS subsystem; provides HTTP endpoints to configure RADIUS users, policies, and shared secrets without direct config file editing |
+| 3 | **Realtime Service** | 3003 | WebSocket | Real-time bidirectional communication layer; pushes live updates for room status, session changes, availability, housekeeping tasks, and alerts to connected clients |
+| 4 | **Captive Redirect** | 8888 | HTTP | Captive portal redirect server; intercepts HTTP traffic from unauthenticated guests and redirects them to the login/authentication page |
+| 5 | **Availability Service** | 3002 | WebSocket | Tracks real-time room and resource availability; broadcasts inventory changes to connected clients (OTAs, booking engine, dashboard) instantly |
+| 6 | **DHCP Service** | 67-68 | UDP | Embedded DHCP server for guest network IP address assignment; integrates with guest stay records for automatic lease management |
+| 7 | **DNS Service** | 53 | UDP+TCP | DNS resolver for the guest network; handles captive portal detection via DNS hijacking and provides DNS resolution for authenticated guests |
+| 8 | **DNS Parser** | Internal | Internal | Processes and analyzes DNS query logs; extracts domain-level metadata for bandwidth analytics, categorization, and security filtering |
+| 9 | **RADIUS Server** | 1812-1813 | UDP | Core RADIUS authentication and accounting server; handles Access-Request/Accept/Reject, accounting Start/Interim/Stop, and CoA/DM messages from network gateways |
+| 10 | **Conntrack Bridge** | Internal | Netlink | Kernel-level connection tracking bridge; monitors NFQUEUE/netlink events for real-time flow state awareness, NAT traversal, and intelligent traffic steering |
+| 11 | **SNI Parser** | Internal | Internal | TLS Server Name Indication (SNI) parser; inspects TLS ClientHello packets to identify destination domains for analytics, filtering, and policy enforcement |
+
+### 10.3 Inter-Service Communication
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    MINI-SERVICES COMMUNICATION MAP                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                                                                      │  │
+│  │   Next.js ─────HTTP─────▶ FreeRADIUS Service                         │  │
+│  │     │                          │                                     │  │
+│  │     │         ┌────────────────┘                                     │  │
+│  │     │         ▼                                                      │  │
+│  │     ├───HTTP──▶ RADIUS Server (via FreeRADIUS Service)               │  │
+│  │     │                                                                │  │
+│  │     ├───WS────▶ Realtime Service                                      │  │
+│  │     │                                                                │  │
+│  │     ├───WS────▶ Availability Service                                  │  │
+│  │     │                                                                │  │
+│  │     │         DNS Service ◀─── Captive Redirect                      │  │
+│  │     │              │                                                  │  │
+│  │     │              ▼                                                  │  │
+│  │     │         DNS Parser (internal analysis)                          │  │
+│  │     │                                                                │  │
+│  │     │         DHCP Service ──▶ Guest IP Assignment                    │  │
+│  │     │                                                                │  │
+│  │     │         SNI Parser ──▶ Domain Identification                    │  │
+│  │     │                                                                │  │
+│  │     │         Conntrack Bridge ──▶ Flow State Tracking                │  │
+│  │     │                                                                │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  Data Flow Summary:                                                         │
+│  ────────────────────────────────────────────────────────────────────────   │
+│                                                                              │
+│  Guest connects WiFi                                                       │
+│       │                                                                     │
+│       ▼                                                                     │
+│  DHCP Service (assigns IP) ──▶ Captive Redirect (redirects HTTP)           │
+│       │                                                                     │
+│       ▼                                                                     │
+│  DNS Service (captive detection) ──▶ Next.js (serves login page)           │
+│       │                                                                     │
+│       ▼                                                                     │
+│  FreeRADIUS Service ──▶ RADIUS Server (authenticates guest)                 │
+│       │                                                                     │
+│       ▼                                                                     │
+│  Guest authenticated ──▶ Realtime Service (notifies dashboard)              │
+│       │                                                                     │
+│       ▼                                                                     │
+│  Conntrack Bridge + SNI Parser (monitor & analyze traffic)                  │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 10.4 Port Assignment Reference
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     COMPLETE PORT ASSIGNMENT TABLE                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  EXTERNAL PORTS (Accessible from network):                                  │
+│  ┌───────┬──────────────────────────┬────────────┬──────────────────────┐   │
+│  │ Port  │ Service                  │ Protocol   │ Bind Address         │   │
+│  ├───────┼──────────────────────────┼────────────┼──────────────────────┤   │
+│  │  3000 │ Next.js (Web/API)        │ HTTP       │ 0.0.0.0             │   │
+│  │  3002 │ Availability Service     │ WebSocket  │ 0.0.0.0             │   │
+│  │  3003 │ Realtime Service         │ WebSocket  │ 0.0.0.0             │   │
+│  │  3010 │ FreeRADIUS Mgmt API      │ HTTP       │ 127.0.0.1           │   │
+│  │  53   │ DNS Service              │ UDP + TCP  │ 0.0.0.0             │   │
+│  │  67   │ DHCP Server              │ UDP        │ 0.0.0.0             │   │
+│  │  68   │ DHCP Client              │ UDP        │ 0.0.0.0             │   │
+│  │ 1812 │ RADIUS Authentication    │ UDP        │ 0.0.0.0             │   │
+│  │ 1813 │ RADIUS Accounting        │ UDP        │ 0.0.0.0             │   │
+│  │ 3799 │ RADIUS CoA/DM            │ UDP        │ 0.0.0.0             │   │
+│  │  8888 │ Captive Redirect         │ HTTP       │ 0.0.0.0             │   │
+│  └───────┴──────────────────────────┴────────────┴──────────────────────┘   │
+│                                                                              │
+│  INTERNAL SERVICES (No external port):                                       │
+│  ┌──────────────────────────────────┬────────────────────────────────────┐   │
+│  │ Service                          │ Communication Method              │   │
+│  ├──────────────────────────────────┼────────────────────────────────────┤   │
+│  │ DNS Parser                      │ Internal API / Shared Memory      │   │
+│  │ Conntrack Bridge                │ Netlink Socket (kernel)           │   │
+│  │ SNI Parser                      │ Internal API / NFQUEUE            │   │
+│  └──────────────────────────────────┴────────────────────────────────────┘   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Appendix A: Network Ports Reference
 
 | Port | Protocol | Purpose |
 |------|----------|---------|
+| 3000 | TCP | Next.js Web Server / API |
+| 3002 | TCP/WS | Availability Service (WebSocket) |
+| 3003 | TCP/WS | Realtime Service (WebSocket) |
+| 3010 | TCP | FreeRADIUS Management API (internal) |
+| 53 | UDP/TCP | DNS Service (captive detection + resolution) |
+| 67 | UDP | DHCP Server |
+| 68 | UDP | DHCP Client |
 | 1812 | UDP | RADIUS Authentication |
 | 1813 | UDP | RADIUS Accounting |
 | 3799 | UDP | RADIUS CoA/DM |
+| 8888 | TCP | Captive Portal Redirect Server |
 | 443 | TCP | Captive Portal (HTTPS) |
-| 80 | TCP | Captive Portal Redirect |
-| 53 | UDP/TCP | DNS (for captive portal detection) |
-| 67 | UDP | DHCP |
+| 80 | TCP | Captive Portal Redirect (HTTP) |
 
 ---
 

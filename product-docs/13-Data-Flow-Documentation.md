@@ -1,8 +1,8 @@
 # StaySuite Data Flow Documentation
 ## System Data Movement & Event Architecture
 
-**Version**: 1.0  
-**Last Updated: May 2026  
+**Version**: 2.1  
+**Last Updated: June 2026  
 **Author**: Cryptsk Pvt Ltd
 
 ---
@@ -18,6 +18,11 @@
 7. [Real-Time Data Sync](#7-real-time-data-sync)
 8. [Data Consistency Patterns](#8-data-consistency-patterns)
 9. [Data Retention & Archival](#9-data-retention--archival)
+10. [Night Audit Data Flow](#10-night-audit-data-flow)
+11. [Scheduled Charges Data Flow](#11-scheduled-charges-data-flow)
+12. [City Ledger Data Flow](#12-city-ledger-data-flow)
+13. [Commission Data Flow](#13-commission-data-flow)
+14. [Cron Jobs Data Flow](#14-cron-jobs-data-flow)
 
 ---
 
@@ -235,6 +240,22 @@ This document describes how data flows through the StaySuite platform, including
 │  │                                                                        │  │
 │  │   Reports          ─                     ALL (aggregated reads)       │  │
 │  │                                                                        │  │
+│  │   NightAudit       AuditLog, Revenue      Folio, Booking, Room        │  │
+│  │                    Snapshot, AuditStep                                   │  │
+│  │                                                                        │  │
+│  │   ScheduledCharges ChargeTemplate,       Booking, Folio, Room        │  │
+│  │                    ChargeExecution                                           │  │
+│  │                                                                        │  │
+│  │   CityLedger       CorpAccount, Invoice,  Booking, Billing             │  │
+│  │                    LedgerPayment, Aging                                    │  │
+│  │                                                                        │  │
+│  │   Commission       CommissionRule,        Booking, Billing             │  │
+│  │                    CommissionRecord,                                       │  │
+│  │                    CommissionPayment                                        │  │
+│  │                                                                        │  │
+│  │   CronJobs         CronExecutionLog,     ─                             │  │
+│  │                    JobConfig                                                  │  │
+│  │                                                                        │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
 │                                                                              │
 │  RULE: No module writes to another module's data.                           │
@@ -386,6 +407,53 @@ This document describes how data flows through the StaySuite platform, including
 │  task.assigned            Housekeeping      Notify                          │
 │  task.completed           Housekeeping      Notify                          │
 │  room.status_changed      Housekeeping      Front Desk                      │
+│                                                                              │
+│  NIGHT AUDIT EVENTS                                                        │
+│  ────────────────────────────────────────────────────────────────────────   │
+│                                                                              │
+│  Event                    Emitted By        Subscribers                     │
+│  ───────────────────────────────────────────────────────────────────────    │
+│  night_audit.started      NightAudit         Notify, Reports                 │
+│  night_audit.step_complete NightAudit         Notify                          │
+│  night_audit.completed    NightAudit         Reports, Notify                 │
+│  night_audit.failed       NightAudit         Notify, Alert                   │
+│                                                                              │
+│  SCHEDULED CHARGES EVENTS                                                     │
+│  ────────────────────────────────────────────────────────────────────────   │
+│                                                                              │
+│  Event                    Emitted By        Subscribers                     │
+│  ───────────────────────────────────────────────────────────────────────    │
+│  scheduled_charge.executed ScheduledCharges  Billing, Notify                │
+│  scheduled_charge.failed  ScheduledCharges  Notify, Alert                   │
+│  charge_template.created  ScheduledCharges  ─                               │
+│  charge_template.updated  ScheduledCharges  ─                               │
+│                                                                              │
+│  CITY LEDGER EVENTS                                                          │
+│  ────────────────────────────────────────────────────────────────────────   │
+│                                                                              │
+│  Event                    Emitted By        Subscribers                     │
+│  ───────────────────────────────────────────────────────────────────────    │
+│  city_ledger.invoice_created  CityLedger     Notify                          │
+│  city_ledger.payment_recorded CityLedger    Notify, Reports                 │
+│  city_ledger.aging_updated   CityLedger     Reports, Notify                 │
+│                                                                              │
+│  COMMISSION EVENTS                                                            │
+│  ────────────────────────────────────────────────────────────────────────   │
+│                                                                              │
+│  Event                    Emitted By        Subscribers                     │
+│  ───────────────────────────────────────────────────────────────────────    │
+│  commission.calculated    Commission         Notify, Billing                 │
+│  commission.payment_scheduled Commission      Notify                         │
+│  commission.payment_completed Commission    Reports, Notify                 │
+│                                                                              │
+│  CRON JOB EVENTS                                                              │
+│  ────────────────────────────────────────────────────────────────────────   │
+│                                                                              │
+│  Event                    Emitted By        Subscribers                     │
+│  ───────────────────────────────────────────────────────────────────────    │
+│  cron.job.started         CronJobs           Notify                          │
+│  cron.job.completed       CronJobs           Notify                          │
+│  cron.job.failed          CronJobs           Notify, Alert                   │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -1101,6 +1169,434 @@ This document describes how data flows through the StaySuite platform, including
 
 ---
 
+## 10. Night Audit Data Flow
+
+### 10.1 Overview
+
+Night audit is the end-of-day financial reconciliation process that ensures all transactions are properly recorded, taxes recalculated, and the business day is closed cleanly.
+
+### 10.2 Night Audit Data Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      NIGHT AUDIT DATA FLOW                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
+│  │ 1. Start     │───▶│ 2. Fetch     │───▶│ 3. Verify    │                  │
+│  │    Audit     │    │    Open      │    │    Room      │                  │
+│  │              │    │    Folios    │    │    Charges   │                  │
+│  └──────────────┘    └──────────────┘    └──────────────┘                  │
+│                                                  │                          │
+│                                                  ▼                          │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
+│  │ 9. Store     │◀──│ 8. Close     │◀──│ 7. Generate  │                  │
+│  │    Audit     │    │    Business  │    │    Revenue  │                  │
+│  │    Log       │    │    Day       │    │    Snapshot │                  │
+│  └──────────────┘    └──────────────┘    └──────────────┘                  │
+│                                                  │                          │
+│                                                  ▼                          │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
+│  │ 6. Post     │◀──│ 5. Execute   │◀──│ 4. Recalc    │                  │
+│  │    Comms    │    │    Scheduled │    │    Taxes     │                  │
+│  │              │    │    Charges   │    │              │                  │
+│  └──────────────┘    └──────────────┘    └──────────────┘                  │
+│                                                                              │
+│  Data Movement:                                                             │
+│  ───────────────────────────────────────────────────────────────────────    │
+│                                                                              │
+│  Step 1: Start Audit                                                        │
+│    • Create audit session record                                            │
+│    • Lock new transactions during audit                                     │
+│    • Emit: night_audit.started                                              │
+│                                                                              │
+│  Step 2: Fetch Open Folios                                                  │
+│    • Query: SELECT * FROM folios WHERE balance > 0 AND status = 'open'      │
+│    • Include in-house and departing guests                                   │
+│    • Return folio count & total balance                                      │
+│                                                                              │
+│  Step 3: Verify Room Charges                                                │
+│    • Cross-check room charges posted for all in-house rooms                 │
+│    • Verify: rate_plan charge = base_rate * nights                           │
+│    • Flag discrepancies for manual review                                    │
+│                                                                              │
+│  Step 4: Recalculate Taxes                                                  │
+│    • Apply current tax rules to all open folios                             │
+│    • Update tax line items where amounts changed                            │
+│    • Emit: night_audit.step_complete                                        │
+│                                                                              │
+│  Step 5: Execute Scheduled Charges                                          │
+│    • Run scheduled charge templates (e.g., minibar, laundry)               │
+│    • Post charges to matching folios                                        │
+│    • Emit: night_audit.step_complete                                        │
+│                                                                              │
+│  Step 6: Post Commissions                                                   │
+│    • Calculate travel agent commissions for the day                         │
+│    • Create commission records                                              │
+│    • Emit: night_audit.step_complete                                        │
+│                                                                              │
+│  Step 7: Generate Revenue Snapshot                                          │
+│    • Aggregate: room revenue, F&B, extras, taxes                            │
+│    • Calculate: ADR, RevPAR, occupancy                                       │
+│    • Store: daily_revenue_snapshot record                                    │
+│                                                                              │
+│  Step 8: Close Business Day                                                 │
+│    • Increment business date                                                 │
+│    • Update room status (auto check-out if needed)                           │
+│    • Release audit transaction lock                                         │
+│    • Emit: night_audit.completed                                            │
+│                                                                              │
+│  Step 9: Store Audit Log                                                   │
+│    • Persist: audit_session with all step results                           │
+│    • Store: step_count, error_count, duration                               │
+│    • Available for: audit trail and reporting                               │
+│                                                                              │
+│  Error Handling:                                                             │
+│    • Any step failure: emit night_audit.failed, halt remaining steps        │
+│    • Retry: manual trigger or next scheduled run                             │
+│    • Idempotency: audit date checked to prevent double-run                   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 11. Scheduled Charges Data Flow
+
+### 11.1 Overview
+
+Scheduled charges allow properties to automatically post recurring or one-time charges to guest folios based on configurable templates that match active bookings and rooms.
+
+### 11.2 Scheduled Charges Data Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    SCHEDULED CHARGES DATA FLOW                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
+│  │ 1. Create    │───▶│ 2. Schedule  │───▶│ 3. Match     │                  │
+│  │    Charge    │    │    Evaluation│    │    Active    │                  │
+│  │    Template  │    │    (Cron)    │    │    Bookings  │                  │
+│  └──────────────┘    └──────────────┘    └──────────────┘                  │
+│                                                  │                          │
+│                                                  ▼                          │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
+│  │ 8. Handle    │◀──│ 7. Post to   │◀──│ 6. Log       │◀──┐               │
+│  │    Errors /  │    │    Folios    │    │    Execution │  │               │
+│  │    Pauses    │    │              │    │              │  │               │
+│  └──────────────┘    └──────────────┘    └──────────────┘  │               │
+│                                                                    │       │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │               │
+│  │              │    │ 5. Generate  │◀──│ 4. Calculate │──┘               │
+│  │              │    │    Charge    │    │    Charge    │                       │
+│  │              │    │    Line Items│    │    Amounts   │                       │
+│  │              │    │              │    │              │                       │
+│  └──────────────┘    └──────────────┘    └──────────────┘                       │
+│                                                                              │
+│  Data Movement:                                                             │
+│  ───────────────────────────────────────────────────────────────────────    │
+│                                                                              │
+│  Step 1: Create Charge Template                                             │
+│    • Define: name, frequency (daily/weekly/once/stay), amount               │
+│    • Define: matching rules (room types, rate plans, booking source)         │
+│    • Define: charge category (minibar, laundry, resort fee, etc.)           │
+│    • Store: ChargeTemplate record                                            │
+│    • Emit: charge_template.created                                           │
+│                                                                              │
+│  Step 2: Schedule Evaluation                                                │
+│    • Cron expression parsed and scheduled                                    │
+│    • Evaluation time: property timezone aware                               │
+│    • Job registered in job scheduler                                         │
+│                                                                              │
+│  Step 3: Match Active Bookings/Rooms                                        │
+│    • Query: active in-house bookings matching template rules                 │
+│    • Filter: room types, rate plans, booking sources                         │
+│    • Exclude: already charged for this period (idempotency)                  │
+│    • Return: list of folio_ids eligible for charge                           │
+│                                                                              │
+│  Step 4: Calculate Charge Amounts                                           │
+│    • Apply: fixed amount or percentage of room rate                          │
+│    • Apply: quantity multipliers (e.g., guests count)                       │
+│    • Apply: tax rules per property/region                                    │
+│    • Return: calculated charge amounts per folio                             │
+│                                                                              │
+│  Step 5: Generate Charge Line Items                                         │
+│    • Create: LineItem records for each matched folio                         │
+│    • Link: to ChargeTemplate for audit trail                                 │
+│    • Batch: group for efficient database writes                              │
+│                                                                              │
+│  Step 6: Log Execution                                                      │
+│    • Create: ChargeExecution record                                          │
+│    • Track: template_id, execution_time, match_count, total_amount          │
+│    • Status: success/partial/failed                                         │
+│                                                                              │
+│  Step 7: Post to Folios                                                     │
+│    • Write: line items to respective folios                                  │
+│    • Update: folio balance                                                   │
+│    • Emit: scheduled_charge.executed                                         │
+│                                                                              │
+│  Step 8: Handle Errors/Pauses                                               │
+│    • On failure: log error, skip folio, continue batch                       │
+│    • On pause: template.is_paused = true, skip evaluation                   │
+│    • Emit: scheduled_charge.failed (for alerts)                             │
+│    • Retry: next scheduled evaluation                                        │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 12. City Ledger Data Flow
+
+### 12.1 Overview
+
+City ledger manages accounts receivable for corporate clients, travel agents, and other business entities that have direct billing arrangements with the property.
+
+### 12.2 City Ledger Data Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      CITY LEDGER DATA FLOW                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
+│  │ 1. Create    │───▶│ 2. Create    │───▶│ 3. Add       │                  │
+│  │    Corporate │    │    Invoice    │    │    Line      │                  │
+│  │    Account   │    │              │    │    Items     │                  │
+│  └──────────────┘    └──────────────┘    └──────────────┘                  │
+│                                                  │                          │
+│                                                  ▼                          │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
+│  │ 7. Generate  │◀──│ 6. Update    │◀──│ 5. Record    │◀──┐               │
+│  │    Reports   │    │    Aging     │    │    Payments  │  │               │
+│  │              │    │              │    │              │  │               │
+│  └──────────────┘    └──────────────┘    └──────────────┘  │               │
+│                                                                    │       │
+│                                         ┌──────────────┐  │               │
+│                                         │ 4. Post      │──┘               │
+│                                         │    Charges   │                       │
+│                                         │    to Acct   │                       │
+│                                         └──────────────┘                       │
+│                                                                              │
+│  Data Movement:                                                             │
+│  ───────────────────────────────────────────────────────────────────────    │
+│                                                                              │
+│  Step 1: Create Corporate Account                                           │
+│    • Define: company name, billing address, credit limit                    │
+│    • Define: payment terms (NET 15, NET 30, NET 45, NET 60)                  │
+│    • Define: contact person, email, phone                                    │
+│    • Store: CorpAccount record                                               │
+│                                                                              │
+│  Step 2: Create Invoice                                                     │
+│    • Link: to CorpAccount                                                   │
+│    • Generate: invoice number (sequential, tenant-scoped)                    │
+│    • Set: due_date based on payment terms                                    │
+│    • Store: Invoice record with status 'draft'                               │
+│                                                                              │
+│  Step 3: Add Line Items                                                    │
+│    • Itemize: room charges, F&B, services, extras                            │
+│    • Link: each item to source booking/folio                                │
+│    • Calculate: subtotals, taxes, discounts                                 │
+│    • Update: invoice total                                                   │
+│    • Emit: city_ledger.invoice_created                                       │
+│                                                                              │
+│  Step 4: Post Charges to Account                                            │
+│    • Debit: CorpAccount balance                                              │
+│    • Credit: revenue account                                                │
+│    • Update: Invoice status to 'posted'                                      │
+│                                                                              │
+│  Step 5: Record Payments                                                    │
+│    • Receive: payment against invoice (check, wire, credit)                 │
+│    • Create: LedgerPayment record                                           │
+│    • Apply: to invoice, update balance                                       │
+│    • Emit: city_ledger.payment_recorded                                      │
+│                                                                              │
+│  Step 6: Update Aging                                                      │
+│    • Calculate: aging buckets (Current, 1-30, 31-60, 61-90, 90+)            │
+│    • Update: CorpAccount aging_summary                                       │
+│    • Flag: overdue accounts for follow-up                                    │
+│    • Emit: city_ledger.aging_updated                                         │
+│                                                                              │
+│  Step 7: Generate Reports                                                   │
+│    • Aged receivables report                                                │
+│    • Account statement (per corporate client)                               │
+│    • Payment history                                                        │
+│    • Available: in Reports module (read access)                              │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 13. Commission Data Flow
+
+### 13.1 Overview
+
+Commission management handles travel agent, tour operator, and referral partner commissions automatically when bookings are created through commissionable channels.
+
+### 13.2 Commission Data Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      COMMISSION DATA FLOW                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
+│  │ 1. Configure │───▶│ 2. Booking   │───▶│ 3. Match     │                  │
+│  │    Rules     │    │    Created   │    │    Travel    │                  │
+│  │              │    │              │    │    Agent     │                  │
+│  └──────────────┘    └──────────────┘    └──────────────┘                  │
+│                                                  │                          │
+│                                                  ▼                          │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
+│  │ 8. Process  │◀──│ 7. Schedule  │◀──│ 6. Accumulate│◀──┐               │
+│  │    Payment   │    │    Payment   │    │    Balance   │  │               │
+│  │              │    │              │    │              │  │               │
+│  └──────────────┘    └──────────────┘    └──────────────┘  │               │
+│                                                                    │       │
+│                                         ┌──────────────┐  │               │
+│                                         │ 5. Create    │──┘               │
+│                                         │    Commission│                       │
+│                                         │    Record    │                       │
+│                                         └──────────────┘                       │
+│                                         ┌──────────────┐                       │
+│                                         │ 4. Calculate │                       │
+│                                         │    Commission│                       │
+│                                         └──────────────┘                       │
+│                                                                              │
+│  Data Movement:                                                             │
+│  ───────────────────────────────────────────────────────────────────────    │
+│                                                                              │
+│  Step 1: Configure Rules                                                   │
+│    • Define: commission rates (flat or percentage)                            │
+│    • Define: per travel agent, per rate plan, per channel                    │
+│    • Define: calculation basis (room revenue, total revenue)                 │
+│    • Store: CommissionRule records                                           │
+│                                                                              │
+│  Step 2: Booking Created                                                    │
+│    • Triggered by: booking.created event (via Channel Manager)               │
+│    • Check: booking source for commissionable channel                       │
+│    • Pass: booking_id, agent_id, total_amount to commission engine           │
+│                                                                              │
+│  Step 3: Match Travel Agent                                                │
+│    • Lookup: travel agent by booking source or agent_id                     │
+│    • Match: against active CommissionRule                                    │
+│    • If no match: skip commission flow                                       │
+│                                                                              │
+│  Step 4: Calculate Commission                                              │
+│    • Apply: rule rate (e.g., 10% of room revenue)                            │
+│    • Calculate: commission_amount = base * rate                              │
+│    • Round: per property currency settings                                  │
+│                                                                              │
+│  Step 5: Create Commission Record                                           │
+│    • Store: CommissionRecord with status 'pending'                           │
+│    • Link: to booking_id, agent_id, rule_id                                  │
+│    • Emit: commission.calculated                                             │
+│                                                                              │
+│  Step 6: Accumulate Balance                                                │
+│    • Aggregate: commission records per travel agent                          │
+│    • Update: agent.running_balance += commission_amount                      │
+│    • Track: payable_amount, paid_amount, pending_count                       │
+│                                                                              │
+│  Step 7: Schedule Payment                                                  │
+│    • On: threshold reached or payment cycle (monthly)                        │
+│    • Generate: commission payment batch                                      │
+│    • Emit: commission.payment_scheduled                                      │
+│                                                                              │
+│  Step 8: Process Payment                                                   │
+│    • Execute: payment to travel agent (bank transfer, check)                 │
+│    • Update: CommissionRecord status to 'paid'                               │
+│    • Update: agent.running_balance -= payment_amount                         │
+│    • Emit: commission.payment_completed                                      │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 14. Cron Jobs Data Flow
+
+### 14.1 Overview
+
+Cron jobs provide a secure, scheduled mechanism for executing background tasks such as night audits, scheduled charges, report generation, and data cleanup.
+
+### 14.2 Cron Jobs Data Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       CRON JOBS DATA FLOW                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
+│  │ 1. Cron      │───▶│ 2. Validate  │───▶│ 3. Execute   │                  │
+│  │    Trigger   │    │    CRON_     │    │    Job       │                  │
+│  │              │    │    SECRET    │    │              │                  │
+│  └──────────────┘    └──────────────┘    └──────────────┘                  │
+│                                                  │                          │
+│                                                  ▼                          │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
+│  │ 6. Handle    │◀──│ 5. Log       │◀──│ 4. Update    │                  │
+│  │    Errors    │    │    Result    │    │    Records   │                  │
+│  │              │    │              │    │              │                  │
+│  └──────────────┘    └──────────────┘    └──────────────┘                  │
+│                                                                              │
+│  Data Movement:                                                             │
+│  ───────────────────────────────────────────────────────────────────────    │
+│                                                                              │
+│  Step 1: Cron Trigger                                                      │
+│    • External scheduler hits: POST /api/cron/:job_name                       │
+│    • Header: X-Cron-Secret: <CRON_SECRET>                                   │
+│    • Body: optional payload (e.g., date override for testing)                │
+│                                                                              │
+│  Step 2: Validate CRON_SECRET                                               │
+│    • Compare: X-Cron-Secret header against env CRON_SECRET                   │
+│    • If invalid: return HTTP 401 Unauthorized                                │
+│    • If valid: proceed to job execution                                      │
+│                                                                              │
+│  Step 3: Execute Job                                                        │
+│    • Resolve: job handler by job_name                                       │
+│    • Available jobs:                                                         │
+│      - night_audit          → Night Audit process                           │
+│      - scheduled_charges    → Scheduled Charges evaluation                 │
+│      - aging_update         → City Ledger aging recalculation               │
+│      - commission_settlement → Commission batch payment                     │
+│      - report_generation    → Daily/weekly/monthly reports                 │
+│      - data_cleanup         → Archive old records, purge temp data          │
+│    • Execute: within transaction scope where applicable                      │
+│    • Emit: cron.job.started                                                  │
+│                                                                              │
+│  Step 4: Update Records                                                     │
+│    • Job-specific updates (varies per job):                                  │
+│      - night_audit: creates AuditLog, RevenueSnapshot                       │
+│      - scheduled_charges: creates ChargeExecution, LineItems                │
+│      - aging_update: recalculates CorpAccount aging                         │
+│      - commission_settlement: updates CommissionRecord status               │
+│      - report_generation: generates report files                            │
+│      - data_cleanup: archives/deletes stale records                         │
+│                                                                              │
+│  Step 5: Log Result                                                         │
+│    • Create: CronExecutionLog record                                         │
+│    • Track: job_name, started_at, completed_at, duration                     │
+│    • Track: records_affected, status (success/failed)                        │
+│    • Emit: cron.job.completed or cron.job.failed                             │
+│                                                                              │
+│  Step 6: Handle Errors                                                      │
+│    • On exception: catch, log stack trace                                   │
+│    • Rollback: any uncommitted transactions                                  │
+│    • Alert: notify property admin on critical job failure                    │
+│    • Retry: configurable retry policy (max 3 attempts, exponential backoff)  │
+│                                                                              │
+│  Security Notes:                                                            │
+│    • CRON_SECRET is a required environment variable                          │
+│    • All cron endpoints are rate-limited                                    │
+│    • Execution logs are retained for 90 days                                 │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Appendix: Data Flow Quick Reference
 
 ### A.1 Module Communication Summary
@@ -1110,10 +1606,17 @@ This document describes how data flows through the StaySuite platform, including
 | Booking | WiFi | Event | booking.checked_in/out |
 | Booking | Billing | Event | booking.confirmed |
 | Booking | Channel | Event | booking.* |
+| Booking | Commission | Event | booking.created |
 | WiFi | Billing | Event | wifi.session.* |
 | Payment | Booking | Event | payment.completed |
 | Channel | Booking | API | Create booking |
 | PMS | Channel | Event | inventory.updated |
+| NightAudit | Billing | Event | night_audit.completed |
+| ScheduledCharges | Billing | Event | scheduled_charge.executed |
+| CityLedger | Reports | Event | city_ledger.aging_updated |
+| Commission | Billing | Event | commission.payment_scheduled |
+| CronJobs | NightAudit | Cron | night_audit job |
+| CronJobs | ScheduledCharges | Cron | scheduled_charges job |
 
 ### A.2 Critical Path (Synchronous)
 
@@ -1128,6 +1631,11 @@ This document describes how data flows through the StaySuite platform, including
 3. Analytics aggregation
 4. Search index updates
 5. External webhooks
+6. Commission calculation on booking creation
+7. Night audit step completion notifications
+8. Scheduled charge execution alerts
+9. City ledger aging updates
+10. Cron job completion logging
 
 ---
 

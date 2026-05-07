@@ -16,9 +16,10 @@
 6. [FreeRADIUS Setup](#6-freeradius-setup)
 7. [SSL/TLS Configuration](#7-ssltls-configuration)
 8. [Monitoring Setup](#8-monitoring-setup)
-9. [Backup Configuration](#9-backup-configuration)
-10. [Scaling Guidelines](#10-scaling-guidelines)
-11. [Troubleshooting](#11-troubleshooting)
+9. [Cron Jobs Configuration](#9-cron-jobs-configuration)
+10. [Backup Configuration](#10-backup-configuration)
+11. [Scaling Guidelines](#11-scaling-guidelines)
+12. [Troubleshooting](#12-troubleshooting)
 
 ---
 
@@ -121,16 +122,29 @@ cp -r public .next/standalone/
 
 ### 3.4 PM2 Process Management
 
-The platform runs 4 services managed by PM2 (via `ecosystem.config.cjs`):
+The platform runs multiple services including 9 PM2-managed processes (via `ecosystem.config.cjs`), plus PostgreSQL started manually:
 
 | Service | Script | Port | Description |
 |---------|--------|------|-------------|
-| staysuite-freeradius | radiusd (FreeRADIUS v3.2.7) | 1812/1813 | RADIUS authentication |
+| staysuite-postgresql | pg_ctl (manual, NOT PM2) | 5432 | PostgreSQL 17 database |
+| staysuite-freeradius | radiusd -D (FreeRADIUS v3.2.7) | 1812/1813 | RADIUS authentication |
 | staysuite-nextjs | bun run dev | 3000 | Main application |
+| staysuite-realtime | bun --hot index.ts | 3003 | WebSocket real-time service |
 | staysuite-captive-redirect | bun --hot index.ts | 8888 | Captive portal redirect |
-| staysuite-realtime | bun index.ts | 3003 | WebSocket real-time |
+| availability-service | bun --hot index.ts | 3002 | Room availability checker |
+| dhcp-service | bun --hot index.ts | 67 (UDP) | Custom DHCP server |
+| dns-service | bun --hot index.ts | 53 (UDP/TCP) | Custom DNS resolver |
+| radius-server | bun --hot index.ts | - | Custom RADIUS implementation |
+
+> **Important**: PostgreSQL must be started **MANUALLY** via `pg_ctl`, **NOT** via PM2. The ecosystem config has `autorestart: false` for PostgreSQL.
+>
+> **Note**: `conntrack-bridge`, `sni-parser`, and `dns-parser` are utility services that run on-demand.
 
 ```bash
+# Start PostgreSQL manually (NOT via PM2)
+pg_ctl -D /home/z/my-project/pgsql-runtime/data -l /home/z/my-project/pgsql-runtime/logfile start
+
+# Start all PM2-managed services
 pm2 start ecosystem.config.cjs
 pm2 status
 pm2 logs
@@ -201,6 +215,7 @@ npx prisma migrate status
 ### 5.3 Database Schema
 
 - **294 Prisma models** defined in `prisma/schema.prisma`
+- The complete database schema is also available in `pgsql-production/complete-database.sql` (278 tables, 6 views, 53 functions).
 - All tenant-scoped models include `tenantId` field
 - All models have `createdAt` and `updatedAt` (auto-managed)
 - Soft delete: `deletedAt` field on critical models
@@ -208,15 +223,32 @@ npx prisma migrate status
 ### 5.4 Seed Data
 
 ```bash
+# Primary seed (comprehensive demo data)
 bun run db:seed
+
+# WiFi seed (RADIUS plans)
+bun run db:seed:wifi
+
+# Final seed (new features seed)
+bun run db:seed:final
 ```
+
+**Seed Files:**
+| File | Lines | Description |
+|------|-------|-------------|
+| `prisma/seed.ts` | 3425 | Primary comprehensive seed |
+| `prisma/wifi-seed.ts` | - | WiFi plans with RADIUS group mapping |
+| `prisma/seed-final.ts` | - | New features seed |
 
 Demo data includes:
 - 2 tenants (Royal Stay Hotels, Ocean View Resorts)
-- 3 users per tenant with role-based access
+- 7 users across tenants with role-based access
 - 2 properties (Royal Stay Kolkata 120 rooms, Royal Stay Darjeeling 50 rooms)
-- 6 room types, sample bookings, group bookings
-- 6 WiFi plans
+- 4 room types per property
+- 6 WiFi plans with RADIUS group mapping
+- Travel agents, package plans, city ledger, commissions data
+- Laundry, lost & found, minibar catalog data
+- Posting rules, scheduled charges, revenue accounts data
 
 ---
 
@@ -254,6 +286,14 @@ FreeRADIUS uses a native PostgreSQL SQL module for:
 - Premium (25 Mbps, 10 GB/day) — ₹199/day
 - Business (50 Mbps, Unlimited) — ₹399/day
 - Enterprise (100 Mbps, Unlimited) — ₹699/day
+
+### 6.4 Starting FreeRADIUS
+
+> **Important**: FreeRADIUS must be started with the `-D` flag pointing to the dictionary directory:
+> ```bash
+> /home/z/my-project/freeradius-install/sbin/radiusd -D /home/z/my-project/freeradius-install/share/freeradius -f
+> ```
+> Without this flag, you will get 'Error reading dictionary file' errors.
 
 ---
 
@@ -327,9 +367,31 @@ pm2 logs staysuite-nextjs --lines 100
 
 ---
 
-## 9. Backup Configuration
+## 9. Cron Jobs Configuration
 
-### 9.1 Automated Backup Script
+The platform includes 11 automated cron jobs managed via node-cron:
+
+| Job | Schedule | Description |
+|-----|----------|-------------|
+| auto-room-posting | Daily 00:00 | Posts daily room charges to folios |
+| channel-sync | Every 15 min | Syncs inventory/rates with OTA channels |
+| execute-scheduled-charges | Hourly | Processes recurring scheduled charges |
+| expiration | Daily 01:00 | Handles booking/rate plan expirations |
+| no-show-detection | Daily 14:00 | Auto-marks bookings as no-show |
+| pm-autotrigger | Daily 06:00 | Creates preventive maintenance work orders |
+| process-notifications | Every 5 min | Delivers scheduled notifications |
+| recurring-invoices | Daily 02:00 | Generates recurring invoices |
+| recurring-tasks | Daily 07:00 | Creates recurring housekeeping tasks |
+| reports | Daily 08:00 | Generates and delivers scheduled reports |
+| session-engine | Every 30 sec | Monitors WiFi sessions, applies quotas |
+
+> All cron endpoints require `CRON_SECRET` header for authentication.
+
+---
+
+## 10. Backup Configuration
+
+### 10.1 Automated Backup Script
 
 ```bash
 #!/bin/bash
@@ -339,7 +401,7 @@ gzip /backups/staysuite_$DATE.sql
 find /backups -name "*.sql.gz" -mtime +30 -delete
 ```
 
-### 9.2 Point-in-Time Recovery
+### 10.2 Point-in-Time Recovery
 
 ```ini
 # postgresql.conf
@@ -350,9 +412,9 @@ archive_command = 'cp %p /archive/%f'
 
 ---
 
-## 10. Scaling Guidelines
+## 11. Scaling Guidelines
 
-### 10.1 Horizontal Scaling
+### 11.1 Horizontal Scaling
 
 ```
                     ┌──────────┐
@@ -379,9 +441,9 @@ archive_command = 'cp %p /archive/%f'
 
 ---
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
-### 11.1 FreeRADIUS Issues
+### 12.1 FreeRADIUS Issues
 
 ```bash
 # Check FreeRADIUS status
@@ -394,7 +456,7 @@ radtest testuser testpass localhost 1812 testing123
 # Navigate to WiFi → Gateway Diagnostics in the UI
 ```
 
-### 11.2 Database Issues
+### 12.2 Database Issues
 
 ```bash
 # Check PostgreSQL status
@@ -408,7 +470,7 @@ npx prisma db push --force-reset
 bun run db:seed
 ```
 
-### 11.3 Memory Issues
+### 12.3 Memory Issues
 
 ```bash
 # Increase Node.js memory

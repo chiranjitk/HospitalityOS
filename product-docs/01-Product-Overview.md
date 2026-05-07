@@ -1,8 +1,8 @@
 # StaySuite Product Overview
 ## All-in-One Hospitality Operating System
 
-**Version**: 2.0  
-**Last Updated**: May 2026  
+**Version**: 2.1  
+**Last Updated**: July 2025  
 **Author**: Cryptsk Pvt Ltd
 
 ---
@@ -13,7 +13,7 @@
 
 **StaySuite** is an enterprise-grade, cloud-native hospitality operating system that unifies all aspects of hotel operations into a single, intelligent platform. Unlike traditional Property Management Systems (PMS), StaySuite is positioned as a complete **Hospitality Operating System** — covering guest journey, revenue, operations, marketing, and intelligence.
 
-The platform comprises **294 database models**, **614 API routes**, and **529 React components** organized across **44 component directories**, making it one of the most comprehensive hospitality platforms in the industry.
+The platform comprises **294 database models**, **617 API routes**, and **532 React components** organized across **52 component directories**, making it one of the most comprehensive hospitality platforms in the industry.
 
 ### 1.2 Target Market
 
@@ -35,7 +35,7 @@ The platform comprises **294 database models**, **614 API routes**, and **529 Re
 | **Unified Channel Manager** | 46+ OTA connections with real-time sync and CRS |
 | **Guest Journey Engine** | Complete lifecycle management from discovery to retention |
 | **Unified Communication Hub** | Single inbox for OTA, WhatsApp, Email, SMS |
-| **Scale** | 294 DB models, 614 API routes, 529 components, 30 navigation modules |
+| **Scale** | 294 DB models, 617 API routes, 532 components, 30 navigation modules |
 
 ---
 
@@ -68,7 +68,7 @@ To modernize hospitality operations with intelligent, reliable, and scalable sof
 │  │  (Next.js)  │  │   (PWA)     │  │   (PWA)     │          │
 │  └─────────────┘  └─────────────┘  └─────────────┘          │
 ├─────────────────────────────────────────────────────────────┤
-│                      API Layer (614 Routes)                  │
+│                      API Layer (617 Routes)                  │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐            │
 │  │   PMS   │ │Booking  │ │Billing  │ │  WiFi   │            │
 │  └─────────┘ └─────────┘ └─────────┘ └─────────┘            │
@@ -126,13 +126,13 @@ Request → Middleware → Resolve Tenant → Attach tenant_id → Enforce Scopi
 | Metric | Count |
 |--------|-------|
 | Prisma Database Models | 294 |
-| API Routes | 614 |
-| React Components | 529 |
-| Component Subdirectories | 44 |
+| API Routes | 617 |
+| React Components | 532 |
+| Component Subdirectories | 52 |
 | Navigation Modules | 30 |
 | API Route Directories | 134 |
-| Mini-Services | 4 (Next.js, FreeRADIUS, Realtime, Captive Redirect) |
-| shadcn/ui Components | 51 |
+| Mini-Services | 11 (Next.js, FreeRADIUS, Realtime, Captive Redirect, Availability, DHCP, DNS, DNS Parser, RADIUS Server, Conntrack Bridge, SNI Parser) |
+| shadcn/ui Components | 56 |
 | Supported Locales | 15 (8 Indian + 7 Global) |
 
 ---
@@ -157,6 +157,7 @@ The platform is organized into **8 base modules** (always enabled) and **22 addo
 | Room Rate Calendar | Date-grid rate management |
 | Room Out-of-Order | Maintenance-based room unavailability |
 | Package Plans | Bundled room + service packages |
+| Travel Agents | Travel agent management with commission rules |
 
 ### 4.2 Bookings — Base
 
@@ -206,9 +207,9 @@ The platform is organized into **8 base modules** (always enabled) and **22 addo
 | Asset Management | Equipment lifecycle tracking |
 | Inspection Checklists | Quality assurance workflows |
 | Automation Rules | Auto-assignment and triggers |
-| Lost & Found | Item tracking and guest notification |
-| Minibar | Consumption tracking and restocking |
-| Laundry | Order tracking and status |
+| Lost & Found | Item tracking with guest notification |
+| Minibar | Room minibar setup, consumption tracking, restocking |
+| Laundry | Order tracking, item catalog, status management |
 
 ### 4.6 Billing — Base
 
@@ -224,11 +225,12 @@ The platform is organized into **8 base modules** (always enabled) and **22 addo
 | Payment Plans | Scheduled payment schedules |
 | Credit Notes | Credit memo management |
 | Multi-Currency | Exchange rate management |
-| Night Audit | Daily reconciliation and close |
-| City Ledger | Account-based billing |
-| Commissions | Travel agent commission tracking |
-| Posting Rules | Auto-posting configuration |
-| Scheduled Charges | Recurring charge automation |
+| Posting Rules | Auto-posting configuration with condition-based triggers |
+| Scheduled Charges | Recurring charge automation with pause/resume/history |
+| City Ledger | Account-based billing for corporate and travel agent accounts |
+| Commissions | Travel agent commission tracking with rules and payment management |
+| Revenue Accounts | Chart of accounts for revenue categorization |
+| Night Audit | Multi-step daily reconciliation and close process |
 
 ### 4.7 Guest Experience — Addon
 
@@ -420,11 +422,19 @@ FreeRADIUS v3.2.7 compiled from source with native PostgreSQL SQL module:
 
 ### Deployment Architecture
 
-The platform runs **4 services** managed by PM2:
+The platform runs **11 services** managed by PM2:
+
 1. **staysuite-nextjs** — Main application (port 3000)
-2. **staysuite-freeradius** — FreeRADIUS v3.2.7 server
-3. **staysuite-captive-redirect** — Captive portal redirect service (port 8888)
-4. **staysuite-realtime** — WebSocket real-time service (port 3003)
+2. **staysuite-freeradius** — FreeRADIUS v3.2.7 server (ports 1812/1813)
+3. **staysuite-realtime** — WebSocket real-time service (port 3003)
+4. **staysuite-captive-redirect** — Captive portal redirect service (port 8888)
+5. **availability-service** — Room availability checker (port 3002)
+6. **dhcp-service** — Custom DHCP server
+7. **dns-service** — Custom DNS resolver
+8. **dns-parser** — DNS packet parser
+9. **radius-server** — Custom RADIUS implementation
+10. **conntrack-bridge** — Linux conntrack session bridge
+11. **sni-parser** — TLS SNI hostname parser
 
 ---
 
@@ -457,16 +467,48 @@ The platform runs **4 services** managed by PM2:
 
 ---
 
-## 9. Support & Maintenance
+## 9. Cron Jobs & Scheduled Tasks
 
-### 9.1 Support Channels
+The platform includes a comprehensive cron job system powered by Node.js, responsible for automated daily operations, synchronizations, and background processing.
+
+| Cron Job | Description |
+|----------|-------------|
+| **Auto Room Posting** | Automatic daily room charges applied to active folios |
+| **Channel Sync** | OTA channel synchronization for inventory, rates, and bookings |
+| **Execute Scheduled Charges** | Process recurring charges with pause/resume support |
+| **Expiration** | Handle booking and rate plan expirations |
+| **No-Show Detection** | Automatic no-show processing based on configurable rules |
+| **PM Auto-Trigger** | Preventive maintenance triggers based on schedules |
+| **Process Notifications** | Scheduled notification delivery across channels |
+| **Recurring Invoices** | Automated invoice generation for recurring billing |
+| **Recurring Tasks** | Scheduled task execution for operations |
+| **Reports** | Scheduled report generation and delivery |
+| **Session Engine** | WiFi session monitoring, cleanup, and enforcement |
+
+---
+
+## 10. Seed Data & Database Initialization
+
+The platform uses Prisma seed files for database initialization and demo data population:
+
+| File | Description |
+|------|-------------|
+| `prisma/seed.ts` | Comprehensive primary seed (3,425 lines) — entities, configurations, and demo data |
+| `prisma/wifi-seed.ts` | WiFi-specific seed data — networks, RADIUS clients, captive portal configs |
+| `prisma/seed-final.ts` | Supplementary seed for final-stage data and overrides |
+
+---
+
+## 11. Support & Maintenance
+
+### 11.1 Support Channels
 
 - Email: support@cryptsk.com
 - In-app chat
 - Help center with articles and tutorials
 - Documentation portal
 
-### 9.2 Support Tiers
+### 11.2 Support Tiers
 
 | Priority | Response Time |
 |----------|---------------|
@@ -477,7 +519,7 @@ The platform runs **4 services** managed by PM2:
 
 ---
 
-## 10. Contact
+## 12. Contact
 
 **Cryptsk Pvt Ltd**
 
@@ -487,4 +529,4 @@ The platform runs **4 services** managed by PM2:
 
 ---
 
-*© 2026 Cryptsk Pvt Ltd. All rights reserved.*
+*© 2025 Cryptsk Pvt Ltd. All rights reserved.*

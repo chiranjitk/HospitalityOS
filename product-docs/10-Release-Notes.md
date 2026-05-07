@@ -1,7 +1,47 @@
 # StaySuite Release Notes
 ## Version History
 
-**Last Updated**: May 2026
+**Last Updated**: July 2025
+
+---
+
+## Version 2.1.0 — July 2025
+
+### New Features
+
+#### Billing Module Enhancements
+- **City Ledger** — Account-based billing for corporate accounts and travel agents with invoice management, line items, and payment tracking
+- **Commissions** — Travel agent commission management with configurable rules, automatic record creation, and payment processing
+- **Night Audit** — Multi-step daily reconciliation process with audit step definitions, execution logging, and completion tracking
+- **Posting Rules** — Automated posting rules with condition-based triggers for auto-charging folios (e.g., room charges, service fees)
+- **Scheduled Charges** — Recurring charge automation with support for pause/resume, execution history tracking, and configurable schedules
+- **Revenue Accounts** — Chart of accounts for revenue categorization across all billing categories
+
+#### Housekeeping Module Enhancements
+- **Laundry Management** — Complete laundry item catalog, order creation and tracking, per-item status management
+- **Lost & Found** — Item reporting and tracking system with guest notification capability
+- **Minibar Management** — Room-level minibar setup and configuration, consumption recording, automatic restocking alerts
+
+#### PMS Module Enhancements
+- **Travel Agents** — Travel agent management with contact details, commission rates, and booking source tracking
+- **Package Plans** — Bundled room + service packages with component management and package-specific rates
+
+#### Infrastructure
+- **11 Mini-Services** — Expanded from 4 to 11 microservices including custom DHCP server, DNS resolver, RADIUS server, conntrack bridge, SNI parser, and DNS parser
+- **Cron Job System** — 11 automated cron jobs for room posting, channel sync, scheduled charges, no-show detection, session engine, and more
+- **Scheduled Charges API** — New endpoints for charge history (`/api/scheduled-charges/[id]/history`), pause (`/api/scheduled-charges/[id]/pause`), and resume (`/api/scheduled-charges/[id]/resume`)
+
+### Platform Updates
+- API Routes: 614 → 617
+- Database Models: 294 (stable)
+- React Components: 532
+- Mini-Services: 4 → 11
+- shadcn/ui Components: 51 → 56
+- Seed file: `prisma/seed-final.ts` added for new feature seeding
+
+### Bug Fixes
+- FreeRADIUS dictionary path fix — Added `-D` flag for correct dictionary resolution
+- Scheduled charges execution improvements
 
 ---
 
@@ -148,6 +188,33 @@ StaySuite 1.0 was the first production release of the All-in-One Hospitality Ope
 
 ## Upgrade Notes
 
+### Upgrading from 2.0.0 to 2.1.0
+
+```bash
+# Pull the latest code
+git pull origin main
+
+# Install dependencies
+bun install
+
+# Generate Prisma client
+npx prisma generate
+
+# Sync schema to PostgreSQL 17
+npx prisma db push
+
+# Seed with new feature demo data (optional)
+bun run db:seed-final
+```
+
+**Changes:**
+- API routes expanded from 614 to 617
+- Mini-Services expanded from 4 to 11
+- React components increased from 529 to 532
+- shadcn/ui components increased from 51 to 56
+- FreeRADIUS dictionary path fix applied (add `-D` flag)
+- New seed file `prisma/seed-final.ts` available
+
 ### Upgrading from 1.0.0 to 2.0.0
 
 ```bash
@@ -176,6 +243,12 @@ bun run db:seed
 ---
 
 ## Known Issues
+
+### Version 2.1.0
+
+| Issue | Workaround | Fix Version |
+|-------|------------|-------------|
+| Turbopack memory issues with many imports | Use `NEXT_DISABLE_TURBOPACK=1` (already set) | - |
 
 ### Version 2.0.0
 

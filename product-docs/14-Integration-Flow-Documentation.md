@@ -1,8 +1,8 @@
 # StaySuite Integration Flow Documentation
 ## External System Connections & Integration Architecture
 
-**Version**: 1.0  
-**Last Updated: May 2026  
+**Version**: 2.1  
+**Last Updated: June 2026  
 **Author**: Cryptsk Pvt Ltd
 
 ---
@@ -18,6 +18,10 @@
 7. [Third-Party API Integrations](#7-third-party-api-integrations)
 8. [Webhook System](#8-webhook-system)
 9. [Integration Monitoring](#9-integration-monitoring)
+10. [Travel Agent Integration Flow](#10-travel-agent-integration-flow)
+11. [Scheduled Charges Integration Flow](#11-scheduled-charges-integration-flow)
+12. [Night Audit Integration Flow](#12-night-audit-integration-flow)
+13. [City Ledger Integration Flow](#13-city-ledger-integration-flow)
 
 ---
 
@@ -41,6 +45,9 @@ StaySuite follows a modular integration architecture that:
 | **Access Control** | Door lock management | Assa Abloy, Salto, dormakaba |
 | **Communication** | Messaging channels | WhatsApp, Email, SMS |
 | **Analytics** | Data export | Google Analytics, Custom BI |
+| **Travel Agents** | Commission management | B2B Portal, GDS |
+| **Scheduled Tasks** | Background automation | Cron, BullMQ |
+| **City Ledger** | Corporate billing | Direct billing, AR |
 
 ### 1.3 Integration Matrix
 
@@ -58,6 +65,9 @@ StaySuite follows a modular integration architecture that:
 │  Door Locks            5+       🟡 Beta       REST API, MQTT                │
 │  Communication         4        ✅ Production  REST API                     │
 │  Analytics             3        ✅ Production  REST API                     │
+│  Travel Agents         5+       ✅ Production  REST API, B2B Portal           │
+│  Scheduled Tasks       6        ✅ Production  Cron, BullMQ                   │
+│  City Ledger          -        ✅ Production  REST API (internal)            │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -947,6 +957,354 @@ StaySuite follows a modular integration architecture that:
 
 ---
 
+## 10. Travel Agent Integration Flow
+
+### 10.1 Overview
+
+Travel agent integration handles the end-to-end flow from when a booking is made through a travel agent or GDS channel to when the commission is calculated, recorded, and paid out.
+
+### 10.2 Integration Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   TRAVEL AGENT INTEGRATION FLOW                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Travel Agent          Channel Mgr          Booking Module       Commission  │
+│       │                     │                     │                 Module   │
+│       │                     │                     │                   │      │
+│       │  ┌─────────────────────────────────────────────────────────────┐   │
+│       │  │ 1. Travel Agent makes booking (via GDS, B2B portal, OTA)    │   │
+│       │  └─────────────────────────────────────────────────────────────┘   │
+│       │                     │                     │                   │      │
+│       │────────────────────▶│                     │                   │      │
+│       │                     │                     │                   │      │
+│       │  reservation.       │                     │                   │      │
+│       │  created webhook    │                     │                   │      │
+│       │                     │                     │                   │      │
+│       │                     │  ┌──────────────────────────────────┐   │   │
+│       │                     │  │ 2. Commission rule matched       │   │   │
+│       │                     │  │    • Lookup agent by source       │   │   │
+│       │                     │  │    • Match against rule set      │   │   │
+│       │                     │  │    • Identify commission rate     │   │   │
+│       │                     │  └──────────────────────────────────┘   │   │
+│       │                     │                     │                   │      │
+│       │                     │  3. Create       │                   │      │
+│       │                     │     Booking      │                   │      │
+│       │                     │─────────────────▶│                   │      │
+│       │                     │                     │                   │      │
+│       │                     │  4. Booking      │                   │      │
+│       │                     │     confirmed    │                   │      │
+│       │                     │◀─────────────────│                   │      │
+│       │                     │                     │                   │      │
+│       │                     │                     │  booking.        │      │
+│       │                     │                     │  created event   │      │
+│       │                     │                     │─────────────────▶│      │
+│       │                     │                     │                   │      │
+│       │                     │                     │  ┌────────────────────┐│  │
+│       │                     │                     │  │ 5. Commission      ││  │
+│       │                     │                     │  │    calculated     ││  │
+│       │                     │                     │  │    • base * rate   ││  │
+│       │                     │                     │  │    • store record  ││  │
+│       │                     │                     │  └────────────────────┘│  │
+│       │                     │                     │                   │      │
+│       │  ┌─────────────────────────────────────────────────────────────┐   │
+│       │  │ 6. Commission record created                                │   │
+│       │  │    • Status: pending                                          │   │
+│       │  │    • Emitted: commission.calculated                          │   │
+│       │  └─────────────────────────────────────────────────────────────┘   │
+│       │                     │                     │                   │      │
+│       │  ┌─────────────────────────────────────────────────────────────┐   │
+│       │  │ 7. Payment scheduled                                        │   │
+│       │  │    • Accumulate to agent running balance                     │   │
+│       │  │    • Trigger on threshold or payment cycle                   │   │
+│       │  │    • Emitted: commission.payment_scheduled                   │   │
+│       │  └─────────────────────────────────────────────────────────────┘   │
+│       │                     │                     │                   │      │
+│       │                     │                     │                   │      │
+│  Response: Async for commission (sync for booking creation)                │
+│  Retry: Commission calc retries on transient DB errors                    │
+│  Idempotency: commission_id prevents duplicate records                    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 11. Scheduled Charges Integration Flow
+
+### 11.1 Overview
+
+The scheduled charges integration connects the cron job system with the billing module to automatically evaluate and post recurring charges (resort fees, minibar, newspaper delivery) to guest folios.
+
+### 11.2 Integration Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                 SCHEDULED CHARGES INTEGRATION FLOW                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Cron Scheduler         API Gateway          Scheduled Charges    Billing   │
+│       │                     │                      Module          Module   │
+│       │                     │                      │                 │      │
+│       │  ┌──────────────────────────────────────────────────────────────┐  │
+│       │  │ 1. Template created by property admin                        │  │
+│       │  │    POST /api/scheduled-charges/templates                    │  │
+│       │  └──────────────────────────────────────────────────────────────┘  │
+│       │                     │                      │                 │      │
+│       │                     │  Store template      │                 │      │
+│       │                     │─────────────────────▶│                 │      │
+│       │                     │                      │                 │      │
+│       │                     │  Template created    │                 │      │
+│       │                     │◀─────────────────────│                 │      │
+│       │                     │                      │                 │      │
+│       │  ┌──────────────────────────────────────────────────────────────┐  │
+│       │  │ 2. Cron job triggers (e.g., daily at 02:00 property time)   │  │
+│       │  │    POST /api/cron/scheduled_charges                         │  │
+│       │  │    Header: X-Cron-Secret: <secret>                          │  │
+│       │  └──────────────────────────────────────────────────────────────┘  │
+│       │────────────────────▶│                      │                 │      │
+│       │                     │  Validate secret     │                 │      │
+│       │                     │                      │                 │      │
+│       │                     │  Execute job         │                 │      │
+│       │                     │─────────────────────▶│                 │      │
+│       │                     │                      │                 │      │
+│       │                     │                      │  ┌────────────────────┐│  │
+│       │                     │                      │  │ 3. Charges       ││  │
+│       │                     │                      │  │    calculated     ││  │
+│       │                     │                      │  │    • Match rules  ││  │
+│       │                     │                      │  │    • Calc amounts ││  │
+│       │                     │                      │  │    • Gen items    ││  │
+│       │                     │                      │  └────────────────────┘│  │
+│       │                     │                      │                 │      │
+│       │                     │                      │  4. Posted to     │      │
+│       │                     │                      │     folios        │      │
+│       │                     │                      │─────────────────▶│      │
+│       │                     │                      │                 │      │
+│       │                     │                      │                 │  5.  │
+│       │                     │                      │                 │  Folio│
+│       │                     │                      │                 │  updated│
+│       │                     │                      │                 │      │
+│       │                     │                      │  ┌────────────────────┐│  │
+│       │                     │                      │  │ 6. Execution     ││  │
+│       │                     │                      │  │    logged        ││  │
+│       │                     │                      │  │    • ChargeExec   ││  │
+│       │                     │                      │  │    • status       ││  │
+│       │                     │                      │  └────────────────────┘│  │
+│       │                     │                      │                 │      │
+│       │                     │  Job result          │                 │      │
+│       │                     │◀─────────────────────│                 │      │
+│       │                     │                      │                 │      │
+│       │  HTTP 200           │                      │                 │      │
+│       │◀────────────────────│                      │                 │      │
+│       │                     │                      │                 │      │
+│  Error Handling:                                                            │
+│    • Per-folio errors logged individually                                 │
+│    • Partial success: some folios charged, others skipped                │
+│    • Full failure: entire batch retried on next cron run                  │
+│    • Alerts: notification on >50% failure rate                            │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 12. Night Audit Integration Flow
+
+### 12.1 Overview
+
+Night audit is the most critical batch process in hotel operations. This integration flow describes how the cron scheduler initiates the night audit and how each step interacts with the booking, billing, and commission modules.
+
+### 12.2 Integration Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    NIGHT AUDIT INTEGRATION FLOW                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Cron               API          Night Audit         Booking       Billing  │
+│  Scheduler     Gateway          Engine              Module        Module   │
+│       │            │                │                  │             │      │
+│       │  ┌──────────────────────────────────────────────────────────────┐  │
+│       │  │ 1. Night audit started                                       │  │
+│       │  │    POST /api/cron/night_audit                                │  │
+│       │  │    Validate CRON_SECRET                                       │  │
+│       │  └──────────────────────────────────────────────────────────────┘  │
+│       │──────────────▶│                │                  │             │      │
+│       │               │  Start audit    │                  │             │      │
+│       │               │────────────────▶│                  │             │      │
+│       │               │                │                  │             │      │
+│       │               │                │  ┌───────────────────────────┐  │  │
+│       │               │                │  │ 2. Step-by-step execution │  │  │
+│       │               │                │  │                           │  │  │
+│       │               │                │  │   Step 1: Fetch Folios    │  │  │
+│       │               │                │  │   ─────────────────────   │  │  │
+│       │               │                │  │   • Query open folios     │  │  │
+│       │               │                │  │   • Fetch from Booking    │  │  │
+│       │               │                │  │                           │  │  │
+│       │               │                │  │   Step 2: Verify Charges  │  │  │
+│       │               │                │  │   ─────────────────────   │  │  │
+│       │               │                │  │   • Validate room charges │  │  │
+│       │               │  │   • Cross-ref rate plans    │             │  │  │
+│       │               │                │  │                           │  │  │
+│       │               │                │  │   Step 3: Recalc Taxes    │  │  │
+│       │               │                │  │   ─────────────────────   │  │  │
+│       │               │                │  │   • Update tax line items │  │  │
+│       │               │                │  │   • Post to Billing       │  │  │
+│       │               │                │  │                           │  │  │
+│       │               │                │  │   Step 4: Scheduled       │  │  │
+│       │               │                │  │           Charges         │  │  │
+│       │               │                │  │   ─────────────────────   │  │  │
+│       │               │                │  │   • Execute templates     │  │  │
+│       │               │                │  │   • Post to Billing       │  │  │
+│       │               │                │  │                           │  │  │
+│       │               │                │  │   Step 5: Post            │  │  │
+│       │               │                │  │           Commissions     │  │  │
+│       │               │                │  │   ─────────────────────   │  │  │
+│       │               │                │  │   • Calc & post to       │  │  │
+│       │               │                │  │     Commission module    │  │  │
+│       │               │                │  │                           │  │  │
+│       │               │                │  │   Step 6: Revenue         │  │  │
+│       │               │                │  │           Snapshot        │  │  │
+│       │               │                │  │   ─────────────────────   │  │  │
+│       │               │                │  │   • Aggregate daily       │  │  │
+│       │               │                │  │     revenue data         │  │  │
+│       │               │                │  │   • Store snapshot        │  │  │
+│       │               │                │  │                           │  │  │
+│       │               │                │  │   Step 7: Close Day       │  │  │
+│       │               │                │  │   ─────────────────────   │  │  │
+│       │               │                │  │   • Increment date        │  │  │
+│       │               │                │  │   • Auto check-outs       │  │  │
+│       │               │                │  └───────────────────────────┘  │  │
+│       │               │                │                  │             │      │
+│       │               │                │  3. Each step validates│             │      │
+│       │               │                │     before proceeding  │             │      │
+│       │               │                │                  │             │      │
+│       │               │                │  ┌───────────────────────────┐  │  │
+│       │               │                │  │ 4. Error handling        │  │  │
+│       │               │                │  │                           │  │  │
+│       │               │                │  │   IF step fails:         │  │  │
+│       │               │                │  │   • Log error details    │  │  │
+│       │               │                │  │   • Halt remaining steps │  │  │
+│       │               │                │  │   • Emit: audit.failed   │  │  │
+│       │               │                │  │   • Notify admin         │  │  │
+│       │               │                │  │                           │  │  │
+│       │               │                │  │   IF all steps succeed:  │  │  │
+│       │               │                │  │   • Emit: audit.complete │  │  │
+│       │               │                │  │   • Generate reports     │  │  │
+│       │               │                │  │   • Store audit log      │  │  │
+│       │               │                │  └───────────────────────────┘  │  │
+│       │               │                │                  │             │      │
+│       │               │  Audit complete  │                  │             │      │
+│       │               │◀────────────────│                  │             │      │
+│       │               │                │                  │             │      │
+│       │  HTTP 200     │                │                  │             │      │
+│       │◀──────────────│                │                  │             │      │
+│       │               │                │                  │             │      │
+│       │               │                │  5. Reports generated │             │      │
+│       │               │                │     by Reports module │             │      │
+│       │               │                │     • Daily revenue   │             │      │
+│       │               │                │     • Occupancy       │             │      │
+│       │               │                │     • ADR / RevPAR    │             │      │
+│       │               │                │                  │             │      │
+│  Critical: Night audit must complete before next business day starts         │
+│  Timeout: 30 minutes maximum execution time                                │
+│  Idempotency: audit date prevents duplicate execution                       │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 13. City Ledger Integration Flow
+
+### 13.1 Overview
+
+City ledger integration manages the end-to-end flow of corporate billing, from service consumption through invoice generation, payment recording, and accounts receivable aging.
+
+### 13.2 Integration Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    CITY LEDGER INTEGRATION FLOW                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Corporate       Front Desk         City Ledger         Billing       Reports│
+│  Client             │                  Module            Module        Module│
+│       │             │                    │                │             │     │
+│       │  ┌─────────────────────────────────────────────────────────────┐   │
+│       │  │ 1. Corporate client requests service (stay, event, etc.)   │   │
+│       │  └─────────────────────────────────────────────────────────────┘   │
+│       │             │                    │                │             │     │
+│       │────────────▶│                    │                │             │     │
+│       │             │                    │                │             │     │
+│       │             │  Select city        │                │             │     │
+│       │             │  ledger account     │                │             │     │
+│       │             │───────────────────▶│                │             │     │
+│       │             │                    │                │             │     │
+│       │             │  Account details    │                │             │     │
+│       │             │  (credit limit,     │                │             │     │
+│       │             │   payment terms)    │                │             │     │
+│       │             │◀───────────────────│                │             │     │
+│       │             │                    │                │             │     │
+│       │             │  ┌──────────────────────────────────────────────┐  │   │
+│       │             │  │ 2. Invoice created                         │  │   │
+│       │             │  │    • Link to corporate account             │  │   │
+│       │             │  │    • Set due date (payment terms)           │  │   │
+│       │             │  │    • Status: draft                         │  │   │
+│       │             │  └──────────────────────────────────────────────┘  │   │
+│       │             │                    │                │             │     │
+│       │             │  Create invoice      │                │             │     │
+│       │             │───────────────────▶│                │             │     │
+│       │             │                    │                │             │     │
+│       │             │  ┌──────────────────────────────────────────────┐  │   │
+│       │             │  │ 3. Line items added                       │  │   │
+│       │             │  │    • Room charges, F&B, services            │  │   │
+│       │             │  │    • Linked to source bookings/folios        │  │   │
+│       │             │  │    • Taxes calculated automatically          │  │   │
+│       │             │  └──────────────────────────────────────────────┘  │   │
+│       │             │                    │                │             │     │
+│       │             │  Post charges to     │                │             │     │
+│       │             │  account             │                │             │     │
+│       │             │───────────────────▶│                │             │     │
+│       │             │                    │                │             │     │
+│       │             │                    │  Debit account  │             │     │
+│       │             │                    │───────────────▶│             │     │
+│       │             │                    │                │             │     │
+│       │  ┌─────────────────────────────────────────────────────────────┐   │
+│       │  │ 4. Payment recorded                                        │   │
+│       │  │    • Receive check/wire/credit payment                      │   │
+│       │  │    • Apply to invoice                                      │   │
+│       │  │    • Update account balance                                │   │
+│       │  │    • Emit: city_ledger.payment_recorded                    │   │
+│       │  └─────────────────────────────────────────────────────────────┘   │
+│       │             │                    │                │             │     │
+│       │             │                    │  ┌───────────────────────────┐ │     │
+│       │             │                    │  │ 5. Aging updated         │ │     │
+│       │             │                    │  │    • Recalculate buckets  │ │     │
+│       │             │                    │  │    • Current, 1-30,      │ │     │
+│       │             │                    │  │      31-60, 61-90, 90+  │ │     │
+│       │             │                    │  │    • Flag overdue        │ │     │
+│       │             │                    │  └───────────────────────────┘ │     │
+│       │             │                    │                │             │     │
+│       │             │                    │                │  Aging data │     │
+│       │             │                    │                │────────────▶│     │
+│       │             │                    │                │             │     │
+│       │             │                    │                │  Generate  │     │
+│       │             │                    │                │  reports   │     │
+│       │             │                    │                │             │     │
+│       │             │                    │                │             │     │
+│  Integration Points:                                                       │
+│    • Booking module provides source folio data                             │
+│    • Billing module handles debit/credit postings                          │
+│    • Reports module generates aged receivables & statements                │
+│    • Cron jobs trigger aging recalculation (daily)                         │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Appendix: Integration Quick Reference
 
 ### A.1 Supported Integrations by Category
@@ -960,6 +1318,9 @@ StaySuite follows a modular integration architecture that:
 | Email | 3+ | REST | Production |
 | SMS | 3+ | REST | Production |
 | WhatsApp | 1 | REST | Production |
+| Travel Agents | 5+ | REST/B2B | Production |
+| Scheduled Tasks | 6 jobs | Cron/BullMQ | Production |
+| City Ledger | Internal | REST API | Production |
 
 ### A.2 Integration Configuration Checklist
 

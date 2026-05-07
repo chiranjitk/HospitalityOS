@@ -1,4 +1,4 @@
-# StaySuite Feature Sheet
+# StaySuite Feature Sheet v2.1
 ## Quick Reference
 
 ---
@@ -14,12 +14,13 @@
 | Metric | Count |
 |--------|-------|
 | Database Models (Prisma) | 294 |
-| API Routes | 614 |
-| React Components | 529 |
+| API Routes | 617 |
+| React Components | 532 |
 | Component Directories | 44 |
 | Navigation Modules | 30 (8 base + 22 addon) |
+| Mini-Services | 11 |
 | API Route Directories | 134 |
-| shadcn/ui Components | 51 |
+| shadcn/ui Components | 56 |
 | Supported Languages | 15 (8 Indian + 7 Global) |
 | FreeRADIUS | v3.2.7 (compiled from source) |
 
@@ -59,7 +60,7 @@
 
 ## 📊 Complete Module List
 
-### Property Management (12 features)
+### Property Management (13 features)
 - ✅ Multi-Property Management
 - ✅ Room Types & Rooms
 - ✅ Inventory Calendar
@@ -70,6 +71,7 @@
 - ✅ Room Rate Calendar
 - ✅ Room Out-of-Order
 - ✅ Package Plans
+- ✅ Travel Agent Management
 - ✅ Inventory Locking
 - ✅ Bulk Price Update
 
@@ -130,7 +132,7 @@
 - ✅ Gateway Diagnostics (speed test)
 - ✅ Reports
 
-### Billing & Payments (15 features)
+### Billing & Payments (16 features)
 - ✅ Folios
 - ✅ Invoices (PDF with templates)
 - ✅ Payments (Multi-gateway)
@@ -146,6 +148,7 @@
 - ✅ Commissions
 - ✅ Posting Rules
 - ✅ Scheduled Charges
+- ✅ Revenue Accounts (Chart of accounts)
 
 ### Restaurant & POS (15 features)
 - ✅ Orders (with split)
@@ -314,6 +317,12 @@
 - ✅ SMS Gateways
 - ✅ POS Systems
 - ✅ Third-Party APIs
+
+### Infrastructure (4 features)
+- ✅ Custom DHCP Server (mini-service)
+- ✅ Custom DNS Resolver (mini-service)
+- ✅ Custom RADIUS Server (mini-service)
+- ✅ 11 Automated Cron Jobs
 
 ### Settings (8 features)
 - ✅ General

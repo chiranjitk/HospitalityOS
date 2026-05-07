@@ -1,8 +1,8 @@
 # StaySuite User Guide
 ## Complete Operations Manual
 
-**Version**: 2.0  
-**Last Updated**: May 2026
+**Version**: 2.1  
+**Last Updated**: July 2025
 
 ---
 
@@ -50,12 +50,15 @@ The sidebar provides access to all 30 modules organized into base and addon cate
 
 ```
 Dashboard          — Overview, Command Center, Alerts, KPI Cards
-PMS                — Properties, Room Types, Rooms, Inventory, Rates, Floor Plans
+PMS                — Properties, Room Types, Rooms, Inventory, Rates, Floor Plans,
+                     Package Plans, Travel Agents
 Bookings           — Calendar, Groups, Waitlist, Conflicts, No-Show, Audit
 Front Desk         — Check-in/out, Walk-in, Room Grid, Kiosk, Room Move
 Guests             — List, KYC, Preferences, History, Loyalty, Profile
-Housekeeping       — Tasks, Kanban, Room Status, Maintenance, Assets, Minibar, Laundry
-Billing            — Folios, Invoices, Payments, Night Audit, City Ledger, Commissions
+Housekeeping       — Tasks, Kanban, Room Status, Maintenance, Assets, Minibar,
+                     Laundry, Lost & Found
+Billing            — Folios, Invoices, Payments, Night Audit, City Ledger,
+                     Commissions, Posting Rules, Scheduled Charges, Revenue Accounts
 Experience         — Service Requests, Chat, Portal, Digital Keys, Activities
 Restaurant & POS   — Orders, Tables, Kitchen, Menu, Billing, Recipes, Modifiers
 Inventory          — Stock, Consumption, Alerts, Vendors, POs
@@ -202,15 +205,68 @@ Real-time operations view:
 
 ### 3.8 Package Plans
 
+Create bundled offerings that combine rooms with services (e.g., room + breakfast + spa).
+
 1. Navigate to **PMS → Package Plans**
-2. Create bundled offerings (room + breakfast + spa, etc.)
-3. Configure components and pricing
+2. Click **Add Package Plan**
+3. Configure the package:
+   - **Name & Description**: e.g., "Honeymoon Package", "Business Retreat"
+   - **Validity**: Date range or seasonal availability
+   - **Room Type**: Select the room type included in the package
+   - **Components**: Add individual services and items included:
+     - Meals (breakfast, lunch, dinner — select restaurant and menu items)
+     - Spa treatments (select from experience catalog)
+     - Airport transfer (shuttle or private)
+     - Activities (sightseeing tours, water sports, etc.)
+     - Minibar credits (daily allowance amount)
+     - Late check-out (set departure time)
+   - **Pricing**: 
+     - Set total package price (overrides individual component pricing)
+     - Or configure as a markup/discount on component totals
+   - **Occupancy**: Min/max guests the package supports
+   - **Selling Rules**: Minimum stay, advance booking window, blackout dates
+4. Click **Save**
+
+**Viewing Package Bookings:**
+- Packages appear as rate plan options during booking creation
+- Component usage is tracked per booking
+- Individual component charges can be viewed on the guest folio
 
 ### 3.9 Floor Plans
 
 1. Navigate to **PMS → Floor Plans**
 2. Use the visual drag-drop editor to create floor layouts
 3. Place rooms with their types and numbers
+
+### 3.10 Travel Agents
+
+Manage travel agent profiles, commission structures, and corporate account relationships.
+
+1. Navigate to **PMS → Travel Agents**
+2. Click **Add Travel Agent**
+3. Configure the travel agent profile:
+   - **Basic Information**: Agency name, Contact person, Email, Phone, Address
+   - **Commission Setup**:
+     - Default commission rate (percentage of room revenue)
+     - Per-room-type commission overrides
+     - Commission on extras (F&B, services) — optional
+     - Minimum booking amount threshold
+   - **Billing Terms**: Payment terms (Net 15, Net 30, Net 45), Credit limit
+   - **Market Segment**: Assign to segment (e.g., "Travel Agent", "Tour Operator", "Corporate")
+   - **Notes**: Special agreements, B2B contract references
+4. Click **Save**
+
+**Managing Travel Agent Profiles:**
+- View all travel agents in a searchable, filterable list
+- Edit commission rates at any time (new rate applies to future bookings)
+- View booking history per travel agent
+- Track outstanding balances and payment status
+- Enable/disable travel agent account
+
+**Commission Rate Hierarchy:**
+1. **Per-room-type override** — highest priority (if set)
+2. **Default agency rate** — used if no room-type override exists
+3. **Global default** — fallback rate configured in Settings
 
 ---
 
@@ -599,30 +655,307 @@ A folio is a container for charges linked to a booking.
 
 ### 9.7 Night Audit
 
+The night audit is a critical end-of-day reconciliation process that verifies all financial transactions, posts automated charges, and closes the business day.
+
+**Starting Night Audit:**
+
 1. Navigate to **Billing → Night Audit**
-2. Review daily transactions
-3. Reconcile postings and payments
-4. Close the day
+2. Review the pre-audit checklist:
+   - All check-ins processed
+   - All check-outs completed and folios settled
+   - Pending postings reviewed
+   - Room charges pending review
+3. Click **Start Night Audit**
+
+**Executing Audit Steps:**
+
+The night audit runs through the following automated and manual steps:
+
+| Step | Action | Description |
+|------|--------|-------------|
+| 1 | Room Charge Posting | Automatically posts daily room charges to all active folios based on configured posting rules |
+| 2 | Tax Recalculation | Recalculates taxes on all posted charges for the day |
+| 3 | Scheduled Charge Execution | Processes any recurring/scheduled charges due for the day |
+| 4 | Commission Calculation | Calculates travel agent and OTA commissions for the day's bookings |
+| 5 | Revenue Posting | Posts revenues to their respective revenue account codes |
+| 6 | Transaction Verification | Cross-checks all postings, payments, and adjustments for the day |
+| 7 | Discrepancy Report | Flags any out-of-balance folios or missing postings |
+
+**Reviewing Completion:**
+
+1. After all steps execute, review the **Night Audit Summary**:
+   - Total room revenue posted
+   - Total F&B revenue posted
+   - Total other revenue posted
+   - Total payments received
+   - Net change in outstanding balances
+   - Discrepancies (if any)
+2. Investigate and resolve any flagged discrepancies
+3. Click **Close Day** to finalize
+4. The system date rolls over and a new business day begins
+
+**Important Notes:**
+- Only one night audit can be in progress at a time
+- Night audit can only be run once per business day
+- A running audit can be cancelled if errors are found before closing
+- Full audit trail is maintained for compliance
 
 ### 9.8 City Ledger
 
+City Ledger manages account-based billing for corporate accounts, travel agents, and other business entities that have credit arrangements with the property.
+
+**Creating a City Ledger Account:**
+
 1. Navigate to **Billing → City Ledger**
-2. Manage account-based billing (travel agents, corporate accounts)
-3. Create invoices and track payments
-4. Manage credit notes
+2. Click **Add Account**
+3. Configure the account:
+   - **Account Name**: e.g., "Acme Corporation", "Sunset Tours"
+   - **Account Type**: Corporate, Travel Agent, Government, Wholesale, Other
+   - **Contact Details**: Primary contact, Billing contact, Email, Phone
+   - **Billing Address**: For invoice generation
+   - **Credit Terms**: Net 15, Net 30, Net 45, Net 60, Due on Receipt
+   - **Credit Limit**: Maximum outstanding balance allowed
+   - **Tax Exemption**: GST/VAT exemption number (if applicable)
+   - **Linked Travel Agent**: Optionally link to a travel agent profile for commission tracking
+4. Click **Save**
+
+**Creating City Ledger Invoices:**
+
+1. Navigate to **Billing → City Ledger**
+2. Open the desired account
+3. Click **Create Invoice** (or charges can be auto-generated from folio transfers)
+4. **Adding Line Items:**
+   - Click **Add Line Item**
+   - Select **Revenue Account** (room revenue, F&B, laundry, etc.)
+   - Enter **Description**: e.g., "Room charges — 3 nights Deluxe"
+   - Enter **Quantity** and **Unit Price**
+   - Select **Tax Category**: Tax is auto-calculated based on the selected category
+   - Add additional line items as needed
+5. Review the invoice summary: Subtotal, Tax breakdown, Total
+6. Click **Issue Invoice**
+7. Optionally print or email the invoice to the account contact
+
+**Recording Payments:**
+
+1. Open the city ledger account or invoice
+2. Click **Record Payment**
+3. Enter payment details:
+   - **Payment Date**
+   - **Payment Method**: Bank transfer, Cheque, Credit card, Cash, Adjustment
+   - **Amount**
+   - **Reference Number**: Cheque number, transaction ID, etc.
+   - **Notes**: Optional memo
+4. Click **Save**
+5. The account balance and invoice status update automatically
+
+**Managing Credit Notes:**
+
+1. Open the invoice to adjust
+2. Click **Create Credit Note**
+3. Enter reason and amount
+4. Apply to invoice or keep as account credit
+
+**Account Statements:**
+- Generate account statements for any date range
+- View aging reports (Current, 1-30 days, 31-60 days, 61-90 days, 90+ days)
+- Send statements to account contacts
 
 ### 9.9 Commissions
 
+The Commissions module tracks, calculates, and manages payments owed to travel agents and other booking sources.
+
+**Setting Up Commission Rules:**
+
 1. Navigate to **Billing → Commissions**
-2. Track travel agent commissions
-3. Configure commission rules and rates
-4. Process commission payments
+2. Click **Commission Rules** tab
+3. Click **Add Rule**
+4. Configure the commission rule:
+   - **Rule Name**: e.g., "Standard TA Commission", "High-Volume Agent Rate"
+   - **Applicable To**: Select travel agents, market segments, or booking sources
+   - **Commission Basis**:
+     - Room revenue only
+     - Room revenue + F&B
+     - Total booking value
+   - **Commission Type**:
+     - **Percentage**: e.g., 10% of room revenue
+     - **Fixed Amount**: e.g., ₹500 per room night
+     - **Tiered**: Different rates for different volume brackets
+   - **Conditions** (optional):
+     - Minimum booking amount
+     - Specific room types only
+     - Seasonal date ranges
+     - Minimum length of stay
+5. Click **Save**
+
+Rules are evaluated in order; the first matching rule applies. You can reorder rules by priority.
+
+**Viewing Commission Records:**
+
+1. Navigate to **Billing → Commissions**
+2. Click **Commission Records** tab
+3. View all earned commissions in a filterable table:
+   - **Booking Reference**: Link to the source booking
+   - **Travel Agent / Source**: Who earned the commission
+   - **Booking Revenue**: Total value of the booking
+   - **Commission Amount**: Calculated commission
+   - **Commission Rate**: Applied rate or rule
+   - **Status**: Pending, Approved, Paid, Void
+   - **Booking Date**: When the booking was made
+   - **Check-out Date**: When guest departed (commission becomes payable)
+4. Filter by: Date range, Travel agent, Status, Booking source
+
+**Processing Commission Payments:**
+
+1. Navigate to **Billing → Commissions**
+2. Select pending commission records to pay
+3. Click **Process Payment** (or batch-select multiple records)
+4. Enter payment details:
+   - **Payment Date**
+   - **Payment Method**: Bank transfer, Cheque, Adjustment
+   - **Reference Number**
+   - **Notes**
+5. Click **Confirm**
+6. Status updates to "Paid" and a payment record is created
+
+**Commission Reports:**
+- Monthly commission summary by travel agent
+- Commission trends over time
+- Outstanding commission liability report
 
 ### 9.10 Scheduled Charges
 
+Create and manage recurring charges that are automatically posted to guest folios on a configurable schedule.
+
+**Creating a Recurring Charge:**
+
 1. Navigate to **Billing → Scheduled Charges**
-2. Set up recurring charges (e.g., daily breakfast, minibar restocking)
-3. Configure frequency and auto-posting rules
+2. Click **Add Scheduled Charge**
+3. Configure the charge:
+   - **Name**: e.g., "Daily Breakfast Buffet", "Weekly Laundry Service", "Mini-fridge Rental"
+   - **Charge Type**: 
+     - Per-booking (applies to all active bookings matching criteria)
+     - Per-room (applies to all occupied rooms matching criteria)
+   - **Amount**: Fixed charge amount per occurrence
+   - **Frequency**:
+     - Daily
+     - Weekly (select day of week)
+     - Monthly (select day of month)
+     - Custom interval (every N days)
+   - **Revenue Account**: Select the appropriate revenue code
+   - **Tax Category**: Tax treatment for the charge
+   - **Applicable Conditions** (optional):
+     - Room type filter
+     - Rate plan filter
+     - Market segment filter
+     - Minimum/maximum stay length
+   - **Start Date / End Date**: When the schedule is active
+4. Click **Save**
+
+**Pausing and Resuming Scheduled Charges:**
+
+1. Navigate to **Billing → Scheduled Charges**
+2. Find the scheduled charge in the list
+3. Toggle the **Active** switch to **Pause**
+   - The charge will not execute on its next scheduled date
+   - Already-posted charges remain on folios
+4. Toggle back to **Resume** to reactivate
+5. Optionally set a **Pause Until** date for automatic resumption
+
+**Viewing Execution History:**
+
+1. Open the scheduled charge record
+2. Click **Execution History** tab
+3. View a log of all past executions:
+   - **Execution Date**: When the charge was posted
+   - **Bookings/Rooms Affected**: Count of folios charged
+   - **Total Amount Posted**: Sum of all charges in that execution
+   - **Status**: Success, Partial (some folios skipped), Failed
+   - **Error Details**: Reason for any failures (e.g., folio closed, booking cancelled)
+4. Use filters to narrow by date range or status
+5. Export execution history for auditing
+
+### 9.11 Posting Rules
+
+Posting rules automate the posting of charges to guest folios based on configurable conditions and triggers (e.g., daily room charges, arrival deposits, late check-out fees).
+
+**Creating an Auto-Posting Rule:**
+
+1. Navigate to **Billing → Posting Rules**
+2. Click **Add Posting Rule**
+3. Configure the rule:
+   - **Rule Name**: e.g., "Daily Room Charge — Deluxe", "Welcome Amenity Posting", "No-Show Penalty"
+   - **Trigger Event**:
+     - **Daily Room Charge**: Posts once per night for each occupied room
+     - **On Check-In**: Posts immediately when guest checks in
+     - **On Check-Out**: Posts on departure
+     - **On Booking Creation**: Posts when reservation is confirmed
+     - **Custom Schedule**: Cron-style expression for custom timing
+   - **Conditions** (all must match):
+     - Room type = "Deluxe Room"
+     - Rate plan contains "Corporate"
+     - Market segment = "Corporate"
+     - Minimum stay ≥ 3 nights
+     - Property = specific property (for multi-property setups)
+   - **Charge Details**:
+     - **Description**: Text that appears on the folio (e.g., "Room charge — Deluxe Room — Night 3")
+     - **Amount**: Fixed amount or dynamic (use room rate, percentage of rate, etc.)
+     - **Revenue Account**: Select the revenue code (e.g., "Room Revenue", "Miscellaneous Income")
+     - **Tax Category**: Tax treatment
+   - **Priority**: Order of execution when multiple rules match (lower number = higher priority)
+   - **Active**: Toggle on/off
+4. Click **Save**
+
+**Managing Posting Rules:**
+- View all rules in a prioritized list
+- Edit, duplicate, or delete rules
+- Toggle rules on/off without deleting
+- Test a rule against sample bookings before activating
+- View a log of recent posting rule executions
+
+**Examples of Common Posting Rules:**
+
+| Rule | Trigger | Description |
+|------|---------|-------------|
+| Daily Room Charge | Daily (per occupied room) | Posts the room's nightly rate to the folio |
+| Welcome Amenity | On Check-In | Posts a fruit basket or welcome drink charge |
+| Tourism Fee | Daily | Posts a per-night tourism levy |
+| Late Check-Out Fee | On Check-Out (if after noon) | Posts a half-day rate when check-out is late |
+| No-Show Charge | On No-Show detection | Posts penalty charge per cancellation policy |
+
+### 9.12 Revenue Accounts
+
+Revenue accounts (chart of accounts) categorize all financial transactions for accurate reporting and financial analysis.
+
+**Viewing Revenue Accounts:**
+
+1. Navigate to **Billing → Revenue Accounts**
+2. View the complete list of revenue account codes organized by category:
+   - **Room Revenue**: 1000-series (e.g., 1001 — Standard Room, 1002 — Deluxe Room)
+   - **Food & Beverage**: 2000-series (e.g., 2001 — Restaurant, 2002 — Room Service, 2003 — Minibar)
+   - **Event & Conference**: 3000-series
+   - **Laundry & Services**: 4000-series
+   - **Miscellaneous**: 5000-series (e.g., 5001 — Late Check-Out Fee, 5002 — Tourism Levy)
+   - **Discount & Adjustments**: 6000-series
+
+**Creating a New Revenue Account:**
+
+1. Navigate to **Billing → Revenue Accounts**
+2. Click **Add Account**
+3. Configure:
+   - **Account Code**: Unique identifier (e.g., "2004", "4002")
+   - **Account Name**: Descriptive name (e.g., "Spa Revenue", "Parking Charges")
+   - **Category**: Group the account under a revenue category
+   - **Type**: Income, Expense, Tax, Discount, Adjustment
+   - **Description**: Detailed explanation of what this account tracks
+   - **Active**: Toggle on/off
+4. Click **Save**
+
+**Managing Revenue Accounts:**
+- Edit account details at any time
+- Deactivate unused accounts (cannot delete if transactions reference the account)
+- View transaction history for each account
+- Revenue accounts are used by posting rules, invoices, and night audit for categorization
+- Accounts feed into revenue reports for financial analysis
 
 ---
 
@@ -731,24 +1064,186 @@ Visual task management:
 
 ### 11.8 Lost & Found
 
+Report, track, and return items left behind by guests.
+
+**Reporting a Found Item:**
+
 1. Navigate to **Housekeeping → Lost & Found**
-2. Log found items with details
-3. Match to guest reports
-4. Track return status
+2. Click **Report Found Item**
+3. Enter item details:
+   - **Item Description**: What was found (e.g., "Black leather wallet", "Samsung phone charger")
+   - **Category**: Electronics, Clothing, Documents, Accessories, Jewelry, Other
+   - **Location Found**: Room number, public area, restaurant, gym, etc.
+   - **Date Found**: Date the item was discovered
+   - **Found By**: Staff member who found the item
+   - **Storage Location**: Where the item is being kept (e.g., "HK Office Shelf B-3")
+   - **Condition**: Good, Fair, Damaged
+   - **Photos**: Upload images of the item
+   - **Identifying Marks**: Serial numbers, brand, distinguishing features
+4. Click **Save**
+5. Item status is set to **In Storage**
+
+**Reporting a Lost Item (from Guest):**
+
+1. A guest reports a lost item (via front desk, guest chat, or phone)
+2. Navigate to **Housekeeping → Lost & Found**
+3. Click **Report Lost Item**
+4. Enter details:
+   - **Guest Name / Booking**: Link to the guest's current or past stay
+   - **Item Description**: Description of the missing item
+   - **Last Known Location**: Where the guest last had the item
+   - **Date Lost**: Approximate date
+   - **Contact Information**: Guest's email and phone for follow-up
+5. Click **Save**
+
+**Notifying Guests:**
+
+1. When a found item is matched to a guest report (or a match is suspected):
+   - Open the found item record
+   - Click **Match to Guest Report** → select the corresponding lost item report
+   - Or click **Notify Guest** to proactively reach out
+2. Select notification method:
+   - **Email**: Send an automated email with item details and pickup/return instructions
+   - **SMS**: Send a text message notification
+   - **Guest Chat**: Send an in-app message
+3. Configure return logistics:
+   - **Guest Pickup**: Guest will collect from front desk
+   - **Shipping**: Arrange courier delivery (enter shipping address, tracking number)
+   - **Hotel Absorbs Cost**: Hotel covers shipping cost
+   - **Guest Pays Shipping**: Shipping charged to guest
+4. Update status to **Pending Return**
+
+**Tracking Status:**
+
+| Status | Description |
+|--------|-------------|
+| In Storage | Item found, awaiting claim |
+| Reported Lost | Guest has reported an item as missing |
+| Matched | Found item matched to a guest report |
+| Pending Return | Arrangements being made for return |
+| Returned to Guest | Item successfully returned |
+| Disposed | Item disposed after retention period |
+| Handed to Authority | Item handed over to police/authorities |
+
+**Retention Policy:**
+- Configure auto-disposal reminders (e.g., 90 days for low-value items, 1 year for high-value items)
+- Valuable items (jewelry, electronics, documents) require witness notation during storage
 
 ### 11.9 Minibar
 
+Set up, monitor, and manage room minibars including item consumption and restocking.
+
+**Setting Up Room Minibars:**
+
 1. Navigate to **Housekeeping → Minibar**
-2. Configure minibar setup per room type
-3. Track consumption
-4. Auto-post charges to folio
+2. Click **Minibar Setup** tab
+3. Configure minibar templates per room type:
+   - **Template Name**: e.g., "Standard Minibar", "Premium Minibar", "Suite Minibar"
+   - **Room Type**: Assign to one or more room types
+   - **Default Items**: Add items with quantities:
+     - Item name (e.g., "Coca-Cola Can", "Mineral Water 500ml", "Beer 330ml")
+     - Quantity per minibar (e.g., 2 × Coca-Cola, 4 × Water)
+     - Unit price (sale price charged to guest)
+     - Cost price (for inventory/loss tracking)
+   - **Auto-Post to Folio**: Enable/disable automatic folio posting on consumption recording
+   - **Revenue Account**: Select the appropriate revenue code for minibar charges
+4. Click **Save**
+5. Apply the template to individual rooms or all rooms of a type
+
+**Recording Consumption:**
+
+1. Navigate to **Housekeeping → Minibar**
+2. Click **Record Consumption**
+3. Select the **Room Number**
+4. The system loads the minibar item list for that room
+5. For each consumed item:
+   - Enter the quantity consumed
+   - Or mark items as consumed from the visual checklist
+6. Click **Post Charges**
+7. If auto-post is enabled, charges are immediately added to the guest's folio with the minibar revenue account code
+8. If manual, charges are staged for review before posting
+
+**Tracking Restocking:**
+
+1. Navigate to **Housekeeping → Minibar**
+2. Click **Restocking Queue** tab
+3. View rooms that need restocking (rooms where consumption has been recorded but items not yet replenished)
+4. Generate a **Restocking List** (printable) for attendants
+5. Attendant performs restocking in the room
+6. After restocking:
+   - Select the room → Click **Mark Restocked**
+   - Enter any discrepancies (items delivered vs. items placed)
+   - Record breakage/spoilage if applicable
+7. Room status updates and is removed from the restocking queue
+
+**Minibar Reports:**
+- Daily consumption summary
+- Revenue by minibar item
+- Restocking completion rate
+- Shrinkage/breakage report (expected vs. actual inventory)
 
 ### 11.10 Laundry
 
+Manage laundry services including item catalogs, order creation, and status tracking.
+
+**Managing Laundry Items:**
+
 1. Navigate to **Housekeeping → Laundry**
-2. Create laundry orders
-3. Track items and status
-4. Manage billing
+2. Click **Item Catalog** tab
+3. View and manage the laundry item list:
+   - **Item Name**: e.g., "Shirt", "Trousers", "Bed Sheet", "Towel"
+   - **Category**: Guest laundry, Hotel linen, Uniform
+   - **Service Type**: Wash, Dry Clean, Iron Only, Wash & Iron
+   - **Regular Price**: Standard turnaround price
+   - **Express Price**: Same-day/express service surcharge
+   - **Turnaround Time**: Hours for regular service (e.g., "24 hours")
+4. Click **Add Item** to create new catalog entries
+5. Edit pricing and details as needed
+
+**Creating Laundry Orders:**
+
+1. Navigate to **Housekeeping → Laundry**
+2. Click **New Order**
+3. Fill in order details:
+   - **Source**: Guest laundry, Room linen change, Hotel uniform, Restaurant linens
+   - **Room / Guest**: Select the guest room (for guest laundry) — auto-links to booking
+   - **Priority**: Regular or Express
+   - **Pickup Date/Time**: When items will be collected
+   - **Delivery Date/Time**: When items will be returned
+   - **Special Instructions**: e.g., "Delicate fabric — cold wash only"
+4. **Add Items** to the order:
+   - Select item from catalog
+   - Enter quantity
+   - Select service type (wash, dry clean, iron)
+   - Unit price auto-populates based on service type and priority
+   - System calculates line total
+5. Review order summary: Total items, Total cost
+6. Click **Create Order**
+7. For guest laundry, charges can be posted to the guest's folio automatically
+
+**Tracking Laundry Status:**
+
+1. Navigate to **Housekeeping → Laundry** → **Orders List**
+2. View all orders in a filterable table (by status, date, room, priority)
+3. Each order progresses through these stages:
+
+| Status | Description |
+|--------|-------------|
+| Created | Order placed, awaiting pickup |
+| Picked Up | Items collected from room/department |
+| In Progress | Items being cleaned/processed |
+| Ready | Cleaning complete, awaiting delivery |
+| Delivered | Items returned to guest/department |
+| Cancelled | Order cancelled |
+
+4. Click on an order to view details and update status
+5. **Bulk Status Update**: Select multiple orders → Update status in bulk
+6. **Print Slips**: Generate pickup slips and delivery receipts
+
+**Laundry Billing:**
+- Guest laundry charges posted to folio with laundry revenue account code
+- Departmental laundry (hotel linens, uniforms) tracked as internal cost
+- Monthly laundry cost reports by department
 
 ---
 
@@ -933,4 +1428,4 @@ Visual task management:
 
 ---
 
-*© 2026 Cryptsk Pvt Ltd*
+*© 2025 Cryptsk Pvt Ltd*

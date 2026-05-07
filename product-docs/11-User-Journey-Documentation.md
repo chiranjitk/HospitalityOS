@@ -1,8 +1,8 @@
 # StaySuite User Journey Documentation
 ## Complete User Lifecycle & Experience Flows
 
-**Version**: 1.0  
-**Last Updated: May 2026  
+**Version**: 2.1  
+**Last Updated: June 2026  
 **Author**: Cryptsk Pvt Ltd
 
 ---
@@ -15,6 +15,10 @@
 4. [Administrator Journey](#4-administrator-journey)
 5. [Property Manager Journey](#5-property-manager-journey)
 6. [Channel Partner Journey](#6-channel-partner-journey)
+7. [Night Audit Journey](#7-night-audit-journey)
+8. [City Ledger Journey](#8-city-ledger-journey)
+9. [Scheduled Charges Journey](#9-scheduled-charges-journey)
+10. [Commission Journey](#10-commission-journey)
 
 ---
 
@@ -970,6 +974,342 @@
 │   │     (Periodic)      │                      │                 │
 │   │◀───────────────────▶│◀────────────────────▶│                 │
 │   │                     │                      │                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 7. Night Audit Journey
+
+### 7.1 Night Audit Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    NIGHT AUDIT JOURNEY                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Front Desk         StaySuite             Systems                │
+│  Agent                  │                   │                    │
+│    │ 1. Start Night      │                   │                    │
+│    │    Audit Process    │                   │                    │
+│    │────────────────────▶│                   │                    │
+│    │                     │                   │                    │
+│    │                     │ 2. Verify Room     │                    │
+│    │                     │    Charges         │                    │
+│    │                     │──────────────────▶│                    │
+│    │                     │                   │                    │
+│    │                     │ 3. Recalculate     │                    │
+│    │                     │    Taxes           │                    │
+│    │                     │──────────────────▶│                    │
+│    │                     │                   │                    │
+│    │                     │ 4. Process         │                    │
+│    │                     │    Scheduled       │                    │
+│    │                     │    Charges         │                    │
+│    │                     │──────────────────▶│                    │
+│    │                     │                   │                    │
+│    │                     │ 5. Post            │                    │
+│    │                     │    Commissions     │                    │
+│    │                     │──────────────────▶│                    │
+│    │                     │                   │                    │
+│    │  6. Review Revenue   │                   │                    │
+│    │    Summary           │                   │                    │
+│    │◀────────────────────│                   │                    │
+│    │                     │                   │                    │
+│    │  7. Approve & Close  │                   │                    │
+│    │    Business Day      │                   │                    │
+│    │────────────────────▶│                   │                    │
+│    │                     │                   │                    │
+│    │                     │ 8. Create          │                    │
+│    │                     │    Discrepancy     │                    │
+│    │                     │    Report          │                    │
+│    │                     │──────────────────▶│                    │
+│    │                     │                   │                    │
+│    │  9. Audit Complete   │                   │                    │
+│    │    Report Generated  │                   │                    │
+│    │◀────────────────────│                   │                    │
+│    │                     │                   │                    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 7.2 Night Audit Steps Detail
+
+| Step | Action | Description | Validation |
+|------|--------|-------------|------------|
+| 1 | Start Night Audit | Front desk agent initiates the night audit process for the current business day | No active check-ins in progress |
+| 2 | Verify Room Charges | System cross-checks all room charges against booking rates, rate plans, and stay duration | Folio totals match expected charges |
+| 3 | Recalculate Taxes | System recalculates all applicable taxes (GST, service tax, luxury tax) on room charges and posted folio items | Tax rules match current configuration |
+| 4 | Process Scheduled Charges | System auto-executes all pending scheduled charges (e.g., daily breakfast, minibar, late checkout fees) | Charges mapped to correct folios |
+| 5 | Post Commissions | System calculates and posts travel agent and channel partner commissions based on booking source | Commission rates match contracts |
+| 6 | Review Revenue Summary | Revenue breakdown by category (room, F&B, laundry, other) presented for agent review | Totals reconcile |
+| 7 | Close Business Day | Agent confirms and closes the business day, advancing the system to the next day | All folios balanced |
+| 8 | Create Discrepancy Report | System generates a report highlighting any variances between expected and actual amounts | Flagged items for follow-up |
+| 9 | Audit Complete | Final audit report archived and available for management review | Report stored in audit log |
+
+---
+
+## 8. City Ledger Journey
+
+### 8.1 City Ledger Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    CITY LEDGER JOURNEY                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Manager         StaySuite          Agent            Systems     │
+│    │                │                 │                │        │
+│    │ 1. Create       │                 │                │        │
+│    │    Corporate     │                 │                │        │
+│    │    Account       │                 │                │        │
+│    │─────────────────▶│                 │                │        │
+│    │                │                 │                │        │
+│    │ 2. Set Credit   │                 │                │        │
+│    │    Terms         │                 │                │        │
+│    │   (Net 30/60)   │                 │                │        │
+│    │─────────────────▶│                 │                │        │
+│    │                │                 │                │        │
+│    │                │   3. Create City   │                │        │
+│    │                │      Ledger       │                │        │
+│    │                │      Invoice       │                │        │
+│    │                │◀────────────────│                │        │
+│    │                │                 │                │        │
+│    │                │   4. Add Line      │                │        │
+│    │                │      Items with    │                │        │
+│    │                │      Revenue       │                │        │
+│    │                │      Accounts      │                │        │
+│    │                │◀────────────────│                │        │
+│    │                │                 │                │        │
+│    │                │   5. Post Charges  │                │        │
+│    │                │      to City       │                │        │
+│    │                │      Ledger        │                │        │
+│    │                │◀────────────────│                │        │
+│    │                │                 │                │        │
+│    │  6. Track        │                 │                │        │
+│    │    Payment       │                 │                │        │
+│    │◀─────────────────│                 │                │        │
+│    │                │                 │                │        │
+│    │  7. Manage       │                 │                │        │
+│    │    Aging Report  │                 │                │        │
+│    │◀─────────────────│                 │                │        │
+│    │                │                 │                │        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 8.2 City Ledger Steps Detail
+
+| Step | Action | Description | Validation |
+|------|--------|-------------|------------|
+| 1 | Create Corporate Account | Manager creates a corporate account entity with company details, contact info, and billing address | Unique account number assigned |
+| 2 | Set Credit Terms | Manager configures credit terms (Net 15/30/60/90), credit limit, and billing cycle | Credit approval required for limits over threshold |
+| 3 | Create City Ledger Invoice | Agent creates a new city ledger invoice linked to the corporate account | Invoice number auto-generated |
+| 4 | Add Line Items | Agent adds line items with revenue accounts (room revenue, F&B, meeting rooms, etc.) | Revenue accounts map to chart of accounts |
+| 5 | Post Charges | Charges posted to the city ledger folio with reference to original guest folio | Double-entry accounting validated |
+| 6 | Track Payment | Agent records payments against outstanding city ledger balance | Payment applied to oldest invoices first |
+| 7 | Manage Aging | Manager reviews aging reports: Current, 30 days, 60 days, 90+ days overdue | Follow-up actions triggered for overdue accounts |
+
+### 8.3 Aging Buckets
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AGING REPORT STRUCTURE                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐       │
+│  │  Current  │ │ 1-30 Days │ │ 31-60 Days│ │  60+ Days │       │
+│  │           │ │  Overdue  │ │  Overdue  │ │  Overdue  │       │
+│  ├───────────┤ ├───────────┤ ├───────────┤ ├───────────┤       │
+│  │  $12,500  │ │  $4,200   │ │  $1,800   │ │  $650     │       │
+│  │  8 Accts  │ │  3 Accts  │ │  2 Accts  │ │  1 Acct   │       │
+│  └───────────┘ └───────────┘ └───────────┘ └───────────┘       │
+│                                                                  │
+│  Total Outstanding: $19,150                                      │
+│  Action Required: 1 account escalated to collections            │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 9. Scheduled Charges Journey
+
+### 9.1 Scheduled Charges Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                  SCHEDULED CHARGES JOURNEY                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Admin            StaySuite          Agent            Systems    │
+│    │                │                 │               │          │
+│    │ 1. Create       │                 │               │          │
+│    │    Charge        │                 │               │          │
+│    │    Template      │                 │               │          │
+│    │─────────────────▶│                 │               │          │
+│    │                │                 │               │          │
+│    │ 2. Assign to     │                 │               │          │
+│    │    Room Types /  │                 │               │          │
+│    │    Bookings      │                 │               │          │
+│    │─────────────────▶│                 │               │          │
+│    │                │                 │               │          │
+│    │                │ 3. Charges        │               │          │
+│    │                │    Auto-Execute   │               │          │
+│    │                │    on Schedule    │               │          │
+│    │                │──────────────────────────────────▶│          │
+│    │                │                 │               │          │
+│    │                │ 4. Charges Post   │               │          │
+│    │                │    to Folios      │               │          │
+│    │                │──────────────────────────────────▶│          │
+│    │                │                 │               │          │
+│    │                │   5. Review       │               │          │
+│    │                │      Execution    │               │          │
+│    │                │      History      │               │          │
+│    │                │◀────────────────│               │          │
+│    │                │                 │               │          │
+│    │                │   6. Pause/Resume │               │          │
+│    │                │      as Needed   │               │          │
+│    │                │◀────────────────│               │          │
+│    │                │                 │               │          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 9.2 Scheduled Charges Steps Detail
+
+| Step | Action | Description | Validation |
+|------|--------|-------------|------------|
+| 1 | Create Charge Template | Admin creates a recurring charge template (e.g., daily breakfast $15, daily parking $20, weekly minibar restock) | Template name, amount, frequency, revenue account required |
+| 2 | Assign to Room Types/Bookings | Admin assigns templates to specific room types, rate plans, or individual bookings | Assignment does not retroactively apply |
+| 3 | Auto-Execute on Schedule | System automatically executes charges based on the configured schedule (daily, weekly, per-stay, custom) | Only executes for active checked-in guests |
+| 4 | Post to Folios | Executed charges are posted to guest folios with descriptive line items | Folio balance updated in real-time |
+| 5 | Review Execution History | Agent reviews a log of all scheduled charge executions, including successes, failures, and skipped charges | Failed charges flagged for retry |
+| 6 | Pause/Resume as Needed | Agent can pause scheduled charges for a specific booking (e.g., guest opted out of breakfast) or resume them | Pause effective immediately |
+
+### 9.3 Charge Template Configuration
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│               SCHEDULED CHARGE TEMPLATE                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Template Name: Daily Continental Breakfast                      │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │  Amount:              $15.00                                  │ │
+│  │  Revenue Account:     F&B - Breakfast (6100)                 │ │
+│  │  Tax Group:           F&B Tax                                │ │
+│  │  Frequency:           Daily                                  │ │
+│  │  Execution Time:      06:00 AM (property local time)        │ │
+│  │  Start Trigger:       Check-in date                          │ │
+│  │  End Trigger:         Check-out date (excluded)              │ │
+│  │  Assign To:           Room Types - Deluxe Suite, Premium     │ │
+│  │  Status:              Active                                 │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                  │
+│  Template Name: Weekly Minibar Restock                           │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │  Amount:              $35.00                                  │ │
+│  │  Revenue Account:     Minibar (6200)                         │ │
+│  │  Tax Group:           Minibar Tax                            │ │
+│  │  Frequency:           Weekly (every 7 days)                  │ │
+│  │  Execution Time:      10:00 AM (property local time)        │ │
+│  │  Start Trigger:       Check-in date                          │ │
+│  │  End Trigger:         Check-out date                         │ │
+│  │  Assign To:           All Room Types                         │ │
+│  │  Status:              Active                                 │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 10. Commission Journey
+
+### 10.1 Commission Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    COMMISSION JOURNEY                             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Admin            StaySuite          Manager          Systems   │
+│    │                │                  │               │         │
+│    │ 1. Set          │                  │               │         │
+│    │    Commission   │                  │               │         │
+│    │    Rules for    │                  │               │         │
+│    │    Travel Agent │                  │               │         │
+│    │─────────────────▶│                  │               │         │
+│    │                │                  │               │         │
+│    │                │ 2. Booking Comes  │               │         │
+│    │                │    from Travel    │               │         │
+│    │                │    Agent          │               │         │
+│    │                │──────────────────────────────────▶│         │
+│    │                │                  │               │         │
+│    │                │ 3. System         │               │         │
+│    │                │    Auto-Calculates│               │         │
+│    │                │    Commission     │               │         │
+│    │                │──────────────────────────────────▶│         │
+│    │                │                  │               │         │
+│    │                │ 4. Commission     │               │         │
+│    │                │    Record         │               │         │
+│    │                │    Created        │               │         │
+│    │                │──────────────────────────────────▶│         │
+│    │                │                  │               │         │
+│    │                │   5. Manager      │               │         │
+│    │                │      Reviews      │               │         │
+│    │                │      Commission   │               │         │
+│    │                │◀─────────────────│               │         │
+│    │                │                  │               │         │
+│    │                │   6. Processes     │               │         │
+│    │                │      Payment      │               │         │
+│    │                │◀─────────────────│               │         │
+│    │                │                  │               │         │
+│    │  7. Payment     │                  │               │         │
+│    │    Confirmation │                  │               │         │
+│    │◀─────────────────│                  │               │         │
+│    │                │                  │               │         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 10.2 Commission Steps Detail
+
+| Step | Action | Description | Validation |
+|------|--------|-------------|------------|
+| 1 | Set Commission Rules | Admin configures commission rates per travel agent or channel partner (flat %, sliding scale, per-room-type) | Rules tied to valid agent/partner account |
+| 2 | Booking Received | A new booking is received from a configured travel agent or channel partner | Booking source matched to commission rule |
+| 3 | Auto-Calculate Commission | System automatically calculates commission based on the applicable rule and booking value | Calculation uses rule priority (most specific first) |
+| 4 | Commission Record Created | A commission record is created with status "Pending" linked to the booking and agent | Record includes calculated amount, booking ref, agent details |
+| 5 | Manager Reviews | Manager reviews pending commission records, can approve, adjust, or dispute | Approval workflow for amounts over threshold |
+| 6 | Process Payment | Approved commissions are batched and processed for payment to the agent | Payment scheduled per agreed terms |
+| 7 | Payment Confirmation | Payment confirmation recorded against the commission record with reference number | Record status updated to "Paid" |
+
+### 10.3 Commission Rule Configuration
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                 COMMISSION RULE STRUCTURE                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Travel Agent: Global Travel Partners                            │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │  Default Rate:        10% of room revenue                   │ │
+│  │  Sliding Scale:                                              │ │
+│  │    • 1-50 room nights:   10%                                 │ │
+│  │    • 51-200 room nights: 12%                                 │ │
+│  │    • 200+ room nights:   15%                                 │ │
+│  │  Applicable To:        Room revenue only (excl. F&B, etc.)  │ │
+│  │  Payment Terms:        Net 30 after checkout                 │ │
+│  │  Minimum Payout:       $100                                  │ │
+│  │  Status:              Active                                 │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                  │
+│  Channel Partner: Booking.com                                   │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │  Default Rate:        Per-channel commission (auto-set)      │ │
+│  │  Applicable To:        Total booking value                   │ │
+│  │  Payment Terms:        Monthly invoice from channel           │ │
+│  │  Deduction Method:     Auto-deducted by channel               │ │
+│  │  Status:              Active                                 │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

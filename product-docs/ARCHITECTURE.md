@@ -27,7 +27,7 @@
 15. [Development Rules (MUST FOLLOW)](#15-development-rules-must-follow)
 16. [Known Constraints & Pitfalls](#16-known-constraints--pitfalls)
 17. [Section Registry (All 192 Sections)](#17-section-registry-all-192-sections)
-18. [API Route Registry (All 289 Routes)](#18-api-route-registry-all-289-routes)
+18. [API Route Registry (All 617 Routes)](#18-api-route-registry-all-617-routes)
 
 ---
 
@@ -36,26 +36,25 @@
 **StaySuite HospitalityOS** is a full-featured, multi-tenant hotel management system (PMS) with:
 
 - **192 navigable sections** (pages/views) across 20+ modules
-- **289 API routes** covering all business operations
-- **802 TypeScript/TSX source files**
-- **201 feature component files** (excluding UI primitives)
+- **617 API routes** covering all business operations
+- **1100+ TypeScript/TSX source files**
 - **Multi-tenant architecture** with tenant isolation at DB, API, and UI levels
 - **15 locales** supported (8 Indian + 7 Global)
-- **3 mini-services** (realtime WebSocket, availability, FreeRADIUS)
+- **11 mini-services** (realtime, availability, FreeRADIUS, captive portal, DHCP, DNS, RADIUS, conntrack, SNI parser)
 
 ### Key Statistics
 
 | Metric | Count |
 |---|---|
 | Navigable sections | 192 |
-| Unique component files | 159 |
-| API routes | 289 |
-| Source files (.ts/.tsx) | 802 |
-| Prisma models | 100+ |
-| Mini services | 3 |
+| Unique component files | 532 |
+| API routes | 617 |
+| Source files (.ts/.tsx) | 1100+ |
+| Prisma models | 294 |
+| Mini services | 11 |
 | Locales | 15 |
 | React contexts | 8 |
-| shadcn/ui components | 51 |
+| shadcn/ui components | 56 |
 
 ---
 
@@ -76,7 +75,7 @@
 
 | Category | Library | Purpose |
 |---|---|---|
-| UI Components | `shadcn/ui` (New York style) | 51 components in `src/components/ui/` |
+| UI Components | `shadcn/ui` (New York style) | 56 components in `src/components/ui/` |
 | Icons | `lucide-react` | All icons |
 | State | `zustand` | Client state (5 stores) |
 | Server State | `@tanstack/react-query` | API data caching |
@@ -115,7 +114,7 @@ src/
 │   ├── page.tsx                  # SINGLE page — uses hash-based routing + dynamic imports
 │   ├── layout.tsx                # Root layout (providers, theme, auth)
 │   ├── login/                    # Login page (separate route)
-│   └── api/                      # 289 API routes
+│   └── api/                      # 617 API routes
 │       ├── auth/                 # Authentication (login, logout, session, 2FA, SSO)
 │       ├── admin/                # Admin operations (tenants, usage, revenue, health)
 │       ├── bookings/             # Booking CRUD, conflicts, audit
@@ -124,13 +123,24 @@ src/
 │       ├── dashboard/            # Dashboard statistics
 │       ├── users/                # User CRUD
 │       ├── channels/             # Channel manager (OTA, CRS)
+│       ├── laundry/              # Laundry service management
+│       ├── lost-found/           # Lost & found item tracking
+│       ├── minibar/              # Minibar item management & consumption
+│       ├── travel-agents/        # Travel agent management
+│       ├── posting-rules/        # Billing posting rules
+│       ├── scheduled-charges/    # Recurring scheduled charges
+│       ├── city-ledger/          # City ledger invoices & payments
+│       ├── commissions/          # Commission rules & records
+│       ├── revenue-accounts/     # Revenue account management
+│       ├── night-audit/          # Night audit process & logs
+│       ├── cron/                 # Scheduled cron endpoints
 │       ├── ...                   # 20+ API modules
 │       └── v1/                   # REST API version 1
 │
 ├── components/
 │   ├── layout/                   # AppLayout, Sidebar, Header
 │   ├── common/                   # ErrorBoundary, SectionGuard, FeatureGuard
-│   ├── ui/                       # 51 shadcn/ui components (DO NOT MODIFY)
+│   ├── ui/                       # 56 shadcn/ui components (DO NOT MODIFY)
 │   ├── sections/                 # Section loading system (CRITICAL — see Section 4)
 │   │   └── loaders/              # 3-tier dynamic import chain
 │   ├── admin/                    # Admin components (user-mgmt, usage, tenants, roles)
@@ -179,8 +189,11 @@ src/
 └── types/                        # TypeScript type definitions
 
 prisma/
-├── schema.prisma                 # 100+ models, 4296 lines
-└── seed.ts                       # Database seed script
+├── schema.prisma                 # 294 models
+├── seed.ts                       # Database seed script
+├── wifi-seed.ts                  # WiFi-specific seed data
+├── seed-final.ts                 # Final/complete seed script
+└── seed-new-features.ts          # New features seed data
 
 db/
 └── custom.db                     # PostgreSQL 17 database file
@@ -189,6 +202,14 @@ mini-services/                    # Independent Bun services
 ├── realtime-service/             # Port 3003 — Socket.IO
 ├── availability-service/         # Port 3002 — Socket.IO
 ├── freeradius-service/           # Port 3010 — Hono REST
+├── captive-redirect/             # Port 8888 — HTTP redirect
+├── dhcp-service/                 # Custom DHCP server (Bun)
+├── dns-service/                  # Custom DNS resolver (Bun)
+├── dns-parser/                   # DNS packet parser (Bun)
+├── radius-server/                # Custom RADIUS implementation (Bun)
+├── conntrack-bridge/             # Linux conntrack bridge
+├── sni-parser/                   # TLS SNI hostname parser
+├── shared/                       # Shared utilities
 └── start-services.sh             # Startup script
 ```
 
@@ -628,8 +649,8 @@ await db.auditLog.create({
 
 ### Configuration
 
-- **Database**: PostgreSQL 17 at `file:/home/z/my-project/db/custom.db`
-- **Schema**: `prisma/schema.prisma` (4296 lines, 100+ models)
+- **Database**: PostgreSQL 17 at `postgresql://postgres:postgres@localhost:5432/staysuite`
+- **Schema**: `prisma/schema.prisma` (294 models)
 - **Client**: `import { db } from '@/lib/db'` — singleton pattern
 - **Migrations**: `bun run db:push` (use this, not `db:migrate` for dev)
 
@@ -670,11 +691,11 @@ const where = tenantScopedWhere(ctx, 'User');
 | Category | Models |
 |---|---|
 | **Core** | Tenant, User, Session, Role, AuditLog, Property |
-| **PMS** | RoomType, Room, FloorPlan, FloorPlanRoom, RatePlan, PriceOverride, InventoryLock |
+| **PMS** | RoomType, Room, FloorPlan, FloorPlanRoom, RatePlan, PriceOverride, InventoryLock, PackagePlan, PackageComponent, PackageRate, TravelAgent |
 | **Bookings** | Booking, GroupBooking, WaitlistEntry, CancellationPolicy |
 | **Guests** | Guest, GuestDocument, GuestStay, GuestBehavior, GuestJourney |
-| **Billing** | Folio, FolioLineItem, Payment, Invoice, Discount |
-| **Housekeeping** | Task, Asset, WorkOrder, PreventiveMaintenance, InspectionTemplate, InspectionResult |
+| **Billing** | Folio, FolioLineItem, Payment, Invoice, Discount, CityLedgerInvoice, CityLedgerPayment, CityLedgerItem, CommissionRule, CommissionRecord, CommissionPayment, PostingRule, PostingLog, ScheduledCharge, ScheduledChargeExecution, RevenueAccount, NightAudit, NightAuditLog, NightAuditStep |
+| **Housekeeping** | Task, Asset, WorkOrder, PreventiveMaintenance, InspectionTemplate, InspectionResult, LaundryItem, LaundryOrder, LaundryOrderItem, LostFoundItem, MinibarItem, MinibarSetup, MinibarConsumption |
 | **POS** | MenuItem, Order, OrderCategory, RestaurantTable |
 | **Inventory** | StockItem, Vendor, PurchaseOrder |
 | **Revenue** | PricingRule, CompetitorPrice, DemandForecast, AISuggestion |
@@ -706,9 +727,15 @@ const where = tenantScopedWhere(ctx, 'User');
 |---|---|---|
 | Next.js (main) | 3000 | HTTP | Main application |
 | availability-service | 3002 | Socket.IO | Room availability WebSocket |
-| realtime-service | 3003 | Socket.IO | Real-time updates (bookings, chat, tasks, notifications) |
+| realtime-service | 3003 | Socket.IO | Real-time updates |
 | freeradius-service | 3010 | HTTP (Hono) | FreeRADIUS management API |
-| Caddy (gateway) | 81 | HTTP | Reverse proxy |
+| captive-redirect | 8888 | HTTP | Captive portal redirect |
+| dhcp-service | - | UDP | Custom DHCP server |
+| dns-service | - | UDP/TCP | Custom DNS resolver |
+| dns-parser | - | - | DNS packet parsing |
+| radius-server | - | UDP | Custom RADIUS implementation |
+| conntrack-bridge | - | - | Linux conntrack bridge |
+| sni-parser | - | - | TLS SNI hostname parsing |
 
 ### Gateway (Caddy)
 
@@ -750,6 +777,28 @@ Dedicated WebSocket for room availability:
 - Room status change events
 - Availability queries by date range
 - Tenant/property isolation
+
+### FreeRADIUS Service (Port 3010)
+
+Hono REST API for FreeRADIUS management:
+- RADIUS user management
+- NAS configuration
+- Authentication request logging
+
+### Captive Redirect (Port 8888)
+
+HTTP redirect service for captive portal:
+- Redirects unauthenticated WiFi users to login page
+- Handles MAC address detection and session validation
+
+### Network Infrastructure Services
+
+- **dhcp-service**: Custom DHCP server (Bun) — assigns IP addresses to guest devices
+- **dns-service**: Custom DNS resolver (Bun) — handles DNS queries for captive portal flow
+- **dns-parser**: DNS packet parser (Bun) — low-level DNS packet parsing utilities
+- **radius-server**: Custom RADIUS implementation (Bun) — handles RADIUS authentication/access requests
+- **conntrack-bridge**: Linux conntrack bridge — bridges network connection tracking
+- **sni-parser**: TLS SNI hostname parser — extracts SNI from TLS ClientHello packets
 
 ---
 
@@ -795,7 +844,7 @@ const { t } = useTranslations('namespace');
 
 ### UI Components (`src/components/ui/`)
 
-51 shadcn/ui (New York style) components. **DO NOT modify these** — they follow shadcn conventions.
+56 shadcn/ui (New York style) components. **DO NOT modify these** — they follow shadcn conventions.
 
 Key components used frequently:
 - `Button`, `Input`, `Select`, `Dialog`, `Sheet`, `DropdownMenu`
@@ -954,6 +1003,8 @@ useEffect(() => {
 | `pms-overbooking` | `overbooking-settings` |
 | `pms-bulk-price` | `bulk-price-update` |
 | `pms-revenue` | `revenue-dashboard` |
+| `pms-travel-agents` | `travel-agents` |
+| `pms-package-plans` | `package-plans` |
 
 ### Bookings (6)
 | Key | Component |
@@ -993,7 +1044,7 @@ useEffect(() => {
 | `wifi-gateway` | `gateway-integration` |
 | `wifi-aaa` | `aaa-config` |
 
-### Billing (12)
+### Billing (15)
 | Key | Component |
 |---|---|
 | `billing-folios` | `folios` |
@@ -1005,6 +1056,12 @@ useEffect(() => {
 | `billing-saas-plans`, `saas-plans` | `saas-plans` |
 | `billing-saas-subs`, `saas-subscriptions` | `subscriptions` |
 | `billing-saas-usage`, `saas-usage` | `usage-billing` |
+| `billing-posting-rules` | `posting-rules` |
+| `billing-scheduled-charges` | `scheduled-charges` |
+| `billing-city-ledger` | `city-ledger` |
+| `billing-commissions` | `commissions` |
+| `billing-night-audit` | `night-audit` |
+| `billing-revenue-accounts` | `revenue-accounts` |
 
 ### Inventory (6)
 | Key | Component |
@@ -1015,7 +1072,7 @@ useEffect(() => {
 | `inventory-vendors` | `vendors` |
 | `inventory-purchase-orders`, `inventory-po` | `purchase-orders` |
 
-### Housekeeping (8)
+### Housekeeping (11)
 | Key | Component |
 |---|---|
 | `housekeeping-tasks` | `tasks-list` |
@@ -1025,6 +1082,9 @@ useEffect(() => {
 | `housekeeping-assets` | `assets` |
 | `housekeeping-automation` | `housekeeping-automation` |
 | `housekeeping-inspections` | `inspection-checklists` |
+| `housekeeping-lost-found` | `lost-found` |
+| `housekeeping-minibar` | `minibar` |
+| `housekeeping-laundry` | `laundry` |
 
 ### POS (5)
 | Key | Component |
@@ -1183,7 +1243,7 @@ useEffect(() => {
 
 ---
 
-## 18. API Route Registry (All 289 Routes)
+## 18. API Route Registry (All 617 Routes)
 
 ### Authentication (15 routes)
 `/api/auth/login` POST, `/api/auth/logout` POST, `/api/auth/session` GET|POST, `/api/auth/signup` POST, `/api/auth/forgot-password` POST, `/api/auth/reset-password` POST, `/api/auth/verify-email` POST, `/api/auth/2fa/setup` POST, `/api/auth/2fa/verify` POST, `/api/auth/2fa/disable` POST, `/api/auth/sessions` GET, `/api/auth/sessions/[id]` DELETE, `/api/auth/sso/connections` GET|POST, `/api/auth/sso/ldap/[connectionId]` ALL, `/api/auth/sso/oidc/[connectionId]` ALL, `/api/auth/sso/saml/[connectionId]` ALL, `/api/auth/google` GET, `/api/auth/google/callback` GET, `/api/auth/[...nextauth]` ALL
@@ -1200,8 +1260,29 @@ useEffect(() => {
 ### Rooms & PMS (12 routes)
 `/api/rooms` GET|POST, `/api/rooms/[id]` GET|PUT|DELETE, `/api/rooms/available` GET, `/api/room-types` GET|POST, `/api/room-types/[id]` GET|PUT|DELETE, `/api/properties` GET|POST, `/api/properties/[id]` GET|PUT|DELETE, `/api/properties/[id]/tax-settings` GET|PUT, `/api/floor-plans` ALL, `/api/rate-plans` ALL, `/api/rate-plans/[id]` ALL, `/api/inventory` ALL, `/api/inventory/[id]` ALL, `/api/inventory/stock` ALL, `/api/inventory/consumption` GET, `/api/inventory/lock` ALL, `/api/inventory/purchase-orders` ALL, `/api/inventory/vendors` ALL, `/api/inventory-locks` ALL, `/api/price-overrides` ALL, `/api/price-overrides/[id]` ALL
 
+### Travel Agents
+`/api/travel-agents` ALL, `/api/travel-agents/[id]` ALL
+
 ### Billing & Payments (6 routes)
 `/api/folios` GET|POST, `/api/folios/[id]` GET|PUT|DELETE, `/api/folios/[id]/line-items` ALL, `/api/invoices` GET|POST, `/api/invoices/[id]/pdf` GET, `/api/payments` GET|POST, `/api/payments/[id]` GET|PUT|DELETE, `/api/cancellation-policies` ALL, `/api/cancellation-policies/[id]` ALL, `/api/settings/discounts` ALL
+
+### Posting Rules
+`/api/posting-rules` ALL, `/api/posting-rules/[id]` ALL
+
+### Scheduled Charges
+`/api/scheduled-charges` ALL, `/api/scheduled-charges/[id]` ALL, `/api/scheduled-charges/[id]/history` GET, `/api/scheduled-charges/[id]/pause` POST, `/api/scheduled-charges/[id]/resume` POST
+
+### City Ledger
+`/api/city-ledger` ALL, `/api/city-ledger/[id]` ALL, `/api/city-ledger/invoices` ALL, `/api/city-ledger/payments` ALL
+
+### Commissions
+`/api/commissions` ALL, `/api/commissions/[id]` ALL, `/api/commissions/payments` ALL
+
+### Revenue Accounts
+`/api/revenue-accounts` ALL, `/api/revenue-accounts/[id]` ALL
+
+### Night Audit
+`/api/night-audit` ALL, `/api/night-audit/[id]` ALL, `/api/night-audit/run` POST, `/api/night-audit/logs` GET
 
 ### Dashboard (1 route)
 `/api/dashboard` GET, `/api/frontdesk/dashboard` GET
@@ -1223,6 +1304,15 @@ useEffect(() => {
 
 ### Housekeeping (4 routes)
 `/api/tasks` ALL, `/api/tasks/[id]` GET|PUT|DELETE, `/api/housekeeping/dashboard` GET, `/api/housekeeping/workload` GET, `/api/housekeeping/routes` GET, `/api/housekeeping/optimization` GET, `/api/inspections` ALL, `/api/inspections/[id]` ALL, `/api/inspections/stats` GET, `/api/inspection-templates` ALL, `/api/inspection-templates/[id]` ALL, `/api/assets` ALL, `/api/assets/[id]` ALL, `/api/maintenance/work-orders` ALL, `/api/maintenance/work-orders/[id]` ALL, `/api/preventive-maintenance` ALL, `/api/preventive-maintenance/[id]` ALL, `/api/service-requests` ALL
+
+### Laundry
+`/api/laundry` ALL, `/api/laundry/[id]` ALL, `/api/laundry/orders` ALL, `/api/laundry/orders/[id]` ALL, `/api/laundry/items` ALL
+
+### Lost & Found
+`/api/lost-found` ALL, `/api/lost-found/[id]` ALL
+
+### Minibar
+`/api/minibar` ALL, `/api/minibar/[id]` ALL, `/api/minibar/setup` ALL, `/api/minibar/consumption` ALL
 
 ### POS (4 routes)
 `/api/orders` ALL, `/api/orders/[id]` GET|PUT|DELETE, `/api/orders/[id]/post-to-folio` POST, `/api/tables` ALL, `/api/menu-items` ALL, `/api/menu-categories` ALL
@@ -1256,6 +1346,9 @@ useEffect(() => {
 
 ### Events (5 routes)
 `/api/events` ALL, `/api/events/[id]` ALL, `/api/events/[id]/resources` ALL, `/api/events/spaces` ALL, `/api/events/spaces/[id]` ALL
+
+### Cron
+`/api/cron/night-audit` POST, `/api/cron/scheduled-charges` POST, `/api/cron/sync-channels` POST, `/api/cron/cleanup-sessions` POST, `/api/cron/backup` POST, `/api/cron/reports` POST, `/api/cron/stats-aggregation` POST
 
 ### Other (10+ routes)
 `/api/parking` ALL, `/api/parking/billing` ALL, `/api/vehicles` ALL, `/api/digital-keys` ALL, `/api/gdpr/*` ALL, `/api/audit-logs` ALL, `/api/audit-logs/stats` GET, `/api/audit-logs/export` POST, `/api/chain/dashboard` GET, `/api/chain/analytics` GET, `/api/brands` ALL, `/api/vendors` ALL, `/api/translations` GET, `/api/upload` POST, `/api/search` GET, `/api/health` GET, `/api/version` GET, `/api/docs` GET, `/api/profile` GET|PUT, `/api/user/preferences` GET|PUT, `/api/help/articles` ALL, `/api/communication/*` ALL, `/api/chat-conversations` ALL, `/api/exchange-rates` GET, `/api/accounting/*` ALL, `/api/ads/*` ALL, `/api/ai/*` ALL, `/api/reputation/*` ALL, `/api/cron/*` GET, `/api/booking-engine/*` ALL, `/api/portal/*` ALL, `/api/v1/*` (versioned API)

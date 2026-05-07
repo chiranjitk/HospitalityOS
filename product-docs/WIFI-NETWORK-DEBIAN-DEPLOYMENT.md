@@ -217,6 +217,48 @@ All API routes use Prisma ORM for database operations. Routes that interact with
 - **System Commands**: `nft` for all rule operations
 - **Features**: Zones, rules, MAC filtering, bandwidth limiting, content filtering, config testing
 
+#### Custom DHCP Server (Port 3014)
+- **Runtime**: Bun + Hono
+- **Purpose**: Lightweight custom DHCP server implementation as a mini-service
+- **Features**: DHCP lease management, subnet configuration, reservation support
+- **Note**: Complements or replaces Kea for standalone/self-contained deployments where external DHCP daemon is not desired
+
+#### Custom DNS Resolver (Port 3015)
+- **Runtime**: Bun + Hono
+- **Purpose**: Custom DNS resolver service for captive portal integration
+- **Features**: DNS query resolution, zone management, record lookup
+- **Note**: Works alongside or replaces dnsmasq for DNS resolution
+
+#### Custom RADIUS Server (Port 3016)
+- **Runtime**: Bun + Hono
+- **Purpose**: Custom RADIUS server mini-service implementation
+- **Features**: RADIUS authentication, authorization, accounting (AAA) handling
+- **Note**: Lightweight alternative to full FreeRADIUS daemon for smaller deployments
+
+#### DNS Parser Service (Port 3017)
+- **Runtime**: Bun + Hono
+- **Purpose**: DNS packet parsing and inspection service
+- **Features**: Parse DNS queries/responses, extract domain names, detect DNS tunneling
+- **Note**: Used for DNS monitoring and content filtering support
+
+#### Conntrack Bridge (Port 3018)
+- **Runtime**: Bun + Hono
+- **Purpose**: Connection tracking bridge for session management
+- **Features**: Track active connections, monitor session state, correlate with WiFi sessions
+- **Note**: Reads from `/proc/net/nf_conntrack` to provide real-time session visibility
+
+#### SNI Parser (Port 3019)
+- **Runtime**: Bun + Hono
+- **Purpose**: TLS SNI (Server Name Indication) hostname detection
+- **Features**: Parse TLS ClientHello packets, extract SNI field for domain detection
+- **Note**: Used for HTTPS content filtering and bandwidth monitoring by domain
+
+#### Captive Redirect Service (Port 3020)
+- **Runtime**: Bun + Hono
+- **Purpose**: Captive portal HTTP redirect handler
+- **Features**: Detect unauthenticated clients, redirect to portal, track redirect metrics
+- **Note**: Intercepts HTTP traffic from unauthenticated guests and redirects to captive portal login
+
 ---
 
 ## 4. Debian 13 System Requirements
@@ -306,10 +348,19 @@ modprobe 8021q bonding bridge nf_conntrack nf_nat
 │   ├── freeradius-service.db   # FreeRADIUS service database
 │   └── dns-service.db          # DNS service database
 ├── mini-services/              # Bun microservices
-│   ├── freeradius-service/
-│   ├── kea-service/
-│   ├── dns-service/
-│   └── nftables-service/
+│   ├── freeradius-service/     # FreeRADIUS management (port 3010)
+│   ├── kea-service/            # Kea DHCP management (port 3011)
+│   ├── dns-service/            # DNS management + dnsmasq (port 3012)
+│   ├── nftables-service/       # Firewall rule management (port 3013)
+│   ├── dhcp-service/           # Custom DHCP server (port 3014)
+│   ├── dns-parser/             # DNS packet parsing (port 3017)
+│   ├── radius-server/          # Custom RADIUS server (port 3016)
+│   ├── conntrack-bridge/       # Connection tracking bridge (port 3018)
+│   ├── sni-parser/             # TLS SNI hostname detection (port 3019)
+│   ├── captive-redirect/       # Captive portal redirect (port 3020)
+│   ├── availability-service/   # Room availability (port 3002)
+│   ├── realtime-service/       # WebSocket updates (port 3003)
+│   └── shared/                 # Shared utilities and types
 ├── prisma/                     # Prisma schema and seeds
 ├── freeradius-local/           # Local FreeRADIUS packages (offline install)
 ├── kea-local/                  # Local Kea packages (offline install)
@@ -332,12 +383,19 @@ NEXTAUTH_URL="http://your-server:81"
 # Mini-service auth (optional but recommended)
 FREERADIUS_SERVICE_AUTH_SECRET="your-freeradius-secret"
 NFTABLES_SERVICE_AUTH_SECRET="your-nftables-secret"
+DHCP_SERVICE_AUTH_SECRET="your-dhcp-secret"
+DNS_SERVICE_AUTH_SECRET="your-dns-secret"
 
 # Service URLs (defaults work for single-server)
 FREERADIUS_SERVICE_URL="http://localhost:3010"
 KEA_SERVICE_URL="http://localhost:3011"
 DNS_SERVICE_URL="http://localhost:3012"
 NFTABLES_SERVICE_URL="http://localhost:3013"
+DHCP_SERVICE_URL="http://localhost:3014"
+RADIUS_SERVER_URL="http://localhost:3016"
+DNS_PARSER_URL="http://localhost:3017"
+CONNTRACK_BRIDGE_URL="http://localhost:3018"
+SNI_PARSER_URL="http://localhost:3019"
 ```
 
 ---
@@ -499,7 +557,40 @@ For full regeneration (after rule changes):
 
 ## 6. FreeRADIUS Configuration
 
-### 6.1 StaySuite-Managed Section
+### 6.1 FreeRADIUS v3.2.7 (Compiled from Source)
+
+StaySuite uses **FreeRADIUS v3.2.7 compiled from source** rather than the Debian package version. This ensures compatibility with the latest RADIUS features and vendor-specific attributes.
+
+```bash
+# Build FreeRADIUS v3.2.7 from source
+cd /usr/local/src
+wget https://github.com/FreeRADIUS/freeradius-server/releases/download/release_3_2_7/freeradius-server-3.2.7.tar.gz
+tar xzf freeradius-server-3.2.7.tar.gz
+cd freeradius-server-3.2.7
+./configure --prefix=/path/to/freeradius-install --with-openssl
+make -j$(nproc)
+make install
+```
+
+#### Starting FreeRADIUS with Custom Dictionary Path
+
+When running FreeRADIUS compiled from source, use the `-D` flag to specify the dictionary path:
+
+```bash
+radiusd -D /path/to/freeradius-install/share/freeradius -f
+```
+
+- `-D` sets the dictionary directory (required for source installs)
+- `-f` runs in foreground (useful for debugging; omit for daemon mode)
+
+For production, create a systemd service or use PM2:
+
+```bash
+# Example PM2 process
+pm2 start "radiusd -D /path/to/freeradius-install/share/freeradius" --name freeradius
+```
+
+### 6.2 StaySuite-Managed Section
 
 StaySuite writes to FreeRADIUS config files using section markers:
 
@@ -514,7 +605,7 @@ client guest-ap {
 # <<<<<< StaySuite managed NAS clients >>>>>>
 ```
 
-### 6.2 RADIUS Authentication Flow
+### 6.3 RADIUS Authentication Flow
 
 ```
 Guest Device → Access Point → FreeRADIUS → StaySuite API → Allow/Deny
@@ -536,7 +627,7 @@ Guest Device → Access Point → FreeRADIUS → StaySuite API → Allow/Deny
                      │                          │
 ```
 
-### 6.3 FreeRADIUS Service API
+### 6.4 FreeRADIUS Service API
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
@@ -561,7 +652,7 @@ Guest Device → Access Point → FreeRADIUS → StaySuite API → Allow/Deny
 | `/api/sync-users` | POST | Sync users from DB |
 | `/api/sync-clients` | POST | Sync NAS clients from DB |
 
-### 6.4 Data Persistence
+### 6.5 Data Persistence
 
 FreeRADIUS service uses PostgreSQL 17 (`freeradius-service.db`) for persistent storage:
 - `nas_clients` - NAS client definitions
@@ -691,11 +782,11 @@ Manual sync endpoints:
 
 ```
 1. Guest connects to WiFi SSID
-2. DHCP assigns IP (Kea DHCP)
-3. DNS redirects to captive portal (dnsmasq address= redirect)
+2. DHCP assigns IP (Kea DHCP or Custom DHCP Service)
+3. DNS redirects to captive portal (dnsmasq or Custom DNS Resolver)
 4. Guest sees login page (StaySuite portal)
 5. Guest authenticates (room number + name, voucher, social login)
-6. StaySuite creates WiFi user in FreeRADIUS
+6. StaySuite creates WiFi user in FreeRADIUS (or Custom RADIUS Server)
 7. FreeRADIUS allows device on network
 8. nftables applies bandwidth/content rules
 ```
@@ -767,8 +858,8 @@ Network configuration is managed through:
 │     └─► Or scans QR code at room                                │
 │                                                                  │
 │  4. Guest connects to WiFi                                      │
-│     └─► DHCP assigns IP (Kea)                                   │
-│     └─► DNS redirects to portal (dnsmasq)                       │
+│     └─► DHCP assigns IP (Kea / Custom DHCP)                    │
+│     └─► DNS redirects to portal (dnsmasq / Custom DNS)         │
 │     └─► Captive portal shows login                              │
 │                                                                  │
 │  5. Guest authenticates                                         │
@@ -785,6 +876,8 @@ Network configuration is managed through:
 │     └─► Data usage tracked (sync route)                         │
 │     └─► Quota enforcement (quotas route)                        │
 │     └─► Session timeout (FreeRADIUS Session-Timeout)            │
+│     └─► Connection tracking (Conntrack Bridge)                  │
+│     └─► TLS hostname inspection (SNI Parser)                    │
 │                                                                  │
 │  8. Check-out                                                   │
 │     └─► WiFi user disabled/expired                              │
@@ -838,6 +931,8 @@ Network configuration is managed through:
 - **Active Sessions** (WiFi Access page): Current WiFi sessions
 - **DNS Cache** (DNS page): DNS cache hit/miss statistics
 - **Activity Log** (DNS page): DNS configuration changes
+- **Connection Tracking** (Conntrack Bridge): Real-time connection state via `/proc/net/nf_conntrack`
+- **SNI Monitoring** (SNI Parser): TLS hostname detection for HTTPS domain tracking
 
 ### 12.3 CSV Export
 
@@ -901,6 +996,7 @@ FreeRADIUS checks:
      │                         ▼
      │                    nftables applies bandwidth rules
      │                    Session starts (radacct Start record)
+     │                    Conntrack Bridge tracks connection
      │
      └── Invalid credentials → Access-Reject
 ```
@@ -911,7 +1007,7 @@ FreeRADIUS checks:
 Guest Device: DNS query for "facebook.com"
      │
      ▼
-dnsmasq (StaySuite managed):
+dnsmasq / Custom DNS Resolver (StaySuite managed):
   1. Check DNS redirects → facebook.com → 10.0.1.1 (portal IP)
   2. If no redirect, forward to upstream DNS (8.8.8.8)
   3. Cache result for future queries
@@ -948,6 +1044,12 @@ cd mini-services/freeradius-service && bun install && cd ../..
 cd mini-services/kea-service && bun install && cd ../..
 cd mini-services/dns-service && bun install && cd ../..
 cd mini-services/nftables-service && bun install && cd ../..
+cd mini-services/dhcp-service && bun install && cd ../..
+cd mini-services/dns-parser && bun install && cd ../..
+cd mini-services/radius-server && bun install && cd ../..
+cd mini-services/conntrack-bridge && bun install && cd ../..
+cd mini-services/sni-parser && bun install && cd ../..
+cd mini-services/captive-redirect && bun install && cd ../..
 cd mini-services/availability-service && bun install && cd ../..
 cd mini-services/realtime-service && bun install && cd ../..
 
@@ -984,6 +1086,12 @@ All mini-service API calls use `XTransformPort` query parameter:
 - `?XTransformPort=3011` for Kea
 - `?XTransformPort=3012` for DNS
 - `?XTransformPort=3013` for nftables
+- `?XTransformPort=3014` for Custom DHCP
+- `?XTransformPort=3016` for Custom RADIUS
+- `?XTransformPort=3017` for DNS Parser
+- `?XTransformPort=3018` for Conntrack Bridge
+- `?XTransformPort=3019` for SNI Parser
+- `?XTransformPort=3020` for Captive Redirect
 
 ### 14.3 PM2 Configuration
 
@@ -998,6 +1106,12 @@ module.exports = {
     { name: 'freeradius-service', script: 'mini-services/freeradius-service/index.ts', interpreter: 'bun' },
     { name: 'dns-service', script: 'mini-services/dns-service/index.ts', interpreter: 'bun' },
     { name: 'nftables-service', script: 'mini-services/nftables-service/index.ts', interpreter: 'bun' },
+    { name: 'dhcp-service', script: 'mini-services/dhcp-service/index.ts', interpreter: 'bun' },
+    { name: 'radius-server', script: 'mini-services/radius-server/index.ts', interpreter: 'bun' },
+    { name: 'dns-parser', script: 'mini-services/dns-parser/index.ts', interpreter: 'bun' },
+    { name: 'conntrack-bridge', script: 'mini-services/conntrack-bridge/index.ts', interpreter: 'bun' },
+    { name: 'sni-parser', script: 'mini-services/sni-parser/index.ts', interpreter: 'bun' },
+    { name: 'captive-redirect', script: 'mini-services/captive-redirect/index.ts', interpreter: 'bun' },
   ]
 };
 ```
@@ -1025,18 +1139,20 @@ systemctl start nftables
 nft list ruleset
 ```
 
-### 14.5 FreeRADIUS Setup
+### 14.5 FreeRADIUS Setup (v3.2.7 from source)
 
 ```bash
-# Enable and start FreeRADIUS
-systemctl enable freeradius
-systemctl start freeradius
+# If using FreeRADIUS compiled from source (v3.2.7):
+radiusd -D /path/to/freeradius-install/share/freeradius -f &
+
+# Or via PM2:
+pm2 start "radiusd -D /path/to/freeradius-install/share/freeradius" --name freeradius-daemon
 
 # Verify FreeRADIUS is running
 radtest test test localhost 0 testing123
 
 # Configure FreeRADIUS to use SQL (optional for advanced setups)
-# Edit /etc/freeradius/3.0/sites-available/default
+# Edit the source install's sites-available/default
 # Uncomment sql in authorize, authenticate, accounting sections
 ```
 
@@ -1066,10 +1182,13 @@ mkdir -p /etc/dnsmasq.d
 |-------|-------|----------|
 | DNS service not starting | Port 3012 in use | `fuser -k 3012/tcp` then restart |
 | FreeRADIUS auth fails | radcheck/radreply missing | Sync users via `/api/freeradius` sync-users action |
+| FreeRADIUS dictionary error | `-D` flag not set for source install | Use `radiusd -D /path/to/share/freeradius -f` |
 | Firewall rules not applied | nftables not installed | `apt install nftables` |
-| DHCP not assigning | Kea not configured | Check Kea config via `/api/kea/status` |
+| DHCP not assigning | Kea/Custom DHCP not configured | Check Kea config via `/api/kea/status` or DHCP service health |
 | Captive portal not showing | DNS redirect missing | Create redirect rule in DNS page |
 | BW monitoring shows zeros | No actual traffic | Verify nftables rules and interface selection |
+| Conntrack bridge errors | nf_conntrack module missing | `modprobe nf_conntrack` |
+| SNI parser not detecting | TLS traffic not visible | Verify port mirror or bridge config |
 
 ### 15.2 Service Health Check
 
@@ -1081,12 +1200,18 @@ pm2 list
 curl http://localhost:3010/health   # FreeRADIUS
 curl http://localhost:3012/health   # DNS
 curl http://localhost:3013/health   # nftables
+curl http://localhost:3014/health   # Custom DHCP
+curl http://localhost:3016/health   # Custom RADIUS
+curl http://localhost:3017/health   # DNS Parser
+curl http://localhost:3018/health   # Conntrack Bridge
+curl http://localhost:3019/health   # SNI Parser
+curl http://localhost:3020/health   # Captive Redirect
 
 # Check nftables rules
 nft list ruleset
 
-# Check FreeRADIUS status
-systemctl status freeradius
+# Check FreeRADIUS status (source install)
+ps aux | grep radiusd
 
 # Check dnsmasq status
 ps aux | grep dnsmasq
@@ -1100,9 +1225,15 @@ systemctl status kea-dhcp4-server
 | Service | Log Path |
 |---------|----------|
 | Next.js | `/home/z/.pm2/logs/staysuite-out.log` |
-| FreeRADIUS | `/home/z/.pm2/logs/freeradius-service-out.log` |
-| FreeRADIUS daemon | `/var/log/freeradius/radius.log` |
+| FreeRADIUS Service | `/home/z/.pm2/logs/freeradius-service-out.log` |
+| FreeRADIUS daemon | `/var/log/freeradius/radius.log` or `radiusd -X` output |
 | DNS Service | `/home/z/.pm2/logs/dns-service-out.log` |
+| Custom DHCP Service | `/home/z/.pm2/logs/dhcp-service-out.log` |
+| Custom RADIUS Server | `/home/z/.pm2/logs/radius-server-out.log` |
+| DNS Parser | `/home/z/.pm2/logs/dns-parser-out.log` |
+| Conntrack Bridge | `/home/z/.pm2/logs/conntrack-bridge-out.log` |
+| SNI Parser | `/home/z/.pm2/logs/sni-parser-out.log` |
+| Captive Redirect | `/home/z/.pm2/logs/captive-redirect-out.log` |
 | nftables Service | `/home/z/.pm2/logs/nftables-service-out.log` |
 | Kea DHCP | `/var/log/kea/kea-dhcp4.log` |
 | System | `/var/log/syslog` |
@@ -1120,6 +1251,10 @@ All mini-services support Bearer token authentication:
 FREERADIUS_SERVICE_AUTH_SECRET="your-strong-secret-here"
 NFTABLES_SERVICE_AUTH_SECRET="your-strong-secret-here"
 DNS_SERVICE_AUTH_SECRET="your-strong-secret-here"
+DHCP_SERVICE_AUTH_SECRET="your-strong-secret-here"
+RADIUS_SERVER_AUTH_SECRET="your-strong-secret-here"
+CONNTRACK_BRIDGE_AUTH_SECRET="your-strong-secret-here"
+SNI_PARSER_AUTH_SECRET="your-strong-secret-here"
 ```
 
 When configured, all API calls must include:
@@ -1146,7 +1281,7 @@ nft add rule ip staysuite input udp dport { 67, 68, 53, 1812, 1813 } accept
 # Never use "testing123" in production
 
 # Restrict FreeRADIUS to specific interfaces
-# Edit /etc/freeradius/3.0/radiusd.conf
+# For source installs, edit radiusd.conf:
 # listen { ipaddr = 10.0.0.1 }
 ```
 
@@ -1155,6 +1290,13 @@ nft add rule ip staysuite input udp dport { 67, 68, 53, 1812, 1813 } accept
 - DNS config injection is validated (50+ whitelisted directives only)
 - Shell metacharacters and command injection patterns blocked
 - dnsmasq runs as non-root user
+- Custom DNS Resolver validates all incoming queries
+
+### 16.5 SNI Parser Security
+
+- Only parses TLS ClientHello packets (read-only)
+- No packet injection or modification
+- SNI data used solely for monitoring and reporting
 
 ---
 
@@ -1188,12 +1330,18 @@ nft add rule ip staysuite input udp dport { 67, 68, 53, 1812, 1813 } accept
 | Kea DHCP Service | 3011 | Internal only (via XTransformPort) |
 | DNS Service | 3012 | Internal only (via XTransformPort) |
 | nftables Service | 3013 | Internal only (via XTransformPort) |
+| Custom DHCP Server | 3014 | Internal only (via XTransformPort) |
+| Custom RADIUS Server | 3016 | Internal only (via XTransformPort) |
+| DNS Parser | 3017 | Internal only (via XTransformPort) |
+| Conntrack Bridge | 3018 | Internal only (via XTransformPort) |
+| SNI Parser | 3019 | Internal only (via XTransformPort) |
+| Captive Redirect | 3020 | Internal only (via XTransformPort) |
 
 ### System Services
 
 | Service | Default Port | Config Path |
 |---------|-------------|-------------|
-| FreeRADIUS | 1812/1813 (auth/acct) | `/etc/freeradius/3.0/` |
+| FreeRADIUS v3.2.7 | 1812/1813 (auth/acct) | `/path/to/freeradius-install/etc/raddb/` |
 | Kea DHCP4 | 67 (DHCP) | `/etc/kea/kea-dhcp4.conf` |
 | dnsmasq | 53 (DNS) | `/etc/dnsmasq.d/staysuite.conf` |
 | nftables | N/A (kernel) | `/etc/nftables.d/staysuite.conf` |
@@ -1244,6 +1392,7 @@ nft add rule ip staysuite input udp dport { 67, 68, 53, 1812, 1813 } accept
 | FreeRADIUS | Config writes commented out | Enabled with section markers |
 | FreeRADIUS | No authentication | Bearer token auth middleware |
 | FreeRADIUS | Fake RADIUS test | Real `radtest` command |
+| FreeRADIUS | Debian package version | Updated to v3.2.7 compiled from source |
 | DNS | Separate DB from Prisma | Added sync-from/to-prisma endpoints |
 | DNS | Auto-sync on startup | Reads Prisma DB on boot |
 | DNS | Config injection vulnerability | Added dnsmasq directive validation |
@@ -1254,6 +1403,12 @@ nft add rule ip staysuite input udp dport { 67, 68, 53, 1812, 1813 } accept
 | Service | Port | Purpose |
 |---------|------|---------|
 | nftables-service | 3013 | Real nftables firewall rule management |
+| dhcp-service | 3014 | Custom DHCP server mini-service |
+| dns-parser | 3017 | DNS packet parsing and inspection |
+| radius-server | 3016 | Custom RADIUS server mini-service |
+| conntrack-bridge | 3018 | Connection tracking bridge |
+| sni-parser | 3019 | TLS SNI hostname detection |
+| captive-redirect | 3020 | Captive portal HTTP redirect handler |
 
 ### New Integration
 
@@ -1262,9 +1417,15 @@ nft add rule ip staysuite input udp dport { 67, 68, 53, 1812, 1813 } accept
 | nftables integration | All firewall API routes now apply rules to nftables |
 | `/api/wifi/firewall/test` | New endpoint to validate nftables config |
 | `nftables-helper.ts` | Shared utility for nftables service communication |
+| Custom DHCP integration | Custom DHCP server for self-contained deployments |
+| Custom DNS Resolver | Custom DNS resolver for captive portal integration |
+| Custom RADIUS Server | Lightweight RADIUS implementation |
+| Conntrack Bridge | Real-time session tracking via nf_conntrack |
+| SNI Parser | HTTPS domain detection for monitoring and filtering |
 
 ---
 
-*Document generated: April 2026*
+*Document generated: July 2025*
 *StaySuite HospitalityOS v1.0*
 *Debian 13 + nftables deployment*
+*617 API routes | 294 Prisma models | 13 mini-services*
