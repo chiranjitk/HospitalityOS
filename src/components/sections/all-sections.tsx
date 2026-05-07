@@ -35,6 +35,7 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'marketing-sources': () => import('@/components/marketing/review-sources'),
   'marketing-promotions': () => import('@/components/marketing/promotions'),
   'marketing-booking-engine': () => import('@/components/marketing/direct-booking-engine'),
+  'marketing-upsell': () => import('@/components/marketing/upsell-engine'),
 
   // ── dashboard (section-map-dashboard.tsx) ──
   'dashboard-overview': () => import('@/components/dashboard/overview-dashboard'),
@@ -125,6 +126,7 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'experience-portal': () => import('@/components/experience/in-room-portal'),
   'experience-app': () => import('@/components/experience/guest-app-controls'),
   'experience-app-controls': () => import('@/components/experience/guest-app-controls'),
+  'experience-spa': () => import('@/components/experience/spa-wellness'),
 
   // ── iot (section-map-iot.tsx) ──
   'iot-devices': () => import('@/components/iot/device-management'),
@@ -160,6 +162,7 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'pos-kitchen': () => import('@/components/pos/kitchen-display'),
   'pos-menu': () => import('@/components/pos/menu-management'),
   'pos-billing': () => import('@/components/pos/billing'),
+  'pos-offline': () => import('@/components/pos/offline-mode'),
 
   // ── other (section-map-other.tsx) ──
   'admin-gdpr': () => import('@/components/gdpr/gdpr-manager'),
@@ -174,6 +177,9 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'integrations-wifi': () => import('@/components/integrations/wifi-gateways'),
   'integrations-pos': () => import('@/components/integrations/pos-systems'),
   'integrations-apis': () => import('@/components/integrations/third-party-apis'),
+  'integrations-smart-locks': () => import('@/components/integrations/smart-locks'),
+  'integrations-terminals': () => import('@/components/integrations/payment-terminals'),
+  'integrations-mobile-app': () => import('@/components/integrations/mobile-app'),
   'notifications-templates': () => import('@/components/notifications/templates'),
   'notifications-logs': () => import('@/components/notifications/delivery-logs'),
   'notifications-settings': () => import('@/components/notifications/settings'),
@@ -242,6 +248,7 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'channel-mapping': () => import('@/components/channels/mapping'),
   'channel-logs': () => import('@/components/channels/sync-logs'),
   'channel-crs': () => import('@/components/channels/crs'),
+  'channel-gds': () => import('@/components/channels/gds-connectivity'),
 
   // ── settings (section-map-settings.tsx) ──
   'settings-general': () => import('@/components/settings/general'),
@@ -289,6 +296,7 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'billing-gst-invoicing': () => import('@/components/billing/gst-invoicing'),
   'billing-gst-returns': () => import('@/components/billing/gst-returns'),
   'billing-tcs-tds': () => import('@/components/billing/tcs-tds'),
+  'billing-ap-workflow': () => import('@/components/billing/ap-workflow'),
 };
 
 export const allSections = sectionMap;

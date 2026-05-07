@@ -11,6 +11,9 @@ const NotificationSettingsComponent = lazy(() => import('@/components/notificati
 const WebhookEvents = lazy(() => import('@/components/webhooks/events').then(m => ({ default: m.WebhookEvents })));
 const WebhookDelivery = lazy(() => import('@/components/webhooks/delivery').then(m => ({ default: m.WebhookDelivery })));
 const RetryQueue = lazy(() => import('@/components/webhooks/retry-queue').then(m => ({ default: m.RetryQueue })));
+const SmartLocks = lazy(() => import('@/components/integrations/smart-locks').then(m => ({ default: m.SmartLocks })));
+const PaymentTerminals = lazy(() => import('@/components/integrations/payment-terminals').then(m => ({ default: m.PaymentTerminals })));
+const MobileAppManagement = lazy(() => import('@/components/integrations/mobile-app').then(m => ({ default: m.MobileAppManagement })));
 
 export const integrationsNotificationsSections: Record<string, React.LazyExoticComponent<any>> = {
   PaymentGatewaysPage,
@@ -23,4 +26,7 @@ export const integrationsNotificationsSections: Record<string, React.LazyExoticC
   WebhookEvents,
   WebhookDelivery,
   RetryQueue,
+  SmartLocks,
+  PaymentTerminals,
+  MobileAppManagement,
 };

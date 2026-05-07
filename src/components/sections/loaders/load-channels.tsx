@@ -18,6 +18,8 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/channels/sync-logs');
     case 'channel-crs':
       return import('@/components/channels/crs');
+    case 'channel-gds':
+      return import('@/components/channels/gds-connectivity');
     default:
       throw new Error(`Unknown channel section: ${section}`);
   }

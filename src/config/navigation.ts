@@ -243,6 +243,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'billing-gst-invoicing', title: 'GST e-Invoicing', href: '#billing-gst-invoicing', icon: Receipt },
       { id: 'billing-gst-returns', title: 'GST Returns', href: '#billing-gst-returns', icon: BarChart3 },
       { id: 'billing-tcs-tds', title: 'TCS/TDS', href: '#billing-tcs-tds', icon: Percent },
+      { id: 'billing-ap-workflow', title: 'AP Workflow', href: '#billing-ap-workflow', icon: ClipboardList },
     ],
   },
 
@@ -270,6 +271,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'experience-revenue', title: 'Revenue Analytics', href: '#experience-revenue', icon: TrendingUp },
       { id: 'experience-calendar', title: 'Calendar', href: '#experience-calendar', icon: CalendarDays },
       { id: 'experience-feedback', title: 'Guest Feedback', href: '#experience-feedback', icon: Star },
+      { id: 'experience-spa', title: 'Spa & Wellness', href: '#experience-spa', icon: Heart },
     ],
   },
   {
@@ -293,6 +295,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'pos-variants', title: 'Menu Variants', href: '#pos-variants', icon: Layers },
       { id: 'pos-table-layout', title: 'Table Layout', href: '#pos-table-layout', icon: LayoutGrid },
       { id: 'pos-reservations', title: 'Reservations', href: '#pos-reservations', icon: CalendarDays },
+      { id: 'pos-offline', title: 'Offline Mode', href: '#pos-offline', icon: HardDrive },
     ],
   },
 
@@ -394,6 +397,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'channel-mapping', title: 'Channel Mapping', href: '#channel-mapping', icon: Layers },
       { id: 'channel-logs', title: 'Sync Logs', href: '#channel-logs', icon: History },
       { id: 'channel-crs', title: 'CRS', href: '#channel-crs', icon: Building },
+      { id: 'channel-gds', title: 'GDS Connectivity', href: '#channel-gds', icon: Radio },
     ],
   },
 
@@ -421,6 +425,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'marketing-sources', title: 'Review Sources', href: '#marketing-sources', icon: Bookmark },
       { id: 'marketing-booking-engine', title: 'Direct Booking Engine', href: '#marketing-booking-engine', icon: Globe },
       { id: 'marketing-promotions', title: 'Promotions & Offers', href: '#marketing-promotions', icon: BadgePercent },
+      { id: 'marketing-upsell', title: 'Upsell Engine', href: '#marketing-upsell', icon: TrendingUp },
     ],
   },
 
@@ -510,6 +515,9 @@ export const navigationConfig: NavSection[] = [
       { id: 'integrations-sms', title: 'SMS Gateways', href: '#integrations-sms', icon: MessageSquare },
       { id: 'integrations-pos', title: 'POS Systems', href: '#integrations-pos', icon: UtensilsCrossed },
       { id: 'integrations-apis', title: 'Third-party APIs', href: '#integrations-apis', icon: Plug },
+      { id: 'integrations-smart-locks', title: 'Smart Locks', href: '#integrations-smart-locks', icon: Lock },
+      { id: 'integrations-terminals', title: 'Payment Terminals', href: '#integrations-terminals', icon: CreditCard },
+      { id: 'integrations-mobile-app', title: 'Mobile App', href: '#integrations-mobile-app', icon: Smartphone },
     ],
   },
   {
@@ -638,5 +646,5 @@ export const navigationConfig: NavSection[] = [
 // Base Modules: 8 (Dashboard, PMS, Bookings, Front Desk, Guests, 
 //                        Housekeeping, Billing, Settings, Help)
 // Addon Modules: 22 (Experience, Restaurant, Inventory, Parking, etc.)
-// Total Menu Items: ~130
+// Total Menu Items: ~138
 // =====================================================

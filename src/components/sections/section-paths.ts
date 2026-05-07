@@ -127,6 +127,7 @@ const sectionPaths: Record<string, string> = {
   'pos-variants': '@/components/pos/menu-variants',
   'pos-table-layout': '@/components/pos/table-layout',
   'pos-reservations': '@/components/pos/reservations',
+  'pos-offline': '@/components/pos/offline-mode',
   'pos-inventory': '@/components/pos/inventory',
 
   // Experience
@@ -144,6 +145,7 @@ const sectionPaths: Record<string, string> = {
   'experience-revenue': '@/components/experience/experience-revenue',
   'experience-calendar': '@/components/experience/experience-calendar',
   'experience-feedback': '@/components/experience/experience-feedback',
+  'experience-spa': '@/components/experience/spa-wellness',
 
   // Parking
   'parking-slots': '@/components/parking/slots',
@@ -173,6 +175,7 @@ const sectionPaths: Record<string, string> = {
   'channel-mapping': '@/components/channels/mapping',
   'channel-logs': '@/components/channels/sync-logs',
   'channel-crs': '@/components/channels/crs',
+  'channel-gds': '@/components/channels/gds-connectivity',
 
   // Reports
   'reports-revenue': '@/components/reports/revenue-reports',
@@ -221,6 +224,7 @@ const sectionPaths: Record<string, string> = {
   'marketing-sources': '@/components/marketing/review-sources',
   'marketing-promotions': '@/components/marketing/promotions',
   'marketing-booking-engine': '@/components/marketing/direct-booking-engine',
+  'marketing-upsell': '@/components/marketing/upsell-engine',
 
   // Events
   'events-spaces': '@/components/events/event-spaces',
@@ -255,6 +259,9 @@ const sectionPaths: Record<string, string> = {
   'integrations-wifi': '@/components/integrations/wifi-gateways',
   'integrations-pos': '@/components/integrations/pos-systems',
   'integrations-apis': '@/components/integrations/third-party-apis',
+  'integrations-smart-locks': '@/components/integrations/smart-locks',
+  'integrations-terminals': '@/components/integrations/payment-terminals',
+  'integrations-mobile-app': '@/components/integrations/mobile-app',
   'notifications-templates': '@/components/notifications/templates',
   'notifications-logs': '@/components/notifications/delivery-logs',
   'notifications-settings': '@/components/notifications/settings',
@@ -275,6 +282,9 @@ const sectionPaths: Record<string, string> = {
   'ads-google': '@/components/ads/google-hotel-ads',
   'ads-performance': '@/components/ads/performance-tracking',
   'ads-roi': '@/components/ads/roi-analytics',
+
+  // Billing - AP Workflow
+  'billing-ap-workflow': '@/components/billing/ap-workflow',
 };
 
 export function getSectionPath(section: string): string | null {

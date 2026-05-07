@@ -48,6 +48,8 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/billing/gst-returns');
     case 'billing-tcs-tds':
       return import('@/components/billing/tcs-tds');
+    case 'billing-ap-workflow':
+      return import('@/components/billing/ap-workflow');
     default:
       throw new Error(`Unknown billing section: ${section}`);
   }
