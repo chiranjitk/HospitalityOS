@@ -2848,3 +2848,4 @@
 2026-05-07 15:15:33.289 UTC [6925] ERROR:  constraint "DeviceProfile_guestId_fkey" for relation "DeviceProfile" already exists
 2026-05-07 15:15:33.289 UTC [6925] STATEMENT:  ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_guestId_fkey" FOREIGN KEY ("guestId") REFERENCES "Guest"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 2026-05-07 15:17:15.852 UTC [6502] LOG:  checkpoint starting: time
+2026-05-07 15:20:12.382 UTC [6502] LOG:  checkpoint complete: wrote 1770 buffers (10.8%); 0 WAL file(s) added, 0 removed, 1 recycled; write=176.512 s, sync=0.017 s, total=176.530 s; sync files=2546, longest=0.001 s, average=0.001 s; distance=16216 kB, estimate=16216 kB; lsn=0/24C2BC8, redo lsn=0/24C2B38
