@@ -13,6 +13,7 @@ const updateRuleSchema = z.object({
   taxTreatment: z.enum(['taxable', 'exempt', 'zero_rated']).optional(),
   autoPost: z.boolean().optional(),
   isActive: z.boolean().optional(),
+  status: z.enum(['active', 'inactive']).optional(),
   priority: z.number().int().min(0).optional(),
   conditions: z.record(z.unknown()).optional(),
 });
@@ -102,6 +103,7 @@ export async function PUT(
     if (data.taxTreatment !== undefined) updateData.taxTreatment = data.taxTreatment;
     if (data.autoPost !== undefined) updateData.autoPost = data.autoPost;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    if (data.status !== undefined) updateData.isActive = data.status === 'active';
     if (data.priority !== undefined) updateData.priority = data.priority;
     if (data.conditions !== undefined) updateData.conditions = JSON.stringify(data.conditions);
 

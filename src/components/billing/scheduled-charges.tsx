@@ -73,7 +73,7 @@ interface ScheduledCharge {
   amount: number;
   currency: string;
   frequency: 'daily' | 'weekly' | 'monthly' | 'once';
-  nextExecution: string;
+  nextExecution?: string;
   startDate: string;
   endDate?: string;
   lastExecution?: string;
@@ -81,6 +81,7 @@ interface ScheduledCharge {
   status: 'active' | 'paused' | 'completed';
   chargeType: string;
   booking?: Booking;
+  folio?: { id: string; folioNumber: string; status: string; balance: number };
   createdAt: string;
 }
 
@@ -159,7 +160,7 @@ export default function ScheduledCharges() {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (searchQuery) params.append('search', searchQuery);
-      const res = await fetch(`/api/billing/scheduled-charges?${params.toString()}`);
+      const res = await fetch(`/api/scheduled-charges?${params.toString()}`);
       const result = await res.json();
       if (result.success) setCharges(result.data || []);
     } catch {
@@ -189,7 +190,7 @@ export default function ScheduledCharges() {
         amount: parseFloat(formData.amount),
         endDate: formData.endDate || undefined,
       };
-      const res = await fetch('/api/billing/scheduled-charges', {
+      const res = await fetch('/api/scheduled-charges', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -214,7 +215,7 @@ export default function ScheduledCharges() {
   const handleTogglePause = async (charge: ScheduledCharge) => {
     const action = charge.status === 'active' ? 'pause' : 'resume';
     try {
-      const res = await fetch(`/api/billing/scheduled-charges/${charge.id}/${action}`, { method: 'POST' });
+      const res = await fetch(`/api/scheduled-charges/${charge.id}/${action}`, { method: 'POST' });
       const result = await res.json();
       if (result.success) {
         toast({ title: 'Success', description: `Charge ${action}d` });
@@ -231,7 +232,7 @@ export default function ScheduledCharges() {
   const handleExecuteNow = async (chargeId: string) => {
     setIsExecuting(chargeId);
     try {
-      const res = await fetch(`/api/billing/scheduled-charges/${chargeId}/execute`, { method: 'POST' });
+      const res = await fetch(`/api/scheduled-charges/${chargeId}/execute`, { method: 'POST' });
       const result = await res.json();
       if (result.success) {
         toast({ title: 'Success', description: 'Charge executed successfully' });
@@ -252,7 +253,7 @@ export default function ScheduledCharges() {
     setIsLoadingHistory(true);
     setIsHistoryOpen(true);
     try {
-      const res = await fetch(`/api/billing/scheduled-charges/${charge.id}/history`);
+      const res = await fetch(`/api/scheduled-charges/${charge.id}/history`);
       const result = await res.json();
       if (result.success) {
         setExecutionHistory(result.data || []);
@@ -499,7 +500,7 @@ export default function ScheduledCharges() {
                             </TableCell>
                             <TableCell>
                               <span className="font-mono text-xs text-muted-foreground">
-                                {charge.folioId ? charge.folioId.slice(0, 8) + '...' : 'Auto'}
+                                {charge.folio?.folioNumber || '—'}
                               </span>
                             </TableCell>
                             <TableCell>

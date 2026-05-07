@@ -66,9 +66,15 @@ export async function GET(request: NextRequest) {
       db.postingRule.count({ where }),
     ]);
 
+    // Transform data to match component expectations
+    const transformedRules = rules.map((rule: Record<string, unknown>) => ({
+      ...rule,
+      status: rule.isActive ? 'active' : 'inactive',
+    }));
+
     return NextResponse.json({
       success: true,
-      data: rules,
+      data: transformedRules,
       pagination: { total, limit, offset },
     });
   } catch (error) {

@@ -154,8 +154,8 @@ export default function PostingRules() {
     setIsLoading(true);
     try {
       const [rulesRes, accountsRes] = await Promise.all([
-        fetch('/api/billing/posting-rules'),
-        fetch('/api/billing/revenue-accounts'),
+        fetch('/api/posting-rules'),
+        fetch('/api/revenue-accounts'),
       ]);
       const rulesResult = await rulesRes.json();
       const accountsResult = await accountsRes.json();
@@ -187,7 +187,7 @@ export default function PostingRules() {
         ...ruleForm,
         conditions: ruleForm.conditions ? ruleForm.conditions : undefined,
       };
-      const url = isEditing && selectedRule ? `/api/billing/posting-rules/${selectedRule.id}` : '/api/billing/posting-rules';
+      const url = isEditing && selectedRule ? `/api/posting-rules/${selectedRule.id}` : '/api/posting-rules';
       const method = isEditing ? 'PUT' : 'POST';
       const res = await fetch(url, {
         method,
@@ -217,7 +217,7 @@ export default function PostingRules() {
     }
     setIsSaving(true);
     try {
-      const res = await fetch('/api/billing/revenue-accounts', {
+      const res = await fetch('/api/revenue-accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(accountForm),
@@ -241,7 +241,7 @@ export default function PostingRules() {
   // Toggle auto-post
   const handleToggleAutoPost = async (rule: PostingRule) => {
     try {
-      const res = await fetch(`/api/billing/posting-rules/${rule.id}`, {
+      const res = await fetch(`/api/posting-rules/${rule.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ autoPost: !rule.autoPost }),
@@ -260,7 +260,7 @@ export default function PostingRules() {
   // Toggle rule status
   const handleToggleStatus = async (rule: PostingRule) => {
     try {
-      const res = await fetch(`/api/billing/posting-rules/${rule.id}`, {
+      const res = await fetch(`/api/posting-rules/${rule.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: rule.status === 'active' ? 'inactive' : 'active' }),

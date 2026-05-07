@@ -35,8 +35,9 @@ export async function GET(request: NextRequest) {
     const propertyId = searchParams.get('propertyId');
     const folioId = searchParams.get('folioId');
     const bookingId = searchParams.get('bookingId');
-    const isActive = searchParams.get('isActive');
+    const isActiveParam = searchParams.get('isActive') || searchParams.get('status');
     const chargeType = searchParams.get('chargeType');
+    const search = searchParams.get('search');
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
@@ -45,8 +46,24 @@ export async function GET(request: NextRequest) {
     if (propertyId) where.propertyId = propertyId;
     if (folioId) where.folioId = folioId;
     if (bookingId) where.bookingId = bookingId;
-    if (isActive !== null && isActive !== undefined && isActive !== '') where.isActive = isActive === 'true';
+    if (isActiveParam && isActiveParam !== 'all' && isActiveParam !== '') {
+      if (isActiveParam === 'true' || isActiveParam === 'active') {
+        where.isActive = true;
+      } else if (isActiveParam === 'false' || isActiveParam === 'paused') {
+        where.isActive = false;
+      }
+      // 'completed' or 'history' - show inactive charges with executions
+      if (isActiveParam === 'completed' || isActiveParam === 'history') {
+        where.isActive = false;
+      }
+    }
     if (chargeType) where.chargeType = chargeType;
+    if (search) {
+      where.OR = [
+        { description: { contains: search, mode: 'insensitive' } },
+        { chargeType: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
     const [charges, total] = await Promise.all([
       db.scheduledCharge.findMany({
@@ -71,9 +88,31 @@ export async function GET(request: NextRequest) {
       db.scheduledCharge.count({ where }),
     ]);
 
+    // Transform data to match component expectations
+    const transformedCharges = charges.map((charge: Record<string, unknown>) => {
+      const isActive = charge.isActive as boolean;
+      const isOnceAndExecuted = charge.frequency === 'once' && ((charge.executedCount as number) > 0);
+      let status: string;
+      if (isOnceAndExecuted) {
+        status = 'completed';
+      } else if (isActive) {
+        status = 'active';
+      } else {
+        status = 'paused';
+      }
+
+      return {
+        ...charge,
+        status,
+        nextExecution: charge.nextExecutionAt,
+        lastExecution: charge.lastExecutedAt,
+        totalExecuted: charge.executedCount,
+      };
+    });
+
     return NextResponse.json({
       success: true,
-      data: charges,
+      data: transformedCharges,
       pagination: { total, limit, offset },
     });
   } catch (error) {
