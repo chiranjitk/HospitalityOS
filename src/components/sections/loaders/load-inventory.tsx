@@ -12,6 +12,9 @@ export default async function loadSection(section: string): Promise<{ default: R
     case 'inventory-purchase-orders':
     case 'inventory-po':
       return import('@/components/inventory/purchase-orders');
+    case 'inventory-requisition':
+    case 'inventory-purchase-requisition':
+      return import('@/components/inventory/purchase-requisition');
     default:
       throw new Error(`Unknown inventory section: ${section}`);
   }

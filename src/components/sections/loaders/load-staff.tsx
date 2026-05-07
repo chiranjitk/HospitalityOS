@@ -14,6 +14,9 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/staff/performance/performance-dashboard');
     case 'staff-skills':
       return import('@/components/staff/skills-management');
+    case 'staff-payroll':
+    case 'staff-payroll-management':
+      return import('@/components/staff/payroll-management');
     default:
       throw new Error(`Unknown staff section: ${section}`);
   }

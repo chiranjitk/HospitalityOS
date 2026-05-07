@@ -19,6 +19,9 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/integrations/payment-terminals');
     case 'integrations-mobile-app':
       return import('@/components/integrations/mobile-app');
+    case 'integrations-hub':
+    case 'integrations-integration-hub':
+      return import('@/components/integrations/integration-hub');
     default:
       throw new Error(`Unknown integrations section: ${section}`);
   }

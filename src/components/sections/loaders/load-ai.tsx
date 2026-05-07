@@ -8,6 +8,9 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/ai/provider-settings');
     case 'ai-insights':
       return import('@/components/ai/insights');
+    case 'ai-analytics':
+    case 'ai-conversational-analytics':
+      return import('@/components/ai/conversational-analytics');
     default:
       throw new Error(`Unknown ai section: ${section}`);
   }

@@ -32,6 +32,9 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/pms/room-out-of-order');
     case 'pms-package-plans':
       return import('@/components/pms/package-plans');
+    case 'pms-room-change':
+    case 'pms-room-type-change':
+      return import('@/components/pms/room-type-change');
     default:
       throw new Error(`Unknown pms section: ${section}`);
   }

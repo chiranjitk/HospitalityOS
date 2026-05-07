@@ -11,6 +11,9 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/crm/feedback-reviews');
     case 'crm-retention':
       return import('@/components/crm/retention-analytics');
+    case 'crm-journey':
+    case 'crm-journey-automation':
+      return import('@/components/crm/journey-automation');
     default:
       throw new Error(`Unknown crm section: ${section}`);
   }

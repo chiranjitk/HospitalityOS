@@ -15,6 +15,14 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/reports/staff-performance');
     case 'reports-scheduled':
       return import('@/components/reports/scheduled-reports');
+    case 'reports-financial':
+    case 'reports-pl':
+      return import('@/components/reports/financial-statements');
+    case 'reports-cashflow':
+      return import('@/components/reports/cash-flow-forecast');
+    case 'reports-budget':
+      case 'reports-budget-variance':
+      return import('@/components/reports/budget-variance');
     default:
       throw new Error(`Unknown reports section: ${section}`);
   }
