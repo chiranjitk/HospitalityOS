@@ -206,6 +206,9 @@ export async function auth() {
   return getServerSession(authOptions);
 }
 
+// Re-export auth helpers for API route convenience
+export { getUserFromRequest, hasPermission, hasAnyPermission } from './auth-helpers';
+
 // Export getAuthSession as alias for auth
 export async function getAuthSession(request?: NextRequest) {
   // If request is provided, try to get context from session token

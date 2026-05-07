@@ -10,6 +10,11 @@ const SaaSPlans = lazy(() => import('@/components/billing/saas-plans'));
 const Subscriptions = lazy(() => import('@/components/billing/subscriptions'));
 const UsageBilling = lazy(() => import('@/components/billing/usage-billing'));
 const CancellationPolicies = lazy(() => import('@/components/billing/cancellation-policies'));
+const NightAudit = lazy(() => import('@/components/billing/night-audit'));
+const ScheduledCharges = lazy(() => import('@/components/billing/scheduled-charges'));
+const PostingRules = lazy(() => import('@/components/billing/posting-rules'));
+const CityLedger = lazy(() => import('@/components/billing/city-ledger'));
+const Commissions = lazy(() => import('@/components/billing/commissions'));
 
 export const billingSections: Record<string, React.LazyExoticComponent<any>> = {
   Folios,
@@ -21,4 +26,9 @@ export const billingSections: Record<string, React.LazyExoticComponent<any>> = {
   Subscriptions,
   UsageBilling,
   CancellationPolicies,
+  NightAudit,
+  ScheduledCharges,
+  PostingRules,
+  CityLedger,
+  Commissions,
 };

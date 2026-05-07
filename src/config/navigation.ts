@@ -80,6 +80,12 @@ import {
   Handshake,
   LayoutGrid,
   ChefHat,
+  Moon,
+  Percent,
+  GitBranch,
+  Search,
+  Wine,
+  Shirt,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -145,6 +151,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'pms-floor-plans', title: 'Floor Plans', href: '#pms-floor-plans', icon: Building },
       { id: 'room-rate-calendar', title: 'Room Rate Calendar', href: '#room-rate-calendar', icon: CalendarDays },
       { id: 'room-out-of-order', title: 'Room Out-of-Order', href: '#room-out-of-order', icon: XCircle },
+      { id: 'pms-package-plans', title: 'Package Plans', href: '#pms-package-plans', icon: Gift },
     ],
   },
   {
@@ -206,6 +213,9 @@ export const navigationConfig: NavSection[] = [
       { id: 'housekeeping-assets', title: 'Asset Management', href: '#housekeeping-assets', icon: Package },
       { id: 'housekeeping-inspections', title: 'Inspection Checklists', href: '#housekeeping-inspections', icon: ClipboardList },
       { id: 'housekeeping-automation', title: 'Automation Rules', href: '#housekeeping-automation', icon: Bot },
+      { id: 'housekeeping-lost-found', title: 'Lost & Found', href: '#housekeeping-lost-found', icon: Search },
+      { id: 'housekeeping-minibar', title: 'Minibar', href: '#housekeeping-minibar', icon: Wine },
+      { id: 'housekeeping-laundry', title: 'Laundry', href: '#housekeeping-laundry', icon: Shirt },
     ],
   },
   {
@@ -224,6 +234,11 @@ export const navigationConfig: NavSection[] = [
       { id: 'payment-plans', title: 'Payment Plans', href: '#payment-plans', icon: CalendarClock },
       { id: 'credit-notes', title: 'Credit Notes', href: '#credit-notes', icon: Receipt },
       { id: 'multi-currency', title: 'Multi-Currency', href: '#multi-currency', icon: Globe },
+      { id: 'billing-night-audit', title: 'Night Audit', href: '#billing-night-audit', icon: Moon },
+      { id: 'billing-city-ledger', title: 'City Ledger', href: '#billing-city-ledger', icon: Building2 },
+      { id: 'billing-commissions', title: 'Commissions', href: '#billing-commissions', icon: Percent },
+      { id: 'billing-posting-rules', title: 'Posting Rules', href: '#billing-posting-rules', icon: GitBranch },
+      { id: 'billing-scheduled-charges', title: 'Scheduled Charges', href: '#billing-scheduled-charges', icon: Clock },
     ],
   },
 

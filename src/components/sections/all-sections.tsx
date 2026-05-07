@@ -268,6 +268,21 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'housekeeping-assets': () => import('@/components/housekeeping/assets'),
   'housekeeping-automation': () => import('@/components/housekeeping/housekeeping-automation'),
   'housekeeping-inspections': () => import('@/components/housekeeping/inspection-checklists'),
+
+  // ── night audit (billing) ──
+  'billing-night-audit': () => import('@/components/billing/night-audit'),
+  'billing-scheduled-charges': () => import('@/components/billing/scheduled-charges'),
+  'billing-posting-rules': () => import('@/components/billing/posting-rules'),
+  'billing-city-ledger': () => import('@/components/billing/city-ledger'),
+  'billing-commissions': () => import('@/components/billing/commissions'),
+
+  // ── housekeeping extensions ──
+  'housekeeping-lost-found': () => import('@/components/housekeeping/lost-found'),
+  'housekeeping-minibar': () => import('@/components/housekeeping/minibar'),
+  'housekeeping-laundry': () => import('@/components/housekeeping/laundry'),
+
+  // ── pms extensions ──
+  'pms-package-plans': () => import('@/components/pms/package-plans'),
 };
 
 export const allSections = sectionMap;

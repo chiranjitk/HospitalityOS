@@ -567,6 +567,9 @@ model Booking {
   waitlist               WaitlistEntry?
   scheduledCharges        ScheduledCharge[]
   cancellationPenalties   CancellationPenalty[]
+  commissions              CommissionRecord[]
+  laundryOrders            LaundryOrder[]
+  minibarConsumptions      MinibarConsumption[]
 
   @@index([tenantId])
   @@index([propertyId])
@@ -1954,6 +1957,8 @@ model Folio {
   paymentTokens           PaymentToken[]
   scheduledCharges        ScheduledCharge[]
   cancellationPenalties   CancellationPenalty[]
+  laundryOrders            LaundryOrder[]
+  minibarConsumptions      MinibarConsumption[]
 
   @@index([tenantId])
   @@index([bookingId])
@@ -2172,6 +2177,8 @@ model Guest {
   loyaltyRedemptions  LoyaltyRedemption[]
   loyaltyTransactions LoyaltyPointTransaction[]
   deviceProfiles     DeviceProfile[]
+  lostFoundItems      LostFoundItem[]
+  laundryOrders       LaundryOrder[]
 
   @@index([tenantId])
   @@index([email])
@@ -4080,6 +4087,24 @@ model Property {
   toTransfers            InventoryTransfer[]  @relation("ToProperty")
   deviceProfiles         DeviceProfile[]
   roomVlans              RoomVlan[]
+  nightAudits               NightAudit[]
+  travelAgents              TravelAgent[]
+  cityLedgerInvoices        CityLedgerInvoice[]
+  cityLedgerPayments       CityLedgerPayment[]
+  commissionRules           CommissionRule[]
+  commissionRecords         CommissionRecord[]
+  commissionPayments        CommissionPayment[]
+  minibarItems              MinibarItem[]
+  minibarSetups             MinibarSetup[]
+  minibarConsumptions       MinibarConsumption[]
+  lostFoundItems            LostFoundItem[]
+  laundryItems              LaundryItem[]
+  laundryOrders             LaundryOrder[]
+  packagePlans              PackagePlan[]
+  packageRates              PackageRate[]
+  postingRules              PostingRule[]
+  postingLogs               PostingLog[]
+  revenueAccounts           RevenueAccount[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -4787,6 +4812,8 @@ model Room {
   maintenanceBlocks  MaintenanceBlock[]
   currentTask        Task?              @relation("RoomCurrentTask", fields: [currentTaskId], references: [id])
   keyCards          KeyCard[]
+  minibarSetup       MinibarSetup?
+  minibarConsumptions MinibarConsumption[]
 
   @@unique([propertyId, number])
   @@index([propertyId])
@@ -5945,6 +5972,25 @@ model Tenant {
   competitorSyncLogs        CompetitorSyncLog[]
   deviceProfiles            DeviceProfile[]
   roomVlans                 RoomVlan[]
+  nightAudits               NightAudit[]
+  travelAgents              TravelAgent[]
+  commissionRules           CommissionRule[]
+  commissionRecords         CommissionRecord[]
+  commissionPayments        CommissionPayment[]
+  cityLedgerInvoices        CityLedgerInvoice[]
+  cityLedgerPayments       CityLedgerPayment[]
+  minibarItems              MinibarItem[]
+  minibarSetups             MinibarSetup[]
+  minibarConsumptions       MinibarConsumption[]
+  lostFoundItems            LostFoundItem[]
+  laundryItems              LaundryItem[]
+  laundryOrders             LaundryOrder[]
+  packagePlans              PackagePlan[]
+  packageRates              PackageRate[]
+  scheduledChargeExecutions ScheduledChargeExecution[]
+  revenueAccounts           RevenueAccount[]
+  postingRules              PostingRule[]
+  postingLogs               PostingLog[]
 }
 
 model Experience {
@@ -6213,6 +6259,10 @@ model User {
   ssoSessions             SSOSession[]
   transfersFrom           ChatTransfer[] @relation("ChatTransferFrom")
   transfersTo             ChatTransfer[] @relation("ChatTransferTo")
+  startedNightAudits      NightAudit[]         @relation("NightAuditStartedBy")
+  completedNightAudits    NightAudit[]         @relation("NightAuditCompletedBy")
+  collectedLaundryOrders  LaundryOrder[]       @relation("LaundryCollectedBy")
+  deliveredLaundryOrders  LaundryOrder[]       @relation("LaundryDeliveredBy")
   role                    Role?                    @relation(fields: [roleId], references: [id])
   tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -7460,4 +7510,677 @@ model DeviceProfile {
   @@index([macAddress])
   @@index([tenantId, propertyId, lastSeenAt])
   @@index([isActive])
+}
+
+// ============================================================
+// 1. NIGHT AUDIT MODULE
+// ============================================================
+
+model NightAudit {
+  id                 String              @id @default(uuid()) @db.Uuid
+  tenantId           String              @db.Uuid
+  propertyId         String              @db.Uuid
+  auditDate          DateTime            @db.Timestamptz
+  businessDayDate    DateTime            @db.Timestamptz
+  status             String              @default("in_progress") // in_progress, completed, failed
+  startedBy          String              @db.Uuid
+  completedBy        String?             @db.Uuid
+  startedAt          DateTime            @default(now()) @db.Timestamptz
+  completedAt        DateTime?           @db.Timestamptz
+  roomRevenue        Float               @default(0)
+  fbRevenue          Float               @default(0)
+  otherRevenue       Float               @default(0)
+  totalRevenue       Float               @default(0)
+  roomChargesPosted  Int                 @default(0)
+  noShowsProcessed   Int                 @default(0)
+  roomsReconciled    Int                 @default(0)
+  discrepancies      Int                 @default(0)
+  notes              String?
+  autoPostedAt       DateTime?           @db.Timestamptz
+  createdAt          DateTime            @default(now()) @db.Timestamptz
+  updatedAt          DateTime            @updatedAt @db.Timestamptz
+  steps              NightAuditStep[]
+  logs               NightAuditLog[]
+  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property           Property            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  startedByUser      User?               @relation("NightAuditStartedBy", fields: [startedBy], references: [id])
+  completedByUser    User?               @relation("NightAuditCompletedBy", fields: [completedBy], references: [id])
+
+  @@unique([propertyId, businessDayDate])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([auditDate])
+  @@index([businessDayDate])
+  @@index([status])
+}
+
+model NightAuditStep {
+  id           String     @id @default(uuid()) @db.Uuid
+  nightAuditId String     @db.Uuid
+  stepName     String
+  stepOrder    Int
+  status       String     @default("pending") // pending, in_progress, completed, skipped
+  startedAt    DateTime?  @db.Timestamptz
+  completedAt  DateTime?  @db.Timestamptz
+  performedBy  String?    @db.Uuid
+  result       String?
+  notes        String?
+  createdAt    DateTime   @default(now()) @db.Timestamptz
+  nightAudit   NightAudit @relation(fields: [nightAuditId], references: [id], onDelete: Cascade)
+
+  @@index([nightAuditId])
+  @@index([stepOrder])
+}
+
+model NightAuditLog {
+  id           String     @id @default(uuid()) @db.Uuid
+  nightAuditId String     @db.Uuid
+  action       String
+  entityType   String?
+  entityId     String?    @db.Uuid
+  oldValue     String?
+  newValue     String?
+  performedBy  String?    @db.Uuid
+  createdAt    DateTime   @default(now()) @db.Timestamptz
+  nightAudit   NightAudit @relation(fields: [nightAuditId], references: [id], onDelete: Cascade)
+
+  @@index([nightAuditId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// 2. TRAVEL AGENT / CITY LEDGER AR MODULE
+// ============================================================
+
+model TravelAgent {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  propertyId     String   @db.Uuid
+  agencyName     String
+  code           String
+  contactPerson  String?
+  email          String?
+  phone          String?
+  address        String?
+  city           String?
+  country        String?
+  taxId          String?
+  commissionRate Float    @default(0)
+  commissionType String   @default("percentage") // percentage, flat
+  creditLimit    Float    @default(0)
+  currentBalance Float    @default(0)
+  paymentTerms   String   @default("net_30") // net_15, net_30, net_45, net_60, cod
+  status         String   @default("active")
+  isActive       Boolean  @default(true)
+  notes          String?
+  createdAt      DateTime @default(now()) @db.Timestamptz
+  updatedAt      DateTime @updatedAt @db.Timestamptz
+  invoices       CityLedgerInvoice[]
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property       Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([isActive])
+}
+
+model CityLedgerInvoice {
+  id            String       @id @default(uuid()) @db.Uuid
+  tenantId      String       @db.Uuid
+  propertyId    String       @db.Uuid
+  travelAgentId String?      @db.Uuid
+  accountName   String
+  accountType   String       // travel_agent, corporate, direct_bill
+  invoiceNumber String
+  invoiceDate   DateTime     @db.Timestamptz
+  dueDate       DateTime     @db.Timestamptz
+  subtotal      Float        @default(0)
+  tax           Float        @default(0)
+  total         Float        @default(0)
+  currency      String       @default("USD")
+  status        String       @default("draft") // draft, sent, partial, paid, overdue, cancelled
+  paidAmount    Float        @default(0)
+  notes         String?
+  createdAt     DateTime     @default(now()) @db.Timestamptz
+  updatedAt     DateTime     @updatedAt @db.Timestamptz
+  items         CityLedgerItem[]
+  payments      CityLedgerPayment[]
+  travelAgent   TravelAgent? @relation(fields: [travelAgentId], references: [id])
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property      Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([travelAgentId])
+  @@index([accountType])
+  @@index([status])
+  @@index([invoiceDate])
+  @@index([dueDate])
+}
+
+model CityLedgerPayment {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  propertyId    String   @db.Uuid
+  invoiceId     String   @db.Uuid
+  amount        Float
+  paymentMethod String?
+  reference     String?
+  paidAt        DateTime @db.Timestamptz
+  notes         String?
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  invoice       CityLedgerInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property      Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([invoiceId])
+  @@index([paidAt])
+}
+
+model CityLedgerItem {
+  id          String            @id @default(uuid()) @db.Uuid
+  invoiceId   String            @db.Uuid
+  description String
+  amount      Float
+  quantity    Int               @default(1)
+  folioId     String?           @db.Uuid
+  createdAt   DateTime          @default(now()) @db.Timestamptz
+  invoice     CityLedgerInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([folioId])
+}
+
+// ============================================================
+// 3. COMMISSION MANAGEMENT MODULE
+// ============================================================
+
+model CommissionRule {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @db.Uuid
+  propertyId     String    @db.Uuid
+  name           String
+  description    String?
+  sourceType     String    // ota, travel_agent, referral, corporate, direct
+  sourceId       String?   @db.Uuid
+  commissionType String    @default("percentage") // percentage, flat, tiered
+  rate           Float     @default(0)
+  fixedAmount    Float     @default(0)
+  minAmount      Float     @default(0)
+  maxAmount      Float?
+  isActive       Boolean   @default(true)
+  validFrom      DateTime  @db.Timestamptz
+  validUntil     DateTime? @db.Timestamptz
+  createdAt      DateTime  @default(now()) @db.Timestamptz
+  updatedAt      DateTime  @updatedAt @db.Timestamptz
+  records        CommissionRecord[]
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property       Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([sourceType])
+  @@index([isActive])
+  @@index([validFrom, validUntil])
+}
+
+model CommissionRecord {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  propertyId       String   @db.Uuid
+  ruleId           String   @db.Uuid
+  bookingId        String   @db.Uuid
+  sourceType       String
+  sourceName       String?
+  bookingAmount    Float    @default(0)
+  commissionAmount Float    @default(0)
+  status           String   @default("accrued") // accrued, invoiced, paid, waived
+  invoicedAt       DateTime? @db.Timestamptz
+  paidAt           DateTime? @db.Timestamptz
+  notes            String?
+  createdAt        DateTime @default(now()) @db.Timestamptz
+  updatedAt        DateTime @updatedAt @db.Timestamptz
+  rule             CommissionRule @relation(fields: [ruleId], references: [id])
+  booking          Booking        @relation(fields: [bookingId], references: [id])
+  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property         Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([ruleId])
+  @@index([bookingId])
+  @@index([status])
+  @@index([sourceType])
+}
+
+model CommissionPayment {
+  id                  String   @id @default(uuid()) @db.Uuid
+  tenantId            String   @db.Uuid
+  propertyId          String   @db.Uuid
+  commissionRecordIds String   @default("[]") // JSON array of commission record IDs
+  payeeName           String
+  payeeType           String   // ota, travel_agent, referral, corporate
+  totalAmount         Float
+  paymentMethod       String?
+  reference           String?
+  paidAt              DateTime @db.Timestamptz
+  notes               String?
+  createdAt           DateTime @default(now()) @db.Timestamptz
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property            Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([paidAt])
+  @@index([payeeType])
+}
+
+// ============================================================
+// 4. MINIBAR MANAGEMENT MODULE
+// ============================================================
+
+model MinibarItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  propertyId  String   @db.Uuid
+  name        String
+  category    String   @default("beverage") // beverage, snack, premium, other
+  sku         String?
+  costPrice   Float    @default(0)
+  sellPrice   Float    @default(0)
+  currency    String   @default("USD")
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([category])
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+model MinibarSetup {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  propertyId       String   @db.Uuid
+  roomId           String   @unique @db.Uuid
+  itemJson         String   @default("[]") // JSON array of {itemId, quantity, threshold}
+  lastRestockedAt  DateTime? @db.Timestamptz
+  restockedBy      String?
+  createdAt        DateTime @default(now()) @db.Timestamptz
+  updatedAt        DateTime @updatedAt @db.Timestamptz
+  room             Room     @relation(fields: [roomId], references: [id])
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property         Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([roomId])
+}
+
+model MinibarConsumption {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String   @db.Uuid
+  bookingId       String   @db.Uuid
+  folioId         String   @db.Uuid
+  roomId          String   @db.Uuid
+  itemId          String   @db.Uuid
+  itemName        String
+  quantity        Int      @default(1)
+  unitPrice       Float    @default(0)
+  totalPrice      Float    @default(0)
+  consumedAt      DateTime @db.Timestamptz
+  postedToFolio   Boolean  @default(false)
+  postedAt        DateTime? @db.Timestamptz
+  consumedBy      String?
+  notes           String?
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  booking         Booking       @relation(fields: [bookingId], references: [id])
+  folio           Folio         @relation(fields: [folioId], references: [id])
+  room            Room          @relation(fields: [roomId], references: [id])
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property        Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([bookingId])
+  @@index([folioId])
+  @@index([roomId])
+  @@index([consumedAt])
+  @@index([postedToFolio])
+}
+
+// ============================================================
+// 5. LOST & FOUND MODULE
+// ============================================================
+
+model LostFoundItem {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String    @db.Uuid
+  itemType        String    // lost, found
+  category        String    @default("other") // electronics, clothing, documents, accessories, other
+  description     String
+  locationFound   String?
+  roomId          String?   @db.Uuid
+  foundBy         String?
+  finderContact   String?
+  foundAt         DateTime  @default(now()) @db.Timestamptz
+  photos          String    @default("[]") // JSON array of URLs
+  guestId         String?   @db.Uuid
+  bookingId       String?   @db.Uuid
+  storageLocation String?
+  status          String    @default("reported") // reported, matched, returned, disposed, claimed
+  matchedAt       DateTime? @db.Timestamptz
+  returnedTo      String?
+  returnedAt      DateTime? @db.Timestamptz
+  disposalReason  String?
+  disposedAt      DateTime? @db.Timestamptz
+  notes           String?
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  guest           Guest?    @relation(fields: [guestId], references: [id])
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([guestId])
+  @@index([roomId])
+  @@index([itemType])
+  @@index([category])
+  @@index([status])
+  @@index([foundAt])
+}
+
+// ============================================================
+// 6. LAUNDRY MANAGEMENT MODULE
+// ============================================================
+
+model LaundryItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String   @db.Uuid
+  name            String
+  category        String   @default("guest") // guest, staff_uniform, linen, drape, other
+  serviceType     String   @default("wash") // wash, dry_clean, iron, press
+  unitPrice       Float    @default(0)
+  currency        String   @default("USD")
+  turnaroundHours Int      @default(24)
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property        Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([category])
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+model LaundryOrder {
+  id                  String     @id @default(uuid()) @db.Uuid
+  tenantId            String     @db.Uuid
+  propertyId          String     @db.Uuid
+  bookingId           String?    @db.Uuid
+  guestId             String?    @db.Uuid
+  roomId              String     @db.Uuid
+  orderType           String     @default("guest") // guest, housekeeping
+  status              String     @default("received") // received, in_progress, ready, delivered, cancelled
+  receivedAt          DateTime   @default(now()) @db.Timestamptz
+  readyAt             DateTime?  @db.Timestamptz
+  deliveredAt         DateTime?  @db.Timestamptz
+  totalItems          Int        @default(0)
+  totalPrice          Float      @default(0)
+  currency            String     @default("USD")
+  paymentMethod       String     @default("room_charge") // folio, cash, room_charge
+  folioId             String?    @db.Uuid
+  postedToFolio       Boolean    @default(false)
+  specialInstructions String?
+  collectedBy         String?    @db.Uuid
+  deliveredBy         String?    @db.Uuid
+  notes               String?
+  createdAt           DateTime   @default(now()) @db.Timestamptz
+  updatedAt           DateTime   @updatedAt @db.Timestamptz
+  items               LaundryOrderItem[]
+  booking             Booking?  @relation(fields: [bookingId], references: [id])
+  guest               Guest?    @relation(fields: [guestId], references: [id])
+  folio               Folio?    @relation(fields: [folioId], references: [id])
+  collectedByUser     User?     @relation("LaundryCollectedBy", fields: [collectedBy], references: [id])
+  deliveredByUser     User?     @relation("LaundryDeliveredBy", fields: [deliveredBy], references: [id])
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property            Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([bookingId])
+  @@index([guestId])
+  @@index([roomId])
+  @@index([folioId])
+  @@index([status])
+  @@index([receivedAt])
+}
+
+model LaundryOrderItem {
+  id           String       @id @default(uuid()) @db.Uuid
+  orderId      String       @db.Uuid
+  itemId       String       @db.Uuid
+  itemName     String
+  serviceType  String       @default("wash") // wash, dry_clean, iron, press
+  quantity     Int          @default(1)
+  unitPrice    Float        @default(0)
+  totalPrice   Float        @default(0)
+  status       String       @default("received") // received, in_progress, ready, delivered
+  notes        String?
+  createdAt    DateTime     @default(now()) @db.Timestamptz
+  order        LaundryOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([itemId])
+}
+
+// ============================================================
+// 7. PACKAGE PLANS / RATE BUNDLING MODULE
+// ============================================================
+
+model PackagePlan {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  propertyId       String   @db.Uuid
+  name             String
+  description      String?
+  baseRoomTypeId   String   @db.Uuid
+  roomRateInclusive Boolean  @default(false)
+  startDate        DateTime @db.Timestamptz
+  endDate          DateTime @db.Timestamptz
+  minNights        Int      @default(1)
+  maxNights        Int?
+  totalBasePrice   Float    @default(0)
+  currency         String   @default("USD")
+  sortOrder        Int      @default(0)
+  status           String   @default("active")
+  createdAt        DateTime @default(now()) @db.Timestamptz
+  updatedAt        DateTime @updatedAt @db.Timestamptz
+  components       PackageComponent[]
+  rates            PackageRate[]
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property         Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([startDate, endDate])
+  @@index([sortOrder])
+}
+
+model PackageComponent {
+  id               String      @id @default(uuid()) @db.Uuid
+  packagePlanId    String      @db.Uuid
+  componentType    String      // meal, experience, spa, airport_transfer, minibar, laundry, late_checkout, early_checkin, other
+  referenceId      String?     @db.Uuid
+  referenceName    String?
+  includedQty      Int         @default(1)
+  unitCost         Float       @default(0)
+  isIncluded       Boolean     @default(true) // true = included in package, false = addon
+  sortOrder        Int         @default(0)
+  createdAt        DateTime    @default(now()) @db.Timestamptz
+  packagePlan      PackagePlan @relation(fields: [packagePlanId], references: [id], onDelete: Cascade)
+
+  @@index([packagePlanId])
+  @@index([componentType])
+  @@index([sortOrder])
+}
+
+model PackageRate {
+  id             String       @id @default(uuid()) @db.Uuid
+  tenantId       String       @db.Uuid
+  propertyId     String       @db.Uuid
+  packagePlanId  String       @db.Uuid
+  roomTypeId     String       @db.Uuid
+  startDate      DateTime     @db.Timestamptz
+  endDate        DateTime     @db.Timestamptz
+  price          Float        @default(0)
+  currency       String       @default("USD")
+  minStay        Int          @default(1)
+  maxStay        Int?
+  status         String       @default("active")
+  createdAt      DateTime     @default(now()) @db.Timestamptz
+  packagePlan    PackagePlan  @relation(fields: [packagePlanId], references: [id], onDelete: Cascade)
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property       Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([packagePlanId, roomTypeId, startDate])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([packagePlanId])
+  @@index([roomTypeId])
+  @@index([startDate, endDate])
+  @@index([status])
+}
+
+// ============================================================
+// 8. SCHEDULED CHARGE EXECUTION MODULE
+// ============================================================
+
+model ScheduledChargeExecution {
+  id                 String   @id @default(uuid()) @db.Uuid
+  tenantId           String   @db.Uuid
+  scheduledChargeId  String   @db.Uuid
+  folioId            String   @db.Uuid
+  amount             Float
+  currency           String   @default("USD")
+  executedAt         DateTime @default(now()) @db.Timestamptz
+  executionDate      DateTime @db.Timestamptz
+  status             String   @default("success") // success, failed
+  error              String?
+  postedBy           String?  // system or user id
+  createdAt          DateTime @default(now()) @db.Timestamptz
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([scheduledChargeId])
+  @@index([folioId])
+  @@index([executionDate])
+  @@index([status])
+  @@index([executedAt])
+}
+
+// ============================================================
+// 9. POSTING RULES / AUTO-CHARGE ROUTING MODULE
+// ============================================================
+
+model RevenueAccount {
+  id           String        @id @default(uuid()) @db.Uuid
+  tenantId     String        @db.Uuid
+  propertyId   String        @db.Uuid
+  code         String
+  name         String
+  accountType  String        @default("revenue") // revenue, liability, asset, expense, equity
+  category     String        @default("miscellaneous") // room, food_beverage, minibar, laundry, spa, parking, other, miscellaneous
+  description  String?
+  isActive     Boolean       @default(true)
+  sortOrder    Int           @default(0)
+  createdAt    DateTime      @default(now()) @db.Timestamptz
+  updatedAt    DateTime      @updatedAt @db.Timestamptz
+  postingRules PostingRule[]
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property     Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([accountType])
+  @@index([category])
+  @@index([isActive])
+}
+
+model PostingRule {
+  id               String         @id @default(uuid()) @db.Uuid
+  tenantId         String         @db.Uuid
+  propertyId       String         @db.Uuid
+  name             String
+  description      String?
+  chargeCategory   String?
+  chargeType       String?
+  revenueAccountId String         @db.Uuid
+  taxTreatment     String         @default("taxable") // taxable, exempt, zero_rated
+  autoPost         Boolean        @default(false)
+  isActive         Boolean        @default(true)
+  priority         Int            @default(0)
+  conditions       String         @default("{}") // JSON conditions
+  createdAt        DateTime       @default(now()) @db.Timestamptz
+  updatedAt        DateTime       @updatedAt @db.Timestamptz
+  logs             PostingLog[]
+  revenueAccount   RevenueAccount @relation(fields: [revenueAccountId], references: [id])
+  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property         Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([chargeCategory])
+  @@index([chargeType])
+  @@index([revenueAccountId])
+  @@index([isActive])
+  @@index([priority])
+}
+
+model PostingLog {
+  id                 String       @id @default(uuid()) @db.Uuid
+  tenantId           String       @db.Uuid
+  propertyId         String       @db.Uuid
+  ruleId             String       @db.Uuid
+  folioId            String       @db.Uuid
+  folioLineItemId    String?      @db.Uuid
+  chargeAmount       Float
+  revenueAccountCode String
+  postedAt           DateTime     @default(now()) @db.Timestamptz
+  postedBy           String?
+  autoPosted         Boolean      @default(false)
+  createdAt          DateTime     @default(now()) @db.Timestamptz
+  rule               PostingRule  @relation(fields: [ruleId], references: [id])
+  tenant             Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property           Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([ruleId])
+  @@index([folioId])
+  @@index([folioLineItemId])
+  @@index([postedAt])
+  @@index([autoPosted])
 }
