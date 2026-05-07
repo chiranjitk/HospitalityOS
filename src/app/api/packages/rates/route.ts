@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
 
     // Validate room type exists
     const roomType = await db.roomType.findFirst({
-      where: { id: roomTypeId, propertyId, tenantId: user.tenantId },
+      where: { id: roomTypeId, propertyId },
     });
 
     if (!roomType) {

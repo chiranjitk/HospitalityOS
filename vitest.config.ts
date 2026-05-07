@@ -14,9 +14,8 @@ try {
       if (eqIdx > 0) {
         const key = trimmed.slice(0, eqIdx).trim();
         const value = trimmed.slice(eqIdx + 1).trim();
-        if (!(key in process.env)) {
-          process.env[key] = value;
-        }
+        // Always let .env override shell env for test consistency
+        process.env[key] = value;
       }
     }
   }

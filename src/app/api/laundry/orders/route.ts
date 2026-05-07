@@ -48,9 +48,6 @@ export async function GET(request: NextRequest) {
           guest: {
             select: { id: true, firstName: true, lastName: true },
           },
-          room: {
-            select: { id: true, name: true, roomNumber: true },
-          },
           folio: {
             select: { id: true, folioNumber: true, status: true },
           },
@@ -189,9 +186,6 @@ export async function POST(request: NextRequest) {
         },
         include: {
           items: true,
-          room: {
-            select: { id: true, name: true, roomNumber: true },
-          },
           booking: {
             select: { id: true, confirmationCode: true },
           },

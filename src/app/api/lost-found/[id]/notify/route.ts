@@ -67,20 +67,12 @@ export async function POST(
           await db.notification.create({
             data: {
               tenantId: user.tenantId,
-              type: 'email',
-              channel: 'lost_found',
-              recipientId: guest.id,
-              recipientType: 'guest',
-              recipientEmail: guest.email,
-              recipientPhone: guest.phone,
-              subject: `Found item at ${item.property.name}`,
-              body: defaultMessage,
-              status: 'sent',
-              sentAt: new Date(),
-              sentBy: user.id,
-              referenceType: 'LostFoundItem',
-              referenceId: item.id,
-              metadata: JSON.stringify({ itemId: item.id, propertyName: item.property.name, category: item.category }),
+              userId: user.id,
+              type: 'lost_found',
+              category: 'info',
+              title: `Found item at ${item.property.name}`,
+              message: defaultMessage,
+              data: JSON.stringify({ itemId: item.id, propertyName: item.property.name, category: item.category, channel: 'email', recipientId: guest.id }),
             },
           });
           sentVia.push('email');
@@ -99,19 +91,12 @@ export async function POST(
           await db.notification.create({
             data: {
               tenantId: user.tenantId,
-              type: 'sms',
-              channel: 'lost_found',
-              recipientId: guest.id,
-              recipientType: 'guest',
-              recipientPhone: guest.phone,
-              subject: `Found item at ${item.property.name}`,
-              body: defaultMessage,
-              status: 'sent',
-              sentAt: new Date(),
-              sentBy: user.id,
-              referenceType: 'LostFoundItem',
-              referenceId: item.id,
-              metadata: JSON.stringify({ itemId: item.id, propertyName: item.property.name }),
+              userId: user.id,
+              type: 'lost_found',
+              category: 'info',
+              title: `Found item at ${item.property.name}`,
+              message: defaultMessage,
+              data: JSON.stringify({ itemId: item.id, propertyName: item.property.name, channel: 'sms', recipientId: guest.id }),
             },
           });
           sentVia.push('sms');

@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
             select: { id: true, confirmationCode: true, primaryGuest: { select: { id: true, firstName: true, lastName: true } } },
           },
           room: {
-            select: { id: true, name: true, roomNumber: true },
+            select: { id: true, number: true, floor: true },
           },
           folio: {
             select: { id: true, folioNumber: true },

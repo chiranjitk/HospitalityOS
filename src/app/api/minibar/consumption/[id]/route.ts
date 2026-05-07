@@ -26,7 +26,7 @@ export async function GET(
           },
         },
         room: {
-          select: { id: true, name: true, roomNumber: true },
+          select: { id: true, number: true, floor: true },
         },
         folio: {
           select: { id: true, folioNumber: true, status: true },

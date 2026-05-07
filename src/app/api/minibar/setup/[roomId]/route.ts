@@ -19,7 +19,7 @@ export async function GET(
       where: { roomId },
       include: {
         room: {
-          select: { id: true, name: true, roomNumber: true, floor: true },
+          select: { id: true, number: true, floor: true },
         },
       },
     });
@@ -75,7 +75,7 @@ export async function PUT(
       },
       include: {
         room: {
-          select: { id: true, name: true, roomNumber: true, floor: true },
+          select: { id: true, number: true, floor: true },
         },
       },
     });

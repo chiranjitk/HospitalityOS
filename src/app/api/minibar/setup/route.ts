@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           room: {
-            select: { id: true, name: true, roomNumber: true, floor: true },
+            select: { id: true, number: true, floor: true },
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -78,9 +78,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'propertyId and roomId are required' }, { status: 400 });
     }
 
-    // Validate room belongs to property and tenant
+    // Validate room belongs to property
     const room = await db.room.findFirst({
-      where: { id: roomId, propertyId, tenantId: user.tenantId },
+      where: { id: roomId, propertyId },
     });
 
     if (!room) {
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         room: {
-          select: { id: true, name: true, roomNumber: true, floor: true },
+          select: { id: true, number: true, floor: true },
         },
       },
     });

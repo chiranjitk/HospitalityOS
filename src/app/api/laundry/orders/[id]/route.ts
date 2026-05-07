@@ -37,9 +37,6 @@ export async function GET(
         guest: {
           select: { id: true, firstName: true, lastName: true },
         },
-        room: {
-          select: { id: true, name: true, roomNumber: true },
-        },
         folio: {
           select: { id: true, folioNumber: true, status: true },
         },
@@ -119,7 +116,6 @@ export async function PATCH(
       data: updateData,
       include: {
         items: true,
-        room: { select: { id: true, name: true, roomNumber: true } },
         booking: { select: { id: true, confirmationCode: true } },
         guest: { select: { id: true, firstName: true, lastName: true } },
         folio: { select: { id: true, folioNumber: true, status: true } },
