@@ -30,6 +30,16 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/billing/credit-notes');
     case 'multi-currency':
       return import('@/components/billing/multi-currency');
+    case 'billing-night-audit':
+      return import('@/components/billing/night-audit');
+    case 'billing-city-ledger':
+      return import('@/components/billing/city-ledger');
+    case 'billing-commissions':
+      return import('@/components/billing/commissions');
+    case 'billing-posting-rules':
+      return import('@/components/billing/posting-rules');
+    case 'billing-scheduled-charges':
+      return import('@/components/billing/scheduled-charges');
     default:
       throw new Error(`Unknown billing section: ${section}`);
   }

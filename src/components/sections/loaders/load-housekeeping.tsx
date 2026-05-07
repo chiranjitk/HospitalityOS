@@ -16,6 +16,12 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/housekeeping/housekeeping-automation');
     case 'housekeeping-inspections':
       return import('@/components/housekeeping/inspection-checklists');
+    case 'housekeeping-lost-found':
+      return import('@/components/housekeeping/lost-found');
+    case 'housekeeping-minibar':
+      return import('@/components/housekeeping/minibar');
+    case 'housekeeping-laundry':
+      return import('@/components/housekeeping/laundry');
     default:
       throw new Error(`Unknown housekeeping section: ${section}`);
   }
