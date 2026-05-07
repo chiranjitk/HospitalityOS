@@ -446,6 +446,10 @@
     "billing-commissions": "コミッション",
     "billing-posting-rules": "転記ルール",
     "billing-scheduled-charges": "予定料金",
+    "billing-tax-settings": "税設定",
+    "billing-gst-invoicing": "GST電子インボイス",
+    "billing-gst-returns": "GSTリターン",
+    "billing-tcs-tds": "TCS/TDS",
     "housekeeping-lost-found": "遺失物管理",
     "housekeeping-minibar": "ミニバー",
     "housekeeping-laundry": "ランドリー"

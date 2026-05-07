@@ -446,6 +446,10 @@
     "billing-commissions": "കമ്മീഷനുകൾ",
     "billing-posting-rules": "പോസ്റ്റിംഗ് നിയമങ്ങൾ",
     "billing-scheduled-charges": "ഷെഡ്യൂൾഡ് ചാർജുകൾ",
+    "billing-tax-settings": "നികുതി ക്രമീകരണങ്ങൾൾ",
+    "billing-gst-invoicing": "GST ഇ-ഇൻവോയിസ്",
+    "billing-gst-returns": "GST റിട്ടേൺ",
+    "billing-tcs-tds": "TCS/TDS",
     "housekeeping-lost-found": "നഷ്ടമായ-കണ്ടെത്തിയ",
     "housekeeping-minibar": "മിനിബാർ",
     "housekeeping-laundry": "ലോണ്ടറി"

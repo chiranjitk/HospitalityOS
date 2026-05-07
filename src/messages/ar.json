@@ -446,6 +446,10 @@
     "billing-commissions": "عمولات",
     "billing-posting-rules": "قواعد الترحيل",
     "billing-scheduled-charges": "رسوم مجدولة",
+    "billing-tax-settings": "إعدادات ضريبية",
+    "billing-gst-invoicing": "فاتورة إلكترونية GST",
+    "billing-gst-returns": "إقرار GST",
+    "billing-tcs-tds": "TCS/TDS",
     "housekeeping-lost-found": "مفقودات وموجودات",
     "housekeeping-minibar": "ميني بار",
     "housekeeping-laundry": "غسيل"

@@ -4105,6 +4105,11 @@ model Property {
   postingRules              PostingRule[]
   postingLogs               PostingLog[]
   revenueAccounts           RevenueAccount[]
+  gstSettings               GstSettings[]
+  gstEInvoices              GstEInvoice[]
+  gstReturns                GstReturn[]
+  tcsRecords                TcsRecord[]
+  tdsRecords                TdsRecord[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -5991,6 +5996,12 @@ model Tenant {
   revenueAccounts           RevenueAccount[]
   postingRules              PostingRule[]
   postingLogs               PostingLog[]
+  gstSettings               GstSettings[]
+  gstSacCodes               GstSacCode[]
+  gstEInvoices              GstEInvoice[]
+  gstReturns                GstReturn[]
+  tcsRecords                TcsRecord[]
+  tdsRecords                TdsRecord[]
 }
 
 model Experience {
@@ -8183,4 +8194,210 @@ model PostingLog {
   @@index([folioLineItemId])
   @@index([postedAt])
   @@index([autoPosted])
+}
+
+// ============================================================
+// INDIA GST TAX COMPLIANCE MODULE
+// ============================================================
+
+model GstSettings {
+  id                    String   @id @default(uuid()) @db.Uuid
+  tenantId              String   @db.Uuid
+  propertyId            String?  @db.Uuid
+  gstin                 String?  @unique
+  legalName             String?
+  tradeName             String?
+  stateCode             String?  @default("")
+  stateName             String?
+  address               String?
+  city                  String?
+  pincode               String?
+  registrationType      String?  @default("regular")
+  scheme                String?  @default("regular")
+  gstEntityType         String?  @default("proprietary")
+  fssaiLicenseNo        String?
+  tcsRate               Float    @default(0.01)
+  tcsThreshold          Float    @default(100000)
+  tds194cRate           Float    @default(0.01)
+  tds194hRate           Float    @default(0.05)
+  tds194jRate           Float    @default(0.10)
+  panNumber             String?
+  aadhaarNumber         String?
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now()) @db.Timestamptz
+  updatedAt             DateTime @updatedAt @db.Timestamptz
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property  Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  sacCodes  GstSacCode[]
+  eInvoices GstEInvoice[]
+
+  @@index([tenantId])
+  @@index([propertyId])
+}
+
+model GstSacCode {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  serviceType String
+  sacCode     String
+  description String?
+  cgstRate    Float    @default(0.09)
+  sgstRate    Float    @default(0.09)
+  igstRate    Float    @default(0.18)
+  cessRate    Float    @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  gstSettings GstSettings[]
+
+  @@unique([tenantId, serviceType])
+  @@index([tenantId])
+}
+
+model GstEInvoice {
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @db.Uuid
+  propertyId        String?   @db.Uuid
+  invoiceId         String?   @db.Uuid
+  folioId           String?   @db.Uuid
+  bookingId         String?   @db.Uuid
+  guestId           String?   @db.Uuid
+  irn               String?   @unique
+  signedInvoice     String?
+  ackNo             String?
+  ackDate           DateTime? @db.Timestamptz
+  signedQrCode      String?
+  status            String    @default("draft")
+  supplyType        String    @default("b2b")
+  placeOfSupply     String?
+  invoiceNumber     String?
+  invoiceDate       DateTime? @db.Timestamptz
+  totalValue        Float     @default(0)
+  totalCgst         Float     @default(0)
+  totalSgst         Float     @default(0)
+  totalIgst         Float     @default(0)
+  totalCess         Float     @default(0)
+  totalTax          Float     @default(0)
+  totalAmount       Float     @default(0)
+  reverseCharge     Boolean   @default(false)
+  ecomGstin         String?
+  errorDetails      String?
+  generatedBy       String?   @db.Uuid
+  cancelledAt       DateTime? @db.Timestamptz
+  cancelReason      String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property      Property?    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  gstSettings   GstSettings? @relation(fields: [gstSettingsId], references: [id])
+  gstSettingsId String?      @db.Uuid
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([irn])
+  @@index([status])
+  @@index([invoiceDate])
+}
+
+model GstReturn {
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @db.Uuid
+  propertyId        String?   @db.Uuid
+  returnType        String
+  period            String
+  fromMonth         Int
+  fromYear          Int
+  status            String    @default("draft")
+  totalOutwardSupply Float    @default(0)
+  totalTaxableValue  Float    @default(0)
+  totalCgst         Float     @default(0)
+  totalSgst         Float     @default(0)
+  totalIgst         Float     @default(0)
+  totalCess         Float     @default(0)
+  totalTaxLiability Float     @default(0)
+  totalItcClaimed   Float     @default(0)
+  netTaxPayable     Float     @default(0)
+  filedDate         DateTime? @db.Timestamptz
+  arn               String?
+  jsonData          String?
+  notes             String?
+  filedBy           String?   @db.Uuid
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property  Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, returnType, period])
+  @@index([tenantId])
+  @@index([returnType])
+  @@index([period])
+}
+
+model TcsRecord {
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @db.Uuid
+  propertyId        String?   @db.Uuid
+  bookingId         String?   @db.Uuid
+  guestId           String?   @db.Uuid
+  folioId           String?   @db.Uuid
+  collectionDate    DateTime  @db.Timestamptz
+  panNumber         String?
+  guestName         String?
+  guestAddress      String?
+  bookingAmount     Float     @default(0)
+  tcsRate           Float     @default(0.01)
+  tcsAmount         Float     @default(0)
+  thresholdExceeded Boolean   @default(false)
+  challanNo         String?
+  challanDate       DateTime? @db.Timestamptz
+  depositedAmount   Float?
+  status            String    @default("collected")
+  period            String
+  notes             String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property  Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([collectionDate])
+  @@index([status])
+  @@index([period])
+}
+
+model TdsRecord {
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @db.Uuid
+  propertyId        String?   @db.Uuid
+  vendorId          String?   @db.Uuid
+  vendorName        String?
+  panNumber         String?
+  section           String
+  paymentDate       DateTime  @db.Timestamptz
+  paymentAmount     Float     @default(0)
+  tdsRate           Float     @default(0)
+  tdsAmount         Float     @default(0)
+  challanNo         String?
+  challanDate       DateTime? @db.Timestamptz
+  depositedAmount   Float?
+  status            String    @default("deducted")
+  period            String
+  notes             String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property  Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([section])
+  @@index([paymentDate])
+  @@index([status])
+  @@index([period])
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
 import { z } from 'zod';
+import { transformRecords } from '@/lib/api-transform';
 
 // ──────────────────────────────────────────────
 // Zod schemas
@@ -46,7 +47,9 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = { tenantId: user.tenantId };
 
     if (sourceType) where.sourceType = sourceType;
+    const status = sp.get('status');
     if (isActive !== null && isActive !== '') where.isActive = isActive === 'true';
+    else if (status) where.isActive = status === 'active';
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -70,7 +73,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: rules,
+      data: transformRecords(rules as unknown as Record<string, unknown>[]),
       pagination: { total, limit, offset },
     });
   } catch (error) {
@@ -130,7 +133,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, data: rule }, { status: 201 });
+    return NextResponse.json({
+      success: true,
+      data: transformRecords([rule as unknown as Record<string, unknown>])[0],
+    }, { status: 201 });
   } catch (error) {
     console.error('[POST /api/commissions/rules]', error);
     return NextResponse.json({ success: false, error: 'Failed to create commission rule' }, { status: 500 });

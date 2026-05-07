@@ -446,6 +446,10 @@
     "billing-commissions": "Provisionen",
     "billing-posting-rules": "Buchungsregeln",
     "billing-scheduled-charges": "Geplante Gebühren",
+    "billing-tax-settings": "Steuer-Einstellungen",
+    "billing-gst-invoicing": "GST-E-Rechnung",
+    "billing-gst-returns": "GST-Rückgabe",
+    "billing-tcs-tds": "TCS/TDS",
     "housekeeping-lost-found": "Fundbüro",
     "housekeeping-minibar": "Minibar",
     "housekeeping-laundry": "Wäscherei"

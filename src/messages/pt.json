@@ -446,6 +446,10 @@
     "billing-commissions": "Comissões",
     "billing-posting-rules": "Regras de Lançamento",
     "billing-scheduled-charges": "Cobranças Agendadas",
+    "billing-tax-settings": "Config. fiscal",
+    "billing-gst-invoicing": "E-Nota Fiscal GST",
+    "billing-gst-returns": "Declaração GST",
+    "billing-tcs-tds": "TCS/TDS",
     "housekeeping-lost-found": "Achados e Perdidos",
     "housekeeping-minibar": "Minibar",
     "housekeeping-laundry": "Lavanderia"

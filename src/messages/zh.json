@@ -446,6 +446,10 @@
     "billing-commissions": "佣金",
     "billing-posting-rules": "过账规则",
     "billing-scheduled-charges": "计划费用",
+    "billing-tax-settings": "税务设置",
+    "billing-gst-invoicing": "GST电子开票",
+    "billing-gst-returns": "GST申报",
+    "billing-tcs-tds": "TCS/TDS",
     "housekeeping-lost-found": "失物招领",
     "housekeeping-minibar": "迷你吧",
     "housekeeping-laundry": "洗衣服务"

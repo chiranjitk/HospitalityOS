@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
+import { transformRecord, statusToIsActive } from '@/lib/api-transform';
 
 // GET /api/laundry/items/[id] - Get a single laundry item
 export async function GET(
@@ -23,7 +24,7 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Laundry item not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: item });
+    return NextResponse.json({ success: true, data: transformRecord(item as unknown as Record<string, unknown>) });
   } catch (error) {
     console.error('[GET /api/laundry/items/[id]]', error);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
@@ -52,7 +53,8 @@ export async function PUT(
       return NextResponse.json({ success: false, error: 'Laundry item not found' }, { status: 404 });
     }
 
-    const { name, category, serviceType, unitPrice, currency, turnaroundHours, isActive, sortOrder } = body;
+    const { name, category, serviceType, unitPrice, currency, turnaroundHours, isActive, status, sortOrder } = body;
+    const isActiveValue = isActive !== undefined ? isActive : (status !== undefined ? statusToIsActive(status) : undefined);
 
     const item = await db.laundryItem.update({
       where: { id },
@@ -63,12 +65,12 @@ export async function PUT(
         ...(unitPrice !== undefined && { unitPrice }),
         ...(currency !== undefined && { currency }),
         ...(turnaroundHours !== undefined && { turnaroundHours }),
-        ...(isActive !== undefined && { isActive }),
+        ...(isActiveValue !== undefined && { isActive: isActiveValue }),
         ...(sortOrder !== undefined && { sortOrder }),
       },
     });
 
-    return NextResponse.json({ success: true, data: item });
+    return NextResponse.json({ success: true, data: transformRecord(item as unknown as Record<string, unknown>) });
   } catch (error) {
     console.error('[PUT /api/laundry/items/[id]]', error);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });

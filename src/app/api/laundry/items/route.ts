@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
 import { Prisma } from '@prisma/client';
+import { transformRecords, transformRecord, statusToIsActive } from '@/lib/api-transform';
 
 // GET /api/laundry/items - List laundry items with filters
 export async function GET(request: NextRequest) {
@@ -33,6 +34,8 @@ export async function GET(request: NextRequest) {
     if (category) where.category = category;
     if (serviceType) where.serviceType = serviceType;
     if (isActive !== null && isActive !== undefined) where.isActive = isActive === 'true';
+    const status = searchParams.get('status');
+    if (!isActive && status) where.isActive = status === 'active';
 
     const orderByField = ['name', 'category', 'serviceType', 'createdAt', 'sortOrder'].includes(sortBy) ? sortBy : 'sortOrder';
     const orderBy: Prisma.LaundryItemOrderByWithRelationInput = {};
@@ -51,7 +54,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        items,
+        items: transformRecords(items as unknown as Record<string, unknown>[]),
         pagination: {
           page,
           limit,
@@ -96,7 +99,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, data: item }, { status: 201 });
+    return NextResponse.json({ success: true, data: transformRecord(item as unknown as Record<string, unknown>) }, { status: 201 });
   } catch (error) {
     console.error('[POST /api/laundry/items]', error);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });

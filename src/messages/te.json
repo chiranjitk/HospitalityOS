@@ -446,6 +446,10 @@
     "billing-commissions": "కమిషన్లు",
     "billing-posting-rules": "పోస్టింగ్ నియమాలు",
     "billing-scheduled-charges": "షెడ్యూల్డ్ చార్జీలు",
+    "billing-tax-settings": "పన్ను సెట్టింగ్స్",
+    "billing-gst-invoicing": "GST ఇ-చెల్లు",
+    "billing-gst-returns": "GST తిరిగింపు",
+    "billing-tcs-tds": "TCS/TDS",
     "housekeeping-lost-found": "లాస్ట్ & ఫౌండ్",
     "housekeeping-minibar": "మినిబార్",
     "housekeeping-laundry": "లాండ్రీ"

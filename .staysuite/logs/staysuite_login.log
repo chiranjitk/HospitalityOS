@@ -302,3 +302,7 @@
 2026-05-07 12:07:34 [POOL][ERR] pool 1:3 create FAILED on ifb0
 2026-05-07 12:57:11 [POOL][ERR] pool 1:2 create FAILED on ifb0
 2026-05-07 12:57:11 [POOL][ERR] pool 1:3 create FAILED on ifb0
+2026-05-07 15:06:52 [POOL][ERR] pool 1:2 create FAILED on ifb0
+2026-05-07 15:06:53 [POOL][ERR] pool 1:3 create FAILED on ifb0
+2026-05-07 15:20:49 [POOL][ERR] pool 1:2 create FAILED on ifb0
+2026-05-07 15:20:49 [POOL][ERR] pool 1:3 create FAILED on ifb0

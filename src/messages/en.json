@@ -449,6 +449,10 @@
     "billing-commissions": "Commissions",
     "billing-posting-rules": "Posting Rules",
     "billing-scheduled-charges": "Scheduled Charges",
+    "billing-tax-settings": "Tax Settings",
+    "billing-gst-invoicing": "GST e-Invoicing",
+    "billing-gst-returns": "GST Returns",
+    "billing-tcs-tds": "TCS/TDS",
     "housekeeping-lost-found": "Lost & Found",
     "housekeeping-minibar": "Minibar",
     "housekeeping-laundry": "Laundry"

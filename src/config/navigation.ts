@@ -239,6 +239,10 @@ export const navigationConfig: NavSection[] = [
       { id: 'billing-commissions', title: 'Commissions', href: '#billing-commissions', icon: Percent },
       { id: 'billing-posting-rules', title: 'Posting Rules', href: '#billing-posting-rules', icon: GitBranch },
       { id: 'billing-scheduled-charges', title: 'Scheduled Charges', href: '#billing-scheduled-charges', icon: Clock },
+      { id: 'billing-tax-settings', title: 'Tax Settings', href: '#billing-tax-settings', icon: FileText },
+      { id: 'billing-gst-invoicing', title: 'GST e-Invoicing', href: '#billing-gst-invoicing', icon: Receipt },
+      { id: 'billing-gst-returns', title: 'GST Returns', href: '#billing-gst-returns', icon: BarChart3 },
+      { id: 'billing-tcs-tds', title: 'TCS/TDS', href: '#billing-tcs-tds', icon: Percent },
     ],
   },
 

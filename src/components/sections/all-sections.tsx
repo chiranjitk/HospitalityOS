@@ -283,6 +283,12 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
 
   // ── pms extensions ──
   'pms-package-plans': () => import('@/components/pms/package-plans'),
+
+  // ── billing: GST tax compliance ──
+  'billing-tax-settings': () => import('@/components/billing/tax-settings'),
+  'billing-gst-invoicing': () => import('@/components/billing/gst-invoicing'),
+  'billing-gst-returns': () => import('@/components/billing/gst-returns'),
+  'billing-tcs-tds': () => import('@/components/billing/tcs-tds'),
 };
 
 export const allSections = sectionMap;

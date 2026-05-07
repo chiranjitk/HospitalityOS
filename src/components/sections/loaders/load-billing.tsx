@@ -40,6 +40,14 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/billing/posting-rules');
     case 'billing-scheduled-charges':
       return import('@/components/billing/scheduled-charges');
+    case 'billing-tax-settings':
+      return import('@/components/billing/tax-settings');
+    case 'billing-gst-invoicing':
+      return import('@/components/billing/gst-invoicing');
+    case 'billing-gst-returns':
+      return import('@/components/billing/gst-returns');
+    case 'billing-tcs-tds':
+      return import('@/components/billing/tcs-tds');
     default:
       throw new Error(`Unknown billing section: ${section}`);
   }

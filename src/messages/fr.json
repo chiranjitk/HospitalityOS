@@ -446,6 +446,10 @@
     "billing-commissions": "Commissions",
     "billing-posting-rules": "Règles de Comptabilisation",
     "billing-scheduled-charges": "Frais Planifiés",
+    "billing-tax-settings": "Paramètres fiscaux",
+    "billing-gst-invoicing": "E-Facture GST",
+    "billing-gst-returns": "Déclaration GST",
+    "billing-tcs-tds": "TCS/TDS",
     "housekeeping-lost-found": "Objets Trouvés",
     "housekeeping-minibar": "Minibar",
     "housekeeping-laundry": "Blanchisserie"

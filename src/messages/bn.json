@@ -446,6 +446,10 @@
     "billing-commissions": "কমিশন",
     "billing-posting-rules": "পোস্টিং নিয়ম",
     "billing-scheduled-charges": "নির্ধারিত চার্জ",
+    "billing-tax-settings": "ট্যাক্স সেটিংস",
+    "billing-gst-invoicing": "GST ই-চালান",
+    "billing-gst-returns": "GST রিটার্ন",
+    "billing-tcs-tds": "TCS/TDS",
     "housekeeping-lost-found": "হারানো-পাওনা",
     "housekeeping-minibar": "মিনিবার",
     "housekeeping-laundry": "লন্ড্রি"

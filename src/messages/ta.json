@@ -446,6 +446,10 @@
     "billing-commissions": "கமிஷன்கள்",
     "billing-posting-rules": "பதிவு விதிகள்",
     "billing-scheduled-charges": "திட்டமிடப்பட்ட கட்டணங்கள்",
+    "billing-tax-settings": "வரி அமைப்புகள்",
+    "billing-gst-invoicing": "GST மின்னு-சானலுதல்",
+    "billing-gst-returns": "GST திரும்பு",
+    "billing-tcs-tds": "TCS/TDS",
     "housekeeping-lost-found": "தொலைந்த-கண்டுபிடிக்கப்பட்ட",
     "housekeeping-minibar": "மினிபார்",
     "housekeeping-laundry": "துணி அலவை"

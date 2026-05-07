@@ -446,6 +446,10 @@
     "billing-commissions": "કમિશન",
     "billing-posting-rules": "પોસ્ટિંગ નિયમો",
     "billing-scheduled-charges": "શેડ્યુલ્ડ ચાર્જીસ",
+    "billing-tax-settings": "કર સેટિંગ્સ",
+    "billing-gst-invoicing": "GST ઇ-બિલ",
+    "billing-gst-returns": "GST રિટર્ન",
+    "billing-tcs-tds": "TCS/TDS",
     "housekeeping-lost-found": "ખોવાયેલ-મળેલ",
     "housekeeping-minibar": "મિનિબાર",
     "housekeeping-laundry": "લોન્ડ્રી"

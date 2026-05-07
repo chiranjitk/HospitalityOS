@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
 import { z } from 'zod';
+import { transformRecord, statusToIsActive } from '@/lib/api-transform';
 
 // ──────────────────────────────────────────────
 // Zod schemas
@@ -18,6 +19,7 @@ const updateCommissionRuleSchema = z.object({
   minAmount: z.number().min(0).optional(),
   maxAmount: z.number().min(0).optional().nullable(),
   isActive: z.boolean().optional(),
+  status: z.string().optional(),
   validFrom: z.string().optional(),
   validUntil: z.string().optional().nullable(),
 });
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       return NextResponse.json({ success: false, error: 'Commission rule not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: rule });
+    return NextResponse.json({ success: true, data: transformRecord(rule as unknown as Record<string, unknown>) });
   } catch (error) {
     console.error('[GET /api/commissions/rules/[id]]', error);
     return NextResponse.json({ success: false, error: 'Failed to fetch commission rule' }, { status: 500 });
@@ -91,6 +93,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
       return NextResponse.json({ success: false, error: 'validUntil must be after validFrom' }, { status: 400 });
     }
 
+    // Handle status → isActive conversion
+    const isActiveValue = data.isActive !== undefined ? data.isActive : (data.status !== undefined ? statusToIsActive(data.status) : undefined);
+
     const rule = await db.commissionRule.update({
       where: { id },
       data: {
@@ -103,13 +108,13 @@ export async function PUT(request: NextRequest, { params }: Params) {
         ...(data.fixedAmount !== undefined && { fixedAmount: data.fixedAmount }),
         ...(data.minAmount !== undefined && { minAmount: data.minAmount }),
         ...(data.maxAmount !== undefined && { maxAmount: data.maxAmount }),
-        ...(data.isActive !== undefined && { isActive: data.isActive }),
+        ...(isActiveValue !== undefined && { isActive: isActiveValue }),
         ...(data.validFrom !== undefined && { validFrom: new Date(data.validFrom) }),
         ...(data.validUntil !== undefined && { validUntil: data.validUntil ? new Date(data.validUntil) : null }),
       },
     });
 
-    return NextResponse.json({ success: true, data: rule });
+    return NextResponse.json({ success: true, data: transformRecord(rule as unknown as Record<string, unknown>) });
   } catch (error) {
     console.error('[PUT /api/commissions/rules/[id]]', error);
     return NextResponse.json({ success: false, error: 'Failed to update commission rule' }, { status: 500 });
