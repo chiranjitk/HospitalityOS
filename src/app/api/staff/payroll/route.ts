@@ -1,0 +1,236 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+
+// Salary base rates by designation (INR)
+const DESIGNATION_SALARIES: Record<string, number> = {
+  'Front Desk Manager': 45000,
+  'Receptionist': 22000,
+  'HK Supervisor': 28000,
+  'Room Attendant': 16000,
+  'F&B Manager': 50000,
+  'Captain': 24000,
+  'Executive Chef': 75000,
+  'Sous Chef': 42000,
+  'Maintenance Lead': 30000,
+  'Security Officer': 25000,
+  'Spa Manager': 40000,
+  'Accounts Manager': 48000,
+  'Steward': 18000,
+  'Commis Chef': 20000,
+  'Concierge': 26000,
+  'Electrician': 22000,
+  'Therapist': 28000,
+};
+
+const DEFAULT_BASE = 25000;
+
+// Generate payroll calculation for a given user
+function calculatePayroll(
+  user: { id: string; firstName: string; lastName: string; jobTitle: string | null; department: string | null; preferences: string },
+  attendance: { daysWorked: number; totalDays: number; lateMinutes: number },
+  month: string,
+  status: 'processed' | 'pending' | 'on_hold'
+) {
+  const designation = user.jobTitle || 'Staff';
+  const base = DESIGNATION_SALARIES[designation] || DEFAULT_BASE;
+  const hra = Math.round(base * 0.4);
+  const da = Math.round(base * 0.1);
+  const specialAllowance = Math.round(base * 0.2);
+  const overtime = 0;
+  const bonus = 0;
+  const conveyance = 1600;
+  const medical = 1250;
+  const totalEarnings = base + hra + da + specialAllowance + overtime + bonus + conveyance + medical;
+
+  // Deductions
+  const pf = Math.round((base + da) * 0.12);
+  const esi = base <= 21000 ? Math.round(base * 0.0075) : 0;
+  const tds = Math.round(totalEarnings * 0.05);
+  const profTax = 200;
+  const loanEmi = 0;
+  const advanceRecovery = 0;
+  const lateDeduction = attendance.lateMinutes > 30 ? 200 : 0;
+  const leaveAdjustment = attendance.daysWorked < attendance.totalDays ? Math.round(base / 30) : 0;
+  const totalDeductions = pf + esi + tds + profTax + loanEmi + advanceRecovery + lateDeduction + leaveAdjustment;
+  const netPay = totalEarnings - totalDeductions;
+
+  // Parse preferences for pan/bank info
+  let prefs: Record<string, string> = {};
+  try { prefs = typeof user.preferences === 'string' ? JSON.parse(user.preferences) : (user.preferences as unknown as Record<string, string>); } catch { prefs = {}; }
+
+  return {
+    id: `${month}-${user.id}`,
+    userId: user.id,
+    month,
+    employee: {
+      id: user.id,
+      name: `${user.firstName} ${user.lastName}`,
+      employeeId: `EMP-${user.id.substring(0, 6).toUpperCase()}`,
+      department: user.department || 'General',
+      designation,
+      pan: prefs.pan || '',
+      bankAccount: prefs.bankAccount || '',
+    },
+    daysWorked: attendance.daysWorked,
+    totalDays: attendance.totalDays,
+    basicSalary: base,
+    hra,
+    da,
+    specialAllowance,
+    overtime,
+    bonus,
+    conveyance,
+    medical,
+    totalEarnings,
+    pf,
+    esi,
+    tds,
+    profTax,
+    loanEmi,
+    advanceRecovery,
+    totalDeductions,
+    netPay,
+    leaveAdjustment,
+    lateDeduction,
+    status,
+  };
+}
+
+// GET /api/staff/payroll — List payroll records with filters, search, pagination, summary stats
+export async function GET(request: NextRequest) {
+  try {
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!hasAnyPermission(user, ['staff.view', 'staff.manage', 'staff.*', 'payroll.view', 'payroll.*', '*'])) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
+
+    const sp = request.nextUrl.searchParams;
+    const department = sp.get('department');
+    const status = sp.get('status');
+    const search = sp.get('search');
+    const month = sp.get('month') || new Date().toISOString().substring(0, 7); // YYYY-MM
+    const limit = Math.min(parseInt(sp.get('limit') || '50', 10), 200);
+    const offset = parseInt(sp.get('offset') || '0', 10);
+
+    // Fetch active staff users
+    const userWhere: Record<string, unknown> = {
+      tenantId: user.tenantId,
+      deletedAt: null,
+      status: 'active',
+    };
+
+    if (department && department !== 'all') {
+      userWhere.department = department;
+    }
+
+    if (search) {
+      userWhere.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const totalStaff = await db.user.count({ where: userWhere });
+
+    const staff = await db.user.findMany({
+      where: userWhere,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        jobTitle: true,
+        department: true,
+        preferences: true,
+        createdAt: true,
+      },
+      orderBy: [{ department: 'asc' }, { firstName: 'asc' }],
+      take: limit,
+      skip: offset,
+    });
+
+    // Fetch attendance for the given month
+    const monthStart = new Date(`${month}-01T00:00:00.000Z`);
+    const monthEnd = new Date(monthStart);
+    monthEnd.setMonth(monthEnd.getMonth() + 1);
+    monthEnd.setDate(0, 23, 59, 59, 999);
+
+    const userIds = staff.map((s) => s.id);
+
+    const attendanceRecords = userIds.length > 0
+      ? await db.staffAttendance.findMany({
+          where: {
+            userId: { in: userIds },
+            date: { gte: monthStart, lte: monthEnd },
+          },
+          select: {
+            userId: true,
+            status: true,
+            lateMinutes: true,
+          },
+        })
+      : [];
+
+    // Build attendance map
+    const attendanceMap: Record<string, { daysWorked: number; totalDays: number; lateMinutes: number }> = {};
+    for (const a of attendanceRecords) {
+      if (!attendanceMap[a.userId]) {
+        attendanceMap[a.userId] = { daysWorked: 0, totalDays: 0, lateMinutes: 0 };
+      }
+      attendanceMap[a.userId].totalDays += 1;
+      if (a.status === 'present' || a.status === 'late') {
+        attendanceMap[a.userId].daysWorked += 1;
+      }
+      attendanceMap[a.userId].lateMinutes += a.lateMinutes;
+    }
+
+    // Calculate total working days in the month
+    const totalWorkingDays = 26; // Standard working days per month
+
+    // Generate payroll records
+    const payrollRecords = staff.map((s) => {
+      const att = attendanceMap[s.id] || { daysWorked: totalWorkingDays, totalDays: totalWorkingDays, lateMinutes: 0 };
+      const recordStatus: 'processed' | 'pending' | 'on_hold' = status === 'processed' ? 'processed' : status === 'on_hold' ? 'on_hold' : 'pending';
+      return calculatePayroll(s, att, month, recordStatus);
+    });
+
+    // Compute summary stats
+    const allProcessed = status === 'processed' || status === null || status === 'all'
+      ? payrollRecords
+      : payrollRecords.filter((r) => r.status === status);
+
+    const summary = {
+      totalGross: allProcessed.reduce((s, r) => s + r.totalEarnings, 0),
+      totalDeductions: allProcessed.reduce((s, r) => s + r.totalDeductions, 0),
+      totalNet: allProcessed.reduce((s, r) => s + r.netPay, 0),
+      processedCount: payrollRecords.filter((r) => r.status === 'processed').length,
+      pendingCount: payrollRecords.filter((r) => r.status === 'pending').length,
+      onHoldCount: payrollRecords.filter((r) => r.status === 'on_hold').length,
+      totalEmployees: totalStaff,
+    };
+
+    // Department breakdown
+    const deptBreakdown: Record<string, { total: number; count: number }> = {};
+    for (const r of payrollRecords) {
+      const dept = r.employee.department;
+      if (!deptBreakdown[dept]) deptBreakdown[dept] = { total: 0, count: 0 };
+      deptBreakdown[dept].total += r.netPay;
+      deptBreakdown[dept].count += 1;
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: payrollRecords,
+      pagination: { total: totalStaff, limit, offset },
+      summary,
+      departmentBreakdown: deptBreakdown,
+    });
+  } catch (error) {
+    console.error('GET /api/staff/payroll:', error);
+    return NextResponse.json({ success: false, error: 'Failed to fetch payroll records' }, { status: 500 });
+  }
+}
