@@ -47,7 +47,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (expectedPax !== undefined) updateData.expectedPax = expectedPax;
     if (functionDate) updateData.functionDate = new Date(functionDate);
     if (startTime) updateData.startTime = new Date(startTime);
-    if (endTime) updateData.endTime = new Date(endTime) : updateData.endTime = null;
+    updateData.endTime = endTime ? new Date(endTime) : null;
     if (menuNotes !== undefined) updateData.menuNotes = menuNotes;
     if (beverageNotes !== undefined) updateData.beverageNotes = beverageNotes;
     if (avRequirements) updateData.avRequirements = JSON.stringify(avRequirements);

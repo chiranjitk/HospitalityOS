@@ -1,3 +1,5 @@
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { invalidatePoolCache, initializeAllPoolClasses } from '@/lib/network/script-runner';

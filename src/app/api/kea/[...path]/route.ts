@@ -18,6 +18,8 @@
  *   CRUD /api/kea/lease-scripts    → DhcpLeaseScript
  */
 
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getTenantIdFromSession } from '@/lib/auth/tenant-context';

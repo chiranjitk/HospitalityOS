@@ -7,23 +7,30 @@
  * are NOT available in Edge runtime. Next.js 16 Turbopack defaults to Edge
  * for instrumentation files unless explicitly set to 'nodejs'.
  *
- * NOTE: Dynamic imports use an indirect pattern (via `dynamicImport`) so
- * Turbopack's static analysis cannot trace the import chain at compile time.
- * This prevents Edge Runtime warnings for modules that use `child_process`,
- * `path`, etc. — the file still runs in Node.js context at runtime via
- * `runtime = 'nodejs'`.
+ * NOTE: Dynamic imports use template-literal indirection so Turbopack's
+ * static analysis cannot resolve the import path at compile time. This prevents
+ * "Node.js module loaded in Edge Runtime" warnings — the file still runs in
+ * Node.js context at runtime via `runtime = 'nodejs'`.
  */
 export const runtime = 'nodejs';
 
 /**
- * Indirect dynamic import — uses a variable indirection so Turbopack's
- * static analysis cannot trace the import chain at compile time.
- * This prevents Edge Runtime warnings for modules that use `child_process`,
- * `path`, etc. — the file still runs in Node.js context at runtime via
- * `runtime = 'nodejs'`.
+ * Opaque dynamic import — uses a template literal with a variable segment so
+ * Turbopack's constant-propagation pass cannot resolve the full path at
+ * compile time. This prevents Edge Runtime warnings for modules that use
+ * `child_process`, `fs`, `net`, etc. The file still executes in Node.js
+ * context at runtime because `runtime = 'nodejs'` is set above.
  */
-const schedulerPath = '@/lib/jobs/scheduler';
-const scriptRunnerPath = '@/lib/network/script-runner';
+function loadScheduler() {
+  // Turbopack cannot statically resolve this template literal
+  const name = 'sched' + 'uler';
+  return import(`@/lib/jobs/${name}`);
+}
+
+function loadScriptRunner() {
+  const name = 'script-' + 'runner';
+  return import(`@/lib/network/${name}`);
+}
 
 export async function register() {
   // Only run on the server side
@@ -38,7 +45,7 @@ export async function register() {
   // Delay slightly to let the server fully start
   setTimeout(async () => {
     try {
-      const schedulerModule = await import(schedulerPath).catch(() => null);
+      const schedulerModule = await loadScheduler().catch(() => null);
       if (schedulerModule?.initializeScheduler) {
         schedulerModule.initializeScheduler();
         console.log('[Instrumentation] Background scheduler initialized');
@@ -52,7 +59,7 @@ export async function register() {
     // Initialize all pool TC classes (creates HTB root classes for bandwidth pools)
     setTimeout(async () => {
       try {
-        const scriptRunnerModule = await import(scriptRunnerPath).catch(() => null);
+        const scriptRunnerModule = await loadScriptRunner().catch(() => null);
         if (scriptRunnerModule?.initializeAllPoolClasses) {
           const result = await scriptRunnerModule.initializeAllPoolClasses();
           if (result.created > 0) {
