@@ -398,6 +398,7 @@
     "integrations-sms": "SMS Gateways",
     "integrations-pos": "POS Systems",
     "integrations-apis": "Third-party APIs",
+    "integrations-hardware-adapters": "Hardware Adapters",
     "automation-workflows": "Workflow Builder",
     "automation-rules": "Rules Engine",
     "automation-templates": "Templates",
