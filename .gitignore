@@ -123,3 +123,4 @@ worklog.md
 
 # StaySuite login logs
 .staysuite/logs/staysuite_login.log
+pgsql-runtime/data/
