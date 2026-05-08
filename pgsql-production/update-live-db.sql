@@ -145,8 +145,8 @@ CREATE OR REPLACE FUNCTION _tmp_insert_group_attr(
     p_group text, p_attr text, p_value text, p_priority integer
 ) RETURNS VOID LANGUAGE plpgsql AS $$
 BEGIN
-    INSERT INTO radgroupcheck (groupname, attribute, op, value, priority)
-    VALUES (p_group, p_attr, ':=', p_value, p_priority)
+    INSERT INTO radgroupcheck (id, groupname, attribute, op, value, priority)
+    VALUES (gen_random_uuid(), p_group, p_attr, ':=', p_value, p_priority)
     ON CONFLICT DO NOTHING;
 END;
 $$;

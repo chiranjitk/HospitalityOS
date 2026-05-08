@@ -12,7 +12,7 @@ BEGIN;
 -- ---------------------------------------------------------------------------
 -- VIEW: v_session_history (master view -- others depend on this)
 -- ---------------------------------------------------------------------------
-CREATE VIEW v_session_history AS
+CREATE OR REPLACE VIEW v_session_history AS
 SELECT COALESCE(s.id::text, r.acctuniqueid) AS session_id,
     COALESCE(s.id::text, r.radacctid::text) AS radacctid,
     COALESCE(s.id::text, r.acctsessionid) AS acctsessionid,
@@ -116,7 +116,7 @@ SELECT COALESCE(s.id::text, r.acctuniqueid) AS session_id,
 -- Filters v_session_history for currently active (online) sessions.
 -- Used by: Active Users tab, real-time stats widgets.
 -- ---------------------------------------------------------------------------
-CREATE VIEW v_active_sessions AS
+CREATE OR REPLACE VIEW v_active_sessions AS
 SELECT session_id,
     radacctid,
     acctsessionid,
@@ -196,7 +196,7 @@ SELECT session_id,
 -- Updated: handles MAX_SESSIONS_REACHED, RADIUS_UNREACHABLE, AUTH_FAILED
 -- rejection reason codes from test-auth action.
 -- ---------------------------------------------------------------------------
-CREATE VIEW v_auth_logs AS
+CREATE OR REPLACE VIEW v_auth_logs AS
 SELECT pa.id::text AS id,
     pa.username,
     pa.reply AS auth_result,
@@ -271,7 +271,7 @@ SELECT pa.id::text AS id,
 -- ---------------------------------------------------------------------------
 -- VIEW: v_user_usage
 -- ---------------------------------------------------------------------------
-CREATE VIEW v_user_usage AS
+CREATE OR REPLACE VIEW v_user_usage AS
 SELECT u.id AS user_id,
     u."tenantId",
     u."propertyId",
@@ -317,7 +317,7 @@ SELECT u.id AS user_id,
 -- ---------------------------------------------------------------------------
 -- VIEW: v_wifi_users
 -- ---------------------------------------------------------------------------
-CREATE VIEW v_wifi_users AS
+CREATE OR REPLACE VIEW v_wifi_users AS
 SELECT u.id,
     u."tenantId",
     u."propertyId",
@@ -366,7 +366,7 @@ SELECT u.id,
 -- ---------------------------------------------------------------------------
 -- VIEW: v_fup_switch_logs
 -- ---------------------------------------------------------------------------
-CREATE VIEW v_fup_switch_logs AS
+CREATE OR REPLACE VIEW v_fup_switch_logs AS
 SELECT fsl.id::text AS id,
     fsl.username,
     fsl.fup_policy_name,
