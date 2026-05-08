@@ -88,7 +88,7 @@ interface GuiRule {
   destIp?: string;
   destPort?: string;
   sourcePort?: string;
-  action: 'accept' | 'drop' | 'reject' | 'log' | 'mark' | 'dnat' | 'snat' | 'masquerade';
+  action: 'accept' | 'drop' | 'reject' | 'log' | 'mark' | 'proxy' | 'dnat' | 'snat' | 'masquerade';
   markValue?: number;
   dnatTo?: string;
   snatTo?: string;
@@ -733,6 +733,12 @@ function buildSingleNftRuleLine(rule: GuiRule, overrideDestIp?: string, override
     case 'reject':
     case 'log':
       parts.push(rule.action);
+      break;
+    case 'proxy':
+      // Proxy = captive portal bypass. Mark the packet so the
+      // session engine skips captive portal redirect for this traffic.
+      // Mark value 1 = "bypass captive portal" (recognized by SessionEngine)
+      parts.push(`meta mark set 1`);
       break;
     case 'mark':
       parts.push(`meta mark set ${rule.markValue || 0}`);
