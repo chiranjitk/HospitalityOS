@@ -315,9 +315,6 @@ CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS
     dp."userAgent" AS "userAgent",
     dp."macAddress" AS "dp_macAddress",
     COALESCE(dp."authCount", 0) AS "dp_authCount",
-    -- Timeout columns from WiFiPlan
-    wp."sessionTimeoutSec",
-    wp."idleTimeoutSec",
     -- Burst (ceil) columns from WiFiPlan
     wp."burstDownloadSpeed",
     wp."burstUploadSpeed"
