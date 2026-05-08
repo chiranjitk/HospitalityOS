@@ -4,6 +4,63 @@ import { requirePermission } from '@/lib/auth/tenant-context';
 import { fullApplyToNftables } from '@/lib/nftables-helper';
 import { resolveRuleAddresses } from '@/lib/dns-resolver';
 
+// PATCH /api/wifi/firewall/gui-rules — Bulk reorder
+export async function PATCH(request: NextRequest) {
+  const user = await requirePermission(request, 'wifi.manage');
+  if (user instanceof NextResponse) return user;
+
+  try {
+    const body = await request.json();
+
+    // ── Reorder action ───────────────────────────────────────────
+    if (body._action === 'reorder' && Array.isArray(body.orderedIds)) {
+      const { orderedIds } = body;
+
+      // Validate all IDs exist
+      const existingRules = await db.firewallRule.findMany({
+        where: { id: { in: orderedIds } },
+        select: { id: true, tenantId: true },
+      });
+
+      if (existingRules.length !== orderedIds.length) {
+        return NextResponse.json(
+          { success: false, error: 'Some rule IDs not found' },
+          { status: 400 },
+        );
+      }
+
+      // Update priorities based on new order
+      await Promise.all(
+        orderedIds.map((ruleId: string, index: number) =>
+          db.firewallRule.update({
+            where: { id: ruleId },
+            data: { priority: index * 10 },
+          }),
+        ),
+      );
+
+      // Fire-and-forget apply
+      const tenantId = existingRules[0]?.tenantId;
+      if (tenantId) {
+        try { fullApplyToNftables(tenantId); } catch {}
+      }
+
+      return NextResponse.json({ success: true, data: { reordered: true, count: orderedIds.length } });
+    }
+
+    return NextResponse.json(
+      { success: false, error: 'Invalid action. Supported: _action=reorder with orderedIds array' },
+      { status: 400 },
+    );
+  } catch (error) {
+    console.error('[gui-rules] PATCH error:', error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Failed to patch GUI rules' },
+      { status: 500 },
+    );
+  }
+}
+
 // GET /api/wifi/firewall/gui-rules — List all FirewallRules
 export async function GET(request: NextRequest) {
   const user = await requirePermission(request, 'wifi.manage');

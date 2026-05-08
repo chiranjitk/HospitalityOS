@@ -1,7 +1,23 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   Card,
   CardContent,
@@ -99,6 +115,7 @@ import {
   Fingerprint,
   Terminal,
   ChevronUp,
+  GripVertical,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -475,6 +492,185 @@ const CHAIN_OPTIONS = [
   },
 ] as const;
 
+// ─── Sortable Table Row (for drag-and-drop reordering) ──────────────
+
+function SortableRuleRow({
+  rule,
+  onEdit,
+  onDelete,
+  onToggle,
+  ruleCounters,
+  countersLoading,
+}: {
+  rule: GuiRule;
+  onEdit: (r: GuiRule) => void;
+  onDelete: (id: string) => void;
+  onToggle: (id: string) => void;
+  ruleCounters: Record<string, { totalPackets: number; totalBytes: number; chains: string[] }>;
+  countersLoading: boolean;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: rule.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+    position: 'relative' as const,
+  };
+
+  return (
+    <TableRow
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        !rule.enabled && 'opacity-50',
+        isDragging && 'bg-accent/50 shadow-lg border-2 border-primary/30',
+      )}
+    >
+      <TableCell>
+        <div className="flex items-center gap-1">
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-muted transition-colors touch-none"
+            aria-label="Drag to reorder"
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <span className="ml-1 font-mono text-xs font-bold">{rule.priority}</span>
+        </div>
+      </TableCell>
+      <TableCell>
+        <div>
+          <span className="font-medium text-sm">{rule.name}</span>
+          {rule.comment && (
+            <p className="text-xs text-muted-foreground truncate max-w-32">{rule.comment}</p>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
+        <Badge variant="outline" className="text-xs font-mono">
+          {(rule.protocol || 'all').toUpperCase()}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-1">
+            {rule.sourceIpType && <IpTypeBadge type={rule.sourceIpType} />}
+            <span className="font-mono text-xs">{rule.sourceIp || '—'}</span>
+          </div>
+          {rule.sourceIpResolved && parseResolvedIps(rule.sourceIpResolved).length > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-[10px] text-muted-foreground truncate max-w-28 cursor-default">
+                  → {parseResolvedIps(rule.sourceIpResolved).join(', ')}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs font-mono">
+                {parseResolvedIps(rule.sourceIpResolved).map((ip, i) => (
+                  <div key={i}>{ip}</div>
+                ))}
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      </TableCell>
+      <TableCell className="font-mono text-xs">{rule.sourceMac || '—'}</TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1">
+          {rule.sourcePort && (
+            <>
+              {rule.sourcePortType && (
+                <Badge variant="outline" className="text-[9px] font-bold px-1 py-0 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border-amber-200 dark:border-amber-700">
+                  {rule.sourcePortType === 'include' ? 'INCL' : 'EXCL'}
+                </Badge>
+              )}
+              <span className="font-mono text-xs">{rule.sourcePort}</span>
+            </>
+          ) || '—'}
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-1">
+            {rule.destIpType && <IpTypeBadge type={rule.destIpType} />}
+            <span className="font-mono text-xs">{rule.destIp || '—'}</span>
+          </div>
+          {rule.destIpResolved && parseResolvedIps(rule.destIpResolved).length > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-[10px] text-muted-foreground truncate max-w-28 cursor-default">
+                  → {parseResolvedIps(rule.destIpResolved).join(', ')}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs font-mono">
+                {parseResolvedIps(rule.destIpResolved).map((ip, i) => (
+                  <div key={i}>{ip}</div>
+                ))}
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1">
+          {rule.destPort && (
+            <>
+              {rule.destPortType && (
+                <Badge variant="outline" className="text-[9px] font-bold px-1 py-0 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border-amber-200 dark:border-amber-700">
+                  {rule.destPortType === 'include' ? 'INCL' : 'EXCL'}
+                </Badge>
+              )}
+              <span className="font-mono text-xs">{rule.destPort}</span>
+            </>
+          ) || '—'}
+        </div>
+      </TableCell>
+      <TableCell>
+        <ActionBadge action={rule.action} />
+      </TableCell>
+      <TableCell>
+        <RuleCounterCell ruleId={rule.id} counters={ruleCounters} loading={countersLoading} />
+      </TableCell>
+      <TableCell>
+        <Switch checked={rule.enabled} onCheckedChange={() => onToggle(rule.id)} />
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex items-center justify-end gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(rule)}>
+                <Edit2 className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Edit</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-destructive"
+                onClick={() => onDelete(rule.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Delete</TooltipContent>
+          </Tooltip>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 // ─── Main Firewall Page ─────────────────────────────────────────────
 
 export default function FirewallPage() {
@@ -770,19 +966,14 @@ function RulesTab() {
     }
   };
 
-  const moveRule = async (id: string, dir: 'up' | 'down') => {
-    const sorted = [...rules].sort((a, b) => a.priority - b.priority);
-    const idx = sorted.findIndex((r) => r.id === id);
-    if ((dir === 'up' && idx <= 0) || (dir === 'down' && idx >= sorted.length - 1)) return;
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  );
 
-    const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
-    const newSorted = [...sorted];
-    const temp = newSorted[idx];
-    newSorted[idx] = newSorted[swapIdx];
-    newSorted[swapIdx] = temp;
-    const orderedIds = newSorted.map((r) => r.id);
-    setRules(newSorted);
-
+  const reorderRules = useCallback(async (newOrdered: GuiRule[]) => {
+    const orderedIds = newOrdered.map((r) => r.id);
+    setRules(newOrdered);
     try {
       await apiFetch(`${API_BASE}/gui-rules`, {
         method: 'PATCH',
@@ -792,7 +983,20 @@ function RulesTab() {
       toast({ title: 'Error', description: 'Failed to reorder rules', variant: 'destructive' });
       await fetchRules();
     }
-  };
+  }, [toast, fetchRules]);
+
+  const onDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const sorted = [...rules].sort((a, b) => a.priority - b.priority);
+    const oldIndex = sorted.findIndex((r) => r.id === active.id);
+    const newIndex = sorted.findIndex((r) => r.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(sorted, oldIndex, newIndex);
+    reorderRules(reordered);
+  }, [rules, reorderRules]);
 
   const filteredRules = rules
     .filter((r) => filters.chain === 'all' || r.chain === filters.chain)
@@ -914,183 +1118,50 @@ function RulesTab() {
           <Card className="overflow-hidden">
             <div className="h-1 bg-gradient-to-r from-teal-500 to-emerald-500" />
           <CardContent className="p-0">
-            <div className="max-h-96 overflow-y-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">Pri</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Proto</TableHead>
-                    <TableHead>Source</TableHead>
-                    <TableHead className="w-28">Src MAC</TableHead>
-                    <TableHead className="w-28">Src Port</TableHead>
-                    <TableHead>Destination</TableHead>
-                    <TableHead className="w-28">Dst Port</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead className="w-32">Hits</TableHead>
-                    <TableHead className="w-12">On</TableHead>
-                    <TableHead className="w-24 text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRules.map((rule) => (
-                    <TableRow key={rule.id} className={cn(!rule.enabled && 'opacity-50')}>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => moveRule(rule.id, 'up')}
-                              >
-                                <ArrowUp className="h-3 w-3" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Move Up</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => moveRule(rule.id, 'down')}
-                              >
-                                <ArrowDown className="h-3 w-3" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Move Down</TooltipContent>
-                          </Tooltip>
-                          <span className="ml-1 font-mono text-xs font-bold">{rule.priority}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <span className="font-medium text-sm">{rule.name}</span>
-                          {rule.comment && (
-                            <p className="text-xs text-muted-foreground truncate max-w-32">{rule.comment}</p>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs font-mono">
-                          {(rule.protocol || 'all').toUpperCase()}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-1">
-                            {rule.sourceIpType && <IpTypeBadge type={rule.sourceIpType} />}
-                            <span className="font-mono text-xs">{rule.sourceIp || '—'}</span>
-                          </div>
-                          {rule.sourceIpResolved && parseResolvedIps(rule.sourceIpResolved).length > 0 && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="text-[10px] text-muted-foreground truncate max-w-28 cursor-default">
-                                  → {parseResolvedIps(rule.sourceIpResolved).join(', ')}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-xs text-xs font-mono">
-                                {parseResolvedIps(rule.sourceIpResolved).map((ip, i) => (
-                                  <div key={i}>{ip}</div>
-                                ))}
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{rule.sourceMac || '—'}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          {rule.sourcePort && (
-                            <>
-                              {rule.sourcePortType && (
-                                <Badge variant="outline" className="text-[9px] font-bold px-1 py-0 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border-amber-200 dark:border-amber-700">
-                                  {rule.sourcePortType === 'include' ? 'INCL' : 'EXCL'}
-                                </Badge>
-                              )}
-                              <span className="font-mono text-xs">{rule.sourcePort}</span>
-                            </>
-                          ) || '—'}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-1">
-                            {rule.destIpType && <IpTypeBadge type={rule.destIpType} />}
-                            <span className="font-mono text-xs">{rule.destIp || '—'}</span>
-                          </div>
-                          {rule.destIpResolved && parseResolvedIps(rule.destIpResolved).length > 0 && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="text-[10px] text-muted-foreground truncate max-w-28 cursor-default">
-                                  → {parseResolvedIps(rule.destIpResolved).join(', ')}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-xs text-xs font-mono">
-                                {parseResolvedIps(rule.destIpResolved).map((ip, i) => (
-                                  <div key={i}>{ip}</div>
-                                ))}
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          {rule.destPort && (
-                            <>
-                              {rule.destPortType && (
-                                <Badge variant="outline" className="text-[9px] font-bold px-1 py-0 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border-amber-200 dark:border-amber-700">
-                                  {rule.destPortType === 'include' ? 'INCL' : 'EXCL'}
-                                </Badge>
-                              )}
-                              <span className="font-mono text-xs">{rule.destPort}</span>
-                            </>
-                          ) || '—'}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <ActionBadge action={rule.action} />
-                      </TableCell>
-                      <TableCell>
-                        <RuleCounterCell ruleId={rule.id} counters={ruleCounters} loading={countersLoading} />
-                      </TableCell>
-                      <TableCell>
-                        <Switch checked={rule.enabled} onCheckedChange={() => toggleRule(rule.id)} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(rule)}>
-                                <Edit2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Edit</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-destructive"
-                                onClick={() => setDeleteId(rule.id)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Delete</TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </TableCell>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={onDragEnd}
+            >
+              <div className="max-h-96 overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16">Order</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Proto</TableHead>
+                      <TableHead>Source</TableHead>
+                      <TableHead className="w-28">Src MAC</TableHead>
+                      <TableHead className="w-28">Src Port</TableHead>
+                      <TableHead>Destination</TableHead>
+                      <TableHead className="w-28">Dst Port</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead className="w-32">Hits</TableHead>
+                      <TableHead className="w-12">On</TableHead>
+                      <TableHead className="w-24 text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <SortableContext
+                    items={filteredRules.map((r) => r.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <TableBody>
+                      {filteredRules.map((rule) => (
+                        <SortableRuleRow
+                          key={rule.id}
+                          rule={rule}
+                          onEdit={openEdit}
+                          onDelete={setDeleteId}
+                          onToggle={toggleRule}
+                          ruleCounters={ruleCounters}
+                          countersLoading={countersLoading}
+                        />
+                      ))}
+                    </TableBody>
+                  </SortableContext>
+                </Table>
+              </div>
+            </DndContext>
           </CardContent>
         </Card>
         </motion.div>
