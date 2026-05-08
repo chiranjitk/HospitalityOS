@@ -34,6 +34,13 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# all log files
+*.log
+# freeradius module configs: detail.log is a raddb module, not a log
+!freeradius-install/etc/raddb/mods-available/detail.log
+!freeradius-install/etc/raddb/mods-enabled/detail.log
+pgsql-logfile
+
 # env files (can opt-in for committing if needed)
 .env.local
 .env.production
@@ -60,11 +67,8 @@ freeradius-install/var/log/
 # logs directory
 /logs/
 
-dev.log
-dev.out.log
 test
 prompt
-server.log
 # Skills directory
 # SQLite database files (production uses PostgreSQL only)
 *.db
@@ -88,7 +92,6 @@ pgsql-runtime/data/
 
 # PostgreSQL data directory (binary runtime data, never track)
 pgsql-data/
-pgsql-runtime/logfile
 
 # FreeRADIUS dependencies and runtime
 freeradius-deps/
@@ -120,7 +123,13 @@ data/e2guardian/private/
 
 # Worklog
 worklog.md
+worklog-pms-fixes.md
+worklog_append.txt
+
+# Runtime artifacts (pids, temp files)
+dev.pid
+index
+test-w.txt
 
 # StaySuite login logs
 .staysuite/logs/staysuite_login.log
-pgsql-runtime/data/
