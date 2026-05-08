@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
@@ -145,94 +146,62 @@ interface KeyCard {
 }
 
 // ---------------------------------------------------------------------------
-// Mock Data
+// API response types
 // ---------------------------------------------------------------------------
 
-const lockProviders: LockProviderConfig[] = [
-  {
-    id: 'lp-1',
-    provider: 'assa_abloy',
-    name: 'ASSA ABLOY Visionline',
-    description: 'Enterprise-grade RFID door locks with BLE mobile key support and real-time status monitoring.',
-    status: 'connected',
-    lockCount: 124,
-    onlineCount: 118,
-    lastSync: '2026-06-14T08:32:00Z',
-    apiEndpoint: 'https://api.assaabloy.com/v2/visionline',
-    apiKey: '••••••••a8f2',
-    firmware: 'V4.2.1',
-    protocol: 'BLE 5.0 + RFID (MIFARE DESFire)',
-  },
-  {
-    id: 'lp-2',
-    provider: 'salto_ks',
-    name: 'SALTO KS (Key)',
-    description: 'Cloud-based smart access platform with SALTO Virtual Network for wireless updates and audit trails.',
-    status: 'connected',
-    lockCount: 86,
-    onlineCount: 82,
-    lastSync: '2026-06-14T08:28:00Z',
-    apiEndpoint: 'https://api.saltoks.com/v1',
-    apiKey: '••••••••b3c7',
-    firmware: 'V3.8.4',
-    protocol: 'SALTO SVN + BLE 4.2',
-  },
-  {
-    id: 'lp-3',
-    provider: 'dormakaba',
-    name: 'Dormakaba (orcativo / SAFLOK)',
-    description: 'High-security electronic locks with RFID/NFC and mobile credentials via dormakaba mobile access.',
-    status: 'configuring',
-    lockCount: 42,
-    onlineCount: 0,
-    lastSync: '2026-06-13T16:45:00Z',
-    apiEndpoint: 'https://api.dormakaba.com/connect',
-    apiKey: '••••••••d1e9',
-    firmware: 'V5.0.0-beta',
-    protocol: 'NFC + RFID (iCLASS SE)',
-  },
-];
+interface DashboardStats {
+  totalLocks: number;
+  onlineLocks: number;
+  offlineLocks: number;
+  lowBatteryLocks: number;
+  criticalBatteryLocks: number;
+  totalProviders: number;
+  activeKeyCards: number;
+  totalAccessEvents: number;
+  deniedAccessToday: number;
+}
 
-const roomLocks: RoomLock[] = [
-  { id: 'rl-1', roomNumber: '101', floor: 1, lockType: 'Visionline VingCard', provider: 'assa_abloy', status: 'online', batteryLevel: 92, lastActivity: '2026-06-14T08:15:00Z', firmwareVersion: 'V4.2.1', signalStrength: 95 },
-  { id: 'rl-2', roomNumber: '102', floor: 1, lockType: 'Visionline VingCard', provider: 'assa_abloy', status: 'online', batteryLevel: 87, lastActivity: '2026-06-14T07:50:00Z', firmwareVersion: 'V4.2.1', signalStrength: 88 },
-  { id: 'rl-3', roomNumber: '103', floor: 1, lockType: 'Visionline VingCard', provider: 'assa_abloy', status: 'low_battery', batteryLevel: 12, lastActivity: '2026-06-14T06:30:00Z', firmwareVersion: 'V4.2.0', signalStrength: 72 },
-  { id: 'rl-4', roomNumber: '201', floor: 2, lockType: 'SALTO XS4', provider: 'salto_ks', status: 'online', batteryLevel: 78, lastActivity: '2026-06-14T08:20:00Z', firmwareVersion: 'V3.8.4', signalStrength: 91 },
-  { id: 'rl-5', roomNumber: '202', floor: 2, lockType: 'SALTO XS4', provider: 'salto_ks', status: 'online', batteryLevel: 65, lastActivity: '2026-06-14T07:45:00Z', firmwareVersion: 'V3.8.4', signalStrength: 84 },
-  { id: 'rl-6', roomNumber: '203', floor: 2, lockType: 'SALTO XS4', provider: 'salto_ks', status: 'offline', batteryLevel: 0, lastActivity: '2026-06-13T22:10:00Z', firmwareVersion: 'V3.8.3', signalStrength: 0 },
-  { id: 'rl-7', roomNumber: '301', floor: 3, lockType: 'Dormakaba SAFLOK', provider: 'dormakaba', status: 'maintenance', batteryLevel: 45, lastActivity: '2026-06-14T04:00:00Z', firmwareVersion: 'V5.0.0-beta', signalStrength: 60 },
-  { id: 'rl-8', roomNumber: '302', floor: 3, lockType: 'Dormakaba SAFLOK', provider: 'dormakaba', status: 'maintenance', batteryLevel: 50, lastActivity: '2026-06-14T04:00:00Z', firmwareVersion: 'V5.0.0-beta', signalStrength: 55 },
-  { id: 'rl-9', roomNumber: '104', floor: 1, lockType: 'Visionline VingCard', provider: 'assa_abloy', status: 'online', batteryLevel: 100, lastActivity: '2026-06-14T08:22:00Z', firmwareVersion: 'V4.2.1', signalStrength: 97 },
-  { id: 'rl-10', roomNumber: '204', floor: 2, lockType: 'SALTO XS4', provider: 'salto_ks', status: 'online', batteryLevel: 83, lastActivity: '2026-06-14T08:05:00Z', firmwareVersion: 'V3.8.4', signalStrength: 90 },
-  { id: 'rl-11', roomNumber: '105', floor: 1, lockType: 'Visionline VingCard', provider: 'assa_abloy', status: 'low_battery', batteryLevel: 8, lastActivity: '2026-06-14T05:45:00Z', firmwareVersion: 'V4.1.9', signalStrength: 65 },
-  { id: 'rl-12', roomNumber: '205', floor: 2, lockType: 'SALTO XS4', provider: 'salto_ks', status: 'online', batteryLevel: 71, lastActivity: '2026-06-14T07:30:00Z', firmwareVersion: 'V3.8.4', signalStrength: 86 },
-];
+interface DashboardProvider {
+  id: string;
+  name: string;
+  model: string;
+  protocol: string;
+  totalLocks: number;
+  onlineLocks: number;
+  firmware: string;
+  apiVersion: string;
+  status: string;
+  lastHeartbeat: string;
+}
 
-const accessLogs: AccessLogEntry[] = [
-  { id: 'al-1', timestamp: '2026-06-14T08:22:15Z', guestName: 'James Anderson', roomNumber: '104', method: 'mobile_key', direction: 'entry', status: 'granted' },
-  { id: 'al-2', timestamp: '2026-06-14T08:20:30Z', guestName: 'Maria Chen', roomNumber: '201', method: 'key_card', direction: 'entry', status: 'granted' },
-  { id: 'al-3', timestamp: '2026-06-14T08:18:45Z', guestName: 'David Kumar', roomNumber: '301', method: 'pin_code', direction: 'entry', status: 'denied', reason: 'Expired PIN' },
-  { id: 'al-4', timestamp: '2026-06-14T08:15:00Z', guestName: 'Sarah Johnson', roomNumber: '101', method: 'fingerprint', direction: 'entry', status: 'granted' },
-  { id: 'al-5', timestamp: '2026-06-14T08:10:20Z', guestName: 'James Anderson', roomNumber: '104', method: 'mobile_key', direction: 'exit', status: 'granted' },
-  { id: 'al-6', timestamp: '2026-06-14T07:55:10Z', guestName: 'Priya Patel', roomNumber: '202', method: 'key_card', direction: 'entry', status: 'granted' },
-  { id: 'al-7', timestamp: '2026-06-14T07:50:00Z', guestName: 'Tom Williams', roomNumber: '102', method: 'mobile_key', direction: 'exit', status: 'granted' },
-  { id: 'al-8', timestamp: '2026-06-14T07:45:30Z', guestName: 'Emily Brown', roomNumber: '203', method: 'key_card', direction: 'entry', status: 'denied', reason: 'Card cancelled' },
-  { id: 'al-9', timestamp: '2026-06-14T07:30:00Z', guestName: 'Ahmed Hassan', roomNumber: '205', method: 'front_desk', direction: 'entry', status: 'granted' },
-  { id: 'al-10', timestamp: '2026-06-14T07:20:15Z', guestName: 'Lisa Nakamura', roomNumber: '204', method: 'mobile_key', direction: 'entry', status: 'granted' },
-  { id: 'al-11', timestamp: '2026-06-14T06:30:00Z', guestName: 'Robert Müller', roomNumber: '103', method: 'key_card', direction: 'exit', status: 'granted' },
-  { id: 'al-12', timestamp: '2026-06-14T05:45:00Z', guestName: 'Unknown', roomNumber: '105', method: 'key_card', direction: 'entry', status: 'denied', reason: 'Unregistered card' },
-];
+interface DashboardRoomLock {
+  id: string;
+  roomId: string | null;
+  roomNumber: string;
+  floor: number;
+  provider: string;
+  lockId: string | null;
+  batteryLevel: number;
+  status: string;
+  doorStatus: string;
+  lastActivity: string | null;
+  firmwareVersion: string | null;
+  signalStrength: number | null;
+  guestAssigned: boolean;
+  guestName: string | null;
+}
 
-const keyCards: KeyCard[] = [
-  { id: 'kc-1', cardNumber: 'KF-4821-0091', guestName: 'James Anderson', roomNumber: '104', provider: 'assa_abloy', status: 'active', issuedAt: '2026-06-12T14:00:00Z', expiresAt: '2026-06-16T12:00:00Z', accessCount: 14 },
-  { id: 'kc-2', cardNumber: 'KF-4821-0092', guestName: 'Maria Chen', roomNumber: '201', provider: 'salto_ks', status: 'active', issuedAt: '2026-06-13T10:00:00Z', expiresAt: '2026-06-17T12:00:00Z', accessCount: 8 },
-  { id: 'kc-3', cardNumber: 'KF-4821-0093', guestName: 'Sarah Johnson', roomNumber: '101', provider: 'assa_abloy', status: 'active', issuedAt: '2026-06-11T16:00:00Z', expiresAt: '2026-06-15T12:00:00Z', accessCount: 22 },
-  { id: 'kc-4', cardNumber: 'KF-4821-0094', guestName: 'Emily Brown', roomNumber: '203', provider: 'salto_ks', status: 'cancelled', issuedAt: '2026-06-10T09:00:00Z', expiresAt: '2026-06-14T12:00:00Z', accessCount: 5 },
-  { id: 'kc-5', cardNumber: 'KF-4821-0095', guestName: 'Priya Patel', roomNumber: '202', provider: 'salto_ks', status: 'active', issuedAt: '2026-06-13T14:00:00Z', expiresAt: '2026-06-18T12:00:00Z', accessCount: 11 },
-  { id: 'kc-6', cardNumber: 'KF-4821-0096', guestName: 'Ahmed Hassan', roomNumber: '205', provider: 'assa_abloy', status: 'active', issuedAt: '2026-06-14T07:00:00Z', expiresAt: '2026-06-19T12:00:00Z', accessCount: 2 },
-  { id: 'kc-7', cardNumber: 'KF-4821-0097', guestName: 'Tom Williams', roomNumber: '102', provider: 'assa_abloy', status: 'expired', issuedAt: '2026-06-08T12:00:00Z', expiresAt: '2026-06-13T12:00:00Z', accessCount: 31 },
-  { id: 'kc-8', cardNumber: 'KF-4821-0098', guestName: 'Lisa Nakamura', roomNumber: '204', provider: 'salto_ks', status: 'active', issuedAt: '2026-06-12T10:00:00Z', expiresAt: '2026-06-16T12:00:00Z', accessCount: 18 },
-];
+interface DashboardAccessLog {
+  id: string;
+  lockId: string;
+  roomNumber: string | null;
+  accessType: string;
+  userId: string | null;
+  userName: string | null;
+  method: string;
+  timestamp: string;
+  result: string;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -243,6 +212,29 @@ const providerLabels: Record<LockProvider, { label: string; color: string; bgGra
   salto_ks: { label: 'SALTO KS', color: 'text-violet-600 dark:text-violet-400', bgGradient: 'from-violet-500/20 to-purple-500/20' },
   dormakaba: { label: 'Dormakaba', color: 'text-amber-600 dark:text-amber-400', bgGradient: 'from-amber-500/20 to-orange-500/20' },
 };
+
+function resolveProvider(raw: string): LockProvider {
+  if (raw === 'assa_abloy' || raw === 'salto_ks' || raw === 'dormakaba') return raw;
+  return 'assa_abloy';
+}
+
+function resolveAccessMethod(raw: string): AccessMethod {
+  const map: Record<string, AccessMethod> = {
+    mobile_key: 'mobile_key',
+    key_card: 'key_card',
+    pin: 'pin_code',
+    pin_code: 'pin_code',
+    fingerprint: 'fingerprint',
+    manual: 'front_desk',
+    front_desk: 'front_desk',
+  };
+  return map[raw] ?? 'mobile_key';
+}
+
+function resolveLockStatus(raw: string): LockStatus {
+  if (raw === 'online' || raw === 'offline' || raw === 'low_battery' || raw === 'maintenance') return raw;
+  return 'online';
+}
 
 function providerBadge(provider: LockProvider) {
   const info = providerLabels[provider];
@@ -358,54 +350,276 @@ function keyCardStatusBadge(status: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Loading skeletons
+// ---------------------------------------------------------------------------
+
+function StatsSkeleton() {
+  return (
+    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      {[...Array(4)].map((_, i) => (
+        <Card key={i} className="border-l-4 border-l-muted">
+          <CardHeader className="pb-2">
+            <Skeleton className="h-4 w-28 mb-1" />
+            <Skeleton className="h-8 w-12" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-3 w-32" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function TableSkeleton({ cols = 8, rows = 6 }: { cols?: number; rows?: number }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="h-8 w-40" />
+      </div>
+      <div className="space-y-2">
+        <Skeleton className="h-10 w-full" />
+        {Array.from({ length: rows }).map((_, i) => (
+          <Skeleton key={i} className="h-12 w-full" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProviderCardSkeleton() {
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="pb-4">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-12 w-12 rounded-lg" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-4 w-72" />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="space-y-1">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-6 w-10" />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="rounded-md bg-muted/50 p-3 space-y-1">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-4 w-40" />
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export function SmartLocks() {
   const { formatCurrency } = useCurrency();
 
-  // Stats derived from mock data
-  const totalLocks = lockProviders.reduce((sum, p) => sum + p.lockCount, 0);
-  const onlineLocks = lockProviders.reduce((sum, p) => sum + p.onlineCount, 0);
-  const offlineLocks = roomLocks.filter(l => l.status === 'offline').length;
-  const lowBatteryLocks = roomLocks.filter(l => l.status === 'low_battery').length;
+  // ── API data state (consolidated into one object to avoid multiple setState in effect) ──
+  const [loading, setLoading] = useState(true);
+  const [apiData, setApiData] = useState({
+    stats: null as DashboardStats | null,
+    lockProviders: [] as LockProviderConfig[],
+    roomLocks: [] as RoomLock[],
+    accessLogs: [] as AccessLogEntry[],
+    keyCards: [] as KeyCard[],
+  });
+  const { stats, lockProviders, roomLocks, accessLogs, keyCards } = apiData;
 
-  // State
-  const [activeTab, setActiveTab] = useState('providers');
+  // ── UI state ──
   const [refreshing, setRefreshing] = useState(false);
   const [encodeDialogOpen, setEncodeDialogOpen] = useState(false);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<LockProvider>('assa_abloy');
   const [cancelCardId, setCancelCardId] = useState<string | null>(null);
   const [encoding, setEncoding] = useState(false);
+  const [activeTab, setActiveTab] = useState('providers');
 
-  // Form state for encoding
+  // ── Form state for encoding ──
   const [encodeRoom, setEncodeRoom] = useState('');
   const [encodeGuest, setEncodeGuest] = useState('');
   const [encodeExpiry, setEncodeExpiry] = useState('');
 
+  // ── Data mapping logic (pure functions, no setState) ──
+  const mapDashboardResponse = useCallback((json: Record<string, unknown>) => {
+    const { data, stats: dashboardStats } = json as {
+      data: {
+        providers?: DashboardProvider[];
+        roomLocks?: DashboardRoomLock[];
+        accessLogs?: DashboardAccessLog[];
+        keyCards?: unknown[];
+      };
+      stats: DashboardStats;
+    };
+
+    const providerDescriptions: Record<string, string> = {
+      assa_abloy: 'Enterprise-grade RFID door locks with BLE mobile key support and real-time status monitoring.',
+      salto: 'Cloud-based smart access platform with SALTO Virtual Network for wireless updates and audit trails.',
+      salto_ks: 'Cloud-based smart access platform with SALTO Virtual Network for wireless updates and audit trails.',
+      dormakaba: 'High-security electronic locks with RFID/NFC and mobile credentials via dormakaba mobile access.',
+      generic: 'Generic smart lock integration with standard BLE + RFID support.',
+    };
+
+    const mappedProviders: LockProviderConfig[] = (data.providers ?? []).map((p: DashboardProvider) => {
+      const provKey = resolveProvider(p.name);
+      return {
+        id: p.id,
+        provider: provKey,
+        name: providerLabels[provKey]
+          ? `${providerLabels[provKey].label} ${p.model || ''}`.trim()
+          : p.name,
+        description: providerDescriptions[p.name] || `${p.name} lock provider integration.`,
+        status: p.status as LockProviderConfig['status'],
+        lockCount: p.totalLocks ?? 0,
+        onlineCount: p.onlineLocks ?? 0,
+        lastSync: p.lastHeartbeat ?? new Date().toISOString(),
+        apiEndpoint: '—',
+        apiKey: '••••••••',
+        firmware: p.firmware || '—',
+        protocol: p.protocol || 'BLE + RFID',
+      };
+    });
+
+    const mappedLocks: RoomLock[] = (data.roomLocks ?? []).map((l: DashboardRoomLock) => ({
+      id: l.id,
+      roomNumber: l.roomNumber ?? '—',
+      floor: l.floor ?? 0,
+      lockType: l.provider || 'Smart Lock',
+      provider: resolveProvider(l.provider),
+      status: resolveLockStatus(l.status),
+      batteryLevel: l.batteryLevel ?? 0,
+      lastActivity: l.lastActivity ?? new Date().toISOString(),
+      firmwareVersion: l.firmwareVersion ?? '—',
+      signalStrength: l.signalStrength ?? 0,
+    }));
+
+    const mappedLogs: AccessLogEntry[] = (data.accessLogs ?? []).map((log: DashboardAccessLog) => {
+      const method = resolveAccessMethod(log.method ?? log.accessType);
+      return {
+        id: log.id,
+        timestamp: log.timestamp ?? new Date().toISOString(),
+        guestName: log.userName ?? 'Unknown',
+        roomNumber: log.roomNumber ?? '—',
+        method,
+        direction: 'entry' as const,
+        status: (log.result === 'granted' ? 'granted' : 'denied') as AccessLogEntry['status'],
+      };
+    });
+
+    const mappedKeyCards = (data.keyCards ?? []) as KeyCard[];
+
+    return {
+      stats: dashboardStats ?? null,
+      lockProviders: mappedProviders,
+      roomLocks: mappedLocks,
+      accessLogs: mappedLogs,
+      keyCards: mappedKeyCards,
+    };
+  }, []);
+
+  // Trigger counter for re-fetching
+  const [fetchTrigger, setFetchTrigger] = useState(0);
+
+  // Initial data fetch — runs once on mount and whenever fetchTrigger changes
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await fetch('/api/integrations/smart-locks');
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error((errBody as Record<string, unknown>)?.error?.message || `Request failed (${res.status})`);
+        }
+
+        const json = await res.json();
+        if (!json.success) {
+          throw new Error((json as Record<string, unknown>)?.error?.message || 'API returned unsuccessful response');
+        }
+
+        const mapped = mapDashboardResponse(json);
+        if (!cancelled) {
+          setApiData(mapped);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : 'Failed to fetch smart lock data';
+          toast.error(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, [fetchTrigger, mapDashboardResponse]);
+
+  // ── Stats derived from state ──
+  const totalLocks = stats?.totalLocks ?? lockProviders.reduce((sum, p) => sum + p.lockCount, 0);
+  const onlineLocks = stats?.onlineLocks ?? lockProviders.reduce((sum, p) => sum + p.onlineCount, 0);
+  const offlineLocks = stats?.offlineLocks ?? roomLocks.filter(l => l.status === 'offline').length;
+  const lowBatteryLocks = stats?.lowBatteryLocks ?? roomLocks.filter(l => l.status === 'low_battery').length;
+
+  // ── Handlers ──
   const handleRefresh = () => {
     setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-      toast.success('Lock data refreshed');
-    }, 1200);
+    setFetchTrigger((n) => n + 1);
   };
 
-  const handleEncodeCard = () => {
+  const handleEncodeCard = async () => {
     if (!encodeRoom || !encodeGuest || !encodeExpiry) {
       toast.error('Please fill all fields');
       return;
     }
     setEncoding(true);
-    setTimeout(() => {
-      setEncoding(false);
-      setEncodeDialogOpen(false);
+    try {
+      const res = await fetch('/api/integrations/smart-locks/locks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          propertyId: '00000000-0000-0000-0000-000000000000',
+          name: `Key Card — Room ${encodeRoom}`,
+          provider: selectedProvider,
+          lockStatus: 'locked',
+          doorStatus: 'closed',
+          batteryLevel: 100,
+        }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody?.error || `Failed to encode card (${res.status})`);
+      }
       toast.success(`Key card encoded for Room ${encodeRoom} via ${providerLabels[selectedProvider].label}`);
+      setEncodeDialogOpen(false);
       setEncodeRoom('');
       setEncodeGuest('');
       setEncodeExpiry('');
-    }, 2000);
+      setRefreshing(true);
+      setFetchTrigger((n) => n + 1);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to encode key card';
+      toast.error(message);
+    } finally {
+      setEncoding(false);
+    }
   };
 
   const handleCancelCard = () => {
@@ -428,7 +642,7 @@ export function SmartLocks() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing || loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
@@ -518,54 +732,58 @@ export function SmartLocks() {
       </div>
 
       {/* ─── Stats Cards ─── */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-sky-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5">
-              <Lock className="h-4 w-4" /> Connected Locks
-            </CardDescription>
-            <CardTitle className="text-2xl">{totalLocks}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">Across {lockProviders.length} providers</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-emerald-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5">
-              <Wifi className="h-4 w-4" /> Online Locks
-            </CardDescription>
-            <CardTitle className="text-2xl">{onlineLocks}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">
-              {totalLocks > 0 ? ((onlineLocks / totalLocks) * 100).toFixed(1) : 0}% uptime
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-red-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5">
-              <WifiOff className="h-4 w-4" /> Offline Alerts
-            </CardDescription>
-            <CardTitle className="text-2xl">{offlineLocks}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">Requires immediate attention</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-amber-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5">
-              <BatteryLow className="h-4 w-4" /> Battery Low
-            </CardDescription>
-            <CardTitle className="text-2xl">{lowBatteryLocks}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">Below 20% battery level</p>
-          </CardContent>
-        </Card>
-      </div>
+      {loading ? (
+        <StatsSkeleton />
+      ) : (
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          <Card className="border-l-4 border-l-sky-500">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <Lock className="h-4 w-4" /> Connected Locks
+              </CardDescription>
+              <CardTitle className="text-2xl">{totalLocks}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">Across {lockProviders.length} providers</p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-emerald-500">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <Wifi className="h-4 w-4" /> Online Locks
+              </CardDescription>
+              <CardTitle className="text-2xl">{onlineLocks}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">
+                {totalLocks > 0 ? ((onlineLocks / totalLocks) * 100).toFixed(1) : 0}% uptime
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-red-500">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <WifiOff className="h-4 w-4" /> Offline Alerts
+              </CardDescription>
+              <CardTitle className="text-2xl">{offlineLocks}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">Requires immediate attention</p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-amber-500">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <BatteryLow className="h-4 w-4" /> Battery Low
+              </CardDescription>
+              <CardTitle className="text-2xl">{lowBatteryLocks}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">Below 20% battery level</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* ─── Tabs ─── */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -590,83 +808,99 @@ export function SmartLocks() {
 
         {/* ─── Tab: Lock Providers ─── */}
         <TabsContent value="providers" className="mt-6 space-y-4">
-          {lockProviders.map((provider) => {
-            const info = providerLabels[provider.provider];
-            const uptime = provider.lockCount > 0
-              ? ((provider.onlineCount / provider.lockCount) * 100).toFixed(1)
-              : '0';
-            return (
-              <Card key={provider.id} className="overflow-hidden">
-                <CardHeader className="pb-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`h-12 w-12 rounded-lg bg-gradient-to-br ${info.bgGradient} flex items-center justify-center shrink-0`}>
-                        <Lock className={`h-6 w-6 ${info.color}`} />
+          {loading ? (
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <ProviderCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : lockProviders.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Radio className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                <p className="font-medium text-muted-foreground">No lock providers configured</p>
+                <p className="text-sm text-muted-foreground mt-1">Add a lock provider integration to get started</p>
+              </CardContent>
+            </Card>
+          ) : (
+            lockProviders.map((provider) => {
+              const info = providerLabels[provider.provider];
+              const uptime = provider.lockCount > 0
+                ? ((provider.onlineCount / provider.lockCount) * 100).toFixed(1)
+                : '0';
+              return (
+                <Card key={provider.id} className="overflow-hidden">
+                  <CardHeader className="pb-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-12 w-12 rounded-lg bg-gradient-to-br ${info.bgGradient} flex items-center justify-center shrink-0`}>
+                          <Lock className={`h-6 w-6 ${info.color}`} />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">{provider.name}</CardTitle>
+                          <CardDescription className="mt-1">{provider.description}</CardDescription>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {connectionStatusBadge(provider.status)}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setConfigDialogOpen(true);
+                            toast.info(`Opening ${provider.name} configuration`);
+                          }}
+                        >
+                          <Settings className="h-4 w-4 mr-1.5" />
+                          Configure
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total Locks</p>
+                        <p className="font-semibold text-lg">{provider.lockCount}</p>
                       </div>
                       <div>
-                        <CardTitle className="text-lg">{provider.name}</CardTitle>
-                        <CardDescription className="mt-1">{provider.description}</CardDescription>
+                        <p className="text-xs text-muted-foreground">Online</p>
+                        <p className="font-semibold text-lg text-emerald-600 dark:text-emerald-400">{provider.onlineCount}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Uptime</p>
+                        <p className="font-semibold text-lg">{uptime}%</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Protocol</p>
+                        <p className="font-semibold text-sm">{provider.protocol}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {connectionStatusBadge(provider.status)}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setConfigDialogOpen(true);
-                          toast.info(`Opening ${provider.name} configuration`);
-                        }}
-                      >
-                        <Settings className="h-4 w-4 mr-1.5" />
-                        Configure
-                      </Button>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                      <div className="rounded-md bg-muted/50 p-3">
+                        <p className="text-xs text-muted-foreground mb-1">API Endpoint</p>
+                        <p className="font-mono text-xs truncate">{provider.apiEndpoint}</p>
+                      </div>
+                      <div className="rounded-md bg-muted/50 p-3">
+                        <p className="text-xs text-muted-foreground mb-1">API Key</p>
+                        <p className="font-mono text-xs">{provider.apiKey}</p>
+                      </div>
+                      <div className="rounded-md bg-muted/50 p-3">
+                        <p className="text-xs text-muted-foreground mb-1">Firmware</p>
+                        <p className="font-mono text-xs">{provider.firmware}</p>
+                      </div>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Total Locks</p>
-                      <p className="font-semibold text-lg">{provider.lockCount}</p>
+                    <div className="flex items-center gap-2 mt-4 pt-4 border-t">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">
+                        Last synced: {formatDateTime(provider.lastSync)}
+                      </span>
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Online</p>
-                      <p className="font-semibold text-lg text-emerald-600 dark:text-emerald-400">{provider.onlineCount}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Uptime</p>
-                      <p className="font-semibold text-lg">{uptime}%</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Protocol</p>
-                      <p className="font-semibold text-sm">{provider.protocol}</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                    <div className="rounded-md bg-muted/50 p-3">
-                      <p className="text-xs text-muted-foreground mb-1">API Endpoint</p>
-                      <p className="font-mono text-xs truncate">{provider.apiEndpoint}</p>
-                    </div>
-                    <div className="rounded-md bg-muted/50 p-3">
-                      <p className="text-xs text-muted-foreground mb-1">API Key</p>
-                      <p className="font-mono text-xs">{provider.apiKey}</p>
-                    </div>
-                    <div className="rounded-md bg-muted/50 p-3">
-                      <p className="text-xs text-muted-foreground mb-1">Firmware</p>
-                      <p className="font-mono text-xs">{provider.firmware}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 mt-4 pt-4 border-t">
-                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">
-                      Last synced: {formatDateTime(provider.lastSync)}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
         </TabsContent>
 
         {/* ─── Tab: Lock Status ─── */}
@@ -678,78 +912,90 @@ export function SmartLocks() {
                   <CardTitle className="text-base">Room-by-Room Lock Status</CardTitle>
                   <CardDescription>Real-time status of all door locks in the property</CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs">
-                    {roomLocks.filter(l => l.status === 'online').length} online
-                  </Badge>
-                  <Badge variant="outline" className="text-xs text-red-500">
-                    {roomLocks.filter(l => l.status === 'offline').length} offline
-                  </Badge>
-                  <Badge variant="outline" className="text-xs text-amber-500">
-                    {roomLocks.filter(l => l.status === 'low_battery').length} low battery
-                  </Badge>
-                </div>
+                {!loading && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {roomLocks.filter(l => l.status === 'online').length} online
+                    </Badge>
+                    <Badge variant="outline" className="text-xs text-red-500">
+                      {roomLocks.filter(l => l.status === 'offline').length} offline
+                    </Badge>
+                    <Badge variant="outline" className="text-xs text-amber-500">
+                      {roomLocks.filter(l => l.status === 'low_battery').length} low battery
+                    </Badge>
+                  </div>
+                )}
               </div>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="max-h-[480px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Room</TableHead>
-                      <TableHead className="hidden sm:table-cell">Floor</TableHead>
-                      <TableHead>Lock Type</TableHead>
-                      <TableHead>Provider</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Battery</TableHead>
-                      <TableHead className="hidden md:table-cell">Signal</TableHead>
-                      <TableHead className="hidden lg:table-cell">Last Activity</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {roomLocks.map((lock) => (
-                      <TableRow key={lock.id}>
-                        <TableCell className="font-semibold">{lock.roomNumber}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-muted-foreground">
-                          Floor {lock.floor}
-                        </TableCell>
-                        <TableCell className="text-sm">{lock.lockType}</TableCell>
-                        <TableCell>{providerBadge(lock.provider)}</TableCell>
-                        <TableCell>{lockStatusBadge(lock.status)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {batteryIcon(lock.batteryLevel)}
-                            <div className="w-16">
-                              <Progress
-                                value={lock.batteryLevel}
-                                className={`h-2 ${
-                                  lock.batteryLevel > 60 ? '[&>div]:bg-emerald-500' :
-                                  lock.batteryLevel > 25 ? '[&>div]:bg-amber-500' :
-                                  '[&>div]:bg-red-500'
-                                }`}
-                              />
-                            </div>
-                            <span className="text-xs text-muted-foreground w-8">{lock.batteryLevel}%</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <div className="flex items-center gap-1.5">
-                            <div className={`w-2 h-2 rounded-full ${
-                              lock.signalStrength > 80 ? 'bg-emerald-500' :
-                              lock.signalStrength > 50 ? 'bg-amber-500' :
-                              lock.signalStrength > 0 ? 'bg-red-500' : 'bg-gray-300'
-                            }`} />
-                            <span className="text-xs text-muted-foreground">{lock.signalStrength}%</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                          {formatDateTime(lock.lastActivity)}
-                        </TableCell>
+              {loading ? (
+                <TableSkeleton cols={8} rows={6} />
+              ) : roomLocks.length === 0 ? (
+                <div className="py-12 text-center">
+                  <MapPin className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                  <p className="font-medium text-muted-foreground">No locks found</p>
+                  <p className="text-sm text-muted-foreground mt-1">Locks will appear here once they are added to the system</p>
+                </div>
+              ) : (
+                <ScrollArea className="max-h-[480px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Room</TableHead>
+                        <TableHead className="hidden sm:table-cell">Floor</TableHead>
+                        <TableHead>Lock Type</TableHead>
+                        <TableHead>Provider</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Battery</TableHead>
+                        <TableHead className="hidden md:table-cell">Signal</TableHead>
+                        <TableHead className="hidden lg:table-cell">Last Activity</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
+                    </TableHeader>
+                    <TableBody>
+                      {roomLocks.map((lock) => (
+                        <TableRow key={lock.id}>
+                          <TableCell className="font-semibold">{lock.roomNumber}</TableCell>
+                          <TableCell className="hidden sm:table-cell text-muted-foreground">
+                            {lock.floor > 0 ? `Floor ${lock.floor}` : '—'}
+                          </TableCell>
+                          <TableCell className="text-sm">{lock.lockType}</TableCell>
+                          <TableCell>{providerBadge(lock.provider)}</TableCell>
+                          <TableCell>{lockStatusBadge(lock.status)}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {batteryIcon(lock.batteryLevel)}
+                              <div className="w-16">
+                                <Progress
+                                  value={lock.batteryLevel}
+                                  className={`h-2 ${
+                                    lock.batteryLevel > 60 ? '[&>div]:bg-emerald-500' :
+                                    lock.batteryLevel > 25 ? '[&>div]:bg-amber-500' :
+                                    '[&>div]:bg-red-500'
+                                  }`}
+                                />
+                              </div>
+                              <span className="text-xs text-muted-foreground w-8">{lock.batteryLevel}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            <div className="flex items-center gap-1.5">
+                              <div className={`w-2 h-2 rounded-full ${
+                                lock.signalStrength > 80 ? 'bg-emerald-500' :
+                                lock.signalStrength > 50 ? 'bg-amber-500' :
+                                lock.signalStrength > 0 ? 'bg-red-500' : 'bg-gray-300'
+                              }`} />
+                              <span className="text-xs text-muted-foreground">{lock.signalStrength}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
+                            {formatDateTime(lock.lastActivity)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -763,77 +1009,89 @@ export function SmartLocks() {
                   <CardTitle className="text-base">Door Access Events</CardTitle>
                   <CardDescription>Recent door access activity across all locks</CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs">
-                    {accessLogs.filter(l => l.status === 'granted').length} granted
-                  </Badge>
-                  <Badge variant="outline" className="text-xs text-red-500">
-                    {accessLogs.filter(l => l.status === 'denied').length} denied
-                  </Badge>
-                </div>
+                {!loading && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {accessLogs.filter(l => l.status === 'granted').length} granted
+                    </Badge>
+                    <Badge variant="outline" className="text-xs text-red-500">
+                      {accessLogs.filter(l => l.status === 'denied').length} denied
+                    </Badge>
+                  </div>
+                )}
               </div>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="max-h-[480px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Guest</TableHead>
-                      <TableHead>Room</TableHead>
-                      <TableHead>Method</TableHead>
-                      <TableHead className="hidden sm:table-cell">Direction</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="hidden md:table-cell">Reason</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {accessLogs.map((log) => (
-                      <TableRow key={log.id} className={log.status === 'denied' ? 'bg-red-50/50 dark:bg-red-950/20' : ''}>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {formatDateTime(log.timestamp)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            <User className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-sm font-medium">{log.guestName}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-semibold">{log.roomNumber}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            {accessMethodIcon(log.method)}
-                            <span className="text-sm">{accessMethodLabel(log.method)}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          <Badge variant="outline" className="text-xs">
-                            {log.direction === 'entry' ? (
-                              <><Unlock className="h-3 w-3 mr-1" /> Entry</>
-                            ) : (
-                              <><Lock className="h-3 w-3 mr-1" /> Exit</>
-                            )}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {log.status === 'granted' ? (
-                            <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 gap-1">
-                              <CheckCircle2 className="h-3 w-3" /> Granted
-                            </Badge>
-                          ) : (
-                            <Badge variant="destructive" className="gap-1">
-                              <XCircle className="h-3 w-3" /> Denied
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                          {log.reason || '—'}
-                        </TableCell>
+              {loading ? (
+                <TableSkeleton cols={7} rows={8} />
+              ) : accessLogs.length === 0 ? (
+                <div className="py-12 text-center">
+                  <Activity className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                  <p className="font-medium text-muted-foreground">No access logs found</p>
+                  <p className="text-sm text-muted-foreground mt-1">Access events will appear here as guests use the locks</p>
+                </div>
+              ) : (
+                <ScrollArea className="max-h-[480px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Time</TableHead>
+                        <TableHead>Guest</TableHead>
+                        <TableHead>Room</TableHead>
+                        <TableHead>Method</TableHead>
+                        <TableHead className="hidden sm:table-cell">Direction</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="hidden md:table-cell">Reason</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
+                    </TableHeader>
+                    <TableBody>
+                      {accessLogs.map((log) => (
+                        <TableRow key={log.id} className={log.status === 'denied' ? 'bg-red-50/50 dark:bg-red-950/20' : ''}>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {formatDateTime(log.timestamp)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              <User className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-sm font-medium">{log.guestName}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-semibold">{log.roomNumber}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              {accessMethodIcon(log.method)}
+                              <span className="text-sm">{accessMethodLabel(log.method)}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            <Badge variant="outline" className="text-xs">
+                              {log.direction === 'entry' ? (
+                                <><Unlock className="h-3 w-3 mr-1" /> Entry</>
+                              ) : (
+                                <><Lock className="h-3 w-3 mr-1" /> Exit</>
+                              )}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {log.status === 'granted' ? (
+                              <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 gap-1">
+                                <CheckCircle2 className="h-3 w-3" /> Granted
+                              </Badge>
+                            ) : (
+                              <Badge variant="destructive" className="gap-1">
+                                <XCircle className="h-3 w-3" /> Denied
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                            {log.reason || '—'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -854,57 +1112,69 @@ export function SmartLocks() {
               </div>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="max-h-[480px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Card Number</TableHead>
-                      <TableHead>Guest</TableHead>
-                      <TableHead>Room</TableHead>
-                      <TableHead>Provider</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="hidden sm:table-cell">Accesses</TableHead>
-                      <TableHead className="hidden md:table-cell">Expires</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {keyCards.map((card) => (
-                      <TableRow key={card.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="font-mono text-sm">{card.cardNumber}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">{card.guestName}</TableCell>
-                        <TableCell className="font-semibold">{card.roomNumber}</TableCell>
-                        <TableCell>{providerBadge(card.provider)}</TableCell>
-                        <TableCell>{keyCardStatusBadge(card.status)}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-muted-foreground">
-                          {card.accessCount}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                          {formatDateTime(card.expiresAt)}
-                        </TableCell>
-                        <TableCell>
-                          {card.status === 'active' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 h-7 px-2"
-                              onClick={() => setCancelCardId(card.id)}
-                            >
-                              <XCircle className="h-3.5 w-3.5 mr-1" />
-                              Cancel
-                            </Button>
-                          )}
-                        </TableCell>
+              {loading ? (
+                <TableSkeleton cols={8} rows={5} />
+              ) : keyCards.length === 0 ? (
+                <div className="py-12 text-center">
+                  <CreditCard className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                  <p className="font-medium text-muted-foreground">No key cards found</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Encode a new key card using the button above to get started
+                  </p>
+                </div>
+              ) : (
+                <ScrollArea className="max-h-[480px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Card Number</TableHead>
+                        <TableHead>Guest</TableHead>
+                        <TableHead>Room</TableHead>
+                        <TableHead>Provider</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="hidden sm:table-cell">Accesses</TableHead>
+                        <TableHead className="hidden md:table-cell">Expires</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
+                    </TableHeader>
+                    <TableBody>
+                      {keyCards.map((card) => (
+                        <TableRow key={card.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="font-mono text-sm">{card.cardNumber}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">{card.guestName}</TableCell>
+                          <TableCell className="font-semibold">{card.roomNumber}</TableCell>
+                          <TableCell>{providerBadge(card.provider)}</TableCell>
+                          <TableCell>{keyCardStatusBadge(card.status)}</TableCell>
+                          <TableCell className="hidden sm:table-cell text-muted-foreground">
+                            {card.accessCount}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                            {formatDateTime(card.expiresAt)}
+                          </TableCell>
+                          <TableCell>
+                            {card.status === 'active' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 h-7 px-2"
+                                onClick={() => setCancelCardId(card.id)}
+                              >
+                                <XCircle className="h-3.5 w-3.5 mr-1" />
+                                Cancel
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

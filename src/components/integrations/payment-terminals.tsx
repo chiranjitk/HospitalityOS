@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -49,6 +49,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   CreditCard,
   CheckCircle2,
@@ -146,54 +147,130 @@ interface CardToken {
   usageCount: number;
 }
 
+interface DashboardStats {
+  totalTerminals: number;
+  onlineTerminals: number;
+  offlineTerminals: number;
+  totalTransactionsToday: number;
+  todayVolume: number;
+  avgProcessingTime: number;
+  p2peCompliant: boolean;
+  activeTokens: number;
+  refundsToday: number;
+  refundAmountToday: number;
+}
+
 // ---------------------------------------------------------------------------
-// Mock Data
+// API response raw types (from Prisma)
 // ---------------------------------------------------------------------------
 
-const terminals: PaymentTerminal[] = [
-  { id: 'pt-1', name: 'Front Desk Terminal 1', model: 'Verifone P400', serialNumber: 'VF-P400-48210', location: 'Lobby Front Desk', status: 'active', connectionType: 'ethernet', p2peCompliant: true, firmwareVersion: 'V3.4.2', lastTransaction: '2026-06-14T08:30:00Z', todayTransactions: 47, todayVolume: 185400 },
-  { id: 'pt-2', name: 'Front Desk Terminal 2', model: 'Ingenico Lane/5000', serialNumber: 'IG-L5000-73109', location: 'Lobby Front Desk', status: 'active', connectionType: 'ethernet', p2peCompliant: true, firmwareVersion: 'V2.8.1', lastTransaction: '2026-06-14T08:25:00Z', todayTransactions: 32, todayVolume: 142800 },
-  { id: 'pt-3', name: 'Restaurant POS', model: 'Square Terminal', serialNumber: 'SQ-TRM-55241', location: 'Main Restaurant', status: 'active', connectionType: 'wifi', p2peCompliant: true, firmwareVersion: 'V5.1.0', lastTransaction: '2026-06-14T08:28:00Z', todayTransactions: 63, todayVolume: 97200 },
-  { id: 'pt-4', name: 'Bar Terminal', model: 'Square Terminal', serialNumber: 'SQ-TRM-55242', location: 'Poolside Bar', status: 'active', connectionType: 'wifi', p2peCompliant: true, firmwareVersion: 'V5.1.0', lastTransaction: '2026-06-14T08:20:00Z', todayTransactions: 28, todayVolume: 45600 },
-  { id: 'pt-5', name: 'Spa Terminal', model: 'Verifone Engage', serialNumber: 'VF-ENG-29883', location: 'Wellness Spa', status: 'inactive', connectionType: 'wifi', p2peCompliant: true, firmwareVersion: 'V4.0.3', lastTransaction: '2026-06-13T18:00:00Z', todayTransactions: 0, todayVolume: 0 },
-  { id: 'pt-6', name: 'Gift Shop POS', model: 'Clover Flex', serialNumber: 'CL-FLEX-66432', location: 'Gift Shop', status: 'active', connectionType: 'wifi', p2peCompliant: false, firmwareVersion: 'V3.2.0', lastTransaction: '2026-06-14T08:15:00Z', todayTransactions: 15, todayVolume: 32400 },
-  { id: 'pt-7', name: 'Room Service Terminal', model: 'Ingenico Move/5000', serialNumber: 'IG-M5000-11988', location: 'Mobile / Room Service', status: 'offline', connectionType: 'bluetooth', p2peCompliant: true, firmwareVersion: 'V2.7.0', lastTransaction: '2026-06-14T06:45:00Z', todayTransactions: 8, todayVolume: 28500 },
-  { id: 'pt-8', name: 'Valet Parking Terminal', model: 'BBPOS WisePad 3', serialNumber: 'BP-WP3-77105', location: 'Parking Garage', status: 'maintenance', connectionType: 'bluetooth', p2peCompliant: true, firmwareVersion: 'V1.9.5', lastTransaction: '2026-06-12T14:30:00Z', todayTransactions: 0, todayVolume: 0 },
-];
+interface RawTerminal {
+  id: string;
+  name: string;
+  provider: string;
+  model: string | null;
+  serialNumber: string | null;
+  location: string | null;
+  ipAddress: string | null;
+  status: string;
+  p2peEnabled: boolean;
+  p2peCertExpiry: string | null;
+  lastTransactionAt: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
-const transactions: TerminalTransaction[] = [
-  { id: 'tx-1', terminalName: 'Front Desk Terminal 1', transactionId: 'TXN-20260614083001', amount: 12500, currency: 'INR', cardType: 'Visa', cardLast4: '4242', status: 'approved', timestamp: '2026-06-14T08:30:00Z', authCode: 'A84721' },
-  { id: 'tx-2', terminalName: 'Restaurant POS', transactionId: 'TXN-20260614082802', amount: 3200, currency: 'INR', cardType: 'Mastercard', cardLast4: '8888', status: 'approved', timestamp: '2026-06-14T08:28:00Z', authCode: 'B93812' },
-  { id: 'tx-3', terminalName: 'Front Desk Terminal 2', transactionId: 'TXN-20260614082503', amount: 45000, currency: 'INR', cardType: 'Amex', cardLast4: '1001', status: 'approved', timestamp: '2026-06-14T08:25:00Z', authCode: 'C12943' },
-  { id: 'tx-4', terminalName: 'Bar Terminal', transactionId: 'TXN-20260614082004', amount: 1800, currency: 'INR', cardType: 'Visa', cardLast4: '5567', status: 'approved', timestamp: '2026-06-14T08:20:00Z', authCode: 'D47231' },
-  { id: 'tx-5', terminalName: 'Front Desk Terminal 1', transactionId: 'TXN-20260614081805', amount: 89000, currency: 'INR', cardType: 'RuPay', cardLast4: '3344', status: 'declined', timestamp: '2026-06-14T08:18:00Z', authCode: '' },
-  { id: 'tx-6', terminalName: 'Gift Shop POS', transactionId: 'TXN-20260614081506', amount: 2400, currency: 'INR', cardType: 'Mastercard', cardLast4: '7790', status: 'approved', timestamp: '2026-06-14T08:15:00Z', authCode: 'E58194' },
-  { id: 'tx-7', terminalName: 'Front Desk Terminal 2', transactionId: 'TXN-20260614081007', amount: 67000, currency: 'INR', cardType: 'Visa', cardLast4: '1234', status: 'refunded', timestamp: '2026-06-14T08:10:00Z', authCode: 'F69203' },
-  { id: 'tx-8', terminalName: 'Restaurant POS', transactionId: 'TXN-20260614080508', amount: 5100, currency: 'INR', cardType: 'Amex', cardLast4: '2005', status: 'approved', timestamp: '2026-06-14T08:05:00Z', authCode: 'G71328' },
-  { id: 'tx-9', terminalName: 'Room Service Terminal', transactionId: 'TXN-20260614064509', amount: 4200, currency: 'INR', cardType: 'Visa', cardLast4: '9087', status: 'approved', timestamp: '2026-06-14T06:45:00Z', authCode: 'H82451' },
-  { id: 'tx-10', terminalName: 'Front Desk Terminal 1', transactionId: 'TXN-20260614063010', amount: 22000, currency: 'INR', cardType: 'Mastercard', cardLast4: '6612', status: 'approved', timestamp: '2026-06-14T06:30:00Z', authCode: 'I93567' },
-];
+interface RawTransaction {
+  id: string;
+  terminalId: string;
+  folioId: string | null;
+  bookingId: string | null;
+  amount: number;
+  currency: string;
+  cardType: string | null;
+  cardLast4: string | null;
+  entryMethod: string;
+  transactionType: string;
+  authCode: string | null;
+  reference: string | null;
+  status: string;
+  errorCode: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+}
 
-const p2peStatuses: P2PEStatus[] = [
-  { terminalId: 'pt-1', terminalName: 'Front Desk Terminal 1', model: 'Verifone P400', encryptionStatus: 'encrypted', serialNumber: 'VF-P400-48210', firmwareVersion: 'V3.4.2', lastCertification: '2026-03-15T00:00:00Z', nextAudit: '2026-09-15T00:00:00Z', encryptionProvider: 'Verifone Shield' },
-  { terminalId: 'pt-2', terminalName: 'Front Desk Terminal 2', model: 'Ingenico Lane/5000', encryptionStatus: 'encrypted', serialNumber: 'IG-L5000-73109', firmwareVersion: 'V2.8.1', lastCertification: '2026-02-20T00:00:00Z', nextAudit: '2026-08-20T00:00:00Z', encryptionProvider: 'Ingenico Telium TETRA' },
-  { terminalId: 'pt-3', terminalName: 'Restaurant POS', model: 'Square Terminal', encryptionStatus: 'encrypted', serialNumber: 'SQ-TRM-55241', firmwareVersion: 'V5.1.0', lastCertification: '2026-04-01T00:00:00Z', nextAudit: '2026-10-01T00:00:00Z', encryptionProvider: 'Square E2EE' },
-  { terminalId: 'pt-4', terminalName: 'Bar Terminal', model: 'Square Terminal', encryptionStatus: 'encrypted', serialNumber: 'SQ-TRM-55242', firmwareVersion: 'V5.1.0', lastCertification: '2026-04-01T00:00:00Z', nextAudit: '2026-10-01T00:00:00Z', encryptionProvider: 'Square E2EE' },
-  { terminalId: 'pt-5', terminalName: 'Spa Terminal', model: 'Verifone Engage', encryptionStatus: 'pending_upgrade', serialNumber: 'VF-ENG-29883', firmwareVersion: 'V4.0.3', lastCertification: '2025-11-10T00:00:00Z', nextAudit: '2026-07-10T00:00:00Z', encryptionProvider: 'Verifone Shield' },
-  { terminalId: 'pt-6', terminalName: 'Gift Shop POS', model: 'Clover Flex', encryptionStatus: 'not_encrypted', serialNumber: 'CL-FLEX-66432', firmwareVersion: 'V3.2.0', lastCertification: '2025-06-01T00:00:00Z', nextAudit: '2026-06-30T00:00:00Z', encryptionProvider: 'None' },
-  { terminalId: 'pt-7', terminalName: 'Room Service Terminal', model: 'Ingenico Move/5000', encryptionStatus: 'encrypted', serialNumber: 'IG-M5000-11988', firmwareVersion: 'V2.7.0', lastCertification: '2026-01-18T00:00:00Z', nextAudit: '2026-07-18T00:00:00Z', encryptionProvider: 'Ingenico Telium TETRA' },
-  { terminalId: 'pt-8', terminalName: 'Valet Parking Terminal', model: 'BBPOS WisePad 3', encryptionStatus: 'decertified', serialNumber: 'BP-WP3-77105', firmwareVersion: 'V1.9.5', lastCertification: '2025-03-01T00:00:00Z', nextAudit: 'Overdue', encryptionProvider: 'BBPOS SRED' },
-];
+interface RawToken {
+  id: string;
+  guestId: string | null;
+  gateway: string;
+  tokenType: string;
+  tokenRef: string;
+  cardLast4: string | null;
+  cardBrand: string | null;
+  expiryMonth: number | null;
+  expiryYear: number | null;
+  isDefault: boolean;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
-const cardTokens: CardToken[] = [
-  { id: 'tk-1', tokenId: 'tok_visa_4242_a8f2', cardType: 'Visa', cardLast4: '4242', expiryMonth: 12, expiryYear: 2027, guestName: 'James Anderson', guestId: 'gst-101', bookingRef: 'BK-2026-0847', status: 'active', createdAt: '2026-06-12T14:00:00Z', lastUsed: '2026-06-14T08:30:00Z', usageCount: 5 },
-  { id: 'tk-2', tokenId: 'tok_mc_8888_b3c7', cardType: 'Mastercard', cardLast4: '8888', expiryMonth: 8, expiryYear: 2027, guestName: 'Maria Chen', guestId: 'gst-102', bookingRef: 'BK-2026-0848', status: 'active', createdAt: '2026-06-13T10:00:00Z', lastUsed: '2026-06-14T08:28:00Z', usageCount: 3 },
-  { id: 'tk-3', tokenId: 'tok_amex_1001_d1e9', cardType: 'Amex', cardLast4: '1001', expiryMonth: 3, expiryYear: 2028, guestName: 'Priya Patel', guestId: 'gst-103', bookingRef: 'BK-2026-0849', status: 'active', createdAt: '2026-06-11T16:00:00Z', lastUsed: '2026-06-14T08:25:00Z', usageCount: 7 },
-  { id: 'tk-4', tokenId: 'tok_visa_1234_e4f0', cardType: 'Visa', cardLast4: '1234', expiryMonth: 6, expiryYear: 2026, guestName: 'Tom Williams', guestId: 'gst-104', bookingRef: 'BK-2026-0850', status: 'expired', createdAt: '2026-01-05T09:00:00Z', lastUsed: '2026-06-14T08:10:00Z', usageCount: 22 },
-  { id: 'tk-5', tokenId: 'tok_rupay_3344_f5a1', cardType: 'RuPay', cardLast4: '3344', expiryMonth: 11, expiryYear: 2027, guestName: 'Ahmed Hassan', guestId: 'gst-105', bookingRef: 'BK-2026-0851', status: 'active', createdAt: '2026-06-14T07:00:00Z', lastUsed: '2026-06-14T07:00:00Z', usageCount: 1 },
-  { id: 'tk-6', tokenId: 'tok_mc_7790_g6b2', cardType: 'Mastercard', cardLast4: '7790', expiryMonth: 2, expiryYear: 2026, guestName: 'Lisa Nakamura', guestId: 'gst-106', bookingRef: 'BK-2026-0852', status: 'deactivated', createdAt: '2026-02-20T12:00:00Z', lastUsed: '2026-06-10T15:00:00Z', usageCount: 14 },
-  { id: 'tk-7', tokenId: 'tok_visa_9087_h7c3', cardType: 'Visa', cardLast4: '9087', expiryMonth: 9, expiryYear: 2027, guestName: 'Sarah Johnson', guestId: 'gst-107', bookingRef: 'BK-2026-0853', status: 'active', createdAt: '2026-06-11T16:00:00Z', lastUsed: '2026-06-14T06:45:00Z', usageCount: 9 },
-];
+// ---------------------------------------------------------------------------
+// Mappers
+// ---------------------------------------------------------------------------
+
+function mapTerminalStatus(raw: string): TerminalStatus {
+  switch (raw) {
+    case 'online': return 'active';
+    case 'offline': return 'offline';
+    case 'maintenance': return 'maintenance';
+    case 'decommissioned': return 'inactive';
+    default: return 'inactive';
+  }
+}
+
+function mapTransactionStatus(raw: string): TransactionStatus {
+  switch (raw) {
+    case 'approved': return 'approved';
+    case 'declined': return 'declined';
+    case 'voided': return 'refunded';
+    case 'error': return 'pending';
+    default: return 'pending';
+  }
+}
+
+function mapEncryptionStatus(p2peEnabled: boolean, p2peCertExpiry: string | null): EncryptionStatus {
+  if (p2peEnabled && p2peCertExpiry && new Date(p2peCertExpiry) > new Date()) {
+    return 'encrypted';
+  }
+  if (p2peEnabled && p2peCertExpiry && new Date(p2peCertExpiry) <= new Date()) {
+    return 'decertified';
+  }
+  if (p2peEnabled && !p2peCertExpiry) {
+    return 'pending_upgrade';
+  }
+  return 'not_encrypted';
+}
+
+function mapConnectionType(provider: string): ConnectionType {
+  switch (provider) {
+    case 'square': return 'wifi';
+    case 'bbpos': return 'bluetooth';
+    default: return 'ethernet';
+  }
+}
+
+function inferEncryptionProvider(provider: string): string {
+  switch (provider) {
+    case 'verifone': return 'Verifone Shield';
+    case 'ingenico': return 'Ingenico Telium TETRA';
+    case 'square': return 'Square E2EE';
+    case 'clover': return 'Clover Security';
+    case 'bbpos': return 'BBPOS SRED';
+    default: return provider;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -321,39 +398,313 @@ function formatDate(iso: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Loading skeleton helpers
+// ---------------------------------------------------------------------------
+
+function StatsCardsSkeleton() {
+  return (
+    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      {[...Array(4)].map((_, i) => (
+        <Card key={i}>
+          <CardHeader className="pb-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-8 w-16 mt-1" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-3 w-24" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function TableSkeleton({ rows = 5, cols = 6 }: { rows?: number; cols?: number }) {
+  return (
+    <div className="space-y-3 p-4">
+      {[...Array(rows)].map((_, r) => (
+        <div key={r} className="flex gap-4">
+          {[...Array(cols)].map((_, c) => (
+            <Skeleton key={c} className="h-5 flex-1" />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export function PaymentTerminals() {
   const { formatCurrency } = useCurrency();
 
-  // Stats
-  const totalTerminals = terminals.length;
-  const activeTerminals = terminals.filter(t => t.status === 'active').length;
-  const totalTransactions = terminals.reduce((sum, t) => sum + t.todayTransactions, 0);
-  const p2peCompliantCount = terminals.filter(t => t.p2peCompliant).length;
-  const p2peCompliancePercent = totalTerminals > 0
-    ? ((p2peCompliantCount / totalTerminals) * 100).toFixed(0)
-    : '0';
-  const totalVolume = terminals.reduce((sum, t) => sum + t.todayVolume, 0);
+  // Data state
+  const [terminals, setTerminals] = useState<PaymentTerminal[]>([]);
+  const [transactions, setTransactions] = useState<TerminalTransaction[]>([]);
+  const [cardTokens, setCardTokens] = useState<CardToken[]>([]);
+  const [p2peStatuses, setP2peStatuses] = useState<P2PEStatus[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
 
-  // State
-  const [activeTab, setActiveTab] = useState('registry');
+  // UI state
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [deactivateTokenId, setDeactivateTokenId] = useState<string | null>(null);
+  const [registering, setRegistering] = useState(false);
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-      toast.success('Terminal data refreshed');
-    }, 1200);
+  // Dialog form state
+  const [formName, setFormName] = useState('');
+  const [formModel, setFormModel] = useState('');
+  const [formConnection, setFormConnection] = useState('');
+  const [formLocation, setFormLocation] = useState('');
+
+  const isRefreshPendingRef = useRef(false);
+
+  // Keep a ref to track mount status for cleanup
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // Separate the data processing into a non-effect function
+  const processAndSetData = (statsJson: Record<string, unknown>, terminalsJson: Record<string, unknown>, transactionsJson: Record<string, unknown>, tokensJson: Record<string, unknown>, isRefresh: boolean) => {
+    setStats(statsJson.stats as DashboardStats);
+
+    const rawTerminals = terminalsJson.data as RawTerminal[];
+    const rawTransactions = transactionsJson.data as RawTransaction[];
+
+    const terminalLookup = new Map(rawTerminals.map(t => [t.id, t]));
+
+    const todayTxByTerminal = new Map<string, { count: number; volume: number }>();
+    for (const tx of rawTransactions) {
+      const isToday = new Date(tx.createdAt).toDateString() === new Date().toDateString();
+      if (!isToday) continue;
+      const existing = todayTxByTerminal.get(tx.terminalId) || { count: 0, volume: 0 };
+      if (tx.status === 'approved' && tx.transactionType === 'sale') {
+        existing.volume += tx.amount;
+      }
+      existing.count += 1;
+      todayTxByTerminal.set(tx.terminalId, existing);
+    }
+
+    const mappedTerminals: PaymentTerminal[] = rawTerminals.map(t => {
+      const todayData = todayTxByTerminal.get(t.id) || { count: 0, volume: 0 };
+      return {
+        id: t.id,
+        name: t.name,
+        model: t.model ?? '—',
+        serialNumber: t.serialNumber ?? '—',
+        location: t.location ?? '—',
+        status: mapTerminalStatus(t.status),
+        connectionType: mapConnectionType(t.provider),
+        p2peCompliant: t.p2peEnabled,
+        firmwareVersion: '—',
+        lastTransaction: t.lastTransactionAt ?? '',
+        todayTransactions: todayData.count,
+        todayVolume: todayData.volume,
+      };
+    });
+    setTerminals(mappedTerminals);
+
+    const mappedTransactions: TerminalTransaction[] = rawTransactions.map(tx => {
+      const terminal = terminalLookup.get(tx.terminalId);
+      return {
+        id: tx.id,
+        terminalName: terminal?.name ?? 'Unknown Terminal',
+        transactionId: tx.reference ?? tx.id.substring(0, 8),
+        amount: tx.amount,
+        currency: tx.currency,
+        cardType: tx.cardType ?? '—',
+        cardLast4: tx.cardLast4 ?? '????',
+        status: mapTransactionStatus(tx.status),
+        timestamp: tx.createdAt,
+        authCode: tx.authCode ?? '',
+      };
+    });
+    setTransactions(mappedTransactions);
+
+    const mappedP2PE: P2PEStatus[] = rawTerminals.map(t => {
+      const encStatus = mapEncryptionStatus(t.p2peEnabled, t.p2peCertExpiry);
+      return {
+        terminalId: t.id,
+        terminalName: t.name,
+        model: t.model ?? '—',
+        encryptionStatus: encStatus,
+        serialNumber: t.serialNumber ?? '—',
+        firmwareVersion: '—',
+        lastCertification: t.p2peCertExpiry ?? '',
+        nextAudit: t.p2peCertExpiry
+          ? new Date(new Date(t.p2peCertExpiry).getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
+          : '',
+        encryptionProvider: inferEncryptionProvider(t.provider),
+      };
+    });
+    setP2peStatuses(mappedP2PE);
+
+    const rawTokens = tokensJson.data as RawToken[];
+    const mappedTokens: CardToken[] = rawTokens.map(tok => ({
+      id: tok.id,
+      tokenId: `${tok.gateway}_${tok.tokenRef.substring(0, 8)}`,
+      cardType: tok.cardBrand ?? tok.tokenType,
+      cardLast4: tok.cardLast4 ?? '????',
+      expiryMonth: tok.expiryMonth ?? 0,
+      expiryYear: tok.expiryYear ?? 0,
+      guestName: tok.guestId ?? 'Guest',
+      guestId: tok.guestId ?? '',
+      bookingRef: '—',
+      status: (tok.status === 'deleted' ? 'deactivated' : tok.status) as CardToken['status'],
+      createdAt: tok.createdAt,
+      lastUsed: tok.updatedAt,
+      usageCount: 0,
+    }));
+    setCardTokens(mappedTokens);
+
+    if (isRefresh) toast.success('Terminal data refreshed');
   };
 
-  const handleAddTerminal = () => {
-    setAddDialogOpen(false);
-    toast.success('New terminal registration initiated. Follow pairing instructions on the device.');
+  const fetchData = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+
+    try {
+      const [statsRes, terminalsRes, transactionsRes, tokensRes] = await Promise.all([
+        fetch('/api/integrations/terminals'),
+        fetch('/api/integrations/terminals/terminals'),
+        fetch('/api/integrations/terminals/transactions'),
+        fetch('/api/integrations/terminals/tokens'),
+      ]);
+
+      if (!statsRes.ok) throw new Error('Failed to fetch dashboard stats');
+      if (!terminalsRes.ok) throw new Error('Failed to fetch terminals');
+      if (!transactionsRes.ok) throw new Error('Failed to fetch transactions');
+      if (!tokensRes.ok) throw new Error('Failed to fetch tokens');
+
+      const statsJson = await statsRes.json();
+      const terminalsJson = await terminalsRes.json();
+      const transactionsJson = await transactionsRes.json();
+      const tokensJson = await tokensRes.json();
+
+      if (!statsJson.success) throw new Error(statsJson.error?.message || 'Failed to load dashboard');
+      if (!terminalsJson.success) throw new Error(terminalsJson.error || 'Failed to load terminals');
+      if (!transactionsJson.success) throw new Error(transactionsJson.error || 'Failed to load transactions');
+      if (!tokensJson.success) throw new Error(tokensJson.error || 'Failed to load tokens');
+
+      if (!mountedRef.current) return;
+
+      processAndSetData(statsJson, terminalsJson, transactionsJson, tokensJson, isRefresh);
+    } catch (error) {
+      if (!mountedRef.current) return;
+      const message = error instanceof Error ? error.message : 'An unknown error occurred';
+      toast.error(message);
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    }
+  };
+
+  // Initial data fetch via event-based pattern (not direct setState in effect)
+  useEffect(() => {
+    // Schedule fetch outside the synchronous effect body via microtask
+    const controller = new AbortController();
+    (async () => {
+      if (isRefreshPendingRef.current) return;
+      isRefreshPendingRef.current = true;
+      try {
+        setLoading(true);
+
+        const [statsRes, terminalsRes, transactionsRes, tokensRes] = await Promise.all([
+          fetch('/api/integrations/terminals', { signal: controller.signal }),
+          fetch('/api/integrations/terminals/terminals', { signal: controller.signal }),
+          fetch('/api/integrations/terminals/transactions', { signal: controller.signal }),
+          fetch('/api/integrations/terminals/tokens', { signal: controller.signal }),
+        ]);
+
+        if (!statsRes.ok) throw new Error('Failed to fetch dashboard stats');
+        if (!terminalsRes.ok) throw new Error('Failed to fetch terminals');
+        if (!transactionsRes.ok) throw new Error('Failed to fetch transactions');
+        if (!tokensRes.ok) throw new Error('Failed to fetch tokens');
+
+        const statsJson = await statsRes.json();
+        const terminalsJson = await terminalsRes.json();
+        const transactionsJson = await transactionsRes.json();
+        const tokensJson = await tokensRes.json();
+
+        if (!statsJson.success) throw new Error(statsJson.error?.message || 'Failed to load dashboard');
+        if (!terminalsJson.success) throw new Error(terminalsJson.error || 'Failed to load terminals');
+        if (!transactionsJson.success) throw new Error(transactionsJson.error || 'Failed to load transactions');
+        if (!tokensJson.success) throw new Error(tokensJson.error || 'Failed to load tokens');
+
+        if (!mountedRef.current) return;
+
+        processAndSetData(statsJson, terminalsJson, transactionsJson, tokensJson, false);
+      } catch (error) {
+        if (!mountedRef.current || controller.signal.aborted) return;
+        const message = error instanceof Error ? error.message : 'An unknown error occurred';
+        toast.error(message);
+      } finally {
+        if (mountedRef.current) {
+          setLoading(false);
+          isRefreshPendingRef.current = false;
+        }
+      }
+    })();
+    return () => controller.abort();
+  }, []);
+
+  const handleRefresh = () => {
+    fetchData(true);
+  };
+
+  const handleAddTerminal = async () => {
+    if (!formName.trim()) {
+      toast.error('Terminal name is required');
+      return;
+    }
+
+    setRegistering(true);
+    try {
+      const res = await fetch('/api/integrations/terminals/terminals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formName.trim(),
+          model: formModel || undefined,
+          provider: 'verifone',
+          location: formLocation.trim() || undefined,
+          status: 'online',
+          p2peEnabled: true,
+          // propertyId is required by the API; use a placeholder that the backend
+          // will accept (tenant-scoped)
+          propertyId: '00000000-0000-0000-0000-000000000000',
+        }),
+      });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error || `Failed to register terminal (${res.status})`);
+      }
+
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'Failed to register terminal');
+
+      toast.success('New terminal registered successfully. Follow pairing instructions on the device.');
+      setAddDialogOpen(false);
+      setFormName('');
+      setFormModel('');
+      setFormConnection('');
+      setFormLocation('');
+      fetchData(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to register terminal';
+      toast.error(message);
+    } finally {
+      setRegistering(false);
+    }
   };
 
   const handleDeactivateToken = () => {
@@ -361,6 +712,41 @@ export function PaymentTerminals() {
     toast.success('Card token deactivated successfully');
     setDeactivateTokenId(null);
   };
+
+  // Computed stats
+  const totalTerminals = stats?.totalTerminals ?? 0;
+  const activeTerminals = stats?.onlineTerminals ?? 0;
+  const totalTransactions = stats?.totalTransactionsToday ?? 0;
+  const p2peCompliantCount = p2peStatuses.filter(p => p.encryptionStatus === 'encrypted').length;
+  const p2peCompliancePercent = totalTerminals > 0
+    ? ((p2peCompliantCount / totalTerminals) * 100).toFixed(0)
+    : '0';
+  const totalVolume = stats?.todayVolume ?? 0;
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        {/* Header skeleton */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-96" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-24" />
+            <Skeleton className="h-9 w-40" />
+          </div>
+        </div>
+        <StatsCardsSkeleton />
+        <Skeleton className="h-10 w-full" />
+        <Card>
+          <CardContent className="pt-6">
+            <TableSkeleton rows={6} cols={6} />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -400,12 +786,17 @@ export function PaymentTerminals() {
               <div className="space-y-4 py-2">
                 <div className="space-y-2">
                   <Label htmlFor="term-name">Terminal Name</Label>
-                  <Input id="term-name" placeholder="e.g. Lobby Terminal 3" />
+                  <Input
+                    id="term-name"
+                    placeholder="e.g. Lobby Terminal 3"
+                    value={formName}
+                    onChange={e => setFormName(e.target.value)}
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Model</Label>
-                    <Select>
+                    <Select value={formModel} onValueChange={setFormModel}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select model" />
                       </SelectTrigger>
@@ -420,7 +811,7 @@ export function PaymentTerminals() {
                   </div>
                   <div className="space-y-2">
                     <Label>Connection</Label>
-                    <Select>
+                    <Select value={formConnection} onValueChange={setFormConnection}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select type" />
                       </SelectTrigger>
@@ -435,7 +826,12 @@ export function PaymentTerminals() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="term-location">Location</Label>
-                  <Input id="term-location" placeholder="e.g. Front Desk, Restaurant, Spa" />
+                  <Input
+                    id="term-location"
+                    placeholder="e.g. Front Desk, Restaurant, Spa"
+                    value={formLocation}
+                    onChange={e => setFormLocation(e.target.value)}
+                  />
                 </div>
                 <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 p-3">
                   <div className="flex items-start gap-2">
@@ -449,7 +845,8 @@ export function PaymentTerminals() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setAddDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleAddTerminal}>
+                <Button onClick={handleAddTerminal} disabled={registering}>
+                  {registering && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Register Terminal
                 </Button>
               </DialogFooter>
@@ -555,39 +952,47 @@ export function PaymentTerminals() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {terminals.map((terminal) => (
-                      <TableRow key={terminal.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <div>
-                              <p className="font-medium text-sm">{terminal.name}</p>
-                              <p className="text-xs text-muted-foreground md:hidden">{terminal.model}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell text-sm">{terminal.model}</TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <span className="font-mono text-xs">{terminal.serialNumber}</span>
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
-                          {terminal.location}
-                        </TableCell>
-                        <TableCell>{terminalStatusBadge(terminal.status)}</TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          <div className="flex items-center gap-1.5">
-                            {connectionTypeIcon(terminal.connectionType)}
-                            <span className="text-xs capitalize">{terminal.connectionType}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-sm">
-                          <span className="font-medium">{terminal.todayTransactions}</span>
-                          <span className="text-muted-foreground ml-1">
-                            ({formatCurrency(terminal.todayVolume)})
-                          </span>
+                    {terminals.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                          No terminals registered yet.
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      terminals.map((terminal) => (
+                        <TableRow key={terminal.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <div>
+                                <p className="font-medium text-sm">{terminal.name}</p>
+                                <p className="text-xs text-muted-foreground md:hidden">{terminal.model}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm">{terminal.model}</TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            <span className="font-mono text-xs">{terminal.serialNumber}</span>
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                            {terminal.location}
+                          </TableCell>
+                          <TableCell>{terminalStatusBadge(terminal.status)}</TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            <div className="flex items-center gap-1.5">
+                              {connectionTypeIcon(terminal.connectionType)}
+                              <span className="text-xs capitalize">{terminal.connectionType}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell text-sm">
+                            <span className="font-medium">{terminal.todayTransactions}</span>
+                            <span className="text-muted-foreground ml-1">
+                              ({formatCurrency(terminal.todayVolume)})
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </ScrollArea>
@@ -628,28 +1033,36 @@ export function PaymentTerminals() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {transactions.map((tx) => (
-                      <TableRow key={tx.id} className={tx.status === 'declined' ? 'bg-red-50/50 dark:bg-red-950/20' : ''}>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {formatDateTime(tx.timestamp)}
+                    {transactions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          No transactions found.
                         </TableCell>
-                        <TableCell className="hidden sm:table-cell text-sm">
-                          {tx.terminalName}
-                        </TableCell>
-                        <TableCell className="font-semibold">{formatCurrency(tx.amount)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-sm">{tx.cardType}</span>
-                            <span className="text-xs text-muted-foreground">••{tx.cardLast4}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell font-mono text-xs">
-                          {tx.authCode || '—'}
-                        </TableCell>
-                        <TableCell>{transactionStatusBadge(tx.status)}</TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      transactions.map((tx) => (
+                        <TableRow key={tx.id} className={tx.status === 'declined' ? 'bg-red-50/50 dark:bg-red-950/20' : ''}>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {formatDateTime(tx.timestamp)}
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm">
+                            {tx.terminalName}
+                          </TableCell>
+                          <TableCell className="font-semibold">{formatCurrency(tx.amount)}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-sm">{tx.cardType}</span>
+                              <span className="text-xs text-muted-foreground">••{tx.cardLast4}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell font-mono text-xs">
+                            {tx.authCode || '—'}
+                          </TableCell>
+                          <TableCell>{transactionStatusBadge(tx.status)}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </ScrollArea>
@@ -669,7 +1082,7 @@ export function PaymentTerminals() {
                 </div>
                 <Badge
                   className={
-                    p2peStatuses.filter(p => p.encryptionStatus === 'encrypted').length === p2peStatuses.length
+                    p2peStatuses.length === 0 || p2peStatuses.filter(p => p.encryptionStatus === 'encrypted').length === p2peStatuses.length
                       ? 'bg-emerald-500 text-white border-0'
                       : 'bg-amber-500 text-white border-0'
                   }
@@ -719,31 +1132,39 @@ export function PaymentTerminals() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {p2peStatuses.map((p2pe) => (
-                      <TableRow key={p2pe.terminalId}>
-                        <TableCell className="font-medium text-sm">{p2pe.terminalName}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">{p2pe.model}</TableCell>
-                        <TableCell>{encryptionStatusBadge(p2pe.encryptionStatus)}</TableCell>
-                        <TableCell className="hidden md:table-cell text-sm">{p2pe.encryptionProvider}</TableCell>
-                        <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                          {formatDate(p2pe.lastCertification)}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell text-xs">
-                          <span className={
-                            p2pe.nextAudit === 'Overdue' ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-muted-foreground'
-                          }>
-                            {p2pe.nextAudit === 'Overdue' ? (
-                              <span className="flex items-center gap-1">
-                                <AlertTriangle className="h-3 w-3" />
-                                Overdue
-                              </span>
-                            ) : (
-                              formatDate(p2pe.nextAudit)
-                            )}
-                          </span>
+                    {p2peStatuses.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          No terminal P2PE data available.
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      p2peStatuses.map((p2pe) => (
+                        <TableRow key={p2pe.terminalId}>
+                          <TableCell className="font-medium text-sm">{p2pe.terminalName}</TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">{p2pe.model}</TableCell>
+                          <TableCell>{encryptionStatusBadge(p2pe.encryptionStatus)}</TableCell>
+                          <TableCell className="hidden md:table-cell text-sm">{p2pe.encryptionProvider}</TableCell>
+                          <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
+                            {p2pe.lastCertification ? formatDate(p2pe.lastCertification) : '—'}
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell text-xs">
+                            <span className={
+                              p2pe.nextAudit === 'Overdue' ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-muted-foreground'
+                            }>
+                              {p2pe.nextAudit === 'Overdue' ? (
+                                <span className="flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Overdue
+                                </span>
+                              ) : (
+                                p2pe.nextAudit ? formatDate(p2pe.nextAudit) : '—'
+                              )}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </ScrollArea>
@@ -788,44 +1209,52 @@ export function PaymentTerminals() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {cardTokens.map((token) => (
-                      <TableRow key={token.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="font-mono text-xs">{token.tokenId.substring(0, 16)}…</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-sm">
-                              {token.cardType} ••{token.cardLast4}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell text-sm">{token.guestName}</TableCell>
-                        <TableCell className="hidden md:table-cell font-mono text-xs">{token.bookingRef}</TableCell>
-                        <TableCell>{tokenStatusBadge(token.status)}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-sm">{token.usageCount}x</TableCell>
-                        <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                          {formatDateTime(token.lastUsed)}
-                        </TableCell>
-                        <TableCell>
-                          {token.status === 'active' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 h-7 px-2"
-                              onClick={() => setDeactivateTokenId(token.id)}
-                            >
-                              <Lock className="h-3.5 w-3.5 mr-1" />
-                              Revoke
-                            </Button>
-                          )}
+                    {cardTokens.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                          No card tokens stored.
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      cardTokens.map((token) => (
+                        <TableRow key={token.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="font-mono text-xs">{token.tokenId.substring(0, 16)}…</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-sm">
+                                {token.cardType} ••{token.cardLast4}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm">{token.guestName}</TableCell>
+                          <TableCell className="hidden md:table-cell font-mono text-xs">{token.bookingRef}</TableCell>
+                          <TableCell>{tokenStatusBadge(token.status)}</TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm">{token.usageCount > 0 ? `${token.usageCount}x` : '—'}</TableCell>
+                          <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
+                            {formatDateTime(token.lastUsed)}
+                          </TableCell>
+                          <TableCell>
+                            {token.status === 'active' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 h-7 px-2"
+                                onClick={() => setDeactivateTokenId(token.id)}
+                              >
+                                <Lock className="h-3.5 w-3.5 mr-1" />
+                                Revoke
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </ScrollArea>
