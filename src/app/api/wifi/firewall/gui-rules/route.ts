@@ -77,16 +77,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!zoneId) {
+    // Resolve zone — use provided zoneId, or auto-pick 'guest' zone (fallback: first available)
+    let resolvedZoneId = zoneId;
+    if (!resolvedZoneId) {
+      const guestZone = await db.firewallZone.findFirst({
+        where: { name: 'guest', tenantId: user.tenantId, propertyId },
+      });
+      resolvedZoneId = guestZone?.id;
+      if (!resolvedZoneId) {
+        const anyZone = await db.firewallZone.findFirst({
+          where: { tenantId: user.tenantId, propertyId },
+        });
+        resolvedZoneId = anyZone?.id;
+      }
+    }
+
+    if (!resolvedZoneId) {
       return NextResponse.json(
-        { success: false, error: 'Missing required field: zoneId' },
+        { success: false, error: 'No firewall zone found for this property. Create a zone first in the Zones section.' },
         { status: 400 },
       );
     }
 
     // Validate zone belongs to tenant
     const zone = await db.firewallZone.findFirst({
-      where: { id: zoneId, tenantId: user.tenantId, propertyId },
+      where: { id: resolvedZoneId, tenantId: user.tenantId, propertyId },
     });
     if (!zone) {
       return NextResponse.json(
@@ -137,7 +152,7 @@ export async function POST(request: NextRequest) {
       data: {
         tenantId: user.tenantId,
         propertyId,
-        zoneId,
+        zoneId: resolvedZoneId,
         chain: chain || null,
         protocol: protocol || null,
         sourceIp: sourceIp || null,
