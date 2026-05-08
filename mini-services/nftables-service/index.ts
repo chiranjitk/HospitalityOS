@@ -230,6 +230,8 @@ function rowToGuiRule(row: Record<string, unknown>): GuiRule & { _resolvedDestIp
     updatedAt: row.updatedAt as string,
     _resolvedDestIps,
     _resolvedSourceIps,
+    destIpType: destIpType || undefined,
+    sourceIpType: sourceIpType || undefined,
   };
 }
 
@@ -562,17 +564,51 @@ async function generateConfigPreview(): Promise<string> {
   lines.push('');
   lines.push('table inet nat {');
   lines.push('');
-  renderChainRules('frchainspre', 'NAT Prerouting — DNAT / Port Forward');
-  renderChainRules('frchainspost', 'NAT Postrouting — SNAT / Masquerade / Proxy NAT');
+  renderChainRules('frchainspre', 'NAT Prerouting - DNAT / Port Forward');
+  renderChainRules('frchainspost', 'NAT Postrouting - SNAT / Masquerade / Proxy NAT');
   lines.push('}');
 
-  // --- inet filter table (sets only) ---
-  if (blockedIps.length > 0 || blockedSubnets.length > 0 || blockedMacs.length > 0) {
+  // --- Collect domain sets for preview ---
+  const domainSets: { setName: string; domain: string; ips: string[] }[] = [];
+  for (const rule of sortedRules) {
+    const ruleData = rule as Record<string, unknown>;
+    const destIpType = ruleData.destIpType as string | undefined;
+    const sourceIpType = ruleData.sourceIpType as string | undefined;
+    const destIps = ruleData._resolvedDestIps as string[] | undefined;
+    const sourceIps = ruleData._resolvedSourceIps as string[] | undefined;
+
+    if (destIpType === 'domain' && destIps && destIps.length > 0 && rule.destIp) {
+      domainSets.push({ setName: domainSetName(rule.id, rule.destIp), domain: rule.destIp, ips: destIps });
+    }
+    if (sourceIpType === 'domain' && sourceIps && sourceIps.length > 0 && rule.sourceIp) {
+      domainSets.push({ setName: domainSetName(rule.id, rule.sourceIp), domain: rule.sourceIp, ips: sourceIps });
+    }
+  }
+
+  // --- inet filter table (sets) ---
+  if (blockedIps.length > 0 || blockedSubnets.length > 0 || blockedMacs.length > 0 || domainSets.length > 0) {
     lines.push('');
     lines.push('table inet filter {');
     lines.push('');
 
+    // Domain sets (24Online-style ipset via nftables named sets)
+    if (domainSets.length > 0) {
+      lines.push('  # ── Domain Sets (24Online-style ipset) ──');
+      lines.push('  # O(1) hash lookup instead of per-IP rule expansion.');
+      lines.push('  # DNS updates: add/remove set elements without chain flush.');
+      lines.push('');
+      for (const ds of domainSets) {
+        lines.push(`  set ${ds.setName} {`);
+        lines.push('    type ipv4_addr');
+        lines.push(`    # Domain: ${ds.domain} (${ds.ips.length} resolved IPs)`);
+        lines.push(`    elements = { ${ds.ips.join(', ')} }`);
+        lines.push('  }');
+        lines.push('');
+      }
+    }
+
     if (blockedIps.length > 0) {
+      lines.push('  # ── Quick Block Sets ──');
       lines.push('  set blocked_ips {');
       lines.push('    type ipv4_addr');
       lines.push(`    elements = { ${blockedIps.join(', ')} }`);
@@ -652,8 +688,9 @@ function isDownlinkChain(chain: GuiChainName): boolean {
 
 /**
  * Build nftables rule lines for a single GUI rule targeting a specific chain.
- * Handles direction flipping for downlink chains (saddr ↔ daddr swap).
- * For domain-type rules, expands resolved IPs into one nftables rule per IP.
+ * For domain-type rules, uses a SET REFERENCE (e.g., @fwdomain_google_com_abc123)
+ * instead of expanding to per-IP rules. This is 24Online-style ipset behavior.
+ * For simple IP/CIDR rules, returns a single rule line.
  */
 function buildNftRuleLinesForChain(
   rule: GuiRule,
@@ -662,15 +699,92 @@ function buildNftRuleLinesForChain(
 ): string[] {
   const destIps = resolvedData?.resolvedDestIps;
   const sourceIps = resolvedData?.resolvedSourceIps;
+  const hasDomainDest = destIps && destIps.length > 0;
+  const hasDomainSource = sourceIps && sourceIps.length > 0;
 
-  if (destIps && destIps.length > 0) {
-    return destIps.map(ip => buildSingleNftRuleLineForChain(rule, targetChain, ip, undefined));
+  // Domain-type dest: use set reference instead of per-IP expansion
+  if (hasDomainDest && rule.destIp) {
+    const setName = domainSetName(rule.id, rule.destIp);
+    return [buildSetBasedRuleLine(rule, targetChain, setName, 'dest')];
   }
-  if (sourceIps && sourceIps.length > 0) {
-    return sourceIps.map(ip => buildSingleNftRuleLineForChain(rule, targetChain, undefined, ip));
+
+  // Domain-type source: use set reference
+  if (hasDomainSource && rule.sourceIp) {
+    const setName = domainSetName(rule.id, rule.sourceIp);
+    return [buildSetBasedRuleLine(rule, targetChain, setName, 'source')];
   }
 
   return [buildSingleNftRuleLineForChain(rule, targetChain)];
+}
+
+/**
+ * Build a set-based rule line for domain rules.
+ * Uses @setname syntax for O(1) hash lookup instead of per-IP expansion.
+ * Example: tcp ip saddr 10.10.30.10 ip daddr @fwdomain_www_google_com_92144dd8 accept
+ */
+function buildSetBasedRuleLine(
+  rule: GuiRule,
+  targetChain: GuiChainName,
+  setName: string,
+  setDirection: 'source' | 'dest'
+): string {
+  const parts: string[] = [];
+  const downlink = isDownlinkChain(targetChain);
+  const isTcpUdp = rule.protocol === 'tcp' || rule.protocol === 'udp';
+  const hasPorts = (rule.sourcePort || rule.destPort) && isTcpUdp;
+
+  // Protocol
+  if (rule.protocol && rule.protocol !== 'all' && !hasPorts) {
+    parts.push(rule.protocol);
+  }
+
+  const srcIp = rule.sourceIp;
+  const dstIp = rule.destIp;
+
+  if (setDirection === 'dest') {
+    // Domain is the destination
+    if (srcIp) {
+      parts.push(downlink ? `ip daddr ${srcIp}` : `ip saddr ${srcIp}`);
+    }
+    // Use set reference for dest
+    parts.push(downlink ? `ip saddr @${setName}` : `ip daddr @${setName}`);
+  } else {
+    // Domain is the source
+    if (dstIp) {
+      parts.push(downlink ? `ip saddr ${dstIp}` : `ip daddr ${dstIp}`);
+    }
+    // Use set reference for source
+    parts.push(downlink ? `ip daddr @${setName}` : `ip saddr @${setName}`);
+  }
+
+  if (rule.sourcePort && isTcpUdp) {
+    parts.push(`${rule.protocol} sport ${rule.sourcePort}`);
+  }
+  if (rule.destPort && isTcpUdp) {
+    parts.push(`${rule.protocol} dport ${rule.destPort}`);
+  }
+
+  switch (rule.action) {
+    case 'accept':
+    case 'drop':
+    case 'reject':
+    case 'log':
+      parts.push(rule.action);
+      break;
+    case 'proxy':
+      parts.push('meta mark set 1');
+      break;
+    case 'mark':
+      parts.push(`meta mark set ${rule.markValue || 0}`);
+      break;
+  }
+
+  const comment = rule.comment
+    ? ` comment "gui:${rule.id} ${rule.comment.replace(/"/g, '')}"`
+    : ` comment "gui:${rule.id}"`;
+  parts.push(comment);
+
+  return parts.join(' ');
 }
 
 /**
@@ -896,6 +1010,144 @@ function addRuleToChain(table: string, chain: string, ruleLine: string): NftResu
   return nftExec(`add rule ${table} ${chain} ${ruleLine}`);
 }
 
+// ============================================================================
+// Domain Set Management (24Online-style ipset via nftables named sets)
+// ============================================================================
+//
+// Instead of expanding each domain's resolved IPs into separate rules,
+// we create a single nftables named set per domain and reference it in rules.
+// This gives us O(1) hash lookup instead of O(n) linear rule scanning,
+// and allows non-destructive DNS updates (add/remove set elements without
+// flushing the entire chain).
+//
+// Set naming: fwdomain_{rule_id} (shortened to 31 chars max for nftables compat)
+// Table: inet filter (separate from mangle/nat to keep concerns clean)
+
+const DOMAIN_SET_TABLE = 'inet filter';
+const DOMAIN_SET_PREFIX = 'fwdomain_';
+
+/** Sanitize a domain name for use in a set name. */
+function sanitizeDomainForSet(domain: string): string {
+  return domain.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').toLowerCase();
+}
+
+/** Generate a unique set name for a domain rule. Max 31 chars for nftables compat. */
+function domainSetName(ruleId: string, domain: string): string {
+  const shortId = ruleId.replace(/-/g, '').substring(0, 8);
+  const safeDomain = sanitizeDomainForSet(domain);
+  const name = `${DOMAIN_SET_PREFIX}${safeDomain}_${shortId}`;
+  // nftables set name max = 31 chars
+  return name.length > 31 ? name.substring(0, 31) : name;
+}
+
+/** Create a named set in the filter table. */
+function createDomainSet(setName: string, elements: string[]): NftResult[] {
+  const results: NftResult[] = [];
+
+  // Ensure the filter table exists
+  const tableResult = nftExec(`list table ${DOMAIN_SET_TABLE}`);
+  if (!tableResult.success) {
+    const addTable = nftExec(`add table ${DOMAIN_SET_TABLE}`);
+    results.push(addTable);
+    if (addTable.success) {
+      log.info(`Created nftables table: ${DOMAIN_SET_TABLE}`);
+    }
+  }
+
+  // Flush the set first (in case it exists with stale elements)
+  const flushResult = nftExec(`flush set ${DOMAIN_SET_TABLE} ${setName}`);
+  if (!flushResult.success) {
+    // Set doesn't exist yet — create it
+    const createResult = nftExec(`add set ${DOMAIN_SET_TABLE} ${setName} { type ipv4_addr \\; }`);
+    results.push(createResult);
+    if (!createResult.success) {
+      log.error(`Failed to create domain set ${setName}`, { error: createResult.error });
+      return results;
+    }
+    log.info(`Created domain set: ${DOMAIN_SET_TABLE} ${setName}`);
+  } else {
+    results.push(flushResult);
+  }
+
+  // Add all IP elements
+  if (elements.length > 0) {
+    const elems = elements.join(', ');
+    const addResult = nftExec(`add element ${DOMAIN_SET_TABLE} ${setName} { ${elems} }`);
+    results.push(addResult);
+    if (addResult.success) {
+      log.info(`Populated domain set ${setName} with ${elements.length} IPs`);
+    } else {
+      log.error(`Failed to populate domain set ${setName}`, { error: addResult.error });
+    }
+  }
+
+  return results;
+}
+
+/** List all existing domain sets (prefixed with fwdomain_). */
+function listDomainSets(): string[] {
+  try {
+    const output = execSync(`nft list sets 2>/dev/null`, { encoding: 'utf-8', timeout: 5000 });
+    return output.split('\n')
+      .map(l => l.trim())
+      .filter(l => l.startsWith(DOMAIN_SET_PREFIX));
+  } catch {
+    return [];
+  }
+}
+
+/** Destroy a named set. */
+function destroyDomainSet(setName: string): NftResult {
+  const result = nftExec(`delete set ${DOMAIN_SET_TABLE} ${setName}`);
+  if (result.success) {
+    log.info(`Destroyed domain set: ${setName}`);
+  }
+  return result;
+}
+
+/** Get current elements in a set. */
+function getSetElements(setName: string): string[] {
+  try {
+    const output = execSync(`nft list set ${DOMAIN_SET_TABLE} ${setName} 2>/dev/null`, { encoding: 'utf-8', timeout: 5000 });
+    // Parse: elements = { 1.2.3.4, 5.6.7.8 }
+    const match = output.match(/elements\s*=\s*\{([^}]+)\}/);
+    if (match) {
+      return match[1].split(',').map(s => s.trim()).filter(Boolean);
+    }
+  } catch {}
+  return [];
+}
+
+/**
+ * Update a domain set's elements without flushing.
+ * Compares current vs desired elements and does incremental add/remove.
+ */
+function updateDomainSetElements(setName: string, desiredIps: string[]): NftResult[] {
+  const results: NftResult[] = [];
+  const currentIps = new Set(getSetElements(setName));
+  const desiredSet = new Set(desiredIps);
+
+  // Remove IPs no longer needed
+  for (const ip of currentIps) {
+    if (!desiredSet.has(ip)) {
+      const del = nftExec(`delete element ${DOMAIN_SET_TABLE} ${setName} { ${ip} }`);
+      results.push(del);
+      if (del.success) log.info(`Removed stale IP ${ip} from set ${setName}`);
+    }
+  }
+
+  // Add new IPs
+  for (const ip of desiredSet) {
+    if (!currentIps.has(ip)) {
+      const add = nftExec(`add element ${DOMAIN_SET_TABLE} ${setName} { ${ip} }`);
+      results.push(add);
+      if (add.success) log.info(`Added new IP ${ip} to set ${setName}`);
+    }
+  }
+
+  return results;
+}
+
 async function applyGuiRulesToNftables(): Promise<{
   success: boolean;
   chainsCreated: string[];
@@ -938,6 +1190,51 @@ async function applyGuiRulesToNftables(): Promise<{
 
   const blockedIps = quickBlocks.filter(b => b.type === 'ip').map(b => b.value);
   const blockedSubnets = quickBlocks.filter(b => b.type === 'subnet').map(b => b.value);
+
+  // ── Domain Set Management ──
+  // 24Online-style: create/update nftables named sets for each domain rule.
+  // Sets are populated with resolved IPs, and rules reference @setname for O(1) lookup.
+  const activeSetNames = new Set<string>();
+
+  for (const rule of sortedRules) {
+    const ruleData = rule as Record<string, unknown>;
+    const destIpType = ruleData.destIpType as string | undefined;
+    const sourceIpType = ruleData.sourceIpType as string | undefined;
+    const destIps = ruleData._resolvedDestIps as string[] | undefined;
+    const sourceIps = ruleData._resolvedSourceIps as string[] | undefined;
+
+    // Domain dest → create set
+    if (destIpType === 'domain' && destIps && destIps.length > 0 && rule.destIp) {
+      const setName = domainSetName(rule.id, rule.destIp);
+      activeSetNames.add(setName);
+      const setResults = createDomainSet(setName, destIps);
+      for (const sr of setResults) {
+        commands.push(sr.command);
+        if (!sr.success) errors.push(sr.error || `set:${setName}`);
+      }
+    }
+
+    // Domain source → create set
+    if (sourceIpType === 'domain' && sourceIps && sourceIps.length > 0 && rule.sourceIp) {
+      const setName = domainSetName(rule.id, rule.sourceIp);
+      activeSetNames.add(setName);
+      const setResults = createDomainSet(setName, sourceIps);
+      for (const sr of setResults) {
+        commands.push(sr.command);
+        if (!sr.success) errors.push(sr.error || `set:${setName}`);
+      }
+    }
+  }
+
+  // Cleanup orphaned sets (sets that exist but no rule references them)
+  const existingSets = listDomainSets();
+  for (const setName of existingSets) {
+    if (!activeSetNames.has(setName)) {
+      const delResult = destroyDomainSet(setName);
+      commands.push(delResult.command);
+      if (!delResult.success) errors.push(delResult.error || `delete-set:${setName}`);
+    }
+  }
 
   // ── Multi-chain expansion ──
   // Instead of grouping rules by their DB chain field, we now auto-expand
