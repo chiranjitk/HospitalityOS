@@ -38,7 +38,16 @@ function isRecentlyDismissed(): boolean {
 export function usePwaInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installedFlag, setInstalledFlag] = useState(false);
-  const [recentlyDismissed, setRecentlyDismissed] = useState(() => isRecentlyDismissed());
+  const [recentlyDismissed, setRecentlyDismissed] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Read localStorage only after mount to avoid hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+    if (isRecentlyDismissed()) {
+      setRecentlyDismissed(true);
+    }
+  }, []);
 
   const isStandalone = useSyncExternalStore(
     subscribeStandaloneMode,
@@ -55,10 +64,15 @@ export function usePwaInstall() {
   );
 
   useEffect(() => {
-    if (isInstalled) return;
+    if (isInstalled || isRecentlyDismissed()) return;
 
     const handler = (e: Event) => {
       e.preventDefault();
+      // Don't store the prompt if user recently dismissed
+      if (isRecentlyDismissed()) {
+        setRecentlyDismissed(true);
+        return;
+      }
       setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
 

@@ -82,46 +82,91 @@ function RADIUSStatusCard() {
     return () => clearInterval(interval);
   }, []);
 
+  const isOnline = radiusStatus.connected && !isLoading;
+
   return (
-    <Card className="border-0 shadow-sm rounded-xl hover:shadow-md transition-all duration-200">
-      <CardContent className="p-3">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <Server className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-            <span className="text-sm font-semibold">RADIUS Server</span>
-            <span className="text-xs text-muted-foreground tabular-nums">{radiusStatus.usersSynced} users · Port {radiusStatus.authPort}</span>
+    <div className={cn('relative rounded-xl', isOnline && 'wifi-mesh-bg')}>
+      {/* Animated gradient border — pulses when online */}
+      {isOnline && <div className="wifi-pulse-border rounded-xl" />}
+      {/* Top gradient status bar — flows when online */}
+      {isOnline && <div className="wifi-status-bar rounded-t-xl" />}
+      <Card className={cn(
+        'border-0 rounded-xl transition-all duration-300',
+        isOnline
+          ? 'shadow-md hover:shadow-lg bg-emerald-50/30 dark:bg-emerald-950/10'
+          : 'shadow-sm hover:shadow-md'
+      )}>
+        <CardContent className="p-4 relative z-10">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                'flex items-center justify-center h-9 w-9 rounded-lg transition-colors',
+                isOnline
+                  ? 'bg-emerald-100 dark:bg-emerald-900/30'
+                  : 'bg-muted'
+              )}>
+                <Server className={cn(
+                  'h-4.5 w-4.5',
+                  isOnline
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-muted-foreground'
+                )} />
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">RADIUS Server</span>
+                  {isOnline && (
+                    <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 wifi-live-dot" />
+                      LIVE
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono tabular-nums">
+                  <span>{radiusStatus.usersSynced} users</span>
+                  <span className="text-border/60">·</span>
+                  <span>Port {radiusStatus.authPort}</span>
+                  {radiusStatus.lastSync && (
+                    <>
+                      <span className="text-border/60">·</span>
+                      <span>Last sync {new Date(radiusStatus.lastSync).toLocaleTimeString()}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            <Badge
+              variant="outline"
+              className={cn(
+                'text-[10px] font-semibold px-2.5 py-1 rounded-full shrink-0 transition-all duration-300',
+                isLoading
+                  ? 'border-muted-foreground/30 text-muted-foreground'
+                  : radiusStatus.connected
+                    ? 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:bg-emerald-950/30 badge-glow-success'
+                    : 'border-red-300 text-red-700 bg-red-50 dark:border-red-700 dark:text-red-400 dark:bg-red-950/30'
+              )}
+            >
+              {isLoading ? (
+                <span className="flex items-center gap-1">
+                  <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                  Checking
+                </span>
+              ) : radiusStatus.connected ? (
+                <span className="flex items-center gap-1">
+                  <ShieldCheck className="h-2.5 w-2.5" />
+                  Connected
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <ShieldAlert className="h-2.5 w-2.5" />
+                  Offline
+                </span>
+              )}
+            </Badge>
           </div>
-          <Badge
-            variant="outline"
-            className={cn(
-              'text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0',
-              isLoading
-                ? 'border-muted-foreground/30 text-muted-foreground'
-                : radiusStatus.connected
-                  ? 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:bg-emerald-950/30'
-                  : 'border-red-300 text-red-700 bg-red-50 dark:border-red-700 dark:text-red-400 dark:bg-red-950/30'
-            )}
-          >
-            {isLoading ? (
-              <span className="flex items-center gap-1">
-                <RefreshCw className="h-2.5 w-2.5 animate-spin" />
-                Checking
-              </span>
-            ) : radiusStatus.connected ? (
-              <span className="flex items-center gap-1">
-                <ShieldCheck className="h-2.5 w-2.5" />
-                Connected
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <ShieldAlert className="h-2.5 w-2.5" />
-                Offline
-              </span>
-            )}
-          </Badge>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -155,20 +200,31 @@ function WiFiQuickActions({ onRefresh, onSwitchToVouchers }: { onRefresh: () => 
   return (
     <div className="flex flex-wrap items-center gap-2 mb-4">
       <Button
-        variant="outline"
         size="sm"
-        className="rounded-lg text-xs"
+        className="wifi-btn-sync rounded-lg text-xs font-semibold"
         onClick={handleSyncUsers}
         disabled={isSyncing}
       >
-        <Wifi className="h-3.5 w-3.5 mr-1.5" />
+        {isSyncing ? (
+          <span className="wifi-btn-spinner mr-1.5"><Wifi className="h-3.5 w-3.5" /></span>
+        ) : (
+          <Wifi className="h-3.5 w-3.5 mr-1.5" />
+        )}
         {isSyncing ? 'Syncing...' : 'Sync Users'}
       </Button>
-      <Button variant="outline" size="sm" className="rounded-lg text-xs" onClick={onRefresh}>
+      <Button
+        size="sm"
+        className="wifi-btn-refresh rounded-lg text-xs font-semibold"
+        onClick={onRefresh}
+      >
         <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
         Refresh Status
       </Button>
-      <Button variant="outline" size="sm" className="rounded-lg text-xs" onClick={onSwitchToVouchers}>
+      <Button
+        size="sm"
+        className="wifi-btn-voucher rounded-lg text-xs font-semibold"
+        onClick={onSwitchToVouchers}
+      >
         <QrCode className="h-3.5 w-3.5 mr-1.5" />
         Generate Voucher
       </Button>
@@ -208,7 +264,7 @@ const tabs: TabEntry[] = [
   { type: 'tab', id: 'auth-logs', label: 'Auth Logs', icon: <ShieldCheck className="h-4 w-4" />, group: 'live' },
 
   // ── History ──
-  { type: 'header', label: 'History', indicatorColor: 'bg-blue-500' },
+  { type: 'header', label: 'History', indicatorColor: 'bg-teal-500' },
   { type: 'tab', id: 'session-history', label: 'Session History', icon: <History className="h-4 w-4" />, group: 'history' },
   { type: 'tab', id: 'user-usage', label: 'User Usage', icon: <TrendingUp className="h-4 w-4" />, group: 'history' },
 
@@ -220,7 +276,7 @@ const tabs: TabEntry[] = [
   { type: 'tab', id: 'bw-pools', label: 'BW Pools', icon: <Layers className="h-4 w-4" />, group: 'policy' },
 
   // ── Access ──
-  { type: 'header', label: 'Access', indicatorColor: 'bg-purple-500' },
+  { type: 'header', label: 'Access', indicatorColor: 'bg-amber-500' },
   { type: 'tab', id: 'vouchers', label: 'Vouchers', icon: <Ticket className="h-4 w-4" />, group: 'access' },
   { type: 'tab', id: 'mac-auth', label: 'MAC Auth', icon: <Fingerprint className="h-4 w-4" />, group: 'access' },
   { type: 'tab', id: 'event-wifi', label: 'Event WiFi', icon: <Users className="h-4 w-4" />, group: 'access' },
@@ -250,13 +306,13 @@ export function WifiAccessPage() {
   const propertyKey = propertyId || 'none';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 wifi-page-mesh">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row justify-between gap-4">
+      <div className="flex flex-col sm:flex-row justify-between gap-4 relative z-10">
         <div>
           <h2 className="text-xl font-semibold flex items-center gap-2">
             <Wifi className="h-5 w-5 text-teal-600 dark:text-teal-400" />
-            WiFi Access
+            <span className="gradient-text">WiFi Access</span>
           </h2>
           <p className="text-sm text-muted-foreground">
             Manage active sessions, vouchers, bandwidth plans, and usage logs
@@ -264,10 +320,13 @@ export function WifiAccessPage() {
         </div>
         {/* Property Switcher */}
         {properties.length > 1 && (
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
+          <div className="wifi-property-container">
+            <div className="wifi-property-icon">
+              <Building2 className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+            </div>
+            <span className="wifi-property-dot" />
             <Select value={propertyId} onValueChange={handlePropertyChange}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-44 border-0 bg-transparent shadow-none focus:ring-0 p-0 h-auto text-sm">
                 <SelectValue placeholder="Select property" />
               </SelectTrigger>
               <SelectContent>
@@ -281,14 +340,18 @@ export function WifiAccessPage() {
       </div>
 
       {/* RADIUS Server Status */}
-      <RADIUSStatusCard />
+      <div className="animate-fade-in-up relative z-10">
+        <RADIUSStatusCard />
+      </div>
 
       {/* Quick Actions */}
-      <WiFiQuickActions onRefresh={handleRefresh} onSwitchToVouchers={handleSwitchToVouchers} />
+      <div className="relative z-10">
+        <WiFiQuickActions onRefresh={handleRefresh} onSwitchToVouchers={handleSwitchToVouchers} />
+      </div>
 
       {/* Tab Switcher */}
-      <div className="relative">
-        <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin items-center">
+      <div className="relative z-10">
+        <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-thin items-center">
           {tabs.map((entry, index) => {
             if (entry.type === 'header') {
               return (
@@ -312,19 +375,23 @@ export function WifiAccessPage() {
             }
 
             const tab = entry;
+            const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200',
-                  activeTab === tab.id
-                    ? 'bg-teal-600 text-white shadow-lg shadow-teal-600/25'
+                  'relative flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-300',
+                  isActive
+                    ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-lg shadow-teal-600/20 dark:shadow-teal-500/15'
                     : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
                 )}
               >
-                {tab.icon}
+                <span className={cn('transition-transform duration-200', isActive && 'scale-110')}>
+                  {tab.icon}
+                </span>
                 {tab.label}
+                {isActive && <span className="wifi-tab-active-line" />}
               </button>
             );
           })}
@@ -332,7 +399,7 @@ export function WifiAccessPage() {
       </div>
 
       {/* Tab Content */}
-      <div className="mt-2" key={`${refreshKey}-${propertyKey}`}>
+      <div className="mt-2 wifi-tab-content-enter relative z-10" key={`${activeTab}-${refreshKey}-${propertyKey}`}>
         <Suspense fallback={<TabSkeleton />}>
           <ErrorBoundary section="Active Users">
             {/* Live */}

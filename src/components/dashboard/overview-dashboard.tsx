@@ -70,6 +70,7 @@ import { TaskRemindersWidget } from './widgets/task-reminders-widget';
 import { GuestJourneyPipelineWidget } from './widgets/guest-journey-pipeline';
 import { DailyPerformanceScoreWidget } from './widgets/daily-performance-score';
 import { RevenueTrendWidget } from './revenue-trend-widget';
+import { PropertyPerformanceWidget } from './widgets/property-performance-widget';
 import { QuickInsightsWidget } from './widgets/quick-insights';
 import { PropertyStatusSummaryWidget } from './widgets/property-status-summary';
 import { WelcomeBannerWidget } from './widgets/welcome-banner';
@@ -86,6 +87,7 @@ import { WeatherForecastWidget } from './widgets/weather-forecast-widget';
 import { LoyaltyTierWidget } from './widgets/loyalty-tier-widget';
 import { MiniRevenueChart } from './widgets/mini-revenue-chart';
 import { LazySection } from './lazy-section';
+import { RoomFloorPlanWidget } from './widgets/room-floor-plan-widget';
 
 const OccupancyHeatmap = React.lazy(() => import('./occupancy-heatmap').then(m => ({ default: m.OccupancyHeatmap })));
 
@@ -784,6 +786,7 @@ export default function OverviewDashboard() {
             <RoomStatusWidget />
           </div>
           <PropertyStatusSummaryWidget />
+          <RoomFloorPlanWidget />
         </div>
 
         {/* ── Room Occupancy Breakdown ── */}
@@ -833,6 +836,7 @@ export default function OverviewDashboard() {
         <LazySection>
           <div className="relative z-10 space-y-2 rounded-xl bg-muted/15 px-1 py-3">
             <SectionLabel icon={Zap} title={t('revenuePerformance')} />
+            <PropertyPerformanceWidget />
             <div className="grid gap-5 grid-cols-1 lg:grid-cols-3">
               <DailyPerformanceScoreWidget />
               <div className="lg:col-span-2">
