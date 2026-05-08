@@ -672,7 +672,7 @@ export async function GET(request: NextRequest) {
           // Use DISTINCT ON (acctuniqueid) to guarantee no duplicates from the FULL JOIN
           // in v_session_history (which v_active_sessions is built on).
           // ORDER BY must begin with the DISTINCT ON column.
-          const activeSessions = await db.$queryRawUnsafe<{
+          type SessionRow = {
             acctuniqueid: string;
             acctsessionid: string;
             username: string;
@@ -693,7 +693,6 @@ export async function GET(request: NextRequest) {
             plan_name: string | null;
             downloadspeed: number | null;
             uploadspeed: number | null;
-            // New fields from DeviceProfile join
             loginType: string | null;
             deviceName: string | null;
             deviceType: string | null;
@@ -702,12 +701,11 @@ export async function GET(request: NextRequest) {
             dp_authCount: number | null;
             sessionTimeoutSec: number | null;
             idleTimeoutSec: number | null;
-            // Burst (ceil) columns from WiFiPlan
             burstDownloadSpeed: number | null;
             burstUploadSpeed: number | null;
-          }[]>(`
-            SELECT DISTINCT ON (acctuniqueid)
-                   acctuniqueid, acctsessionid, username, framedipaddress,
+          };
+
+          const baseCols = `acctuniqueid, acctsessionid, username, framedipaddress,
                    callingstationid, nasipaddress, calledstationid,
                    acctstarttime, acctupdatetime, acctsessiontime,
                    acctinputoctets, acctoutputoctets, nasporttype,
@@ -715,11 +713,25 @@ export async function GET(request: NextRequest) {
                    property_name, plan_name, downloadspeed, uploadspeed,
                    "loginType", "deviceName", "deviceType", "userAgent",
                    "dp_macAddress", "dp_authCount",
-                   "sessionTimeoutSec", "idleTimeoutSec",
-                   "burstDownloadSpeed", "burstUploadSpeed"
-            FROM v_active_sessions ${whereClause}
-            ORDER BY acctuniqueid, acctstarttime DESC
-          `, ...sqlParams);
+                   "sessionTimeoutSec", "idleTimeoutSec"`;
+          const burstCols = `"burstDownloadSpeed", "burstUploadSpeed"`;
+
+          let activeSessions: SessionRow[];
+          try {
+            // Try with burst columns (view may have been recreated)
+            activeSessions = await db.$queryRawUnsafe<SessionRow[]>(`
+              SELECT DISTINCT ON (acctuniqueid) ${baseCols}, ${burstCols}
+              FROM v_active_sessions ${whereClause}
+              ORDER BY acctuniqueid, acctstarttime DESC
+            `, ...sqlParams);
+          } catch {
+            // Fallback: burst columns don't exist in view yet
+            activeSessions = await db.$queryRawUnsafe<SessionRow[]>(`
+              SELECT DISTINCT ON (acctuniqueid) ${baseCols}
+              FROM v_active_sessions ${whereClause}
+              ORDER BY acctuniqueid, acctstarttime DESC
+            `, ...sqlParams);
+          }
 
           // Strip /32 CIDR suffix from PostgreSQL inet columns
           const stripCidr = (v: string | null) => (v || '').replace(/\/\d+$/, '');
