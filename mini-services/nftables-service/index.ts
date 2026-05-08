@@ -169,26 +169,58 @@ function generateId(): string {
 async function readGuiRules(): Promise<GuiRule[]> {
   const res = await pool.query(
     `SELECT id, name, "chain", protocol, "sourceIp", "destIp", "destPort", "sourcePort",
-            action, "markValue", "dnatTo", "snatTo", enabled, comment, priority, handle,
-            "createdAt"::text, "updatedAt"::text
-     FROM "NftGuiRule" ORDER BY priority ASC`
+            action, enabled, comment, priority,
+            "createdAt"::text, "updatedAt"::text,
+            "destIpResolved", "sourceIpResolved", "destIpType", "sourceIpType"
+     FROM "FirewallRule" WHERE enabled = true ORDER BY priority ASC`
   );
   return res.rows.map(rowToGuiRule);
 }
 
-function rowToGuiRule(row: Record<string, unknown>): GuiRule {
+function rowToGuiRule(row: Record<string, unknown>): GuiRule & { _resolvedDestIps?: string[]; _resolvedSourceIps?: string[] } {
+  // For domain-type destIp, use resolved IPs for nftables rules
+  // nftables cannot handle domain names — only raw IPs
+  let destIp = row.destIp as string | undefined;
+  let sourceIp = row.sourceIp as string | undefined;
+  const destIpType = row.destIpType as string | undefined;
+  const sourceIpType = row.sourceIpType as string | undefined;
+  const destIpResolved = row.destIpResolved as string | undefined;
+  const sourceIpResolved = row.sourceIpResolved as string | undefined;
+
+  // If dest is a domain, store resolved IPs for rule generation
+  // (The buildNftRuleLine function will expand these)
+  let _resolvedDestIps: string[] | undefined;
+  let _resolvedSourceIps: string[] | undefined;
+
+  if (destIpType === 'domain' && destIpResolved) {
+    try {
+      const ips = JSON.parse(destIpResolved);
+      if (Array.isArray(ips) && ips.length > 0) {
+        _resolvedDestIps = ips;
+      }
+    } catch {}
+  }
+  if (sourceIpType === 'domain' && sourceIpResolved) {
+    try {
+      const ips = JSON.parse(sourceIpResolved);
+      if (Array.isArray(ips) && ips.length > 0) {
+        _resolvedSourceIps = ips;
+      }
+    } catch {}
+  }
+
   return {
     id: row.id as string,
     name: row.name as string,
-    chain: row.chain as GuiChainName,
-    protocol: row.protocol as string,
-    sourceIp: row.sourceIp as string | undefined,
-    destIp: row.destIp as string | undefined,
+    chain: (row.chain as string || 'firewallchains') as GuiChainName,
+    protocol: (row.protocol as string || 'all'),
+    sourceIp: sourceIp || undefined,
+    destIp: destIp || undefined,
     destPort: row.destPort as string | undefined,
     sourcePort: row.sourcePort as string | undefined,
-    action: row.action as GuiRule['action'],
+    action: (row.action as string || 'accept') as GuiRule['action'],
     markValue: row.markValue as number | undefined,
-    dnatTo: row.dnatTo as string | undefined,
+    dnatTo: (row.dnatTo as string) || (row.proxyTo as string) || undefined,
     snatTo: row.snatTo as string | undefined,
     enabled: row.enabled as boolean,
     comment: row.comment as string | undefined,
@@ -196,19 +228,21 @@ function rowToGuiRule(row: Record<string, unknown>): GuiRule {
     handle: row.handle as number | undefined,
     createdAt: row.createdAt as string,
     updatedAt: row.updatedAt as string,
+    _resolvedDestIps,
+    _resolvedSourceIps,
   };
 }
 
 async function readPortForwards(): Promise<PortForward[]> {
   const res = await pool.query(
     `SELECT id, name, protocol, "externalPort", "internalIp", "internalPort",
-            "sourceIp", enabled, comment, handle, "createdAt"::text
-     FROM "NftPortForward" ORDER BY "externalPort" ASC`
+            "sourceIp", enabled, description as comment, "createdAt"::text
+     FROM "PortForwardRule" WHERE enabled = true ORDER BY "externalPort" ASC`
   );
   return res.rows.map(row => ({
     id: row.id,
     name: row.name,
-    protocol: row.protocol,
+    protocol: row.protocol === 'both' ? 'both' : row.protocol,
     externalPort: row.externalPort,
     internalIp: row.internalIp,
     internalPort: row.internalPort,
@@ -223,8 +257,8 @@ async function readPortForwards(): Promise<PortForward[]> {
 async function readRateLimits(): Promise<RateLimit[]> {
   const res = await pool.query(
     `SELECT id, name, "targetIp", "targetSet", "downloadRate", "uploadRate",
-            protocol, enabled, comment, "downloadHandle", "uploadHandle", "createdAt"::text
-     FROM "NftRateLimit" ORDER BY name ASC`
+            protocol, enabled, comment, "createdAt"::text
+     FROM "RateLimitRule" WHERE enabled = true ORDER BY name ASC`
   );
   return res.rows.map(row => ({
     id: row.id,
@@ -236,16 +270,16 @@ async function readRateLimits(): Promise<RateLimit[]> {
     protocol: row.protocol,
     enabled: row.enabled,
     comment: row.comment,
-    downloadHandle: row.downloadHandle,
-    uploadHandle: row.uploadHandle,
+    downloadHandle: undefined,
+    uploadHandle: undefined,
     createdAt: row.createdAt,
   }));
 }
 
 async function readQuickBlocks(): Promise<QuickBlock[]> {
   const res = await pool.query(
-    `SELECT id, type, value, reason, handle, "blockedAt"::text
-     FROM "NftQuickBlock" ORDER BY "blockedAt" DESC`
+    `SELECT id, type, value, reason, "createdAt"::text as "blockedAt"
+     FROM "QuickBlock" WHERE enabled = true ORDER BY "createdAt" DESC`
   );
   return res.rows.map(row => ({
     id: row.id,
@@ -259,17 +293,17 @@ async function readQuickBlocks(): Promise<QuickBlock[]> {
 
 async function readSchedules(): Promise<Schedule[]> {
   const res = await pool.query(
-    `SELECT id, name, days, "startTime", "endTime", timezone, "linkedRuleIds", enabled, "createdAt"::text
-     FROM "NftSchedule" ORDER BY name ASC`
+    `SELECT id, name, "daysOfWeek" as days, "startTime", "endTime", timezone, enabled, "createdAt"::text
+     FROM "FirewallSchedule" WHERE enabled = true ORDER BY name ASC`
   );
   return res.rows.map(row => ({
     id: row.id,
     name: row.name,
-    days: row.days,
-    startTime: row.startTime,
-    endTime: row.endTime,
-    timezone: row.timezone,
-    linkedRuleIds: row.linkedRuleIds || [],
+    days: row.days || '1,2,3,4,5,6,7',
+    startTime: row.startTime || '00:00',
+    endTime: row.endTime || '23:59',
+    timezone: row.timezone || 'UTC',
+    linkedRuleIds: [],
     enabled: row.enabled,
     createdAt: row.createdAt,
   }));
@@ -475,8 +509,12 @@ async function generateConfigPreview(): Promise<string> {
   const fcRules = enabledByChain['firewallchains'];
   if (fcRules.length > 0) {
     fcRules.forEach((rule, i) => {
+      const resolved = (rule as Record<string, unknown>)._resolvedDestIps
+        ? { resolvedDestIps: (rule as Record<string, unknown>)._resolvedDestIps as string[] }
+        : undefined;
+      const lines2 = buildNftRuleLines(rule, resolved);
       lines.push(`    # [${i + 1}] ${rule.name} (gui-rule:${rule.id})`);
-      lines.push(`    ${buildNftRuleLine(rule)}`);
+      lines2.forEach(l => lines.push(`    ${l}`));
     });
   } else {
     lines.push('    # (no GUI rules configured)');
@@ -501,8 +539,12 @@ async function generateConfigPreview(): Promise<string> {
   const fcdnRules = enabledByChain['firewallchainsdn'];
   if (fcdnRules.length > 0) {
     fcdnRules.forEach((rule, i) => {
+      const resolved = (rule as Record<string, unknown>)._resolvedDestIps
+        ? { resolvedDestIps: (rule as Record<string, unknown>)._resolvedDestIps as string[] }
+        : undefined;
+      const ruleLines = buildNftRuleLines(rule, resolved);
       lines.push(`    # [${i + 1}] ${rule.name} (gui-rule:${rule.id})`);
-      lines.push(`    ${buildNftRuleLine(rule)}`);
+      ruleLines.forEach(l => lines.push(`    ${l}`));
     });
   } else {
     lines.push('    # (no GUI rules configured)');
@@ -519,8 +561,12 @@ async function generateConfigPreview(): Promise<string> {
   const fccRules = enabledByChain['firewallchains_conn'];
   if (fccRules.length > 0) {
     fccRules.forEach((rule, i) => {
+      const resolved = (rule as Record<string, unknown>)._resolvedDestIps
+        ? { resolvedDestIps: (rule as Record<string, unknown>)._resolvedDestIps as string[] }
+        : undefined;
+      const ruleLines = buildNftRuleLines(rule, resolved);
       lines.push(`    # [${i + 1}] ${rule.name} (gui-rule:${rule.id})`);
-      lines.push(`    ${buildNftRuleLine(rule)}`);
+      ruleLines.forEach(l => lines.push(`    ${l}`));
     });
   } else {
     lines.push('    # (no GUI rules configured)');
@@ -537,8 +583,12 @@ async function generateConfigPreview(): Promise<string> {
   const fcdcRules = enabledByChain['firewallchainsdn_conn'];
   if (fcdcRules.length > 0) {
     fcdcRules.forEach((rule, i) => {
+      const resolved = (rule as Record<string, unknown>)._resolvedDestIps
+        ? { resolvedDestIps: (rule as Record<string, unknown>)._resolvedDestIps as string[] }
+        : undefined;
+      const ruleLines = buildNftRuleLines(rule, resolved);
       lines.push(`    # [${i + 1}] ${rule.name} (gui-rule:${rule.id})`);
-      lines.push(`    ${buildNftRuleLine(rule)}`);
+      ruleLines.forEach(l => lines.push(`    ${l}`));
     });
   } else {
     lines.push('    # (no GUI rules configured)');
@@ -560,8 +610,9 @@ async function generateConfigPreview(): Promise<string> {
   const fcpRules = enabledByChain['frchainspre'];
   if (fcpRules.length > 0) {
     fcpRules.forEach((rule, i) => {
+      const ruleLines = buildNftRuleLines(rule);
       lines.push(`    # [${i + 1}] ${rule.name} (gui-rule:${rule.id})`);
-      lines.push(`    ${buildNftRuleLine(rule)}`);
+      ruleLines.forEach(l => lines.push(`    ${l}`));
     });
   } else {
     lines.push('    # (no GUI rules configured)');
@@ -578,8 +629,9 @@ async function generateConfigPreview(): Promise<string> {
   const fcpostRules = enabledByChain['frchainspost'];
   if (fcpostRules.length > 0) {
     fcpostRules.forEach((rule, i) => {
+      const ruleLines = buildNftRuleLines(rule);
       lines.push(`    # [${i + 1}] ${rule.name} (gui-rule:${rule.id})`);
-      lines.push(`    ${buildNftRuleLine(rule)}`);
+      ruleLines.forEach(l => lines.push(`    ${l}`));
     });
   } else {
     lines.push('    # (no GUI rules configured)');
@@ -624,7 +676,30 @@ async function generateConfigPreview(): Promise<string> {
   return lines.join('\n');
 }
 
-function buildNftRuleLine(rule: GuiRule): string {
+/**
+ * Build nftables rule lines for a single GUI rule.
+ * For domain-type rules, expands resolved IPs into one nftables rule per IP.
+ * For simple IP/CIDR rules, returns a single rule line.
+ */
+function buildNftRuleLines(rule: GuiRule, resolvedData?: { resolvedDestIps?: string[]; resolvedSourceIps?: string[] }): string[] {
+  // Use resolved IPs if available (domain-type rules)
+  const destIps = resolvedData?.resolvedDestIps;
+  const sourceIps = resolvedData?.resolvedSourceIps;
+
+  // If domain resolved to IPs, generate one rule per dest IP
+  if (destIps && destIps.length > 0) {
+    return destIps.map(ip => buildSingleNftRuleLine(rule, ip, undefined));
+  }
+
+  // If source is domain resolved to IPs
+  if (sourceIps && sourceIps.length > 0) {
+    return sourceIps.map(ip => buildSingleNftRuleLine(rule, undefined, ip));
+  }
+
+  return [buildSingleNftRuleLine(rule)];
+}
+
+function buildSingleNftRuleLine(rule: GuiRule, overrideDestIp?: string, overrideSourceIp?: string): string {
   const parts: string[] = [];
 
   const isTcpUdp = rule.protocol === 'tcp' || rule.protocol === 'udp';
@@ -634,12 +709,14 @@ function buildNftRuleLine(rule: GuiRule): string {
     parts.push(rule.protocol);
   }
 
-  if (rule.sourceIp) {
-    parts.push(`ip saddr ${rule.sourceIp}`);
+  const srcIp = overrideSourceIp || rule.sourceIp;
+  if (srcIp) {
+    parts.push(`ip saddr ${srcIp}`);
   }
 
-  if (rule.destIp && rule.action !== 'dnat' && rule.action !== 'snat' && rule.action !== 'masquerade') {
-    parts.push(`ip daddr ${rule.destIp}`);
+  const dstIp = overrideDestIp || rule.destIp;
+  if (dstIp && rule.action !== 'dnat' && rule.action !== 'snat' && rule.action !== 'masquerade') {
+    parts.push(`ip daddr ${dstIp}`);
   }
 
   if (rule.sourcePort && isTcpUdp) {
@@ -678,10 +755,17 @@ function buildNftRuleLine(rule: GuiRule): string {
       break;
   }
 
-  const comment = rule.comment ? ` comment "gui:${rule.id} ${rule.comment.replace(/"/g, '')}"` : ` comment "gui:${rule.id}"`;
+  const comment = rule.comment
+    ? ` comment "gui:${rule.id} ${rule.comment.replace(/"/g, '')}"`
+    : ` comment "gui:${rule.id}"`;
   parts.push(comment);
 
   return parts.join(' ');
+}
+
+// Backward-compat wrapper
+function buildNftRuleLine(rule: GuiRule): string {
+  return buildSingleNftRuleLine(rule);
 }
 
 // ============================================================================
@@ -880,13 +964,18 @@ async function applyGuiRulesToNftables(): Promise<{
     }
 
     for (const rule of rules) {
-      const ruleLine = buildNftRuleLine(rule);
-      const result = addRuleToChain(table, chain, ruleLine);
-      commands.push(`nft add rule ${table} ${chain} ${ruleLine}`);
-      if (result.success) {
-        chainRuleCount++;
-      } else {
-        errors.push(`${rule.name}: ${result.error}`);
+      const resolved = (rule as Record<string, unknown>)._resolvedDestIps
+        ? { resolvedDestIps: (rule as Record<string, unknown>)._resolvedDestIps as string[] }
+        : undefined;
+      const ruleLines = buildNftRuleLines(rule, resolved);
+      for (const ruleLine of ruleLines) {
+        const result = addRuleToChain(table, chain, ruleLine);
+        commands.push(`nft add rule ${table} ${chain} ${ruleLine}`);
+        if (result.success) {
+          chainRuleCount++;
+        } else {
+          errors.push(`${rule.name}: ${result.error}`);
+        }
       }
     }
 
@@ -1216,7 +1305,7 @@ app.post('/api/rules', async (c) => {
     };
 
     await pool.query(
-      `INSERT INTO "NftGuiRule" (id, name, "chain", protocol, "sourceIp", "destIp", "destPort", "sourcePort",
+      `INSERT INTO "FirewallRule" (id, name, "chain", protocol, "sourceIp", "destIp", "destPort", "sourcePort",
         action, "markValue", "dnatTo", "snatTo", enabled, comment, priority, "createdAt", "updatedAt")
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
       [rule.id, rule.name, rule.chain, rule.protocol, rule.sourceIp, rule.destIp, rule.destPort, rule.sourcePort,
@@ -1243,7 +1332,7 @@ app.put('/api/rules/:id', async (c) => {
     const body = await c.req.json();
 
     const result = await pool.query(
-      `UPDATE "NftGuiRule"
+      `UPDATE "FirewallRule"
        SET name = COALESCE($1, name), "chain" = COALESCE($2, "chain"), protocol = COALESCE($3, protocol),
            "sourceIp" = $4, "destIp" = $5, "destPort" = $6, "sourcePort" = $7,
            action = COALESCE($8, action), "markValue" = $9, "dnatTo" = $10, "snatTo" = $11,
@@ -1276,7 +1365,7 @@ app.put('/api/rules/:id', async (c) => {
 app.delete('/api/rules/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    const result = await pool.query(`DELETE FROM "NftGuiRule" WHERE id = $1 RETURNING id`, [id]);
+    const result = await pool.query(`DELETE FROM "FirewallRule" WHERE id = $1 RETURNING id`, [id]);
 
     if (result.rowCount === 0) {
       return c.json({ success: false, error: 'Rule not found' }, 404);
@@ -1716,7 +1805,7 @@ app.post('/api/presets/:id/apply', async (c) => {
       };
 
       await pool.query(
-        `INSERT INTO "NftGuiRule" (id, name, "chain", protocol, "sourceIp", "destIp", "destPort", "sourcePort",
+        `INSERT INTO "FirewallRule" (id, name, "chain", protocol, "sourceIp", "destIp", "destPort", "sourcePort",
           action, "markValue", "dnatTo", "snatTo", enabled, comment, priority, "createdAt", "updatedAt")
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
         [rule.id, rule.name, rule.chain, rule.protocol, rule.sourceIp, rule.destIp, rule.destPort, rule.sourcePort,
@@ -1792,10 +1881,10 @@ async function verifyDatabase(maxRetries = 10, delayMs = 3000) {
       // Verify tables exist
       const tables = await pool.query(
         `SELECT tablename FROM pg_tables WHERE schemaname = 'public'
-         AND tablename IN ('NftGuiRule', 'NftPortForward', 'NftRateLimit', 'NftQuickBlock', 'NftSchedule')`
+         AND tablename IN ('FirewallRule', 'PortForwardRule', 'RateLimitRule', 'QuickBlock', 'FirewallSchedule')`
       );
       const found = tables.rows.map(r => r.tablename);
-      const expected = ['NftGuiRule', 'NftPortForward', 'NftRateLimit', 'NftQuickBlock', 'NftSchedule'];
+      const expected = ['FirewallRule', 'PortForwardRule', 'RateLimitRule', 'QuickBlock', 'FirewallSchedule'];
       const missing = expected.filter(t => !found.includes(t));
       if (missing.length > 0) {
         log.error('Missing database tables', { missing });
