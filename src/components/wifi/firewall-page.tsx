@@ -1032,11 +1032,6 @@ function RulesTab() {
                     <SelectItem value="drop">Drop</SelectItem>
                     <SelectItem value="reject">Reject</SelectItem>
                     <SelectItem value="log">Log</SelectItem>
-                    <SelectItem value="dnat">DNAT</SelectItem>
-                    <SelectItem value="snat">SNAT</SelectItem>
-                    <SelectItem value="masquerade">Masquerade</SelectItem>
-                    <SelectItem value="mark">Mark</SelectItem>
-                    <SelectItem value="proxy">Proxy</SelectItem>
                   </SelectContent>
                 </Select>
                 <div className="flex items-center gap-1.5">
