@@ -282,6 +282,57 @@ function ActionBadge({ action }: { action: string }) {
   );
 }
 
+function RuleCounterCell({
+  ruleId,
+  counters,
+  loading,
+}: {
+  ruleId: string;
+  counters: Record<string, { totalPackets: number; totalBytes: number; chains: string[] }>;
+  loading: boolean;
+}) {
+  const counter = counters[ruleId];
+
+  function formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    const idx = Math.min(i, units.length - 1);
+    return `${(bytes / Math.pow(1024, idx)).toFixed(idx > 0 ? 1 : 0)} ${units[idx]}`;
+  }
+
+  if (loading) {
+    return <Skeleton className="h-5 w-16 inline-block" />;
+  }
+
+  if (!counter || counter.totalPackets === 0) {
+    return (
+      <span className="text-xs text-muted-foreground tabular-nums">0 pkts</span>
+    );
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="text-xs font-mono tabular-nums cursor-default">
+          <span className="text-emerald-600 dark:text-emerald-400">{counter.totalPackets.toLocaleString()}</span>
+          <span className="text-muted-foreground"> pkts</span>
+          <span className="mx-1 text-muted-foreground">/</span>
+          <span className="text-amber-600 dark:text-amber-400">{formatBytes(counter.totalBytes)}</span>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">
+        <p className="font-semibold text-xs mb-1">Rule Hit Statistics</p>
+        <p className="text-xs">Packets: <span className="font-mono">{counter.totalPackets.toLocaleString()}</span></p>
+        <p className="text-xs">Bytes: <span className="font-mono">{formatBytes(counter.totalBytes)}</span> ({counter.totalBytes.toLocaleString()})</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Chains: {counter.chains.join(', ')}
+        </p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function BlockTypeBadge({ type }: { type: string }) {
   const colors: Record<string, string> = {
     ip: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700',
@@ -509,6 +560,8 @@ function RulesTab() {
   const [showConfig, setShowConfig] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
   const [configCopied, setConfigCopied] = useState(false);
+  const [ruleCounters, setRuleCounters] = useState<Record<string, { totalPackets: number; totalBytes: number; chains: string[] }>>({});
+  const [countersLoading, setCountersLoading] = useState(false);
 
   const fetchConfigPreview = useCallback(async () => {
     try {
@@ -524,6 +577,23 @@ function RulesTab() {
       setConfigLoading(false);
     }
   }, [toast]);
+
+  const fetchRuleCounters = useCallback(async () => {
+    try {
+      setCountersLoading(true);
+      const res = await fetch(`${API_BASE}/rule-counters`, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.success && data.data?.perRule) {
+        setRuleCounters(data.data.perRule);
+      }
+    } catch {
+      // silently ignore — counters are optional
+    } finally {
+      setCountersLoading(false);
+    }
+  }, []);
 
   const copyConfig = useCallback(async () => {
     if (!configPreview) return;
@@ -812,9 +882,13 @@ function RulesTab() {
           </SelectContent>
         </Select>
         <div className="flex-1" />
-        <Button variant="outline" size="sm" onClick={fetchRules}>
+        <Button variant="outline" size="sm" onClick={() => { fetchRuleCounters(); fetchRules(); }}>
           <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
+        </Button>
+        <Button variant="outline" size="sm" onClick={fetchRuleCounters} disabled={countersLoading}>
+          <BarChart3 className={cn("h-4 w-4 mr-2", countersLoading && "animate-spin")} />
+          Counters
         </Button>
         <Button onClick={openAdd} size="sm">
           <Plus className="h-4 w-4 mr-2" />
@@ -852,6 +926,7 @@ function RulesTab() {
                     <TableHead>Destination</TableHead>
                     <TableHead className="w-28">Dst Port</TableHead>
                     <TableHead>Action</TableHead>
+                    <TableHead className="w-32">Hits</TableHead>
                     <TableHead className="w-12">On</TableHead>
                     <TableHead className="w-24 text-right">Actions</TableHead>
                   </TableRow>
@@ -978,6 +1053,9 @@ function RulesTab() {
                       </TableCell>
                       <TableCell>
                         <ActionBadge action={rule.action} />
+                      </TableCell>
+                      <TableCell>
+                        <RuleCounterCell ruleId={rule.id} counters={ruleCounters} loading={countersLoading} />
                       </TableCell>
                       <TableCell>
                         <Switch checked={rule.enabled} onCheckedChange={() => toggleRule(rule.id)} />

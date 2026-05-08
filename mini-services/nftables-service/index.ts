@@ -494,14 +494,14 @@ async function generateConfigPreview(): Promise<string> {
       if (blockedIps.length > 0) {
         lines.push('    # ── Quick Blocks: Blocked IPs (uplink) ──');
         for (const ip of blockedIps) {
-          lines.push(`    ip daddr ${ip} drop comment "quick-block:ip"`);
+          lines.push(`    ip daddr ${ip} counter drop comment "quick-block:ip"`);
         }
         lines.push('');
       }
       if (blockedSubnets.length > 0) {
         lines.push('    # ── Quick Blocks: Blocked Subnets (uplink) ──');
         for (const subnet of blockedSubnets) {
-          lines.push(`    ip daddr ${subnet} drop comment "quick-block:subnet"`);
+          lines.push(`    ip daddr ${subnet} counter drop comment "quick-block:subnet"`);
         }
         lines.push('');
       }
@@ -512,14 +512,14 @@ async function generateConfigPreview(): Promise<string> {
       if (blockedIps.length > 0) {
         lines.push('    # ── Quick Blocks: Blocked IPs (downlink) ──');
         for (const ip of blockedIps) {
-          lines.push(`    ip saddr ${ip} drop comment "quick-block:ip"`);
+          lines.push(`    ip saddr ${ip} counter drop comment "quick-block:ip"`);
         }
         lines.push('');
       }
       if (blockedSubnets.length > 0) {
         lines.push('    # ── Quick Blocks: Blocked Subnets (downlink) ──');
         for (const subnet of blockedSubnets) {
-          lines.push(`    ip saddr ${subnet} drop comment "quick-block:subnet"`);
+          lines.push(`    ip saddr ${subnet} counter drop comment "quick-block:subnet"`);
         }
         lines.push('');
       }
@@ -764,6 +764,9 @@ function buildSetBasedRuleLine(
     parts.push(`${rule.protocol} dport ${rule.destPort}`);
   }
 
+  // Insert counter before terminal action for per-rule hit statistics
+  parts.push('counter');
+
   switch (rule.action) {
     case 'accept':
     case 'drop':
@@ -824,6 +827,8 @@ function buildSingleNftRuleLineForChain(
     if (rule.destPort && isTcpUdp) {
       parts.push(`${rule.protocol} dport ${rule.destPort}`);
     }
+    // Counter before terminal action
+    parts.push('counter');
     if (rule.dnatTo) {
       parts.push(`dnat to ${rule.dnatTo}`);
     }
@@ -836,6 +841,8 @@ function buildSingleNftRuleLineForChain(
     if (rule.destPort && isTcpUdp) {
       parts.push(`${rule.protocol} dport ${rule.destPort}`);
     }
+    // Counter before terminal action
+    parts.push('counter');
     if (rule.action === 'masquerade') {
       parts.push('masquerade');
     } else if (rule.snatTo) {
@@ -847,17 +854,19 @@ function buildSingleNftRuleLineForChain(
     if (srcIp) {
       parts.push(`ip saddr ${srcIp}`);
     }
+    // Counter before terminal action
+    parts.push('counter');
     parts.push('masquerade');
   }
   // For mangle filter rules (accept/drop/reject/log/proxy/mark)
   else {
     // Direction: uplink = natural, downlink = flipped
     if (srcIp) {
-      // Uplink: srcIp is source → saddr. Downlink: srcIp is the guest → daddr
+      // Uplink: srcIp is source -> saddr. Downlink: srcIp is the guest -> daddr
       parts.push(downlink ? `ip daddr ${srcIp}` : `ip saddr ${srcIp}`);
     }
     if (dstIp) {
-      // Uplink: dstIp is destination → daddr. Downlink: dstIp → saddr
+      // Uplink: dstIp is destination -> daddr. Downlink: dstIp -> saddr
       parts.push(downlink ? `ip saddr ${dstIp}` : `ip daddr ${dstIp}`);
     }
 
@@ -867,6 +876,9 @@ function buildSingleNftRuleLineForChain(
     if (rule.destPort && isTcpUdp) {
       parts.push(`${rule.protocol} dport ${rule.destPort}`);
     }
+
+    // Counter before terminal action
+    parts.push('counter');
 
     switch (rule.action) {
       case 'accept':
@@ -1255,14 +1267,14 @@ async function applyGuiRulesToNftables(): Promise<{
     // Quick blocks in uplink: match destination IPs (traffic going TO blocked IPs)
     if (chain === 'firewallchains') {
       for (const ip of blockedIps) {
-        const rl = `ip daddr ${ip} drop comment "quick-block:ip"`;
+        const rl = `ip daddr ${ip} counter drop comment "quick-block:ip"`;
         const result = addRuleToChain(table, chain, rl);
         commands.push(`nft add rule ${table} ${chain} ${rl}`);
         if (result.success) chainRuleCount++;
         else errors.push(result.error || rl);
       }
       for (const subnet of blockedSubnets) {
-        const rl = `ip daddr ${subnet} drop comment "quick-block:subnet"`;
+        const rl = `ip daddr ${subnet} counter drop comment "quick-block:subnet"`;
         const result = addRuleToChain(table, chain, rl);
         commands.push(`nft add rule ${table} ${chain} ${rl}`);
         if (result.success) chainRuleCount++;
@@ -1273,14 +1285,14 @@ async function applyGuiRulesToNftables(): Promise<{
     // Quick blocks in downlink: match source IPs (traffic FROM blocked IPs)
     if (chain === 'firewallchainsdn') {
       for (const ip of blockedIps) {
-        const rl = `ip saddr ${ip} drop comment "quick-block:ip"`;
+        const rl = `ip saddr ${ip} counter drop comment "quick-block:ip"`;
         const result = addRuleToChain(table, chain, rl);
         commands.push(`nft add rule ${table} ${chain} ${rl}`);
         if (result.success) chainRuleCount++;
         else errors.push(result.error || rl);
       }
       for (const subnet of blockedSubnets) {
-        const rl = `ip saddr ${subnet} drop comment "quick-block:subnet"`;
+        const rl = `ip saddr ${subnet} counter drop comment "quick-block:subnet"`;
         const result = addRuleToChain(table, chain, rl);
         commands.push(`nft add rule ${table} ${chain} ${rl}`);
         if (result.success) chainRuleCount++;
@@ -2190,6 +2202,148 @@ app.get('/api/config/preview', async (c) => {
   } catch (error) {
     log.error('Failed to generate config preview', { error: String(error) });
     return c.json({ success: false, error: 'Failed to generate config preview' }, 500);
+  }
+});
+
+// ============================================================================
+// Rule Counter Stats — read per-rule packet/byte counters from nftables
+// ============================================================================
+
+interface RuleCounter {
+  ruleId: string;
+  chain: string;
+  table: string;
+  handle: number;
+  packets: number;
+  bytes: number;
+  action: string;
+  comment: string;
+}
+
+/**
+ * Parse nftables `-a` output and extract counter stats for GUI rules.
+ *
+ * Input format (one line per rule):
+ *   [ 12345 packets, 987654 bytes ]  ip saddr 10.10.30.10 counter accept comment "gui:abc123 Allow PMS"
+ *   handle 42
+ *
+ * We extract: handle, packets, bytes, gui:ruleId from comment.
+ */
+function parseChainCounters(table: string, chain: string): RuleCounter[] {
+  try {
+    const output = execSync(`nft -a list chain ${table} ${chain} 2>/dev/null`, {
+      encoding: 'utf-8',
+      timeout: 5000,
+    });
+
+    const results: RuleCounter[] = [];
+    const lines = output.split('\n');
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Match counter line: [ N packets, N bytes ]
+      const counterMatch = line.match(/\[\s*(\d+)\s+packets?,\s*(\d+)\s+bytes?\s*\]/);
+      if (!counterMatch) continue;
+
+      const packets = parseInt(counterMatch[1], 10);
+      const bytes = parseInt(counterMatch[2], 10);
+
+      // Extract handle from next line or same line
+      const handleLine = lines[i + 1] || '';
+      const handleMatch = handleLine.match(/handle\s+(\d+)/) || line.match(/handle\s+(\d+)/);
+      const handle = handleMatch ? parseInt(handleMatch[1], 10) : 0;
+
+      // Extract gui:ruleId from comment
+      const commentMatch = line.match(/comment\s+"gui:(\S+)(?:\s+(.+?))?"\s*$/);
+      const ruleId = commentMatch ? commentMatch[1] : '';
+      const commentText = commentMatch ? (commentMatch[2] || '') : '';
+
+      // Extract action keyword
+      const actionMatch = line.match(/\b(accept|drop|reject|log|masquerade|dnat|snat|meta mark set \d+)\b/);
+      const action = actionMatch ? actionMatch[1] : 'unknown';
+
+      // Skip the no-op meta mark 0x00000000 comment rule
+      if (line.includes('StaySuite GUI Chain')) continue;
+      // Skip quick-block rules (no gui: prefix)
+      if (!ruleId && !line.includes('quick-block')) continue;
+
+      results.push({
+        ruleId,
+        chain,
+        table,
+        handle,
+        packets,
+        bytes,
+        action,
+        comment: commentText,
+      });
+    }
+
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+app.get('/api/rule-counters', async (c) => {
+  try {
+    if (!isNftablesInstalled()) {
+      return c.json({
+        success: true,
+        data: {
+          mode: 'simulation',
+          counters: [],
+          chainRuleCounts: {},
+          message: 'nftables not installed — counters available in production mode only',
+        },
+      });
+    }
+
+    const allCounters: RuleCounter[] = [];
+    const chainRuleCounts: Record<string, number> = {};
+
+    for (const chain of GUI_CHAINS) {
+      const meta = GUI_CHAIN_DESCRIPTIONS[chain];
+      const counters = parseChainCounters(meta.table, chain);
+      allCounters.push(...counters);
+      chainRuleCounts[chain] = counters.length;
+    }
+
+    // Also count quick-block rules
+    for (const chain of ['firewallchains', 'firewallchainsdn'] as const) {
+      const counters = parseChainCounters('inet mangle', chain);
+      const quickBlockCount = counters.filter(c => c.ruleId === '' && c.comment.includes('quick-block')).length;
+      chainRuleCounts[`${chain}_quickblocks`] = quickBlockCount;
+    }
+
+    // Aggregate per ruleId (one GUI rule expands to multiple chains)
+    const perRule: Record<string, { totalPackets: number; totalBytes: number; chains: string[] }> = {};
+    for (const c of allCounters) {
+      if (!c.ruleId) continue;
+      if (!perRule[c.ruleId]) {
+        perRule[c.ruleId] = { totalPackets: 0, totalBytes: 0, chains: [] };
+      }
+      perRule[c.ruleId].totalPackets += c.packets;
+      perRule[c.ruleId].totalBytes += c.bytes;
+      if (!perRule[c.ruleId].chains.includes(c.chain)) {
+        perRule[c.ruleId].chains.push(c.chain);
+      }
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        mode: 'production',
+        counters: allCounters,
+        perRule,
+        chainRuleCounts,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    log.error('Failed to read rule counters', { error: String(error) });
+    return c.json({ success: false, error: 'Failed to read rule counters' }, 500);
   }
 });
 
