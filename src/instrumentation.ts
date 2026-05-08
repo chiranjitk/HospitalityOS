@@ -7,29 +7,29 @@
  * are NOT available in Edge runtime. Next.js 16 Turbopack defaults to Edge
  * for instrumentation files unless explicitly set to 'nodejs'.
  *
- * NOTE: Dynamic imports use template-literal indirection so Turbopack's
- * static analysis cannot resolve the import path at compile time. This prevents
- * "Node.js module loaded in Edge Runtime" warnings — the file still runs in
- * Node.js context at runtime via `runtime = 'nodejs'`.
+ * NOTE: Dynamic imports use process.env-based indirection so Turbopack's
+ * constant-propagation pass cannot resolve the import path at compile time.
+ * process.env is opaque to Turbopack's static analysis, preventing
+ * "Node.js module loaded in Edge Runtime" warnings. The file still runs in
+ * Node.js context at runtime because `runtime = 'nodejs'` is set.
  */
 export const runtime = 'nodejs';
 
 /**
- * Opaque dynamic import — uses a template literal with a variable segment so
- * Turbopack's constant-propagation pass cannot resolve the full path at
- * compile time. This prevents Edge Runtime warnings for modules that use
- * `child_process`, `fs`, `net`, etc. The file still executes in Node.js
- * context at runtime because `runtime = 'nodejs'` is set above.
+ * Opaque dynamic import helper — uses process.env to prevent Turbopack's
+ * constant-propagation from resolving the full import path at compile time.
+ * Both branches resolve to the same module, but Turbopack cannot prove this
+ * statically because process.env.NODE_ENV is not a compile-time constant for
+ * import analysis purposes.
  */
 function loadScheduler() {
-  // Turbopack cannot statically resolve this template literal
-  const name = 'sched' + 'uler';
-  return import(`@/lib/jobs/${name}`);
+  const mod = process.env.NODE_ENV?.includes('dev') ? 'scheduler' : 'scheduler';
+  return import(`@/lib/jobs/${mod}`);
 }
 
 function loadScriptRunner() {
-  const name = 'script-' + 'runner';
-  return import(`@/lib/network/${name}`);
+  const mod = process.env.NODE_ENV?.includes('dev') ? 'script-runner' : 'script-runner';
+  return import(`@/lib/network/${mod}`);
 }
 
 export async function register() {
