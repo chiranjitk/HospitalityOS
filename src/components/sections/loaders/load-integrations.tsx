@@ -22,6 +22,8 @@ export default async function loadSection(section: string): Promise<{ default: R
     case 'integrations-hub':
     case 'integrations-integration-hub':
       return import('@/components/integrations/integration-hub');
+    case 'integrations-hardware-adapters':
+      return import('@/components/integrations/hardware-adapters');
     default:
       throw new Error(`Unknown integrations section: ${section}`);
   }

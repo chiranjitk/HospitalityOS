@@ -6063,6 +6063,9 @@ model Tenant {
   upsellCampaigns           UpsellCampaign[]
   upsellOffers              UpsellOffer[]
   upsellRules               UpsellRule[]
+  hardwareAdapters          HardwareAdapter[]
+  hardwareOperationLogs     HardwareOperationLog[]
+  hardwareWebhookLogs       HardwareWebhookLog[]
 }
 
 model Experience {
@@ -9911,4 +9914,94 @@ model UpsellRule {
   @@index([tenantId])
   @@index([ruleType])
   @@index([isActive])
+}
+
+// ============================================================
+// HARDWARE ABSTRACTION LAYER (HAL) - Core Infrastructure Models
+// ============================================================
+
+/// HardwareAdapter - Registered hardware provider configuration per property
+model HardwareAdapter {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  propertyId     String   @db.Uuid
+  providerId     String   // "simulator", "assa-abloy-visionline", "salto-ks", "dormakaba-saflok", "nuki", "seam", "stripe-terminal", "square-terminal", "adyen-terminal", "verifone-engage", "ingenico"
+  category       String   @default("lock") // "lock" | "terminal"
+  displayName    String
+  config         String   @default("{}") // JSON: HardwareAdapterConfig
+  credentials    String   @default("{}") // JSON: HardwareAdapterCredentials (encrypted at rest)
+  enabled        Boolean  @default(true)
+  healthStatus   String   @default("unknown") // unknown, healthy, degraded, unhealthy, disconnected
+  lastHealthyAt  DateTime? @db.Timestamptz
+  lastCheckedAt  DateTime? @db.Timestamptz
+  createdAt      DateTime @default(now()) @db.Timestamptz
+  updatedAt      DateTime @updatedAt @db.Timestamptz
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, providerId])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([providerId])
+  @@index([category])
+  @@index([enabled])
+}
+
+/// HardwareOperationLog - Audit trail for all hardware adapter operations
+model HardwareOperationLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String   @db.Uuid
+  adapterId       String?  @db.Uuid
+  providerId      String
+  category        String   // "lock" | "terminal"
+  operation       String   // e.g., "connect", "issue_key", "create_checkout"
+  targetId        String?  // internal lock/terminal ID
+  vendorTargetId  String?  // vendor-specific lock/terminal ID
+  success         Boolean
+  errorCode       String?
+  errorMessage    String?
+  initiatedBy     String?  // userId or "system"
+  requestJson     String?  // sanitized JSON
+  responseJson    String?
+  durationMs      Int?
+  correlationId   String?  @db.Uuid
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([adapterId])
+  @@index([providerId])
+  @@index([category])
+  @@index([operation])
+  @@index([success])
+  @@index([createdAt])
+  @@index([correlationId])
+}
+
+/// HardwareWebhookLog - Idempotent log of inbound vendor webhooks
+model HardwareWebhookLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  providerId      String
+  vendorEventId   String
+  eventType       String
+  receivedAt      DateTime @default(now()) @db.Timestamptz
+  rawBody         String
+  signature       String?
+  processingStatus String  @default("pending") // pending, processing, completed, failed
+  processedAt     DateTime? @db.Timestamptz
+  errorMessage    String?
+  responseJson    String?
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, vendorEventId])
+  @@index([tenantId])
+  @@index([providerId])
+  @@index([eventType])
+  @@index([processingStatus])
+  @@index([receivedAt])
+  @@index([createdAt])
 }

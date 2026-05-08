@@ -538,6 +538,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'integrations-smart-locks', title: 'Smart Locks', href: '#integrations-smart-locks', icon: Lock },
       { id: 'integrations-terminals', title: 'Payment Terminals', href: '#integrations-terminals', icon: CreditCard },
       { id: 'integrations-mobile-app', title: 'Mobile App', href: '#integrations-mobile-app', icon: Smartphone },
+      { id: 'integrations-hardware-adapters', title: 'Hardware Adapters', href: '#integrations-hardware-adapters', icon: Lock },
     ],
   },
   {

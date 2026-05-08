@@ -264,6 +264,7 @@ const sectionPaths: Record<string, string> = {
   'integrations-smart-locks': '@/components/integrations/smart-locks',
   'integrations-terminals': '@/components/integrations/payment-terminals',
   'integrations-mobile-app': '@/components/integrations/mobile-app',
+  'integrations-hardware-adapters': '@/components/integrations/hardware-adapters',
   'notifications-templates': '@/components/notifications/templates',
   'notifications-logs': '@/components/notifications/delivery-logs',
   'notifications-settings': '@/components/notifications/settings',
