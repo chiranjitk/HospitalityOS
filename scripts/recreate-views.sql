@@ -76,8 +76,8 @@ SELECT COALESCE(s.id::text, r.acctuniqueid) AS session_id,
     dp."macAddress" AS "dp_macAddress",
     COALESCE(dp."authCount", 0) AS "dp_authCount",
     -- Timeout columns from WiFiPlan
-    COALESCE(wp."sessionTimeout", 0) AS "sessionTimeoutSec",
-    COALESCE(wp."idleTimeout", 0) AS "idleTimeoutSec",
+    COALESCE(wp."sessionTimeoutSec", 0) AS "sessionTimeoutSec",
+    COALESCE(wp."idleTimeoutSec", 0) AS "idleTimeoutSec",
     -- Burst (ceil) columns from WiFiPlan
     wp."burstDownloadSpeed",
     wp."burstUploadSpeed"
