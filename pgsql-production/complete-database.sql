@@ -207,12 +207,12 @@ END $$;
 --   WiFiUser.totalBytesOut = DOWNLOAD (synced from acctoutputoctets)
 -- ============================================================================
 
-DROP VIEW IF EXISTS v_active_sessions;
-DROP VIEW IF EXISTS v_session_history;
-DROP VIEW IF EXISTS v_auth_logs;
-DROP VIEW IF EXISTS v_user_usage;
-DROP VIEW IF EXISTS v_wifi_users;
-DROP VIEW IF EXISTS v_fup_switch_logs;
+DROP VIEW IF EXISTS v_active_sessions CASCADE;
+DROP VIEW IF EXISTS v_fup_switch_logs CASCADE;
+DROP VIEW IF EXISTS v_auth_logs CASCADE;
+DROP VIEW IF EXISTS v_user_usage CASCADE;
+DROP VIEW IF EXISTS v_wifi_users CASCADE;
+DROP VIEW IF EXISTS v_session_history CASCADE;
 
 -- ---------------------------------------------------------------------------
 -- VIEW: v_session_history (master view -- others depend on this)
@@ -993,7 +993,18 @@ CREATE INDEX IF NOT EXISTS "DeviceProfile_guestId_idx" ON "DeviceProfile"("guest
 CREATE INDEX IF NOT EXISTS "DeviceProfile_tenantId_propertyId_lastSeenAt_idx" ON "DeviceProfile"("tenantId", "propertyId", "lastSeenAt");
 CREATE INDEX IF NOT EXISTS "DeviceProfile_isActive_idx" ON "DeviceProfile"("isActive");
 
-ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_wifiUserId_fkey" FOREIGN KEY ("wifiUserId") REFERENCES "WiFiUser"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_propertyId_fkey" FOREIGN KEY ("propertyId") REFERENCES "Property"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_guestId_fkey" FOREIGN KEY ("guestId") REFERENCES "Guest"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DeviceProfile_wifiUserId_fkey') THEN
+        ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_wifiUserId_fkey" FOREIGN KEY ("wifiUserId") REFERENCES "WiFiUser"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DeviceProfile_tenantId_fkey') THEN
+        ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DeviceProfile_propertyId_fkey') THEN
+        ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_propertyId_fkey" FOREIGN KEY ("propertyId") REFERENCES "Property"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DeviceProfile_guestId_fkey') THEN
+        ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_guestId_fkey" FOREIGN KEY ("guestId") REFERENCES "Guest"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+END $$;
