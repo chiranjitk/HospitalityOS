@@ -224,12 +224,12 @@ async function getLiveSnapshot() {
       live: true,
       data: {
         activeSessions: rows.length,
-        totalDownload: totalIn,
-        totalUpload: totalOut,
+        totalDownload: totalOut,
+        totalUpload: totalIn,
         users: rows.map(r => ({
           username: r.username,
-          download: Number(r.acctinputoctets || 0),
-          upload: Number(r.acctoutputoctets || 0),
+          download: Number(r.acctoutputoctets || 0),
+          upload: Number(r.acctinputoctets || 0),
           ip: r.framedipaddress,
           mac: r.callingstationid,
           startTime: r.acctstarttime,
