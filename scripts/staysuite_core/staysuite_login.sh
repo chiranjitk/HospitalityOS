@@ -151,7 +151,7 @@ EOF
 }
 
 # ─── Parse arguments ──────────────────────────────────────────────────
-while getopts "i:a:s:L:P:R:C:r:c:d:u:D:U:g:G:W:S:m:X:o:f:t:" opt; do
+while getopts "i:a:s:L:P:R:C:r:c:d:u:D:U:g:G:W:S:m:X:o:f:t:e:E:" opt; do
     case "$opt" in
         i) IP="$OPTARG" ;;
         a) ACTION="$OPTARG" ;;

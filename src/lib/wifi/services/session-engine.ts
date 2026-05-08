@@ -1059,12 +1059,15 @@ async function disconnectSession(
       }
     }
 
-    // 8. Suspend the WiFi user for session-timeout and data-limit (not for idle-timeout)
-    if (reason === 'Session-Timeout' || reason === 'Data-Limit-Exceeded') {
+    // 8. Suspend the WiFi user for data-limit only (not for session-timeout or idle-timeout)
+    //    Session-Timeout = session ended, user can re-login (account lifetime tracked by validUntil)
+    //    Data-Limit-Exceeded = plan quota exceeded, admin must reset or plan renewal
+    //    Idle-Timeout = no traffic, user can reconnect immediately
+    if (reason === 'Data-Limit-Exceeded') {
       try {
         await tx.wiFiUser.updateMany({
           where: { username: session.username },
-          data: { status: reason === 'Data-Limit-Exceeded' ? 'suspended' : 'expired' },
+          data: { status: 'suspended' },
         });
       } catch {
         // Non-fatal
