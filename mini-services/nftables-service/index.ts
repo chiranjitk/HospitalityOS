@@ -168,8 +168,10 @@ function generateId(): string {
 
 async function readGuiRules(): Promise<GuiRule[]> {
   const res = await pool.query(
-    `SELECT id, name, "chain", protocol, "sourceIp", "destIp", "destPort", "sourcePort",
+    `SELECT id, name, "chain", protocol, "sourceIp", "sourceMac", "destIp", "destPort", "sourcePort",
+            "sourcePortType", "destPortType",
             action, enabled, comment, priority,
+            "proxyTo", "jumpTarget", "logPrefix",
             "createdAt"::text, "updatedAt"::text,
             "destIpResolved", "sourceIpResolved", "destIpType", "sourceIpType"
      FROM "FirewallRule" WHERE enabled = true ORDER BY priority ASC`
@@ -219,9 +221,9 @@ function rowToGuiRule(row: Record<string, unknown>): GuiRule & { _resolvedDestIp
     destPort: row.destPort as string | undefined,
     sourcePort: row.sourcePort as string | undefined,
     action: (row.action as string || 'accept') as GuiRule['action'],
-    markValue: row.markValue as number | undefined,
-    dnatTo: (row.dnatTo as string) || (row.proxyTo as string) || undefined,
-    snatTo: row.snatTo as string | undefined,
+    markValue: undefined,
+    dnatTo: (row.proxyTo as string) || undefined,
+    snatTo: undefined,
     enabled: row.enabled as boolean,
     comment: row.comment as string | undefined,
     priority: row.priority as number,
