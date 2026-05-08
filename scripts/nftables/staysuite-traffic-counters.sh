@@ -115,7 +115,7 @@ cmd_add() {
     # Now: if ANY rules exist for this IP, remove them all first, then add fresh.
     local existing_handles
     existing_handles=$(nft -a list chain inet staysuite_count forward 2>/dev/null | \
-        grep "user_${safe_ip}" | \
+        grep -E "user_(in|out)_${safe_ip}" | \
         grep -oP 'handle \K[0-9]+' | sort -rn || true)
 
     if [[ -n "$existing_handles" ]]; then
@@ -151,7 +151,7 @@ cmd_remove() {
     # Matches both user_in_<ip> and user_out_<ip>
     local handles
     handles=$(nft -a list chain inet staysuite_count forward 2>/dev/null | \
-        grep "user_${safe_ip}" | \
+        grep -E "user_(in|out)_${safe_ip}" | \
         grep -oP 'handle \K[0-9]+' | sort -rn || true)
 
     if [ -z "$handles" ]; then

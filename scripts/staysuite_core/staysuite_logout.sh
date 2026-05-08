@@ -192,7 +192,7 @@ done
 SAFE_IP="${IP//./_}"
 if nft list tables 2>/dev/null | grep -q "staysuite_count"; then
     counter_handles=$(nft -a list chain inet staysuite_count forward 2>/dev/null \
-        | grep "user_${SAFE_IP}" | grep -oP 'handle \K[0-9]+' | sort -rn || true)
+        | grep -E "user_(in|out)_${SAFE_IP}" | grep -oP 'handle \K[0-9]+' | sort -rn || true)
     counter_count=0
     for h in $counter_handles; do
         if nft delete rule inet staysuite_count forward handle "$h" 2>/dev/null; then

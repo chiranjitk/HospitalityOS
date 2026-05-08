@@ -193,7 +193,7 @@ export function removeUserCounter(ip: string): boolean {
   try {
     const safeIp = ip.replace(/\./g, '_');
     const handles = execSync(
-      `nft -a list chain inet staysuite_count forward 2>/dev/null | grep "user_${safeIp}" | grep -oP 'handle \\K[0-9]+' | sort -rn`,
+      `nft -a list chain inet staysuite_count forward 2>/dev/null | grep -E "user_(in|out)_${safeIp}" | grep -oP 'handle \\K[0-9]+' | sort -rn`,
       { encoding: 'utf-8', timeout: 5000 }
     ).trim();
 
