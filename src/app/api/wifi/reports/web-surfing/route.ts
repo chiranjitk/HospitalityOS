@@ -408,27 +408,12 @@ export async function GET(request: NextRequest) {
                 select: {
                   ipAddress: true,
                   macAddress: true,
-                  linkedType: true,
-                  linkedId: true,
                 },
               });
 
               for (const lease of dhcpLeases) {
                 if (ipToGuest.has(lease.ipAddress)) continue;
-                // Check if lease is linked to a guest
-                if (lease.linkedType === 'guest' && lease.linkedId) {
-                  try {
-                    const guest = await db.guest.findUnique({
-                      where: { id: lease.linkedId },
-                      select: { id: true, firstName: true, lastName: true },
-                    });
-                    if (guest) {
-                      const name = `${guest.firstName ?? ''} ${guest.lastName ?? ''}`.trim();
-                      if (name) ipToGuest.set(lease.ipAddress, name);
-                    }
-                  } catch { /* skip */ }
-                }
-                // Also try matching MAC via DeviceProfile → WiFiUser → Guest
+                // Try matching MAC via DeviceProfile → WiFiUser → Guest
                 if (lease.macAddress && !ipToGuest.has(lease.ipAddress)) {
                   try {
                     const device = await db.deviceProfile.findFirst({
