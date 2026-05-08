@@ -22,7 +22,7 @@ import * as fs from 'fs';
 function resolveScriptsDir(): string {
   const candidates = [
     // 1. Relative to process.cwd() (works in dev)
-    path.resolve(process.cwd(), 'scripts/network'),
+    path.resolve(/*turbopackIgnore: true*/ process.cwd(), 'scripts/network'),
     // 2. Relative to this source file (works in production builds)
     path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/\/src\/lib\/network\/.*/, '')), 'scripts/network'),
     // 3. Relative to __dirname in CommonJS context
@@ -231,7 +231,7 @@ export function executeScript<T = Record<string, unknown>>(
   if (!fs.existsSync(scriptPath)) {
     const result: ScriptResult<T> = {
       success: false,
-      error: `Script not found: ${scriptPath} (SCRIPTS_DIR=${SCRIPTS_DIR}, cwd=${process.cwd()})`,
+      error: `Script not found: ${scriptPath} (SCRIPTS_DIR=${SCRIPTS_DIR}, cwd=${/*turbopackIgnore: true*/ process.cwd()})`,
       timestamp: new Date().toISOString(),
     };
     if (throwOnError) throw new Error(result.error);

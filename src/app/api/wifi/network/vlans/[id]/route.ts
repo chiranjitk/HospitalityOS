@@ -5,6 +5,8 @@
  * [id] can be a DB CUID or a subInterface name (e.g. eth1.100).
  */
 
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { db } from '@/lib/db';

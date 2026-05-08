@@ -17,7 +17,7 @@ import path from 'path';
 // Config
 // ---------------------------------------------------------------------------
 
-const LOG_DIR = path.join(process.cwd(), 'logs');
+const LOG_DIR = path.join(/*turbopackIgnore: true*/ process.cwd(), 'logs');
 const LOG_FILE = path.join(LOG_DIR, 'session-engine.log');
 const MAX_IN_MEMORY_ENTRIES = 100;
 const MAX_LOG_FILE_LINES = 10000;      // Rotate after this many lines

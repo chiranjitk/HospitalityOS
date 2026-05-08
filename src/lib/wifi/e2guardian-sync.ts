@@ -65,7 +65,7 @@ const CATEGORY_FILE_MAP: Record<string, string> = {
 };
 
 // Base path for e2guardian generated config (relative to project root)
-const BASE_DIR = join(process.cwd(), 'data', 'e2guardian');
+const BASE_DIR = join(/*turbopackIgnore: true*/ process.cwd(), 'data', 'e2guardian');
 const LISTS_DIR = join(BASE_DIR, 'lists', 'staysuite');
 const BANNED_DIR = join(LISTS_DIR, 'banned');
 const EXCEPTION_DIR = join(LISTS_DIR, 'exception');
@@ -122,7 +122,9 @@ function domainLine(domain: string): string {
 
 async function writeListFile(dir: string, category: string, domains: string[]): Promise<number> {
   const fileName = CATEGORY_FILE_MAP[category] || category;
-  const filePath = join(dir, fileName);
+  // turbopackIgnore: dir and fileName are dynamic runtime values; without
+  // this hint Turbopack enumerates all possible combinations (18 739 files).
+  const filePath = join(/*turbopackIgnore: true*/ dir, fileName);
   const lines = domains.map(domainLine).filter(Boolean);
 
   // Deduplicate while preserving order
@@ -257,7 +259,7 @@ function generateMainConfig(): string {
 language = 'ukenglish'
 
 .Define LISTDIR ${join(BASE_DIR, 'lists', 'common')}
-languagedir = '${join(process.cwd(), 'tools', 'e2guardian', 'data', 'languages')}'
+languagedir = '${join(/*turbopackIgnore: true*/ process.cwd(), 'tools', 'e2guardian', 'data', 'languages')}'
 
 # =============================================================================
 # NETWORK CONFIGURATION
@@ -309,7 +311,7 @@ defaultfiltergroup = 2
 # AUTHENTICATION
 # =============================================================================
 # IP-based auth: guest devices are identified by their DHCP-assigned IP
-authplugin = '${join(process.cwd(), 'tools', 'e2guardian', 'configs', 'authplugins', 'ip.conf')}'
+authplugin = '${join(/*turbopackIgnore: true*/ process.cwd(), 'tools', 'e2guardian', 'configs', 'authplugins', 'ip.conf')}'
 ipmaplist = 'name=ipmap,path=${join(BASE_DIR, 'lists', 'authplugins', 'ipgroups')}'
 maplist = 'name=defaultusermap,path=${join(BASE_DIR, 'lists', 'authplugins', 'filtergroupslist')}'
 maplist = 'name=portmap,path=${join(BASE_DIR, 'lists', 'authplugins', 'portgroups')}'
@@ -407,14 +409,14 @@ maxheaderlines = 2000
 # =============================================================================
 reportinglevel = 3
 usecustombannedimage = on
-custombannedimagefile = '${join(process.cwd(), 'tools', 'e2guardian', 'data', 'transparent1x1.gif')}'
+custombannedimagefile = '${join(/*turbopackIgnore: true*/ process.cwd(), 'tools', 'e2guardian', 'data', 'transparent1x1.gif')}'
 usecustombannedflash = on
-custombannedflashfile = '${join(process.cwd(), 'tools', 'e2guardian', 'data', 'blockedflash.swf')}'
+custombannedflashfile = '${join(/*turbopackIgnore: true*/ process.cwd(), 'tools', 'e2guardian', 'data', 'blockedflash.swf')}'
 
 # =============================================================================
 # DOWNLOAD MANAGEMENT
 # =============================================================================
-downloadmanager = '${join(process.cwd(), 'tools', 'e2guardian', 'configs', 'downloadmanagers', 'default.conf.in')}'
+downloadmanager = '${join(/*turbopackIgnore: true*/ process.cwd(), 'tools', 'e2guardian', 'configs', 'downloadmanagers', 'default.conf.in')}'
 filecachedir = '/tmp'
 deletedownloadedtempfiles = on
 initialtrickledelay = 20

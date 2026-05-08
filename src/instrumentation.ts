@@ -16,19 +16,22 @@
 export const runtime = 'nodejs';
 
 /**
- * Opaque dynamic import helper — uses process.env to prevent Turbopack's
- * constant-propagation from resolving the full import path at compile time.
- * Both branches resolve to the same module, but Turbopack cannot prove this
- * statically because process.env.NODE_ENV is not a compile-time constant for
- * import analysis purposes.
+ * Opaque dynamic import helper — constructs the module name from split
+ * string chunks so Turbopack's constant-propagation pass CANNOT resolve
+ * the import path at compile time.  Array.join() on a mutable local
+ * variable is opaque to static analysis, preventing the full import chain
+ * (scheduler → nas-health-check → child_process / net / dgram / fs / …)
+ * from being traced into the Edge Instrumentation analysis.
  */
 function loadScheduler() {
-  const mod = process.env.NODE_ENV?.includes('dev') ? 'scheduler' : 'scheduler';
+  const chunks = ['sched', 'uler'];
+  const mod = chunks.join('');
   return import(`@/lib/jobs/${mod}`);
 }
 
 function loadScriptRunner() {
-  const mod = process.env.NODE_ENV?.includes('dev') ? 'script-runner' : 'script-runner';
+  const chunks = ['script-ru', 'nner'];
+  const mod = chunks.join('');
   return import(`@/lib/network/${mod}`);
 }
 
