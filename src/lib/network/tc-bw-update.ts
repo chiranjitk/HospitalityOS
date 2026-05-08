@@ -135,11 +135,11 @@ export function updateSessionBandwidth(
 
   const errors: string[] = [];
 
-  // Update download class (ifb0) — ceil = 1.2x rate for burst
+  // Update download class (ifb0) — ceil = rate (no burst unless explicitly configured)
   if (dlClassid) {
     try {
       execSync(
-        `tc class change dev ifb0 classid ${dlClassid} htb rate ${downloadKbps}kbit ceil ${Math.round(downloadKbps * 1.2)}kbit quantum 1500 2>&1`,
+        `tc class change dev ifb0 classid ${dlClassid} htb rate ${downloadKbps}kbit ceil ${downloadKbps}kbit quantum 1500 2>&1`,
         { encoding: 'utf-8', timeout: 5000 }
       );
       console.log(`[TC-BW] Updated download: ${ip} → ${dlClassid} rate=${downloadKbps}kbit`);
@@ -149,11 +149,11 @@ export function updateSessionBandwidth(
     }
   }
 
-  // Update upload class (ifb1) — ceil = 1.2x rate for burst
+  // Update upload class (ifb1) — ceil = rate (no burst unless explicitly configured)
   if (ulClassid) {
     try {
       execSync(
-        `tc class change dev ifb1 classid ${ulClassid} htb rate ${uploadKbps}kbit ceil ${Math.round(uploadKbps * 1.2)}kbit quantum 1500 2>&1`,
+        `tc class change dev ifb1 classid ${ulClassid} htb rate ${uploadKbps}kbit ceil ${uploadKbps}kbit quantum 1500 2>&1`,
         { encoding: 'utf-8', timeout: 5000 }
       );
       console.log(`[TC-BW] Updated upload: ${ip} → ${ulClassid} rate=${uploadKbps}kbit`);

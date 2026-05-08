@@ -407,9 +407,9 @@ function poolToResult(pool: { id: string; name: string; totalDownloadKbps: numbe
   return {
     poolId: classId,
     poolRateDn: pool.totalDownloadKbps,
-    poolCeilDn: Math.round(pool.totalDownloadKbps * 1.2),
+    poolCeilDn: pool.totalDownloadKbps,
     poolRateUp: pool.totalUploadKbps,
-    poolCeilUp: Math.round(pool.totalUploadKbps * 1.2),
+    poolCeilUp: pool.totalUploadKbps,
     poolName: pool.name,
   };
 }
@@ -567,9 +567,9 @@ export async function initializeAllPoolClasses(): Promise<{ created: number; fai
       cache.set(pool.id, poolClassId);
 
       const dnRate = pool.totalDownloadKbps;
-      const dnCeil = Math.round(pool.totalDownloadKbps * 1.2);
+      const dnCeil = pool.totalDownloadKbps;
       const upRate = pool.totalUploadKbps;
-      const upCeil = Math.round(pool.totalUploadKbps * 1.2);
+      const upCeil = pool.totalUploadKbps;
 
       try {
         const result = runPoolCreate(poolClassId, dnRate, dnCeil, upRate, upCeil);
