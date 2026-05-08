@@ -1032,6 +1032,7 @@ function RulesTab() {
                     <SelectItem value="drop">Drop</SelectItem>
                     <SelectItem value="reject">Reject</SelectItem>
                     <SelectItem value="log">Log</SelectItem>
+                    <SelectItem value="proxy">Proxy (Bypass Captive Portal)</SelectItem>
                   </SelectContent>
                 </Select>
                 <div className="flex items-center gap-1.5">
