@@ -89,7 +89,7 @@ describe('Cash Flow API', () => {
         method: 'POST',
         body: {
           propertyId: PROPERTY_ID,
-          period: `2024-${suffix.slice(-2)}-01T00:00:00Z`,
+          period: `2024-${String((suffix.charCodeAt(0) % 12) + 1).padStart(2, '0')}-01T00:00:00Z`,
           openingBalance: 50000,
           totalInflow: 120000,
           totalOutflow: 80000,
@@ -125,7 +125,8 @@ describe('Cash Flow API', () => {
       const req = await createAuthRequest(url, {
         method: 'POST',
         body: {
-          period: `2024-${suffix.slice(-2)}-01T00:00:00Z`,
+          propertyId: PROPERTY_ID,
+          period: `2024-${String((suffix.charCodeAt(1) % 12) + 1).padStart(2, '0')}-01T00:00:00Z`,
           openingBalance: 10000,
           totalInflow: 50000,
           totalOutflow: 35000,
@@ -149,6 +150,7 @@ describe('Cash Flow API', () => {
       const req1 = await createAuthRequest(url, {
         method: 'POST',
         body: {
+          propertyId: PROPERTY_ID,
           period: periodStr,
           openingBalance: 20000,
           totalInflow: 60000,
@@ -166,6 +168,7 @@ describe('Cash Flow API', () => {
       const req2 = await createAuthRequest(url, {
         method: 'POST',
         body: {
+          propertyId: PROPERTY_ID,
           period: periodStr,
           openingBalance: 25000,
           totalInflow: 70000,

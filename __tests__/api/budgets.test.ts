@@ -111,32 +111,48 @@ describe('Budgets API', () => {
 
     it('should create a budget with budget lines', async () => {
       const suffix = uniqueSuffix();
-      const url = buildUrl('/api/financials/budgets');
-      const req = await createAuthRequest(url, {
-        method: 'POST',
-        body: {
-          propertyId: PROPERTY_ID,
-          name: `Budget with Lines ${suffix}`,
-          fiscalYear: 2024,
-          periodType: 'monthly',
-          status: 'draft',
-          lines: [
-            { accountId: REVENUE_ACCOUNT_ID, period: 1, budgetedAmt: 100000 },
-            { accountId: REVENUE_ACCOUNT_ID, period: 2, budgetedAmt: 110000 },
-            { accountId: REVENUE_ACCOUNT_ID, period: 3, budgetedAmt: 120000 },
-          ],
+      // Create a financial account first (table may be empty)
+      const account = await db.financialAccount.create({
+        data: {
+          tenantId: '444017d5-e022-4c5f-ac07-ea0d51f4609b',
+          code: `FA-${suffix.slice(-6)}`,
+          name: `Test Revenue Account ${suffix}`,
+          accountType: 'revenue',
+          category: 'room',
         },
       });
-      const res = await POST(req as any);
-      expect(res.status).toBe(201);
-      const data = await res.json();
-      expect(data.success).toBe(true);
-      expect(data.data.id).toBeDefined();
-      expect(data.data.totalBudget).toBe(330000);
-      expect(data.data.lines).toHaveLength(3);
-      expect(data.data.lines[0].financialAccount).toBeDefined();
-      expect(data.data.lines[0].budgetedAmt).toBe(100000);
-      expect(data.data.lines[0].actualAmt).toBe(0);
+      try {
+        const url = buildUrl('/api/financials/budgets');
+        const req = await createAuthRequest(url, {
+          method: 'POST',
+          body: {
+            propertyId: PROPERTY_ID,
+            name: `Budget with Lines ${suffix}`,
+            fiscalYear: 2024,
+            periodType: 'monthly',
+            status: 'draft',
+            lines: [
+              { accountId: account.id, period: 1, budgetedAmt: 100000 },
+              { accountId: account.id, period: 2, budgetedAmt: 110000 },
+              { accountId: account.id, period: 3, budgetedAmt: 120000 },
+            ],
+          },
+        });
+        const res = await POST(req as any);
+        expect(res.status).toBe(201);
+        const data = await res.json();
+        expect(data.success).toBe(true);
+        expect(data.data.id).toBeDefined();
+        expect(data.data.totalBudget).toBe(330000);
+        expect(data.data.lines).toHaveLength(3);
+        expect(data.data.lines[0].financialAccount).toBeDefined();
+        expect(data.data.lines[0].budgetedAmt).toBe(100000);
+        expect(data.data.lines[0].actualAmt).toBe(0);
+      } finally {
+        // Clean up the account we created
+        await db.budgetLine.deleteMany({ where: { accountId: account.id } }).catch(() => {});
+        await db.financialAccount.delete({ where: { id: account.id } }).catch(() => {});
+      }
     });
 
     it('should reject budget without name', async () => {

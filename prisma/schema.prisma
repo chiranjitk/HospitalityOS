@@ -570,6 +570,10 @@ model Booking {
   commissions              CommissionRecord[]
   laundryOrders            LaundryOrder[]
   minibarConsumptions      MinibarConsumption[]
+  depositSchedules         DepositSchedule[]
+
+  checkInDate              DateTime?            @db.Timestamptz
+  checkOutDate             DateTime?            @db.Timestamptz
 
   @@index([tenantId])
   @@index([propertyId])
@@ -8624,7 +8628,8 @@ model DepositSchedule {
   notes            String?
   createdAt        DateTime @default(now()) @db.Timestamptz
   updatedAt        DateTime @updatedAt @db.Timestamptz
-  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking           Booking?  @relation(fields: [bookingId], references: [id])
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([bookingId])
@@ -8650,7 +8655,8 @@ model FinancingPlan {
   terms            String?
   createdAt        DateTime @default(now()) @db.Timestamptz
   updatedAt        DateTime @updatedAt @db.Timestamptz
-  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  installments       FinancingInstallment[]
+  tenant            Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([isActive])
@@ -8673,7 +8679,8 @@ model FinancingInstallment {
   paymentRef       String?
   createdAt        DateTime @default(now()) @db.Timestamptz
   updatedAt        DateTime @updatedAt @db.Timestamptz
-  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  financingPlan     FinancingPlan         @relation(fields: [financingPlanId], references: [id])
+  tenant            Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([financingPlanId])

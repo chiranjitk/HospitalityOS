@@ -28,7 +28,6 @@ async function createAuxUser() {
       lastName: 'Test',
       department: 'housekeeping',
       jobTitle: 'Room Attendant',
-      role: 'staff',
       status: 'active',
       passwordHash: 'not-a-real-hash',
     },

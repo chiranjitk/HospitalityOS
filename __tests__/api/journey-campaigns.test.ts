@@ -1,11 +1,20 @@
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GET, POST } from '@/app/api/marketing/journeys/route';
 import { GET as getJourney, PUT as putJourney, DELETE as deleteJourney } from '@/app/api/marketing/journeys/[id]/route';
 import { POST as executeJourney } from '@/app/api/marketing/journeys/[id]/execute/route';
-import { createAuthRequest, buildUrl, uniqueSuffix } from './test-helpers';
+import { createAuthRequest, buildUrl, uniqueSuffix, TENANT_ID } from './test-helpers';
 import { db } from '@/lib/db';
 
 let journeyId: string;
+let stageId: string;
+
+beforeAll(async () => {
+  // JourneyAction.stageId is required in the Prisma schema — create a stage for tests
+  const stage = await db.journeyStage.create({
+    data: { tenantId: TENANT_ID, name: `Test Stage ${uniqueSuffix()}`, stageOrder: 1 },
+  });
+  stageId = stage.id;
+});
 
 describe('Journey Campaigns API', () => {
   describe('GET /api/marketing/journeys', () => {
@@ -54,12 +63,14 @@ describe('Journey Campaigns API', () => {
           targetSegments: ['all_guests'],
           actions: [
             {
+              stageId,
               actionType: 'email',
               subject: 'Welcome to our hotel',
               content: 'Dear guest, we look forward to your stay!',
               sortOrder: 0,
             },
             {
+              stageId,
               actionType: 'sms',
               subject: null,
               content: 'Your booking is confirmed!',
@@ -77,11 +88,11 @@ describe('Journey Campaigns API', () => {
       expect(data.data.journeyType).toBe('pre_arrival');
       expect(data.data.triggerEvent).toBe('booking_confirmed');
       expect(data.data.status).toBe('draft');
+      journeyId = data.data.id;
       expect(data.data.actions).toBeDefined();
       expect(data.data.actions.length).toBe(2);
       expect(data.data.actions[0].actionType).toBe('email');
       expect(data.data.actions[1].actionType).toBe('sms');
-      journeyId = data.data.id;
     });
 
     it('should reject creation without required fields', async () => {
@@ -239,6 +250,11 @@ describe('Journey Campaigns API', () => {
       try {
         await db.journeyAction.deleteMany({ where: { journeyId } });
         await db.journeyCampaign.delete({ where: { id: journeyId } });
+      } catch { /* ok */ }
+    }
+    if (stageId) {
+      try {
+        await db.journeyStage.delete({ where: { id: stageId } });
       } catch { /* ok */ }
     }
   });

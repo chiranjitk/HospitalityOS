@@ -11,6 +11,15 @@ let fixture: Awaited<ReturnType<typeof createTestFixture>>;
 beforeAll(async () => {
   // Create a test fixture so we have a booking+folio
   fixture = await createTestFixture();
+  // Clean up any in_progress night audits for this property to avoid 409 conflicts
+  const existingAudits = await db.nightAudit.findMany({
+    where: { propertyId: fixture.booking.propertyId, status: 'in_progress' },
+  });
+  for (const audit of existingAudits) {
+    await db.nightAuditLog.deleteMany({ where: { nightAuditId: audit.id } });
+    await db.nightAuditStep.deleteMany({ where: { nightAuditId: audit.id } });
+    await db.nightAudit.delete({ where: { id: audit.id } });
+  }
 });
 
 describe('Night Audit API', () => {

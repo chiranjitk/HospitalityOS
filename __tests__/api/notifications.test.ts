@@ -309,29 +309,28 @@ describe('Notification Templates API', () => {
 
     it('should reject duplicate template name', async () => {
       const url = buildUrl('/api/notifications/templates');
-      const req = await createAuthRequest(url, {
-        method: 'POST',
-        body: {
-          name: `Test Template ${uniqueSuffix().slice(-8)}`,
-          type: 'email',
-          body: 'Duplicate test',
-        },
-      });
+      const dupName = `Dup Template ${uniqueSuffix().slice(-8)}`;
+      const dupCategory = `dup_test_${uniqueSuffix().slice(-6)}`;
       // Create first
-      await createTemplate(req);
-
-      // Try duplicate with same name
+      const req1 = await createAuthRequest(url, {
+        method: 'POST',
+        body: { name: dupName, type: 'email', category: dupCategory, body: 'First template' },
+      });
+      const res1 = await createTemplate(req1);
+      expect(res1.status).toBe(200);
+      // Try duplicate with same name but different type
       const req2 = await createAuthRequest(url, {
         method: 'POST',
-        body: {
-          name: `Test Template ${uniqueSuffix().slice(-8)}`,
-          type: 'sms',
-          body: 'Duplicate test sms',
-        },
+        body: { name: dupName, type: 'sms', category: `${dupCategory}_b`, body: 'Second template' },
       });
-      const res = await createTemplate(req2);
-      // Since we used uniqueSuffix, names will be different - but test the structure
-      expect([200, 400]).toContain(res.status);
+      const res2 = await createTemplate(req2);
+      // Same name → route returns 400 before hitting the DB unique constraint
+      expect(res2.status).toBe(400);
+      // Clean up both templates
+      const data1 = await res1.json();
+      if (data1?.data?.id) {
+        await db.notificationTemplate.delete({ where: { id: data1.data.id } }).catch(() => {});
+      }
     });
   });
 });

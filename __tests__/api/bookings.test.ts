@@ -189,6 +189,7 @@ describe('Bookings API', () => {
           skipLockCheck: true,
         },
       });
+      const res = await POST(req);
       // 500 because the guest check throws inside a transaction
       expect([400, 500]).toContain(res.status);
     });

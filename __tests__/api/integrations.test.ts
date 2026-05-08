@@ -77,7 +77,6 @@ describe('Integrations — Smart Locks CRUD', () => {
           propertyId: PROPERTY_ID,
           name: `Room ${suffix.slice(-4)} Door Lock`,
           provider: 'assa_abloy',
-          lockId: `LOCK-${suffix.slice(-6)}`,
           firmwareVersion: '2.1.0',
           batteryLevel: 85,
           signalStrength: -45,
@@ -122,7 +121,7 @@ describe('Integrations — Smart Lock Access Logs', () => {
     });
 
     it('should filter by lockId', async () => {
-      const url = buildUrl('/api/integrations/smart-locks/access-logs', { lockId: createdSmartLockId || 'nonexistent' });
+      const url = buildUrl('/api/integrations/smart-locks/access-logs', { lockId: createdSmartLockId || '00000000-0000-0000-0000-000000000000' }); // Must be valid UUID (@db.Uuid)
       const req = await createAuthRequest(url);
       const res = await getAccessLogs(req);
       expect(res.status).toBe(200);
