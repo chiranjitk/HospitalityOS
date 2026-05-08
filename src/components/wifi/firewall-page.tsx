@@ -365,6 +365,22 @@ function parseResolvedIps(json: string | null): string[] {
   }
 }
 
+/** Auto-detect the correct nftables chain from the action type.
+ *  Users should not need to know chain internals — the system picks
+ *  the right pipeline stage based on what the rule actually does.
+ */
+function autoDetectChain(action: string): string {
+  switch (action) {
+    case 'dnat':
+      return 'frchainspre';        // NAT prerouting → DNAT / Port Forward
+    case 'snat':
+    case 'masquerade':
+      return 'frchainspost';       // NAT postrouting → SNAT / Masquerade
+    default:
+      return 'firewallchains';    // mangle prerouting → filter/accept/drop/reject/log/mark/proxy
+  }
+}
+
 function clientSideDetectType(val: string | null | undefined): 'ip' | 'cidr' | 'domain' | null {
   if (!val) return null;
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(val)) return 'ip';
@@ -490,7 +506,7 @@ function RulesTab() {
 
   const DEFAULT_RULE_FORM = {
     name: '',
-    chain: 'firewallchains',
+    chain: autoDetectChain('accept'),
     protocol: 'tcp',
     sourceIp: '',
     destIp: '',
@@ -544,6 +560,10 @@ function RulesTab() {
     setEditingRule(null);
     setForm(DEFAULT_RULE_FORM);
     setDialogOpen(true);
+  };
+
+  const onActionChange = (action: string) => {
+    setForm((p) => ({ ...p, action, chain: autoDetectChain(action) }));
   };
 
   const openEdit = (r: GuiRule) => {
@@ -985,32 +1005,7 @@ function RulesTab() {
                 placeholder="e.g. Allow PMS Access"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Target Chain *</Label>
-              <Select value={form.chain} onValueChange={(v) => setForm((p) => ({ ...p, chain: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select chain" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CHAIN_OPTIONS.map((group) => (
-                    <SelectItem key={group.group} value={group.chains.map((c) => c.value).join(',')} disabled className="pointer-events-none text-muted-foreground font-semibold text-xs">
-                      {group.group}
-                    </SelectItem>
-                  ))}
-                  {CHAIN_OPTIONS.flatMap((g) => g.chains).map((chain) => (
-                    <SelectItem key={chain.value} value={chain.value} className="pl-6">
-                      <div className="flex flex-col">
-                        <span>{chain.label}</span>
-                        <span className="text-xs text-muted-foreground font-normal">{chain.description}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                The nftables chain where this rule will be inserted. Each chain serves a different purpose in the packet processing pipeline.
-              </p>
-            </div>
+            {/* Target chain is auto-detected from action — hidden from user */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Protocol</Label>
@@ -1028,7 +1023,7 @@ function RulesTab() {
               </div>
               <div className="space-y-2">
                 <Label>Action</Label>
-                <Select value={form.action} onValueChange={(v) => setForm((p) => ({ ...p, action: v }))}>
+                <Select value={form.action} onValueChange={onActionChange}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -1044,6 +1039,10 @@ function RulesTab() {
                     <SelectItem value="proxy">Proxy</SelectItem>
                   </SelectContent>
                 </Select>
+                <div className="flex items-center gap-1.5">
+                  <ChainBadge chain={form.chain} />
+                  <span className="text-[11px] text-muted-foreground">chain auto-assigned</span>
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
