@@ -2319,6 +2319,138 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // ─── Reset Quota & Reactivate ────────────────────────────────────────
+      // Resets data usage counters to zero, re-activates WiFiUser + RADIUS
+      // credentials, and clears FUP throttle logs. Used when a hotel guest's
+      // data limit is reached and front desk wants to grant more quota.
+      case 'reset-quota-reactivate': {
+        const userId = data.id;
+        const reason = data.reason || '';
+
+        // Capture operator IP from request headers
+        const forwardedFor = request.headers.get('x-forwarded-for');
+        const realIp = request.headers.get('x-real-ip');
+        const operatorIp = forwardedFor?.split(',')[0]?.trim() || realIp || 'unknown';
+
+        if (!userId) {
+          return NextResponse.json({ success: false, error: 'User ID is required' }, { status: 400 });
+        }
+
+        // Resolve operator name from context.userId
+        let operatorName = context.userId || 'system';
+        try {
+          if (context.userId) {
+            const operator = await db.user.findUnique({
+              where: { id: context.userId },
+              select: { firstName: true, lastName: true },
+            });
+            if (operator) {
+              operatorName = [operator.firstName, operator.lastName].filter(Boolean).join(' ') || context.userId;
+            }
+          }
+        } catch { /* non-fatal */ }
+
+        try {
+          const user = await db.wiFiUser.findUnique({
+            where: { id: userId },
+            include: { property: { select: { id: true, name: true } } },
+          });
+
+          if (!user) {
+            return NextResponse.json({ success: false, error: 'WiFi user not found' }, { status: 404 });
+          }
+
+          const oldStatus = user.status;
+
+          await db.$transaction(async (tx) => {
+            // 1. Reset data usage counters
+            await tx.wiFiUser.update({
+              where: { id: userId },
+              data: {
+                totalBytesIn: 0,
+                totalBytesOut: 0,
+                status: 'active',
+                radiusSynced: true,
+                radiusSyncedAt: new Date(),
+              },
+            });
+
+            // 2. Re-enable RADIUS credentials
+            await tx.radCheck.updateMany({ where: { username: user.username }, data: { isActive: true } });
+            await tx.radReply.updateMany({ where: { username: user.username }, data: { isActive: true } });
+
+            // 3. Ensure RADIUS group exists
+            const existingGroup = await tx.radUserGroup.findFirst({ where: { username: user.username } });
+            if (!existingGroup) {
+              const plan = user.planId ? await tx.wiFiPlan.findUnique({ where: { id: user.planId } }) : null;
+              const groupName = plan
+                ? `plan_${plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}` || 'default'
+                : 'default';
+              await tx.radUserGroup.create({
+                data: { username: user.username, groupname: groupName, priority: 0 },
+              });
+            }
+
+            // 4. Ensure password check exists
+            const existingCheck = await tx.radCheck.findFirst({
+              where: { username: user.username, attribute: 'Cleartext-Password' },
+            });
+            if (!existingCheck) {
+              await tx.radCheck.create({
+                data: {
+                  username: user.username,
+                  attribute: 'Cleartext-Password',
+                  op: ':=',
+                  value: user.password,
+                },
+              });
+            }
+
+            // 5. Clear FUP throttle logs for this user
+            try {
+              await tx.$executeRawUnsafe(
+                `DELETE FROM fup_switch_log WHERE username = $1 AND action = 'throttle'`,
+                user.username
+              );
+            } catch { /* fup_switch_log may not exist */ }
+
+            // 6. Reset active session data counters if any
+            try {
+              await tx.wiFiSession.updateMany({
+                where: { guestId: user.guestId, status: 'active' },
+                data: { dataUsed: 0 },
+              });
+            } catch { /* non-fatal */ }
+          });
+
+          // 7. Audit trail
+          await db.wiFiUserStatusHistory.create({
+            data: {
+              tenantId: user.tenantId,
+              propertyId: user.propertyId,
+              username: user.username,
+              userId: user.id,
+              oldStatus,
+              newStatus: 'active',
+              changedBy: operatorName,
+              changeReason: reason || `Quota reset & reactivated by ${operatorName}`,
+              ipAddress: operatorIp,
+            },
+          });
+
+          return NextResponse.json({
+            success: true,
+            message: `Quota reset & user "${user.username}" reactivated. Data counters cleared, FUP throttle logs removed.`,
+          });
+        } catch (error) {
+          console.error('[reset-quota-reactivate] Error:', error);
+          return NextResponse.json(
+            { success: false, error: error instanceof Error ? error.message : 'Failed to reset quota' },
+            { status: 500 }
+          );
+        }
+      }
+
       case 'create-user': {
         // ─── Direct DB creation — does NOT depend on freeradius-service ────
         try {
@@ -3518,7 +3650,7 @@ export async function POST(request: NextRequest) {
 
       default:
         return NextResponse.json(
-          { success: false, error: 'Invalid action. Supported: start, stop, restart, test, import, generate-secret, sync, sync-users, sync-clients, create-user, update-user, delete-user, provision, deprovision, coa-disconnect, coa-bandwidth, coa-disconnect-all, data-cap-enforce, data-cap-check-all, mac-auth-add, mac-auth-check, event-users-bulk, event-revoke, portal-whitelist-add, auth-log-create' },
+          { success: false, error: 'Invalid action. Supported: start, stop, restart, test, import, generate-secret, sync, sync-users, sync-clients, create-user, update-user, delete-user, change-user-status, reset-quota-reactivate, provision, deprovision, coa-disconnect, coa-bandwidth, coa-disconnect-all, data-cap-enforce, data-cap-check-all, mac-auth-add, mac-auth-check, event-users-bulk, event-revoke, portal-whitelist-add, auth-log-create' },
           { status: 400 }
         );
     }

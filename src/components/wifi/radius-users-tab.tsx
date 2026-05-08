@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,6 +72,7 @@ import {
   UserX,
   UserCheck,
   AlertTriangle,
+  RotateCcw,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -116,6 +118,8 @@ interface RadiusUser {
   ipPoolId?: string;
   ipPoolName?: string;
   ipPoolSource?: string;
+  totalBytesIn?: number;
+  totalBytesOut?: number;
 }
 
 interface WiFiPlan {
@@ -135,6 +139,15 @@ interface WiFiPlan {
 
 export default function RadiusUsersTab() {
   const { toast } = useToast();
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
   const [users, setUsers] = useState<RadiusUser[]>([]);
   const [wifiPlans, setWifiPlans] = useState<WiFiPlan[]>([]);
   const [ipPools, setIpPools] = useState<Array<{ id: string; name: string; isDefault: boolean }>>([]);
@@ -161,6 +174,10 @@ export default function RadiusUsersTab() {
   const [statusDialogData, setStatusDialogData] = useState<{ user: RadiusUser; newStatus: 'active' | 'suspended' | 'deactivated' } | null>(null);
   const [statusReason, setStatusReason] = useState('');
   const [statusChanging, setStatusChanging] = useState(false);
+
+  // Reset quota & reactivate dialog state
+  const [resetQuotaUser, setResetQuotaUser] = useState<RadiusUser | null>(null);
+  const [resetQuotaChanging, setResetQuotaChanging] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const originalSessionTimeout = useRef<number | undefined>(undefined);
   const [form, setForm] = useState({
@@ -396,6 +413,41 @@ export default function RadiusUsersTab() {
       toast({ title: 'Error', description: `Failed to ${actionLabel.toLowerCase()} user`, variant: 'destructive' });
     } finally {
       setStatusChanging(false);
+    }
+  };
+
+  const handleResetQuotaReactivate = async () => {
+    if (!resetQuotaUser) return;
+    setResetQuotaChanging(true);
+    try {
+      const res = await fetch('/api/wifi/radius', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'reset-quota-reactivate',
+          id: resetQuotaUser.id,
+          reason: `Quota reset by staff`,
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => 'Unknown error');
+        toast({ title: 'Error', description: `Reset quota failed (${res.status}): ${errText}`, variant: 'destructive' });
+        return;
+      }
+
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Quota Reset', description: data.message || `${resetQuotaUser.username}: quota reset & reactivated` });
+        setResetQuotaUser(null);
+        fetchUsers();
+      } else {
+        toast({ title: 'Error', description: data.error || 'Failed to reset quota', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to reset quota', variant: 'destructive' });
+    } finally {
+      setResetQuotaChanging(false);
     }
   };
 
@@ -976,6 +1028,9 @@ export default function RadiusUsersTab() {
                                 <UserCheck className="h-4 w-4" />
                               </Button>
                             )}
+                            <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50" title="Reset Quota & Reactivate" onClick={() => setResetQuotaUser(user)}>
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
                             <Button variant="ghost" size="sm" onClick={() => openEdit(user)} title="Edit User">
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -1194,6 +1249,54 @@ export default function RadiusUsersTab() {
             >
               {statusChanging && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {statusDialogData?.newStatus === 'suspended' ? 'Suspend' : statusDialogData?.newStatus === 'deactivated' ? 'Deactivate' : 'Activate'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reset Quota & Reactivate Dialog */}
+      <AlertDialog open={!!resetQuotaUser} onOpenChange={(open) => { if (!open) setResetQuotaUser(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-blue-500" />
+              Reset Quota & Reactivate
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {resetQuotaUser && (
+                <div className="space-y-3">
+                  <p>Reset data usage for <strong>{resetQuotaUser.username}</strong> and reactivate their WiFi access.</p>
+                  <div className="bg-muted/50 rounded-md p-3 text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Current Status</span>
+                      <span className={cn(
+                        resetQuotaUser.status === 'active' ? 'text-emerald-600' :
+                        resetQuotaUser.status === 'suspended' ? 'text-amber-600' : 'text-red-600'
+                      )}>{resetQuotaUser.status || 'unknown'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Download Used</span>
+                      <span>{resetQuotaUser.totalBytesOut ? formatBytes(Number(resetQuotaUser.totalBytesOut)) : '0 B'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Upload Used</span>
+                      <span>{resetQuotaUser.totalBytesIn ? formatBytes(Number(resetQuotaUser.totalBytesIn)) : '0 B'}</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">This will: reset download/upload counters to 0, set status to active, re-enable RADIUS credentials, and clear any FUP throttle logs.</p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleResetQuotaReactivate}
+              disabled={resetQuotaChanging}
+              className="bg-blue-500 hover:bg-blue-600 text-white"
+            >
+              {resetQuotaChanging && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Reset & Reactivate
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
