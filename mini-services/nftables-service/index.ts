@@ -1167,6 +1167,7 @@ async function applyGuiRulesToNftables(): Promise<{
   chainsCreated: string[];
   chainsExisting: string[];
   rulesApplied: Record<string, number>;
+  rateLimitsApplied: number;
   commands: string[];
   errors: string[];
 }> {
@@ -1254,6 +1255,18 @@ async function applyGuiRulesToNftables(): Promise<{
   // Instead of grouping rules by their DB chain field, we now auto-expand
   // each rule to ALL chains it belongs in, based on its action type.
   // This matches 24Online behavior: one GUI rule → multiple nftables chains.
+
+  // ── Phase 1: Rate limit TC enforcement ──
+  // Must be applied BEFORE GUI rules because:
+  //   1. Rate limit mark rules are non-terminal (meta mark set + continue)
+  //   2. They must be at the TOP of firewallchains/firewallchainsdn so
+  //      the mark is set before any terminal action (drop/accept) fires
+  //   3. For dropped packets: TC never sees them (correct behavior)
+  //   4. For accepted packets: mark is already set → TC enforces the cap
+  const rateLimitResult = await applyRateLimitTc(commands, errors);
+  const activeRateLimits = rateLimitResult.rateLimits;
+
+  // ── Phase 2: GUI rules + quick blocks (per chain) ──
   for (const chain of GUI_CHAINS) {
     const meta = GUI_CHAIN_DESCRIPTIONS[chain];
     const table = meta.table;
@@ -1264,6 +1277,31 @@ async function applyGuiRulesToNftables(): Promise<{
     if (!flushResult.success) {
       errors.push(`Failed to flush ${chain}: ${flushResult.error}`);
       continue;
+    }
+
+    // Add rate limit mark rules FIRST (before quick blocks and GUI rules)
+    // meta mark set is non-terminal: packet continues to next rule
+    // This ensures the TC fw filter can match the mark even if a later
+    // accept/drop rule fires.
+    if (chain === 'firewallchains' || chain === 'firewallchainsdn') {
+      for (let ri = 0; ri < activeRateLimits.length; ri++) {
+        const rl = activeRateLimits[ri];
+        const rlMark = FW_RATELIMIT_MARK_BASE + (ri + 1);
+        if (chain === 'firewallchains') {
+          const ruleLine = `ip saddr ${rl.targetIp} meta mark set ${rlMark} comment "rate-limit:${rl.id} ${rl.name || rl.targetIp}"`;
+          const result = addRuleToChain(table, chain, ruleLine);
+          commands.push(`nft add rule ${table} ${chain} ${ruleLine}`);
+          if (result.success) chainRuleCount++;
+          else errors.push(`rate-limit-mark(up):${rl.targetIp}`);
+        }
+        if (chain === 'firewallchainsdn') {
+          const ruleLine = `ip daddr ${rl.targetIp} meta mark set ${rlMark} comment "rate-limit:${rl.id} ${rl.name || rl.targetIp}"`;
+          const result = addRuleToChain(table, chain, ruleLine);
+          commands.push(`nft add rule ${table} ${chain} ${ruleLine}`);
+          if (result.success) chainRuleCount++;
+          else errors.push(`rate-limit-mark(dn):${rl.targetIp}`);
+        }
+      }
     }
 
     // Quick blocks in uplink: match destination IPs (traffic going TO blocked IPs)
@@ -1330,9 +1368,259 @@ async function applyGuiRulesToNftables(): Promise<{
     chainsCreated: chainCheck.created,
     chainsExisting: chainCheck.existing,
     rulesApplied,
+    rateLimitsApplied: rateLimitResult.applied,
     commands,
     errors,
   };
+}
+
+// ============================================================================
+// Rate Limit TC Enforcement — Bandwidth shaping for non-RADIUS users
+// ============================================================================
+//
+// Architecture:
+//   Non-RADIUS users' traffic reaches firewallchains (prerouting) and
+//   firewallchainsdn (postrouting) because they are NOT in @usersset
+//   and therefore don't get the CONNMARK early-accept fast-track.
+//
+//   For each enabled rate limit:
+//     1. nft mark rule: set fw mark 0x2000000X in firewallchains/dn
+//     2. TC HTB class on ifb0 (download) and ifb1 (upload)
+//     3. TC fw filter: mark → class routing
+//     4. SFQ leaf qdisc for per-flow fairness
+//
+//   Mark range:    0x20000001 – 0x20000064 (100 slots)
+//   Class ID range: 1:25102 – 1:26001 (900 slots)
+//
+//   No CONNMARK needed — marks are set directly in both directions.
+//   No conflict with RADIUS marks (0x1xxxxxxx) or system marks (10000, 20000).
+// ============================================================================
+
+const FW_RATELIMIT_MARK_BASE = 0x20000000; // Base mark for firewall rate limits
+const FW_RATELIMIT_CLASS_BASE = 25102;    // First class ID (RADIUS ends at 25101)
+const FW_RATELIMIT_MAX = 100;              // Max concurrent rate limits
+const FW_RATELIMIT_TC_PREF = 25102;        // TC filter preference (lower = higher prio)
+
+/**
+ * Parse a rate string like "10mbit", "512kbit", "5mbit" into kbps.
+ * Supports: kbit, mbit, gbit, kbps, mbps, gbps
+ */
+function parseRateToKbps(rateStr: string): number {
+  const s = rateStr.toLowerCase().trim();
+  let value: number;
+  let multiplier: number;
+
+  if (s.endsWith('gbps') || s.endsWith('gbit')) {
+    value = parseFloat(s);
+    multiplier = 1000000; // Gbps → kbps
+  } else if (s.endsWith('mbps') || s.endsWith('mbit')) {
+    value = parseFloat(s);
+    multiplier = 1000; // Mbps → kbps
+  } else if (s.endsWith('kbps') || s.endsWith('kbit')) {
+    value = parseFloat(s);
+    multiplier = 1; // kbps → kbps
+  } else {
+    // Fallback: assume mbps if unitless
+    value = parseFloat(s) || 0;
+    multiplier = 1000;
+  }
+
+  return Math.round(value * multiplier);
+}
+
+/**
+ * Execute a `tc` command and return success/failure.
+ * Non-fatal: logs errors but never throws.
+ */
+function tcExec(command: string, timeout = 5000): NftResult {
+  try {
+    execFileSync('tc', command.split(/\s+/), { encoding: 'utf-8', timeout });
+    return { success: true, command };
+  } catch (err: unknown) {
+    const stderr = (err as Record<string, unknown>)?.stderr;
+    const error = typeof stderr === 'string' && stderr ? stderr : (err instanceof Error ? err.message : String(err));
+    log.error('tc command failed', { command, error });
+    return { success: false, command, error };
+  }
+}
+
+/**
+ * Check if IFB device has the root HTB qdisc.
+ */
+function tcInfraExists(device: string): boolean {
+  try {
+    const output = execFileSync('tc', ['qdisc', 'show', 'dev', device], { encoding: 'utf-8', timeout: 3000 });
+    return output.includes('htb') && output.includes('root');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Remove ALL firewall rate limit TC state (classes, filters, qdiscs).
+ * Called at the start of every apply to ensure clean state.
+ */
+function cleanupRateLimitTc(): { cleaned: string[]; errors: string[] } {
+  const cleaned: string[] = [];
+  const errors: string[] = [];
+
+  for (const device of ['ifb0', 'ifb1']) {
+    if (!tcInfraExists(device)) {
+      log.warn(`TC rate limit cleanup skipped: ${device} has no HTB root qdisc`);
+      continue;
+    }
+
+    // Remove filters in our preference range (25102-26001)
+    try {
+      const output = execFileSync('tc', ['filter', 'show', 'dev', device, 'parent', '1:'], { encoding: 'utf-8', timeout: 5000 });
+      const lines = output.split('\n');
+      for (const line of lines) {
+        if (line.includes('fw') && line.includes('handle 0x20')) {
+          const prefMatch = line.match(/pref (\d+)/);
+          if (prefMatch) {
+            const pref = parseInt(prefMatch[1]);
+            if (pref >= FW_RATELIMIT_TC_PREF && pref < FW_RATELIMIT_TC_PREF + FW_RATELIMIT_MAX) {
+              const delResult = tcExec(`filter del dev ${device} parent 1: pref ${pref} protocol ip`);
+              if (delResult.success) cleaned.push(`filter:${device}:pref${pref}`);
+              else errors.push(`filter-del:${device}:pref${pref}`);
+            }
+          }
+        }
+      }
+    } catch {
+      // No filters or tc error — skip
+    }
+
+    // Remove classes in our range (25102-26001)
+    for (let classId = FW_RATELIMIT_CLASS_BASE; classId < FW_RATELIMIT_CLASS_BASE + FW_RATELIMIT_MAX; classId++) {
+      const hexId = classId.toString(16);
+      const delResult = tcExec(`class del dev ${device} parent 1:1 classid 1:${hexId} 2>/dev/null`);
+      if (delResult.success) {
+        cleaned.push(`class:${device}:1:${hexId}`);
+      }
+    }
+  }
+
+  if (cleaned.length > 0) {
+    log.info(`Cleaned up rate limit TC state`, { cleaned, errorCount: errors.length });
+  }
+
+  return { cleaned, errors };
+}
+
+/**
+ * Apply rate limit TC enforcement for non-RADIUS users.
+ *
+ * Creates HTB classes and fw filters on ifb0/ifb1.
+ * Does NOT add nftables mark rules — those are added in the per-chain
+ * apply loop (after flush) to ensure correct ordering.
+ *
+ * @returns Object with applied count, commands, and errors
+ */
+async function applyRateLimitTc(
+  existingCommands: string[],
+  existingErrors: string[]
+): Promise<{ applied: number; rateLimits: RateLimit[]; commands: string[]; errors: string[] }> {
+  const commands: string[] = [];
+  const errors: string[] = [];
+  let applied = 0;
+
+  if (!isNftablesInstalled()) {
+    log.info('Rate limit TC enforcement skipped: nftables not installed (simulation mode)');
+    return { applied: 0, rateLimits: [], commands, errors };
+  }
+
+  // Read enabled rate limits from DB
+  const rateLimits = await readRateLimits();
+  const validLimits = rateLimits.filter(rl => rl.targetIp && rl.enabled);
+
+  if (validLimits.length === 0) {
+    log.debug('No enabled rate limits with targetIp found — skipping TC enforcement');
+    // Still cleanup any leftover TC state
+    const cleanup = cleanupRateLimitTc();
+    existingCommands.push(...cleanup.cleaned.map(c => `tc cleanup: ${c}`));
+    existingErrors.push(...cleanup.errors);
+    return { applied: 0, rateLimits: [], commands, errors };
+  }
+
+  if (validLimits.length > FW_RATELIMIT_MAX) {
+    log.warn(`Rate limit count (${validLimits.length}) exceeds max (${FW_RATELIMIT_MAX}) — applying first ${FW_RATELIMIT_MAX}`);
+    validLimits.length = FW_RATELIMIT_MAX;
+  }
+
+  // Check TC infrastructure
+  const ifb0Ok = tcInfraExists('ifb0');
+  const ifb1Ok = tcInfraExists('ifb1');
+  if (!ifb0Ok || !ifb1Ok) {
+    const missing = [];
+    if (!ifb0Ok) missing.push('ifb0');
+    if (!ifb1Ok) missing.push('ifb1');
+    const warn = `TC infrastructure missing on ${missing.join(', ')} — nftables marks will be set but bandwidth shaping will not work until initialization.sh runs`;
+    log.warn(warn);
+    errors.push(warn);
+    return { applied: validLimits.length, rateLimits: validLimits, commands, errors };
+  }
+
+  // Cleanup old TC state before creating new
+  const cleanup = cleanupRateLimitTc();
+  existingCommands.push(...cleanup.cleaned.map(c => `tc cleanup: ${c}`));
+  existingErrors.push(...cleanup.errors);
+
+  for (let i = 0; i < validLimits.length; i++) {
+    const rl = validLimits[i];
+    const classId = FW_RATELIMIT_CLASS_BASE + i;          // 25102, 25103, ...
+    const classIdHex = classId.toString(16);               // hex string for tc
+    const tcPref = FW_RATELIMIT_TC_PREF + i;               // unique preference per filter
+
+    // Parse rates
+    const dnKbps = parseRateToKbps(rl.downloadRate || '5mbit');
+    const upKbps = parseRateToKbps(rl.uploadRate || '2mbit');
+
+    if (dnKbps <= 0 && upKbps <= 0) {
+      errors.push(`${rl.name || rl.id}: invalid rates (dl=${rl.downloadRate}, ul=${rl.uploadRate})`);
+      continue;
+    }
+
+    // Download class on ifb0
+    if (dnKbps > 0) {
+      const dlClass = tcExec(`class add dev ifb0 parent 1:1 classid 1:${classIdHex} htb rate ${dnKbps}kbit ceil ${dnKbps}kbit quantum 1500`);
+      commands.push(`tc class add dev ifb0 1:${classIdHex} rate=${dnKbps}kbit`);
+      if (!dlClass.success) errors.push(`tc-class(dl):1:${classIdHex} ${dlClass.error || ''}`);
+
+      // fw filter: mark → class on ifb0
+      const dlFilter = tcExec(`filter add dev ifb0 parent 1: protocol ip pref ${tcPref} handle ${FW_RATELIMIT_MARK_BASE + (i + 1)} fw classid 1:${classIdHex}`);
+      commands.push(`tc filter add dev ifb0 handle ${FW_RATELIMIT_MARK_BASE + (i + 1)} fw → 1:${classIdHex}`);
+      if (!dlFilter.success) errors.push(`tc-filter(dl):mark=${FW_RATELIMIT_MARK_BASE + (i + 1)} ${dlFilter.error || ''}`);
+
+      // SFQ leaf qdisc
+      tcExec(`qdisc add dev ifb0 parent 1:${classIdHex} handle ${classIdHex}: sfq perturb 10 2>/dev/null`);
+    }
+
+    // Upload class on ifb1
+    if (upKbps > 0) {
+      const ulClass = tcExec(`class add dev ifb1 parent 1:1 classid 1:${classIdHex} htb rate ${upKbps}kbit ceil ${upKbps}kbit quantum 1500`);
+      commands.push(`tc class add dev ifb1 1:${classIdHex} rate=${upKbps}kbit`);
+      if (!ulClass.success) errors.push(`tc-class(ul):1:${classIdHex} ${ulClass.error || ''}`);
+
+      // fw filter: mark → class on ifb1
+      const ulFilter = tcExec(`filter add dev ifb1 parent 1: protocol ip pref ${tcPref} handle ${FW_RATELIMIT_MARK_BASE + (i + 1)} fw classid 1:${classIdHex}`);
+      commands.push(`tc filter add dev ifb1 handle ${FW_RATELIMIT_MARK_BASE + (i + 1)} fw → 1:${classIdHex}`);
+      if (!ulFilter.success) errors.push(`tc-filter(ul):mark=${FW_RATELIMIT_MARK_BASE + (i + 1)} ${ulFilter.error || ''}`);
+
+      // SFQ leaf qdisc
+      tcExec(`qdisc add dev ifb1 parent 1:${classIdHex} handle ${classIdHex}: sfq perturb 10 2>/dev/null`);
+    }
+
+    applied++;
+  }
+
+  log.info(`Rate limit TC enforcement applied`, {
+    total: validLimits.length,
+    applied,
+    errors: errors.length,
+  });
+
+  return { applied, rateLimits: validLimits, commands, errors };
 }
 
 function flushGuiChainsInNftables(): { flushed: string[]; errors: string[] } {

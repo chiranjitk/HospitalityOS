@@ -112,6 +112,7 @@ import {
   ChevronRight,
   Play,
   Trash,
+  AlertTriangle,
   Fingerprint,
   Terminal,
   ChevronUp,
@@ -2119,6 +2120,7 @@ function RateLimitTab() {
   const [limits, setLimits] = useState<RateLimit[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [applying, setApplying] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingLimit, setEditingLimit] = useState<RateLimit | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -2219,6 +2221,18 @@ function RateLimitTab() {
     }
   };
 
+  const applyNow = async () => {
+    try {
+      setApplying(true);
+      await apiFetch(`${API_BASE}/apply`, { method: 'POST' });
+      toast({ title: 'Applied', description: 'Rate limit rules applied to kernel (nftables + TC)' });
+    } catch {
+      toast({ title: 'Apply Failed', description: 'Could not apply rules. Check nftables service.', variant: 'destructive' });
+    } finally {
+      setApplying(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -2233,13 +2247,35 @@ function RateLimitTab() {
 
   return (
     <div className="space-y-4">
+      {/* Info banner — non-RADIUS only */}
+      <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3 text-sm">
+        <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
+        <div className="space-y-1">
+          <p className="font-medium text-amber-800 dark:text-amber-300">
+            Firewall rate limits apply to <strong>non-RADIUS users only</strong>
+          </p>
+          <p className="text-amber-700 dark:text-amber-400">
+            These rate limits target IPs that are <strong>NOT</strong> authenticated through the captive portal / RADIUS login.
+            RADIUS-authenticated users get their bandwidth from their WiFi plan (managed by the session engine).
+            Firewall rate limits use separate TC classes and marks — no conflict with RADIUS traffic.
+          </p>
+        </div>
+      </div>
+
       {/* Toolbar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Gauge className="h-4 w-4" />
           {limits.length} rate limit{limits.length !== 1 ? 's' : ''} configured
+          <span className="text-xs text-muted-foreground">
+            ({limits.filter(l => l.enabled && l.targetIp).length} active)
+          </span>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={applyNow} disabled={applying}>
+            <Zap className={cn("h-4 w-4 mr-2", applying && "animate-spin")} />
+            {applying ? 'Applying…' : 'Apply Now'}
+          </Button>
           <Button variant="outline" size="sm" onClick={fetchLimits}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
