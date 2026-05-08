@@ -870,7 +870,7 @@ function RulesTab() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs font-mono">
-                          {rule.protocol.toUpperCase()}
+                          {(rule.protocol || 'all').toUpperCase()}
                         </Badge>
                       </TableCell>
                       <TableCell>
