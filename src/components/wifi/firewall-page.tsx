@@ -96,6 +96,8 @@ import {
   Play,
   Trash,
   Fingerprint,
+  Terminal,
+  ChevronUp,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -503,6 +505,34 @@ function RulesTab() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [filters, setFilters] = useState({ protocol: 'all', action: 'all', chain: 'all' });
   const [nftablesMode, setNftablesMode] = useState<'production' | 'simulation' | null>(null);
+  const [configPreview, setConfigPreview] = useState<string | null>(null);
+  const [showConfig, setShowConfig] = useState(false);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configCopied, setConfigCopied] = useState(false);
+
+  const fetchConfigPreview = useCallback(async () => {
+    try {
+      setConfigLoading(true);
+      const res = await apiFetch<{ config: string }>(`${API_BASE}/config/preview`);
+      if (res.success && res.data) {
+        setConfigPreview(res.data.config);
+        setShowConfig(true);
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to fetch nftables config', variant: 'destructive' });
+    } finally {
+      setConfigLoading(false);
+    }
+  }, [toast]);
+
+  const copyConfig = useCallback(async () => {
+    if (!configPreview) return;
+    try {
+      await navigator.clipboard.writeText(configPreview);
+      setConfigCopied(true);
+      setTimeout(() => setConfigCopied(false), 2000);
+    } catch { /* ignore */ }
+  }, [configPreview]);
 
   const DEFAULT_RULE_FORM = {
     name: '',
@@ -1162,6 +1192,72 @@ function RulesTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* nftables Config Preview */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden">
+          <div className="h-0.5 bg-gradient-to-r from-violet-500 to-purple-500" />
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm tracking-tight flex items-center gap-2">
+                <Terminal className="h-4 w-4 text-violet-500" />
+                Generated nftables Rules
+                {nftablesMode && (
+                  <Badge variant="outline" className={cn(
+                    'text-[10px] font-medium',
+                    nftablesMode === 'production'
+                      ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400'
+                      : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400'
+                  )}>
+                    {nftablesMode}
+                  </Badge>
+                )}
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={showConfig ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={() => showConfig ? setShowConfig(false) : fetchConfigPreview()}
+                  disabled={configLoading}
+                  className="text-xs"
+                >
+                  {configLoading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : showConfig ? <ChevronUp className="h-3.5 w-3.5 mr-1" /> : <Terminal className="h-3.5 w-3.5 mr-1" />}
+                  {showConfig ? 'Hide' : 'View nftables Config'}
+                </Button>
+              </div>
+            </div>
+            <CardDescription className="text-xs mt-1">
+              Each GUI rule auto-expands to multiple chains. Accept/Drop → uplink + downlink. Proxy → uplink + downlink + NAT masquerade.
+            </CardDescription>
+          </CardHeader>
+          <AnimatePresence>
+            {showConfig && configPreview && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
+                <CardContent className="pt-0 pb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] text-muted-foreground font-mono">
+                      nftables.conf &middot; {new Date().toLocaleTimeString()}
+                    </span>
+                    <Button variant="ghost" size="sm" onClick={copyConfig} className="h-7 text-xs">
+                      {configCopied ? <Check className="h-3 w-3 mr-1 text-emerald-500" /> : <Copy className="h-3 w-3 mr-1" />}
+                      {configCopied ? 'Copied!' : 'Copy'}
+                    </Button>
+                  </div>
+                  <pre className="bg-zinc-950 dark:bg-zinc-900 text-zinc-300 rounded-lg p-4 overflow-x-auto text-[11px] font-mono leading-relaxed border border-zinc-800 max-h-[500px] scrollbar-thin">
+                    <code>{configPreview}</code>
+                  </pre>
+                </CardContent>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Card>
+      </motion.div>
     </div>
   );
 }

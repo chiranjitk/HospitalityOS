@@ -460,13 +460,7 @@ async function generateConfigPreview(): Promise<string> {
   }));
 
   const allRules = [...guiRules, ...pfRules];
-
-  const enabledByChain: Record<string, GuiRule[]> = {};
-  for (const chain of GUI_CHAINS) {
-    enabledByChain[chain] = allRules
-      .filter(r => r.chain === chain && r.enabled)
-      .sort((a, b) => a.priority - b.priority);
-  }
+  const sortedRules = allRules.filter(r => r.enabled).sort((a, b) => a.priority - b.priority);
 
   const blockedIps = quickBlocks.filter(b => b.type === 'ip').map(b => b.value);
   const blockedSubnets = quickBlocks.filter(b => b.type === 'subnet').map(b => b.value);
@@ -475,171 +469,104 @@ async function generateConfigPreview(): Promise<string> {
   const lines: string[] = [];
   const now = new Date().toISOString();
 
-  lines.push('# StaySuite GUI Firewall Configuration Preview');
+  lines.push('# ══════════════════════════════════════════════════════════════');
+  lines.push('# StaySuite HospitalityOS — Generated nftables Configuration');
   lines.push(`# Generated: ${now}`);
-  lines.push('# Only GUI-controlled chains are shown. System chains are managed separately.');
-  lines.push('# ============================================================');
+  lines.push('# Architecture: Multi-chain expansion (matches 24Online behavior)');
+  lines.push('# Each GUI rule auto-expands to all applicable chains:');
+  lines.push('#   Accept/Drop/Reject/Log → uplink (firewallchains) + downlink (firewallchainsdn)');
+  lines.push('#   Proxy → uplink + downlink + NAT post (masquerade)');
+  lines.push('#   DNAT → NAT prerouting (frchainspre)');
+  lines.push('#   SNAT/Masquerade → NAT postrouting (frchainspost)');
+  lines.push('# ══════════════════════════════════════════════════════════════');
   lines.push('');
+
+  // Helper: render rules for a specific chain
+  const renderChainRules = (chainName: GuiChainName, headerComment: string): void => {
+    lines.push(`  chain ${chainName} {`);
+    lines.push(`    # ${headerComment}`);
+    lines.push('');
+
+    // Quick blocks for uplink
+    if (chainName === 'firewallchains' && (blockedIps.length > 0 || blockedSubnets.length > 0)) {
+      if (blockedIps.length > 0) {
+        lines.push('    # ── Quick Blocks: Blocked IPs (uplink) ──');
+        for (const ip of blockedIps) {
+          lines.push(`    ip daddr ${ip} drop comment "quick-block:ip"`);
+        }
+        lines.push('');
+      }
+      if (blockedSubnets.length > 0) {
+        lines.push('    # ── Quick Blocks: Blocked Subnets (uplink) ──');
+        for (const subnet of blockedSubnets) {
+          lines.push(`    ip daddr ${subnet} drop comment "quick-block:subnet"`);
+        }
+        lines.push('');
+      }
+    }
+
+    // Quick blocks for downlink
+    if (chainName === 'firewallchainsdn' && (blockedIps.length > 0 || blockedSubnets.length > 0)) {
+      if (blockedIps.length > 0) {
+        lines.push('    # ── Quick Blocks: Blocked IPs (downlink) ──');
+        for (const ip of blockedIps) {
+          lines.push(`    ip saddr ${ip} drop comment "quick-block:ip"`);
+        }
+        lines.push('');
+      }
+      if (blockedSubnets.length > 0) {
+        lines.push('    # ── Quick Blocks: Blocked Subnets (downlink) ──');
+        for (const subnet of blockedSubnets) {
+          lines.push(`    ip saddr ${subnet} drop comment "quick-block:subnet"`);
+        }
+        lines.push('');
+      }
+    }
+
+    // GUI rules expanded to this chain
+    let ruleIndex = 0;
+    for (const rule of sortedRules) {
+      const targetChains = getTargetChainsForAction(rule.action);
+      if (!targetChains.includes(chainName)) continue;
+
+      ruleIndex++;
+      const resolved = (rule as Record<string, unknown>)._resolvedDestIps
+        ? { resolvedDestIps: (rule as Record<string, unknown>)._resolvedDestIps as string[] }
+        : undefined;
+      const ruleLines = buildNftRuleLinesForChain(rule, chainName, resolved);
+
+      lines.push(`    # ── [${ruleIndex}] ${rule.name} ──`);
+      lines.push(`    # GUI Action: ${rule.action} | Auto-expanded to: ${targetChains.join(', ')}`);
+      lines.push(`    # Source: ${rule.sourceIp || '(any)'} → Dest: ${rule.destIp || '(any)'} | Proto: ${rule.protocol}`);
+      ruleLines.forEach(l => lines.push(`    ${l}`));
+      lines.push('');
+    }
+
+    if (ruleIndex === 0 && !(chainName === 'firewallchains' || chainName === 'firewallchainsdn')) {
+      lines.push('    # (no rules)');
+    }
+    lines.push('  }');
+    lines.push('');
+  };
 
   // --- inet mangle table ---
   lines.push('table inet mangle {');
   lines.push('');
-
-  // firewallchains
-  lines.push('  chain firewallchains {');
-  lines.push('    # GUI Chain: Uplink Filter (mangle prerouting)');
-  lines.push('    # Jumped to from prerouting hook after set-based jumps');
-  lines.push('');
-
-  if (blockedIps.length > 0) {
-    lines.push('    # Quick Blocks - Blocked IPs');
-    for (const ip of blockedIps) {
-      lines.push(`    ip daddr ${ip} drop comment "quick-block:ip"`);
-    }
-    lines.push('');
-  }
-  if (blockedSubnets.length > 0) {
-    lines.push('    # Quick Blocks - Blocked Subnets');
-    for (const subnet of blockedSubnets) {
-      lines.push(`    ip daddr ${subnet} drop comment "quick-block:subnet"`);
-    }
-    lines.push('');
-  }
-
-  const fcRules = enabledByChain['firewallchains'];
-  if (fcRules.length > 0) {
-    fcRules.forEach((rule, i) => {
-      const resolved = (rule as Record<string, unknown>)._resolvedDestIps
-        ? { resolvedDestIps: (rule as Record<string, unknown>)._resolvedDestIps as string[] }
-        : undefined;
-      const lines2 = buildNftRuleLines(rule, resolved);
-      lines.push(`    # [${i + 1}] ${rule.name} (gui-rule:${rule.id})`);
-      lines2.forEach(l => lines.push(`    ${l}`));
-    });
-  } else {
-    lines.push('    # (no GUI rules configured)');
-  }
-  lines.push('  }');
-  lines.push('');
-
-  // firewallchainsdn
-  lines.push('  chain firewallchainsdn {');
-  lines.push('    # GUI Chain: Downlink Filter (mangle postrouting)');
-  lines.push('    # Jumped to from postrouting hook after set-based jumps');
-  lines.push('');
-
-  if (blockedIps.length > 0) {
-    lines.push('    # Quick Blocks - Blocked IPs (downlink)');
-    for (const ip of blockedIps) {
-      lines.push(`    ip saddr ${ip} drop comment "quick-block:ip"`);
-    }
-    lines.push('');
-  }
-
-  const fcdnRules = enabledByChain['firewallchainsdn'];
-  if (fcdnRules.length > 0) {
-    fcdnRules.forEach((rule, i) => {
-      const resolved = (rule as Record<string, unknown>)._resolvedDestIps
-        ? { resolvedDestIps: (rule as Record<string, unknown>)._resolvedDestIps as string[] }
-        : undefined;
-      const ruleLines = buildNftRuleLines(rule, resolved);
-      lines.push(`    # [${i + 1}] ${rule.name} (gui-rule:${rule.id})`);
-      ruleLines.forEach(l => lines.push(`    ${l}`));
-    });
-  } else {
-    lines.push('    # (no GUI rules configured)');
-  }
-  lines.push('  }');
-  lines.push('');
-
-  // firewallchains_conn
-  lines.push('  chain firewallchains_conn {');
-  lines.push('    # GUI Chain: Connection-Level Marking (mangle prerouting)');
-  lines.push('    # Applied to logged-in user connections');
-  lines.push('');
-
-  const fccRules = enabledByChain['firewallchains_conn'];
-  if (fccRules.length > 0) {
-    fccRules.forEach((rule, i) => {
-      const resolved = (rule as Record<string, unknown>)._resolvedDestIps
-        ? { resolvedDestIps: (rule as Record<string, unknown>)._resolvedDestIps as string[] }
-        : undefined;
-      const ruleLines = buildNftRuleLines(rule, resolved);
-      lines.push(`    # [${i + 1}] ${rule.name} (gui-rule:${rule.id})`);
-      ruleLines.forEach(l => lines.push(`    ${l}`));
-    });
-  } else {
-    lines.push('    # (no GUI rules configured)');
-  }
-  lines.push('  }');
-  lines.push('');
-
-  // firewallchainsdn_conn
-  lines.push('  chain firewallchainsdn_conn {');
-  lines.push('    # GUI Chain: Connection-Level Marking (mangle postrouting)');
-  lines.push('    # Applied to logged-in user connections');
-  lines.push('');
-
-  const fcdcRules = enabledByChain['firewallchainsdn_conn'];
-  if (fcdcRules.length > 0) {
-    fcdcRules.forEach((rule, i) => {
-      const resolved = (rule as Record<string, unknown>)._resolvedDestIps
-        ? { resolvedDestIps: (rule as Record<string, unknown>)._resolvedDestIps as string[] }
-        : undefined;
-      const ruleLines = buildNftRuleLines(rule, resolved);
-      lines.push(`    # [${i + 1}] ${rule.name} (gui-rule:${rule.id})`);
-      ruleLines.forEach(l => lines.push(`    ${l}`));
-    });
-  } else {
-    lines.push('    # (no GUI rules configured)');
-  }
-  lines.push('  }');
+  renderChainRules('firewallchains', 'Uplink Filter — mangle prerouting (guest → internet)');
+  renderChainRules('firewallchainsdn', 'Downlink Filter — mangle postrouting (internet → guest)');
+  renderChainRules('firewallchains_conn', 'Connection-Level Marking — mangle prerouting');
+  renderChainRules('firewallchainsdn_conn', 'Connection-Level Marking — mangle postrouting');
   lines.push('}');
 
   // --- inet nat table ---
   lines.push('');
   lines.push('table inet nat {');
   lines.push('');
-
-  // frchainspre
-  lines.push('  chain frchainspre {');
-  lines.push('    # GUI Chain: NAT Prerouting (DNAT / Port Forward)');
-  lines.push('    # Jumped to from inet nat prerouting hook');
-  lines.push('');
-
-  const fcpRules = enabledByChain['frchainspre'];
-  if (fcpRules.length > 0) {
-    fcpRules.forEach((rule, i) => {
-      const ruleLines = buildNftRuleLines(rule);
-      lines.push(`    # [${i + 1}] ${rule.name} (gui-rule:${rule.id})`);
-      ruleLines.forEach(l => lines.push(`    ${l}`));
-    });
-  } else {
-    lines.push('    # (no GUI rules configured)');
-  }
-  lines.push('  }');
-  lines.push('');
-
-  // frchainspost
-  lines.push('  chain frchainspost {');
-  lines.push('    # GUI Chain: NAT Postrouting (SNAT / Masquerade)');
-  lines.push('    # Jumped to from inet nat postrouting hook');
-  lines.push('');
-
-  const fcpostRules = enabledByChain['frchainspost'];
-  if (fcpostRules.length > 0) {
-    fcpostRules.forEach((rule, i) => {
-      const ruleLines = buildNftRuleLines(rule);
-      lines.push(`    # [${i + 1}] ${rule.name} (gui-rule:${rule.id})`);
-      ruleLines.forEach(l => lines.push(`    ${l}`));
-    });
-  } else {
-    lines.push('    # (no GUI rules configured)');
-  }
-  lines.push('  }');
+  renderChainRules('frchainspre', 'NAT Prerouting — DNAT / Port Forward');
+  renderChainRules('frchainspost', 'NAT Postrouting — SNAT / Masquerade / Proxy NAT');
   lines.push('}');
 
-  // --- Sets ---
+  // --- inet filter table (sets only) ---
   if (blockedIps.length > 0 || blockedSubnets.length > 0 || blockedMacs.length > 0) {
     lines.push('');
     lines.push('table inet filter {');
@@ -677,88 +604,170 @@ async function generateConfigPreview(): Promise<string> {
 }
 
 /**
- * Build nftables rule lines for a single GUI rule.
- * For domain-type rules, expands resolved IPs into one nftables rule per IP.
- * For simple IP/CIDR rules, returns a single rule line.
+ * Multi-chain expansion: which chains each action type should be placed in.
+ * Matches 24Online behavior where a single GUI rule generates rules
+ * across multiple iptables/nftables chains.
+ *
+ * Chain directions:
+ *   - Uplink (prerouting): traffic FROM guest → internet → match on saddr (source)
+ *   - Downlink (postrouting): traffic FROM internet → guest → match on daddr (dest)
+ *   - NAT Pre: DNAT rules
+ *   - NAT Post: SNAT/Masquerade rules
  */
-function buildNftRuleLines(rule: GuiRule, resolvedData?: { resolvedDestIps?: string[]; resolvedSourceIps?: string[] }): string[] {
-  // Use resolved IPs if available (domain-type rules)
+function getTargetChainsForAction(action: GuiRule['action']): GuiChainName[] {
+  switch (action) {
+    case 'accept':
+    case 'drop':
+    case 'reject':
+    case 'log':
+      // Filter rules go to BOTH uplink + downlink (bidirectional)
+      return ['firewallchains', 'firewallchainsdn'];
+    case 'proxy':
+      // Proxy = captive portal bypass mark in uplink + masquerade in NAT post
+      return ['firewallchains', 'firewallchainsdn', 'frchainspost'];
+    case 'mark':
+      // Mark rules go to uplink + downlink for QoS
+      return ['firewallchains', 'firewallchainsdn'];
+    case 'dnat':
+      // DNAT only in NAT prerouting
+      return ['frchainspre'];
+    case 'snat':
+    case 'masquerade':
+      // SNAT/Masquerade only in NAT postrouting
+      return ['frchainspost'];
+    default:
+      return ['firewallchains'];
+  }
+}
+
+/**
+ * Check if a chain is a downlink (postrouting) chain.
+ * In downlink chains, source/dest direction is FLIPPED:
+ *   - Uplink: guest src → internet dst  (ip saddr GUEST_IP ... ip daddr DEST_IP)
+ *   - Downlink: internet src → guest dst (ip daddr GUEST_IP ... ip saddr DEST_IP)
+ */
+function isDownlinkChain(chain: GuiChainName): boolean {
+  return chain === 'firewallchainsdn' || chain === 'firewallchainsdn_conn';
+}
+
+/**
+ * Build nftables rule lines for a single GUI rule targeting a specific chain.
+ * Handles direction flipping for downlink chains (saddr ↔ daddr swap).
+ * For domain-type rules, expands resolved IPs into one nftables rule per IP.
+ */
+function buildNftRuleLinesForChain(
+  rule: GuiRule,
+  targetChain: GuiChainName,
+  resolvedData?: { resolvedDestIps?: string[]; resolvedSourceIps?: string[] }
+): string[] {
   const destIps = resolvedData?.resolvedDestIps;
   const sourceIps = resolvedData?.resolvedSourceIps;
 
-  // If domain resolved to IPs, generate one rule per dest IP
   if (destIps && destIps.length > 0) {
-    return destIps.map(ip => buildSingleNftRuleLine(rule, ip, undefined));
+    return destIps.map(ip => buildSingleNftRuleLineForChain(rule, targetChain, ip, undefined));
   }
-
-  // If source is domain resolved to IPs
   if (sourceIps && sourceIps.length > 0) {
-    return sourceIps.map(ip => buildSingleNftRuleLine(rule, undefined, ip));
+    return sourceIps.map(ip => buildSingleNftRuleLineForChain(rule, targetChain, undefined, ip));
   }
 
-  return [buildSingleNftRuleLine(rule)];
+  return [buildSingleNftRuleLineForChain(rule, targetChain)];
 }
 
-function buildSingleNftRuleLine(rule: GuiRule, overrideDestIp?: string, overrideSourceIp?: string): string {
+/**
+ * Build a single nftables rule line for a GUI rule in a specific target chain.
+ * This is the core function that maps GUI rule → nftables rule.
+ *
+ * Direction logic:
+ *   - In uplink chains (prerouting): sourceIp → saddr, destIp → daddr (natural direction)
+ *   - In downlink chains (postrouting): sourceIp → daddr, destIp → saddr (flipped)
+ *   - In NAT chains: depends on action type (DNAT uses dport/dnat-to, MASQ uses saddr)
+ */
+function buildSingleNftRuleLineForChain(
+  rule: GuiRule,
+  targetChain: GuiChainName,
+  overrideDestIp?: string,
+  overrideSourceIp?: string
+): string {
   const parts: string[] = [];
+  const downlink = isDownlinkChain(targetChain);
 
   const isTcpUdp = rule.protocol === 'tcp' || rule.protocol === 'udp';
   const hasPorts = (rule.sourcePort || rule.destPort) && isTcpUdp;
 
+  // Protocol
   if (rule.protocol && rule.protocol !== 'all' && !hasPorts) {
     parts.push(rule.protocol);
   }
 
   const srcIp = overrideSourceIp || rule.sourceIp;
-  if (srcIp) {
-    parts.push(`ip saddr ${srcIp}`);
-  }
-
   const dstIp = overrideDestIp || rule.destIp;
-  if (dstIp && rule.action !== 'dnat' && rule.action !== 'snat' && rule.action !== 'masquerade') {
-    parts.push(`ip daddr ${dstIp}`);
-  }
 
-  if (rule.sourcePort && isTcpUdp) {
-    parts.push(`${rule.protocol} sport ${rule.sourcePort}`);
+  // For NAT DNAT rules: just use destPort + dnat-to (source matching handled in mangle)
+  if (rule.action === 'dnat' && targetChain === 'frchainspre') {
+    if (srcIp) {
+      parts.push(`ip saddr ${srcIp}`);
+    }
+    if (rule.destPort && isTcpUdp) {
+      parts.push(`${rule.protocol} dport ${rule.destPort}`);
+    }
+    if (rule.dnatTo) {
+      parts.push(`dnat to ${rule.dnatTo}`);
+    }
   }
-
-  if (rule.destPort && isTcpUdp) {
-    parts.push(`${rule.protocol} dport ${rule.destPort}`);
-  }
-
-  switch (rule.action) {
-    case 'accept':
-    case 'drop':
-    case 'reject':
-    case 'log':
-      parts.push(rule.action);
-      break;
-    case 'proxy':
-      // Proxy = captive portal bypass. Mark the packet so the
-      // session engine skips captive portal redirect for this traffic.
-      // Mark value 1 = "bypass captive portal" (recognized by SessionEngine)
-      parts.push(`meta mark set 1`);
-      break;
-    case 'mark':
-      parts.push(`meta mark set ${rule.markValue || 0}`);
-      break;
-    case 'dnat':
-      if (rule.dnatTo) {
-        parts.push(`dnat to ${rule.dnatTo}`);
-      }
-      break;
-    case 'snat':
-      if (rule.snatTo) {
-        parts.push(`snat to ${rule.snatTo}`);
-      }
-      break;
-    case 'masquerade':
-      if (rule.destIp) {
-        parts.push(`ip saddr ${rule.destIp}`);
-      }
+  // For NAT MASQUERADE/SNAT rules: use sourceIp as saddr (who gets NAT'd)
+  else if ((rule.action === 'masquerade' || rule.action === 'snat') && targetChain === 'frchainspost') {
+    if (srcIp) {
+      parts.push(`ip saddr ${srcIp}`);
+    }
+    if (rule.destPort && isTcpUdp) {
+      parts.push(`${rule.protocol} dport ${rule.destPort}`);
+    }
+    if (rule.action === 'masquerade') {
       parts.push('masquerade');
-      break;
+    } else if (rule.snatTo) {
+      parts.push(`snat to ${rule.snatTo}`);
+    }
+  }
+  // For Proxy in NAT post (masquerade the proxy traffic)
+  else if (rule.action === 'proxy' && targetChain === 'frchainspost') {
+    if (srcIp) {
+      parts.push(`ip saddr ${srcIp}`);
+    }
+    parts.push('masquerade');
+  }
+  // For mangle filter rules (accept/drop/reject/log/proxy/mark)
+  else {
+    // Direction: uplink = natural, downlink = flipped
+    if (srcIp) {
+      // Uplink: srcIp is source → saddr. Downlink: srcIp is the guest → daddr
+      parts.push(downlink ? `ip daddr ${srcIp}` : `ip saddr ${srcIp}`);
+    }
+    if (dstIp) {
+      // Uplink: dstIp is destination → daddr. Downlink: dstIp → saddr
+      parts.push(downlink ? `ip saddr ${dstIp}` : `ip daddr ${dstIp}`);
+    }
+
+    if (rule.sourcePort && isTcpUdp) {
+      parts.push(`${rule.protocol} sport ${rule.sourcePort}`);
+    }
+    if (rule.destPort && isTcpUdp) {
+      parts.push(`${rule.protocol} dport ${rule.destPort}`);
+    }
+
+    switch (rule.action) {
+      case 'accept':
+      case 'drop':
+      case 'reject':
+      case 'log':
+        parts.push(rule.action);
+        break;
+      case 'proxy':
+        parts.push(`meta mark set 1`);
+        break;
+      case 'mark':
+        parts.push(`meta mark set ${rule.markValue || 0}`);
+        break;
+    }
   }
 
   const comment = rule.comment
@@ -769,9 +778,13 @@ function buildSingleNftRuleLine(rule: GuiRule, overrideDestIp?: string, override
   return parts.join(' ');
 }
 
-// Backward-compat wrapper
+// Backward-compat wrappers
+function buildNftRuleLines(rule: GuiRule, resolvedData?: { resolvedDestIps?: string[]; resolvedSourceIps?: string[] }): string[] {
+  return buildNftRuleLinesForChain(rule, rule.chain, resolvedData);
+}
+
 function buildNftRuleLine(rule: GuiRule): string {
-  return buildSingleNftRuleLine(rule);
+  return buildNftRuleLinesForChain(rule, rule.chain)[0];
 }
 
 // ============================================================================
@@ -921,21 +934,18 @@ async function applyGuiRulesToNftables(): Promise<{
   }));
 
   const allRules = [...guiRules, ...pfRules];
-
-  const enabledByChain: Record<string, GuiRule[]> = {};
-  for (const chain of GUI_CHAINS) {
-    enabledByChain[chain] = allRules
-      .filter(r => r.chain === chain && r.enabled)
-      .sort((a, b) => a.priority - b.priority);
-  }
+  const sortedRules = allRules.filter(r => r.enabled).sort((a, b) => a.priority - b.priority);
 
   const blockedIps = quickBlocks.filter(b => b.type === 'ip').map(b => b.value);
   const blockedSubnets = quickBlocks.filter(b => b.type === 'subnet').map(b => b.value);
 
+  // ── Multi-chain expansion ──
+  // Instead of grouping rules by their DB chain field, we now auto-expand
+  // each rule to ALL chains it belongs in, based on its action type.
+  // This matches 24Online behavior: one GUI rule → multiple nftables chains.
   for (const chain of GUI_CHAINS) {
     const meta = GUI_CHAIN_DESCRIPTIONS[chain];
     const table = meta.table;
-    const rules = enabledByChain[chain];
     let chainRuleCount = 0;
 
     const flushResult = flushGuiChain(table, chain);
@@ -945,35 +955,51 @@ async function applyGuiRulesToNftables(): Promise<{
       continue;
     }
 
+    // Quick blocks in uplink: match destination IPs (traffic going TO blocked IPs)
     if (chain === 'firewallchains') {
       for (const ip of blockedIps) {
-        const result = addRuleToChain(table, chain, `ip daddr ${ip} drop comment "quick-block:ip"`);
-        commands.push(`nft add rule ${table} ${chain} ip daddr ${ip} drop comment "quick-block:ip"`);
+        const rl = `ip daddr ${ip} drop comment "quick-block:ip"`;
+        const result = addRuleToChain(table, chain, rl);
+        commands.push(`nft add rule ${table} ${chain} ${rl}`);
         if (result.success) chainRuleCount++;
-        else errors.push(result.error || `Failed: add rule ${table} ${chain} ip daddr ${ip} drop`);
+        else errors.push(result.error || rl);
       }
       for (const subnet of blockedSubnets) {
-        const result = addRuleToChain(table, chain, `ip daddr ${subnet} drop comment "quick-block:subnet"`);
-        commands.push(`nft add rule ${table} ${chain} ip daddr ${subnet} drop comment "quick-block:subnet"`);
+        const rl = `ip daddr ${subnet} drop comment "quick-block:subnet"`;
+        const result = addRuleToChain(table, chain, rl);
+        commands.push(`nft add rule ${table} ${chain} ${rl}`);
         if (result.success) chainRuleCount++;
-        else errors.push(result.error || `Failed: add rule ${table} ${chain} ip daddr ${subnet} drop`);
+        else errors.push(result.error || rl);
       }
     }
 
+    // Quick blocks in downlink: match source IPs (traffic FROM blocked IPs)
     if (chain === 'firewallchainsdn') {
       for (const ip of blockedIps) {
-        const result = addRuleToChain(table, chain, `ip saddr ${ip} drop comment "quick-block:ip"`);
-        commands.push(`nft add rule ${table} ${chain} ip saddr ${ip} drop comment "quick-block:ip"`);
+        const rl = `ip saddr ${ip} drop comment "quick-block:ip"`;
+        const result = addRuleToChain(table, chain, rl);
+        commands.push(`nft add rule ${table} ${chain} ${rl}`);
         if (result.success) chainRuleCount++;
-        else errors.push(result.error || `Failed: add rule ${table} ${chain} ip saddr ${ip} drop`);
+        else errors.push(result.error || rl);
+      }
+      for (const subnet of blockedSubnets) {
+        const rl = `ip saddr ${subnet} drop comment "quick-block:subnet"`;
+        const result = addRuleToChain(table, chain, rl);
+        commands.push(`nft add rule ${table} ${chain} ${rl}`);
+        if (result.success) chainRuleCount++;
+        else errors.push(result.error || rl);
       }
     }
 
-    for (const rule of rules) {
+    // Expand each GUI rule to this chain if it belongs here
+    for (const rule of sortedRules) {
+      const targetChains = getTargetChainsForAction(rule.action);
+      if (!targetChains.includes(chain as GuiChainName)) continue;
+
       const resolved = (rule as Record<string, unknown>)._resolvedDestIps
         ? { resolvedDestIps: (rule as Record<string, unknown>)._resolvedDestIps as string[] }
         : undefined;
-      const ruleLines = buildNftRuleLines(rule, resolved);
+      const ruleLines = buildNftRuleLinesForChain(rule, chain as GuiChainName, resolved);
       for (const ruleLine of ruleLines) {
         const result = addRuleToChain(table, chain, ruleLine);
         commands.push(`nft add rule ${table} ${chain} ${ruleLine}`);
