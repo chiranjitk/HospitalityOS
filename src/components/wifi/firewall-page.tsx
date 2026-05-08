@@ -973,7 +973,9 @@ function RulesTab() {
 
   const reorderRules = useCallback(async (newOrdered: GuiRule[]) => {
     const orderedIds = newOrdered.map((r) => r.id);
-    setRules(newOrdered);
+    // Update priorities locally so the sort-by-priority keeps the new order
+    const withNewPriorities = newOrdered.map((r, i) => ({ ...r, priority: i * 10 }));
+    setRules(withNewPriorities);
     try {
       await apiFetch(`${API_BASE}/gui-rules`, {
         method: 'PATCH',
