@@ -2594,9 +2594,14 @@ export async function POST(request: NextRequest) {
             try {
               const dlMbps = dlBps / 1000000;
               const ulMbps = ulBps / 1000000;
-              const liveResult = await updateUserBandwidthLive(existingUser.username, dlMbps, ulMbps);
+              // Resolve burst ceil from plan (or user override)
+              const dlCeilMbps = (effectivePlan?.burstDownloadSpeed && effectivePlan.burstDownloadSpeed > 0)
+                ? effectivePlan.burstDownloadSpeed : dlMbps;
+              const ulCeilMbps = (effectivePlan?.burstUploadSpeed && effectivePlan.burstUploadSpeed > 0)
+                ? effectivePlan.burstUploadSpeed : ulMbps;
+              const liveResult = await updateUserBandwidthLive(existingUser.username, dlMbps, ulMbps, dlCeilMbps, ulCeilMbps);
               if (liveResult?.success) {
-                console.log(`[update-user] Pushed ${dlMbps}/${ulMbps} Mbps to active session for ${existingUser.username} (${liveResult.ip})`);
+                console.log(`[update-user] Pushed ${dlMbps}/${ulMbps} Mbps (ceil=${dlCeilMbps}/${ulCeilMbps}) to active session for ${existingUser.username} (${liveResult.ip})`);
               } else if (liveResult && !liveResult.success) {
                 console.log(`[update-user] User ${existingUser.username} not on StaySuite NAS or no TC class: ${liveResult.message}`);
               }

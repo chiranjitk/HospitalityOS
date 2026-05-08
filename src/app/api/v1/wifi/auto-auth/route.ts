@@ -570,6 +570,8 @@ export async function POST(request: NextRequest) {
           userId: wifiUser.id,
           dnKbps: autoAuthBw.dn,
           upKbps: autoAuthBw.up,
+          dnCeilKbps: autoAuthBw.dnCeil,
+          upCeilKbps: autoAuthBw.upCeil,
           subnet: matchedPool?.poolName,
         });
       } else {
@@ -697,6 +699,10 @@ async function activateUserFirewall(params: {
   dnKbps?: number;
   /** Upload bandwidth in kbps (e.g. 2000 = 2 Mbps) */
   upKbps?: number;
+  /** Download burst ceil in kbps (0 or undefined = ceil = rate) */
+  dnCeilKbps?: number;
+  /** Upload burst ceil in kbps (0 or undefined = ceil = rate) */
+  upCeilKbps?: number;
   subnet?: string | null;
 }) {
   try {
@@ -727,6 +733,8 @@ async function activateUserFirewall(params: {
       upClassid: classIds.up,
       dnKbps,
       upKbps,
+      dnCeilKbps: params.dnCeilKbps,
+      upCeilKbps: params.upCeilKbps,
       sessionId: params.sessionId,
       macAddress: params.macAddress,
       userId: params.userId,
@@ -755,8 +763,8 @@ async function activateUserFirewall(params: {
 async function resolvePlanBandwidthKbps(
   planId: string | null | undefined,
   username?: string,
-): Promise<{ dn: number; up: number }> {
-  // Priority 1: RADIUS radReply override
+): Promise<{ dn: number; up: number; dnCeil: number; upCeil: number }> {
+  // Priority 1: RADIUS radReply override (WISPr stores bits/sec → convert to kbps)
   if (username) {
     try {
       const radreply = await db.radReply.findMany({ where: { username } });
@@ -765,7 +773,11 @@ async function resolvePlanBandwidthKbps(
       const radDown = getVal('WISPr-Bandwidth-Max-Down') || getVal('Cryptsk-Bandwidth-Max-Down');
       const radUp = getVal('WISPr-Bandwidth-Max-Up') || getVal('Cryptsk-Bandwidth-Max-Up');
       if (radDown && radUp) {
-        return { dn: Math.round(Number(radDown) / 1000), up: Math.round(Number(radUp) / 1000) };
+        const dn = Math.round(Number(radDown) / 1000);
+        const up = Math.round(Number(radUp) / 1000);
+        const radDlCeil = getVal('Cryptsk-Bandwidth-Ceil-Down');
+        const radUlCeil = getVal('Cryptsk-Bandwidth-Ceil-Up');
+        return { dn, up, dnCeil: radDlCeil ? Math.round(Number(radDlCeil) / 1000) : dn, upCeil: radUlCeil ? Math.round(Number(radUlCeil) / 1000) : up };
       }
     } catch { /* non-critical */ }
   }
@@ -775,15 +787,19 @@ async function resolvePlanBandwidthKbps(
     try {
       const plan = await db.wiFiPlan.findUnique({
         where: { id: planId },
-        select: { downloadSpeed: true, uploadSpeed: true },
+        select: { downloadSpeed: true, uploadSpeed: true, burstDownloadSpeed: true, burstUploadSpeed: true },
       });
       if (plan && plan.downloadSpeed > 0 && plan.uploadSpeed > 0) {
-        return { dn: plan.downloadSpeed * 1000, up: plan.uploadSpeed * 1000 };
+        const dn = plan.downloadSpeed * 1000;
+        const up = plan.uploadSpeed * 1000;
+        const dnCeil = (plan.burstDownloadSpeed && plan.burstDownloadSpeed > 0) ? plan.burstDownloadSpeed * 1000 : dn;
+        const upCeil = (plan.burstUploadSpeed && plan.burstUploadSpeed > 0) ? plan.burstUploadSpeed * 1000 : up;
+        return { dn, up, dnCeil, upCeil };
       }
     } catch { /* non-critical */ }
   }
 
-  return { dn: 0, up: 0 };
+  return { dn: 0, up: 0, dnCeil: 0, upCeil: 0 };
 }
 
 // ────────────────────────────────────────────────────────────

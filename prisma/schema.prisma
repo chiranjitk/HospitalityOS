@@ -6796,6 +6796,8 @@ model WiFiPlan {
   description   String?
   downloadSpeed Int
   uploadSpeed   Int
+  burstDownloadSpeed Int?   // Burst ceil download (Mbps). null/0 = no burst (ceil = rate)
+  burstUploadSpeed   Int?   // Burst ceil upload (Mbps). null/0 = no burst (ceil = rate)
   dataLimit          Int?
   sessionLimit       Int?
   sessionTimeoutSec  Int?

@@ -400,7 +400,7 @@ async function resolvePlanBandwidthKbps(
   username?: string,
   portalDownBytes?: number,
   portalUpBytes?: number,
-): Promise<{ dn: number; up: number }> {
+): Promise<{ dn: number; up: number; dnCeil: number; upCeil: number }> {
   // Priority 1: RADIUS radReply override (WISPr stores bits/sec → convert to kbps)
   if (username) {
     try {
@@ -410,7 +410,12 @@ async function resolvePlanBandwidthKbps(
       const radDown = getVal('WISPr-Bandwidth-Max-Down') || getVal('Cryptsk-Bandwidth-Max-Down');
       const radUp = getVal('WISPr-Bandwidth-Max-Up') || getVal('Cryptsk-Bandwidth-Max-Up');
       if (radDown && radUp) {
-        return { dn: Math.round(Number(radDown) / 1000), up: Math.round(Number(radUp) / 1000) };
+        const dn = Math.round(Number(radDown) / 1000);
+        const up = Math.round(Number(radUp) / 1000);
+        // Check for burst ceil override in radreply
+        const radDlCeil = getVal('Cryptsk-Bandwidth-Ceil-Down');
+        const radUlCeil = getVal('Cryptsk-Bandwidth-Ceil-Up');
+        return { dn, up, dnCeil: radDlCeil ? Math.round(Number(radDlCeil) / 1000) : dn, upCeil: radUlCeil ? Math.round(Number(radUlCeil) / 1000) : up };
       }
     } catch { /* non-critical */ }
   }
@@ -420,25 +425,28 @@ async function resolvePlanBandwidthKbps(
     try {
       const plan = await db.wiFiPlan.findUnique({
         where: { id: planId },
-        select: { downloadSpeed: true, uploadSpeed: true },
+        select: { downloadSpeed: true, uploadSpeed: true, burstDownloadSpeed: true, burstUploadSpeed: true },
       });
       if (plan && plan.downloadSpeed > 0 && plan.uploadSpeed > 0) {
-        console.log(`[BW] Plan speed: ${plan.downloadSpeed}Mbps/${plan.uploadSpeed}Mbps → ${plan.downloadSpeed * 1000}/${plan.uploadSpeed * 1000}kbps (planId=${planId.substring(0, 8)}...)`);
-        return {
-          dn: plan.downloadSpeed * 1000,  // Mbps → kbps
-          up: plan.uploadSpeed * 1000,
-        };
+        const dn = plan.downloadSpeed * 1000;
+        const up = plan.uploadSpeed * 1000;
+        const dnCeil = (plan.burstDownloadSpeed && plan.burstDownloadSpeed > 0) ? plan.burstDownloadSpeed * 1000 : dn;
+        const upCeil = (plan.burstUploadSpeed && plan.burstUploadSpeed > 0) ? plan.burstUploadSpeed * 1000 : up;
+        console.log(`[BW] Plan speed: ${plan.downloadSpeed}Mbps/${plan.uploadSpeed}Mbps burst:${plan.burstDownloadSpeed || 'none'}/${plan.burstUploadSpeed || 'none'} → ${dn}/${up}kbps ceil=${dnCeil}/${upCeil}kbps`);
+        return { dn, up, dnCeil, upCeil };
       }
     } catch { /* non-critical */ }
   }
 
   // Priority 3: Portal default (bytes/sec → bits/sec → kbps)
   if (portalDownBytes && portalUpBytes) {
-    return { dn: Math.round(portalDownBytes * 8 / 1000), up: Math.round(portalUpBytes * 8 / 1000) };
+    const dn = Math.round(portalDownBytes * 8 / 1000);
+    const up = Math.round(portalUpBytes * 8 / 1000);
+    return { dn, up, dnCeil: dn, upCeil: up };
   }
 
   // Priority 4: Hardcoded fallback
-  return { dn: 5000, up: 1000 }; // 5 Mbps / 1 Mbps
+  return { dn: 5000, up: 1000, dnCeil: 5000, upCeil: 1000 }; // 5 Mbps / 1 Mbps
 }
 
 async function activateUserFirewall(params: {
@@ -452,6 +460,10 @@ async function activateUserFirewall(params: {
   dnKbps?: number;
   /** Upload bandwidth in kbps (e.g. 2000 = 2 Mbps) */
   upKbps?: number;
+  /** Download burst ceil in kbps (0 or undefined = ceil = rate) */
+  dnCeilKbps?: number;
+  /** Upload burst ceil in kbps (0 or undefined = ceil = rate) */
+  upCeilKbps?: number;
   subnet?: string | null;
 }) {
   try {
@@ -489,6 +501,8 @@ async function activateUserFirewall(params: {
       upClassid: classIds.up,
       dnKbps,
       upKbps,
+      dnCeilKbps: params.dnCeilKbps,
+      upCeilKbps: params.upCeilKbps,
       sessionId: params.sessionId,
       macAddress: params.macAddress,
       userId: params.userId,
@@ -865,6 +879,8 @@ export async function POST(request: NextRequest) {
           macAddress: effectiveMac,
           dnKbps: voucherBw.dn,
           upKbps: voucherBw.up,
+          dnCeilKbps: voucherBw.dnCeil,
+          upCeilKbps: voucherBw.upCeil,
           subnet: pool.subnet,
         });
 
@@ -1064,6 +1080,8 @@ export async function POST(request: NextRequest) {
             macAddress: effectiveMac, userId: pmsUser.id,
             dnKbps: pmsBw.dn,
             upKbps: pmsBw.up,
+            dnCeilKbps: pmsBw.dnCeil,
+            upCeilKbps: pmsBw.upCeil,
             subnet: pool.subnet,
           });
 

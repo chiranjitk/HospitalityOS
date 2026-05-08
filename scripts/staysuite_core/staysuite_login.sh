@@ -83,6 +83,8 @@ DN_KBPS=0
 UP_KBPS=0
 DN_GUAR=0
 UP_GUAR=0
+DN_CEIL_OVERRIDE=0
+UP_CEIL_OVERRIDE=0
 GATEWAY_ID=""
 SESSION_ID=""
 MAC_ADDR=""
@@ -119,6 +121,8 @@ USER BANDWIDTH (leaf class under pool root):
   -u <classid>         Upload HTB class minor ID    (e.g. 3001)
   -D <kbps>            User download rate in kbps
   -U <kbps>            User upload rate in kbps
+  -e <kbps>            Download burst ceil (default: same as rate)
+  -E <kbps>            Upload burst ceil   (default: same as rate)
   -g <kbps>            Guaranteed download (default: 0)
   -G <kbps>            Guaranteed upload   (default: 0)
 
@@ -164,6 +168,8 @@ while getopts "i:a:s:L:P:R:C:r:c:d:u:D:U:g:G:W:S:m:X:o:f:t:" opt; do
         U) UP_KBPS="$OPTARG" ;;
         g) DN_GUAR="$OPTARG" ;;
         G) UP_GUAR="$OPTARG" ;;
+        e) DN_CEIL_OVERRIDE="$OPTARG" ;;
+        E) UP_CEIL_OVERRIDE="$OPTARG" ;;
         W) GATEWAY_ID="$OPTARG" ;;
         S) SESSION_ID="$OPTARG" ;;
         m) MAC_ADDR="$OPTARG" ;;
@@ -456,6 +462,8 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
         DN_CEIL="${DN_KBPS}kbit"
         DN_GUAR_RATE="${DN_KBPS}kbit"
         [[ "$DN_GUAR" -gt 0 ]] && { DN_GUAR_RATE="${DN_GUAR}kbit"; DN_CEIL="${DN_GUAR}kbit"; }
+        # Burst ceil: if -e was passed, override ceil
+        [[ "$DN_CEIL_OVERRIDE" -gt 0 ]] && DN_CEIL="${DN_CEIL_OVERRIDE}kbit"
 
         # Parent is pool root class: 1:<pool_id>
         # If pool has no download rate, fall back to root 1:1
@@ -517,6 +525,8 @@ if [[ "$POOL_ID" -gt 0 && "$TC_INFRA_OK" -eq 1 ]]; then
         UP_CEIL="${UP_KBPS}kbit"
         UP_GUAR_RATE="${UP_KBPS}kbit"
         [[ "$UP_GUAR" -gt 0 ]] && { UP_GUAR_RATE="${UP_GUAR}kbit"; UP_CEIL="${UP_GUAR}kbit"; }
+        # Burst ceil: if -E was passed, override ceil
+        [[ "$UP_CEIL_OVERRIDE" -gt 0 ]] && UP_CEIL="${UP_CEIL_OVERRIDE}kbit"
 
         local_parent="1:${POOL_ID}"
         if [[ "$POOL_RATE_UP" -eq 0 ]]; then

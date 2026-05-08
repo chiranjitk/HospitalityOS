@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Settings,
   Plus,
@@ -42,6 +43,7 @@ import {
   CheckCircle2,
   XCircle,
   Crown,
+  Info,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -54,6 +56,8 @@ interface WiFiPlan {
   description: string | null;
   downloadSpeed: number;
   uploadSpeed: number;
+  burstDownloadSpeed: number | null;
+  burstUploadSpeed: number | null;
   dataLimit: number | null;
   sessionLimit: number | null;
   maxDevices: number;
@@ -183,6 +187,8 @@ export default function WifiPlans() {
     description: '',
     downloadSpeed: '10',
     uploadSpeed: '5',
+    burstDownloadSpeed: '',
+    burstUploadSpeed: '',
     dataLimit: '',
     sessionLimit: '',
     maxDevices: '1',
@@ -302,6 +308,8 @@ export default function WifiPlans() {
           description: formData.description || null,
           downloadSpeed: parseInt(formData.downloadSpeed),
           uploadSpeed: parseInt(formData.uploadSpeed),
+          burstDownloadSpeed: formData.burstDownloadSpeed ? parseInt(formData.burstDownloadSpeed) : null,
+          burstUploadSpeed: formData.burstUploadSpeed ? parseInt(formData.burstUploadSpeed) : null,
           dataLimit: formData.unlimitedData ? null : (formData.dataLimit ? parseInt(formData.dataLimit) : null),
           sessionLimit: formData.unlimitedSession ? null : (formData.sessionLimit ? parseInt(formData.sessionLimit) : null),
           maxDevices: parseInt(formData.maxDevices),
@@ -362,6 +370,8 @@ export default function WifiPlans() {
           description: formData.description || null,
           downloadSpeed: parseInt(formData.downloadSpeed),
           uploadSpeed: parseInt(formData.uploadSpeed),
+          burstDownloadSpeed: formData.burstDownloadSpeed ? parseInt(formData.burstDownloadSpeed) : null,
+          burstUploadSpeed: formData.burstUploadSpeed ? parseInt(formData.burstUploadSpeed) : null,
           dataLimit: formData.unlimitedData ? null : (formData.dataLimit ? parseInt(formData.dataLimit) : null),
           sessionLimit: formData.unlimitedSession ? null : (formData.sessionLimit ? parseInt(formData.sessionLimit) : null),
           maxDevices: parseInt(formData.maxDevices),
@@ -454,6 +464,8 @@ export default function WifiPlans() {
       description: plan.description || '',
       downloadSpeed: plan.downloadSpeed.toString(),
       uploadSpeed: plan.uploadSpeed.toString(),
+      burstDownloadSpeed: plan.burstDownloadSpeed?.toString() || '',
+      burstUploadSpeed: plan.burstUploadSpeed?.toString() || '',
       dataLimit: plan.dataLimit?.toString() || '',
       sessionLimit: plan.sessionLimit?.toString() || '',
       maxDevices: (plan.maxDevices ?? 1).toString(),
@@ -484,6 +496,8 @@ export default function WifiPlans() {
       description: '',
       downloadSpeed: '10',
       uploadSpeed: '5',
+      burstDownloadSpeed: '',
+      burstUploadSpeed: '',
       dataLimit: '',
       sessionLimit: '',
       maxDevices: '1',
@@ -744,7 +758,7 @@ export default function WifiPlans() {
                         <ArrowDownToLine className="h-3.5 w-3.5 text-emerald-500" />
                         Download
                       </div>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{plan.downloadSpeed} Mbps</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{plan.downloadSpeed} Mbps{plan.burstDownloadSpeed ? ` → ${plan.burstDownloadSpeed} burst` : ''}</span>
                     </div>
                     <div className="h-1.5 w-full rounded-full bg-emerald-500/10 overflow-hidden">
                       <div
@@ -758,7 +772,7 @@ export default function WifiPlans() {
                         <ArrowUpFromLine className="h-3.5 w-3.5 text-amber-500" />
                         Upload
                       </div>
-                      <span className="font-bold text-amber-600 dark:text-amber-400">{plan.uploadSpeed} Mbps</span>
+                      <span className="font-bold text-amber-600 dark:text-amber-400">{plan.uploadSpeed} Mbps{plan.burstUploadSpeed ? ` → ${plan.burstUploadSpeed} burst` : ''}</span>
                     </div>
                     <div className="h-1.5 w-full rounded-full bg-amber-500/10 overflow-hidden">
                       <div
@@ -920,6 +934,54 @@ export default function WifiPlans() {
                   min="1"
                   value={formData.uploadSpeed}
                   onChange={(e) => setFormData(prev => ({ ...prev, uploadSpeed: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="burstDownloadSpeed" className="flex items-center gap-1.5">
+                  Burst Download (Mbps)
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>Max ceil rate user can burst to when spare pool capacity exists. Leave empty for no burst (ceil = rate).</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </Label>
+                <Input
+                  id="burstDownloadSpeed"
+                  type="number"
+                  min="0"
+                  placeholder="e.g., 15 (leave empty for no burst)"
+                  value={formData.burstDownloadSpeed}
+                  onChange={(e) => setFormData(prev => ({ ...prev, burstDownloadSpeed: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="burstUploadSpeed" className="flex items-center gap-1.5">
+                  Burst Upload (Mbps)
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>Max ceil rate user can burst to when spare pool capacity exists. Leave empty for no burst (ceil = rate).</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </Label>
+                <Input
+                  id="burstUploadSpeed"
+                  type="number"
+                  min="0"
+                  placeholder="e.g., 10 (leave empty for no burst)"
+                  value={formData.burstUploadSpeed}
+                  onChange={(e) => setFormData(prev => ({ ...prev, burstUploadSpeed: e.target.value }))}
                 />
               </div>
             </div>

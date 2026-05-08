@@ -110,6 +110,8 @@ export async function POST(request: NextRequest) {    const user = await require
       description,
       downloadSpeed,
       uploadSpeed,
+      burstDownloadSpeed,
+      burstUploadSpeed,
       dataLimit,
       sessionLimit,
       maxDevices = 1,
@@ -159,6 +161,8 @@ export async function POST(request: NextRequest) {    const user = await require
         description,
         downloadSpeed: parseInt(downloadSpeed, 10),
         uploadSpeed: parseInt(uploadSpeed, 10),
+        burstDownloadSpeed: burstDownloadSpeed ? parseInt(burstDownloadSpeed, 10) : null,
+        burstUploadSpeed: burstUploadSpeed ? parseInt(burstUploadSpeed, 10) : null,
         dataLimit: dataLimit ? parseInt(dataLimit, 10) : null,
         sessionLimit: sessionLimit ? parseInt(sessionLimit, 10) : null,
         maxDevices: parseInt(maxDevices, 10),
@@ -250,6 +254,8 @@ export async function PUT(request: NextRequest) {    const user = await requireP
         ...(updateData.description !== undefined && { description: updateData.description }),
         ...(updateData.downloadSpeed !== undefined && { downloadSpeed: parseInt(updateData.downloadSpeed, 10) }),
         ...(updateData.uploadSpeed !== undefined && { uploadSpeed: parseInt(updateData.uploadSpeed, 10) }),
+        ...(updateData.burstDownloadSpeed !== undefined && { burstDownloadSpeed: updateData.burstDownloadSpeed ? parseInt(updateData.burstDownloadSpeed, 10) : null }),
+        ...(updateData.burstUploadSpeed !== undefined && { burstUploadSpeed: updateData.burstUploadSpeed ? parseInt(updateData.burstUploadSpeed, 10) : null }),
         ...(updateData.dataLimit !== undefined && { dataLimit: updateData.dataLimit ? parseInt(updateData.dataLimit, 10) : null }),
         ...(updateData.sessionLimit !== undefined && { sessionLimit: updateData.sessionLimit ? parseInt(updateData.sessionLimit, 10) : null }),
         ...(updateData.maxDevices !== undefined && { maxDevices: parseInt(updateData.maxDevices, 10) }),
@@ -267,7 +273,8 @@ export async function PUT(request: NextRequest) {    const user = await requireP
     });
 
     // Sync RADIUS group attributes if plan settings changed
-    const bandwidthChanged = updateData.downloadSpeed !== undefined || updateData.uploadSpeed !== undefined;
+    const bandwidthChanged = updateData.downloadSpeed !== undefined || updateData.uploadSpeed !== undefined
+      || updateData.burstDownloadSpeed !== undefined || updateData.burstUploadSpeed !== undefined;
     if (updateData.name || bandwidthChanged ||
         updateData.dataLimit !== undefined || updateData.sessionLimit !== undefined ||
         updateData.sessionTimeoutSec !== undefined || updateData.idleTimeoutSec !== undefined) {
@@ -281,8 +288,10 @@ export async function PUT(request: NextRequest) {    const user = await requireP
     if (bandwidthChanged) {
       const dlMbps = plan.downloadSpeed || 10;
       const ulMbps = plan.uploadSpeed || 5;
+      const dlCeilMbps = plan.burstDownloadSpeed || dlMbps;
+      const ulCeilMbps = plan.burstUploadSpeed || ulMbps;
       try {
-        const bwResult = await updatePlanBandwidthForActiveSessions(String(id), dlMbps, ulMbps, db);
+        const bwResult = await updatePlanBandwidthForActiveSessions(String(id), dlMbps, ulMbps, db, dlCeilMbps, ulCeilMbps);
         if (bwResult.updated > 0) {
           console.log(`[plans] Pushed ${dlMbps}/${ulMbps} Mbps to ${bwResult.updated} active sessions on plan ${plan.name}`);
         }

@@ -162,6 +162,10 @@ export interface LoginScriptParams {
   dnKbps?: number;
   /** User upload rate (kbps) */
   upKbps?: number;
+  /** User download burst ceil (kbps). 0/undefined = ceil = rate */
+  dnCeilKbps?: number;
+  /** User upload burst ceil (kbps). 0/undefined = ceil = rate */
+  upCeilKbps?: number;
   /** Guaranteed download (kbps) */
   dnGuar?: number;
   /** Guaranteed upload (kbps) */
@@ -212,6 +216,8 @@ export function runLoginScript(params: LoginScriptParams): ScriptResult {
   if (params.upClassid) args.push('-u', String(params.upClassid));
   if (params.dnKbps) args.push('-D', String(params.dnKbps));
   if (params.upKbps) args.push('-U', String(params.upKbps));
+  if (params.dnCeilKbps && params.dnCeilKbps > 0) args.push('-e', String(params.dnCeilKbps));
+  if (params.upCeilKbps && params.upCeilKbps > 0) args.push('-E', String(params.upCeilKbps));
   if (params.dnGuar && params.dnGuar > 0) args.push('-g', String(params.dnGuar));
   if (params.upGuar && params.upGuar > 0) args.push('-G', String(params.upGuar));
   if (params.gatewayId && params.gatewayId !== '-1') args.push('-W', params.gatewayId);
