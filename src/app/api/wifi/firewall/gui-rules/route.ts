@@ -1,28 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requirePermission, resolvePropertyId } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import { fullApplyToNftables } from '@/lib/nftables-helper';
 import { resolveRuleAddresses } from '@/lib/dns-resolver';
 
-// GET /api/wifi/firewall/gui-rules — List all FirewallRules for the property
+// GET /api/wifi/firewall/gui-rules — List all FirewallRules
 export async function GET(request: NextRequest) {
   const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const explicitPropertyId = searchParams.get('propertyId');
-    const propertyId = await resolvePropertyId(user, explicitPropertyId);
-
-    if (!propertyId) {
-      return NextResponse.json(
-        { success: false, error: 'No property found for this tenant' },
-        { status: 400 },
-      );
-    }
-
     const rules = await db.firewallRule.findMany({
-      where: { tenantId: user.tenantId, propertyId },
       include: {
         firewallZone: { select: { id: true, name: true } },
         firewallSchedule: { select: { id: true, name: true } },
@@ -48,7 +36,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
-      propertyId: explicitPropertyId,
       zoneId,
       chain = 'prerouting',
       protocol,
@@ -69,28 +56,19 @@ export async function POST(request: NextRequest) {
       proxyTo,
     } = body;
 
-    const propertyId = await resolvePropertyId(user, explicitPropertyId);
-    if (!propertyId) {
-      return NextResponse.json(
-        { success: false, error: 'No property found for this tenant' },
-        { status: 400 },
-      );
-    }
-
     // Resolve zone — use provided zoneId, or auto-pick 'guest' zone (fallback: first available)
+    // No propertyId/tenantId filter — single-location device, just grab whatever zone exists
     let resolvedZoneId = zoneId;
     console.log('[gui-rules] POST body:', JSON.stringify(body));
-    console.log('[gui-rules] user.tenantId:', user.tenantId, 'propertyId:', propertyId);
+
     if (!resolvedZoneId) {
       const guestZone = await db.firewallZone.findFirst({
-        where: { name: 'guest', tenantId: user.tenantId, propertyId },
+        where: { name: 'guest' },
       });
       console.log('[gui-rules] guestZone:', guestZone?.id);
       resolvedZoneId = guestZone?.id;
       if (!resolvedZoneId) {
-        const anyZone = await db.firewallZone.findFirst({
-          where: { tenantId: user.tenantId, propertyId },
-        });
+        const anyZone = await db.firewallZone.findFirst();
         console.log('[gui-rules] anyZone:', anyZone?.id);
         resolvedZoneId = anyZone?.id;
       }
@@ -99,14 +77,14 @@ export async function POST(request: NextRequest) {
 
     if (!resolvedZoneId) {
       return NextResponse.json(
-        { success: false, error: 'No firewall zone found for this property. Create a zone first in the Zones section.' },
+        { success: false, error: 'No firewall zone found. Create a zone first in the Zones section.' },
         { status: 400 },
       );
     }
 
-    // Validate zone belongs to tenant
-    const zone = await db.firewallZone.findFirst({
-      where: { id: resolvedZoneId, tenantId: user.tenantId, propertyId },
+    // Validate zone exists (no tenant/property filter)
+    const zone = await db.firewallZone.findUnique({
+      where: { id: resolvedZoneId },
     });
     if (!zone) {
       return NextResponse.json(
@@ -115,10 +93,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate schedule if provided
+    // Validate schedule if provided (no tenant/property filter)
     if (scheduleId) {
-      const schedule = await db.firewallSchedule.findFirst({
-        where: { id: scheduleId, tenantId: user.tenantId, propertyId },
+      const schedule = await db.firewallSchedule.findUnique({
+        where: { id: scheduleId },
       });
       if (!schedule) {
         return NextResponse.json(
@@ -153,9 +131,13 @@ export async function POST(request: NextRequest) {
     // Resolve DNS for sourceIp and destIp
     const resolved = await resolveRuleAddresses({ sourceIp, destIp });
 
+    // Use tenantId/propertyId from the zone for DB storage (required fields)
+    const tenantId = zone.tenantId;
+    const propertyId = zone.propertyId;
+
     const rule = await db.firewallRule.create({
       data: {
-        tenantId: user.tenantId,
+        tenantId,
         propertyId,
         zoneId: resolvedZoneId,
         chain: chain || null,
@@ -188,7 +170,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Fire-and-forget apply
-    try { fullApplyToNftables(user.tenantId); } catch {}
+    try { fullApplyToNftables(tenantId); } catch {}
 
     return NextResponse.json({ success: true, data: rule, dnsWarnings: resolved.dnsWarnings }, { status: 201 });
   } catch (error) {

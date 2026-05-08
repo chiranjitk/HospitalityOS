@@ -16,8 +16,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
-    const rule = await db.firewallRule.findFirst({
-      where: { id, tenantId: user.tenantId },
+    const rule = await db.firewallRule.findUnique({
+      where: { id },
       include: {
         firewallZone: { select: { id: true, name: true } },
         firewallSchedule: { select: { id: true, name: true } },
@@ -50,8 +50,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const body = await request.json();
 
-    const existing = await db.firewallRule.findFirst({
-      where: { id, tenantId: user.tenantId },
+    const existing = await db.firewallRule.findUnique({
+      where: { id },
     });
     if (!existing) {
       return NextResponse.json(
@@ -127,7 +127,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     });
 
     // Fire-and-forget apply
-    try { fullApplyToNftables(user.tenantId); } catch {}
+    try { fullApplyToNftables(rule.tenantId); } catch {}
 
     return NextResponse.json({ success: true, data: rule, dnsWarnings: resolved.dnsWarnings });
   } catch (error) {
@@ -147,8 +147,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
-    const existing = await db.firewallRule.findFirst({
-      where: { id, tenantId: user.tenantId },
+    const existing = await db.firewallRule.findUnique({
+      where: { id },
     });
     if (!existing) {
       return NextResponse.json(
@@ -160,7 +160,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     await db.firewallRule.delete({ where: { id } });
 
     // Fire-and-forget apply
-    try { fullApplyToNftables(user.tenantId); } catch {}
+    try { fullApplyToNftables(existing.tenantId); } catch {}
 
     return NextResponse.json({ success: true, data: { id } });
   } catch (error) {
@@ -186,8 +186,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       const { orderedIds } = body;
       await Promise.all(
         orderedIds.map((ruleId: string, index: number) =>
-          db.firewallRule.updateMany({
-            where: { id: ruleId, tenantId: user.tenantId },
+          db.firewallRule.update({
+            where: { id: ruleId },
             data: { priority: index },
           }),
         ),
@@ -200,8 +200,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     // ── Toggle enabled ───────────────────────────────────────────
-    const existing = await db.firewallRule.findFirst({
-      where: { id, tenantId: user.tenantId },
+    const existing = await db.firewallRule.findUnique({
+      where: { id },
     });
     if (!existing) {
       return NextResponse.json(
@@ -222,7 +222,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     });
 
     // Fire-and-forget apply
-    try { fullApplyToNftables(user.tenantId); } catch {}
+    try { fullApplyToNftables(rule.tenantId); } catch {}
 
     return NextResponse.json({ success: true, data: rule });
   } catch (error) {
