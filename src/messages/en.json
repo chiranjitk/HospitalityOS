@@ -475,8 +475,15 @@
     "inventory-invoice-matching": "Invoice Matching",
     "staff-payroll": "Payroll",
     "experience-golf": "Golf Course",
-    "experience-spa-wellness": "Spa & Wellness",
-    "pos-menu-boards": "Digital Menu Boards"
+    "pos-menu-boards": "Digital Menu Boards",
+    "channel-gds": "GDS Connectivity",
+    "experience-spa": "Spa & Wellness",
+    "integrations-mobile-app": "Mobile App",
+    "integrations-smart-locks": "Smart Locks",
+    "integrations-terminals": "Payment Terminals",
+    "marketing-upsell": "Upsell Engine",
+    "pos-offline": "Offline Mode",
+    "resort": "Resort"
   },
   "layout": {
     "searchNavigation": "Search navigation...",
