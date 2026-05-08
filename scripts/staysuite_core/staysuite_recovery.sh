@@ -186,6 +186,7 @@ if [[ "$NFT_ONLY" -ne 1 ]]; then
             # Parse state file
             S_IP="" S_MARK="" S_POOL_ID=0 S_DN_CLASSID=0 S_UP_CLASSID=0
             S_DN_KBPS=0 S_UP_KBPS=0 S_DN_GUAR=0 S_UP_GUAR=0
+            S_DN_CEIL_OVERRIDE=0 S_UP_CEIL_OVERRIDE=0
             S_POOL_RATE_DN=0 S_POOL_CEIL_DN=0 S_POOL_RATE_UP=0 S_POOL_CEIL_UP=0
             S_FW_PREF=100
 
@@ -200,6 +201,8 @@ if [[ "$NFT_ONLY" -ne 1 ]]; then
                     UP_KBPS)      S_UP_KBPS="$val" ;;
                     DN_GUAR)      S_DN_GUAR="$val" ;;
                     UP_GUAR)      S_UP_GUAR="$val" ;;
+                    DN_CEIL_OVERRIDE) S_DN_CEIL_OVERRIDE="$val" ;;
+                    UP_CEIL_OVERRIDE) S_UP_CEIL_OVERRIDE="$val" ;;
                     POOL_RATE_DN) S_POOL_RATE_DN="$val" ;;
                     POOL_CEIL_DN) S_POOL_CEIL_DN="$val" ;;
                     POOL_RATE_UP) S_POOL_RATE_UP="$val" ;;
@@ -259,6 +262,7 @@ if [[ "$NFT_ONLY" -ne 1 ]]; then
                 dn_ceil="${S_DN_KBPS}kbit"
                 dn_guar="${S_DN_KBPS}kbit"
                 [[ "$S_DN_GUAR" -gt 0 ]] && { dn_guar="${S_DN_GUAR}kbit"; dn_ceil="${S_DN_GUAR}kbit"; }
+                [[ "$S_DN_CEIL_OVERRIDE" -gt 0 ]] && dn_ceil="${S_DN_CEIL_OVERRIDE}kbit"
 
                 local_parent="1:${S_POOL_ID}"
                 [[ "$S_POOL_ID" -le 0 || "$S_POOL_RATE_DN" -le 0 ]] && local_parent="1:1"
@@ -278,6 +282,7 @@ if [[ "$NFT_ONLY" -ne 1 ]]; then
                 up_ceil="${S_UP_KBPS}kbit"
                 up_guar="${S_UP_KBPS}kbit"
                 [[ "$S_UP_GUAR" -gt 0 ]] && { up_guar="${S_UP_GUAR}kbit"; up_ceil="${S_UP_GUAR}kbit"; }
+                [[ "$S_UP_CEIL_OVERRIDE" -gt 0 ]] && up_ceil="${S_UP_CEIL_OVERRIDE}kbit"
 
                 local_parent="1:${S_POOL_ID}"
                 [[ "$S_POOL_ID" -le 0 || "$S_POOL_RATE_UP" -le 0 ]] && local_parent="1:1"

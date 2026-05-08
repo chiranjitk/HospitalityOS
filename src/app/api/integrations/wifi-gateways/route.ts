@@ -441,6 +441,8 @@ export async function GET(request: NextRequest) {
       const username = searchParams.get('username');
       const downloadSpeed = parseInt(searchParams.get('downloadSpeed') || '0', 10);
       const uploadSpeed = parseInt(searchParams.get('uploadSpeed') || '0', 10);
+      const burstDownloadSpeed = parseInt(searchParams.get('burstDownloadSpeed') || '0', 10);
+      const burstUploadSpeed = parseInt(searchParams.get('burstUploadSpeed') || '0', 10);
 
       if (!sessionId && !username) {
         return NextResponse.json(
@@ -463,7 +465,12 @@ export async function GET(request: NextRequest) {
 
       try {
         const adapter = createGatewayAdapter(gwConfig);
-        const policy: BandwidthPolicy = { downloadSpeed, uploadSpeed };
+        const policy: BandwidthPolicy = {
+          downloadSpeed,
+          uploadSpeed,
+          ...(burstDownloadSpeed > 0 && { burstDownloadSpeed }),
+          ...(burstUploadSpeed > 0 && { burstUploadSpeed }),
+        };
         const result = await adapter.updateBandwidth(
           sessionId || '',
           username || '',

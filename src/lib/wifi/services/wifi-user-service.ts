@@ -68,6 +68,8 @@ export async function syncRadiusGroup(plan: {
   tenantId: string;
   downloadSpeed: number;
   uploadSpeed: number;
+  burstDownloadSpeed?: number | null;
+  burstUploadSpeed?: number | null;
   dataLimit?: number | null;
   sessionLimit?: number | null;
   sessionTimeoutSec?: number | null;
@@ -158,11 +160,21 @@ export async function syncRadiusGroup(plan: {
         { attribute: 'Cryptsk-User-Profile', op: ':=', value: groupName, priority: 40 },
         { attribute: 'Cryptsk-Plan-Name', op: ':=', value: plan.name, priority: 41 },
       );
+      // Burst ceil (0 or null = no burst, ceil = rate)
+      const burstDownVal = (plan.burstDownloadSpeed && plan.burstDownloadSpeed > 0) ? plan.burstDownloadSpeed * 1000000 : 0;
+      const burstUpVal = (plan.burstUploadSpeed && plan.burstUploadSpeed > 0) ? plan.burstUploadSpeed * 1000000 : 0;
+      if (burstDownVal > 0) {
+        groupReplies.push({ attribute: 'Cryptsk-Bandwidth-Ceil-Down', op: ':=', value: String(burstDownVal), priority: 44 });
+      }
+      if (burstUpVal > 0) {
+        groupReplies.push({ attribute: 'Cryptsk-Bandwidth-Ceil-Up', op: ':=', value: String(burstUpVal), priority: 45 });
+      }
+
       if (dataLimitMB > 0) {
         const dataLimitBytes = dataLimitMB * 1024 * 1024;
         groupReplies.push(
-          { attribute: 'Cryptsk-Max-Input-Octets', op: ':=', value: String(dataLimitBytes), priority: 42 },
-          { attribute: 'Cryptsk-Max-Output-Octets', op: ':=', value: String(dataLimitBytes), priority: 43 },
+          { attribute: 'Cryptsk-Max-Input-Octets', op: ':=', value: String(dataLimitBytes), priority: 46 },
+          { attribute: 'Cryptsk-Max-Output-Octets', op: ':=', value: String(dataLimitBytes), priority: 47 },
         );
       }
     }
@@ -375,6 +387,8 @@ export class WiFiUserService {
                   tenantId: planFull.tenantId,
                   downloadSpeed: planFull.downloadSpeed,
                   uploadSpeed: planFull.uploadSpeed,
+                  burstDownloadSpeed: planFull.burstDownloadSpeed,
+                  burstUploadSpeed: planFull.burstUploadSpeed,
                   dataLimit: planFull.dataLimit,
                   sessionLimit: planFull.sessionLimit,
                   sessionTimeoutSec: planFull.sessionTimeoutSec,
@@ -893,6 +907,8 @@ export class WiFiUserService {
               tenantId: wifiUser.plan.tenantId,
               downloadSpeed: wifiUser.plan.downloadSpeed,
               uploadSpeed: wifiUser.plan.uploadSpeed,
+              burstDownloadSpeed: wifiUser.plan.burstDownloadSpeed,
+              burstUploadSpeed: wifiUser.plan.burstUploadSpeed,
               dataLimit: wifiUser.plan.dataLimit,
               sessionLimit: wifiUser.plan.sessionLimit,
               sessionTimeoutSec: wifiUser.plan.sessionTimeoutSec,

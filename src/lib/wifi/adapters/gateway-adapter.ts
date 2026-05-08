@@ -90,6 +90,8 @@ export interface GatewayStatus {
 export interface BandwidthPolicy {
   downloadSpeed: number; // bps
   uploadSpeed: number; // bps
+  burstDownloadSpeed?: number; // bps — HTB burst/ceil for download (optional, defaults to rate)
+  burstUploadSpeed?: number; // bps — HTB burst/ceil for upload (optional, defaults to rate)
   sessionTimeout?: number; // seconds
   dataLimit?: number; // bytes
 }

@@ -299,7 +299,13 @@ CREATE VIEW v_session_history AS
     COALESCE(r."loginType", 'portal') AS "loginType",
     dp."userAgent" AS "userAgent",
     dp."macAddress" AS "dp_macAddress",
-    COALESCE(dp."authCount", 0) AS "dp_authCount"
+    COALESCE(dp."authCount", 0) AS "dp_authCount",
+    -- Timeout columns from WiFiPlan
+    COALESCE(wp."sessionTimeout", 0) AS "sessionTimeoutSec",
+    COALESCE(wp."idleTimeout", 0) AS "idleTimeoutSec",
+    -- Burst (ceil) columns from WiFiPlan
+    wp."burstDownloadSpeed",
+    wp."burstUploadSpeed"
    FROM "WiFiSession" s
      FULL JOIN ( SELECT DISTINCT ON (radacct.username, radacct.acctsessionid) radacct.radacctid,
             radacct.acctsessionid,
@@ -445,7 +451,13 @@ CREATE VIEW v_active_sessions AS
     "loginType",
     "userAgent",
     "dp_macAddress",
-    "dp_authCount"
+    "dp_authCount",
+    -- Timeout columns from WiFiPlan
+    "sessionTimeoutSec",
+    "idleTimeoutSec",
+    -- Burst (ceil) columns from WiFiPlan
+    "burstDownloadSpeed",
+    "burstUploadSpeed"
    FROM v_session_history
   WHERE session_status = 'active'::text;
 

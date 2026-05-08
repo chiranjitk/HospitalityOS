@@ -702,6 +702,9 @@ export async function GET(request: NextRequest) {
             dp_authCount: number | null;
             sessionTimeoutSec: number | null;
             idleTimeoutSec: number | null;
+            // Burst (ceil) columns from WiFiPlan
+            burstDownloadSpeed: number | null;
+            burstUploadSpeed: number | null;
           }[]>(`
             SELECT DISTINCT ON (acctuniqueid)
                    acctuniqueid, acctsessionid, username, framedipaddress,
@@ -712,7 +715,8 @@ export async function GET(request: NextRequest) {
                    property_name, plan_name, downloadspeed, uploadspeed,
                    "loginType", "deviceName", "deviceType", "userAgent",
                    "dp_macAddress", "dp_authCount",
-                   "sessionTimeoutSec", "idleTimeoutSec"
+                   "sessionTimeoutSec", "idleTimeoutSec",
+                   "burstDownloadSpeed", "burstUploadSpeed"
             FROM v_active_sessions ${whereClause}
             ORDER BY acctuniqueid, acctstarttime DESC
           `, ...sqlParams);
@@ -773,6 +777,8 @@ export async function GET(request: NextRequest) {
             authCount: number;
             bandwidthDown: string | null;
             bandwidthUp: string | null;
+            bandwidthBurstDown: string | null;
+            bandwidthBurstUp: string | null;
             sessionTime: number;
             dataDownload: number;
             dataUpload: number;
@@ -825,6 +831,8 @@ export async function GET(request: NextRequest) {
               authCount: Number(s.dp_authCount || 0),
               bandwidthDown: s.downloadspeed != null ? `${Number(s.downloadspeed)} Mbps` : null,
               bandwidthUp: s.uploadspeed != null ? `${Number(s.uploadspeed)} Mbps` : null,
+              bandwidthBurstDown: s.burstDownloadSpeed != null ? `${Number(s.burstDownloadSpeed)} Mbps` : null,
+              bandwidthBurstUp: s.burstUploadSpeed != null ? `${Number(s.burstUploadSpeed)} Mbps` : null,
               sessionTime: Number(s.acctsessiontime || 0),
               // RADIUS: acctoutputoctets = NAS→client (download), acctinputoctets = client→NAS (upload)
               dataDownload: Number(s.acctoutputoctets || 0),
@@ -870,6 +878,8 @@ export async function GET(request: NextRequest) {
                 manufacturer: s.manufacturer || '',
                 bandwidthDown: s.bandwidthDown ? `${s.bandwidthDown} Mbps` : null,
                 bandwidthUp: s.bandwidthUp ? `${s.bandwidthUp} Mbps` : null,
+                bandwidthBurstDown: s.burstDownloadSpeed ? `${s.burstDownloadSpeed} Mbps` : null,
+                bandwidthBurstUp: s.burstUploadSpeed ? `${s.burstUploadSpeed} Mbps` : null,
                 sessionTime: s.currentSessionTime || 0,
                 // LiveSession: currentOutputBytes = download, currentInputBytes = upload
                 dataDownload: s.currentOutputBytes || 0,

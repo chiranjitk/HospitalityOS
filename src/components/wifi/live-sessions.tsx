@@ -90,6 +90,8 @@ interface LiveSession {
   manufacturer?: string;
   bandwidthDown?: string;
   bandwidthUp?: string;
+  bandwidthBurstDown?: string;
+  bandwidthBurstUp?: string;
   sessionTime: number;
   dataDownload: number;
   dataUpload: number;
@@ -656,10 +658,16 @@ export default function LiveSessions() {
               <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
                 <ArrowDownToLine className="h-3 w-3" />
                 {session.bandwidthDown || '—'}
+                {session.bandwidthBurstDown && (
+                  <span className="text-[10px] text-muted-foreground ml-0.5">→ {session.bandwidthBurstDown}</span>
+                )}
               </span>
               <span className="flex items-center gap-0.5 text-amber-600 dark:text-amber-400">
                 <ArrowUpFromLine className="h-3 w-3" />
                 {session.bandwidthUp || '—'}
+                {session.bandwidthBurstUp && (
+                  <span className="text-[10px] text-muted-foreground ml-0.5">→ {session.bandwidthBurstUp}</span>
+                )}
               </span>
             </div>
           </div>
@@ -997,10 +1005,16 @@ export default function LiveSessions() {
                               <div className="flex items-center gap-1">
                                 <ArrowDownToLine className="h-3 w-3 text-emerald-500" />
                                 <span>{session.bandwidthDown || '—'}</span>
+                                {session.bandwidthBurstDown && (
+                                  <span className="text-[10px] text-muted-foreground ml-0.5">→ {session.bandwidthBurstDown}</span>
+                                )}
                               </div>
                               <div className="flex items-center gap-1">
                                 <ArrowUpFromLine className="h-3 w-3 text-amber-500" />
                                 <span>{session.bandwidthUp || '—'}</span>
+                                {session.bandwidthBurstUp && (
+                                  <span className="text-[10px] text-muted-foreground ml-0.5">→ {session.bandwidthBurstUp}</span>
+                                )}
                               </div>
                             </div>
                           </TableCell>
@@ -1149,10 +1163,16 @@ export default function LiveSessions() {
                   <div>
                     <p className="text-xs text-muted-foreground">Download</p>
                     <p className="text-sm">{selectedSession.bandwidthDown || '—'}</p>
+                    {selectedSession.bandwidthBurstDown && (
+                      <p className="text-xs text-muted-foreground">Burst → {selectedSession.bandwidthBurstDown}</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Upload</p>
                     <p className="text-sm">{selectedSession.bandwidthUp || '—'}</p>
+                    {selectedSession.bandwidthBurstUp && (
+                      <p className="text-xs text-muted-foreground">Burst → {selectedSession.bandwidthBurstUp}</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Plan</p>

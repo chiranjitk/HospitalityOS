@@ -62,6 +62,10 @@ enum RuijieVSA {
   BANDWIDTH_MAX_UP = 2,
   BANDWIDTH_MIN_DOWN = 3,
   BANDWIDTH_MIN_UP = 4,
+  // Burst/ceil VSAs — custom/vendor-specific (not in published Ruijie dictionary)
+  // Used by RG-BC8600/BC5750 series controllers to set HTB burst ceiling
+  BANDWIDTH_CEIL_DOWN = 5,
+  BANDWIDTH_CEIL_UP = 6,
   SESSION_TIMEOUT = 10,
   IDLE_TIMEOUT = 11,
   VLAN_ID = 20,
@@ -287,6 +291,13 @@ export class RuijieAdapter extends GatewayAdapter {
     const attrs: Record<string, string> = {};
     if (policy.downloadSpeed) attrs['Ruijie-Bandwidth-Max-Down'] = String(Math.ceil(policy.downloadSpeed / 1000));
     if (policy.uploadSpeed) attrs['Ruijie-Bandwidth-Max-Up'] = String(Math.ceil(policy.uploadSpeed / 1000));
+    // Burst ceil attributes — only include when burst values are > 0
+    if (policy.burstDownloadSpeed && policy.burstDownloadSpeed > 0) {
+      attrs['Ruijie-Bandwidth-Ceil-Down'] = String(Math.ceil(policy.burstDownloadSpeed / 1000));
+    }
+    if (policy.burstUploadSpeed && policy.burstUploadSpeed > 0) {
+      attrs['Ruijie-Bandwidth-Ceil-Up'] = String(Math.ceil(policy.burstUploadSpeed / 1000));
+    }
     if (policy.sessionTimeout) attrs['Session-Timeout'] = String(policy.sessionTimeout);
     return this.sendCoA({ username, sessionId, action: 'update', attributes: attrs });
   }
@@ -301,6 +312,15 @@ export class RuijieAdapter extends GatewayAdapter {
     if (policy.uploadSpeed) {
       attrs['WISPr-Bandwidth-Max-Up'] = String(policy.uploadSpeed);
       attrs['Ruijie-Bandwidth-Max-Up'] = String(Math.ceil(policy.uploadSpeed / 1000));
+    }
+    // Burst ceil attributes — only include when burst values are > 0
+    // Ruijie-Bandwidth-Ceil-Down/Up are custom vendor-specific VSAs (RuijieVSA 5/6)
+    // Supported by RG-BC8600/BC5750 series controllers for HTB burst ceiling
+    if (policy.burstDownloadSpeed && policy.burstDownloadSpeed > 0) {
+      attrs['Ruijie-Bandwidth-Ceil-Down'] = String(Math.ceil(policy.burstDownloadSpeed / 1000));
+    }
+    if (policy.burstUploadSpeed && policy.burstUploadSpeed > 0) {
+      attrs['Ruijie-Bandwidth-Ceil-Up'] = String(Math.ceil(policy.burstUploadSpeed / 1000));
     }
     return attrs;
   }

@@ -77,7 +77,10 @@ SELECT COALESCE(s.id::text, r.acctuniqueid) AS session_id,
     COALESCE(dp."authCount", 0) AS "dp_authCount",
     -- Timeout columns from WiFiPlan
     COALESCE(wp."sessionTimeout", 0) AS "sessionTimeoutSec",
-    COALESCE(wp."idleTimeout", 0) AS "idleTimeoutSec"
+    COALESCE(wp."idleTimeout", 0) AS "idleTimeoutSec",
+    -- Burst (ceil) columns from WiFiPlan
+    wp."burstDownloadSpeed",
+    wp."burstUploadSpeed"
    FROM "WiFiSession" s
      FULL JOIN (
         SELECT DISTINCT ON (radacct.username, radacct.acctsessionid) radacct.*
@@ -177,7 +180,10 @@ SELECT session_id,
     "dp_authCount",
     -- Timeout columns from WiFiPlan
     "sessionTimeoutSec",
-    "idleTimeoutSec"
+    "idleTimeoutSec",
+    -- Burst (ceil) columns from WiFiPlan
+    "burstDownloadSpeed",
+    "burstUploadSpeed"
    FROM v_session_history
   WHERE session_status = 'active'::text;
 
