@@ -447,8 +447,9 @@ async function checkPoliciesFallback(
   sessionTime: number,
   result: SessionEngineResult
 ): Promise<void> {
-  const newDownloadBytes = Number(session.acctinputoctets);
-  const newUploadBytes = Number(session.acctoutputoctets);
+  // RADIUS convention: acctinputoctets = upload (user→NAS), acctoutputoctets = download (NAS→user)
+  const newDownloadBytes = Number(session.acctoutputoctets);
+  const newUploadBytes = Number(session.acctinputoctets);
   const newTotal = newDownloadBytes + newUploadBytes;
 
   // ── Idle timeout check (persistent DB-based) ──
@@ -531,7 +532,7 @@ async function disconnectSessionFallback(
       acctinputoctets = $3,
       acctoutputoctets = $4
     WHERE radacctid = $5 AND acctstoptime IS NULL
-  `, reason, Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000), downloadBytes, uploadBytes, session.radacctid);
+  `, reason, Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000), uploadBytes, downloadBytes, session.radacctid);
 
   // Close WiFiSession
   try {
@@ -593,8 +594,9 @@ async function processSession(
       SELog.info(`Stale session: ${session.username} (${ip}) — IP not in nftables`);
       // Bug 9: Before closing stale session, read the counter to preserve last-cycle data
       const staleCounter = counterMap.get(ip);
-      const dl = staleCounter ? staleCounter.downloadBytes : Number(session.acctinputoctets);
-      const ul = staleCounter ? staleCounter.uploadBytes : Number(session.acctoutputoctets);
+      // RADIUS convention: acctoutputoctets = download, acctinputoctets = upload
+      const dl = staleCounter ? staleCounter.downloadBytes : Number(session.acctoutputoctets);
+      const ul = staleCounter ? staleCounter.uploadBytes : Number(session.acctinputoctets);
       await closeSession(session, 'Session-Cleanup', dl, ul);
       result.staleCleaned++;
       return;
@@ -633,7 +635,8 @@ async function processSession(
 
     // Also update WiFiSession
     // Bug 3: Number() wrapping for BigInt safety
-    await updateWiFiSession(session.username, session.callingstationid, Number(session.acctinputoctets), Number(session.acctoutputoctets), sessionTime);
+    // RADIUS convention: acctoutputoctets = download, acctinputoctets = upload
+    await updateWiFiSession(session.username, session.callingstationid, Number(session.acctoutputoctets), Number(session.acctinputoctets), sessionTime);
 
     // In FALLBACK mode, still check idle/session/data-limit even without counters
     if (!nftablesAvailable) {
@@ -645,9 +648,9 @@ async function processSession(
   // ── Calculate byte deltas ──
   const newDownloadBytes = counter.downloadBytes;
   const newUploadBytes = counter.uploadBytes;
-  // Bug 3: Number() wrapping for BigInt safety on radacct columns
-  const prevDownload = Number(session.acctinputoctets);
-  const prevUpload = Number(session.acctoutputoctets);
+  // RADIUS convention: acctoutputoctets = download, acctinputoctets = upload
+  const prevDownload = Number(session.acctoutputoctets);
+  const prevUpload = Number(session.acctinputoctets);
   const prevTotal = prevDownload + prevUpload;
   const newTotal = newDownloadBytes + newUploadBytes;
 
@@ -658,7 +661,7 @@ async function processSession(
     SELog.warn(`Counter reset detected for ${ip}: prev=${prevTotal}, new=${newTotal}`);
     await db.$executeRawUnsafe(
       `UPDATE radacct SET acctinputoctets = $1, acctoutputoctets = $2 WHERE framedipaddress = $3 AND acctstoptime IS NULL`,
-      newDownloadBytes, newUploadBytes, ip
+      newUploadBytes, newDownloadBytes, ip
     );
     // Skip idle check this cycle — fall through to session/data limit checks
   }
@@ -758,7 +761,7 @@ async function processSession(
       acctsessiontime = $3,
       acctupdatetime = NOW()
     WHERE radacctid = $4
-  `, newDownloadBytes, newUploadBytes, sessionTime, session.radacctid);
+  `, newUploadBytes, newDownloadBytes, sessionTime, session.radacctid);
 
   // ── Insert an interim-update row for audit trail ──
   // This creates a separate radacct row with acctstatus = 'interim-update'
@@ -781,7 +784,7 @@ async function processSession(
       'session-engine', NOW(), NOW()
     )
   `, session.acctsessionid, session.username, session.acctstarttime, ip,
-     newDownloadBytes, newUploadBytes, sessionTime, session.callingstationid);
+     newUploadBytes, newDownloadBytes, sessionTime, session.callingstationid);
 
   // ── Update WiFiSession ──
   await updateWiFiSession(session.username, session.callingstationid, newDownloadBytes, newUploadBytes, sessionTime);
@@ -791,8 +794,9 @@ async function processSession(
     await db.wiFiUser.updateMany({
       where: { username: session.username },
       data: {
-        totalBytesIn: { increment: downloadDelta },
-        totalBytesOut: { increment: uploadDelta },
+        // RADIUS: totalBytesIn = upload, totalBytesOut = download
+        totalBytesIn: { increment: uploadDelta },
+        totalBytesOut: { increment: downloadDelta },
         lastAccountingAt: new Date(),
       },
     });
@@ -966,8 +970,9 @@ async function disconnectSession(
   // Bug 2: Calculate delta for WiFiUser — only increment by the remaining difference,
   // not the full cumulative total (which would double-count bytes already recorded
   // by interim updates in processSession)
-  const inDelta = Math.max(0, downloadBytes - Number(session.acctinputoctets));
-  const outDelta = Math.max(0, uploadBytes - Number(session.acctoutputoctets));
+  // RADIUS: acctoutputoctets = download, acctinputoctets = upload
+  const downloadDelta = Math.max(0, downloadBytes - Number(session.acctoutputoctets));
+  const uploadDelta = Math.max(0, uploadBytes - Number(session.acctinputoctets));
 
   // Bug 11: Wrap all DB operations in a transaction for atomicity
   await db.$transaction(async (tx) => {
@@ -983,7 +988,7 @@ async function disconnectSession(
         acctupdatetime = NOW()
       WHERE radacctid = $5
         AND acctstoptime IS NULL
-    `, downloadBytes, uploadBytes, sessionTime, reason, session.radacctid);
+    `, uploadBytes, downloadBytes, sessionTime, reason, session.radacctid);
 
     // Bug 10: Only increment sessionCount if the radacct UPDATE actually affected rows
     const rowsAffected = Number(updateResult);
@@ -1006,7 +1011,7 @@ async function disconnectSession(
         'session-engine', NOW(), NOW()
       )
     `, session.acctsessionid, session.username, session.acctstarttime, ip,
-       downloadBytes, uploadBytes, sessionTime, reason, session.callingstationid);
+       uploadBytes, downloadBytes, sessionTime, reason, session.callingstationid);
 
     // 6. Close WiFiSession
     try {
@@ -1042,8 +1047,9 @@ async function disconnectSession(
         await tx.wiFiUser.updateMany({
           where: { username: session.username },
           data: {
-            totalBytesIn: { increment: inDelta },
-            totalBytesOut: { increment: outDelta },
+            // RADIUS: totalBytesIn = upload, totalBytesOut = download
+            totalBytesIn: { increment: uploadDelta },
+            totalBytesOut: { increment: downloadDelta },
             sessionCount: { increment: 1 },
             lastAccountingAt: new Date(),
           },
@@ -1119,7 +1125,7 @@ async function closeSession(
       acctupdatetime = NOW()
     WHERE radacctid = $5
       AND acctstoptime IS NULL
-  `, downloadBytes, uploadBytes, sessionTime, reason, session.radacctid);
+  `, uploadBytes, downloadBytes, sessionTime, reason, session.radacctid);
 
   // Close WiFiSession
   try {
@@ -1177,8 +1183,9 @@ export async function getSessionEngineStatus(): Promise<{
 
   return {
     activeSessions,
-    totalDownloadMB: Math.round((totals._sum.acctinputoctets || 0) / (1024 * 1024)),
-    totalUploadMB: Math.round((totals._sum.acctoutputoctets || 0) / (1024 * 1024)),
+    // RADIUS: acctoutputoctets = download, acctinputoctets = upload
+    totalDownloadMB: Math.round((totals._sum.acctoutputoctets || 0) / (1024 * 1024)),
+    totalUploadMB: Math.round((totals._sum.acctinputoctets || 0) / (1024 * 1024)),
     counterIPs: counterData.counts.length,
     idleTrackingEntries: lastActivityMap.size,
     lastRun: logStatus.lastRunAt ? new Date(logStatus.lastRunAt) : null,
