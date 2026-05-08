@@ -171,8 +171,12 @@ export function removeUserCounter(ip: string): boolean {
     console.warn(`[Counter] removeUserCounter(${ip}) skipped — nftables not available`);
     return false;
   }
+
+  // Strategy 1: Use the counter script if available
   try {
-    const output = execSync(`bash ${getCOUNTER_SCRIPT()} remove ${ip} 2>&1`, {
+    const script = getCOUNTER_SCRIPT();
+    require('fs').accessSync(script, require('fs').constants.R_OK);
+    const output = execSync(`bash ${script} remove ${ip} 2>&1`, {
       encoding: 'utf-8',
       timeout: 5000,
     });
@@ -182,8 +186,41 @@ export function removeUserCounter(ip: string): boolean {
     }
     return true;
   } catch (err) {
+    console.warn(`[Counter] removeUserCounter(${ip}) script failed, falling back to direct nft: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Strategy 2: Direct nft commands (no dependency on external script)
+  try {
+    const safeIp = ip.replace(/\./g, '_');
+    const handles = execSync(
+      `nft -a list chain inet staysuite_count forward 2>/dev/null | grep "user_${safeIp}" | grep -oP 'handle \\K[0-9]+' | sort -rn`,
+      { encoding: 'utf-8', timeout: 5000 }
+    ).trim();
+
+    if (!handles) {
+      console.log(`[Counter] removeUserCounter(${ip}): no counter rules found`);
+      return true;
+    }
+
+    let removed = 0;
+    for (const h of handles.split('\n')) {
+      const handle = h.trim();
+      if (!handle) continue;
+      try {
+        execSync(`nft delete rule inet staysuite_count forward handle ${handle} 2>/dev/null`, {
+          encoding: 'utf-8',
+          timeout: 3000,
+        });
+        removed++;
+      } catch {
+        // Handle may have shifted — continue with next
+      }
+    }
+    console.log(`[Counter] removeUserCounter(${ip}): removed ${removed} counter rules via direct nft`);
+    return removed > 0;
+  } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[Counter] removeUserCounter(${ip}) FAILED: ${msg}`);
+    console.error(`[Counter] removeUserCounter(${ip}) FAILED (all strategies): ${msg}`);
     return false;
   }
 }
