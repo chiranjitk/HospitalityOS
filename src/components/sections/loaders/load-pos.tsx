@@ -16,6 +16,26 @@ export default async function loadSection(section: string): Promise<{ default: R
     case 'pos-menu-boards':
     case 'pos-digital-menu-boards':
       return import('@/components/pos/menu-boards');
+    case 'pos-room-service':
+      return import('@/components/pos/room-service');
+    case 'pos-restaurant-reports':
+      return import('@/components/pos/restaurant-reports');
+    case 'pos-recipes':
+      return import('@/components/pos/recipes');
+    case 'pos-staff-assignment':
+      return import('@/components/pos/staff-assignment');
+    case 'pos-receipt-templates':
+      return import('@/components/pos/receipt-templates');
+    case 'pos-inventory':
+      return import('@/components/pos/inventory');
+    case 'pos-modifiers':
+      return import('@/components/pos/menu-modifiers');
+    case 'pos-variants':
+      return import('@/components/pos/menu-variants');
+    case 'pos-table-layout':
+      return import('@/components/pos/table-layout');
+    case 'pos-reservations':
+      return import('@/components/pos/reservations');
     default:
       throw new Error(`Unknown pos section: ${section}`);
   }

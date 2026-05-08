@@ -28,6 +28,8 @@ export default async function loadOther(section: string): Promise<{ default: Rea
       return (await import('./load-gdpr')).default(section);
     case 'ui':
       return (await import('./load-ui')).default(section);
+    case 'resort':
+      return (await import('./load-resort')).default(section);
     default:
       throw new Error(`Unknown section: ${section}`);
   }

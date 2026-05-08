@@ -80,6 +80,8 @@ function getCategoryLoader(section: string): Promise<any> | null {
       return import('./loaders/load-gdpr');
     case 'ui':
       return import('./loaders/load-ui');
+    case 'resort':
+      return import('./loaders/load-resort');
     default:
       return null;
   }
@@ -109,7 +111,7 @@ export function hasSection(section: string): boolean {
     'experience', 'parking', 'security', 'channel', 'reports', 'revenue',
     'crm', 'settings', 'chain', 'marketing', 'events', 'iot', 'staff',
     'notifications', 'webhooks', 'ai', 'help', 'profile', 'ads',
-    'automation', 'integrations', 'gdpr', 'ui',
+    'automation', 'integrations', 'gdpr', 'ui', 'resort',
   ];
   return knownPrefixes.includes(prefix);
 }

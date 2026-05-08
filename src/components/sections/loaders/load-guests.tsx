@@ -19,6 +19,7 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/guests/guest-merge');
     case 'guests-vip':
     case 'guests-vip-recognition':
+    case 'guests-vip-alerts':
       return import('@/components/guests/vip-recognition');
     default:
       throw new Error(`Unknown guests section: ${section}`);

@@ -305,6 +305,27 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'billing-gst-returns': () => import('@/components/billing/gst-returns'),
   'billing-tcs-tds': () => import('@/components/billing/tcs-tds'),
   'billing-ap-workflow': () => import('@/components/billing/ap-workflow'),
+
+  // ── billing: financial management ──
+  'billing-profit-loss': () => import('@/components/billing/profit-loss'),
+  'billing-cash-flow': () => import('@/components/billing/cash-flow'),
+  'billing-budget': () => import('@/components/billing/budget'),
+  'billing-deposits': () => import('@/components/billing/deposit-schedules'),
+  'billing-financing': () => import('@/components/billing/financing'),
+
+  // ── inventory extensions ──
+  'inventory-invoice-matching': () => import('@/components/inventory/invoice-matching'),
+  'inventory-purchase-requisition': () => import('@/components/inventory/purchase-requisition'),
+
+  // ── marketing extensions ──
+  'marketing-journey-campaigns': () => import('@/components/marketing/journey-campaigns'),
+  'marketing-abandoned-bookings': () => import('@/components/marketing/abandoned-bookings'),
+
+  // ── pms extensions ──
+  'pms-room-type-change': () => import('@/components/pms/room-type-change'),
+  'room-rate-calendar': () => import('@/components/pms/room-rate-calendar'),
+  'room-out-of-order': () => import('@/components/pms/room-out-of-order'),
+  'room-move': () => import('@/components/frontdesk/room-move'),
 };
 
 export const allSections = sectionMap;

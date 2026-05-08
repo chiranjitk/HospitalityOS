@@ -295,6 +295,27 @@ const sectionPaths: Record<string, string> = {
 
   // Billing - AP Workflow
   'billing-ap-workflow': '@/components/billing/ap-workflow',
+
+  // Billing - Financial Management
+  'billing-profit-loss': '@/components/billing/profit-loss',
+  'billing-cash-flow': '@/components/billing/cash-flow',
+  'billing-budget': '@/components/billing/budget',
+  'billing-deposits': '@/components/billing/deposit-schedules',
+  'billing-financing': '@/components/billing/financing',
+
+  // Inventory - Invoice Matching
+  'inventory-invoice-matching': '@/components/inventory/invoice-matching',
+  'inventory-purchase-requisition': '@/components/inventory/purchase-requisition',
+
+  // Marketing - Journey & Abandoned
+  'marketing-journey-campaigns': '@/components/marketing/journey-campaigns',
+  'marketing-abandoned-bookings': '@/components/marketing/abandoned-bookings',
+
+  // PMS - Room Type Change
+  'pms-room-type-change': '@/components/pms/room-type-change',
+  'room-rate-calendar': '@/components/pms/room-rate-calendar',
+  'room-out-of-order': '@/components/pms/room-out-of-order',
+  'room-move': '@/components/frontdesk/room-move',
 };
 
 export function getSectionPath(section: string): string | null {
