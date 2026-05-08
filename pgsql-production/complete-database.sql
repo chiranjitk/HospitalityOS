@@ -54,6 +54,8 @@
 --       deviceName/deviceType now COALESCE DeviceProfile data over WiFiSession
 --   [15] radreply/radgroupcheck: replaced Mikrotik-* attrs with Cryptsk VSA attrs
 --       Cryptsk-Rate-Limit, Cryptsk-Total-Limit, Cryptsk-Bandwidth-Max-Down/Up
+--   [16] v_session_history + v_active_sessions: added burst/ceil columns
+--       burstDownloadSpeed, burstUploadSpeed from WiFiPlan
 -- ============================================================================
 
 SET client_encoding = 'UTF8';
@@ -312,7 +314,13 @@ CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS
     COALESCE(r."loginType", 'portal') AS "loginType",
     dp."userAgent" AS "userAgent",
     dp."macAddress" AS "dp_macAddress",
-    COALESCE(dp."authCount", 0) AS "dp_authCount"
+    COALESCE(dp."authCount", 0) AS "dp_authCount",
+    -- Timeout columns from WiFiPlan
+    wp."sessionTimeoutSec",
+    wp."idleTimeoutSec",
+    -- Burst (ceil) columns from WiFiPlan
+    wp."burstDownloadSpeed",
+    wp."burstUploadSpeed"
    FROM "WiFiSession" s
      FULL JOIN ( SELECT DISTINCT ON (radacct.username, radacct.acctsessionid) radacct.radacctid,
             radacct.acctsessionid,
@@ -463,7 +471,10 @@ CREATE VIEW v_active_sessions AS  SELECT session_id,
     "dp_authCount",
     -- Timeout columns from WiFiPlan
     "sessionTimeoutSec",
-    "idleTimeoutSec"
+    "idleTimeoutSec",
+    -- Burst (ceil) columns from WiFiPlan
+    "burstDownloadSpeed",
+    "burstUploadSpeed"
    FROM v_session_history
   WHERE session_status = 'active'::text;;
 
