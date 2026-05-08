@@ -39,6 +39,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
   Table,
@@ -477,7 +478,7 @@ const CHAIN_OPTIONS = [
 // ─── Main Firewall Page ─────────────────────────────────────────────
 
 export default function FirewallPage() {
-  const [activeTab, setActiveTab] = useState('port-forward');
+  const [activeTab, setActiveTab] = useState('rules');
 
   const tabs = [
     { id: 'rules', label: 'Rules', icon: ShieldCheck },
