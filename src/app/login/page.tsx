@@ -455,9 +455,36 @@ export default function LoginPage() {
 
         {/* Clean professional background */}
         <div className="w-full lg:w-[45%] xl:w-[40%] relative flex-1 min-h-screen lg:min-h-0">
-          {/* Mobile: clean solid background. Desktop: subtle gradient with glow accents */}
+          {/* Mobile: animated gradient background */}
           <div
-            className="absolute inset-0 bg-background lg:bg-gradient-to-br lg:from-teal-50/80 lg:via-white lg:to-emerald-50/60"
+            className="lg:hidden absolute inset-0 dark:hidden"
+            style={{
+              background: 'linear-gradient(135deg, #f0fdfa 0%, #ecfdf5 25%, #f0fdfa 50%, #fefce8 75%, #f0fdfa 100%)',
+              backgroundSize: '400% 400%',
+              animation: 'loginMobileGradient 12s ease infinite',
+            }}
+          />
+          {/* Mobile dark mode: deeper animated gradient background */}
+          <div
+            className="lg:hidden hidden dark:block absolute inset-0"
+            style={{
+              background: 'linear-gradient(135deg, #042f2e 0%, #022c22 25%, #042f2e 50%, #1c1917 75%, #042f2e 100%)',
+              backgroundSize: '400% 400%',
+              animation: 'loginMobileGradient 12s ease infinite',
+            }}
+          />
+          {/* Desktop: subtle gradient with glow accents */}
+          <div
+            className="hidden lg:block absolute inset-0 bg-gradient-to-br from-teal-50/80 via-white to-emerald-50/60 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900"
+          />
+
+          {/* Mobile-only: floating decorative orb behind the login card */}
+          <div
+            className="lg:hidden absolute top-[30%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full pointer-events-none"
+            style={{
+              background: 'radial-gradient(circle, rgba(20,184,166,0.12) 0%, rgba(16,185,129,0.06) 40%, transparent 70%)',
+              animation: 'loginGlowPulse 8s ease-in-out infinite, floatOrb1 20s ease-in-out infinite',
+            }}
           />
 
           {/* Desktop-only: two very subtle, static, non-animated glow accents */}
@@ -484,11 +511,11 @@ export default function LoginPage() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: 'spring', stiffness: 200, damping: 20 }}
               >
-                <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-orange-500 via-amber-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange-500/30">
+                <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-orange-500 via-amber-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange-500/30 drop-shadow-[0_0_8px_rgba(251,146,60,0.35)]">
                   <Hotel className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold bg-gradient-to-r from-teal-700 via-emerald-600 to-cyan-600 bg-clip-text text-transparent">
+                  <h1 className="text-lg font-bold bg-gradient-to-r from-teal-700 via-emerald-600 to-cyan-600 bg-clip-text text-transparent drop-shadow-sm">
                     StaySuite
                   </h1>
                   <p className="text-muted-foreground text-[11px] tracking-wide font-medium">Hospitality OS</p>
@@ -497,7 +524,7 @@ export default function LoginPage() {
 
               {/* ── Clean Card ── */}
               <motion.div
-                className="rounded-2xl border border-border/40 dark:border-white/[0.08] bg-card/90 dark:bg-slate-950/70 backdrop-blur-xl shadow-lg dark:shadow-[0_8px_40px_-12px_rgba(0,0,0,0.5)] relative overflow-hidden"
+                className="rounded-2xl border border-border/40 dark:border-white/[0.08] bg-white/80 dark:bg-slate-950/70 backdrop-blur-xl shadow-lg dark:shadow-[0_8px_40px_-12px_rgba(0,0,0,0.5)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.6),inset_0_-1px_2px_rgba(0,0,0,0.03)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.04),0_8px_40px_-12px_rgba(0,0,0,0.5)] relative overflow-hidden"
                 variants={cardVariants}
                 initial="hidden"
                 animate="visible"
@@ -507,11 +534,13 @@ export default function LoginPage() {
                   transition: { duration: 0.3, ease: 'easeOut' },
                 }}
               >
-                {/* Simple static gradient accent line on top */}
+                {/* Animated gradient accent line on top */}
                 <div
                   className="absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl z-10"
                   style={{
-                    background: 'linear-gradient(90deg, #10b981, #14b8a6, #06b6d4)',
+                    background: 'linear-gradient(90deg, #10b981, #14b8a6, #06b6d4, #8b5cf6, #10b981)',
+                    backgroundSize: '300% 100%',
+                    animation: 'loginAccentFlow 4s ease infinite',
                   }}
                 />
 
@@ -710,23 +739,38 @@ export default function LoginPage() {
                             type="submit"
                             className={cn(
                               "w-full h-12 rounded-xl font-semibold text-sm transition-all duration-300",
-                              "bg-gradient-to-r from-primary to-primary/80",
-                              "hover:shadow-lg hover:shadow-primary/25 hover:scale-[1.02]",
+                              "bg-gradient-to-r from-teal-600 via-emerald-500 to-cyan-500",
+                              "hover:shadow-lg hover:shadow-teal-500/30 hover:scale-[1.02]",
                               "active:scale-95",
-                              "dark:from-primary dark:to-primary/70",
-                              "text-primary-foreground",
+                              "dark:from-teal-500 dark:via-emerald-600 dark:to-cyan-500",
+                              "text-white",
                               "hover:-translate-y-0.5 active:translate-y-0",
-                              "disabled:opacity-70 disabled:hover:translate-y-0 disabled:shadow-none disabled:active:scale-100 disabled:hover:scale-100"
+                              "disabled:opacity-70 disabled:hover:translate-y-0 disabled:shadow-none disabled:active:scale-100 disabled:hover:scale-100",
+                              "relative overflow-hidden"
                             )}
+                            style={{ animation: 'loginBtnPulseGlow 3s ease-in-out infinite' }}
                             disabled={isLoading}
                           >
+                            {/* Shimmer overlay */}
+                            <span
+                              className="absolute inset-0 pointer-events-none"
+                              style={{ overflow: 'hidden', borderRadius: 'inherit' }}
+                            >
+                              <span
+                                className="absolute inset-0"
+                                style={{
+                                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+                                  animation: 'loginBtnShimmer 3s ease-in-out infinite',
+                                }}
+                              />
+                            </span>
                             {isLoading ? (
-                              <span className="flex items-center justify-center gap-2">
+                              <span className="relative flex items-center justify-center gap-2">
                                 <Loader2 className="h-4 w-4 animate-spin" />
                                 {t('signingIn')}
                               </span>
                             ) : (
-                              <span className="flex items-center justify-center gap-1.5">
+                              <span className="relative flex items-center justify-center gap-1.5">
                                 {t('signIn')}
                                 <ChevronRight className="h-4 w-4" />
                               </span>
@@ -868,6 +912,14 @@ export default function LoginPage() {
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.55, duration: 0.4 }}
                       >
+                        {/* Demo Mode badge */}
+                        <div className="flex justify-center mb-3">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/50 dark:border-amber-800/30 text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                            <Sparkles className="h-3 w-3" />
+                            Demo Mode
+                          </span>
+                        </div>
+
                         <div className="relative">
                           <div className="absolute inset-0 flex items-center">
                             <Separator className="bg-slate-200/40 dark:bg-slate-700/40" />
@@ -909,22 +961,22 @@ export default function LoginPage() {
                                   "transition-all duration-300",
                                   "hover:bg-white/60 dark:hover:bg-slate-900/60",
                                   "hover:border-teal-300/60 dark:hover:border-teal-600/40",
-                                  "hover:shadow-[0_8px_24px_-8px_rgba(20,184,166,0.08)]",
+                                  "hover:shadow-[0_8px_24px_-8px_rgba(20,184,166,0.12)]",
                                   "group",
                                   "relative overflow-hidden"
                                 )}
                               >
-                                {/* Subtle left color bar */}
-                                <div className={cn("absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full", cred.barColor)} />
+                                {/* Left color bar with role accent */}
+                                <div className={cn("absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full transition-all duration-300 group-hover:w-[4px] group-hover:top-0 group-hover:bottom-0", cred.barColor)} />
                                 <motion.div
                                   className={cn(
-                                    "h-9 w-9 rounded-xl flex items-center justify-center shadow-md",
+                                    "h-10 w-10 rounded-xl flex items-center justify-center shadow-md ring-2 ring-white/30 dark:ring-slate-700/30",
                                     cred.color
                                   )}
                                   whileHover={{ scale: 1.1, rotate: 3 }}
                                   transition={{ type: 'spring', stiffness: 400, damping: 15 }}
                                 >
-                                  <CredIcon className="h-4 w-4 text-white" />
+                                  <CredIcon className="h-5 w-5 text-white" />
                                 </motion.div>
                                 <div className="flex-1 min-w-0">
                                   <div className="text-sm font-semibold text-foreground">{cred.role}</div>
@@ -977,10 +1029,14 @@ export default function LoginPage() {
 
               {/* ── Mobile footer (sticky at bottom when content is short) ── */}
               <div className="flex-1" />
-              <div className="lg:hidden text-center text-xs text-muted-foreground/60 pt-4 mt-4 border-t border-border/50">
+              {/* Gradient divider above mobile footer */}
+              <div className="lg:hidden h-px bg-gradient-to-r from-transparent via-teal-400/30 dark:via-teal-500/20 to-transparent mt-4" />
+
+              <div className="lg:hidden text-center text-xs text-muted-foreground/80 pt-4 mt-0 border-t border-border/50">
                 <p className="flex items-center justify-center gap-1">
                   <Zap className="h-3 w-3 text-amber-500" />
                   Powered by StaySuite HospitalityOS
+                  <span className="px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground/70 font-mono text-[10px]">v2.0</span>
                 </p>
               </div>
             </div>
@@ -989,7 +1045,10 @@ export default function LoginPage() {
       </div>
 
       {/* ═══ Sticky footer for desktop (below the flex row) ═══ */}
-      <div className="hidden lg:flex items-center justify-center py-3 px-4 bg-background/80 dark:bg-background/40 backdrop-blur-sm border-t border-border/30 text-xs text-muted-foreground/60">
+      {/* Subtle gradient divider above desktop footer */}
+      <div className="hidden lg:block h-px bg-gradient-to-r from-transparent via-teal-400/30 dark:via-teal-500/20 to-transparent" />
+
+      <div className="hidden lg:flex items-center justify-center py-3 px-4 bg-background/80 dark:bg-background/40 backdrop-blur-sm border-t border-border/30 text-xs text-muted-foreground/80">
         <span className="flex items-center gap-1">
           <Zap className="h-3 w-3 text-amber-500" />
           <span>Powered by StaySuite HospitalityOS</span>
@@ -997,9 +1056,11 @@ export default function LoginPage() {
         <span className="mx-2">&middot;</span>
         <span>&copy; 2026 Cryptsk Pvt Ltd</span>
         <span className="mx-2">&middot;</span>
-        <span className="hover:text-muted-foreground/80 transition-colors cursor-pointer">Privacy</span>
+        <span className="hover:text-muted-foreground transition-colors cursor-pointer">Privacy</span>
         <span className="mx-2">&middot;</span>
-        <span className="hover:text-muted-foreground/80 transition-colors cursor-pointer">Terms</span>
+        <span className="hover:text-muted-foreground transition-colors cursor-pointer">Terms</span>
+        <span className="mx-2">&middot;</span>
+        <span className="px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground/70 font-mono text-[10px]">v2.0</span>
       </div>
     </div>
   );

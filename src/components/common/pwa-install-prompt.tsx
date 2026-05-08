@@ -1,23 +1,21 @@
 'use client';
 
-import { useState } from 'react';
 import { usePwaInstall } from '@/hooks/use-pwa-install';
 import { Download, X, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function PwaInstallPrompt() {
   const { isInstallable, isInstalled, isStandalone, install, dismiss } = usePwaInstall();
-  const [dismissed, setDismissed] = useState(false);
 
-  // Don't show if: already installed, in standalone mode, dismissed, or not installable
-  if (isInstalled || isStandalone || dismissed || !isInstallable) return null;
+  // Don't show if: already installed, in standalone mode, or not installable
+  // (isInstallable already accounts for recent dismissal)
+  if (isInstalled || isStandalone || !isInstallable) return null;
 
   const handleInstall = async () => {
     await install();
   };
 
   const handleDismiss = () => {
-    setDismissed(true);
     dismiss();
   };
 

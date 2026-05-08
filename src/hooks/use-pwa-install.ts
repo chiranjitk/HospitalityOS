@@ -20,9 +20,25 @@ function subscribeStandaloneMode(callback: () => void): () => void {
   return () => mql.removeEventListener('change', callback);
 }
 
+const DISMISS_KEY = 'pwa-install-dismissed';
+const DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+function getDismissedAt(): number | null {
+  if (typeof window === 'undefined') return null;
+  const val = localStorage.getItem(DISMISS_KEY);
+  return val ? parseInt(val, 10) : null;
+}
+
+function isRecentlyDismissed(): boolean {
+  const dismissedAt = getDismissedAt();
+  if (!dismissedAt) return false;
+  return Date.now() - dismissedAt < DISMISS_COOLDOWN_MS;
+}
+
 export function usePwaInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installedFlag, setInstalledFlag] = useState(false);
+  const [recentlyDismissed, setRecentlyDismissed] = useState(() => isRecentlyDismissed());
 
   const isStandalone = useSyncExternalStore(
     subscribeStandaloneMode,
@@ -32,8 +48,11 @@ export function usePwaInstall() {
 
   const isInstalled = isStandalone || installedFlag;
 
-  // Installable only when we have a deferred prompt and not installed
-  const isInstallable = useMemo(() => !!deferredPrompt && !isInstalled, [deferredPrompt, isInstalled]);
+  // Installable only when we have a deferred prompt, not installed, and not recently dismissed
+  const isInstallable = useMemo(
+    () => !!deferredPrompt && !isInstalled && !recentlyDismissed,
+    [deferredPrompt, isInstalled, recentlyDismissed]
+  );
 
   useEffect(() => {
     if (isInstalled) return;
@@ -73,12 +92,15 @@ export function usePwaInstall() {
 
   const dismiss = useCallback(() => {
     setDeferredPrompt(null);
+    localStorage.setItem(DISMISS_KEY, String(Date.now()));
+    setRecentlyDismissed(true);
   }, []);
 
   return {
     isInstallable,
     isInstalled,
     isStandalone,
+    isRecentlyDismissed: recentlyDismissed,
     install,
     dismiss,
   };

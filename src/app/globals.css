@@ -1053,6 +1053,88 @@ html.dark * {
   background: oklch(from var(--sidebar-accent) l c h / 0.5);
 }
 
+/* ============================================
+   TASK 2-b: DASHBOARD ENHANCEMENT ANIMATIONS
+   Greeting card border, section line, alert pulse
+   ============================================ */
+
+/* Greeting card animated gradient top border */
+@keyframes greetingBorderFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.greeting-border-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    oklch(0.65 0.16 170 / 0.7),
+    oklch(0.55 0.15 310 / 0.6),
+    oklch(0.78 0.15 75 / 0.7),
+    oklch(0.65 0.16 170 / 0.7)
+  );
+  background-size: 300% 100%;
+  animation: greetingBorderFlow 4s ease-in-out infinite;
+  z-index: 2;
+  pointer-events: none;
+}
+.dark .greeting-border-top {
+  background: linear-gradient(
+    90deg,
+    oklch(0.65 0.16 170 / 0.5),
+    oklch(0.55 0.15 310 / 0.4),
+    oklch(0.78 0.15 75 / 0.5),
+    oklch(0.65 0.16 170 / 0.5)
+  );
+  background-size: 300% 100%;
+}
+
+/* Greeting card animated bottom border glow */
+@keyframes greetingBorderGlow {
+  0%, 100% { opacity: 0.3; transform: scaleX(0.6); }
+  50% { opacity: 0.8; transform: scaleX(1); }
+}
+.greeting-border-bottom {
+  opacity: 0.4;
+  animation: greetingBorderGlow 3s ease-in-out infinite;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Section header line animated gradient flow */
+@keyframes sectionLineFlow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.section-header-line-animated {
+  background: linear-gradient(
+    90deg,
+    oklch(from var(--border) l c h / 0.7),
+    oklch(0.65 0.16 170 / 0.4),
+    oklch(0.75 0.15 75 / 0.3),
+    oklch(from var(--border) l c h / 0.15)
+  ) !important;
+  background-size: 200% 100% !important;
+  animation: sectionLineFlow 4s linear infinite;
+}
+
+/* Alert badge subtle pulse animation */
+@keyframes alertBadgePulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 oklch(0.55 0.22 25 / 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 4px oklch(0.55 0.22 25 / 0);
+  }
+}
+.alert-badge-pulse {
+  animation: alertBadgePulse 2s ease-in-out infinite;
+}
+
 /* Search icon rotation on focus */
 @keyframes searchIconRotate {
  0% { transform: translate(-50%, -50%) rotate(0deg); }
