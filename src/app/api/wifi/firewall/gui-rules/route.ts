@@ -79,18 +79,23 @@ export async function POST(request: NextRequest) {
 
     // Resolve zone — use provided zoneId, or auto-pick 'guest' zone (fallback: first available)
     let resolvedZoneId = zoneId;
+    console.log('[gui-rules] POST body:', JSON.stringify(body));
+    console.log('[gui-rules] user.tenantId:', user.tenantId, 'propertyId:', propertyId);
     if (!resolvedZoneId) {
       const guestZone = await db.firewallZone.findFirst({
         where: { name: 'guest', tenantId: user.tenantId, propertyId },
       });
+      console.log('[gui-rules] guestZone:', guestZone?.id);
       resolvedZoneId = guestZone?.id;
       if (!resolvedZoneId) {
         const anyZone = await db.firewallZone.findFirst({
           where: { tenantId: user.tenantId, propertyId },
         });
+        console.log('[gui-rules] anyZone:', anyZone?.id);
         resolvedZoneId = anyZone?.id;
       }
     }
+    console.log('[gui-rules] resolvedZoneId:', resolvedZoneId);
 
     if (!resolvedZoneId) {
       return NextResponse.json(
@@ -189,7 +194,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('[gui-rules] POST error:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create GUI rule' },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to create GUI rule' },
       { status: 500 },
     );
   }
