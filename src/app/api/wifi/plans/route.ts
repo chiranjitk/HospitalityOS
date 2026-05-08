@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { syncRadiusGroup, deleteRadiusGroup } from '@/lib/wifi/services/wifi-user-service';
+import { updatePlanBandwidthForActiveSessions } from '@/lib/network/tc-bw-update';
 export async function GET(request: NextRequest) {    const user = await requirePermission(request, 'wifi.manage');
     if (user instanceof NextResponse) return user;
 
@@ -266,12 +267,28 @@ export async function PUT(request: NextRequest) {    const user = await requireP
     });
 
     // Sync RADIUS group attributes if plan settings changed
-    if (updateData.name || updateData.downloadSpeed !== undefined || updateData.uploadSpeed !== undefined ||
+    const bandwidthChanged = updateData.downloadSpeed !== undefined || updateData.uploadSpeed !== undefined;
+    if (updateData.name || bandwidthChanged ||
         updateData.dataLimit !== undefined || updateData.sessionLimit !== undefined ||
         updateData.sessionTimeoutSec !== undefined || updateData.idleTimeoutSec !== undefined) {
       await syncRadiusGroup(plan).catch(err => {
         console.error('[plans] Failed to sync RADIUS group on update:', err);
       });
+    }
+
+    // Push new bandwidth to active sessions on StaySuite NAS (127.0.0.1)
+    // Uses tc class change — non-disruptive, no reconnect needed
+    if (bandwidthChanged) {
+      const dlMbps = plan.downloadSpeed || 10;
+      const ulMbps = plan.uploadSpeed || 5;
+      try {
+        const bwResult = await updatePlanBandwidthForActiveSessions(String(id), dlMbps, ulMbps, db);
+        if (bwResult.updated > 0) {
+          console.log(`[plans] Pushed ${dlMbps}/${ulMbps} Mbps to ${bwResult.updated} active sessions on plan ${plan.name}`);
+        }
+      } catch (bwErr) {
+        console.error('[plans] Failed to push bandwidth to active sessions:', bwErr);
+      }
     }
 
     // Sync idle timeout to existing users on this plan if it changed

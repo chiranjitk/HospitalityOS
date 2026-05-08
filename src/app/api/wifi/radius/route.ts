@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, requirePermission, hasPermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
 import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
+import { updateUserBandwidthLive } from '@/lib/network/tc-bw-update';
 
 const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
 
@@ -2587,6 +2588,21 @@ export async function POST(request: NextRequest) {
                 value: String(ulBps),
               },
             });
+
+            // Push new bandwidth to active session on StaySuite NAS (127.0.0.1)
+            // Uses tc class change — non-disruptive, no reconnect needed
+            try {
+              const dlMbps = dlBps / 1000000;
+              const ulMbps = ulBps / 1000000;
+              const liveResult = await updateUserBandwidthLive(existingUser.username, dlMbps, ulMbps);
+              if (liveResult?.success) {
+                console.log(`[update-user] Pushed ${dlMbps}/${ulMbps} Mbps to active session for ${existingUser.username} (${liveResult.ip})`);
+              } else if (liveResult && !liveResult.success) {
+                console.log(`[update-user] User ${existingUser.username} not on StaySuite NAS or no TC class: ${liveResult.message}`);
+              }
+            } catch (liveErr) {
+              console.warn(`[update-user] Live bandwidth push failed (non-fatal):`, liveErr);
+            }
           }
 
           // 6. Handle session timeout
