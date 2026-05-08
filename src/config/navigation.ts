@@ -86,15 +86,10 @@ import {
   Search,
   Wine,
   Shirt,
-  ArrowRightLeft,
-  Crown,
   FileCheck2,
   RotateCcw,
   Gamepad2,
-  BarChart3 as BarChart3Icon,
-  Wallet,
-  Target,
-  CreditCard as CreditCardIcon,
+ Trophy,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -255,11 +250,11 @@ export const navigationConfig: NavSection[] = [
       { id: 'billing-gst-returns', title: 'GST Returns', href: '#billing-gst-returns', icon: BarChart3 },
       { id: 'billing-tcs-tds', title: 'TCS/TDS', href: '#billing-tcs-tds', icon: Percent },
       { id: 'billing-ap-workflow', title: 'AP Workflow', href: '#billing-ap-workflow', icon: ClipboardList },
-      { id: 'billing-profit-loss', title: 'P&L Statement', href: '#billing-profit-loss', icon: BarChart3Icon },
-      { id: 'billing-cash-flow', title: 'Cash Flow Forecast', href: '#billing-cash-flow', icon: Wallet },
-      { id: 'billing-budget', title: 'Budget Management', href: '#billing-budget', icon: Target },
+      { id: 'billing-profit-loss', title: 'P&L Statement', href: '#billing-profit-loss', icon: BarChart3 },
+      { id: 'billing-cash-flow', title: 'Cash Flow Forecast', href: '#billing-cash-flow', icon: DollarSign },
+      { id: 'billing-budget', title: 'Budget Management', href: '#billing-budget', icon: TrendingUp },
       { id: 'billing-deposits', title: 'Deposit Schedules', href: '#billing-deposits', icon: Wallet },
-      { id: 'billing-financing', title: 'BNPL / Financing', href: '#billing-financing', icon: CreditCardIcon },
+      { id: 'billing-financing', title: 'BNPL / Financing', href: '#billing-financing', icon: CreditCard },
     ],
   },
 

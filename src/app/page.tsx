@@ -1,86 +1,127 @@
 'use client';
 
-import { useState } from 'react';
-import BEOManagement from '@/components/events/beo-management';
-import DepositSchedules from '@/components/billing/deposit-schedules';
-import RoomTypeChange from '@/components/pms/room-type-change';
-import PurchaseRequisition from '@/components/inventory/purchase-requisition';
-import SmartLockManagement from '@/components/iot/smart-lock-management';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, Wallet, ArrowRightLeft, ClipboardList, Lock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useUIStore } from '@/store';
+import { useAuth } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
+import { AppLayout } from '@/components/layout/app-layout';
+import { ErrorBoundary } from '@/components/common/error-boundary';
+import { SectionLoadingSkeleton } from '@/components/sections/section-loading-skeleton';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 
-export default function Home() {
-  const [activeTab, setActiveTab] = useState('beo');
+function SectionContent({ section }: { section: string }) {
+  const [Comp, setComp] = useState<React.ComponentType<any> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const tCommon = useTranslations('common');
+  const tDash = useTranslations('dashboard');
+
+  useEffect(() => {
+    let cancelled = false;
+    setError(null);
+    setComp(null);
+
+    const timeout = setTimeout(() => {
+      if (!cancelled) setError(`Loading timed out for: ${section}`);
+    }, 30000);
+
+    import('@/components/sections/loaders/master-loader')
+      .then(async (masterModule) => {
+        if (cancelled) return;
+        try {
+          const mod = await masterModule.default(section);
+          if (cancelled) return;
+          clearTimeout(timeout);
+          const Component = mod?.default || Object.values(mod || {}).find(
+            (v: any) => typeof v === 'function' && v.toString().length > 0
+          ) as React.ComponentType<any>;
+          if (Component) {
+            setComp(() => Component);
+          } else {
+            setError(`No component found for: ${section}`);
+          }
+        } catch (err: any) {
+          if (cancelled) return;
+          clearTimeout(timeout);
+          setError(`Failed to load ${section}: ${err?.message || 'Unknown error'}`);
+        }
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        clearTimeout(timeout);
+        setError(`Failed to load section loader: ${err?.message || 'Unknown error'}`);
+        console.error('SectionContent failed:', section, err);
+      });
+
+    return () => { cancelled = true; clearTimeout(timeout); };
+  }, [section]);
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <p className="text-red-500 dark:text-red-400 font-medium">{error}</p>
+        <button className="px-4 py-2 border rounded-md text-sm hover:bg-accent" onClick={() => window.location.reload()}>{tDash('refreshPage')}</button>
+      </div>
+    );
+  }
+
+  if (!Comp) {
+    return <SectionLoadingSkeleton />;
+  }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">SS</span>
-              </div>
-              <div>
-                <h1 className="text-lg font-bold tracking-tight">StaySuite HospitalityOS</h1>
-                <p className="text-xs text-muted-foreground -mt-0.5">Operations Dashboard</p>
-              </div>
-            </div>
-          </div>
+    <div className="space-y-4">
+      <ErrorBoundary section={section}>
+        <Comp />
+      </ErrorBoundary>
+    </div>
+  );
+}
+
+export default function Home() {
+  const { activeSection } = useUIStore();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const router = useRouter();
+  const tCommon = useTranslations('common');
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, authLoading, router]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-teal-600 dark:text-teal-400" />
+          <p className="text-muted-foreground text-sm">{tCommon('loading')}</p>
         </div>
       </div>
+    );
+  }
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="beo" className="gap-2">
-              <FileText className="h-4 w-4" />
-              <span className="hidden sm:inline">BEO Management</span>
-              <span className="sm:hidden">BEO</span>
-            </TabsTrigger>
-            <TabsTrigger value="deposits" className="gap-2">
-              <Wallet className="h-4 w-4" />
-              <span className="hidden sm:inline">Deposit Schedules</span>
-              <span className="sm:hidden">Deposits</span>
-            </TabsTrigger>
-            <TabsTrigger value="room-changes" className="gap-2">
-              <ArrowRightLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Room Type Changes</span>
-              <span className="sm:hidden">Rooms</span>
-            </TabsTrigger>
-            <TabsTrigger value="purchase-req" className="gap-2">
-              <ClipboardList className="h-4 w-4" />
-              <span className="hidden sm:inline">Purchase Requisition</span>
-              <span className="sm:hidden">Requisition</span>
-            </TabsTrigger>
-            <TabsTrigger value="smart-locks" className="gap-2">
-              <Lock className="h-4 w-4" />
-              <span className="hidden sm:inline">Smart Locks</span>
-              <span className="sm:hidden">Locks</span>
-            </TabsTrigger>
-          </TabsList>
+  if (!isAuthenticated) {
+    return null;
+  }
 
-          <TabsContent value="beo">
-            <BEOManagement />
-          </TabsContent>
-
-          <TabsContent value="deposits">
-            <DepositSchedules />
-          </TabsContent>
-
-          <TabsContent value="room-changes">
-            <RoomTypeChange />
-          </TabsContent>
-
-          <TabsContent value="purchase-req">
-            <PurchaseRequisition />
-          </TabsContent>
-
-          <TabsContent value="smart-locks">
-            <SmartLockManagement />
-          </TabsContent>
-        </Tabs>
-      </div>
-    </div>
+  return (
+    <AppLayout>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={activeSection}
+          initial={{ opacity: 0, y: 12, scale: 0.99 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -8, scale: 0.995 }}
+          transition={{
+            duration: 0.25,
+            ease: [0.25, 0.46, 0.45, 0.94],
+          }}
+        >
+          <SectionContent key={activeSection} section={activeSection} />
+        </motion.div>
+      </AnimatePresence>
+    </AppLayout>
   );
 }
