@@ -477,7 +477,7 @@ const CHAIN_OPTIONS = [
 // ─── Main Firewall Page ─────────────────────────────────────────────
 
 export default function FirewallPage() {
-  const [activeTab, setActiveTab] = useState('rules');
+  const [activeTab, setActiveTab] = useState('port-forward');
 
   const tabs = [
     { id: 'rules', label: 'Rules', icon: ShieldCheck },
@@ -1347,9 +1347,17 @@ function PortForwardTab() {
   const [forwards, setForwards] = useState<PortForward[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFwd, setEditingFwd] = useState<PortForward | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [protocolFilter, setProtocolFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [showConfig, setShowConfig] = useState(false);
+  const [configPreview, setConfigPreview] = useState<string | null>(null);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configCopied, setConfigCopied] = useState(false);
 
   const blankForm = { name: '', protocol: 'tcp', externalPort: '', internalIp: '', internalPort: '', sourceIp: '', enabled: true, description: '' };
 
@@ -1375,6 +1383,116 @@ function PortForwardTab() {
     fetchForwards();
   }, [fetchForwards]);
 
+  // ─── Statistics ────────────────────────────────────────────────
+  const stats = {
+    total: forwards.length,
+    enabled: forwards.filter(f => f.enabled).length,
+    disabled: forwards.filter(f => !f.enabled).length,
+    tcp: forwards.filter(f => f.protocol === 'tcp').length,
+    udp: forwards.filter(f => f.protocol === 'udp').length,
+    both: forwards.filter(f => f.protocol === 'both').length,
+    restricted: forwards.filter(f => f.sourceIp).length,
+  };
+
+  // ─── Filtering ────────────────────────────────────────────────
+  const filtered = forwards.filter(f => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      if (!f.name.toLowerCase().includes(q) && !f.description?.toLowerCase().includes(q) &&
+          !f.internalIp.includes(q) && !String(f.externalPort).includes(q)) return false;
+    }
+    if (protocolFilter !== 'all' && f.protocol !== protocolFilter) return false;
+    if (statusFilter === 'enabled' && !f.enabled) return false;
+    if (statusFilter === 'disabled' && f.enabled) return false;
+    return true;
+  });
+
+  // ─── nftables Config Preview ──────────────────────────────────
+  const fetchConfigPreview = useCallback(async () => {
+    try {
+      setConfigLoading(true);
+      const res = await apiFetch<{ config: string }>(`${API_BASE}/config/preview`);
+      if (res.success && res.data) {
+        setConfigPreview(res.data.config);
+        setShowConfig(true);
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to fetch nftables config', variant: 'destructive' });
+    } finally {
+      setConfigLoading(false);
+    }
+  }, [toast]);
+
+  const copyConfig = useCallback(async () => {
+    if (!configPreview) return;
+    try {
+      await navigator.clipboard.writeText(configPreview);
+      setConfigCopied(true);
+      setTimeout(() => setConfigCopied(false), 2000);
+    } catch { /* ignore */ }
+  }, [configPreview]);
+
+  // ─── Generate nftables config for port forwards ───────────────
+  const generatePortForwardNftables = useCallback(() => {
+    const enabledRules = forwards.filter(f => f.enabled);
+    if (enabledRules.length === 0) return '/* No enabled port forward rules */\n';
+
+    let config = `# ──────────────────────────────────────────────────────────────\n`;
+    config += `# Port Forward DNAT Rules — ${enabledRules.length} active rule(s)\n`;
+    config += `# Generated: ${new Date().toISOString()}\n`;
+    config += `# Chain: inet nat frchainspre (prerouting)\n`;
+    config += `# ──────────────────────────────────────────────────────────────\n\n`;
+    config += `table inet nat {\n`;
+    config += `  chain frchainspre {\n`;
+    config += `    type nat hook prerouting priority dstnat; policy accept;\n\n`;
+
+    enabledRules.forEach((f, i) => {
+      const protoStr = f.protocol === 'both' ? '{ tcp, udp }' : f.protocol;
+      const srcStr = f.sourceIp ? `ip saddr ${f.sourceIp} ` : '';
+      const comment = f.description || f.name;
+      config += `    # [${i + 1}] ${f.name}${f.description ? ` — ${f.description}` : ''}\n`;
+      config += `    ${protoStr} dport ${f.externalPort} ${srcStr}dnat to ${f.internalIp}:${f.internalPort} comment "${comment}"\n\n`;
+    });
+
+    config += `  }\n`;
+    config += `}\n\n`;
+
+    // Summary
+    config += `# ─── Summary ────────────────────────────────────────────────────\n`;
+    config += `# Total enabled rules: ${enabledRules.length}\n`;
+    config += `#   TCP:  ${enabledRules.filter(f => f.protocol === 'tcp').length}\n`;
+    config += `#   UDP:  ${enabledRules.filter(f => f.protocol === 'udp').length}\n`;
+    config += `#   Both: ${enabledRules.filter(f => f.protocol === 'both').length}\n`;
+    config += `#   Source-restricted: ${enabledRules.filter(f => f.sourceIp).length}\n`;
+    config += `#   Open access:        ${enabledRules.filter(f => !f.sourceIp).length}\n`;
+
+    return config;
+  }, [forwards]);
+
+  // ─── Bulk Seed ────────────────────────────────────────────────
+  const seed50Rules = async (clearExisting: boolean) => {
+    try {
+      setSeeding(true);
+      const res = await apiFetch<{ created: number; total: number }>(`${API_BASE}/port-forwards/seed`, {
+        method: 'POST',
+        body: JSON.stringify({ clearExisting }),
+      });
+      if (res.success && res.data) {
+        toast({
+          title: `${res.data.created} Port Forward Rules Created`,
+          description: `Total: ${res.data.total} rules in database. All rules applied to nftables.`,
+        });
+        await fetchForwards();
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to seed rules';
+      toast({ title: 'Seed Error', description: msg, variant: 'destructive' });
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  // ─── CRUD operations ──────────────────────────────────────────
   const openAdd = () => {
     setEditingFwd(null);
     setForm({ ...blankForm });
@@ -1476,6 +1594,9 @@ function PortForwardTab() {
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-9 w-40" />
         </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
+        </div>
         <TableSkeleton cols={7} rows={4} />
       </div>
     );
@@ -1485,25 +1606,211 @@ function PortForwardTab() {
 
   return (
     <div className="space-y-4">
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
+        <Card className="p-3">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
+              <Route className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total</p>
+              <p className="text-lg font-bold">{stats.total}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-3">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+              <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Active</p>
+              <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{stats.enabled}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-3">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+              <Ban className="h-4 w-4 text-red-600 dark:text-red-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Disabled</p>
+              <p className="text-lg font-bold text-red-500">{stats.disabled}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-3">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+              <Globe className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">TCP</p>
+              <p className="text-lg font-bold">{stats.tcp}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-3">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+              <Zap className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">UDP</p>
+              <p className="text-lg font-bold">{stats.udp}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-3">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+              <Network className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Both</p>
+              <p className="text-lg font-bold">{stats.both}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-3">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center">
+              <Lock className="h-4 w-4 text-pink-600 dark:text-pink-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Restricted</p>
+              <p className="text-lg font-bold">{stats.restricted}</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
       {/* Toolbar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Route className="h-4 w-4" />
-          {forwards.length} port forward{forwards.length !== 1 ? 's' : ''} configured
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+          <Input
+            className="h-8 w-48"
+            placeholder="Search name, IP, port..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <Select value={protocolFilter} onValueChange={setProtocolFilter}>
+            <SelectTrigger className="h-8 w-24">
+              <SelectValue placeholder="Proto" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="tcp">TCP</SelectItem>
+              <SelectItem value="udp">UDP</SelectItem>
+              <SelectItem value="both">Both</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8 w-28">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="enabled">Enabled</SelectItem>
+              <SelectItem value="disabled">Disabled</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           <Button variant="outline" size="sm" onClick={fetchForwards}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+            <RefreshCw className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowConfig(!showConfig)} disabled={forwards.length === 0}>
+            <Terminal className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">nftables</span>
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" className="border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20" disabled={seeding}>
+                {seeding ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Zap className="h-4 w-4 mr-1.5" />}
+                <span className="hidden sm:inline">Seed 50 Rules</span>
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Bulk Seed 50 Port Forward Rules</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will create 50 diverse port forward rules covering web services, remote access,
+                  databases, email, VoIP, IoT, DNS, VPN, and more. Rules include TCP, UDP, and Both
+                  protocols with various source IP restrictions.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex gap-2 sm:gap-0">
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <Button variant="outline" onClick={() => seed50Rules(true)} disabled={seeding}>
+                  {seeding && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+                  Clear + Seed
+                </Button>
+                <AlertDialogAction onClick={() => seed50Rules(false)} disabled={seeding} className="bg-amber-600 hover:bg-amber-700 text-white">
+                  {seeding && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+                  Append 50 Rules
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <Button onClick={openAdd} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Port Forward
+            <Plus className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">Add</span>
           </Button>
         </div>
       </div>
 
-      {/* Table */}
+      {/* Filter summary */}
+      {(searchQuery || protocolFilter !== 'all' || statusFilter !== 'all') && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Filter className="h-3 w-3" />
+          Showing {filtered.length} of {forwards.length} rules
+          {(searchQuery || protocolFilter !== 'all' || statusFilter !== 'all') && (
+            <button className="underline hover:text-foreground" onClick={() => { setSearchQuery(''); setProtocolFilter('all'); setStatusFilter('all'); }}>
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* nftables Config Preview */}
+      <AnimatePresence>
+        {showConfig && forwards.length > 0 && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }}>
+            <Card className="overflow-hidden">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Terminal className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                    <CardTitle className="text-sm">nftables Config Preview — Port Forward DNAT Rules</CardTitle>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <ChainBadge chain="frchainspre" />
+                    <Button variant="ghost" size="sm" onClick={copyConfig} disabled={configCopied}>
+                      {configCopied ? <Check className="h-3.5 w-3.5 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+                      {configCopied ? 'Copied!' : 'Copy'}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setShowConfig(false)}>
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="max-h-80 overflow-y-auto bg-slate-950 text-slate-100 p-4 font-mono text-xs leading-relaxed">
+                  <pre className="whitespace-pre-wrap">{generatePortForwardNftables()}</pre>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Rules Table */}
       {forwards.length === 0 ? (
         <EmptyState
           icon={Route}
@@ -1511,26 +1818,35 @@ function PortForwardTab() {
           description="Set up port forwarding to route external traffic to internal services like RDP, CCTV, or PMS."
           action={{ label: 'Add Port Forward', onClick: openAdd }}
         />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={Search}
+          title="No matching rules"
+          description="No port forward rules match the current filters."
+          action={{ label: 'Clear Filters', onClick: () => { setSearchQuery(''); setProtocolFilter('all'); setStatusFilter('all'); } }}
+        />
       ) : (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
           <Card className="overflow-hidden">
             <div className="h-1 bg-gradient-to-r from-teal-500 to-emerald-500" />
             <CardContent className="p-0">
-              <div className="max-h-96 overflow-y-auto">
+              <div className="max-h-[500px] overflow-y-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
+                    <TableRow className="bg-muted/50 sticky top-0 z-10">
+                      <TableHead className="w-8">#</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>External → Internal</TableHead>
                       <TableHead>Source Restriction</TableHead>
-                      <TableHead>Description</TableHead>
+                      <TableHead className="hidden md:table-cell">Description</TableHead>
                       <TableHead className="w-12">On</TableHead>
                       <TableHead className="w-24 text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {forwards.map((fwd) => (
+                    {filtered.map((fwd, idx) => (
                       <TableRow key={fwd.id} className={cn(!fwd.enabled && 'opacity-50')}>
+                        <TableCell className="text-xs text-muted-foreground font-mono">{idx + 1}</TableCell>
                         <TableCell>
                           <div>
                             <span className="font-medium text-sm">{fwd.name}</span>
@@ -1538,7 +1854,17 @@ function PortForwardTab() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1.5 font-mono text-xs">
-                            <Badge variant="outline" className="text-xs font-mono shrink-0">{fwd.protocol.toUpperCase()}</Badge>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                'text-[10px] font-bold shrink-0',
+                                fwd.protocol === 'tcp' && 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 border-blue-200 dark:border-blue-700',
+                                fwd.protocol === 'udp' && 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-300 border-violet-200 dark:border-violet-700',
+                                fwd.protocol === 'both' && 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border-amber-200 dark:border-amber-700',
+                              )}
+                            >
+                              {fwd.protocol.toUpperCase()}
+                            </Badge>
                             <span className="text-teal-600 dark:text-teal-400 font-bold">:{fwd.externalPort}</span>
                             <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
                             <span className="text-emerald-600 dark:text-emerald-400">{fwd.internalIp}</span>
@@ -1546,8 +1872,25 @@ function PortForwardTab() {
                             <span className="font-bold">{fwd.internalPort}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-mono text-xs">{fwd.sourceIp || '—'}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground max-w-32 truncate">{fwd.description || '—'}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {fwd.sourceIp ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="flex items-center gap-1">
+                                  <Lock className="h-3 w-3 text-amber-500" />
+                                  <span>{fwd.sourceIp}</span>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>Source IP restricted</TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span className="flex items-center gap-1 text-muted-foreground">
+                              <Unlock className="h-3 w-3" />
+                              Open
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-32 truncate hidden md:table-cell">{fwd.description || '—'}</TableCell>
                         <TableCell>
                           <Switch checked={fwd.enabled} onCheckedChange={() => toggleForward(fwd.id)} />
                         </TableCell>
