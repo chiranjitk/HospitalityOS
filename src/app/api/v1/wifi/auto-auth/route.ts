@@ -178,7 +178,8 @@ export async function POST(request: NextRequest) {
               validFrom: true,
               password: true,
               ipPoolId: true,
-              plan: { select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, validityDays: true, validityMinutes: true, ipPoolId: true } },
+              maxSessions: true,
+              plan: { select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, validityDays: true, validityMinutes: true, ipPoolId: true, maxDevices: true } },
               property: { select: { id: true, name: true, tenantId: true } },
             },
           },
@@ -205,7 +206,8 @@ export async function POST(request: NextRequest) {
               validFrom: true,
               password: true,
               ipPoolId: true,
-              plan: { select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, validityDays: true, validityMinutes: true, ipPoolId: true } },
+              maxSessions: true,
+              plan: { select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, validityDays: true, validityMinutes: true, ipPoolId: true, maxDevices: true } },
               property: { select: { id: true, name: true, tenantId: true } },
             },
           },
@@ -238,7 +240,8 @@ export async function POST(request: NextRequest) {
                 validFrom: true,
                 password: true,
                 ipPoolId: true,
-                plan: { select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, validityDays: true, validityMinutes: true, ipPoolId: true } },
+                maxSessions: true,
+                plan: { select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, validityDays: true, validityMinutes: true, ipPoolId: true, maxDevices: true } },
                 property: { select: { id: true, name: true, tenantId: true } },
               },
             },
@@ -353,6 +356,36 @@ export async function POST(request: NextRequest) {
         { success: false, error: { code: 'USER_EXPIRED', message: 'WiFi session has expired' } },
         { status: 404 }
       );
+    }
+
+    // ── Check max device limit ──
+    const maxDevices = wifiUser.maxSessions || wifiUser.plan?.maxDevices || 1;
+    if (maxDevices > 0) {
+      try {
+        const result = await db.$queryRawUnsafe<Array<{ count: bigint }>>(`
+          SELECT COUNT(*)::bigint as count
+          FROM radacct
+          WHERE username = $1
+            AND acctstoptime IS NULL
+            AND (acctstatus IS NULL OR acctstatus = '' OR acctstatus = 'start')
+            AND acctterminatecause IS NULL
+        `, wifiUser.username);
+        const activeCount = Number(result[0]?.count ?? 0);
+        if (activeCount >= maxDevices) {
+          console.warn(`[AutoAuth] Max devices reached for ${wifiUser.username}: ${activeCount}/${maxDevices}`);
+          return NextResponse.json(
+            { success: false, error: { code: 'MAX_DEVICES', message: `Max device limit reached (${activeCount}/${maxDevices})` } },
+            { status: 403 }
+          );
+        }
+      } catch (err) {
+        console.error('[AutoAuth] Failed to check session limit:', err);
+        // Fail closed — deny access on error
+        return NextResponse.json(
+          { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to verify device limit' } },
+          { status: 500 }
+        );
+      }
     }
 
     // ── Update DeviceProfile stats ──

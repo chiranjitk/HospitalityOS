@@ -1919,6 +1919,7 @@ function PortalContent() {
 
   // Auto-auth state
   const [autoAuthAttempted, setAutoAuthAttempted] = useState(false);
+  const [maxDeviceMessage, setMaxDeviceMessage] = useState('');
 
   // Pre-generated fingerprint — computed once on mount and reused for
   // both auto-auth attempts and manual auth DeviceProfile creation.
@@ -2006,7 +2007,16 @@ function PortalContent() {
           return true;
         }
 
-        console.log('[Portal] Auto-auth no match:', result.error?.code || 'unknown');
+        // Handle specific error codes with user-facing messages
+        const errorCode = result.error?.code;
+        if (errorCode === 'MAX_DEVICES') {
+          console.warn('[Portal] Auto-auth blocked: max device limit reached');
+          setMaxDeviceMessage(result.error?.message || 'Maximum device limit reached. Disconnect another device to log in.');
+          setState('auth_form');
+          return false;
+        }
+
+        console.log('[Portal] Auto-auth no match:', errorCode || 'unknown');
         return false;
       } catch (err) {
         console.warn('[Portal] Auto-auth failed:', err);
@@ -2459,6 +2469,7 @@ function PortalContent() {
       return (
         <>
           {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
+          {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} />}
           <UnifiedDesignerForm
             design={design}
             formFields={formFields}
@@ -2480,6 +2491,7 @@ function PortalContent() {
     return (
       <>
         {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
+        {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} />}
 
         {/* Auth Form — no tabs, just the default method's form */}
         <div
