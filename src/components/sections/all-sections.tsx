@@ -127,6 +127,7 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'experience-app': () => import('@/components/experience/guest-app-controls'),
   'experience-app-controls': () => import('@/components/experience/guest-app-controls'),
   'experience-spa': () => import('@/components/experience/spa-wellness'),
+  'experience-golf': () => import('@/components/experience/golf-course'),
 
   // ── iot (section-map-iot.tsx) ──
   'iot-devices': () => import('@/components/iot/device-management'),
@@ -164,6 +165,9 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'pos-billing': () => import('@/components/pos/billing'),
   'pos-offline': () => import('@/components/pos/offline-mode'),
 
+  // ── pos extensions ──
+  'pos-menu-boards': () => import('@/components/pos/menu-boards'),
+
   // ── other (section-map-other.tsx) ──
   'admin-gdpr': () => import('@/components/gdpr/gdpr-manager'),
   'gdpr-compliance': () => import('@/components/gdpr/gdpr-manager'),
@@ -200,6 +204,10 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'ads-google': () => import('@/components/ads/google-hotel-ads'),
   'ads-performance': () => import('@/components/ads/performance-tracking'),
   'ads-roi': () => import('@/components/ads/roi-analytics'),
+
+  // ── resort (section-map-resort.tsx) ──
+  'resort-timeshare': () => import('@/components/resort/timeshare'),
+  'resort-casino': () => import('@/components/resort/casino'),
 
   // ── reports (section-map-reports.tsx) ──
   'reports-revenue': () => import('@/components/reports/revenue-reports'),

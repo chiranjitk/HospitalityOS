@@ -15,7 +15,7 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/pos/offline-mode');
     case 'pos-menu-boards':
     case 'pos-digital-menu-boards':
-      return import('@/components/pos/digital-menu-boards');
+      return import('@/components/pos/menu-boards');
     default:
       throw new Error(`Unknown pos section: ${section}`);
   }

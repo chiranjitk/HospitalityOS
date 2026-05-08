@@ -99,6 +99,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['rooms.view', 'rooms.manage', 'rooms.*', '*'],
     description: 'Manage room out-of-order status',
   },
+  'pms-room-type-change': {
+    permissions: ['rooms.update', 'rooms.manage', 'rooms.*', '*'],
+    description: 'Manage room type change requests',
+  },
 
   // ---- Bookings ----
   'bookings-calendar': {
@@ -189,6 +193,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['guests.view', 'guests.manage', 'guests.*', '*'],
     description: 'View and manage guest profiles'
   },
+  'guests-vip-alerts': {
+    permissions: ['guests.manage', 'guests.*', '*'],
+    description: 'Manage VIP recognition rules and alerts'
+  },
 
   // ---- Housekeeping ----
   'housekeeping-tasks': {
@@ -228,6 +236,26 @@ export const menuPermissions: PermissionConfig = {
   'billing-folios': {
     permissions: ['billing.view', 'billing.manage', 'billing.*', '*'],
     description: 'Manage folios'
+  },
+  'billing-profit-loss': {
+    permissions: ['billing.view', 'billing.reports', 'billing.manage', 'billing.*', '*'],
+    description: 'View P&L statements'
+  },
+  'billing-cash-flow': {
+    permissions: ['billing.view', 'billing.reports', 'billing.manage', 'billing.*', '*'],
+    description: 'View and manage cash flow forecasts'
+  },
+  'billing-budget': {
+    permissions: ['billing.view', 'billing.manage', 'billing.*', '*'],
+    description: 'Manage budgets'
+  },
+  'billing-deposits': {
+    permissions: ['billing.view', 'billing.manage', 'billing.*', '*'],
+    description: 'Manage deposit schedules'
+  },
+  'billing-financing': {
+    permissions: ['billing.view', 'billing.manage', 'billing.*', '*'],
+    description: 'Manage BNPL/financing plans'
   },
   'billing-invoices': {
     permissions: ['billing.view', 'billing.invoices', 'billing.*', '*'],
@@ -319,6 +347,14 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['experience_vendors.view', 'experience_vendors.create', 'experience_vendors.update', 'experience_vendors.delete', 'experience.view', 'experience.*', '*'],
     description: 'Manage experience vendors'
   },
+  'experience-spa': {
+    permissions: ['experience.spa', 'experience.view', 'experience.manage', 'experience.*', '*'],
+    description: 'Manage spa & wellness treatments, appointments, therapists'
+  },
+  'experience-golf': {
+    permissions: ['experience.golf', 'experience.view', 'experience.manage', 'experience.*', '*'],
+    description: 'Manage golf courses, tee times, memberships'
+  },
 
   // ---- Restaurant & POS ----
   'pos-orders': {
@@ -381,6 +417,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['inventory.view', 'inventory.create', 'inventory.update', 'inventory.delete', 'inventory.adjust', 'inventory.manage', 'pos.*', '*'],
     description: 'View, create, update, delete, and adjust inventory stock items'
   },
+  'pos-menu-boards': {
+    permissions: ['pos.manage', 'pos.view', 'pos.*', '*'],
+    description: 'Manage digital menu boards and displays'
+  },
 
   // ---- Inventory ----
   'inventory-stock': {
@@ -402,6 +442,14 @@ export const menuPermissions: PermissionConfig = {
   'inventory-po': {
     permissions: ['inventory.purchase', 'purchase_orders.view', 'inventory.*', '*'],
     description: 'Manage purchase orders'
+  },
+  'inventory-purchase-requisition': {
+    permissions: ['inventory.manage', 'purchase_orders.view', 'inventory.*', '*'],
+    description: 'Manage purchase requisitions and approvals'
+  },
+  'inventory-invoice-matching': {
+    permissions: ['billing.manage', 'inventory.*', '*'],
+    description: 'Manage 3-way invoice matching'
   },
 
   // ---- Parking ----
@@ -503,6 +551,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['revenue.view', 'ai.view', 'revenue.*', '*'],
     description: 'View AI suggestions'
   },
+  'revenue-rate-shopping': {
+    permissions: ['revenue.view', 'revenue.manage', 'revenue.*', '*'],
+    description: 'Manage rate shopping and competitor comparison'
+  },
 
   // ---- Channel Manager ----
   'channel-ota': {
@@ -577,6 +629,18 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['marketing.manage', 'marketing.*', '*'],
     description: 'Manage promotions'
   },
+  'marketing-upsell': {
+    permissions: ['marketing.manage', 'marketing.*', '*'],
+    description: 'Manage upsell engine'
+  },
+  'marketing-journey-campaigns': {
+    permissions: ['marketing.manage', 'marketing.*', '*'],
+    description: 'Manage journey-based campaign automation'
+  },
+  'marketing-abandoned-bookings': {
+    permissions: ['marketing.manage', 'marketing.*', '*'],
+    description: 'Manage abandoned booking recovery'
+  },
 
   // ---- Reports ----
   'reports-revenue': {
@@ -621,6 +685,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['events.view', 'events.*', '*'],
     description: 'Manage event resources'
   },
+  'events-beo': {
+    permissions: ['events.manage', 'events.*', '*'],
+    description: 'Manage Banquet Event Orders'
+  },
 
   // ---- Staff Management ----
   'staff-shifts': {
@@ -647,6 +715,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['staff.view', 'staff.skills', 'staff.*', '*'],
     description: 'Manage skills & certifications'
   },
+  'staff-payroll': {
+    permissions: ['staff.view', 'staff.manage', 'staff.*', '*'],
+    description: 'Manage payroll processing and salary components'
+  },
 
   // ---- Security Center ----
   'security-overview': {
@@ -668,6 +740,24 @@ export const menuPermissions: PermissionConfig = {
   'security-audit-logs': {
     permissions: ['security.audit', 'audit.view', 'security.*', '*'],
     description: 'View security audit logs'
+  },
+
+  // ---- AI Conversational Analytics ----
+  'ai-conversational-analytics': {
+    permissions: ['ai.view', 'analytics.view', 'ai.*', '*'],
+    description: 'Use conversational analytics to query data in natural language'
+  },
+
+  // ---- Resort - Timeshare ----
+  'resort-timeshare': {
+    permissions: ['resort.timeshare.view', 'resort.timeshare.manage', 'resort.*', 'pms.view', '*'],
+    description: 'Manage timeshare unit inventory and ownership records'
+  },
+
+  // ---- Resort - Casino ----
+  'resort-casino': {
+    permissions: ['resort.casino.view', 'resort.casino.manage', 'resort.*', '*'],
+    description: 'Manage casino tables, transactions, and pit boss operations'
   },
 
   // ---- Integrations ----

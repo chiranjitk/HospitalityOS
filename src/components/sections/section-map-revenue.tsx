@@ -8,6 +8,8 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'revenue-compset': () => import('@/components/revenue/competitor-pricing'),
   'revenue-ai': () => import('@/components/revenue/ai-suggestions'),
   'revenue-suggestions': () => import('@/components/revenue/ai-suggestions'),
+  'revenue-rate-shopping': () => import('@/components/revenue/rate-shopping'),
+  'revenue-rate-shop': () => import('@/components/revenue/rate-shopping'),
 };
 
 export const revenueMap = sectionMap;

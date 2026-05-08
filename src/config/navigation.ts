@@ -86,6 +86,15 @@ import {
   Search,
   Wine,
   Shirt,
+  ArrowRightLeft,
+  Crown,
+  FileCheck2,
+  RotateCcw,
+  Gamepad2,
+  BarChart3 as BarChart3Icon,
+  Wallet,
+  Target,
+  CreditCard as CreditCardIcon,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -152,6 +161,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'room-rate-calendar', title: 'Room Rate Calendar', href: '#room-rate-calendar', icon: CalendarDays },
       { id: 'room-out-of-order', title: 'Room Out-of-Order', href: '#room-out-of-order', icon: XCircle },
       { id: 'pms-package-plans', title: 'Package Plans', href: '#pms-package-plans', icon: Gift },
+      { id: 'pms-room-type-change', title: 'Room Type Change', href: '#pms-room-type-change', icon: ArrowRightLeft },
     ],
   },
   {
@@ -197,6 +207,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'guests-history', title: 'Stay History', href: '#guests-history', icon: History },
       { id: 'guests-loyalty', title: 'Loyalty & Points', href: '#guests-loyalty', icon: Star },
       { id: 'guests-profile', title: 'Guest Profile', href: '#guests-profile', icon: UserCheck },
+      { id: 'guests-vip-alerts', title: 'VIP Recognition', href: '#guests-vip-alerts', icon: Crown },
     ],
   },
   {
@@ -244,6 +255,11 @@ export const navigationConfig: NavSection[] = [
       { id: 'billing-gst-returns', title: 'GST Returns', href: '#billing-gst-returns', icon: BarChart3 },
       { id: 'billing-tcs-tds', title: 'TCS/TDS', href: '#billing-tcs-tds', icon: Percent },
       { id: 'billing-ap-workflow', title: 'AP Workflow', href: '#billing-ap-workflow', icon: ClipboardList },
+      { id: 'billing-profit-loss', title: 'P&L Statement', href: '#billing-profit-loss', icon: BarChart3Icon },
+      { id: 'billing-cash-flow', title: 'Cash Flow Forecast', href: '#billing-cash-flow', icon: Wallet },
+      { id: 'billing-budget', title: 'Budget Management', href: '#billing-budget', icon: Target },
+      { id: 'billing-deposits', title: 'Deposit Schedules', href: '#billing-deposits', icon: Wallet },
+      { id: 'billing-financing', title: 'BNPL / Financing', href: '#billing-financing', icon: CreditCardIcon },
     ],
   },
 
@@ -272,6 +288,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'experience-calendar', title: 'Calendar', href: '#experience-calendar', icon: CalendarDays },
       { id: 'experience-feedback', title: 'Guest Feedback', href: '#experience-feedback', icon: Star },
       { id: 'experience-spa', title: 'Spa & Wellness', href: '#experience-spa', icon: Heart },
+      { id: 'experience-golf', title: 'Golf Course', href: '#experience-golf', icon: Trophy },
     ],
   },
   {
@@ -296,6 +313,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'pos-table-layout', title: 'Table Layout', href: '#pos-table-layout', icon: LayoutGrid },
       { id: 'pos-reservations', title: 'Reservations', href: '#pos-reservations', icon: CalendarDays },
       { id: 'pos-offline', title: 'Offline Mode', href: '#pos-offline', icon: HardDrive },
+      { id: 'pos-menu-boards', title: 'Digital Menu Boards', href: '#pos-menu-boards', icon: Monitor },
     ],
   },
 
@@ -311,6 +329,8 @@ export const navigationConfig: NavSection[] = [
       { id: 'inventory-alerts', title: 'Low Stock Alerts', href: '#inventory-alerts', icon: AlertTriangle },
       { id: 'inventory-vendors', title: 'Vendors', href: '#inventory-vendors', icon: Users },
       { id: 'inventory-po', title: 'Purchase Orders', href: '#inventory-po', icon: FileText },
+      { id: 'inventory-purchase-requisition', title: 'Purchase Requisitions', href: '#inventory-purchase-requisition', icon: ClipboardList },
+      { id: 'inventory-invoice-matching', title: 'Invoice Matching', href: '#inventory-invoice-matching', icon: FileCheck2 },
     ],
   },
   {
@@ -381,6 +401,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'revenue-forecasting', title: 'Demand Forecasting', href: '#revenue-forecasting', icon: TrendingUp },
       { id: 'revenue-competitor', title: 'Competitor Pricing', href: '#revenue-competitor', icon: Target },
       { id: 'revenue-ai', title: 'AI Suggestions', href: '#revenue-ai', icon: Brain },
+      { id: 'revenue-rate-shopping', title: 'Rate Shopping', href: '#revenue-rate-shopping', icon: Search },
     ],
   },
   {
@@ -426,6 +447,8 @@ export const navigationConfig: NavSection[] = [
       { id: 'marketing-booking-engine', title: 'Direct Booking Engine', href: '#marketing-booking-engine', icon: Globe },
       { id: 'marketing-promotions', title: 'Promotions & Offers', href: '#marketing-promotions', icon: BadgePercent },
       { id: 'marketing-upsell', title: 'Upsell Engine', href: '#marketing-upsell', icon: TrendingUp },
+      { id: 'marketing-journey-campaigns', title: 'Journey Campaigns', href: '#marketing-journey-campaigns', icon: Zap },
+      { id: 'marketing-abandoned-bookings', title: 'Abandoned Bookings', href: '#marketing-abandoned-bookings', icon: RotateCcw },
     ],
   },
 
@@ -470,6 +493,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'events-calendar', title: 'Event Calendar', href: '#events-calendar', icon: CalendarDays },
       { id: 'events-booking', title: 'Event Bookings', href: '#events-booking', icon: FileText },
       { id: 'events-resources', title: 'Event Resources', href: '#events-resources', icon: Package },
+      { id: 'events-beo', title: 'BEO Management', href: '#events-beo', icon: ClipboardList },
     ],
   },
 
@@ -486,6 +510,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'staff-communication', title: 'Internal Communication', href: '#staff-communication', icon: MessageSquare },
       { id: 'staff-performance', title: 'Performance Metrics', href: '#staff-performance', icon: BarChart3 },
       { id: 'staff-skills', title: 'Skills & Certifications', href: '#staff-skills', icon: GraduationCap },
+      { id: 'staff-payroll', title: 'Payroll', href: '#staff-payroll', icon: DollarSign },
     ],
   },
 
@@ -540,11 +565,22 @@ export const navigationConfig: NavSection[] = [
     items: [
       { id: 'ai-copilot', title: 'AI Copilot', href: '#ai-copilot', icon: Bot },
       { id: 'ai-insights', title: 'AI Insights', href: '#ai-insights', icon: Brain },
+      { id: 'ai-conversational-analytics', title: 'Conversational Analytics', href: '#ai-conversational-analytics', icon: BarChart3 },
       { id: 'ai-settings', title: 'Provider Settings', href: '#ai-settings', icon: Settings },
     ],
   },
 
   // --- Enterprise Addons ---
+  {
+    id: 'resort',
+    title: 'Resort',
+    icon: Building,
+    category: 'addons',
+    items: [
+      { id: 'resort-timeshare', title: 'Timeshare & Ownership', href: '#resort-timeshare', icon: CalendarDays },
+      { id: 'resort-casino', title: 'Casino & Gaming', href: '#resort-casino', icon: Gamepad2 },
+    ],
+  },
   {
     id: 'admin',
     title: 'Admin',

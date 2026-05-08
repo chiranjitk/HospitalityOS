@@ -129,6 +129,7 @@ const sectionPaths: Record<string, string> = {
   'pos-reservations': '@/components/pos/reservations',
   'pos-offline': '@/components/pos/offline-mode',
   'pos-inventory': '@/components/pos/inventory',
+  'pos-menu-boards': '@/components/pos/menu-boards',
 
   // Experience
   'experience-requests': '@/components/experience/service-requests',
@@ -146,6 +147,7 @@ const sectionPaths: Record<string, string> = {
   'experience-calendar': '@/components/experience/experience-calendar',
   'experience-feedback': '@/components/experience/experience-feedback',
   'experience-spa': '@/components/experience/spa-wellness',
+  'experience-golf': '@/components/experience/golf-course',
 
   // Parking
   'parking-slots': '@/components/parking/slots',
@@ -282,6 +284,14 @@ const sectionPaths: Record<string, string> = {
   'ads-google': '@/components/ads/google-hotel-ads',
   'ads-performance': '@/components/ads/performance-tracking',
   'ads-roi': '@/components/ads/roi-analytics',
+
+  // Resort
+  'resort-timeshare': '@/components/resort/timeshare',
+  'resort-casino': '@/components/resort/casino',
+
+  // AI Conversational Analytics
+  'ai-analytics': '@/components/ai/conversational-analytics',
+  'ai-conversational-analytics': '@/components/ai/conversational-analytics',
 
   // Billing - AP Workflow
   'billing-ap-workflow': '@/components/billing/ap-workflow',
