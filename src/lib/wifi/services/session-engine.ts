@@ -463,7 +463,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
                   acctauthentic, framedipaddress, acctstatus,
                   acctinputoctets, acctoutputoctets, acctsessiontime,
                   calledstationid, callingstationid,
-                  "loginType", "createdAt", "updatedAt"
+                  "loginType", createdat, updatedat
                 ) SELECT
                   gen_random_uuid(), v.acctsessionid, v.username,
                   '127.0.0.1', 'Wireless-802.11', v.acctstarttime, NOW(),
@@ -977,7 +977,7 @@ async function disconnectSession(
         acctauthentic, framedipaddress, acctstatus,
         acctinputoctets, acctoutputoctets, acctsessiontime, acctterminatecause,
         calledstationid, callingstationid,
-        "loginType", "createdAt", "updatedAt"
+        "loginType", createdat, updatedat
       ) VALUES (
         gen_random_uuid(), $1, $2,
         '127.0.0.1', 'Wireless-802.11', $3, NOW(), NOW(),

@@ -2166,7 +2166,7 @@ async function createAccountingSession(
          acctauthentic, framedipaddress, acctstatus,
          acctinputoctets, acctoutputoctets, acctsessiontime,
          calledstationid, callingstationid,
-         "loginType", connectinfo_start, "createdAt", "updatedAt"
+         "loginType", connectinfo_start, createdat, updatedat
        ) VALUES (
          $1, $2, $3,
          $4, 'Wireless-802.11', $5, $5,
