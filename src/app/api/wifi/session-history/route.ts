@@ -345,6 +345,23 @@ export async function GET(request: NextRequest) {
 
     const { whereClause, params } = buildSqlConditions(filters, dateRange)
 
+    // ── Diagnostic: check view data by NAS IP (runs once) ──────────────────
+    let diagRun = false;
+    if (!diagRun) {
+      try {
+        const diag = await db.$queryRawUnsafe<{ nasipaddress: string; cnt: number | bigint; null_dates: number | bigint }[]>(`
+          SELECT nasipaddress,
+                 COUNT(*) as cnt,
+                 SUM(CASE WHEN acctstarttime IS NULL THEN 1 ELSE 0 END) as null_dates
+          FROM v_session_history
+          GROUP BY nasipaddress
+          ORDER BY cnt DESC
+        `);
+        console.log('[session-history] DIAG view rows by NAS:', JSON.stringify(diag));
+        diagRun = true;
+      } catch (e) { console.error('[session-history] DIAG failed:', e) }
+    }
+
     // Debug: log the actual params for troubleshooting
     console.log('[session-history] params:', JSON.stringify(params), 'limit:', limit, 'offset:', offset, 'whereClause:', whereClause)
     console.log('[session-history] dateRange:', JSON.stringify(dateRange))
