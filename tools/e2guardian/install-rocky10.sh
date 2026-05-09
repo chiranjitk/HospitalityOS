@@ -762,13 +762,15 @@ ${BOLD}  Configuration:${NC}
 ${BOLD}  Install log:${NC}     ${INSTALL_LOG}
 
 ${BOLD}${YELLOW}  ⚠  Next Steps:${NC}
-  1. Edit ${E2_CONFDIR}/e2guardian.conf to set your upstream proxy
-     and filtering preferences.
+  1. Edit ${E2_CONFDIR}/e2guardian.conf to set your filtering preferences.
   2. At minimum, configure:
      - filterip / filterports (listen address)
-     - proxyip / proxyport  (upstream proxy)
   3. systemctl restart e2guardian
-  4. Configure client browsers to use this proxy.
+  4. Configure client browsers/DHCP to use this proxy as their gateway.
+  5. For SSL/HTTPS filtering, enable: enablessl = on (see MITM section).
+
+${BOLD}${CYAN}  Note:${NC} Running in STANDALONE mode (no Squid).
+  e2guardian connects directly to websites after filtering.
 
 ${BOLD}${GREEN}═══════════════════════════════════════════════════════════════════════${NC}
 
