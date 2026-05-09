@@ -26,19 +26,17 @@ dist/
 src/e2guardian
 !src/e2guardian/
 
-# Generated configs (runtime only)
-configs/downloadmanagers/default.conf
-configs/contentscanners/*.conf
-data/scripts/e2guardian.service
-data/scripts/logrotation
-data/scripts/bsd-init
-data/scripts/solaris-init
-data/scripts/systemv-init
-data/scripts/e2guardian
+# Generated configs (tracked as .in templates)
+# configs/downloadmanagers/default.conf
+# configs/contentscanners/*.conf
+# data/scripts/e2guardian.service
+# data/scripts/logrotation
+# data/scripts/bsd-init
+# data/scripts/solaris-init
+# data/scripts/systemv-init
+# data/scripts/e2guardian
 
-# Generated list files
-configs/lists/example.group/
-configs/lists/examplef1.story
+# Note: example.group/ is now tracked (was missing from upstream)
 
 # OS files
 .DS_Store
