@@ -358,6 +358,57 @@ export function isIPAuthenticated(ip: string): boolean {
 }
 
 /**
+ * Get ALL authenticated IPs from the nftables loggedinusers set in ONE call.
+ *
+ * Instead of calling isIPAuthenticated(ip) per-session (which spawns a shell
+ * process each time), this reads the entire set once and returns a Set for
+ * O(1) membership checks. At 5,000 users this saves ~50 seconds per cycle.
+ *
+ * Returns a Set of IP strings. If the set doesn't exist or nft is unavailable,
+ * returns null (caller should treat all IPs as authenticated — safe default).
+ */
+export function getAllAuthenticatedIPs(): Set<string> | null {
+  if (!doesAuthenticatedSetExist()) {
+    return null; // Can't verify — assume all authenticated (safe fallback)
+  }
+
+  const tableName = getMangleTableName();
+
+  try {
+    const output = execSync(
+      `nft list set inet ${tableName} loggedinusers 2>&1`,
+      { encoding: 'utf-8', timeout: 5000 }
+    );
+
+    // Parse IP addresses from nft set output.
+    // Format: "elements = { 192.168.1.100, 192.168.1.101, ... }"
+    const ips = new Set<string>();
+    const lines = output.split('\n');
+    let inElements = false;
+
+    for (const line of lines) {
+      if (line.includes('elements')) {
+        inElements = true;
+      }
+      if (inElements) {
+        // Match IPv4 addresses in the elements block
+        const matches = line.matchAll(/\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/g);
+        for (const match of matches) {
+          ips.add(match[1]);
+        }
+      }
+      if (inElements && line.includes('}')) {
+        break;
+      }
+    }
+
+    return ips;
+  } catch {
+    return null; // nft failed — assume all authenticated (safe fallback)
+  }
+}
+
+/**
  * Remove a user IP from the nftables loggedinusers set.
  * This is the "disconnect" action at the firewall level.
  */
