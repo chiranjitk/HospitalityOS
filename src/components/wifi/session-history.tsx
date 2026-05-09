@@ -122,7 +122,9 @@ type DateShortcut = 'today' | 'yesterday' | '7d' | '30d' | '90d' | 'this-month' 
 
 function getDateRange(shortcut: DateShortcut): { start: string; end: string } {
   const now = new Date();
-  const fmt = (d: Date) => d.toISOString().split('T')[0];
+  // Use local date (not UTC) — toISOString() returns UTC which causes
+  // off-by-one-day bugs for servers in positive UTC offsets (e.g. IST +5:30)
+  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const end = fmt(now);
 
   switch (shortcut) {

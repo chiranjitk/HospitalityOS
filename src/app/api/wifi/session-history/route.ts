@@ -152,9 +152,12 @@ function getDefaultDateRange(): { startDate: string; endDate: string } {
   const endDate = new Date(now)
   endDate.setHours(23, 59, 59, 999)
 
+  // Use local date formatting (not toISOString which returns UTC)
+  const fmtLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
   return {
-    startDate: startDate.toISOString().slice(0, 10),
-    endDate: endDate.toISOString().slice(0, 10) + ' 23:59:59',
+    startDate: fmtLocal(startDate),
+    endDate: fmtLocal(endDate) + ' 23:59:59',
   }
 }
 
