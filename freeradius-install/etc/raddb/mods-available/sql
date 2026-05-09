@@ -9,7 +9,7 @@ sql {
     server = "localhost"
     port = 5432
     login = "staysuite"
-    password = "staysuite@2026"
+    password = "Staysuite2025"
     radius_db = "staysuite"
 
     # Read NAS clients from SQL (nas table)

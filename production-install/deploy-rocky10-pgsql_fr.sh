@@ -10,7 +10,7 @@
 #   1.  System prerequisites check (RAM, disk, OS)
 #   2.  dnf system update + EPEL
 #   3.  PostgreSQL 16/17 from PGDG (production-tuned)
-#   4.  Create 'staysuite' database + 'staysuite' & 'radius' users
+#   4.  Create 'staysuite' database + 'staysuite' user
 #   5.  FreeRADIUS 3.x install + Cryptsk VSA dictionary + PostgreSQL SQL module config
 #   6.  Node.js 22 LTS + Bun runtime
 #   7.  Clone StaySuite-HospitalityOS from GitHub
@@ -429,23 +429,13 @@ DO $$ BEGIN
     ALTER ROLE staysuite WITH PASSWORD '__PASS__';
   END IF;
 END $$;
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'radius') THEN
-    CREATE ROLE radius WITH LOGIN PASSWORD '__PASS__';
-  ELSE
-    ALTER ROLE radius WITH PASSWORD '__PASS__';
-  END IF;
-END $$;
 SELECT 'CREATE DATABASE staysuite OWNER staysuite' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'staysuite')\gexec
 GRANT ALL PRIVILEGES ON DATABASE staysuite TO staysuite;
 \c staysuite
 CREATE EXTENSION IF NOT EXISTS citext;
 GRANT ALL ON SCHEMA public TO staysuite;
-GRANT ALL ON SCHEMA public TO radius;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO staysuite;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO radius;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO staysuite;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO radius;
 EOSQL
 )
 PSQL_SQL="${PSQL_SQL//__PASS__/$DB_PASSWORD}"
@@ -462,7 +452,7 @@ EOF
 chown postgres:postgres "${PG_DATA}/pg_hba.conf"
 chmod 640 "${PG_DATA}/pg_hba.conf"
 restart_pg
-success "Database 'staysuite' + users 'staysuite'/'radius' created"
+success "Database 'staysuite' + user 'staysuite' created"
 
 # ════════════════════════════════════════════════════════════════════════════════
 # STEP 5: FreeRADIUS
@@ -506,7 +496,7 @@ sql {
   dialect = "postgresql"
   server = "127.0.0.1"
   port = 5432
-  login = "radius"
+  login = "staysuite"
   password = "__DBPASS__"
   radius_db = "staysuite"
 
@@ -929,7 +919,7 @@ cat > "${APP_DIR}/.env" <<EOENV
 # Generated: $(date -Iseconds)
 
 DATABASE_URL=postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10&pool_timeout=120
-RADIUS_DB_URL=postgresql://radius:${DB_PASSWORD}@127.0.0.1:5432/staysuite
+# RADIUS_DB_URL not needed — FreeRADIUS SQL module uses 'staysuite' user directly
 NODE_ENV=production
 PORT=3000
 NEXTAUTH_SECRET=${APP_SECRET}
@@ -1012,15 +1002,15 @@ fi
 
 # Re-grant all permissions (after prisma push and complete-database.sql)
 sudo -u postgres psql -d staysuite <<'EOSQL'
--- Re-grant all table/sequence permissions to both users
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO staysuite, radius;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO staysuite, radius;
+-- Re-grant all table/sequence permissions
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO staysuite;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO staysuite;
 -- Execute permission on all custom functions
 DO $$ DECLARE r RECORD;
 BEGIN FOR r IN SELECT p.proname, pg_get_function_identity_arguments(p.oid) AS args
   FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid
   WHERE n.nspname = 'public' AND p.proname LIKE 'fn_%' OR p.proname LIKE 'fr_%'
-LOOP EXECUTE format('GRANT EXECUTE ON FUNCTION %I(%s) TO staysuite, radius', r.proname, r.args);
+LOOP EXECUTE format('GRANT EXECUTE ON FUNCTION %I(%s) TO staysuite', r.proname, r.args);
 END LOOP; END $$;
 EOSQL
 success "All permissions re-granted"
@@ -1520,8 +1510,7 @@ echo "    Environment:      ${APP_DIR}/.env"
 echo ""
 
 echo -e "${BOLD}  CREDENTIALS${NC}"
-echo "    DB (app):         postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
-echo "    DB (radius):      postgresql://radius:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
+echo "    DB (staysuite):    postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
 echo "    NextAuth Secret:  ${APP_SECRET}"
 if ! $SKIP_MIKROTIK; then
 echo "    MikroTik IP:      ${MIKROTIK_IP}"
