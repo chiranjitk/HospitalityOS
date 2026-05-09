@@ -338,6 +338,9 @@ export async function GET(request: NextRequest) {
 
     const { whereClause, params } = buildSqlConditions(filters, dateRange)
 
+    // Debug: log the actual params for troubleshooting
+    console.log('[session-history] params:', JSON.stringify(params), 'limit:', limit, 'offset:', offset, 'whereClause:', whereClause)
+
     // ── CSV Export path ─────────────────────────────────────────────────────
     if (exportFormat === 'csv') {
       return handleCsvExport(whereClause, params, dateRange, filters)
@@ -391,8 +394,8 @@ export async function GET(request: NextRequest) {
                __EXTENDED_COLS__
         FROM v_session_history ${whereClause}
         ORDER BY acctuniqueid, acctstarttime DESC NULLS LAST
-        LIMIT $${params.length + 1}::int OFFSET $${params.length + 2}::int
-      `, ...params, limit, offset),
+        LIMIT $${params.length + 1}::bigint OFFSET $${params.length + 2}::bigint
+      `, ...params, String(limit), String(offset)),
     ])
 
     const total = Number(totalResult[0]?.c ?? 0)
@@ -488,8 +491,8 @@ async function handleCsvExport(
            guest_first_name, guest_last_name, room_number, property_name, plan_name
     FROM v_session_history ${whereClause}
     ORDER BY acctstarttime DESC NULLS LAST
-    LIMIT $${params.length + 1}
-  `, ...params, EXPORT_MAX_ROWS)
+    LIMIT $${params.length + 1}::bigint
+  `, ...params, String(EXPORT_MAX_ROWS))
 
   // Generate CSV
   const csvRows: string[] = []
