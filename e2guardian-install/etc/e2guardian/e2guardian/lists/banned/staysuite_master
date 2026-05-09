@@ -1,0 +1,7 @@
+# StaySuite e2guardian Master Include File
+# Auto-generated on: 2026-05-09 22:03:06 UTC
+# Source: ContentFilter table in PostgreSQL
+# Usage: Reference this file from e2guardianfN.conf:
+#   sitelist = 'name=banned,path=__LISTDIR__/../banned/staysuite_master'
+#
+# This file includes all category-specific blocklists.

@@ -22,6 +22,18 @@ module.exports = {
       },
     },
     {
+      name: 'staysuite-e2guardian',
+      script: '/home/z/my-project/e2guardian-install/sbin/e2guardian',
+      args: '',
+      cwd: '/home/z/my-project',
+      interpreter: 'none',
+      watch: false,
+      autorestart: true,
+      env: {
+        LD_LIBRARY_PATH: '/home/z/my-project/e2guardian-install/lib:/home/z/my-project/freeradius-install/lib:/home/z/my-project/freeradius-install/lib/freeradius:/home/z/my-project/pgsql-runtime/lib',
+      },
+    },
+    {
       name: 'staysuite-nextjs',
       script: 'bun',
       args: 'run dev',
