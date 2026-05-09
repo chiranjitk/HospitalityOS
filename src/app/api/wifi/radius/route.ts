@@ -3163,21 +3163,36 @@ export async function POST(request: NextRequest) {
         let coaSuccess = false;
         let coaMessage = '';
         try {
-          // Look up NAS secret from PostgreSQL
+          // Look up NAS secret + CoA port from FreeRADIUS service (SQLite)
           // GUI may send nasIp with CIDR (e.g. 192.168.1.1/32) — strip it for NAS lookup
           let nasSecret = '';
           let coaPort = 3799;
           const cleanNasIp = disconnectNasIp.replace(/\/\d+$/, ''); // strip /32 CIDR suffix
           try {
-            const nasRows = await db.$queryRawUnsafe<{ nasname: string; secret: string; ports: number | null }[]>(
-              `SELECT nasname, secret, ports FROM nas WHERE nasname = $1 LIMIT 1`,
-              cleanNasIp
-            );
-            if (nasRows.length > 0) {
-              nasSecret = nasRows[0].secret;
-              coaPort = nasRows[0].ports || 3799;
+            // Try FreeRADIUS service first (has coaPort from SQLite)
+            const frRes = await fetch(`http://127.0.0.1:${process.env.FREERADIUS_PORT || 3004}/api/nas/lookup?nasIp=${encodeURIComponent(cleanNasIp)}`);
+            if (frRes.ok) {
+              const frData = await frRes.json();
+              if (frData.success && frData.data) {
+                nasSecret = frData.data.secret || '';
+                coaPort = frData.data.coaPort || 3799;
+                console.log('[live-sessions-disconnect] NAS from FreeRADIUS service: secret=' + (nasSecret ? '***' : '(none)') + ' coaPort=' + coaPort);
+              }
             }
-          } catch { /* NAS lookup failed */ }
+          } catch (e) { console.warn('[live-sessions-disconnect] FreeRADIUS NAS lookup failed, trying PostgreSQL:', e); }
+          // Fallback: look up from PostgreSQL nas table
+          if (!nasSecret) {
+            try {
+              const nasRows = await db.$queryRawUnsafe<{ nasname: string; secret: string; ports: number | null }[]>(
+                `SELECT nasname, secret, ports FROM nas WHERE nasname = $1 LIMIT 1`,
+                cleanNasIp
+              );
+              if (nasRows.length > 0) {
+                nasSecret = nasRows[0].secret;
+                coaPort = nasRows[0].ports || 3799;
+              }
+            } catch { /* PostgreSQL NAS lookup failed */ }
+          }
           if (!nasSecret) {
             console.warn('[live-sessions-disconnect] No NAS secret found for ' + cleanNasIp + ', cannot send RADIUS disconnect');
             coaMessage = 'No NAS secret configured for ' + cleanNasIp;
@@ -3193,15 +3208,18 @@ export async function POST(request: NextRequest) {
           try {
             fs.writeFileSync(tmpAttrsFile, attrs + '\n');
             const cmd = `${radclientPath} -t 3 -r 1 ${cleanNasIp}:${coaPort} disconnect ${nasSecret} < ${tmpAttrsFile} 2>&1`;
+            console.log('[live-sessions-disconnect] Sending RADIUS disconnect to ' + cleanNasIp + ':' + coaPort + ' user=' + disconnectUsername + ' session=' + (bareSessionId || '(any)'));
             const output = execSync(cmd, { timeout: 5000 }).toString();
             coaMessage = output.trim();
             coaSuccess = output.includes('Disconnect-ACK') || output.includes('CoA-ACK') || output.includes('received');
+            console.log('[live-sessions-disconnect] CoA result: success=' + coaSuccess + ' output=' + coaMessage);
           } catch (execErr: unknown) {
             coaMessage = execErr instanceof Error ? execErr.message : String(execErr);
             // radclient returns non-zero exit code even on timeout, but may have succeeded
             if (coaMessage.includes('Disconnect-ACK') || coaMessage.includes('CoA-ACK')) {
               coaSuccess = true;
             }
+            console.log('[live-sessions-disconnect] CoA result (exec error): success=' + coaSuccess + ' output=' + coaMessage);
           } finally {
             try { fs.unlinkSync(tmpAttrsFile); } catch { /* ignore */ }
           }

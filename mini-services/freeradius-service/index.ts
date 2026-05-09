@@ -1591,6 +1591,28 @@ app.get('/api/nas', async (c) => {
   });
 });
 
+// Lookup NAS by IP address — returns secret and coaPort for RADIUS disconnect
+app.get('/api/nas/lookup', async (c) => {
+  const nasIp = c.req.query('nasIp') as string;
+  if (!nasIp) {
+    return c.json({ success: false, error: 'nasIp query param required' }, 400);
+  }
+  const allClients = await getAllNASClients();
+  const client = allClients.find(c => c.ipAddress === nasIp);
+  if (!client) {
+    return c.json({ success: false, error: 'NAS not found for ' + nasIp }, 404);
+  }
+  return c.json({
+    success: true,
+    data: {
+      secret: client.sharedSecret,
+      coaPort: client.ports.coa,
+      ipAddress: client.ipAddress,
+      name: client.name,
+    }
+  });
+});
+
 app.get('/api/nas/:id', async (c) => {
   const { id } = c.req.param();
   const client = await getNASClientById(id);
