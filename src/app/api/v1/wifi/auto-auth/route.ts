@@ -543,7 +543,7 @@ export async function POST(request: NextRequest) {
     // check does not count the stale session against the user.
     try {
       await db.$executeRawUnsafe(
-        `UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'User-Request', acctstatus = 'stop', acctupdatetime = NOW(), "updatedAt" = NOW() WHERE username = $1 AND acctstoptime IS NULL`,
+        `UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'User-Request', acctstatus = 'stop', acctupdatetime = NOW(), updatedat = NOW() WHERE username = $1 AND acctstoptime IS NULL`,
         wifiUser.username
       );
     } catch (closeErr) {
@@ -962,7 +962,7 @@ async function createAccountingSession(
          acctauthentic, framedipaddress, acctstatus,
          acctinputoctets, acctoutputoctets, acctsessiontime,
          calledstationid, callingstationid,
-         "loginType", "createdAt", "updatedAt"
+         "loginType", createdat, updatedat
        ) VALUES (
          $1, $2, $3,
          $4, 'Wireless-802.11', $5, $5,
