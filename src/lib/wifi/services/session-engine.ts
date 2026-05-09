@@ -504,7 +504,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
             await db.$executeRawUnsafe(`
               UPDATE "WiFiSession" s SET
                 "dataUsed" = v.data_used,
-                "duration" = v.duration,
+                "duration" = v.session_time,
                 "updatedAt" = NOW()
               FROM (VALUES ${sessionValues.join(',')}) AS v(username, mac, dl, ul, session_time, data_used)
               WHERE s.username = v.username
