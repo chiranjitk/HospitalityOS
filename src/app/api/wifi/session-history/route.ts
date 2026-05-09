@@ -357,7 +357,7 @@ export async function GET(request: NextRequest) {
           GROUP BY nasipaddress
           ORDER BY cnt DESC
         `);
-        console.log('[session-history] DIAG view rows by NAS:', JSON.stringify(diag));
+        console.log('[session-history] DIAG view rows by NAS:', diag.map(d => ({ nasipaddress: d.nasipaddress, cnt: Number(d.cnt), null_dates: Number(d.null_dates) })));
         diagRun = true;
       } catch (e) { console.error('[session-history] DIAG failed:', e) }
     }
