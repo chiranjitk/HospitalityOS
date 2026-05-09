@@ -265,7 +265,7 @@ const EXTENDED_COLS = `"sessionTimeoutSec", "idleTimeoutSec", "dp_macAddress"`;
  */
 async function queryWithFallback<T>(
   baseQuery: string,
-  params: unknown[]
+  ...params: unknown[]
 ): Promise<T[]> {
   // Try with extended columns first
   try {
