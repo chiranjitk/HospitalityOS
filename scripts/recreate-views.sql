@@ -5,6 +5,7 @@
 --   sudo -u postgres psql -d staysuite -f scripts/recreate-views.sql
 --
 -- These views reference radcheck/radusergroup (now Prisma-managed).
+-- Uses DROP + CREATE (not CREATE OR REPLACE) to handle column list changes.
 -- ============================================================
 
 BEGIN;
@@ -12,7 +13,10 @@ BEGIN;
 -- ---------------------------------------------------------------------------
 -- VIEW: v_session_history (master view -- others depend on this)
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_session_history AS
+DROP VIEW IF EXISTS v_active_sessions CASCADE;
+DROP VIEW IF EXISTS v_session_history CASCADE;
+
+CREATE VIEW v_session_history AS
 SELECT COALESCE(s.id::text, r.acctuniqueid) AS session_id,
     COALESCE(s.id::text, r.radacctid::text) AS radacctid,
     COALESCE(s.id::text, r.acctsessionid) AS acctsessionid,
@@ -86,7 +90,8 @@ SELECT COALESCE(s.id::text, r.acctuniqueid) AS session_id,
         SELECT DISTINCT ON (radacct.username, radacct.acctsessionid) radacct.*
            FROM radacct
           ORDER BY radacct.username, radacct.acctsessionid, radacct.radacctid DESC
-     ) r ON s.id::text = r.acctuniqueid
+     ) r ON COALESCE(s."acctUniqueId", '')::text = r.acctuniqueid
+              AND (s."acctUniqueId" IS NOT NULL OR s.id IS NULL)
      LEFT JOIN LATERAL (
         SELECT "WiFiUser".*
           FROM "WiFiUser"
@@ -116,7 +121,7 @@ SELECT COALESCE(s.id::text, r.acctuniqueid) AS session_id,
 -- Filters v_session_history for currently active (online) sessions.
 -- Used by: Active Users tab, real-time stats widgets.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_active_sessions AS
+CREATE VIEW v_active_sessions AS
 SELECT session_id,
     radacctid,
     acctsessionid,
@@ -188,6 +193,80 @@ SELECT session_id,
   WHERE session_status = 'active'::text;
 
 -- ---------------------------------------------------------------------------
+-- VIEW: v_user_usage
+-- Fixed: now aggregates bytes from BOTH WiFiUser AND radacct for external NAS
+-- users (MikroTik, etc.) where WiFiUser.totalBytesIn/Out may be 0.
+-- ---------------------------------------------------------------------------
+DROP VIEW IF EXISTS v_user_usage CASCADE;
+
+CREATE VIEW v_user_usage AS
+SELECT u.id AS user_id,
+    u."tenantId",
+    u."propertyId",
+    u."guestId",
+    u."bookingId",
+    u.username,
+    u."planId",
+    u.status,
+    -- Bytes: prefer WiFiUser (local NAS), fallback to radacct (external NAS)
+    COALESCE(u."totalBytesIn", 0::bigint) AS "totalBytesIn",
+    COALESCE(u."totalBytesOut", 0::bigint) AS "totalBytesOut",
+    GREATEST(
+        COALESCE(u."totalBytesIn", 0::bigint) + COALESCE(u."totalBytesOut", 0::bigint),
+        COALESCE((
+            SELECT SUM(COALESCE(acct.inputoctets, 0) + COALESCE(acct.outputoctets, 0))
+            FROM radacct acct WHERE acct.username = u.username
+        ), 0::bigint)
+    ) AS total_data_used,
+    -- Sessions: count from radacct (works for both local and external NAS)
+    COALESCE((SELECT count(DISTINCT radacctid) FROM radacct sh WHERE sh.username = u.username), 0) AS total_sessions,
+    COALESCE((SELECT count(DISTINCT radacctid) FROM radacct sh WHERE sh.username = u.username AND sh.acctstoptime IS NULL), 0) AS active_sessions,
+    -- Download/Upload: prefer WiFiUser, fallback to radacct
+    GREATEST(
+        COALESCE(u."totalBytesOut", 0::bigint),
+        COALESCE((SELECT SUM(COALESCE(acct.outputoctets, 0)) FROM radacct acct WHERE acct.username = u.username), 0::bigint)
+    ) AS total_download_bytes,
+    GREATEST(
+        COALESCE(u."totalBytesIn", 0::bigint),
+        COALESCE((SELECT SUM(COALESCE(acct.inputoctets, 0)) FROM radacct acct WHERE acct.username = u.username), 0::bigint)
+    ) AS total_upload_bytes,
+    COALESCE((SELECT sum(acct.acctsessiontime) FROM radacct acct WHERE acct.username = u.username), 0::bigint) AS total_session_time,
+    COALESCE((
+        SELECT MAX(acct.acctstarttime) FROM radacct acct WHERE acct.username = u.username
+    ), u."lastAccountingAt") AS last_session_start,
+    COALESCE((
+        SELECT MIN(acct.acctstarttime) FROM radacct acct WHERE acct.username = u.username
+    ), '1970-01-01 00:00:00+00'::timestamptz) AS first_session_start,
+    COALESCE((
+        SELECT MAX(acct.acctupdatetime) FROM radacct acct WHERE acct.username = u.username
+    ), u."lastAccountingAt") AS "lastSeenAt",
+    u."createdAt",
+    u."updatedAt",
+    COALESCE(g."firstName", ''::text) AS guest_first_name,
+    COALESCE(g."lastName", ''::text) AS guest_last_name,
+    COALESCE(g.email, ''::citext) AS guest_email,
+    COALESCE(g."loyaltyTier", ''::text) AS guest_loyalty_tier,
+    CASE WHEN g."isVip" = true THEN 1 ELSE 0 END AS guest_is_vip,
+    COALESCE(r.number, ''::text) AS room_number,
+    COALESCE(r.name, ''::text) AS room_name,
+    COALESCE(p.name, ''::text) AS property_name,
+    COALESCE(wp.name, ''::text) AS plan_name,
+    wp."downloadSpeed" AS plan_download_speed,
+    wp."uploadSpeed" AS plan_upload_speed,
+    wp."dataLimit" AS plan_data_limit,
+    COALESCE(b."confirmationCode", ''::text) AS booking_code,
+    COALESCE(b.status, ''::text) AS booking_status
+   FROM "WiFiUser" u
+     LEFT JOIN "Guest" g ON u."guestId" = g.id
+     LEFT JOIN "Booking" b ON u."bookingId" = b.id
+     LEFT JOIN "Room" r ON b."roomId" = r.id
+     LEFT JOIN "Property" p ON u."propertyId" = p.id
+     LEFT JOIN "WiFiPlan" wp ON u."planId" = wp.id;
+
+-- ---------------------------------------------------------------------------
+DROP VIEW IF EXISTS v_auth_logs CASCADE;
+
+-- ---------------------------------------------------------------------------
 -- VIEW: v_auth_logs
 -- Enhanced: now includes source IP from radpostauth.clientipaddress (the
 -- actual client IP from the HTTP auth request or RADIUS packet source).
@@ -195,15 +274,17 @@ SELECT session_id,
 -- specific rejection reason so operators can diagnose issues quickly.
 -- Updated: handles MAX_SESSIONS_REACHED, RADIUS_UNREACHABLE, AUTH_FAILED
 -- rejection reason codes from test-auth action.
+-- Fixed: nas_ip_address falls back to clientipaddress for external NAS entries
+-- (FreeRADIUS postauth writes NAS-IP-Address to clientipaddress).
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_auth_logs AS
+CREATE VIEW v_auth_logs AS
 SELECT pa.id::text AS id,
     pa.username,
     pa.reply AS auth_result,
     pa.authdate AS "timestamp",
     COALESCE(replace(acct.framedipaddress, '/32'::text, ''::text), ''::text) AS client_ip_address,
-    COALESCE(pa."nasIpAddress", ''::text) AS nas_ip_address,
-    COALESCE(pa.clientipaddress, ''::text) AS source_ip_address,
+    COALESCE(NULLIF(pa."nasIpAddress", ''), pa.clientipaddress, ''::text) AS nas_ip_address,
+    COALESCE(NULLIF(pa.clientipaddress, ''), COALESCE(pa."nasIpAddress", ''::text), ''::text) AS source_ip_address,
     COALESCE(pa.callingstationid, ''::text) AS calling_station_id,
     COALESCE(pa.calledstationid, ''::text) AS called_station_id,
     'PAP'::text AS auth_type,
@@ -269,55 +350,11 @@ SELECT pa.id::text AS id,
      LEFT JOIN radusergroup rg ON pa.username = rg.username;
 
 -- ---------------------------------------------------------------------------
--- VIEW: v_user_usage
--- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_user_usage AS
-SELECT u.id AS user_id,
-    u."tenantId",
-    u."propertyId",
-    u."guestId",
-    u."bookingId",
-    u.username,
-    u."planId",
-    u.status,
-    u."totalBytesIn",
-    u."totalBytesOut",
-    u."totalBytesIn" + u."totalBytesOut" AS total_data_used,
-    COALESCE((SELECT count(DISTINCT radacctid) FROM v_session_history sh WHERE sh.username = u.username), 0) AS total_sessions,
-    COALESCE((SELECT count(DISTINCT radacctid) FROM v_session_history sh WHERE sh.username = u.username AND sh.session_status = 'active'::text), 0) AS active_sessions,
-    u."totalBytesOut" AS total_download_bytes,
-    u."totalBytesIn" AS total_upload_bytes,
-    COALESCE((SELECT sum(ws.duration) FROM "WiFiSession" ws WHERE ws."guestId" = u."guestId"), 0::bigint) AS total_session_time,
-    u."lastAccountingAt" AS last_session_start,
-    COALESCE((SELECT min(ws."startTime") FROM "WiFiSession" ws WHERE ws."guestId" = u."guestId"), '1970-01-01 00:00:00+00'::timestamptz) AS first_session_start,
-    u."lastAccountingAt" AS "lastSeenAt",
-    u."createdAt",
-    u."updatedAt",
-    COALESCE(g."firstName", ''::text) AS guest_first_name,
-    COALESCE(g."lastName", ''::text) AS guest_last_name,
-    COALESCE(g.email, ''::citext) AS guest_email,
-    COALESCE(g."loyaltyTier", ''::text) AS guest_loyalty_tier,
-    CASE WHEN g."isVip" = true THEN 1 ELSE 0 END AS guest_is_vip,
-    COALESCE(r.number, ''::text) AS room_number,
-    COALESCE(r.name, ''::text) AS room_name,
-    COALESCE(p.name, ''::text) AS property_name,
-    COALESCE(wp.name, ''::text) AS plan_name,
-    wp."downloadSpeed" AS plan_download_speed,
-    wp."uploadSpeed" AS plan_upload_speed,
-    wp."dataLimit" AS plan_data_limit,
-    COALESCE(b."confirmationCode", ''::text) AS booking_code,
-    COALESCE(b.status, ''::text) AS booking_status
-   FROM "WiFiUser" u
-     LEFT JOIN "Guest" g ON u."guestId" = g.id
-     LEFT JOIN "Booking" b ON u."bookingId" = b.id
-     LEFT JOIN "Room" r ON b."roomId" = r.id
-     LEFT JOIN "Property" p ON u."propertyId" = p.id
-     LEFT JOIN "WiFiPlan" wp ON u."planId" = wp.id;
-
--- ---------------------------------------------------------------------------
 -- VIEW: v_wifi_users
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_wifi_users AS
+DROP VIEW IF EXISTS v_wifi_users CASCADE;
+
+CREATE VIEW v_wifi_users AS
 SELECT u.id,
     u."tenantId",
     u."propertyId",
@@ -366,7 +403,9 @@ SELECT u.id,
 -- ---------------------------------------------------------------------------
 -- VIEW: v_fup_switch_logs
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_fup_switch_logs AS
+DROP VIEW IF EXISTS v_fup_switch_logs CASCADE;
+
+CREATE VIEW v_fup_switch_logs AS
 SELECT fsl.id::text AS id,
     fsl.username,
     fsl.fup_policy_name,
