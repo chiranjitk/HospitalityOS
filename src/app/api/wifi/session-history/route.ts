@@ -317,8 +317,15 @@ export async function GET(request: NextRequest) {
     )
 
     // ── Determine date range ────────────────────────────────────────────────
+    console.log('[session-history] raw query params:', Object.fromEntries(searchParams.entries()))
     let dateRange = parseDateRange(startDateStr, endDateStr)
     if (!dateRange) {
+      dateRange = getDefaultDateRange()
+    }
+    // Validate date range — reject obviously bad values
+    const dateCheck = /^\d{4}-\d{2}-\d{2}/
+    if (!dateCheck.test(dateRange.startDate) || !dateCheck.test(dateRange.endDate)) {
+      console.error('[session-history] invalid date range, falling back to default:', dateRange)
       dateRange = getDefaultDateRange()
     }
 
@@ -340,6 +347,7 @@ export async function GET(request: NextRequest) {
 
     // Debug: log the actual params for troubleshooting
     console.log('[session-history] params:', JSON.stringify(params), 'limit:', limit, 'offset:', offset, 'whereClause:', whereClause)
+    console.log('[session-history] dateRange:', JSON.stringify(dateRange))
 
     // ── CSV Export path ─────────────────────────────────────────────────────
     if (exportFormat === 'csv') {
@@ -351,15 +359,21 @@ export async function GET(request: NextRequest) {
       ? `${whereClause} AND acctstoptime IS NULL`
       : 'WHERE acctstoptime IS NULL'
 
-    const [totalResult, summaryResult, activeCountResult, paginatedSessions] = await Promise.all([
-      // Total count within filters
-      db.$queryRawUnsafe<{ c: number | bigint }[]>(
+    // Run each query separately with individual error handling to isolate failures
+    let totalResult: { c: number | bigint }[] = []
+    let summaryResult: { total: number | bigint; total_input: number | bigint; total_output: number | bigint }[] = []
+    let activeCountResult: { c: number | bigint }[] = []
+    let paginatedSessions: Record<string, unknown>[] = []
+
+    try {
+      totalResult = await db.$queryRawUnsafe<{ c: number | bigint }[]>(
         `SELECT COUNT(*) as c FROM v_session_history ${whereClause}`,
         ...params
-      ),
+      )
+    } catch (e) { console.error('[session-history] total count query failed:', e) }
 
-      // Summary aggregation — uses same WHERE clause
-      db.$queryRawUnsafe<{
+    try {
+      summaryResult = await db.$queryRawUnsafe<{
         total: number | bigint;
         total_input: number | bigint;
         total_output: number | bigint;
@@ -368,17 +382,18 @@ export async function GET(request: NextRequest) {
                COALESCE(SUM(acctinputoctets), 0) as total_input,
                COALESCE(SUM(acctoutputoctets), 0) as total_output
         FROM v_session_history ${whereClause}
-      `, ...params),
+      `, ...params)
+    } catch (e) { console.error('[session-history] summary query failed:', e) }
 
-      // Active count (acctstoptime IS NULL) — within the same filter scope
-      db.$queryRawUnsafe<{ c: number | bigint }[]>(
+    try {
+      activeCountResult = await db.$queryRawUnsafe<{ c: number | bigint }[]>(
         `SELECT COUNT(*) as c FROM v_session_history ${activeWhereClause}`,
         ...params
-      ),
+      )
+    } catch (e) { console.error('[session-history] active count query failed:', e) }
 
-      // Paginated session data — use DISTINCT ON to deduplicate FULL JOIN rows
-      // NULLS LAST puts NULL acctstarttime rows at the end of DESC sort
-      queryWithFallback<Record<string, unknown>>(`
+    try {
+      paginatedSessions = await queryWithFallback<Record<string, unknown>>(`
         SELECT DISTINCT ON (acctuniqueid)
                radacctid, acctsessionid, acctuniqueid, username, nasipaddress,
                nasportid, nasporttype, acctstarttime, acctupdatetime, acctstoptime,
@@ -389,14 +404,14 @@ export async function GET(request: NextRequest) {
                guest_first_name, guest_last_name, guest_email, guest_phone,
                room_number, room_name, room_floor,
                property_name, plan_name,
-               downloadSpeed, uploadSpeed, dataLimit,
+               downloadspeed as "downloadSpeed", uploadspeed as "uploadSpeed", datalimit as "dataLimit",
                wifi_user_status, wifi_mac, session_status,
                __EXTENDED_COLS__
         FROM v_session_history ${whereClause}
         ORDER BY acctuniqueid, acctstarttime DESC NULLS LAST
         LIMIT $${params.length + 1}::bigint OFFSET $${params.length + 2}::bigint
-      `, ...params, String(limit), String(offset)),
-    ])
+      `, ...params, String(limit), String(offset))
+    } catch (e) { console.error('[session-history] paginated query failed:', e) }
 
     const total = Number(totalResult[0]?.c ?? 0)
     const aggregateRow = summaryResult[0]
@@ -458,6 +473,10 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('[session-history] GET error:', error)
+    // Log the full query details for debugging parameter binding issues
+    if (error instanceof Error && error.message.includes('timestamptz')) {
+      console.error('[session-history] timestamptz debug — check startDate/endDate values above')
+    }
 
     return NextResponse.json(
       {
