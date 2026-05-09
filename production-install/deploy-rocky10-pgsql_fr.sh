@@ -841,13 +841,17 @@ TimeoutStartSec=120
 EOF
 systemctl daemon-reload
 
-# ── 5i: Create RADIUS tables early (needed before FreeRADIUS config test) ────
+# ── 5i: Create RADIUS nas table early (needed before FreeRADIUS config test) ─
 # FreeRADIUS config check (-XC) connects to PostgreSQL and reads the 'nas' table
-# (read_clients = yes). These tables are normally created by complete-database.sql
-# in Step 11, but FreeRADIUS needs them NOW for its config validation.
+# (read_clients = yes). The nas table is normally created by complete-database.sql
+# in Step 11, but FreeRADIUS needs it NOW for its config validation.
 # Using IF NOT EXISTS so Step 11's run is a safe no-op later.
-info "Creating RADIUS core tables (nas, nasreload) early for FreeRADIUS..."
-sudo -u postgres psql -d staysuite <<'EOSQL'
+# IMPORTANT: Must run as 'staysuite' user so the table owner is staysuite,
+# otherwise Prisma (also connects as staysuite) will fail with "must be owner".
+# Only creating 'nas' here — 'nasreload' is only needed for accounting events
+# and will be created by complete-database.sql in Step 11.
+info "Creating RADIUS nas table early for FreeRADIUS config test..."
+psql -h 127.0.0.1 -U staysuite -d staysuite <<'EOSQL'
 CREATE TABLE IF NOT EXISTS nas (
     id              serial PRIMARY KEY,
     nasname         text NOT NULL,
@@ -858,10 +862,6 @@ CREATE TABLE IF NOT EXISTS nas (
     server          text,
     community       text,
     description     text
-);
-CREATE TABLE IF NOT EXISTS nasreload (
-    "NASIPAddress"  inet PRIMARY KEY,
-    "ReloadTime"    timestamptz NOT NULL
 );
 EOSQL
 
