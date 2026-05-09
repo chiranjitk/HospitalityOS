@@ -432,7 +432,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
                   acctsessiontime = v.session_time,
                   acctupdatetime = NOW()
                 FROM (VALUES ${values.join(',')}) AS v(radacct_id, input_octets, output_octets, session_time)
-                WHERE r.radacctid = v.radacct_id::text
+                WHERE r.radacctid = v.radacct_id::bigint
                   AND r.acctstoptime IS NULL
                   AND (r.acctstatus IS NULL OR r.acctstatus = '' OR r.acctstatus = 'start')
               `);
@@ -444,7 +444,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
                   UPDATE radacct SET
                     acctinputoctets = v.input_octets,
                     acctoutputoctets = v.output_octets
-                  FROM (SELECT unnest(ARRAY[${resetIds.map((_, i) => `$${i + 1}`).join(',')}])::text as id,
+                  FROM (SELECT unnest(ARRAY[${resetIds.map((_, i) => `$${i + 1}`).join(',')}])::bigint as id,
                                unnest(ARRAY[${toUpdate.filter(u => counterResetIds.has(u.session.radacctid)).map(u => u.newUl).join(',')}])::bigint as input_octets,
                                unnest(ARRAY[${toUpdate.filter(u => counterResetIds.has(u.session.radacctid)).map(u => u.newDl).join(',')}])::bigint as output_octets) v
                   WHERE radacctid = v.id AND acctstoptime IS NULL
@@ -544,7 +544,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
                 UPDATE radacct r SET
                   acctsessiontime = v.session_time${nftablesAvailable ? ', acctupdatetime = NOW()' : ''}
                 FROM (VALUES ${noCounterValues.join(',')}) AS v(radacct_id, session_time)
-                WHERE r.radacctid = v.radacct_id::text
+                WHERE r.radacctid = v.radacct_id::bigint
                   AND r.acctstoptime IS NULL
               `);
 
