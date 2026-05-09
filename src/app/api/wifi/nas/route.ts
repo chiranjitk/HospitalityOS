@@ -90,12 +90,12 @@ export async function POST(request: NextRequest) {
     `, id, context.tenantId, propertyId || null, name, shortname || name.replace(/\s+/g, '_').toLowerCase().slice(0, 32), ipAddress, type || 'other', nasSecret,
        coaEnabled !== false, coaPort || 3799, authPort || 1812, acctPort || 1813, now, now);
 
-    // Also insert into native FreeRADIUS nas table
+    // Also insert into native FreeRADIUS nas table (ports = coaPort for RADIUS disconnect)
     try {
       await db.$executeRawUnsafe(`
         INSERT INTO nas (nasname, shortname, type, ports, secret, server, community, description)
-        VALUES ($1, $2, $3, 3779, $4, NULL, NULL, $5)
-      `, ipAddress, shortname || name.replace(/\s+/g, '_').toLowerCase().slice(0, 32), type || 'other', nasSecret, description || name);
+        VALUES ($1, $2, $3, $4, $5, NULL, NULL, $6)
+      `, ipAddress, shortname || name.replace(/\s+/g, '_').toLowerCase().slice(0, 32), type || 'other', coaPort || 3799, nasSecret, description || name);
     } catch (nasErr) {
       console.warn('[NAS] Native nas table insert warning:', nasErr);
     }
@@ -155,17 +155,17 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Fix #4: Sync native FreeRADIUS nas table
+    // Fix #4: Sync native FreeRADIUS nas table (including ports = coaPort)
     try {
       await db.$executeRawUnsafe(`
         UPDATE nas
-        SET nasname = $1, shortname = $2, type = $3, secret = $4
-        WHERE nasname = $5
-      `,
-        ipAddress || oldIpAddress,
+        SET nasname = $1, shortname = $2, type = $3, secret = $4, ports = $5
+        WHERE nasname = $6
+      `, ipAddress || oldIpAddress,
         shortname || name?.replace(/\s+/g, '_').toLowerCase().slice(0, 32),
         type || 'other',
         sharedSecret || secret || 'changeme',
+        coaPort || 3799,
         oldIpAddress
       );
     } catch (nasErr) {
