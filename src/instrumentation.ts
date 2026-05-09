@@ -9,14 +9,24 @@
  */
 export const runtime = 'nodejs';
 
+import path from 'path';
+
 /**
  * Fully opaque dynamic import — uses Function constructor to prevent
  * Turbopack's static analysis from tracing the import chain.
  * This avoids "Node.js module loaded in Edge Runtime" warnings during
  * the Edge Instrumentation analysis pass.
+ *
+ * IMPORTANT: @/ path aliases don't work inside Function() because it
+ * runs outside the module resolution scope. We must resolve @/ to an
+ * absolute file path BEFORE passing it to the opaque import.
  */
-function dynImport(path: string) {
-  return new Function('p', 'return import(p)')(path);
+function dynImport(modulePath: string) {
+  // Resolve @/ path alias to absolute path for opaque import
+  const absolutePath = modulePath.startsWith('@/')
+    ? path.join(process.cwd(), 'src', modulePath.slice(2))
+    : modulePath;
+  return new Function('p', 'return import(p)')(absolutePath);
 }
 
 export async function register() {
@@ -32,7 +42,10 @@ export async function register() {
   // Delay slightly to let the server fully start
   setTimeout(async () => {
     try {
-      const schedulerModule = await dynImport('@/lib/jobs/scheduler').catch(() => null);
+      const schedulerModule = await dynImport('@/lib/jobs/scheduler').catch((err) => {
+        console.error('[Instrumentation] Scheduler import error:', err?.message || err);
+        return null;
+      });
       if (schedulerModule?.initializeScheduler) {
         schedulerModule.initializeScheduler();
         console.log('[Instrumentation] Background scheduler initialized');
@@ -46,7 +59,10 @@ export async function register() {
     // Initialize all pool TC classes (creates HTB root classes for bandwidth pools)
     setTimeout(async () => {
       try {
-        const scriptRunnerModule = await dynImport('@/lib/network/script-runner').catch(() => null);
+        const scriptRunnerModule = await dynImport('@/lib/network/script-runner').catch((err) => {
+          console.error('[Instrumentation] Script-runner import error:', err?.message || err);
+          return null;
+        });
         if (scriptRunnerModule?.initializeAllPoolClasses) {
           const result = await scriptRunnerModule.initializeAllPoolClasses();
           if (result.created > 0) {
