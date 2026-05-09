@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { query, isAvailable } from '@/lib/clickhouse';
 import { getNatLogsFromUlogd, resolveGuestNames } from '@/lib/ulogd-reader';
+import { correlateIpsToGuests } from '@/lib/ip-user-correlator';
 
 // ─── Static data for demo fallback ──────────────────────────────
 
@@ -267,107 +268,10 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // ── Guest name resolution ─────────────────────────────
-        const guestMap = new Map<string, string>();
+        // ── Guest name resolution via shared correlator ──────────
         const uniqueSourceIps = [...new Set(natRows.map((r) => String(r.src_ip ?? '')))];
-        const resolvedIps = new Set<string>();
-
-        try {
-          // Step 1: Match by WiFiSession.ipAddress (primary lookup)
-          const sessions = await db.wiFiSession.findMany({
-            where: {
-              tenantId: user.tenantId,
-              ipAddress: { in: uniqueSourceIps },
-            },
-            select: {
-              ipAddress: true,
-              guestId: true,
-            },
-          });
-
-          // Collect unique guest IDs and build IP→guestId map
-          const ipToGuestId = new Map<string, string>();
-          const guestIds: string[] = [];
-          for (const session of sessions) {
-            if (session.ipAddress && session.guestId) {
-              ipToGuestId.set(session.ipAddress, session.guestId);
-              guestIds.push(session.guestId);
-              resolvedIps.add(session.ipAddress);
-            }
-          }
-
-          // Batch-resolve guest names
-          if (guestIds.length > 0) {
-            const uniqueGuestIds = [...new Set(guestIds)];
-            const guests = await db.guest.findMany({
-              where: { id: { in: uniqueGuestIds } },
-              select: { id: true, firstName: true, lastName: true },
-            });
-
-            const guestNameById = new Map<string, string>();
-            for (const g of guests) {
-              const name = [g.firstName, g.lastName].filter(Boolean).join(' ');
-              if (name) guestNameById.set(g.id, name);
-            }
-
-            // Map IP → guest name
-            for (const [ip, guestId] of ipToGuestId) {
-              const name = guestNameById.get(guestId);
-              if (name) guestMap.set(ip, name);
-            }
-          }
-
-          // Step 2: For unresolved IPs, try DHCP lease table (MAC→IP→guest mapping)
-          const unresolvedIps = uniqueSourceIps.filter((ip) => !resolvedIps.has(ip));
-          if (unresolvedIps.length > 0) {
-            const dhcpLeases = await db.dhcpLease.findMany({
-              where: {
-                ipAddress: { in: unresolvedIps },
-              },
-              select: {
-                ipAddress: true,
-                macAddress: true,
-              },
-            });
-
-            for (const lease of dhcpLeases) {
-              if (guestMap.has(lease.ipAddress)) continue;
-              // Try matching MAC via DeviceProfile → WiFiUser → Guest
-              if (lease.macAddress && !guestMap.has(lease.ipAddress)) {
-                try {
-                  const device = await db.deviceProfile.findFirst({
-                    where: {
-                      macAddress: lease.macAddress,
-                      isActive: true,
-                    },
-                    select: { guestId: true, wifiUserId: true },
-                  });
-                  let targetGuestId = device?.guestId;
-                  // If no direct guestId, check via WiFiUser
-                  if (!targetGuestId && device?.wifiUserId) {
-                    const wu = await db.wiFiUser.findUnique({
-                      where: { id: device.wifiUserId },
-                      select: { guestId: true },
-                    });
-                    targetGuestId = wu?.guestId;
-                  }
-                  if (targetGuestId) {
-                    const guest = await db.guest.findUnique({
-                      where: { id: targetGuestId },
-                      select: { id: true, firstName: true, lastName: true },
-                    });
-                    if (guest) {
-                      const name = [guest.firstName, guest.lastName].filter(Boolean).join(' ');
-                      if (name) guestMap.set(lease.ipAddress, name);
-                    }
-                  }
-                } catch { /* skip */ }
-              }
-            }
-          }
-        } catch {
-          // Guest resolution is best-effort — continue without it
-        }
+        const correlation = await correlateIpsToGuests(uniqueSourceIps, user.tenantId);
+        const guestMap = correlation.ipToGuest;
 
         // ── Build enriched response ───────────────────────────
         enriched = natRows.map((row, idx) => {
