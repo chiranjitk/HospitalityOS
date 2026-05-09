@@ -250,7 +250,6 @@ install_build_deps() {
 
         # Libraries (headers)
         zlib-devel
-        pcre-devel
         openssl-devel
 
         # Runtime / utility
@@ -267,6 +266,43 @@ install_build_deps() {
         bzip2
         xz
     )
+
+    # PCRE1 (libpcre) — Rocky 10 dropped pcre-devel; need compat package
+    # e2guardian requires libpcre (PCRE1), NOT libpcre2
+    if rpm -q pcre-devel &>/dev/null || rpm -q libpcre-devel &>/dev/null; then
+        info "PCRE1 development headers already installed"
+    else
+        info "Attempting to install PCRE1 development library..."
+        # Try PCRE1 compat first (Rocky 10 may ship it under a different name)
+        if dnf install -y pcre1-devel &>/dev/null; then
+            success "  pcre1-devel installed"
+        elif dnf install -y pcre-devel &>/dev/null; then
+            success "  pcre-devel installed"
+        elif dnf install -y libpcre-devel &>/dev/null; then
+            success "  libpcre-devel installed"
+        else
+            # Rocky 10 may not have PCRE1 at all — build from source
+            warn "  PCRE1 not available from repos. Will build from source."
+            local pcre_ver="8.45"
+            local pcre_dir="/tmp/pcre-${pcre_ver}"
+            if [[ ! -d "${pcre_dir}" ]]; then
+                info "  Downloading PCRE ${pcre_ver} source..."
+                dnf install -y curl wget tar || true
+                curl -sL "https://sourceforge.net/projects/pcre/files/pcre/${pcre_ver}/pcre-${pcre_ver}.tar.gz/download" -o "/tmp/pcre-${pcre_ver}.tar.gz"
+                tar xzf "/tmp/pcre-${pcre_ver}.tar.gz" -C /tmp/
+            fi
+            info "  Compiling PCRE ${pcre_ver}..."
+            cd "${pcre_dir}"
+            ./configure --prefix=/usr/local --enable-utf8 --enable-unicode-properties
+            make -j"$(nproc)" && make install
+            # Ensure pkg-config and linker can find it
+            echo "/usr/local/lib" > /etc/ld.so.conf.d/pcre.conf
+            echo "/usr/local/lib/pkgconfig" > /etc/profile.d/pcre.sh
+                export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+            ldconfig
+            success "  PCRE ${pcre_ver} compiled and installed to /usr/local"
+        fi
+    fi
 
     info "Will install ${#deps[@]} packages via dnf..."
 
@@ -349,6 +385,10 @@ run_configure() {
     step "Running configure"
 
     cd "${SOURCE_DIR}"
+
+    # Ensure PKG_CONFIG_PATH includes /usr/local in case PCRE was built from source
+    export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+    export LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH:-}"
 
     # Resolve the installation prefix
     local prefix="${CUSTOM_PREFIX:-/usr/local}"
