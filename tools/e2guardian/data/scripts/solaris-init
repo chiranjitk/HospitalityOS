@@ -1,0 +1,47 @@
+#!/bin/sh
+#
+# Solaris startup script for e2guardian
+# partly based on httpd startup script
+#
+# description: A web content filtering plugin for web \
+#              proxies, developed to filter using lists of \
+#              banned phrases, MIME types, filename \
+#              extensions and PICS labelling.
+#ident	"@(#)e2guardian  5.5.9r     02/08/05 DB"
+
+# See how we were called.
+
+case "$1" in
+start)
+        if [ -f /home/z/my-project/e2guardian-install/sbin/e2guardian ] &&
+           [ -f /home/z/my-project/e2guardian-install/etc/e2guardian/e2guardian/e2guardian.conf ]; then
+                /home/z/my-project/e2guardian-install/sbin/e2guardian
+                echo "E2Guardian started."
+        fi
+        ;;
+stop)
+        if [ -f /home/z/my-project/e2guardian-install/var/run/e2guardian/e2guardian.pid ]; then
+                /home/z/my-project/e2guardian-install/sbin/e2guardian -q
+                /bin/rm -f /home/z/my-project/e2guardian-install/var/run/e2guardian/e2guardian.pid
+                /bin/rm -f /tmp/.dguardianipc
+                echo "E2Guardian stopped."
+        fi
+        ;;
+restart)
+        $0 stop
+        sleep 3
+        $0 start
+        ;;
+status)
+        if [ -f /home/z/my-project/e2guardian-install/sbin/e2guardian ]; then
+                /home/z/my-project/e2guardian-install/sbin/e2guardian -s
+        fi
+        ;;
+*)
+
+        echo "Usage: $0 {start|stop|restart}" >&2
+        ;;
+esac
+
+
+exit 0
