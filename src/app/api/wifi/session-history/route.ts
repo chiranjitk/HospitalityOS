@@ -393,6 +393,11 @@ export async function GET(request: NextRequest) {
     } catch (e) { console.error('[session-history] active count query failed:', e) }
 
     try {
+      // Inline LIMIT/OFFSET — they are validated integers from parsePagination(),
+      // no SQL injection risk. Using $params for LIMIT/OFFSET causes Prisma
+      // parameter binding issues (misroutes param positions with timestamptz casts).
+      const safeLimit = Math.max(1, Math.min(limit, 500))
+      const safeOffset = Math.max(0, offset)
       paginatedSessions = await queryWithFallback<Record<string, unknown>>(`
         SELECT DISTINCT ON (acctuniqueid)
                radacctid, acctsessionid, acctuniqueid, username, nasipaddress,
@@ -409,8 +414,8 @@ export async function GET(request: NextRequest) {
                __EXTENDED_COLS__
         FROM v_session_history ${whereClause}
         ORDER BY acctuniqueid, acctstarttime DESC NULLS LAST
-        LIMIT $${params.length + 1}::bigint OFFSET $${params.length + 2}::bigint
-      `, ...params, String(limit), String(offset))
+        LIMIT ${safeLimit} OFFSET ${safeOffset}
+      `, ...params)
     } catch (e) { console.error('[session-history] paginated query failed:', e) }
 
     const total = Number(totalResult[0]?.c ?? 0)
@@ -510,8 +515,8 @@ async function handleCsvExport(
            guest_first_name, guest_last_name, room_number, property_name, plan_name
     FROM v_session_history ${whereClause}
     ORDER BY acctstarttime DESC NULLS LAST
-    LIMIT $${params.length + 1}::bigint
-  `, ...params, String(EXPORT_MAX_ROWS))
+    LIMIT 50000
+  `, ...params)
 
   // Generate CSV
   const csvRows: string[] = []
