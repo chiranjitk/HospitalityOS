@@ -92,6 +92,10 @@ import {
   Building2,
   Lock,
   ShieldCheck,
+  Eye,
+  EyeOff,
+  Copy,
+  CheckCheck,
 } from 'lucide-react';
 import CredentialPolicyTab, { type CredentialConfig } from './credential-policy-tab';
 import { useToast } from '@/hooks/use-toast';
@@ -543,6 +547,8 @@ export default function AAAConfig() {
     authPort: 1812,
     acctPort: 1813,
   });
+  const [showSecret, setShowSecret] = useState(false);
+  const [secretCopied, setSecretCopied] = useState(false);
   
   // AAA Config
   const [aaaConfig, setAaaConfig] = useState<AAAConfig>({
@@ -1020,6 +1026,8 @@ export default function AAAConfig() {
       acctPort: 1813,
     });
     setEditingNas(null);
+    setShowSecret(false);
+    setSecretCopied(false);
   };
 
   // Open Edit Dialog
@@ -1448,12 +1456,43 @@ export default function AAAConfig() {
                           Generate
                         </Button>
                       </div>
-                      <Input
-                        value={nasForm.secret}
-                        onChange={(e) => setNasForm(prev => ({ ...prev, secret: e.target.value }))}
-                        placeholder="Enter or generate a secret"
-                        type="password"
-                      />
+                      <div className="relative">
+                        <Input
+                          value={nasForm.secret}
+                          onChange={(e) => setNasForm(prev => ({ ...prev, secret: e.target.value }))}
+                          placeholder="Enter or generate a secret"
+                          type={showSecret ? 'text' : 'password'}
+                          className="pr-20"
+                        />
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                            onClick={() => setShowSecret(prev => !prev)}
+                            tabIndex={-1}
+                          >
+                            {showSecret ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              if (nasForm.secret) {
+                                navigator.clipboard.writeText(nasForm.secret);
+                                setSecretCopied(true);
+                                setTimeout(() => setSecretCopied(false), 2000);
+                              }
+                            }}
+                            tabIndex={-1}
+                          >
+                            {secretCopied ? <CheckCheck className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label>Auth Port</Label>
