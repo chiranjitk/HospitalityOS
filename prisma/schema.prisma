@@ -4243,8 +4243,8 @@ model RadAcct {
   acctoutputpackets   Int?      @default(0)
   acctstatus          String?   @default("start")
   loginType           String?   @default("portal") // portal, mac, voucher, etc.
-  createdAt           DateTime  @default(now()) @db.Timestamptz
-  updatedAt           DateTime  @updatedAt @db.Timestamptz
+  createdAt           DateTime  @default(now()) @map("createdat") @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @map("updatedat") @db.Timestamptz
   radiusClass         String?   @map("class")
 
   @@index([acctuniqueid], map: "radacct_active_session_idx")
