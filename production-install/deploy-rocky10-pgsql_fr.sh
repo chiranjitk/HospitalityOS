@@ -841,7 +841,31 @@ TimeoutStartSec=120
 EOF
 systemctl daemon-reload
 
-# ── 5i: Test and start FreeRADIUS ───────────────────────────────────────────
+# ── 5i: Create RADIUS tables early (needed before FreeRADIUS config test) ────
+# FreeRADIUS config check (-XC) connects to PostgreSQL and reads the 'nas' table
+# (read_clients = yes). These tables are normally created by complete-database.sql
+# in Step 11, but FreeRADIUS needs them NOW for its config validation.
+# Using IF NOT EXISTS so Step 11's run is a safe no-op later.
+info "Creating RADIUS core tables (nas, nasreload) early for FreeRADIUS..."
+sudo -u postgres psql -d staysuite <<'EOSQL'
+CREATE TABLE IF NOT EXISTS nas (
+    id              serial PRIMARY KEY,
+    nasname         text NOT NULL,
+    shortname       text NOT NULL,
+    type            text NOT NULL DEFAULT 'other',
+    ports           integer,
+    secret          text NOT NULL,
+    server          text,
+    community       text,
+    description     text
+);
+CREATE TABLE IF NOT EXISTS nasreload (
+    "NASIPAddress"  inet PRIMARY KEY,
+    "ReloadTime"    timestamptz NOT NULL
+);
+EOSQL
+
+# ── 5j: Test and start FreeRADIUS ───────────────────────────────────────────
 # Ensure PG is accepting TCP connections before FreeRADIUS tries to connect
 info "Verifying PostgreSQL is ready for FreeRADIUS..."
 if ! pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null; then
