@@ -1,0 +1,2 @@
+2026-05-09 17:55:54.684 UTC [32748] FATAL:  lock file "postmaster.pid" already exists
+2026-05-09 17:55:54.684 UTC [32748] HINT:  Is another postmaster (PID 15252) running in data directory "/home/z/my-project/pgsql-runtime/data"?
