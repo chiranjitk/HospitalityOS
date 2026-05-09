@@ -9,26 +9,21 @@
  */
 export const runtime = 'nodejs';
 
-import path from 'path';
-
 /**
- * Fully opaque dynamic import — uses Function constructor to prevent
- * Turbopack's static analysis from tracing the import chain.
- * This avoids "Node.js module loaded in Edge Runtime" warnings during
- * the Edge Instrumentation analysis pass.
+ * Use direct import() — NOT Function() constructor.
  *
- * IMPORTANT: @/ path aliases don't work inside Function() because it
- * runs outside the module resolution scope. We must resolve @/ to an
- * absolute file path BEFORE passing it to the opaque import.
+ * Why NOT Function():
+ *   Function('return import(p)') runs outside the module resolution scope.
+ *   - @/ path aliases are NOT available (Node.js doesn't know about them)
+ *   - In standalone mode, cwd = /opt/staysuite/.next/standalone/ and
+ *     source .ts files don't exist there anyway
+ *
+ * Why direct import() works:
+ *   - Next.js resolves @/ aliases at BUILD TIME in the compiled output
+ *   - In standalone, the compiled chunks have correct resolved paths
+ *   - In dev, Turbopack handles the resolution at compile time
+ *   - runtime = 'nodejs' tells Turbopack this is Node.js-only
  */
-function dynImport(modulePath: string) {
-  // Resolve @/ path alias to absolute path for opaque import
-  const absolutePath = modulePath.startsWith('@/')
-    ? path.join(process.cwd(), 'src', modulePath.slice(2))
-    : modulePath;
-  return new Function('p', 'return import(p)')(absolutePath);
-}
-
 export async function register() {
   // Only run on the server side
   if (typeof window !== 'undefined') return;
@@ -42,10 +37,7 @@ export async function register() {
   // Delay slightly to let the server fully start
   setTimeout(async () => {
     try {
-      const schedulerModule = await dynImport('@/lib/jobs/scheduler').catch((err) => {
-        console.error('[Instrumentation] Scheduler import error:', err?.message || err);
-        return null;
-      });
+      const schedulerModule = await import('@/lib/jobs/scheduler');
       if (schedulerModule?.initializeScheduler) {
         schedulerModule.initializeScheduler();
         console.log('[Instrumentation] Background scheduler initialized');
@@ -53,16 +45,13 @@ export async function register() {
         console.warn('[Instrumentation] Scheduler module not available');
       }
     } catch (err) {
-      console.error('[Instrumentation] Failed to initialize scheduler:', err);
+      console.error('[Instrumentation] Scheduler import error:', (err as Error)?.message || err);
     }
 
     // Initialize all pool TC classes (creates HTB root classes for bandwidth pools)
     setTimeout(async () => {
       try {
-        const scriptRunnerModule = await dynImport('@/lib/network/script-runner').catch((err) => {
-          console.error('[Instrumentation] Script-runner import error:', err?.message || err);
-          return null;
-        });
+        const scriptRunnerModule = await import('@/lib/network/script-runner');
         if (scriptRunnerModule?.initializeAllPoolClasses) {
           const result = await scriptRunnerModule.initializeAllPoolClasses();
           if (result.created > 0) {
@@ -75,7 +64,7 @@ export async function register() {
           console.warn('[Instrumentation] Script-runner module not available');
         }
       } catch (err) {
-        console.error('[Instrumentation] Failed to initialize pool classes:', err);
+        console.error('[Instrumentation] Script-runner import error:', (err as Error)?.message || err);
       }
     }, 2000);
   }, 3000);
