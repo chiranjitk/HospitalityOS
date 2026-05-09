@@ -1052,7 +1052,7 @@ export async function GET(request: NextRequest) {
             LEFT JOIN "BandwidthPolicy" bp ON fap."switchOverBwPolicyId" = bp.id
             ${whereClause}
             ORDER BY fap.priority ASC, fap."createdAt" DESC
-            LIMIT $${sqlParams.length - 1} OFFSET $${sqlParams.length}
+            LIMIT $${sqlParams.length - 1}::int OFFSET $${sqlParams.length}::int
           `, ...sqlParams);
 
           const totalResult = await db.$queryRawUnsafe<[{ c: number | bigint }][]>(
@@ -1165,7 +1165,7 @@ export async function GET(request: NextRequest) {
             LEFT JOIN "User" u ON u.id::text = h."changedBy"
             ${whereClause}
             ORDER BY h."createdAt" DESC
-            LIMIT $${sqlParams.length - 1} OFFSET $${sqlParams.length}
+            LIMIT $${sqlParams.length - 1}::int OFFSET $${sqlParams.length}::int
           `, ...sqlParams);
 
           const safeRows = JSON.parse(JSON.stringify(rows, (_, v) => typeof v === 'bigint' ? Number(v) : v));

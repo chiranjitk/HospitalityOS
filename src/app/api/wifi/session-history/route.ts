@@ -391,7 +391,7 @@ export async function GET(request: NextRequest) {
                __EXTENDED_COLS__
         FROM v_session_history ${whereClause}
         ORDER BY acctuniqueid, acctstarttime DESC NULLS LAST
-        LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+        LIMIT $${params.length + 1}::int OFFSET $${params.length + 2}::int
       `, ...params, limit, offset),
     ])
 
