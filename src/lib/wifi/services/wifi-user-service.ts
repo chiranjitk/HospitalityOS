@@ -141,15 +141,9 @@ export async function syncRadiusGroup(plan: {
     // Acct-Interim-Interval: default 60s
     groupReplies.push({ attribute: 'Acct-Interim-Interval', op: ':=', value: '60', priority: 13 });
 
-    // Data limits (RFC standard)
-    if (dataLimitMB > 0) {
-      const dataLimitBytes = dataLimitMB * 1024 * 1024;
-      groupReplies.push(
-        { attribute: 'Max-Total-Octets', op: ':=', value: String(dataLimitBytes), priority: 20 },
-        { attribute: 'Max-Input-Octets', op: ':=', value: String(dataLimitBytes), priority: 21 },
-        { attribute: 'Max-Output-Octets', op: ':=', value: String(dataLimitBytes), priority: 22 },
-      );
-    }
+    // NOTE: Max-Total-Octets / Max-Input-Octets / Max-Output-Octets are NOT
+    // defined in any FreeRADIUS dictionary and cause SQL module failures.
+    // Data limits are handled via vendor-specific attributes below.
 
     // Cryptsk VSAs (only when Cryptsk is active NAS)
     if (vendors.includes('cryptsk')) {
