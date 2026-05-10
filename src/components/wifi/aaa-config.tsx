@@ -1591,6 +1591,25 @@ export default function AAAConfig() {
                           />
                           <p className="text-xs text-muted-foreground">HTTPS port for REST API (default 443)</p>
                         </div>
+                        {/* MikroTik Setup Instructions */}
+                        <div className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3">
+                          <p className="text-xs font-semibold text-amber-800 dark:text-amber-400 flex items-center gap-1 mb-2">
+                            <Info className="h-3.5 w-3.5" />
+                            MikroTik Router Setup Required
+                          </p>
+                          <p className="text-xs text-amber-700 dark:text-amber-500 mb-2">
+                            SSH into your MikroTik and run these commands to enable the REST API with a self-signed certificate:
+                          </p>
+                          <div className="bg-amber-100 dark:bg-amber-900/40 rounded-md p-2.5 space-y-1.5">
+                            <code className="block text-[11px] font-mono text-amber-900 dark:text-amber-200 whitespace-pre-wrap">/ip service enable www-ssl</code>
+                            <code className="block text-[11px] font-mono text-amber-900 dark:text-amber-200 whitespace-pre-wrap">/certificate add name=local-cert common-name=mikrotik key-size=2048</code>
+                            <code className="block text-[11px] font-mono text-amber-900 dark:text-amber-200 whitespace-pre-wrap">/certificate sign local-cert</code>
+                            <code className="block text-[11px] font-mono text-amber-900 dark:text-amber-200 whitespace-pre-wrap">/ip service set www-ssl certificate=local-cert</code>
+                          </div>
+                          <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-2">
+                            Verify: <code className="font-mono">curl -k -u admin:PASSWORD https://MIKROTIK_IP/rest/ip/hotspot/active</code>
+                          </p>
+                        </div>
                       </>
                     )}
                   </div>
