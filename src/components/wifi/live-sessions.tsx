@@ -372,6 +372,7 @@ export default function LiveSessions() {
           acctSessionId,
           username: session.username,
           nasIp: session.nasIp,
+          framedIpAddress: session.ipAddress,
         }),
       });
       const data = await res.json();

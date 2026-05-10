@@ -2213,8 +2213,8 @@ export async function POST(request: NextRequest) {
           // Disconnect active sessions if suspending/deactivating
           if (newStatus === 'suspended' || newStatus === 'deactivated') {
             try {
-              const activeSessions = await db.$queryRawUnsafe<{ acctuniqueid: string; acctsessionid: string; nasipaddress: string }[]>(
-                'SELECT acctuniqueid, acctsessionid, nasipaddress FROM radacct WHERE username = $1 AND acctstoptime IS NULL LIMIT 10',
+              const activeSessions = await db.$queryRawUnsafe<{ acctuniqueid: string; acctsessionid: string; nasipaddress: string; framedipaddress: string }[]>(
+                'SELECT acctuniqueid, acctsessionid, nasipaddress, framedipaddress FROM radacct WHERE username = $1 AND acctstoptime IS NULL LIMIT 10',
                 user.username
               );
 
@@ -2250,7 +2250,7 @@ export async function POST(request: NextRequest) {
                     const radclientPath = '/usr/bin/radclient';
                     const { execSync } = await import('child_process');
                     const fs = await import('fs');
-                    const attrs = 'User-Name="' + user.username + '"\nAcct-Session-Id="' + session.acctsessionid + '"';
+                    const attrs = 'User-Name="' + user.username + '"\nAcct-Session-Id="' + session.acctsessionid + '"' + (session.framedipaddress ? '\nFramed-IP-Address=' + session.framedipaddress.replace(/\/\d+$/, '') : '');
                     const tmpAttrsFile = '/tmp/radclient-disconnect-' + Date.now() + '.txt';
                     fs.writeFileSync(tmpAttrsFile, attrs + '\n');
                     try {
@@ -3145,7 +3145,7 @@ export async function POST(request: NextRequest) {
 
       case 'live-sessions-disconnect': {
         // Accept both sessionId (LiveSession id, may have ls_ prefix) and acctSessionId (bare)
-        const { sessionId, acctSessionId, username, nasIp } = data;
+        const { sessionId, acctSessionId, username, nasIp, framedIpAddress } = data;
         const effectiveSessionId = sessionId || acctSessionId;
         console.log('[live-sessions-disconnect] RAW data:', JSON.stringify({ sessionId, acctSessionId, username, nasIp }));
 
@@ -3200,7 +3200,9 @@ export async function POST(request: NextRequest) {
 
           // Build radclient attributes — use clean IP (without CIDR) for radclient
           const radclientPath = '/usr/bin/radclient';
-          const attrs = `User-Name="${disconnectUsername}"${bareSessionId ? `\nAcct-Session-Id="${bareSessionId}"` : ''}`;
+          // Build attributes — MikroTik requires Framed-IP-Address to identify the session
+          const ipLine = framedIpAddress ? `\nFramed-IP-Address=${framedIpAddress.replace(/\/\d+$/, '')}` : '';
+          const attrs = `User-Name="${disconnectUsername}"${bareSessionId ? `\nAcct-Session-Id="${bareSessionId}"` : ''}${ipLine}`;
           const tmpAttrsFile = `/tmp/radclient-disconnect-${Date.now()}.txt`;
           const { execSync } = await import('child_process');
           const fs = await import('fs');
