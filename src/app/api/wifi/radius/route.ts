@@ -2828,7 +2828,8 @@ export async function POST(request: NextRequest) {
                   if (mac) coaAttrs += `\nCalling-Station-Id="${mac}"`;
                   if (s.framedipaddress) coaAttrs += `\nFramed-IP-Address=${s.framedipaddress.replace(/\/\d+$/, '')}`;
                   if (vendor === 'mikrotik') {
-                    coaAttrs += `\nMikrotik-Rate-Limit="${dlMbpsCoa}M/${ulMbpsCoa}M"`;
+                    // Mikrotik-Rate-Limit rx/tx: rx=upload, tx=download (NAS perspective)
+                    coaAttrs += `\nMikrotik-Rate-Limit="${ulMbpsCoa}M/${dlMbpsCoa}M"`;
                   } else if (vendor === 'cisco') {
                     coaAttrs += `\nCisco-AVPair="sub:Ingress-Committed-Data-Rate=${ulBps}"\nCisco-AVPair="sub:Egress-Committed-Data-Rate=${dlBps}"`;
                   } else {
