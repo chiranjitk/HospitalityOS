@@ -245,6 +245,47 @@ const RAW_OUI_ENTRIES: OUIEntry[] = [
     '500c0f','5c628b','6cb4ce','782bcb','840d8e','908d6c','c071bf','c83f65',
     'd8bbd1','ec172f',
   ].map(oui => [oui, 'Tenda'] as OUIEntry),
+
+  // ═══════════════════════════════════════════════════════════════
+  // 5. VIRTUAL MACHINE ADAPTERS (test environments, VPN clients)
+  // ═══════════════════════════════════════════════════════════════
+
+  // VMware (ESXi, Workstation, Fusion)
+  ...[
+    '000c29','005056','001c14','00c029','000569','b4a942','c8b0c2',
+    'c89c1d','2c8c2c','1caac7','38a5b6','506e14','5c3642','704d73',
+    '7c6dce','8c1ac3','a47b83','b2c45a','d0c022','e0c710','f06819',
+    'f8b156','00a0c5','b27423','5858a8','a8a48a','782bcb','386077',
+  ].map(oui => [oui, 'VMware'] as OUIEntry),
+
+  // VirtualBox (Oracle)
+  ...[
+    '080027','084a0c','0a0027','080028','0021f6','087102','a0c9a0',
+    'b8ac6f','508821','5c7514','f48cae','006d75','782bcb','080027',
+  ].map(oui => [oui, 'VirtualBox'] as OUIEntry),
+
+  // Hyper-V / Microsoft Virtual PC
+  ...[
+    '00155d','001dd8','401345','525400','003876','7eef01','28183b',
+  ].map(oui => [oui, 'Hyper-V'] as OUIEntry),
+
+  // KVM / QEMU / libvirt
+  ...[
+    '525400','fe5400','5a2282','fe5500','5e0c52','2a050c','3a2805',
+    '56a40e','7a460c','c6392e','b62c9e','8cf016','d2a0a8','e04c24',
+  ].map(oui => [oui, 'KVM'] as OUIEntry),
+
+  // Parallels (macOS virtualization)
+  ...[
+    '001c42','00c0df','001cff','0a003e','0a00bc','0a00e0','0a0040',
+    '0a00d1','0a00c0','0a00f0','6a1ca2','b8a860','c82f71','0a0000',
+  ].map(oui => [oui, 'Parallels'] as OUIEntry),
+
+  // Docker / Container Linux
+  ...[
+    '02420c','02423e','0242ac','024264','0242b4','0242f0','0242f8',
+    '02e4dc','0254e8','0264b9','02cf2c','0268cc','02789c','02a64e',
+  ].map(oui => [oui, 'Docker'] as OUIEntry),
 ];
 
 // ---------------------------------------------------------------------------
@@ -305,6 +346,12 @@ const VENDOR_DEVICE_MAP: Record<string, VendorInfo> = {
   'D-Link':     { vendor: 'D-Link',     deviceName: 'D-Link',        deviceType: 'router',  os: 'Router OS' },
   'Netgear':    { vendor: 'Netgear',    deviceName: 'Netgear',       deviceType: 'router',  os: 'Router OS' },
   'Tenda':      { vendor: 'Tenda',      deviceName: 'Tenda',         deviceType: 'router',  os: 'Router OS' },
+  'VMware':     { vendor: 'VMware',     deviceName: 'VMware VM',     deviceType: 'desktop', os: 'VMware' },
+  'VirtualBox': { vendor: 'VirtualBox', deviceName: 'VirtualBox VM', deviceType: 'desktop', os: 'Virtual' },
+  'Hyper-V':    { vendor: 'Hyper-V',    deviceName: 'Hyper-V VM',    deviceType: 'desktop', os: 'Virtual' },
+  'KVM':        { vendor: 'KVM',        deviceName: 'KVM VM',        deviceType: 'desktop', os: 'Virtual' },
+  'Parallels':  { vendor: 'Parallels',  deviceName: 'Parallels VM',  deviceType: 'desktop', os: 'Virtual' },
+  'Docker':     { vendor: 'Docker',     deviceName: 'Docker',        deviceType: 'desktop', os: 'Linux' },
 };
 
 // ---------------------------------------------------------------------------
