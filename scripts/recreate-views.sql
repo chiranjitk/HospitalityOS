@@ -276,6 +276,8 @@ DROP VIEW IF EXISTS v_auth_logs CASCADE;
 -- rejection reason codes from test-auth action.
 -- Fixed: nas_ip_address falls back to clientipaddress for external NAS entries
 -- (FreeRADIUS postauth writes NAS-IP-Address to clientipaddress).
+-- Updated: uses radpostauth.replyMessage for external NAS rejects (FreeRADIUS
+-- sets Reply-Message attribute but not the pass column reason code).
 -- ---------------------------------------------------------------------------
 CREATE VIEW v_auth_logs AS
 SELECT pa.id::text AS id,
@@ -316,6 +318,10 @@ SELECT pa.id::text AS id,
                 COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
             WHEN pa.pass LIKE 'INVALID_%%'::text OR pa.pass LIKE 'MISSING_%%'::text OR pa.pass LIKE 'VOUCHER_%%'::text OR pa.pass LIKE 'AUTH_%%'::text THEN
                 'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
+                COALESCE(' — user: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+            WHEN pa."replyMessage" IS NOT NULL AND pa."replyMessage" != ''::text THEN
+                'Rejected — '::text || pa."replyMessage" ||
                 COALESCE(' — user: '::text || pa.username, ''::text) ||
                 COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
             WHEN wu.id IS NOT NULL THEN

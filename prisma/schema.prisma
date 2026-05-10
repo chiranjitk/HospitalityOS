@@ -4517,6 +4517,7 @@ model RadPostAuth {
   nasIpAddress     String?
   clientipaddress  String?  @map("clientipaddress")
   radiusClass      String?  @map("class")
+  replyMessage     String?  @map("replyMessage")
 
   @@map("radpostauth")
 }

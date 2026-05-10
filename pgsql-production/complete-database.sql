@@ -166,6 +166,12 @@ BEGIN
         ) THEN
             ALTER TABLE radpostauth ADD COLUMN "clientipaddress" text;
         END IF;
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'radpostauth' AND column_name = 'replyMessage'
+        ) THEN
+            ALTER TABLE radpostauth ADD COLUMN "replyMessage" text;
+        END IF;
     END IF;
 END $$;
 
@@ -486,6 +492,8 @@ CREATE VIEW v_active_sessions AS  SELECT session_id,
 -- 2026-05-05: Added DeviceProfile MAC fallback for calling_station_id.
 --   When radpostauth.callingstationid is NULL (WAN/captive portal auth),
 --   falls back to DeviceProfile.macAddress for the matched WiFiUser.
+-- 2026-06: Uses radpostauth.replyMessage for external NAS rejects (FreeRADIUS
+--   sets Reply-Message attribute with actual rejection reason, e.g. IP pool deny).
 -- ---------------------------------------------------------------------------
 CREATE VIEW v_auth_logs AS  SELECT pa.id::text AS id,
     pa.username,
@@ -525,6 +533,10 @@ CREATE VIEW v_auth_logs AS  SELECT pa.id::text AS id,
                 COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
             WHEN pa.pass LIKE 'INVALID_%%'::text OR pa.pass LIKE 'MISSING_%%'::text OR pa.pass LIKE 'VOUCHER_%%'::text OR pa.pass LIKE 'AUTH_%%'::text THEN
                 'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
+                COALESCE(' — user: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+            WHEN pa."replyMessage" IS NOT NULL AND pa."replyMessage" != ''::text THEN
+                'Rejected — '::text || pa."replyMessage" ||
                 COALESCE(' — user: '::text || pa.username, ''::text) ||
                 COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
             WHEN wu.id IS NOT NULL THEN
@@ -939,23 +951,50 @@ CREATE OR REPLACE FUNCTION public.fn_check_ip_pool(p_username text, p_ip inet)
  STABLE
 AS $function$
 DECLARE
-    v_pool_id UUID;
+    v_user_pool_id UUID;
+    v_plan_id UUID;
+    v_plan_pool_id UUID;
     v_in_pool BOOLEAN;
 BEGIN
-    SELECT COALESCE(wu."ipPoolId", wp."ipPoolId")
-    INTO v_pool_id
+    -- Resolve user's pool assignment and plan
+    SELECT wu."ipPoolId", wu."planId"
+    INTO v_user_pool_id, v_plan_id
     FROM "WiFiUser" wu
-    LEFT JOIN "WiFiPlan" wp ON wu."planId" = wp.id
     WHERE wu.username = p_username AND wu.status = 'active'
     LIMIT 1;
-    IF v_pool_id IS NULL THEN
-        SELECT id INTO v_pool_id FROM "IpPool"
-        WHERE "isDefault" = true AND enabled = true LIMIT 1;
+
+    -- Priority 1: User-level IP pool override
+    IF v_user_pool_id IS NOT NULL THEN
+        SELECT EXISTS (
+            SELECT 1 FROM "IpPoolRange"
+            WHERE "poolId" = v_user_pool_id AND p_ip >= "startIp" AND p_ip <= "endIp"
+        ) INTO v_in_pool;
+        IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
     END IF;
-    IF v_pool_id IS NULL THEN RETURN 1; END IF;
+
+    -- Priority 2: No plan at all → don't check, allow
+    IF v_plan_id IS NULL THEN
+        RETURN 1;
+    END IF;
+
+    -- Priority 3: Plan has a specific pool → check that pool only
+    SELECT wp."ipPoolId" INTO v_plan_pool_id
+    FROM "WiFiPlan" wp WHERE wp.id = v_plan_id LIMIT 1;
+
+    IF v_plan_pool_id IS NOT NULL THEN
+        SELECT EXISTS (
+            SELECT 1 FROM "IpPoolRange"
+            WHERE "poolId" = v_plan_pool_id AND p_ip >= "startIp" AND p_ip <= "endIp"
+        ) INTO v_in_pool;
+        IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
+    END IF;
+
+    -- Priority 4: Plan exists but has NO pool → check ALL enabled pools
+    -- IP must be in at least one pool; if not found in any, reject
     SELECT EXISTS (
-        SELECT 1 FROM "IpPoolRange"
-        WHERE "poolId" = v_pool_id AND p_ip >= "startIp" AND p_ip <= "endIp"
+        SELECT 1 FROM "IpPoolRange" r
+        JOIN "IpPool" ip ON ip.id = r."poolId"
+        WHERE ip.enabled = true AND p_ip >= r."startIp" AND p_ip <= r."endIp"
     ) INTO v_in_pool;
     IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
 END;
