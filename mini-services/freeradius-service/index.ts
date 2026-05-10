@@ -2615,18 +2615,44 @@ sql {
       // Adding 'Auth-Type SQL { sql }' causes: "sql modules aren't allowed in 'authenticate' sections"
       details.push('Skipped authenticate section (FreeRADIUS 3.x auto-verifies from authorize)');
 
-      // Add sql to post-auth section (to log auth results to radpostauth for all NAS)
+      // Add sql to post-auth section AFTER the IP pool check (for Access-Accept logging).
+      // CRITICAL: sql must come AFTER the IP pool check block, not before it.
+      // When reject fires during the IP pool check, FreeRADIUS skips remaining post-auth
+      // modules and jumps to Post-Auth-Type REJECT. So:
+      //   Accept → sql runs in post-auth → one Accept row
+      //   Reject → sql skipped in post-auth → sql runs in Post-Auth-Type REJECT → one Reject row
+      //
+      // On existing deployments, sql may already be at the TOP of post-auth (before IP pool check).
+      // We must remove it from there and re-add at the bottom to prevent duplicate radpostauth rows.
       const postAuthSection = sitesContent.match(/post-auth\s*\{([^}]*)\}/);
-      if (postAuthSection && !postAuthSection[1].includes('sql')) {
+      if (postAuthSection) {
+        let postAuthContent = postAuthSection[1];
+        const hadSqlAtTop = /^\s*# StaySuite: Log auth results to radpostauth[^\n]*\n\s*sql/.test(postAuthContent);
+        if (hadSqlAtTop) {
+          // Remove sql from top (was inserted before IP pool check — causes double rows)
+          postAuthContent = postAuthContent
+            .replace(/^\s*# StaySuite: Log auth results to radpostauth[^\n]*\n\s*sql\s*\n?/, '');
+          details.push('Removed sql from top of post-auth (was before IP pool check)');
+        } else if (/^\s*sql\s*$/m.test(postAuthContent)) {
+          // Also handle bare 'sql' at top without our comment (default FreeRADIUS placement)
+          const firstSqlIdx = postAuthContent.search(/^\s*sql\s*$/m);
+          if (firstSqlIdx < postAuthContent.search(/StaySuite: IP Pool/) && firstSqlIdx < 200) {
+            postAuthContent = postAuthContent.replace(/^\s*sql\s*\n?/m, '');
+            details.push('Moved sql from top to end of post-auth (before IP pool check)');
+          }
+        }
+        // Add sql at the end of post-auth (after IP pool check and FUP blocks)
+        if (!/\bsql\b/.test(postAuthContent)) {
+          postAuthContent += '\n\t# StaySuite: Log auth results to radpostauth\n\tsql';
+          details.push('Added sql to end of post-auth section (after IP pool check)');
+        }
         sitesContent = sitesContent.replace(
-          /post-auth\s*\{/,
-          'post-auth {\n\t# StaySuite: Log auth results to radpostauth (Access-Accept)\n\tsql'
+          /post-auth\s*\{[^}]*\}/,
+          `post-auth {${postAuthContent}}`
         );
-        details.push('Added sql to post-auth section');
       }
 
-      // Also add sql to Post-Auth-Type REJECT section to log failed auth attempts
-      // (MikroTik and other external NAS rejects won't appear in Auth Logs without this)
+      // Ensure sql is in Post-Auth-Type REJECT (for reject logging when IP pool check fails)
       if (sitesContent.includes('Post-Auth-Type REJECT') && !sitesContent.match(/Post-Auth-Type REJECT\s*\{[^}]*sql/)) {
         sitesContent = sitesContent.replace(
           /Post-Auth-Type REJECT\s*\{/,
@@ -2634,7 +2660,7 @@ sql {
         );
         details.push('Added sql to Post-Auth-Type REJECT section');
       } else if (!sitesContent.includes('Post-Auth-Type REJECT')) {
-        // If REJECT section doesn't exist, add it at end of post-auth
+        // If REJECT section doesn't exist, add it
         const postAuthEndMatch = sitesContent.match(/post-auth\s*\{[\s\S]*?\n\}/);
         if (postAuthEndMatch) {
           sitesContent = sitesContent.replace(
@@ -2694,12 +2720,17 @@ sql {
         );
         // NOTE: Do NOT add sql to authenticate in FreeRADIUS 3.x (same reason as above)
         // SQL password verification is automatic from the authorize section
-        // Add sql to post-auth (for Access-Accept logging)
-        innerContent = innerContent.replace(
-          /post-auth\s*\{/,
-          'post-auth {\n\t# StaySuite: Log auth results to radpostauth\n\tsql'
-        );
-        // Also add sql to Post-Auth-Type REJECT (for Access-Reject logging)
+        // Add sql to end of post-auth (after any checks, for Access-Accept logging)
+        const innerPostAuth = innerContent.match(/post-auth\s*\{([^}]*)\}/);
+        if (innerPostAuth && !innerPostAuth[1].includes('sql')) {
+          innerContent = innerContent.replace(
+            /post-auth\s*\{([^}]*)\}/,
+            (match: string, content: string) => {
+              return match.replace(content, content + '\n\t# StaySuite: Log auth results to radpostauth\n\tsql');
+            }
+          );
+        }
+        // Ensure sql is in Post-Auth-Type REJECT (for reject logging)
         if (innerContent.includes('Post-Auth-Type REJECT') && !innerContent.match(/Post-Auth-Type REJECT\s*\{[^}]*sql/)) {
           innerContent = innerContent.replace(
             /Post-Auth-Type REJECT\s*\{/,
