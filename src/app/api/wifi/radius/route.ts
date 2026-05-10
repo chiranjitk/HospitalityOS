@@ -3147,7 +3147,10 @@ export async function POST(request: NextRequest) {
         // Accept both sessionId (LiveSession id, may have ls_ prefix) and acctSessionId (bare)
         const { sessionId, acctSessionId, username, nasIp, framedIpAddress } = data;
         const effectiveSessionId = sessionId || acctSessionId;
+        const disconnectNasIp = (nasIp || '').replace(/\/\d+$/, '');
+        const isLocalNas = disconnectNasIp === '127.0.0.1' || disconnectNasIp === '';
         console.log('[live-sessions-disconnect] RAW data:', JSON.stringify({ sessionId, acctSessionId, username, nasIp }));
+        console.log('[live-sessions-disconnect] isLocalNas:', isLocalNas, 'nasIp:', disconnectNasIp);
 
         if (!username && !effectiveSessionId) {
           return NextResponse.json({ success: false, error: 'Username or sessionId is required' }, { status: 400 });
@@ -3157,7 +3160,7 @@ export async function POST(request: NextRequest) {
         const bareSessionId = effectiveSessionId?.startsWith('ls_') ? effectiveSessionId.slice(3) : effectiveSessionId;
         const disconnectUsername = username || '';
         console.log('[live-sessions-disconnect] Resolved:', { bareSessionId, disconnectUsername, nasIp: nasIp || '' });
-        const disconnectNasIp = nasIp || '';
+
 
         // 1. Try RADIUS CoA/Disconnect-Message to NAS (best-effort)
         let coaSuccess = false;
@@ -3167,7 +3170,7 @@ export async function POST(request: NextRequest) {
           // GUI may send nasIp with CIDR (e.g. 192.168.1.1/32) — strip it for NAS lookup
           let nasSecret = '';
           let coaPort = 3799;
-          const cleanNasIp = disconnectNasIp.replace(/\/\d+$/, ''); // strip /32 CIDR suffix
+          const cleanNasIp = disconnectNasIp;
           try {
             // Try FreeRADIUS service first (has coaPort from SQLite)
             const frRes = await fetch(`http://127.0.0.1:${process.env.FREERADIUS_PORT || 3004}/api/nas/lookup?nasIp=${encodeURIComponent(cleanNasIp)}`);
@@ -3198,10 +3201,22 @@ export async function POST(request: NextRequest) {
             coaMessage = 'No NAS secret configured for ' + cleanNasIp;
           } else {
 
-          // Build radclient attributes — use clean IP (without CIDR) for radclient
+          // Build radclient attributes — MikroTik requires Framed-IP-Address to identify the session
           const radclientPath = '/usr/bin/radclient';
-          // Build attributes — MikroTik requires Framed-IP-Address to identify the session
-          const ipLine = framedIpAddress ? `\nFramed-IP-Address=${framedIpAddress.replace(/\/\d+$/, '')}` : '';
+          // Resolve Framed-IP-Address: from request → fallback to radacct lookup
+          let resolvedIp = framedIpAddress ? framedIpAddress.replace(/\/\d+$/, '') : '';
+          if (!resolvedIp) {
+            try {
+              const ipRows = await db.$queryRawUnsafe<Array<{ framedipaddress: string }[]>>(`
+                SELECT framedipaddress FROM radacct
+                WHERE username = $1 AND acctstoptime IS NULL AND framedipaddress IS NOT NULL
+                  AND framedipaddress != '' AND framedipaddress != '0.0.0.0'
+                ORDER BY acctstarttime DESC LIMIT 1
+              `, disconnectUsername);
+              if (ipRows.length > 0) resolvedIp = ipRows[0].framedipaddress.replace(/\/\d+$/, '');
+            } catch { /* non-fatal */ }
+          }
+          const ipLine = resolvedIp ? `\nFramed-IP-Address=${resolvedIp}` : '';
           const attrs = `User-Name="${disconnectUsername}"${bareSessionId ? `\nAcct-Session-Id="${bareSessionId}"` : ''}${ipLine}`;
           const tmpAttrsFile = `/tmp/radclient-disconnect-${Date.now()}.txt`;
           const { execSync } = await import('child_process');
@@ -3210,13 +3225,17 @@ export async function POST(request: NextRequest) {
           try {
             fs.writeFileSync(tmpAttrsFile, attrs + '\n');
             const cmd = `${radclientPath} -t 3 -r 1 ${cleanNasIp}:${coaPort} disconnect ${nasSecret} < ${tmpAttrsFile} 2>&1`;
-            console.log('[live-sessions-disconnect] Sending RADIUS disconnect to ' + cleanNasIp + ':' + coaPort + ' user=' + disconnectUsername + ' session=' + (bareSessionId || '(any)'));
+            console.log('[live-sessions-disconnect] Sending RADIUS disconnect to ' + cleanNasIp + ':' + coaPort + ' user=' + disconnectUsername + ' session=' + (bareSessionId || '(any)') + ' ip=' + (resolvedIp || '(none)'));
+            console.log('[live-sessions-disconnect] radclient attrs: ' + attrs.split('\n').map(a => a.includes('secret') ? '(secret)' : a).join(', '));
             const output = execSync(cmd, { timeout: 5000 }).toString();
             coaMessage = output.trim();
             coaSuccess = output.includes('Disconnect-ACK') || output.includes('CoA-ACK') || output.includes('received');
             console.log('[live-sessions-disconnect] CoA result: success=' + coaSuccess + ' output=' + coaMessage);
           } catch (execErr: unknown) {
-            coaMessage = execErr instanceof Error ? execErr.message : String(execErr);
+            // execSync wraps the real error — extract stdout/stderr which contain the actual radclient output
+            const errObj = execErr as Error & { stdout?: string; stderr?: string };
+            const realOutput = [errObj.stdout || '', errObj.stderr || '', errObj.message || ''].filter(Boolean).join('\n');
+            coaMessage = realOutput.trim() || errObj.message;
             // radclient returns non-zero exit code even on timeout, but may have succeeded
             if (coaMessage.includes('Disconnect-ACK') || coaMessage.includes('CoA-ACK')) {
               coaSuccess = true;
@@ -3339,10 +3358,9 @@ export async function POST(request: NextRequest) {
             console.warn(`[live-sessions-disconnect] Could not resolve client IP for ${disconnectUsername} — counter + firewall cleanup SKIPPED`);
           }
 
-          // 2f. Call logout script for full nft + TC cleanup
-          // The live-sessions-disconnect only did DB cleanup above.
-          // We need to also remove: nft sets, mark rules, NAT rules, TC classes, counter rules.
-          if (clientIp && clientIp !== '0.0.0.0') {
+          // 2f. Call logout script for full nft + TC cleanup — ONLY for local NAS (127.0.0.1)
+          // External NAS (MikroTik etc.) manage their own firewall/state — do NOT run local scripts.
+          if (isLocalNas && clientIp && clientIp !== '0.0.0.0') {
             try {
               const { runLogoutScript } = await import('@/lib/network/script-runner');
               const logoutResult = runLogoutScript({ ip: clientIp });
