@@ -2554,10 +2554,9 @@ sql {
     # Post-auth: log all authentication attempts (both local NAS and external NAS)
     # This populates radpostauth so Auth Logs tab shows MikroTik and other external NAS entries.
     # FreeRADIUS executes this after the post-auth { sql } section in sites-available/default.
-    # NOTE: Cannot use double-quoted column names here (FreeRADIUS uses " for string delimiters).
-    # clientipaddress is lowercase so it works; nasIpAddress requires quotes so we skip it.
+    # replyMessage captures the actual rejection reason (e.g., IP pool deny) for Auth Logs display.
     post-auth {
-        query = "INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, callingstationid, calledstationid) VALUES ('%{SQL-User-Name}', '', '%{reply:Packet-Type}', '%S'::timestamptz, '%{NAS-IP-Address}', '%{Calling-Station-Id}', '%{Called-Station-Id}')"
+        query = "INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, callingstationid, calledstationid, nasipaddress, \\"replyMessage\\") VALUES ('%{SQL-User-Name}', '', '%{reply:Packet-Type}', '%S'::timestamptz, '%{NAS-IP-Address}', '%{Calling-Station-Id}', '%{Called-Station-Id}', '%{NAS-IP-Address}', '%{Reply-Message}')"
     }
 
     # Session: check for existing active session
