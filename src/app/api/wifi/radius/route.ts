@@ -2321,7 +2321,8 @@ export async function POST(request: NextRequest) {
                       '      EXTRACT(EPOCH FROM (NOW() - acctstarttime))::bigint,',
                       '      0',
                       '    ),',
-                      '    acctupdatetime = NOW()',
+                      '    acctupdatetime = NOW(),',
+                      '    "updatedAt" = NOW()',
                       'WHERE username = $1 AND acctstoptime IS NULL',
                     ].join('\n');
                     await db.$executeRawUnsafe(closeSql, user.username);
