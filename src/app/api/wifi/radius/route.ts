@@ -807,6 +807,7 @@ export async function GET(request: NextRequest) {
             roomId: string;
             guestName: string;
             propertyName: string;
+            nasPortType: string;
           }
 
           const sessionsMap = new Map<string, LiveSessionEntry>();
@@ -880,6 +881,7 @@ export async function GET(request: NextRequest) {
               // Enriched fields from view
               guestName: [s.guest_first_name, s.guest_last_name].filter(Boolean).join(' ') || '',
               propertyName: s.property_name || '',
+              nasPortType: s.nasporttype || '',
             });
           }
           const sessions = Array.from(sessionsMap.values());
@@ -1388,13 +1390,14 @@ export async function GET(request: NextRequest) {
             room_number: string | null;
             property_name: string | null;
             plan_name: string | null;
+            nasporttype: string | null;
           }[]>(`
             SELECT DISTINCT ON (radacctid) radacctid, acctuniqueid, acctsessionid, username,
                    nasipaddress, calledstationid, framedipaddress, callingstationid,
                    acctstarttime, acctstoptime, acctsessiontime,
                    acctinputoctets, acctoutputoctets, acctupdatetime,
                    guest_first_name, guest_last_name, room_number,
-                   property_name, plan_name
+                   property_name, plan_name, nasporttype
             FROM v_session_history ${whereClause}
             ORDER BY radacctid, acctstarttime DESC
           `, ...sqlParams);
@@ -1418,6 +1421,7 @@ export async function GET(request: NextRequest) {
             roomNumber: r.room_number || '',
             propertyName: r.property_name || '',
             planName: r.plan_name || '',
+            nasPortType: r.nasporttype || '',
           }));
 
           // Build daily usage breakdown
@@ -1504,6 +1508,7 @@ export async function GET(request: NextRequest) {
                 uploadBytes: Number(s.acctinputoctets) || 0,
                 sessionTime: Number(s.acctsessiontime) || 0,
                 isActive: s.status === 'active' || s.acctstoptime === null,
+                nasPortType: s.nasporttype || '',
               }));
             }
             if (Array.isArray(backendData.dailyUsage)) {

@@ -105,6 +105,7 @@ interface LiveSession {
   roomId?: string;
   guestName?: string;
   propertyName?: string;
+  nasPortType?: string;
   avgSpeedDown?: number;
   avgSpeedUp?: number;
   liveSpeedDown?: number;
@@ -673,6 +674,12 @@ export default function LiveSessions() {
               <span className="truncate">{session.deviceName || session.deviceType || '—'}</span>
             </div>
           </div>
+          {session.nasPortType && (
+            <div>
+              <p className="text-muted-foreground mb-0.5">Port</p>
+              <p className="truncate">{session.nasPortType}</p>
+            </div>
+          )}
           <div>
             <p className="text-muted-foreground mb-0.5">Session</p>
             <p className="flex items-center gap-1">
@@ -1002,6 +1009,7 @@ export default function LiveSessions() {
                         <TableHead>User / IP</TableHead>
                         <TableHead>MAC</TableHead>
                         <TableHead>Device</TableHead>
+                        <TableHead className="hidden lg:table-cell">Port Type</TableHead>
                         <TableHead>BW Down / Up</TableHead>
                         <TableHead>
                           <div className="flex items-center gap-1">
@@ -1070,6 +1078,7 @@ export default function LiveSessions() {
                               ) : null}
                             </div>
                           </TableCell>
+                          <TableCell className="hidden lg:table-cell"><p className="text-xs text-muted-foreground">{session.nasPortType || '—'}</p></TableCell>
                           <TableCell>
                             <div className="text-xs space-y-0.5">
                               <div className="flex items-center gap-1">
