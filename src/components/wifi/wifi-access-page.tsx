@@ -1,7 +1,7 @@
 'use client';
 
 import React, { lazy, useState, useEffect, useCallback, Suspense } from 'react';
-import { Wifi, Users, UserPlus, Ticket, BarChart3, Gauge, RefreshCw, QrCode, Server, ShieldCheck, ShieldAlert, Fingerprint, Activity, History, TrendingUp, Network, Layers, Building2 } from 'lucide-react';
+import { Wifi, Users, UserPlus, Ticket, BarChart3, Gauge, RefreshCw, QrCode, Server, ShieldCheck, ShieldAlert, Fingerprint, Activity, History, TrendingUp, Network, Layers, Building2, Zap, WifiOff, RotateCcw, FileDown } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { ErrorBoundary } from '@/components/common/error-boundary';
 import { usePropertyId } from '@/hooks/use-property';
+import { toast } from 'sonner';
 
 // ─── Lazy imports for tab content ─────────────────────────────────────────
 // Keep 10 essential tabs — removed: Bandwidth Scheduler, Content Filter, Smart Bandwidth,
@@ -232,6 +233,140 @@ function WiFiQuickActions({ onRefresh, onSwitchToVouchers }: { onRefresh: () => 
   );
 }
 
+// ─── Quick Actions Panel (Sticky Bottom) ──────────────────────────────────────
+
+function QuickActionsPanel() {
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleAction = async (action: () => Promise<void>, label: string) => {
+    setIsProcessing(true);
+    try {
+      await action();
+      toast.success(`${label} completed`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(`Failed: ${message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const actions = [
+    {
+      label: 'Generate Voucher',
+      icon: Ticket,
+      color: 'bg-amber-500 hover:bg-amber-600 text-white',
+      handler: async () => {
+        const res = await fetch('/api/wifi/vouchers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ duration: 3600, planId: 'default' }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+      },
+    },
+    {
+      label: 'Kick All Users',
+      icon: WifiOff,
+      color: 'bg-red-500 hover:bg-red-600 text-white',
+      handler: async () => {
+        const res = await fetch('/api/wifi/radius', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'kick-all' }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+      },
+    },
+    {
+      label: 'Sync RADIUS',
+      icon: RefreshCw,
+      color: 'bg-emerald-500 hover:bg-emerald-600 text-white',
+      handler: async () => {
+        const res = await fetch('/api/wifi/radius', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'sync-users' }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+      },
+    },
+    {
+      label: 'Reset Bandwidth',
+      icon: RotateCcw,
+      color: 'bg-teal-500 hover:bg-teal-600 text-white',
+      handler: async () => {
+        const res = await fetch('/api/wifi/radius', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'reset-bandwidth' }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+      },
+    },
+    {
+      label: 'Export Report',
+      icon: FileDown,
+      color: 'bg-slate-500 hover:bg-slate-600 text-white',
+      handler: async () => {
+        // Navigate to reports — scroll to the reports section or switch tab
+        const reportsSection = document.querySelector('[data-tab="user-usage"]');
+        if (reportsSection) {
+          reportsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+      },
+    },
+  ];
+
+  return (
+    <div className="sticky bottom-0 z-20 bg-muted/80 backdrop-blur-sm border-t border-border/50 rounded-t-xl">
+      <div className="px-4 py-3 space-y-2">
+        {/* Title */}
+        <div className="flex items-center gap-2">
+          <Zap className="h-4 w-4 text-amber-500" />
+          <span className="text-sm font-semibold">Quick Actions</span>
+        </div>
+        {/* Buttons */}
+        <div className="flex flex-wrap gap-2">
+          {actions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <button
+                key={action.label}
+                disabled={isProcessing}
+                onClick={() => handleAction(action.handler, action.label)}
+                className={cn(
+                  'h-9 px-3 rounded-lg inline-flex items-center gap-1.5 text-xs font-medium',
+                  'hover:opacity-90 active:scale-95 transition-all duration-150',
+                  'disabled:opacity-50 disabled:pointer-events-none',
+                  action.color
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {action.label}
+              </button>
+            );
+          })}
+        </div>
+        {/* Warning */}
+        <p className="text-[11px] text-muted-foreground">⚠️ Actions affect all users</p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Tab Config ──────────────────────────────────────────────────────────────
 // 16 tabs → 10 tabs (37% reduction)
 // Removed duplicates: Bandwidth Scheduler (Firewall), Content Filter (Network),
@@ -442,6 +577,11 @@ export function WifiAccessPage() {
             {activeTab === 'event-wifi' && <EventWifiTab />}
           </ErrorBoundary>
         </Suspense>
+      </div>
+
+      {/* Quick Actions Panel — sticky bottom */}
+      <div className="relative z-10">
+        <QuickActionsPanel />
       </div>
     </div>
   );
