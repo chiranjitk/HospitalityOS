@@ -179,5 +179,41 @@ module.exports = {
         DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       },
     },
+
+    // =========================================================================
+    // IPDR Network Logging Pipeline (WiFi gateway analytics + TRAI compliance)
+    // =========================================================================
+    {
+      name: 'conntrack-bridge',
+      script: 'index.ts',
+      interpreter: BUN_PATH,
+      cwd: `${APP_DIR}/mini-services/conntrack-bridge`,
+      error_file: `${LOG_DIR}/conntrack-bridge-error.log`,
+      out_file: `${LOG_DIR}/conntrack-bridge-out.log`,
+      max_restarts: 10,
+      restart_delay: 3000,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3020,
+        CLICKHOUSE_URL: 'http://127.0.0.1:8123',
+        CONNTRACK_BIN: '/usr/sbin/conntrack',
+      },
+    },
+    {
+      name: 'sni-parser',
+      script: 'index.ts',
+      interpreter: BUN_PATH,
+      cwd: `${APP_DIR}/mini-services/sni-parser`,
+      error_file: `${LOG_DIR}/sni-parser-error.log`,
+      out_file: `${LOG_DIR}/sni-parser-out.log`,
+      max_restarts: 10,
+      restart_delay: 3000,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3022,
+        CLICKHOUSE_URL: 'http://127.0.0.1:8123',
+        SNI_LOG_FILE: '/var/log/sni-queries.log',
+      },
+    },
   ],
 };
