@@ -268,19 +268,16 @@ DROP VIEW IF EXISTS v_auth_logs CASCADE;
 
 -- ---------------------------------------------------------------------------
 -- VIEW: v_auth_logs
--- Enhanced: now includes source IP from radpostauth.clientipaddress (the
--- actual client IP from the HTTP auth request or RADIUS packet source).
--- For rejected auths, reply_message now includes username, source IP, and
--- specific rejection reason so operators can diagnose issues quickly.
--- Updated: handles MAX_SESSIONS_REACHED, RADIUS_UNREACHABLE, AUTH_FAILED
--- rejection reason codes from test-auth action.
--- Fixed: nas_ip_address falls back to clientipaddress for external NAS entries
--- (FreeRADIUS postauth writes NAS-IP-Address to clientipaddress).
--- Updated: uses radpostauth.replyMessage for external NAS rejects (FreeRADIUS
--- sets Reply-Message attribute but not the pass column reason code).
+-- Authentication attempt log based on FreeRADIUS radpostauth.
+-- Used by: Auth Logs tab, security audit reports.
+--
+-- 2026-05-05: Added DeviceProfile MAC fallback for calling_station_id.
+-- 2026-06: Uses radpostauth.replyMessage for external NAS rejects (FreeRADIUS
+--   sets Reply-Message attribute with actual rejection reason, e.g. IP pool deny).
+-- 2026-06: Fixed duplicate rows — radusergroup subquery uses LIMIT 1.
 -- ---------------------------------------------------------------------------
 CREATE VIEW v_auth_logs AS
-SELECT pa.id::text AS id,
+SELECT DISTINCT ON (pa.id) pa.id::text AS id,
     pa.username,
     pa.reply AS auth_result,
     pa.authdate AS "timestamp",
@@ -299,6 +296,10 @@ SELECT pa.id::text AS id,
         END
         ELSE
         CASE
+            WHEN pa."replyMessage" IS NOT NULL AND pa."replyMessage" != ''::text THEN
+                'Rejected — '::text || pa."replyMessage" ||
+                COALESCE(' — user: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
             WHEN pa.pass LIKE 'IP_NOT_IN_POOL:%%'::text THEN
                 'Rejected — IP not in managed pool: '::text || replace(pa.pass, 'IP_NOT_IN_POOL:'::text, ''::text) ||
                 COALESCE(' — user: '::text || pa.username, ''::text)
@@ -318,10 +319,6 @@ SELECT pa.id::text AS id,
                 COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
             WHEN pa.pass LIKE 'INVALID_%%'::text OR pa.pass LIKE 'MISSING_%%'::text OR pa.pass LIKE 'VOUCHER_%%'::text OR pa.pass LIKE 'AUTH_%%'::text THEN
                 'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
-                COALESCE(' — user: '::text || pa.username, ''::text) ||
-                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
-            WHEN pa."replyMessage" IS NOT NULL AND pa."replyMessage" != ''::text THEN
-                'Rejected — '::text || pa."replyMessage" ||
                 COALESCE(' — user: '::text || pa.username, ''::text) ||
                 COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
             WHEN wu.id IS NOT NULL THEN
@@ -353,7 +350,8 @@ SELECT pa.id::text AS id,
      LEFT JOIN "Room" rm ON b."roomId" = rm.id
      LEFT JOIN "Property" p ON u."propertyId" = p.id
      LEFT JOIN "WiFiPlan" wp ON u."planId" = wp.id
-     LEFT JOIN radusergroup rg ON pa.username = rg.username;
+     LEFT JOIN LATERAL (SELECT groupname FROM radusergroup WHERE username = pa.username LIMIT 1) rg ON true
+  ORDER BY pa.id DESC;
 
 -- ---------------------------------------------------------------------------
 -- VIEW: v_wifi_users

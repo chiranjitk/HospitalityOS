@@ -478,6 +478,96 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+-- ============================================================================
+-- [11] Recreate v_auth_logs view
+--    Fixes:
+--      - replyMessage check is now FIRST priority for rejects (was after
+--        pass-based codes). FreeRADIUS stores actual rejection reason in
+--        replyMessage for external NAS rejects (e.g. IP pool deny).
+--      - DISTINCT ON (pa.id) prevents duplicate rows from radusergroup join
+--        (user in multiple RADIUS groups = multiple view rows per auth event).
+--      - radusergroup now uses LATERAL subquery with LIMIT 1 instead of
+--        bare LEFT JOIN.
+-- ============================================================================
+DROP VIEW IF EXISTS v_auth_logs;
+
+CREATE VIEW v_auth_logs AS
+SELECT DISTINCT ON (pa.id) pa.id::text AS id,
+    pa.username,
+    pa.reply AS auth_result,
+    pa.authdate AS "timestamp",
+    COALESCE(replace(acct.framedipaddress, '/32'::text, ''::text), ''::text) AS client_ip_address,
+    COALESCE(NULLIF(pa."nasIpAddress", ''), pa.clientipaddress, ''::text) AS nas_ip_address,
+    COALESCE(NULLIF(pa.clientipaddress, ''), COALESCE(pa."nasIpAddress", ''::text), ''::text) AS source_ip_address,
+    COALESCE(pa.callingstationid, ''::text) AS calling_station_id,
+    COALESCE(pa.calledstationid, ''::text) AS called_station_id,
+    'PAP'::text AS auth_type,
+    CASE
+        WHEN pa.reply = 'Access-Accept'::text THEN
+        CASE
+            WHEN COALESCE(replace(acct.framedipaddress, '/32'::text, ''::text), ''::text) <> ''::text THEN 'Authenticated — client IP: '::text || replace(acct.framedipaddress, '/32'::text, ''::text)
+            WHEN COALESCE(pa."nasIpAddress", ''::text) <> ''::text THEN 'Authenticated from NAS '::text || pa."nasIpAddress"
+            ELSE 'Authenticated successfully'::text
+        END
+        ELSE
+        CASE
+            WHEN pa."replyMessage" IS NOT NULL AND pa."replyMessage" != ''::text THEN
+                'Rejected — '::text || pa."replyMessage" ||
+                COALESCE(' — user: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+            WHEN pa.pass LIKE 'IP_NOT_IN_POOL:%%'::text THEN
+                'Rejected — IP not in managed pool: '::text || replace(pa.pass, 'IP_NOT_IN_POOL:'::text, ''::text) ||
+                COALESCE(' — user: '::text || pa.username, ''::text)
+            WHEN pa.pass LIKE 'IP_NOT_DETERMINED'::text THEN
+                'Rejected — could not determine client IP'::text ||
+                COALESCE(' — user: '::text || pa.username, ''::text)
+            WHEN pa.pass LIKE 'MAX_SESSION%%'::text THEN
+                'Rejected — max concurrent sessions reached'::text ||
+                COALESCE(' — user: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+            WHEN pa.pass LIKE 'RADIUS_UNREACHABLE'::text THEN
+                'Rejected — RADIUS server unreachable'::text ||
+                COALESCE(' — user: '::text || pa.username, ''::text)
+            WHEN pa.pass LIKE 'ACCOUNT_%%'::text THEN
+                'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
+                COALESCE(' — user: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+            WHEN pa.pass LIKE 'INVALID_%%'::text OR pa.pass LIKE 'MISSING_%%'::text OR pa.pass LIKE 'VOUCHER_%%'::text OR pa.pass LIKE 'AUTH_%%'::text THEN
+                'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
+                COALESCE(' — user: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+            WHEN wu.id IS NOT NULL THEN
+                'Rejected — invalid password'::text ||
+                COALESCE(' — user: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+            ELSE
+                'Rejected — user not found'::text ||
+                COALESCE(' — username: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+        END
+    END AS reply_message,
+    COALESCE(g."firstName", ''::text) AS guest_first_name,
+    COALESCE(g."lastName", ''::text) AS guest_last_name,
+    COALESCE(rm.number, ''::text) AS room_number,
+    COALESCE(p.name, ''::text) AS property_name,
+    COALESCE(u."propertyId"::text, ''::text) AS property_id,
+    rg.groupname AS radius_group,
+    wp.name AS plan_name,
+    wp."downloadSpeed" AS plan_download_speed,
+    wp."uploadSpeed" AS plan_upload_speed,
+    wp."dataLimit" AS plan_data_limit
+   FROM radpostauth pa
+     LEFT JOIN LATERAL ( SELECT radacct.framedipaddress FROM radacct WHERE radacct.username = pa.username ORDER BY radacct.acctstarttime DESC LIMIT 1) acct ON true
+     LEFT JOIN "WiFiUser" u ON pa.username = u.username
+     LEFT JOIN "WiFiUser" wu ON pa.username = wu.username
+     LEFT JOIN "Guest" g ON u."guestId" = g.id
+     LEFT JOIN "Booking" b ON u."bookingId" = b.id
+     LEFT JOIN "Room" rm ON b."roomId" = rm.id
+     LEFT JOIN "Property" p ON u."propertyId" = p.id
+     LEFT JOIN "WiFiPlan" wp ON u."planId" = wp.id
+     LEFT JOIN LATERAL (SELECT groupname FROM radusergroup WHERE username = pa.username LIMIT 1) rg ON true
+  ORDER BY pa.id DESC;
+
 COMMIT;
 
 -- ============================================================================
@@ -494,4 +584,5 @@ COMMIT;
 --   [8]  v_session_history: DeviceProfile LATERAL join + loginType
 --   [9]  v_active_sessions: includes new DeviceProfile columns
 --   [10] radpostauth."clientipaddress" column (if missing)
+--   [11] v_auth_logs: replyMessage priority fix + DISTINCT ON + LATERAL radusergroup
 -- ============================================================================

@@ -46,6 +46,10 @@ const RADIUS_CONFIG_PATH = process.env.RADIUS_CONFIG_PATH ||
       : '/etc/raddb');
 const RADIUS_CLIENTS_PATH = path.join(RADIUS_CONFIG_PATH, 'clients.conf');
 
+// Section markers for managed NAS clients in clients.conf
+const STAYSUITE_CLIENT_BEGIN = '### STAYSUITE_MANAGED_CLIENTS_BEGIN ###';
+const STAYSUITE_CLIENT_END = '### STAYSUITE_MANAGED_CLIENTS_END ###';
+
 // Database connection (sandbox uses local PG, production uses system PG)
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite';
 

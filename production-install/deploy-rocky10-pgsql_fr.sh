@@ -1017,6 +1017,13 @@ else
   warn "complete-database.sql not found, skipping advanced schema"
 fi
 
+# Apply live DB updates (idempotent — safe to re-run on existing deployments)
+if [[ -f "${APP_DIR}/pgsql-production/update-live-db.sql" ]]; then
+  step 11b "Schema" "Applying update-live-db.sql (incremental migrations)"
+  psql -h 127.0.0.1 -U staysuite -d staysuite -f "${APP_DIR}/pgsql-production/update-live-db.sql" 2>&1 | grep -v NOTICE
+  success "update-live-db.sql applied (incremental schema fixes)"
+fi
+
 # nftables-service tables (firewall mini-service DB storage)
 if [[ -f "${APP_DIR}/pgsql-production/nftables-service-tables.sql" ]]; then
   psql -h 127.0.0.1 -U staysuite -d staysuite -f "${APP_DIR}/pgsql-production/nftables-service-tables.sql" 2>&1 | grep -v NOTICE
