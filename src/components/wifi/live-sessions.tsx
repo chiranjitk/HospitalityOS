@@ -280,6 +280,37 @@ export default function LiveSessions() {
   const [isBulkDisconnecting, setIsBulkDisconnecting] = useState(false);
   const [bulkDisconnectTarget, setBulkDisconnectTarget] = useState(false);
 
+  // ─── Live Speed polling (Tier 2: real-time speed from live-speed-service) ──
+  // Polls the live-speed mini-service every 3 seconds and merges live speed data
+  // into sessions by matching on IP address. Falls back to avgSpeed when unavailable.
+  const [liveSpeedMap, setLiveSpeedMap] = useState<Record<string, { speedDown: number; speedUp: number }>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const pollSpeeds = async () => {
+      try {
+        const res = await fetch('/api/wifi/radius?action=live-speeds');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.data && !cancelled) {
+          setLiveSpeedMap(data.data);
+        }
+      } catch { /* non-critical — avg speed fallback works */ }
+    };
+    pollSpeeds();
+    const interval = setInterval(pollSpeeds, 3000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // Merge live speeds into session data
+  const sessionsWithSpeed = useMemo(() => {
+    return sessions.map(s => ({
+      ...s,
+      liveSpeedDown: liveSpeedMap[s.ipAddress]?.speedDown,
+      liveSpeedUp: liveSpeedMap[s.ipAddress]?.speedUp,
+    }));
+  }, [sessions, liveSpeedMap]);
+
   // CRITICAL: Always deduplicate sessions by id before rendering.
   // Even though the backend uses DISTINCT ON + Map dedup, and fetchSessions()
   // also filters via Set, this useMemo is the final safety net to guarantee
@@ -501,37 +532,6 @@ export default function LiveSessions() {
     const interval = setInterval(() => setLiveSessionTime(calc()), 1000);
     return () => clearInterval(interval);
   }, [selectedSession?.id, selectedSession?.startedAt, selectedSession?.sessionTime]);
-
-  // ─── Live Speed polling (Tier 2: real-time speed from live-speed-service) ──
-  // Polls the live-speed mini-service every 3 seconds and merges live speed data
-  // into sessions by matching on IP address. Falls back to avgSpeed when unavailable.
-  const [liveSpeedMap, setLiveSpeedMap] = useState<Record<string, { speedDown: number; speedUp: number }>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-    const pollSpeeds = async () => {
-      try {
-        const res = await fetch('/api/wifi/radius?action=live-speeds');
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.success && data.data && !cancelled) {
-          setLiveSpeedMap(data.data);
-        }
-      } catch { /* non-critical — avg speed fallback works */ }
-    };
-    pollSpeeds();
-    const interval = setInterval(pollSpeeds, 3000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, []);
-
-  // Merge live speeds into session data
-  const sessionsWithSpeed = useMemo(() => {
-    return sessions.map(s => ({
-      ...s,
-      liveSpeedDown: liveSpeedMap[s.ipAddress]?.speedDown,
-      liveSpeedUp: liveSpeedMap[s.ipAddress]?.speedUp,
-    }));
-  }, [sessions, liveSpeedMap]);
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
