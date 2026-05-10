@@ -53,10 +53,29 @@ const STAYSUITE_CLIENT_END = '### STAYSUITE_MANAGED_CLIENTS_END ###';
 // Database connection (sandbox uses local PG, production uses system PG)
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite';
 
-// RADIUS SQL module credentials — extract from DATABASE_URL or use defaults
-const DB_URL_PARSED = new URL(DATABASE_URL);
-const RADIUS_DB_USER = DB_URL_PARSED.username || 'postgres';
-const RADIUS_DB_PASS = DB_URL_PARSED.password || 'postgres';
+// RADIUS SQL module credentials — use RADIUS_DATABASE_URL if set (PostgreSQL),
+// otherwise fall back to DATABASE_URL. In sandbox, DATABASE_URL may point to
+// SQLite (file:...) which is not usable by FreeRADIUS rlm_sql_postgresql.
+const RADIUS_DATABASE_URL = process.env.RADIUS_DATABASE_URL || '';
+let RADIUS_DB_USER = 'postgres';
+let RADIUS_DB_PASS = 'postgres';
+if (RADIUS_DATABASE_URL) {
+  try {
+    const rUrl = new URL(RADIUS_DATABASE_URL);
+    RADIUS_DB_USER = rUrl.username || 'postgres';
+    RADIUS_DB_PASS = rUrl.password || 'postgres';
+  } catch {
+    // invalid URL, keep defaults
+  }
+} else if (DATABASE_URL.startsWith('postgresql://')) {
+  try {
+    const rUrl = new URL(DATABASE_URL);
+    RADIUS_DB_USER = rUrl.username || 'postgres';
+    RADIUS_DB_PASS = rUrl.password || 'postgres';
+  } catch {
+    // invalid URL, keep defaults
+  }
+}
 
 const pool = new pg.Pool({
   connectionString: DATABASE_URL,
@@ -2714,6 +2733,63 @@ sql {
       // The default config + deploy script places sql correctly for Accept logging.
       // Post-Auth-Type REJECT handles Reject logging (verified above).
       details.push('Skipped post-auth sql placement (default config is correct)');
+
+      // REMOVE duplicate sql from TOP of post-auth section.
+      // The template has "StaySuite: Send RADIUS reply attributes" + sql at the TOP,
+      // AND the default FreeRADIUS "After authenticating the user" + sql at the END.
+      // Two sql entries = duplicate radpostauth rows. Remove the TOP one (before IP pool check).
+      {
+        const postAuthMatch = sitesContent.match(/^([ \t]*)post-auth[ \t]*\{/m);
+        const postAuthOpenIdx = postAuthMatch ? postAuthMatch.index : -1;
+        if (postAuthOpenIdx !== -1) {
+          const braceStart = sitesContent.indexOf('{', postAuthOpenIdx);
+          // Brace-counting to find end of post-auth main section (stops before Post-Auth-Type)
+          let depth = 0;
+          let postAuthEndIdx = -1;
+          for (let i = braceStart; i < sitesContent.length; i++) {
+            if (sitesContent[i] === '{') depth++;
+            else if (sitesContent[i] === '}') {
+              depth--;
+              if (depth === 0) { postAuthEndIdx = i; break; }
+            }
+          }
+          if (postAuthEndIdx !== -1) {
+            const postAuthSection = sitesContent.substring(braceStart, postAuthEndIdx + 1);
+            // Count standalone 'sql' lines in post-auth main section
+            const sqlMatches = postAuthSection.match(/^\s*sql\s*$/gm);
+            if (sqlMatches && sqlMatches.length > 1) {
+              // Remove the FIRST sql (at the top, before IP pool check)
+              // Keep the last one (at the end, after IP pool check)
+              const firstSqlIdx = sitesContent.indexOf('\n', braceStart);
+              // Find the first line that is just "sql" after post-auth {
+              const sectionAfter = sitesContent.substring(braceStart, postAuthEndIdx);
+              const sqlLineRegex = /^(\s*)(sql)\s*$/m;
+              const sqlMatch = sqlLineRegex.exec(sectionAfter);
+              if (sqlMatch) {
+                const absSqlStart = braceStart + sqlMatch.index;
+                const lineStart = sitesContent.lastIndexOf('\n', absSqlStart);
+                const lineEnd = sitesContent.indexOf('\n', absSqlStart);
+                // Check if this is the StaySuite comment + sql block
+                const prevLine = sitesContent.substring(
+                  sitesContent.lastIndexOf('\n', lineStart - 1) + 1,
+                  lineStart
+                ).trim();
+                // Remove from prevLine start to sql line end (including comment if StaySuite)
+                let removeStart = lineStart + 1; // start after the \n before sql
+                if (prevLine.includes('StaySuite')) {
+                  removeStart = sitesContent.lastIndexOf('\n', lineStart - 1) + 1;
+                }
+                sitesContent =
+                  sitesContent.substring(0, removeStart) +
+                  sitesContent.substring(lineEnd + 1);
+                details.push('Removed duplicate sql from top of post-auth (kept only end-of-section sql)');
+              }
+            } else if (sqlMatches && sqlMatches.length === 1) {
+              details.push('Post-auth sql verified (single sql entry, no duplicates)');
+            }
+          }
+        }
+      }
 
 
       // Add sql to accounting section
