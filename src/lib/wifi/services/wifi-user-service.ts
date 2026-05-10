@@ -175,7 +175,7 @@ export async function syncRadiusGroup(plan: {
 
     // MikroTik vendor attrs
     if (vendors.includes('mikrotik')) {
-      groupReplies.push({ attribute: 'Mikrotik-Rate-Limit', op: ':=', value: `${downloadMbps}M/${uploadMbps}M`, priority: 50 });
+      groupReplies.push({ attribute: 'Mikrotik-Rate-Limit', op: ':=', value: `${uploadMbps}M/${downloadMbps}M`, priority: 50 });
       if (dataLimitMB > 0) {
         groupReplies.push({ attribute: 'Mikrotik-Total-Limit', op: ':=', value: String(dataLimitMB * 1024 * 1024), priority: 51 });
       }

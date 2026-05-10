@@ -69,7 +69,7 @@ async function freeradiusRequest(endpoint: string, options: RequestInit = {}) {
  * MikroTik RADIUS Attributes
  * 
  * Common attributes used by MikroTik RouterOS:
- * - Mikrotik-Rate-Limit: Download/Upload limit (e.g., "10M/10M")
+ * - Mikrotik-Rate-Limit: Upload/Download limit from NAS perspective (rx=upload, tx=download) (e.g., "10M/10M")
  * - Mikrotik-Group: User group for hotspot profiles
  * - Mikrotik-Recv-Limit: Receive limit in bytes
  * - Mikrotik-Xmit-Limit: Transmit limit in bytes
@@ -386,7 +386,7 @@ export class MikrotikAdapter extends GatewayAdapter {
    * - Separate: "10M/5M" (10M rx / 5M tx)
    * - Burst: "10M/10M 20M/20M 5M/5M 10" (limit/burst limit/burst threshold/burst time)
    *
-   * In MikroTik hotspot context: rx = download (to client), tx = upload (from client)
+   * In MikroTik NAS context: rx = upload (from client to NAS), tx = download (from NAS to client)
    */
   getRadiusAttributes(policy: BandwidthPolicy): Record<string, string> {
     const attrs = super.getRadiusAttributes(policy);
@@ -395,7 +395,8 @@ export class MikrotikAdapter extends GatewayAdapter {
     const downloadMbps = policy.downloadSpeed / 1000000; // bps to Mbps
     const uploadMbps = policy.uploadSpeed / 1000000;
 
-    attrs['Mikrotik-Rate-Limit'] = `${downloadMbps}M/${uploadMbps}M`;
+    // rx=upload(rx from NAS perspective), tx=download(tx from NAS perspective)
+    attrs['Mikrotik-Rate-Limit'] = `${uploadMbps}M/${downloadMbps}M`;
 
     // Data limit
     if (policy.dataLimit && policy.dataLimit > 0) {
@@ -407,7 +408,7 @@ export class MikrotikAdapter extends GatewayAdapter {
 
   /**
    * Format bandwidth for MikroTik
-   * MikroTik uses: rx-rate/tx-rate (download/upload in hotspot context)
+   * MikroTik uses: rx-rate/tx-rate (upload/download from NAS perspective)
    */
   formatBandwidthLimit(download: number, upload: number): string {
     const formatRate = (bps: number): string => {
@@ -417,7 +418,8 @@ export class MikrotikAdapter extends GatewayAdapter {
       return String(bps);
     };
 
-    return `${formatRate(download)}/${formatRate(upload)}`;
+    // rx=upload, tx=download from NAS perspective
+    return `${formatRate(upload)}/${formatRate(download)}`;
   }
 
   /**

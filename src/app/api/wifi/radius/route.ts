@@ -2832,7 +2832,7 @@ export async function POST(request: NextRequest) {
                   if (s.framedipaddress) coaAttrs += `\nFramed-IP-Address=${s.framedipaddress.replace(/\/\d+$/, '')}`;
                   if (s.acctsessionid) coaAttrs += `\nAcct-Session-Id="${s.acctsessionid}"`;
                   if (vendor === 'mikrotik') {
-                    coaAttrs += `\nMikrotik-Rate-Limit="${dlMbpsCoa}M/${ulMbpsCoa}M"`;
+                    coaAttrs += `\nMikrotik-Rate-Limit="${ulMbpsCoa}M/${dlMbpsCoa}M"`;
                   } else if (vendor === 'cisco') {
                     coaAttrs += `\nCisco-AVPair="sub:Ingress-Committed-Data-Rate=${ulBps}"\nCisco-AVPair="sub:Egress-Committed-Data-Rate=${dlBps}"`;
                   } else {
@@ -2845,7 +2845,7 @@ export async function POST(request: NextRequest) {
                     fsCoA.writeFileSync(tmpFile, coaAttrs + '\n');
                     const cmd = `/usr/bin/radclient -t 3 -r 1 ${nasIp}:${nasInfo.ports || 3799} coa ${nasInfo.secret} < ${tmpFile} 2>&1`;
                     const output = execCoA(cmd, { timeout: 5000 }).toString();
-                    console.log(`[update-user] CoA ${output.includes('CoA-ACK') ? 'OK' : 'FAIL'}: ${existingUser.username}@${nasIp} → ${dlMbpsCoa}M/${ulMbpsCoa}M vendor=${vendor}`);
+                    console.log(`[update-user] CoA ${output.includes('CoA-ACK') ? 'OK' : 'FAIL'}: ${existingUser.username}@${nasIp} → ${ulMbpsCoa}M/${dlMbpsCoa}M vendor=${vendor}`);
                   } catch (coaExecErr: unknown) {
                     const errObj = coaExecErr as Error & { stdout?: string; stderr?: string };
                     console.warn(`[update-user] CoA error: ${existingUser.username}@${nasIp}: ${(errObj.stdout || errObj.stderr || '').trim()}`);

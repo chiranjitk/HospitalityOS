@@ -1181,7 +1181,8 @@ function generateBandwidthAttributes(downloadBps: number, uploadBps: number, ven
 
   switch (vendor) {
     case 'mikrotik':
-      attrs['Mikrotik-Rate-Limit'] = `${downloadMbps}M/${uploadMbps}M`;
+      // rx=upload, tx=download from NAS perspective
+      attrs['Mikrotik-Rate-Limit'] = `${uploadMbps}M/${downloadMbps}M`;
       break;
 
     case 'cisco':
@@ -3644,7 +3645,8 @@ app.post('/api/coa/bandwidth', async (c) => {
     const vendor = normalizeVendor(nas.type);
     const dlMbps = downloadMbps || 0;
     const ulMbps = uploadMbps || 0;
-    const rateLimit = `${dlMbps}M/${ulMbps}M`;
+    // rx=upload, tx=download from NAS perspective
+    const rateLimit = `${ulMbps}M/${dlMbps}M`;
     const dlBps = dlMbps * 1000000;
     const ulBps = ulMbps * 1000000;
 
@@ -3899,7 +3901,7 @@ app.post('/api/data-cap/enforce', async (c) => {
       let throttleAttrs = `User-Name="${username}"`;
       switch (vendor) {
         case 'mikrotik':
-          throttleAttrs += '\nMikrotik-Rate-Limit="256k/128k"';
+          throttleAttrs += '\nMikrotik-Rate-Limit="128k/256k"';
           break;
         case 'cisco':
           throttleAttrs += '\nCisco-AVPair="sub:Ingress-Committed-Data-Rate=128000"\nCisco-AVPair="sub:Egress-Committed-Data-Rate=256000"';
@@ -6260,7 +6262,7 @@ async function applyBandwidthCoA(
   let coaAttrs = `User-Name="${username}"`;
   switch (vendor) {
     case 'mikrotik':
-      coaAttrs += `\nMikrotik-Rate-Limit="${dlMbps}M/${ulMbps}M"`;
+      coaAttrs += `\nMikrotik-Rate-Limit="${ulMbps}M/${dlMbps}M"`;
       break;
     case 'cisco':
       coaAttrs += `\nCisco-AVPair="sub:Ingress-Committed-Data-Rate=${ulBps}"\nCisco-AVPair="sub:Egress-Committed-Data-Rate=${dlBps}"`;
@@ -7585,7 +7587,7 @@ setInterval(async () => {
             let attrs = `User-Name="${session.username}"`;
             switch (vendor) {
               case 'mikrotik':
-                attrs += `\nMikrotik-Rate-Limit="${throttleDown}k/${throttleUp}k"`;
+                attrs += `\nMikrotik-Rate-Limit="${throttleUp}k/${throttleDown}k"`;
                 break;
               case 'cisco':
                 attrs += `\nCisco-AVPair="sub:Ingress-Committed-Data-Rate=${upBps}"\nCisco-AVPair="sub:Egress-Committed-Data-Rate=${downBps}"`;

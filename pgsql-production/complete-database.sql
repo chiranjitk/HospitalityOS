@@ -894,11 +894,12 @@ BEGIN
     SELECT wp."downloadSpeed" INTO v_plan_down
     FROM "WiFiUser" wu JOIN "WiFiPlan" wp ON wu."planId" = wp.id
     WHERE wu.username = p_username AND wu.status = 'active' LIMIT 1;
-    IF v_plan_down IS NULL THEN RETURN v_down || 'K/' || v_up || 'K'; END IF;
+    -- Mikrotik-Rate-Limit rx/tx: rx=upload(from client), tx=download(to client)
+    IF v_plan_down IS NULL THEN RETURN v_up || 'K/' || v_down || 'K'; END IF;
     IF v_down < v_plan_down * 1000 THEN
-        RETURN v_down || 'K/' || v_up || 'K';
+        RETURN v_up || 'K/' || v_down || 'K';
     ELSE
-        RETURN (v_down / 1000) || 'M/' || (v_up / 1000) || 'M';
+        RETURN (v_up / 1000) || 'M/' || (v_down / 1000) || 'M';
     END IF;
 END; $function$
 ;

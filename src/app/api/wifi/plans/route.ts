@@ -353,7 +353,8 @@ export async function PUT(request: NextRequest) {    const user = await requireP
             if (session.framedipaddress) coaAttrs += `\nFramed-IP-Address=${session.framedipaddress.replace(/\/\d+$/, '')}`;
 
             const vendor = (nasInfo.type || 'other').toLowerCase();
-            const rateLimit = `${dlMbps}M/${ulMbps}M`;
+            // rx=upload, tx=download from NAS perspective
+            const rateLimit = `${ulMbps}M/${dlMbps}M`;
             const dlBps = dlMbps * 1000000;
             const ulBps = ulMbps * 1000000;
 

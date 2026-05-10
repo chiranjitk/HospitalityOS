@@ -366,7 +366,8 @@ function getVendorBandwidthAttrs(
       break;
 
     case 'mikrotik':
-      attrs.push({ attribute: 'Mikrotik-Rate-Limit', value: `${downloadMbps}M/${uploadMbps}M` });
+      // rx=upload, tx=download from NAS perspective
+      attrs.push({ attribute: 'Mikrotik-Rate-Limit', value: `${uploadMbps}M/${downloadMbps}M` });
       break;
 
     case 'cisco':
