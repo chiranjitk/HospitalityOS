@@ -2762,6 +2762,53 @@ export async function POST(request: NextRequest) {
             } catch (liveErr) {
               console.warn(`[update-user] Live bandwidth push failed (non-fatal):`, liveErr);
             }
+
+            // Push bandwidth via CoA to external NAS (MikroTik, Cisco, etc.)
+            try {
+              const dlMbpsCoa = dlBps / 1000000;
+              const ulMbpsCoa = ulBps / 1000000;
+              const extSessions = await db.$queryRawUnsafe<Array<{
+                framedipaddress: string; callingstationid: string; nasipaddress: string;
+              }[]>('SELECT framedipaddress, callingstationid, nasipaddress FROM radacct WHERE username = $1 AND acctstoptime IS NULL AND nasipaddress != \'127.0.0.1\' LIMIT 1', existingUser.username);
+              if (extSessions.length > 0) {
+                const s = extSessions[0];
+                const nasIp = (s.nasipaddress || '').replace(/\/\d+$/, '');
+                const nasRows = await db.$queryRawUnsafe<Array<{ secret: string; ports: number; type: string }>>(
+                  `SELECT secret, ports, type FROM nas WHERE nasname = $1 LIMIT 1`, nasIp
+                );
+                if (nasRows.length > 0) {
+                  const nasInfo = nasRows[0];
+                  const vendor = (nasInfo.type || 'other').toLowerCase();
+                  let coaAttrs = `User-Name="${existingUser.username}"`;
+                  const mac = (s.callingstationid || '').replace(/\/\d+$/, '');
+                  if (mac) coaAttrs += `\nCalling-Station-Id="${mac}"`;
+                  if (s.framedipaddress) coaAttrs += `\nFramed-IP-Address=${s.framedipaddress.replace(/\/\d+$/, '')}`;
+                  if (vendor === 'mikrotik') {
+                    coaAttrs += `\nMikrotik-Rate-Limit="${dlMbpsCoa}M/${ulMbpsCoa}M"`;
+                  } else if (vendor === 'cisco') {
+                    coaAttrs += `\nCisco-AVPair="sub:Ingress-Committed-Data-Rate=${ulBps}"\nCisco-AVPair="sub:Egress-Committed-Data-Rate=${dlBps}"`;
+                  } else {
+                    coaAttrs += `\nWISPr-Bandwidth-Max-Down=${dlBps}\nWISPr-Bandwidth-Max-Up=${ulBps}`;
+                  }
+                  const { execSync: execCoA } = await import('child_process');
+                  const fsCoA = await import('fs');
+                  const tmpFile = `/tmp/radclient-coa-${Date.now()}.txt`;
+                  try {
+                    fsCoA.writeFileSync(tmpFile, coaAttrs + '\n');
+                    const cmd = `/usr/bin/radclient -t 3 -r 1 ${nasIp}:${nasInfo.ports || 3799} coa ${nasInfo.secret} < ${tmpFile} 2>&1`;
+                    const output = execCoA(cmd, { timeout: 5000 }).toString();
+                    console.log(`[update-user] CoA ${output.includes('CoA-ACK') ? 'OK' : 'FAIL'}: ${existingUser.username}@${nasIp} → ${dlMbpsCoa}M/${ulMbpsCoa}M vendor=${vendor}`);
+                  } catch (coaExecErr: unknown) {
+                    const errObj = coaExecErr as Error & { stdout?: string; stderr?: string };
+                    console.warn(`[update-user] CoA error: ${existingUser.username}@${nasIp}: ${(errObj.stdout || errObj.stderr || '').trim()}`);
+                  } finally {
+                    try { fsCoA.unlinkSync(tmpFile); } catch { /* ignore */ }
+                  }
+                }
+              }
+            } catch (coaErr) {
+              console.warn(`[update-user] External NAS CoA failed (non-fatal):`, coaErr);
+            }
           }
 
           // 6. Handle session timeout

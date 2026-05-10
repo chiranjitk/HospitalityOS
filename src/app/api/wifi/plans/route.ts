@@ -293,10 +293,103 @@ export async function PUT(request: NextRequest) {    const user = await requireP
       try {
         const bwResult = await updatePlanBandwidthForActiveSessions(String(id), dlMbps, ulMbps, db, dlCeilMbps, ulCeilMbps);
         if (bwResult.updated > 0) {
-          console.log(`[plans] Pushed ${dlMbps}/${ulMbps} Mbps to ${bwResult.updated} active sessions on plan ${plan.name}`);
+          console.log(`[plans] Pushed ${dlMbps}/${ulMbps} Mbps to ${bwResult.updated} active sessions on plan ${plan.name} (local NAS)`);
         }
       } catch (bwErr) {
         console.error('[plans] Failed to push bandwidth to active sessions:', bwErr);
+      }
+
+      // Push bandwidth via CoA to external NAS (MikroTik, Cisco, etc.)
+      // Local NAS uses TC — external NAS needs RADIUS CoA with vendor-specific attributes
+      try {
+        const externalSessions = await db.$queryRawUnsafe<Array<{
+          username: string;
+          framedipaddress: string;
+          callingstationid: string;
+          nasipaddress: string;
+          acctsessionid: string;
+        }[]>('''
+          SELECT DISTINCT ON (r.username)
+            r.username, r.framedipaddress, r.callingstationid, r.nasipaddress, r.acctsessionid
+          FROM radacct r
+          JOIN "WiFiUser" u ON u.username = r.username
+          WHERE r.acctstoptime IS NULL
+            AND u."planId" = $1::uuid
+            AND r.nasipaddress != '127.0.0.1'
+            AND r.nasipaddress IS NOT NULL
+            AND r.nasipaddress != ''
+          ORDER BY r.username, r.acctstarttime DESC
+        ''', id);
+
+        if (externalSessions.length > 0) {
+          // Look up NAS type for vendor-specific CoA attributes
+          const nasIps = [...new Set(externalSessions.map(s => s.nasipaddress?.replace(/\/\d+$/, ''))];
+          const nasMap = new Map<string, { secret: string; coaPort: number; type: string }>();
+          for (const nasIp of nasIps) {
+            try {
+              const nasRows = await db.$queryRawUnsafe<Array<{ secret: string; ports: number; type: string }>>(
+                `SELECT secret, ports, type FROM nas WHERE nasname = $1 LIMIT 1`, nasIp
+              );
+              if (nasRows.length > 0) {
+                nasMap.set(nasIp, { secret: nasRows[0].secret, coaPort: nasRows[0].ports || 3799, type: nasRows[0].type || 'other' });
+              }
+            } catch { /* skip */ }
+          }
+
+          const { execSync } = await import('child_process');
+          const fs = await import('fs');
+          let coaOk = 0;
+          let coaFail = 0;
+
+          for (const session of externalSessions) {
+            const nasIp = session.nasipaddress?.replace(/\/\d+$/, '');
+            const nasInfo = nasMap.get(nasIp);
+            if (!nasInfo) { coaFail++; continue; }
+
+            // Build vendor-specific CoA attributes
+            let coaAttrs = `User-Name="${session.username}"`;
+            const mac = (session.callingstationid || '').replace(/\/\d+$/, '');
+            if (mac) coaAttrs += `\nCalling-Station-Id="${mac}"`;
+            if (session.framedipaddress) coaAttrs += `\nFramed-IP-Address=${session.framedipaddress.replace(/\/\d+$/, '')}`;
+
+            const vendor = (nasInfo.type || 'other').toLowerCase();
+            const rateLimit = `${dlMbps}M/${ulMbps}M`;
+            const dlBps = dlMbps * 1000000;
+            const ulBps = ulMbps * 1000000;
+
+            if (vendor === 'mikrotik') {
+              coaAttrs += `\nMikrotik-Rate-Limit="${rateLimit}"`;
+            } else if (vendor === 'cisco') {
+              coaAttrs += `\nCisco-AVPair="sub:Ingress-Committed-Data-Rate=${ulBps}"\nCisco-AVPair="sub:Egress-Committed-Data-Rate=${dlBps}"`;
+            } else {
+              coaAttrs += `\nWISPr-Bandwidth-Max-Down=${dlBps}\nWISPr-Bandwidth-Max-Up=${ulBps}`;
+            }
+
+            const tmpFile = `/tmp/radclient-coa-${Date.now()}-${Math.random().toString(36).slice(2,6)}.txt`;
+            try {
+              fs.writeFileSync(tmpFile, coaAttrs + '\n');
+              const cmd = `/usr/bin/radclient -t 3 -r 1 ${nasIp}:${nasInfo.coaPort} coa ${nasInfo.secret} < ${tmpFile} 2>&1`;
+              const output = execSync(cmd, { timeout: 5000 }).toString();
+              if (output.includes('CoA-ACK')) {
+                coaOk++;
+                console.log(`[plans] CoA OK: ${session.username}@${nasIp} → ${rateLimit}`);
+              } else {
+                coaFail++;
+                console.warn(`[plans] CoA FAIL: ${session.username}@${nasIp}: ${output.trim()}`);
+              }
+            } catch (execErr: unknown) {
+              coaFail++;
+              const errObj = execErr as Error & { stdout?: string; stderr?: string };
+              const realOut = [errObj.stdout || '', errObj.stderr || ''].filter(Boolean).join('\n');
+              console.warn(`[plans] CoA ERROR: ${session.username}@${nasIp}: ${realOut.trim()}`);
+            } finally {
+              try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+            }
+          }
+          console.log(`[plans] CoA bandwidth for plan ${plan.name}: ${coaOk} OK, ${coaFail} failed, ${externalSessions.length} total external sessions`);
+        }
+      } catch (coaErr) {
+        console.error('[plans] External NAS CoA error:', coaErr);
       }
     }
 
