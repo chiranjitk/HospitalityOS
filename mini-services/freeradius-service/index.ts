@@ -2729,67 +2729,14 @@ sql {
         }
       }
 
-      // DO NOT modify post-auth main section sql ordering.
-      // The default config + deploy script places sql correctly for Accept logging.
-      // Post-Auth-Type REJECT handles Reject logging (verified above).
-      details.push('Skipped post-auth sql placement (default config is correct)');
-
-      // REMOVE duplicate sql from TOP of post-auth section.
-      // The template has "StaySuite: Send RADIUS reply attributes" + sql at the TOP,
-      // AND the default FreeRADIUS "After authenticating the user" + sql at the END.
-      // Two sql entries = duplicate radpostauth rows. Remove the TOP one (before IP pool check).
-      {
-        const postAuthMatch = sitesContent.match(/^([ \t]*)post-auth[ \t]*\{/m);
-        const postAuthOpenIdx = postAuthMatch ? postAuthMatch.index : -1;
-        if (postAuthOpenIdx !== -1) {
-          const braceStart = sitesContent.indexOf('{', postAuthOpenIdx);
-          // Brace-counting to find end of post-auth main section (stops before Post-Auth-Type)
-          let depth = 0;
-          let postAuthEndIdx = -1;
-          for (let i = braceStart; i < sitesContent.length; i++) {
-            if (sitesContent[i] === '{') depth++;
-            else if (sitesContent[i] === '}') {
-              depth--;
-              if (depth === 0) { postAuthEndIdx = i; break; }
-            }
-          }
-          if (postAuthEndIdx !== -1) {
-            const postAuthSection = sitesContent.substring(braceStart, postAuthEndIdx + 1);
-            // Count standalone 'sql' lines in post-auth main section
-            const sqlMatches = postAuthSection.match(/^\s*sql\s*$/gm);
-            if (sqlMatches && sqlMatches.length > 1) {
-              // Remove the FIRST sql (at the top, before IP pool check)
-              // Keep the last one (at the end, after IP pool check)
-              const firstSqlIdx = sitesContent.indexOf('\n', braceStart);
-              // Find the first line that is just "sql" after post-auth {
-              const sectionAfter = sitesContent.substring(braceStart, postAuthEndIdx);
-              const sqlLineRegex = /^(\s*)(sql)\s*$/m;
-              const sqlMatch = sqlLineRegex.exec(sectionAfter);
-              if (sqlMatch) {
-                const absSqlStart = braceStart + sqlMatch.index;
-                const lineStart = sitesContent.lastIndexOf('\n', absSqlStart);
-                const lineEnd = sitesContent.indexOf('\n', absSqlStart);
-                // Check if this is the StaySuite comment + sql block
-                const prevLine = sitesContent.substring(
-                  sitesContent.lastIndexOf('\n', lineStart - 1) + 1,
-                  lineStart
-                ).trim();
-                // Remove from prevLine start to sql line end (including comment if StaySuite)
-                let removeStart = lineStart + 1; // start after the \n before sql
-                if (prevLine.includes('StaySuite')) {
-                  removeStart = sitesContent.lastIndexOf('\n', lineStart - 1) + 1;
-                }
-                sitesContent =
-                  sitesContent.substring(0, removeStart) +
-                  sitesContent.substring(lineEnd + 1);
-                details.push('Removed duplicate sql from top of post-auth (kept only end-of-section sql)');
-              }
-            } else if (sqlMatches && sqlMatches.length === 1) {
-              details.push('Post-auth sql verified (single sql entry, no duplicates)');
-            }
-          }
-        }
-      }
+      // DO NOT modify post-auth section content.
+      // Post-auth ordering (sql placement, IP pool check, etc.) is managed by
+      // the deploy script and template. Brace-counting is UNSAFE here because
+      // FreeRADIUS config has { } inside comments, which corrupts section
+      // boundary detection. Any post-auth dedup or reordering must be done
+      // manually or via the deploy script — never at runtime.
+      // Post-Auth-Type REJECT { sql } is verified above for reject logging.
+      details.push('Skipped post-auth modification (managed by template/deploy)');
 
 
       // Add sql to accounting section
