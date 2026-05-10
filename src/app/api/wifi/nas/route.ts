@@ -34,6 +34,10 @@ async function syncClientsConf(): Promise<boolean> {
     // Build managed section
     const lines: string[] = [STAYSUITE_CLIENT_BEGIN];
     for (const row of rows) {
+      // Skip 127.0.0.1 — already covered by default 'client localhost' in clients.conf.
+      // Adding it again causes "Failed to add duplicate client" error.
+      if (row.nasname === '127.0.0.1' || row.nasname === '::1') continue;
+
       const shortname = row.shortname || row.nasname.replace(/\s+/g, '_');
       const coaPort = row.ports || 3799;
       lines.push('');
