@@ -945,19 +945,8 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
     return () => document.removeEventListener('keydown', handleEscape);
   }, [mobileOpen, onMobileClose]);
 
-  // Keyboard navigation support
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+K / Cmd+K to focus search
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        const searchInput = document.querySelector('[data-sidebar-search] input') as HTMLInputElement;
-        searchInput?.focus();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  // Keyboard navigation support — Ctrl+K now opens command palette (handled by CommandPalette component)
+  // Sidebar search remains accessible via click
 
   const toggleSection = (title: string) => {
     setExpandedSections((prev) =>

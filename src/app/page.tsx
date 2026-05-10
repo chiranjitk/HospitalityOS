@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/app-layout';
 import { ErrorBoundary } from '@/components/common/error-boundary';
+import { SectionHeader } from '@/components/common/section-header';
 import { SectionLoadingSkeleton } from '@/components/sections/section-loading-skeleton';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
@@ -72,6 +73,7 @@ function SectionContent({ section }: { section: string }) {
 
   return (
     <div className="space-y-4">
+      <SectionHeader sectionId={section} />
       <ErrorBoundary section={section}>
         <Comp />
       </ErrorBoundary>
