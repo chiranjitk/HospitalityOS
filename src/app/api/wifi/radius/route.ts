@@ -86,6 +86,7 @@ async function freeradiusRequest(endpoint: string, options: RequestInit = {}) {
 const VIEW_ACTIONS = new Set([
   'auth-logs', 'auth-logs-stats',
   'live-sessions-list', 'live-sessions-get', 'live-sessions-stats',
+  'live-speeds',
   'user-usage-summary', 'user-usage-detail',
   'accounting', 'accounting-status', 'accounting-db', 'active-accounting',
   'sessions', 'active-sessions',
@@ -795,6 +796,8 @@ export async function GET(request: NextRequest) {
             sessionTime: number;
             dataDownload: number;
             dataUpload: number;
+            avgSpeedDown: number;
+            avgSpeedUp: number;
             status: 'active';
             startedAt: string | null;
             lastSeenAt: string | null;
@@ -863,6 +866,9 @@ export async function GET(request: NextRequest) {
               // RADIUS: acctoutputoctets = NAS→client (download), acctinputoctets = client→NAS (upload)
               dataDownload: Number(s.acctoutputoctets || 0),
               dataUpload: Number(s.acctinputoctets || 0),
+              // Average speed: bytes * 8 bits / seconds = bps → Mbps
+              avgSpeedDown: (Number(s.acctoutputoctets || 0) * 8) / Math.max(1, Number(s.acctsessiontime || 1)) / 1_000_000,
+              avgSpeedUp: (Number(s.acctinputoctets || 0) * 8) / Math.max(1, Number(s.acctsessiontime || 1)) / 1_000_000,
               status: 'active' as const,
               startedAt: s.acctstarttime || '',
               lastSeenAt: s.acctupdatetime || '',
@@ -1015,6 +1021,30 @@ export async function GET(request: NextRequest) {
             });
           }
         }
+      }
+
+      // ─── Live Speeds (Tier 2: real-time speed from live-speed-service) ──
+      case 'live-speeds': {
+        try {
+          const speedRes = await fetch('http://127.0.0.1:3018/speeds', {
+            signal: AbortSignal.timeout(3000),
+          });
+          if (speedRes.ok) {
+            const speedData = await speedRes.json();
+            // Transform: { speeds: { [ip]: { speedDown, speedUp, ... } } } → { [ip]: { speedDown, speedUp } }
+            if (speedData.speeds && typeof speedData.speeds === 'object') {
+              const mapped: Record<string, { speedDown: number; speedUp: number }> = {};
+              for (const [ip, info] of Object.entries(speedData.speeds)) {
+                const s = info as { speedDown?: number; speedUp?: number };
+                mapped[ip] = { speedDown: s.speedDown || 0, speedUp: s.speedUp || 0 };
+              }
+              return NextResponse.json({ success: true, data: mapped });
+            }
+          }
+        } catch {
+          // Service not running — return empty (avg speed fallback works in frontend)
+        }
+        return NextResponse.json({ success: true, data: {} });
       }
 
       // ─── Accsium Gap: CoA Audit ─────────────────────────────

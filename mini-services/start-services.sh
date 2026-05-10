@@ -15,6 +15,7 @@ DHCP_DIR="$PROJECT_ROOT/mini-services/dhcp-service"
 DNS_DIR="$PROJECT_ROOT/mini-services/dns-service"
 CONNTRACK_DIR="$PROJECT_ROOT/mini-services/conntrack-bridge"
 SNI_PARSER_DIR="$PROJECT_ROOT/mini-services/sni-parser"
+LIVE_SPEED_DIR="$PROJECT_ROOT/mini-services/live-speed-service"
 
 # Kill existing instances
 pkill -f "bun.*dhcp-service/index" 2>/dev/null
@@ -23,6 +24,7 @@ pkill -f "bun.*conntrack-bridge/index" 2>/dev/null
 pkill -f "bun.*sni-parser/index" 2>/dev/null
 # dns-parser no longer started by default (unreliable for IPDR)
 pkill -f "bun.*dns-parser/index" 2>/dev/null
+pkill -f "bun.*live-speed-service/index" 2>/dev/null
 sleep 1
 
 # Start DHCP Service (port 3011)
@@ -69,6 +71,15 @@ echo "sni-parser Service started (PID: $SNI_PARSER_PID, Port: 3022)"
 # nohup bun index.ts >> /tmp/dns-parser.log 2>&1 &
 # echo "dns-parser Service started (Port: 3021) — DEBUG ONLY, not for IPDR"
 
+# Start live-speed-service (port 3018)
+# Polls nftables counters + MikroTik REST API every 3s for real-time per-IP speed
+cd "$LIVE_SPEED_DIR"
+DATABASE_URL="postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite" \
+PORT=3018 \
+nohup bun index.ts >> /tmp/live-speed-service.log 2>&1 &
+LIVE_SPEED_PID=$!
+echo "live-speed-service started (PID: $LIVE_SPEED_PID, Port: 3018)"
+
 # Wait and verify
 sleep 5
 
@@ -107,8 +118,16 @@ else
   echo "  Check logs: tail -20 /tmp/sni-parser.log"
 fi
 
+LIVE_SPEED_HEALTH=$(curl -s --max-time 3 http://localhost:3018/health 2>/dev/null)
+if [ -n "$LIVE_SPEED_HEALTH" ]; then
+  echo "live-speed-service: HEALTHY ✓"
+else
+  echo "live-speed-service: NOT RESPONDING ✗"
+  echo "  Check logs: tail -20 /tmp/live-speed-service.log"
+fi
+
 echo ""
-echo "PIDs: dhcp=$DHCP_PID dns=$DNS_PID conntrack=$CONNTRACK_PID sni-parser=$SNI_PARSER_PID"
+echo "PIDs: dhcp=$DHCP_PID dns=$DNS_PID conntrack=$CONNTRACK_PID sni-parser=$SNI_PARSER_PID live-speed=$LIVE_SPEED_PID"
 echo ""
 echo "IPDR Data Sources:"
 echo "  ✓ conntrack-bridge (3020) → ipdr.nat_log (bytes/packets, 13-month retention)"
