@@ -2812,14 +2812,17 @@ export async function POST(request: NextRequest) {
               const dlMbpsCoa = dlBps / 1000000;
               const ulMbpsCoa = ulBps / 1000000;
               const extSessions = await db.$queryRawUnsafe<Array<{
-                framedipaddress: string; callingstationid: string; nasipaddress: string;
-              }[]>('SELECT framedipaddress, callingstationid, nasipaddress FROM radacct WHERE username = $1 AND acctstoptime IS NULL AND nasipaddress != \'127.0.0.1\' LIMIT 1', existingUser.username);
+                framedipaddress: string; callingstationid: string; nasipaddress: string; acctsessionid: string;
+              }>>('SELECT framedipaddress, callingstationid, nasipaddress, acctsessionid FROM radacct WHERE username = $1 AND acctstoptime IS NULL AND nasipaddress != \'127.0.0.1\' LIMIT 1', existingUser.username);
+              console.log(`[update-user] External NAS check for ${existingUser.username}: ${extSessions.length} active external sessions found`);
               if (extSessions.length > 0) {
                 const s = extSessions[0];
                 const nasIp = (s.nasipaddress || '').replace(/\/\d+$/, '');
+                console.log(`[update-user] External session: nasIp=${nasIp}, mac=${s.callingstationid}, ip=${s.framedipaddress}, sessionId=${s.acctsessionid}`);
                 const nasRows = await db.$queryRawUnsafe<Array<{ secret: string; ports: number; type: string }>>(
                   `SELECT secret, ports, type FROM nas WHERE nasname = $1 LIMIT 1`, nasIp
                 );
+                console.log(`[update-user] NAS lookup for ${nasIp}: ${nasRows.length} rows found`);
                 if (nasRows.length > 0) {
                   const nasInfo = nasRows[0];
                   const vendor = (nasInfo.type || 'other').toLowerCase();
@@ -2827,9 +2830,9 @@ export async function POST(request: NextRequest) {
                   const mac = (s.callingstationid || '').replace(/\/\d+$/, '');
                   if (mac) coaAttrs += `\nCalling-Station-Id="${mac}"`;
                   if (s.framedipaddress) coaAttrs += `\nFramed-IP-Address=${s.framedipaddress.replace(/\/\d+$/, '')}`;
+                  if (s.acctsessionid) coaAttrs += `\nAcct-Session-Id="${s.acctsessionid}"`;
                   if (vendor === 'mikrotik') {
-                    // Mikrotik-Rate-Limit rx/tx: rx=upload, tx=download (NAS perspective)
-                    coaAttrs += `\nMikrotik-Rate-Limit="${ulMbpsCoa}M/${dlMbpsCoa}M"`;
+                    coaAttrs += `\nMikrotik-Rate-Limit="${dlMbpsCoa}M/${ulMbpsCoa}M"`;
                   } else if (vendor === 'cisco') {
                     coaAttrs += `\nCisco-AVPair="sub:Ingress-Committed-Data-Rate=${ulBps}"\nCisco-AVPair="sub:Egress-Committed-Data-Rate=${dlBps}"`;
                   } else {

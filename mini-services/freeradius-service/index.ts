@@ -1181,8 +1181,7 @@ function generateBandwidthAttributes(downloadBps: number, uploadBps: number, ven
 
   switch (vendor) {
     case 'mikrotik':
-      // Mikrotik-Rate-Limit rx/tx: rx=upload, tx=download (NAS perspective)
-      attrs['Mikrotik-Rate-Limit'] = `${uploadMbps}M/${downloadMbps}M`;
+      attrs['Mikrotik-Rate-Limit'] = `${downloadMbps}M/${uploadMbps}M`;
       break;
 
     case 'cisco':
@@ -3645,8 +3644,7 @@ app.post('/api/coa/bandwidth', async (c) => {
     const vendor = normalizeVendor(nas.type);
     const dlMbps = downloadMbps || 0;
     const ulMbps = uploadMbps || 0;
-    // Mikrotik-Rate-Limit rx/tx: rx=upload, tx=download (NAS perspective)
-    const rateLimit = `${ulMbps}M/${dlMbps}M`;
+    const rateLimit = `${dlMbps}M/${ulMbps}M`;
     const dlBps = dlMbps * 1000000;
     const ulBps = ulMbps * 1000000;
 
@@ -6262,8 +6260,7 @@ async function applyBandwidthCoA(
   let coaAttrs = `User-Name="${username}"`;
   switch (vendor) {
     case 'mikrotik':
-      // Mikrotik-Rate-Limit rx/tx: rx=upload, tx=download (NAS perspective)
-      coaAttrs += `\nMikrotik-Rate-Limit="${ulMbps}M/${dlMbps}M"`;
+      coaAttrs += `\nMikrotik-Rate-Limit="${dlMbps}M/${ulMbps}M"`;
       break;
     case 'cisco':
       coaAttrs += `\nCisco-AVPair="sub:Ingress-Committed-Data-Rate=${ulBps}"\nCisco-AVPair="sub:Egress-Committed-Data-Rate=${dlBps}"`;
@@ -7588,8 +7585,7 @@ setInterval(async () => {
             let attrs = `User-Name="${session.username}"`;
             switch (vendor) {
               case 'mikrotik':
-                // Mikrotik-Rate-Limit rx/tx: rx=upload, tx=download (NAS perspective)
-                attrs += `\nMikrotik-Rate-Limit="${throttleUp}k/${throttleDown}k"`;
+                attrs += `\nMikrotik-Rate-Limit="${throttleDown}k/${throttleUp}k"`;
                 break;
               case 'cisco':
                 attrs += `\nCisco-AVPair="sub:Ingress-Committed-Data-Rate=${upBps}"\nCisco-AVPair="sub:Egress-Committed-Data-Rate=${downBps}"`;

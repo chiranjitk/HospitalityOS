@@ -386,10 +386,7 @@ export class MikrotikAdapter extends GatewayAdapter {
    * - Separate: "10M/5M" (10M rx / 5M tx)
    * - Burst: "10M/10M 20M/20M 5M/5M 10" (limit/burst limit/burst threshold/burst time)
    *
-   * IMPORTANT: MikroTik rx/tx is from NAS perspective:
-   *   rx = traffic received BY NAS (from client) = Upload
-   *   tx = traffic transmitted BY NAS (to client) = Download
-   *   So format must be: upload/download
+   * In MikroTik hotspot context: rx = download (to client), tx = upload (from client)
    */
   getRadiusAttributes(policy: BandwidthPolicy): Record<string, string> {
     const attrs = super.getRadiusAttributes(policy);
@@ -398,8 +395,7 @@ export class MikrotikAdapter extends GatewayAdapter {
     const downloadMbps = policy.downloadSpeed / 1000000; // bps to Mbps
     const uploadMbps = policy.uploadSpeed / 1000000;
 
-    // rx/tx format: rx=upload, tx=download (NAS perspective)
-    attrs['Mikrotik-Rate-Limit'] = `${uploadMbps}M/${downloadMbps}M`;
+    attrs['Mikrotik-Rate-Limit'] = `${downloadMbps}M/${uploadMbps}M`;
 
     // Data limit
     if (policy.dataLimit && policy.dataLimit > 0) {
@@ -411,7 +407,7 @@ export class MikrotikAdapter extends GatewayAdapter {
 
   /**
    * Format bandwidth for MikroTik
-   * MikroTik uses: rx-rate/tx-rate where rx=upload, tx=download (NAS perspective)
+   * MikroTik uses: rx-rate/tx-rate (download/upload in hotspot context)
    */
   formatBandwidthLimit(download: number, upload: number): string {
     const formatRate = (bps: number): string => {
@@ -421,8 +417,7 @@ export class MikrotikAdapter extends GatewayAdapter {
       return String(bps);
     };
 
-    // rx/tx: rx=upload, tx=download
-    return `${formatRate(upload)}/${formatRate(download)}`;
+    return `${formatRate(download)}/${formatRate(upload)}`;
   }
 
   /**
