@@ -2616,14 +2616,16 @@ sql {
       // REPAIR: Ensure authenticate section has required Auth-Type blocks.
       // Previous versions used a dangerous [^}]* regex that could destroy
       // Auth-Type PAP/CHAP/MS-CHAP blocks, causing "Auth-Type sub-section not found".
-      // Use brace-counting to safely find the authenticate section boundaries.
+      // Use flexible matching — production uses tabs: "\tauthenticate\t{" not "authenticate {".
       {
-        const authOpenIdx = sitesContent.indexOf('authenticate {');
+        const authMatch = sitesContent.match(/^([ \t]*)authenticate[ \t]*\{/m);
+        const authOpenIdx = authMatch ? authMatch.index : -1;
         if (authOpenIdx !== -1) {
+          const braceStart = sitesContent.indexOf('{', authOpenIdx);
           // Brace-counting to find the matching closing brace
           let depth = 0;
           let authEndIdx = -1;
-          for (let i = authOpenIdx; i < sitesContent.length; i++) {
+          for (let i = braceStart; i < sitesContent.length; i++) {
             if (sitesContent[i] === '{') depth++;
             else if (sitesContent[i] === '}') {
               depth--;
@@ -2642,7 +2644,7 @@ sql {
             );
             if (missing.length > 0) {
               // Insert missing Auth-Type blocks right after "authenticate {"
-              const insertPos = sitesContent.indexOf('{', authOpenIdx) + 1;
+              const insertPos = braceStart + 1;
               const blocksToInsert = missing
                 .map(at => `\n\t\tAuth-Type ${at.name} {\n\t\t\t${at.module}\n\t\t}`)
                 .join('\n');
@@ -2656,7 +2658,19 @@ sql {
             }
           }
         } else {
-          details.push('WARNING: authenticate section not found in sites-available/default');
+          details.push('WARNING: authenticate section not found in sites-available/default — will insert full section');
+          // Insert a complete authenticate section before "post-auth {"
+          const postAuthIdx = sitesContent.indexOf('post-auth');
+          if (postAuthIdx !== -1) {
+            // Find line start of post-auth
+            const lineStart = sitesContent.lastIndexOf('\n', postAuthIdx) + 1;
+            const authSection = `\nauthenticate {\n\t\tAuth-Type PAP {\n\t\t\tpap\n\t\t}\n\n\t\tAuth-Type CHAP {\n\t\t\tchap\n\t\t}\n\n\t\tAuth-Type MS-CHAP {\n\t\t\tmschap\n\t\t}\n\n\t\tdigest\n}\n\n`;
+            sitesContent =
+              sitesContent.substring(0, lineStart) +
+              authSection +
+              sitesContent.substring(lineStart);
+            details.push('Inserted full authenticate section (PAP/CHAP/MS-CHAP/digest)');
+          }
         }
       }
 
