@@ -504,6 +504,11 @@ export default function LoginPage() {
             }}
           />
 
+          {/* Decorative floating elements on right panel */}
+          <div className="absolute top-[8%] right-[8%] w-3 h-3 rounded-full bg-gradient-to-br from-teal-400/20 to-emerald-400/20 animate-pulse pointer-events-none hidden lg:block" />
+          <div className="absolute bottom-[15%] left-[6%] w-2 h-2 rounded-full bg-gradient-to-br from-amber-400/20 to-orange-400/20 animate-bounce [animation-delay:1s] pointer-events-none hidden lg:block" />
+          <div className="absolute top-[45%] right-[4%] w-2.5 h-2.5 rounded-full bg-gradient-to-br from-emerald-400/15 to-cyan-400/15 animate-pulse [animation-delay:2s] pointer-events-none hidden lg:block" />
+
           <div className="relative z-10 flex flex-col items-center justify-center min-h-screen lg:min-h-screen p-4 sm:p-6 lg:p-8 py-8 lg:py-0 pb-[env(safe-area-inset-bottom)]">
             <div className="w-full max-w-[400px] lg:max-w-[360px] flex flex-col">
 
@@ -525,14 +530,22 @@ export default function LoginPage() {
                 </div>
               </motion.div>
 
-              {/* ── Clean Card ── */}
+              {/* ── Glass Card with Animated Gradient Border ── */}
+              <div className="relative rounded-[17px] p-[1px] bg-gradient-to-br from-teal-500/30 via-emerald-500/10 to-amber-500/30 overflow-hidden">
+                {/* Animated spinning conic gradient layer for border shimmer */}
+                <div className="absolute inset-0 overflow-hidden rounded-[17px] pointer-events-none">
+                  <div
+                    className="absolute inset-[-200%] animate-[spin_8s_linear_infinite]"
+                    style={{ background: 'conic-gradient(from 0deg, transparent 0%, rgba(20,184,166,0.12) 15%, transparent 30%, rgba(16,185,129,0.08) 45%, transparent 60%, rgba(245,158,11,0.08) 75%, transparent 90%)' }}
+                  />
+                </div>
               <motion.div
-                className="rounded-2xl border border-border/40 dark:border-white/[0.08] bg-white/80 dark:bg-slate-950/70 backdrop-blur-xl shadow-lg dark:shadow-[0_8px_40px_-12px_rgba(0,0,0,0.5)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.6),inset_0_-1px_2px_rgba(0,0,0,0.03)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.04),0_8px_40px_-12px_rgba(0,0,0,0.5)] relative overflow-hidden"
+                className="rounded-2xl bg-white/80 dark:bg-gray-950/80 backdrop-blur-2xl border border-white/20 dark:border-white/10 shadow-lg shadow-[inset_0_0_30px_rgba(255,255,255,0.1)] dark:shadow-[inset_0_0_30px_rgba(255,255,255,0.03),0_8px_40px_-12px_rgba(0,0,0,0.5)] relative overflow-hidden"
                 variants={cardVariants}
                 initial="hidden"
                 animate="visible"
                 whileHover={{
-                  boxShadow: '0_16px_48px_-12px_rgba(0,0,0,0.12)',
+                  boxShadow: '0_16px_48px_-12px_rgba(0,0,0,0.12),0_0_24px_rgba(20,184,166,0.08)',
                   y: -1,
                   transition: { duration: 0.3, ease: 'easeOut' },
                 }}
@@ -629,7 +642,7 @@ export default function LoginPage() {
                               placeholder="you@company.com"
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
-                              className="relative pl-11 h-12 bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-700/50 rounded-xl transition-all duration-300 focus:bg-white/80 dark:focus:bg-slate-900/80 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/15 hover:border-teal-300/70 dark:hover:border-teal-600/70 hover:shadow-sm text-[15px] placeholder:text-foreground/35"
+                              className="relative pl-11 h-[52px] bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-700/50 rounded-xl transition-all duration-300 focus:bg-white/80 dark:focus:bg-slate-900/80 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/30 hover:border-teal-300/70 dark:hover:border-teal-600/70 hover:shadow-sm text-[15px] placeholder:text-foreground/35"
                               required
                               disabled={isLoading}
                               autoComplete="email"
@@ -701,14 +714,14 @@ export default function LoginPage() {
                               placeholder="Enter password"
                               value={password}
                               onChange={(e) => setPassword(e.target.value)}
-                              className="relative pl-11 pr-11 h-12 bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-700/50 rounded-xl transition-all duration-300 focus:bg-white/80 dark:focus:bg-slate-900/80 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/15 hover:border-teal-300/70 dark:hover:border-teal-600/70 hover:shadow-sm text-[15px] placeholder:text-foreground/35"
+                              className="relative pl-11 pr-11 h-[52px] bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-700/50 rounded-xl transition-all duration-300 focus:bg-white/80 dark:focus:bg-slate-900/80 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/30 hover:border-teal-300/70 dark:hover:border-teal-600/70 hover:shadow-sm text-[15px] placeholder:text-foreground/35"
                               required
                               disabled={isLoading}
                               autoComplete="current-password"
                             />
                             <button
                               type="button"
-                              className="absolute right-2.5 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-muted-foreground/30 hover:text-muted-foreground transition-all duration-200 hover:scale-110 active:scale-95"
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-muted-foreground/30 hover:text-teal-500 transition-all duration-200 hover:scale-110 active:scale-95"
                               onClick={() => setShowPassword(!showPassword)}
                               aria-label={showPassword ? 'Hide password' : 'Show password'}
                             >
@@ -756,11 +769,12 @@ export default function LoginPage() {
                           <Button
                             type="submit"
                             className={cn(
-                              "w-full h-12 rounded-xl font-semibold text-sm transition-transform duration-150",
-                              "bg-gradient-to-r from-teal-600 via-emerald-500 to-cyan-500",
-                              "hover:shadow-lg hover:shadow-teal-500/30 hover:scale-[1.02]",
+                              "w-full h-12 rounded-xl font-semibold text-sm transition-all duration-200",
+                              "bg-gradient-to-r from-teal-600 to-emerald-600",
+                              "hover:from-teal-500 hover:to-emerald-500",
+                              "hover:shadow-[0_0_20px_rgba(20,184,166,0.3)] hover:scale-[1.02]",
                               "active:scale-[0.98]",
-                              "dark:from-teal-500 dark:via-emerald-600 dark:to-cyan-500",
+                              "dark:from-teal-500 dark:to-emerald-500",
                               "text-white",
                               "hover:-translate-y-0.5 active:translate-y-0",
                               "disabled:opacity-70 disabled:hover:translate-y-0 disabled:shadow-none disabled:active:scale-100 disabled:hover:scale-100",
@@ -777,11 +791,20 @@ export default function LoginPage() {
                               <span
                                 className="absolute inset-0"
                                 style={{
-                                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+                                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)',
                                   animation: 'loginBtnShimmer 3s ease-in-out infinite',
                                 }}
                               />
                             </span>
+                            {/* Loading progress bar */}
+                            {isLoading && (
+                              <motion.div
+                                className="absolute bottom-0 left-0 h-[2px] bg-white/60 rounded-full"
+                                initial={{ width: '0%' }}
+                                animate={{ width: '100%' }}
+                                transition={{ duration: 2, ease: 'linear' }}
+                              />
+                            )}
                             {isLoading ? (
                               <span className="relative flex items-center justify-center gap-2">
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1016,6 +1039,7 @@ export default function LoginPage() {
                   </div>
                 </div>
               </motion.div>
+              </div>
 
               {/* ── Register with license key link ── */}
               <motion.div

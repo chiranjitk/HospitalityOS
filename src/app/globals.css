@@ -364,6 +364,29 @@ html.dark * {
   animation: shimmer 1.8s ease-in-out infinite;
 }
 
+/* Skeleton shimmer sweep — translateX-based sweep for skeleton blocks */
+@keyframes skeletonShimmerSweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.skeleton-shimmer-sweep {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    oklch(1 0 0 / 0.35) 50%,
+    transparent 100%
+  );
+  animation: skeletonShimmerSweep 1.5s ease-in-out infinite;
+}
+.dark .skeleton-shimmer-sweep {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    oklch(1 0 0 / 0.06) 50%,
+    transparent 100%
+  );
+}
+
 /* Smooth number counter transition */
 .tabular-nums {
   font-variant-numeric: tabular-nums;

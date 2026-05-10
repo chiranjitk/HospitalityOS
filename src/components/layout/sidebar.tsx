@@ -61,6 +61,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { NotificationPopover } from '@/components/layout/notification-popover';
+import { ThemeToggle } from '@/components/common/theme-toggle';
 
 // =============================================
 // CONSTANTS
@@ -770,6 +771,30 @@ function UserProfile({ collapsed }: { collapsed?: boolean }) {
 }
 
 // =============================================
+// SIDEBAR THEME TOGGLE ROW
+// =============================================
+function SidebarThemeToggleRow({ collapsed }: { collapsed?: boolean }) {
+  if (collapsed) {
+    return (
+      <div className="px-2 py-1.5 flex-shrink-0">
+        <ThemeToggle collapsed />
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-3 py-2 border-t border-sidebar-border/15 flex-shrink-0">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground">
+          Appearance
+        </span>
+        <ThemeToggle />
+      </div>
+    </div>
+  );
+}
+
+// =============================================
 // PREMIUM LOGO COMPONENT (Enhanced)
 // =============================================
 function Logo({ showClose, onClose, collapsed }: LogoProps) {
@@ -1058,6 +1083,7 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
         <TenantSwitcher />
         <NotificationPopover />
         <UserProfile />
+        <SidebarThemeToggleRow collapsed={false} />
       </aside>
 
       {/* Desktop Collapsed Sidebar */}
@@ -1090,6 +1116,7 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
             <TenantSwitcher collapsed />
             <NotificationPopover collapsed />
             <UserProfile collapsed />
+            <SidebarThemeToggleRow collapsed />
 
             {/* Collapse toggle */}
             <div className="p-2 border-t border-sidebar-border/[0.10] flex-shrink-0">
@@ -1161,6 +1188,7 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
           <QuickStats />
           <TenantSwitcher />
           <UserProfile />
+          <SidebarThemeToggleRow collapsed={false} />
         </aside>
       )}
     </>

@@ -68,7 +68,7 @@ function SectionContent({ section }: { section: string }) {
   }
 
   if (!Comp) {
-    return <SectionLoadingSkeleton />;
+    return <SectionLoadingSkeleton section={section} />;
   }
 
   return (

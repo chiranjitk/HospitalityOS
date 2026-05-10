@@ -131,5 +131,5 @@ dev.pid
 index
 test-w.txt
 
-# StaySuite login logs
-.staysuite/logs/staysuite_login.log
+# StaySuite runtime data & logs
+.staysuite/
