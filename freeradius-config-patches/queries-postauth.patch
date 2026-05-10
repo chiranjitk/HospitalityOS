@@ -30,6 +30,6 @@ post-auth {
                         '%{Calling-Station-Id}', \
                         '%{NAS-IP-Address}', \
                         '%{request:Framed-IP-Address}', \
-                        '%{Reply-Message}' \
+                        '%{reply:Reply-Message}' \
                         ${..class.reply_xlat})"
 }

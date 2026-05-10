@@ -568,7 +568,7 @@ sql {
       VALUES ('%{SQL-User-Name}', '%{%{User-Password}:-%{Chap-Password}}', '%{reply:Packet-Type}', \
         '%{Called-Station-Id}', '%{Calling-Station-Id}', \
         '%{NAS-IP-Address}', NULLIF('%{Framed-IP-Address}', ''), NOW(), NULLIF('%{Class}', ''), \
-        '%{Reply-Message}')"
+        '%{reply:Reply-Message}')"
   }
 }
 EOCONF

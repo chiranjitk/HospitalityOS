@@ -2557,7 +2557,7 @@ sql {
     # replyMessage captures the actual rejection reason (e.g., IP pool deny) for Auth Logs display.
     # NOTE: nasIpAddress is camelCase in the DB, use escaped quotes in FreeRADIUS unlang.
     post-auth {
-        query = "INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, callingstationid, calledstationid, \\"nasIpAddress\\", \\"replyMessage\\") VALUES ('%{SQL-User-Name}', '', '%{reply:Packet-Type}', '%S'::timestamptz, '%{NAS-IP-Address}', '%{Calling-Station-Id}', '%{Called-Station-Id}', '%{NAS-IP-Address}', '%{Reply-Message}')"
+        query = "INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, callingstationid, calledstationid, \\"nasIpAddress\\", \\"replyMessage\\") VALUES ('%{SQL-User-Name}', '', '%{reply:Packet-Type}', '%S'::timestamptz, '%{NAS-IP-Address}', '%{Calling-Station-Id}', '%{Called-Station-Id}', '%{NAS-IP-Address}', '%{reply:Reply-Message}')"
     }
 
     # Session: check for existing active session
