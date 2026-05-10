@@ -2615,87 +2615,14 @@ sql {
       // Adding 'Auth-Type SQL { sql }' causes: "sql modules aren't allowed in 'authenticate' sections"
       details.push('Skipped authenticate section (FreeRADIUS 3.x auto-verifies from authorize)');
 
-      // Fix post-auth sql placement: sql must be AFTER IP pool check, not before it.
-      // When reject fires in the IP pool check, FreeRADIUS skips remaining post-auth
-      // modules and jumps to Post-Auth-Type REJECT. So:
-      //   Accept → sql runs in post-auth → one Accept row
-      //   Reject → sql skipped → Post-Auth-Type REJECT runs sql → one Reject row
-      //
-      // Approach: work line-by-line between "post-auth {" and first "Post-Auth-Type".
-      // Remove any sql from the top section, add it just before Post-Auth-Type.
-      const paHeaderMatch = sitesContent.match(/^(post-auth\s*\{)\n/m);
-      if (paHeaderMatch) {
-        const paStartLine = sitesContent.indexOf(paHeaderMatch[0]);
-        // Find first Post-Auth-Type line after post-auth header
-        const afterPaHeader = sitesContent.substring(paStartLine);
-        const rejectHeaderMatch = afterPaHeader.match(/\n(\s*Post-Auth-Type\s)/);
+      // DO NOT modify post-auth section ordering.
+      // The default FreeRADIUS config has sql in both post-auth {} and
+      // Post-Auth-Type REJECT {}, which correctly logs both Accept and Reject.
+      // Moving sql position breaks Reply-Message capture in REJECT context.
+      // Duplicate rows (Accept+Reject from IP pool reject) are handled in the
+      // v_auth_logs view using DISTINCT ON (picks the Reject row which has replyMessage).
+      details.push('Skipped post-auth sql placement (default config is correct)');
 
-        if (rejectHeaderMatch) {
-          // Extract lines between "post-auth {" and "Post-Auth-Type"
-          const mainBlock = afterPaHeader.substring(
-            paHeaderMatch[0].length,
-            rejectHeaderMatch.index
-          );
-
-          // Check if sql needs to be moved (exists before IP pool check)
-          const ipPoolIdx = mainBlock.indexOf('StaySuite: IP Pool');
-          let needsSqlMove = false;
-
-          // Check for StaySuite-commented sql
-          const commentedSqlMatch = mainBlock.match(/^[ \t]*# StaySuite: Log auth results to radpostauth[^\n]*\n[ \t]*sql[ \t]*$/m);
-          if (commentedSqlMatch && ipPoolIdx !== -1 && commentedSqlMatch.index < ipPoolIdx) {
-            needsSqlMove = true;
-          }
-          // Check for bare sql
-          if (!needsSqlMove) {
-            const bareSqlMatch = mainBlock.match(/^[ \t]*sql[ \t]*$/m);
-            if (bareSqlMatch && ipPoolIdx !== -1 && bareSqlMatch.index < ipPoolIdx && bareSqlMatch.index < 500) {
-              needsSqlMove = true;
-            }
-          }
-
-          if (needsSqlMove) {
-            // Remove all sql lines (and our comments) from the main block
-            let cleanedBlock = mainBlock
-              .replace(/^[ \t]*# StaySuite: Log auth results to radpostauth[^\n]*\n[ \t]*sql[ \t]*\n?/gm, '')
-              .replace(/^[ \t]*sql[ \t]*\n?/gm, '');
-
-            // Re-add sql just before Post-Auth-Type
-            cleanedBlock += '\n\t# StaySuite: Log auth results to radpostauth\n\tsql';
-
-            // Replace in the full content
-            const fullOldBlock = paHeaderMatch[0] + mainBlock + rejectHeaderMatch[0];
-            const fullNewBlock = paHeaderMatch[0] + cleanedBlock + rejectHeaderMatch[0];
-            sitesContent = sitesContent.replace(fullOldBlock, fullNewBlock);
-            details.push('Moved sql from top to end of post-auth (after IP pool check)');
-          } else if (!/\bsql\b/.test(mainBlock)) {
-            // No sql at all in main block — add it before Post-Auth-Type
-            const fullOldBlock = paHeaderMatch[0] + mainBlock + rejectHeaderMatch[0];
-            const fullNewBlock = paHeaderMatch[0] + mainBlock + '\n\t# StaySuite: Log auth results to radpostauth\n\tsql' + rejectHeaderMatch[0];
-            sitesContent = sitesContent.replace(fullOldBlock, fullNewBlock);
-            details.push('Added sql to end of post-auth section');
-          }
-        }
-      }
-
-      // Ensure sql is in Post-Auth-Type REJECT (for reject logging when IP pool check fails)
-      if (sitesContent.includes('Post-Auth-Type REJECT') && !sitesContent.match(/Post-Auth-Type REJECT\s*\{[^}]*sql/)) {
-        sitesContent = sitesContent.replace(
-          /Post-Auth-Type REJECT\s*\{/,
-          'Post-Auth-Type REJECT {\n\t\t# StaySuite: Log rejected auth attempts to radpostauth\n\t\tsql'
-        );
-        details.push('Added sql to Post-Auth-Type REJECT section');
-      } else if (!sitesContent.includes('Post-Auth-Type REJECT')) {
-        // If REJECT section doesn't exist, add it
-        const postAuthEndMatch = sitesContent.match(/post-auth\s*\{[\s\S]*?\n\}/);
-        if (postAuthEndMatch) {
-          sitesContent = sitesContent.replace(
-            postAuthEndMatch[0],
-            postAuthEndMatch[0].replace(/\n\}$/, '\n\n\tPost-Auth-Type REJECT {\n\t\t# StaySuite: Log rejected auth attempts to radpostauth\n\t\tsql\n\t}')
-          );
-          details.push('Created Post-Auth-Type REJECT section with sql');
-        }
-      }
 
       // Add sql to accounting section
       const acctSection = sitesContent.match(/accounting\s*\{([^}]*)\}/);
@@ -2746,32 +2673,8 @@ sql {
         );
         // NOTE: Do NOT add sql to authenticate in FreeRADIUS 3.x (same reason as above)
         // SQL password verification is automatic from the authorize section
-        // Add sql to end of post-auth (after any checks, for Access-Accept logging)
-        // Use simple line-based approach (inner-tunnel has no IP pool check, so order matters less)
-        const innerPaHeader = innerContent.match(/^(post-auth\s*\{)\n/m);
-        if (innerPaHeader) {
-          const innerPaStart = innerContent.indexOf(innerPaHeader[0]);
-          const innerAfterPa = innerContent.substring(innerPaStart);
-          const innerRejectMatch = innerAfterPa.match(/\n(\s*Post-Auth-Type\s)/);
-          if (innerRejectMatch) {
-            const innerMainBlock = innerAfterPa.substring(
-              innerPaHeader[0].length,
-              innerRejectMatch.index
-            );
-            if (!/\bsql\b/.test(innerMainBlock)) {
-              const innerOldBlock = innerPaHeader[0] + innerMainBlock + innerRejectMatch[0];
-              const innerNewBlock = innerPaHeader[0] + innerMainBlock + '\n\t# StaySuite: Log auth results to radpostauth\n\tsql' + innerRejectMatch[0];
-              innerContent = innerContent.replace(innerOldBlock, innerNewBlock);
-            }
-          }
-        }
-        // Ensure sql is in Post-Auth-Type REJECT (for reject logging)
-        if (innerContent.includes('Post-Auth-Type REJECT') && !innerContent.match(/Post-Auth-Type REJECT\s*\{[^}]*sql/)) {
-          innerContent = innerContent.replace(
-            /Post-Auth-Type REJECT\s*\{/,
-            'Post-Auth-Type REJECT {\n\t\t# StaySuite: Log rejected auth attempts\n\t\tsql'
-          );
-        }
+        // DO NOT modify post-auth in inner-tunnel (same reason as sites-enabled/default)
+        details.push('Skipped post-auth sql placement (default config is correct)');
         // Add sql to session
         innerContent = innerContent.replace(
           /session\s*\{/,

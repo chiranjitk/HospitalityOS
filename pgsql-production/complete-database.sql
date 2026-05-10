@@ -486,17 +486,15 @@ CREATE VIEW v_active_sessions AS  SELECT session_id,
 -- VIEW: v_auth_logs
 -- Authentication attempt log based on FreeRADIUS radpostauth.
 -- Used by: Auth Logs tab, security audit reports.
--- Enhanced: source_ip_address = clientipaddress (fallback to nasIpAddress).
--- Reject messages include username, source IP, and specific reason.
 --
 -- 2026-05-05: Added DeviceProfile MAC fallback for calling_station_id.
---   When radpostauth.callingstationid is NULL (WAN/captive portal auth),
---   falls back to DeviceProfile.macAddress for the matched WiFiUser.
--- 2026-06: Uses radpostauth.replyMessage for external NAS rejects (FreeRADIUS
---   sets Reply-Message attribute with actual rejection reason, e.g. IP pool deny).
+-- 2026-06: Uses radpostauth.replyMessage for external NAS rejects.
+-- 2026-06: Deduplicate Accept+Reject pairs from IP pool rejects via subquery
+--   with DISTINCT ON (username, date_trunc('second', authdate)), ORDER BY id DESC
+--   to pick the Reject row (higher id, has replyMessage).
 -- ---------------------------------------------------------------------------
 CREATE VIEW v_auth_logs AS
-SELECT DISTINCT ON (pa.id) pa.id::text AS id,
+SELECT pa.id::text AS id,
     pa.username,
     pa.reply AS auth_result,
     pa.authdate AS "timestamp",
@@ -560,7 +558,13 @@ SELECT DISTINCT ON (pa.id) pa.id::text AS id,
     wp."downloadSpeed" AS plan_download_speed,
     wp."uploadSpeed" AS plan_upload_speed,
     wp."dataLimit" AS plan_data_limit
-   FROM radpostauth pa
+   FROM (
+       SELECT DISTINCT ON (username, authdate_trunc) *
+       FROM (
+           SELECT *, date_trunc('second', authdate) AS authdate_trunc FROM radpostauth
+       ) r
+       ORDER BY username, authdate_trunc, id DESC
+   ) pa
      LEFT JOIN LATERAL ( SELECT radacct.framedipaddress FROM radacct WHERE radacct.username = pa.username ORDER BY radacct.acctstarttime DESC LIMIT 1) acct ON true
      LEFT JOIN "WiFiUser" u ON pa.username = u.username
      LEFT JOIN "WiFiUser" wu ON pa.username = wu.username
@@ -569,8 +573,7 @@ SELECT DISTINCT ON (pa.id) pa.id::text AS id,
      LEFT JOIN "Room" rm ON b."roomId" = rm.id
      LEFT JOIN "Property" p ON u."propertyId" = p.id
      LEFT JOIN "WiFiPlan" wp ON u."planId" = wp.id
-     LEFT JOIN LATERAL (SELECT groupname FROM radusergroup WHERE username = pa.username LIMIT 1) rg ON true
-  ORDER BY pa.id DESC;
+     LEFT JOIN LATERAL (SELECT groupname FROM radusergroup WHERE username = pa.username LIMIT 1) rg ON true;
 
 -- ---------------------------------------------------------------------------
 -- VIEW: v_user_usage

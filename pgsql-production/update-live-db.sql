@@ -481,18 +481,17 @@ END $$;
 -- ============================================================================
 -- [11] Recreate v_auth_logs view
 --    Fixes:
---      - replyMessage check is now FIRST priority for rejects (was after
---        pass-based codes). FreeRADIUS stores actual rejection reason in
---        replyMessage for external NAS rejects (e.g. IP pool deny).
---      - DISTINCT ON (pa.id) prevents duplicate rows from radusergroup join
---        (user in multiple RADIUS groups = multiple view rows per auth event).
---      - radusergroup now uses LATERAL subquery with LIMIT 1 instead of
---        bare LEFT JOIN.
+--      - replyMessage check is now FIRST priority for rejects.
+--      - radusergroup uses LATERAL subquery with LIMIT 1 (no row multiplication).
+--      - Deduplicates Accept+Reject pairs from IP pool rejects via subquery
+--        DISTINCT ON (username, date_trunc('second', authdate)) ORDER BY id DESC.
+--        This picks the Reject row (higher id, has replyMessage) when FreeRADIUS
+--        writes two rows for one reject event.
 -- ============================================================================
 DROP VIEW IF EXISTS v_auth_logs;
 
 CREATE VIEW v_auth_logs AS
-SELECT DISTINCT ON (pa.id) pa.id::text AS id,
+SELECT pa.id::text AS id,
     pa.username,
     pa.reply AS auth_result,
     pa.authdate AS "timestamp",
@@ -556,7 +555,13 @@ SELECT DISTINCT ON (pa.id) pa.id::text AS id,
     wp."downloadSpeed" AS plan_download_speed,
     wp."uploadSpeed" AS plan_upload_speed,
     wp."dataLimit" AS plan_data_limit
-   FROM radpostauth pa
+   FROM (
+       SELECT DISTINCT ON (username, authdate_trunc) *
+       FROM (
+           SELECT *, date_trunc('second', authdate) AS authdate_trunc FROM radpostauth
+       ) r
+       ORDER BY username, authdate_trunc, id DESC
+   ) pa
      LEFT JOIN LATERAL ( SELECT radacct.framedipaddress FROM radacct WHERE radacct.username = pa.username ORDER BY radacct.acctstarttime DESC LIMIT 1) acct ON true
      LEFT JOIN "WiFiUser" u ON pa.username = u.username
      LEFT JOIN "WiFiUser" wu ON pa.username = wu.username
@@ -565,8 +570,7 @@ SELECT DISTINCT ON (pa.id) pa.id::text AS id,
      LEFT JOIN "Room" rm ON b."roomId" = rm.id
      LEFT JOIN "Property" p ON u."propertyId" = p.id
      LEFT JOIN "WiFiPlan" wp ON u."planId" = wp.id
-     LEFT JOIN LATERAL (SELECT groupname FROM radusergroup WHERE username = pa.username LIMIT 1) rg ON true
-  ORDER BY pa.id DESC;
+     LEFT JOIN LATERAL (SELECT groupname FROM radusergroup WHERE username = pa.username LIMIT 1) rg ON true;
 
 COMMIT;
 
