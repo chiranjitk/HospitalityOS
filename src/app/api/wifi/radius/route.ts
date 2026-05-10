@@ -3162,9 +3162,11 @@ export async function POST(request: NextRequest) {
         console.log('[live-sessions-disconnect] Resolved:', { bareSessionId, disconnectUsername, nasIp: nasIp || '' });
 
 
-        // 1. Try RADIUS CoA/Disconnect-Message to NAS (best-effort)
+        // 1. RADIUS CoA/Disconnect-Message — ONLY for external NAS (NOT 127.0.0.1)
+        // Local NAS is this machine — sessions are managed via nftables/TC, not RADIUS DM.
         let coaSuccess = false;
         let coaMessage = '';
+        if (!isLocalNas) {
         try {
           // Look up NAS secret + CoA port from FreeRADIUS service (SQLite)
           // GUI may send nasIp with CIDR (e.g. 192.168.1.1/32) — strip it for NAS lookup
@@ -3276,6 +3278,7 @@ export async function POST(request: NextRequest) {
         } catch (coaErr) {
           coaMessage = coaErr instanceof Error ? coaErr.message : String(coaErr);
         }
+        } // end if (!isLocalNas) — skip radclient for local NAS
 
         // 2. ALWAYS end the session in PostgreSQL (the critical part)
         let localEnded = false;
