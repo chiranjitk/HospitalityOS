@@ -308,7 +308,7 @@ export async function PUT(request: NextRequest) {    const user = await requireP
           callingstationid: string;
           nasipaddress: string;
           acctsessionid: string;
-        }[]>('''
+        }>>(`
           SELECT DISTINCT ON (r.username)
             r.username, r.framedipaddress, r.callingstationid, r.nasipaddress, r.acctsessionid
           FROM radacct r
@@ -319,11 +319,11 @@ export async function PUT(request: NextRequest) {    const user = await requireP
             AND r.nasipaddress IS NOT NULL
             AND r.nasipaddress != ''
           ORDER BY r.username, r.acctstarttime DESC
-        ''', id);
+        `, id);
 
         if (externalSessions.length > 0) {
           // Look up NAS type for vendor-specific CoA attributes
-          const nasIps = [...new Set(externalSessions.map(s => s.nasipaddress?.replace(/\/\d+$/, ''))];
+          const nasIps = [...new Set(externalSessions.map(s => s.nasipaddress?.replace(/\/\d+$/, '')))];
           const nasMap = new Map<string, { secret: string; coaPort: number; type: string }>();
           for (const nasIp of nasIps) {
             try {
