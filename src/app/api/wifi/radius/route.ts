@@ -19,6 +19,7 @@ import { requireAuth, requirePermission, hasPermission } from '@/lib/auth/tenant
 import { db } from '@/lib/db';
 import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
 import { updateUserBandwidthLive } from '@/lib/network/tc-bw-update';
+import { inferDeviceInfo } from '@/lib/mac-vendor-lookup';
 
 const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
 
@@ -812,6 +813,8 @@ export async function GET(request: NextRequest) {
             // Parse OS/browser from UA string
             let os = 'Unknown';
             let browser = 'Unknown';
+            let devType = s.deviceType || '';
+            let devName = s.deviceName || '';
             if (s.userAgent) {
               ({ os, browser } = parseDeviceFromUA(s.userAgent));
             } else if (s.deviceType || s.deviceName) {
@@ -824,6 +827,17 @@ export async function GET(request: NextRequest) {
               else if (/mac/.test(dn)) os = 'macOS';
               else if (/chromebook/.test(dn)) os = 'Chrome OS';
               else if (/linux/.test(dn)) os = 'Linux';
+            } else {
+              // No UA, no DeviceProfile (external NAS) — use MAC OUI vendor lookup
+              const mac = s.callingstationid || s.dp_macAddress || '';
+              if (mac) {
+                const ouiInfo = inferDeviceInfo(mac);
+                if (ouiInfo.vendor !== 'Unknown') {
+                  devName = ouiInfo.deviceName;
+                  devType = ouiInfo.deviceType;
+                  os = ouiInfo.os;
+                }
+              }
             }
             sessionsMap.set(sessionId, {
               id: sessionId,
@@ -832,9 +846,9 @@ export async function GET(request: NextRequest) {
               macAddress: s.callingstationid || s.dp_macAddress || '',
               nasIp: stripCidr(s.nasipaddress),
               nasIdentifier: s.calledstationid || '',
-              // Device info from DeviceProfile (enriched by browser fingerprint)
-              deviceType: s.deviceType || '',
-              deviceName: s.deviceName || '',
+              // Device info: DeviceProfile (fingerprint) > MAC OUI (external NAS) > empty
+              deviceType: devType,
+              deviceName: devName,
               operatingSystem: os,
               browser,
               userAgent: s.userAgent || '',
