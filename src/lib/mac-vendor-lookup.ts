@@ -2,761 +2,313 @@
  * MAC OUI (Organizationally Unique Identifier) Vendor Lookup
  *
  * The first 3 bytes (6 hex chars) of a MAC address identify the hardware vendor.
- * IEEE assigns these OUIs to manufacturers.
  *
- * This module provides:
- *  - lookupVendor(mac) → vendor name string
- *  - inferDeviceInfo(mac) → { deviceName, deviceType, os }
+ * Strategy: OUI entries are ordered by priority (mobile > laptop > TV > router).
+ * First match wins — duplicates are resolved at build time to a single vendor per OUI.
  *
- * Used primarily for external NAS (MikroTik) sessions where User-Agent
- * is not available. Local NAS sessions already capture UA via captive portal.
+ * Used for external NAS (MikroTik) sessions where User-Agent is not available.
  */
 
 // ---------------------------------------------------------------------------
-// OUI → Vendor mapping (first 3 bytes, normalized to lowercase no-colon)
-// Only includes major WiFi-capable device manufacturers
+// Build deduplicated OUI map: process entries in priority order
+// Mobile vendors first (most common WiFi clients), then laptops, then networking
 // ---------------------------------------------------------------------------
 
-const OUI_MAP: Record<string, string> = {
-  // Apple
-  '001e52': 'Apple',
-  'a4b197': 'Apple',
-  'a4b198': 'Apple',
-  'a4b1ba': 'Apple',
-  'a47733': 'Apple',
-  'a4f1e8': 'Apple',
-  '3c22fb': 'Apple',
-  '7cd1c3': 'Apple',
-  '8ca982': 'Apple',
-  'a860b6': 'Apple',
-  '78ca39': 'Apple',
-  'ac87a3': 'Apple',
-  'b4a984': 'Apple',
-  'f01898': 'Apple',
-  'f8ff0a': 'Apple',
-  '5cf7e6': 'Apple',
-  '64a2f9': 'Apple',
-  '881544': 'Apple',
-  'b8e856': 'Apple',
-  'd4619d': 'Apple',
-  'e0accb': 'Apple',
-  'ec1f72': 'Apple',
-  'e4b318': 'Apple',
-  '40c795': 'Apple',
-  '60f81e': 'Apple',
-  '507ac5': 'Apple',
-  '2cfda1': 'Apple',
-  'b4e1a5': 'Apple',
-  '28f076': 'Apple',
-  'dca5b4': 'Apple',
-  '68a8d4': 'Apple',
-  'a8a445': 'Apple',
-  '84119e': 'Apple',
-  '5c5948': 'Apple',
+type OUIEntry = [string, string]; // [oui_hex, vendor_name]
 
-  // Samsung
-  'a4c494': 'Samsung',
-  'b47443': 'Samsung',
-  'b0b448': 'Samsung',
-  '607b89': 'Samsung',
-  'd02598': 'Samsung',
-  'd45e4e': 'Samsung',
-  '5c8196': 'Samsung',
-  'dc2b2a': 'Samsung',
-  'ec1f72': 'Samsung',
-  '9cb70d': 'Samsung',
-  '4c11bf': 'Samsung',
-  'e04f43': 'Samsung',
-  'f8a45d': 'Samsung',
-  'c4a81d': 'Samsung',
-  '7cd1c3': 'Samsung',
-  'b46ba0': 'Samsung',
-  '98fa9b': 'Samsung',
-  '382c4a': 'Samsung',
-  '28c2a6': 'Samsung',
-  'a0cbfd': 'Samsung',
-  '08d45e': 'Samsung',
-  'b472cf': 'Samsung',
-  '98e0d9': 'Samsung',
-  '8c1662': 'Samsung',
-  '48db50': 'Samsung',
-  '704f57': 'Samsung',
+const RAW_OUI_ENTRIES: OUIEntry[] = [
+  // ═══════════════════════════════════════════════════════════════
+  // 1. MOBILE PHONES & TABLETS (highest priority — most common guests)
+  // ═══════════════════════════════════════════════════════════════
+
+  // Apple (iPhone, iPad, Mac, Apple Watch, AirPods)
+  ...[
+    '001e52','a4b197','a4b198','a4b1ba','a47733','a4f1e8','3c22fb','8ca982',
+    'a860b6','78ca39','ac87a3','f01898','f8ff0a','5cf7e6','b8e856','e0accb',
+    'ec1f72','e4b318','40c795','60f81e','507ac5','b4e1a5','28f076','68a8d4',
+    'a8a445','5c5948','041532','d4619d','84119e','7cd1c3',
+  ].map(oui => [oui, 'Apple'] as OUIEntry),
+
+  // Samsung (Galaxy phones/tablets)
+  ...[
+    'a4c494','b47443','b0b448','607b89','d02598','d45e4e','dc2b2a','9cb70d',
+    '4c11bf','e04f43','f8a45d','b46ba0','98fa9b','382c4a','28c2a6','a0cbfd',
+    '08d45e','b472cf','98e0d9','48db50','009065','b4f176','70a8d3','88f0f7',
+    '9cb01d','78564e',
+  ].map(oui => [oui, 'Samsung'] as OUIEntry),
 
   // Xiaomi / Redmi / POCO
-  '78110b': 'Xiaomi',
-  '9c99a0': 'Xiaomi',
-  'a076c1': 'Xiaomi',
-  'a4cf12': 'Xiaomi',
-  'b827eb': 'Xiaomi',
-  'c8f2a0': 'Xiaomi',
-  'dc4a3e': 'Xiaomi',
-  'e8e0e0': 'Xiaomi',
-  'f0a740': 'Xiaomi',
-  'f8a4c8': 'Xiaomi',
-  '64b473': 'Xiaomi',
-  '009e77': 'Xiaomi',
-  '0c1daf': 'Xiaomi',
-  '10bf48': 'Xiaomi',
-  '180acf': 'Xiaomi',
-  '28e31f': 'Xiaomi',
-  '40b3d8': 'Xiaomi',
-  '507a21': 'Xiaomi',
-  '5844aa': 'Xiaomi',
-  '60ab56': 'Xiaomi',
-  '6ca05e': 'Xiaomi',
-  '78411c': 'Xiaomi',
-  '846eb2': 'Xiaomi',
-  '9876b6': 'Xiaomi',
-  'b454e0': 'Xiaomi',
-  'c0ee1b': 'Xiaomi',
-  'd4619d': 'Xiaomi',
-  'e4c36b': 'Xiaomi',
-  'ecb1ee': 'Xiaomi',
-  'f07431': 'Xiaomi',
+  ...[
+    '78110b','9c99a0','a076c1','b827eb','c8f2a0','dc4a3e','e8e0e0','f0a740',
+    'f8a4c8','64b473','0c1daf','10bf48','180acf','28e31f','40b3d8','507a21',
+    '5844aa','60ab56','6ca05e','78411c','846eb2','9876b6','b454e0','c0ee1b',
+    'e4c36b','ecb1ee','f07431','64a2f9','009e77','94e1ac','a4cf12',
+  ].map(oui => [oui, 'Xiaomi'] as OUIEntry),
 
   // Huawei
-  '20a6cd': 'Huawei',
-  '70a8d3': 'Huawei',
-  '7cc2c6': 'Huawei',
-  '8c715f': 'Huawei',
-  'a0c69a': 'Huawei',
-  'b0f1ec': 'Huawei',
-  'b4eeb4': 'Huawei',
-  'cc96a0': 'Huawei',
-  'e0191d': 'Huawei',
-  'e474a0': 'Huawei',
-  'f48e38': 'Huawei',
-  '5c7d5e': 'Huawei',
-  '80d261': 'Huawei',
-  '48a195': 'Huawei',
-  '02d0a7': 'Huawei',
-  '18c05d': 'Huawei',
-  '2cfda1': 'Huawei',
-  '38b181': 'Huawei',
-  '4c11bf': 'Huawei',
-  '5c915f': 'Huawei',
-  '70e89a': 'Huawei',
-  '88d502': 'Huawei',
-  'a494a8': 'Huawei',
-  'c471d8': 'Huawei',
+  ...[
+    '20a6cd','7cc2c6','8c715f','a0c69a','b0f1ec','b4eeb4','cc96a0','e0191d',
+    'e474a0','f48e38','5c7d5e','80d261','48a195','02d0a7','38b181','5c915f',
+    '70e89a','88d502','a494a8','c471d8','6478d2','2466ab','5caafd','18c05d',
+    'e4f01c',
+  ].map(oui => [oui, 'Huawei'] as OUIEntry),
 
   // OPPO
-  '3c947e': 'OPPO',
-  '5caafd': 'OPPO',
-  '7844fd': 'OPPO',
-  '7cc537': 'OPPO',
-  'a4749a': 'OPPO',
-  'c8ad34': 'OPPO',
-  'd4612e': 'OPPO',
-  'e4a749': 'OPPO',
-  'f0b45c': 'OPPO',
-  '44d4e2': 'OPPO',
-  '60456b': 'OPPO',
-  '80eaac': 'OPPO',
-  'a0beb1': 'OPPO',
-  'b8a160': 'OPPO',
-  'e091f5': 'OPPO',
-  'e87cd1': 'OPPO',
-  '98f5a9': 'OPPO',
-  '9876b6': 'OPPO',
+  ...[
+    '3c947e','7844fd','7cc537','a4749a','c8ad34','d4612e','e4a749','f0b45c',
+    '44d4e2','60456b','80eaac','a0beb1','b8a160','e091f5','e87cd1','98f5a9',
+  ].map(oui => [oui, 'OPPO'] as OUIEntry),
 
   // Vivo
-  'a076c1': 'Vivo',
-  '48901e': 'Vivo',
-  '6c72e7': 'Vivo',
-  '70a8d3': 'Vivo',
-  '7cc537': 'Vivo',
-  '88c663': 'Vivo',
-  '98f5a9': 'Vivo',
-  'a8dbf5': 'Vivo',
-  'b4a984': 'Vivo',
-  'c471d8': 'Vivo',
-  'cc2d82': 'Vivo',
-  'd0bae9': 'Vivo',
-  'e091f5': 'Vivo',
-  'f0b45c': 'Vivo',
-  '50eb71': 'Vivo',
-  '80eaac': 'Vivo',
-  'a0beb1': 'Vivo',
-  'c0f0c9': 'Vivo',
+  ...[
+    '48901e','6c72e7','88c663','a8dbf5','cc2d82','d0bae9','50eb71','c0f0c9',
+  ].map(oui => [oui, 'Vivo'] as OUIEntry),
 
   // OnePlus
-  '64a2f9': 'OnePlus',
-  '78110b': 'OnePlus',
-  '94e1ac': 'OnePlus',
-  'a0cbfd': 'OnePlus',
-  'c41e30': 'OnePlus',
-  'e0191d': 'OnePlus',
-  'f07431': 'OnePlus',
-  'b8e856': 'OnePlus',
-  '8c1662': 'OnePlus',
-  'd4612e': 'OnePlus',
-  'e87cd1': 'OnePlus',
+  ...['c41e30','8c1662'].map(oui => [oui, 'OnePlus'] as OUIEntry),
 
   // Realme
-  '5caafd': 'Realme',
-  '7844fd': 'Realme',
-  '7cc537': 'Realme',
-  'a4749a': 'Realme',
-  'c8ad34': 'Realme',
-  'd4612e': 'Realme',
-  '44d4e2': 'Realme',
-  'e4a749': 'Realme',
-  'a8dbf5': 'Realme',
-  '98f5a9': 'Realme',
-  '80eaac': 'Realme',
-  'b8a160': 'Realme',
+  ...[].map(oui => [oui, 'Realme'] as OUIEntry), // shares OPPO OUIs, handled above
 
-  // Google / Pixel / Nest
-  'f8a9d0': 'Google',
-  '7c7045': 'Google',
-  'a4c494': 'Google',
-  'b47443': 'Google',
-  'd02598': 'Google',
-  '186d40': 'Google',
-  '3c947e': 'Google',
-  '78a1bf': 'Google',
-  'a0c69a': 'Google',
-  'b4f0ab': 'Google',
-  'c8f2a0': 'Google',
-  'e04f43': 'Google',
-  '24f5a2': 'Google',
-  '382c4a': 'Google',
-  '48db50': 'Google',
-  '60456b': 'Google',
-  '6c72e7': 'Google',
-  '70a8d3': 'Google',
-  '94e1ac': 'Google',
-  'b8e856': 'Google',
-  'f01898': 'Google',
+  // Honor
+  ...[
+    '704f57','78110b','9c99a0','a4cf12','c8f2a0','d4619d','e4c36b','f8a45d',
+    '9876b6','64a2f9','94e1ac','b827eb',
+  ].map(oui => [oui, 'Honor'] as OUIEntry),
 
-  // Nokia
-  '0059c7': 'Nokia',
-  '0c7ce4': 'Nokia',
-  '1c94a9': 'Nokia',
-  '28cfda': 'Nokia',
-  '2caaed': 'Nokia',
-  '349be6': 'Nokia',
-  '3c0630': 'Nokia',
-  '4c7c5f': 'Nokia',
-  '507a21': 'Nokia',
-  '5c0a5b': 'Nokia',
-  '606d3c': 'Nokia',
-  '64a2f9': 'Nokia',
-  '70e89a': 'Nokia',
-  '782b46': 'Nokia',
-  '7c04d0': 'Nokia',
-  '881544': 'Nokia',
-  '8c0494': 'Nokia',
-  '90b11d': 'Nokia',
-  '9cb70d': 'Nokia',
-  'a0ceb8': 'Nokia',
-  'b0b448': 'Nokia',
-  'b454e0': 'Nokia',
-  'c471d8': 'Nokia',
-  'dca5b4': 'Nokia',
-  'e8e0e0': 'Nokia',
+  // Google (Pixel, Nest, Chromecast)
+  ...[
+    'f8a9d0','7c7045','78a1bf','b4f0ab','24f5a2','186d40','382c4a','a0c69a',
+    '6c5697','001a11','00:1a:11',
+  ].map(oui => [oui, 'Google'] as OUIEntry),
 
-  // Sony
-  '54834c': 'Sony',
-  '606d3c': 'Sony',
-  '786327': 'Sony',
-  '7c6d62': 'Sony',
-  '8439c1': 'Sony',
-  'a0e4a7': 'Sony',
-  'b4b571': 'Sony',
-  'c8ba94': 'Sony',
-  'd0c1b1': 'Sony',
-  'e04a13': 'Sony',
-  'f07816': 'Sony',
-  'f4b792': 'Sony',
-  '3c0630': 'Sony',
-  'a4a0ed': 'Sony',
+  // Nokia / HMD Global
+  ...[
+    '0059c7','0c7ce4','1c94a9','2caaed','349be6','4c7c5f','507a21','5c0a5b',
+    '606d3c','70e89a','782b46','7c04d0','90b11d','a0ceb8','b454e0','c471d8',
+    'e8e0e0','3c0630',
+  ].map(oui => [oui, 'Nokia'] as OUIEntry),
 
-  // LG
-  'a48894': 'LG',
-  'b07053': 'LG',
-  'c45693': 'LG',
-  'd8bbc1': 'LG',
-  'e47854': 'LG',
-  'f0b4d2': 'LG',
-  'f8a4c8': 'LG',
-  '00c0f0': 'LG',
-  '2cfda1': 'LG',
-  '485d60': 'LG',
-  '60fb42': 'LG',
-  '70a8d3': 'LG',
-  '8c3ae3': 'LG',
-  '94ebcd': 'LG',
-  'a0f3c1': 'LG',
-  'b827eb': 'LG',
-  'c079d5': 'LG',
-  'dca5b4': 'LG',
+  // Sony (Xperia phones)
+  ...[
+    '54834c','786327','7c6d62','8439c1','a0e4a7','b4b571','c8ba94','d0c1b1',
+    'e04a13','f07816','f4b792','a4a0ed',
+  ].map(oui => [oui, 'Sony'] as OUIEntry),
 
-  // Motorola / Lenovo
-  '4c11bf': 'Motorola',
-  '60ab56': 'Motorola',
-  '704f57': 'Motorola',
-  '8ca982': 'Motorola',
-  '98e0d9': 'Motorola',
-  'b472cf': 'Motorola',
-  'c8ad34': 'Motorola',
-  'dc2b2a': 'Motorola',
-  'e04f43': 'Motorola',
-  'f8a45d': 'Motorola',
-  'a076c1': 'Motorola',
-  'b0f1ec': 'Motorola',
-  'cc96a0': 'Motorola',
-  '009e77': 'Motorola',
+  // LG (phones, TVs)
+  ...[
+    'a48894','b07053','c45693','d8bbc1','e47854','f0b4d2','f8a4c8','00c0f0',
+    '485d60','60fb42','8c3ae3','94ebcd','a0f3c1','c079d5','dca5b4','2cfda1',
+    'b827eb','70a8d3',
+  ].map(oui => [oui, 'LG'] as OUIEntry),
 
-  // Microsoft / Surface
-  '001dd8': 'Microsoft',
-  '2c41a1': 'Microsoft',
-  '3c52a0': 'Microsoft',
-  '4843b6': 'Microsoft',
-  '7ced8d': 'Microsoft',
-  '80ce62': 'Microsoft',
-  'a47b58': 'Microsoft',
-  'b4a984': 'Microsoft',
-  'c89c1d': 'Microsoft',
-  'f0de71': 'Microsoft',
-  '001505': 'Microsoft',
+  // Motorola (Lenovo-owned)
+  ...[
+    '60ab56','8ca982','98e0d9','b472cf','c8ad34','dc2b2a','f8a45d','a076c1',
+    'b0f1ec','cc96a0','009e77','4c11bf','e04f43','78110b','704f57','64a2f9',
+    'f07431','64b473',
+  ].map(oui => [oui, 'Motorola'] as OUIEntry),
 
-  // Dell
-  '001e4f': 'Dell',
-  '001cc4': 'Dell',
-  '0022fa': 'Dell',
-  '0050b6': 'Dell',
-  '00609e': 'Dell',
-  '14aabe': 'Dell',
-  '1caadd': 'Dell',
-  '20773f': 'Dell',
-  '28cfe1': 'Dell',
-  '3417eb': 'Dell',
-  '3c5282': 'Dell',
-  '44870a': 'Dell',
-  '485b39': 'Dell',
-  '5c0e6b': 'Dell',
-  '6c4b90': 'Dell',
-  '7cd1c3': 'Dell',
-  '88ae48': 'Dell',
-  '98f0de': 'Dell',
-  'b8ac6f': 'Dell',
-  'dca5b4': 'Dell',
-  'e0db55': 'Dell',
-  'f8bc12': 'Dell',
+  // Infinix
+  ...[].map(oui => [oui, 'Infinix'] as OUIEntry), // shares OPPO OUIs
 
-  // HP
-  '001a4b': 'HP',
-  '001b78': 'HP',
-  '001e0f': 'HP',
-  '00225b': 'HP',
-  '0080c7': 'HP',
-  '10604b': 'HP',
-  '1c6ab7': 'HP',
-  '2c41a1': 'HP',
-  '3417eb': 'HP',
-  '3c5282': 'HP',
-  '485b39': 'HP',
-  '5c0e6b': 'HP',
-  '6c4b90': 'HP',
-  '88ae48': 'HP',
-  'a0f3c1': 'HP',
-  'b8ac6f': 'HP',
-  'dca5b4': 'HP',
-  'f4ce46': 'HP',
-
-  // Lenovo (ThinkPad etc)
-  '0015c5': 'Lenovo',
-  '001a6b': 'Lenovo',
-  '001cc4': 'Lenovo',
-  '00e04c': 'Lenovo',
-  '083e8e': 'Lenovo',
-  '0c627c': 'Lenovo',
-  '1087fb': 'Lenovo',
-  '186d40': 'Lenovo',
-  '1cbfce': 'Lenovo',
-  '20e5c2': 'Lenovo',
-  '24773e': 'Lenovo',
-  '28cfda': 'Lenovo',
-  '3c5282': 'Lenovo',
-  '40167e': 'Lenovo',
-  '485b39': 'Lenovo',
-  '507a21': 'Lenovo',
-  '54bf64': 'Lenovo',
-  '5caafd': 'Lenovo',
-  '606d3c': 'Lenovo',
-  '6c4b90': 'Lenovo',
-  '70b5e8': 'Lenovo',
-  '782b46': 'Lenovo',
-  '88ae48': 'Lenovo',
-  '8c704a': 'Lenovo',
-  '90e6ba': 'Lenovo',
-  'a0f3c1': 'Lenovo',
-  'b4f0ab': 'Lenovo',
-  'b8ac6f': 'Lenovo',
-  'c4a81d': 'Lenovo',
-  'dca5b4': 'Lenovo',
-  'e0191d': 'Lenovo',
-  'f0b4d2': 'Lenovo',
-  'f4ce46': 'Lenovo',
-
-  // Asus
-  '001120': 'Asus',
-  '001e8c': 'Asus',
-  '04d4c4': 'Asus',
-  '1087fb': 'Asus',
-  '1cbfce': 'Asus',
-  '244b03': 'Asus',
-  '2cfda1': 'Asus',
-  '30f9ed': 'Asus',
-  '382c4a': 'Asus',
-  '40167e': 'Asus',
-  '50465c': 'Asus',
-  '60456b': 'Asus',
-  '6c72e7': 'Asus',
-  '782b46': 'Asus',
-  '8439c1': 'Asus',
-  'a0ceb8': 'Asus',
-  'a8d0e6': 'Asus',
-  'b0f1ec': 'Asus',
-  'bc1085': 'Asus',
-  'c079d5': 'Asus',
-  'd0bae9': 'Asus',
-  'd8bbc1': 'Asus',
-  'e8e0e0': 'Asus',
-  'f0b4d2': 'Asus',
-
-  // Acer
-  '001122': 'Acer',
-  '00179d': 'Acer',
-  '001e33': 'Acer',
-  '00716b': 'Acer',
-  '1c6ab7': 'Acer',
-  '24f5a2': 'Acer',
-  '2caaed': 'Acer',
-  '3417eb': 'Acer',
-  '3c5282': 'Acer',
-  '485b39': 'Acer',
-  '54bf64': 'Acer',
-  '60456b': 'Acer',
-  '6c4b90': 'Acer',
-  '70b5e8': 'Acer',
-  '782b46': 'Acer',
-  '88ae48': 'Acer',
-  'a0f3c1': 'Acer',
-  'b827eb': 'Acer',
-  'b8ac6f': 'Acer',
-  'c079d5': 'Acer',
-  'dca5b4': 'Acer',
-  'e0191d': 'Acer',
-  'e8e0e0': 'Acer',
-  'f4ce46': 'Acer',
-
-  // TP-Link (routers/hotspots - can also be used by guests near the AP)
-  '500c0f': 'TP-Link',
-  '5c628b': 'TP-Link',
-  '6cb4ce': 'TP-Link',
-  '782bcb': 'TP-Link',
-  '840d8e': 'TP-Link',
-  '908d6c': 'TP-Link',
-  '9ca2f4': 'TP-Link',
-  'a0f3c1': 'TP-Link',
-  'b0a7b9': 'TP-Link',
-  'b4a984': 'TP-Link',
-  'c071bf': 'TP-Link',
-  'c83f65': 'TP-Link',
-  'd8bbd1': 'TP-Link',
-  'e0191d': 'TP-Link',
-  'ec172f': 'TP-Link',
-  'f0b4d2': 'TP-Link',
-
-  // D-Link (routers)
-  '00195b': 'D-Link',
-  '001e58': 'D-Link',
-  '145992': 'D-Link',
-  '18c05d': 'D-Link',
-  '24a4c1': 'D-Link',
-  '340b5b': 'D-Link',
-  '3c970e': 'D-Link',
-  '5c8196': 'D-Link',
-  '6c19af': 'D-Link',
-  '7c911b': 'D-Link',
-  '84c9b2': 'D-Link',
-  'a0c69a': 'D-Link',
-  'b8a160': 'D-Link',
-  'c0a0bb': 'D-Link',
-  'd8bbd1': 'D-Link',
-  'e0191d': 'D-Link',
-  'ec172f': 'D-Link',
-
-  // Netgear
-  '0013d4': 'Netgear',
-  '001f33': 'Netgear',
-  '00224b': 'Netgear',
-  '08bd43': 'Netgear',
-  '0c8063': 'Netgear',
-  '2c3282': 'Netgear',
-  '3c22fb': 'Netgear',
-  '40463e': 'Netgear',
-  '4c60de': 'Netgear',
-  '6038e0': 'Netgear',
-  '6c72e7': 'Netgear',
-  '7854cf': 'Netgear',
-  '7c8cca': 'Netgear',
-  '84119e': 'Netgear',
-  '900f52': 'Netgear',
-  '9cb70d': 'Netgear',
-  'a42b8c': 'Netgear',
-  'b0a7b9': 'Netgear',
-  'c43dc7': 'Netgear',
-  'dce9e8': 'Netgear',
-  'e0db55': 'Netgear',
-  'f04f7c': 'Netgear',
-
-  // Tenda (common budget routers/APs in hospitality)
-  '500c0f': 'Tenda',
-  '5c628b': 'Tenda',
-  '6cb4ce': 'Tenda',
-  '782bcb': 'Tenda',
-  '840d8e': 'Tenda',
-  '908d6c': 'Tenda',
-  'a0f3c1': 'Tenda',
-  'b4a984': 'Tenda',
-  'c071bf': 'Tenda',
-  'c83f65': 'Tenda',
-  'd8bbd1': 'Tenda',
-  'ec172f': 'Tenda',
-
-  // Amazon Kindle / Fire
-  '40b4cd': 'Amazon',
-  '685463': 'Amazon',
-  '747548': 'Amazon',
-  '7ce9a4': 'Amazon',
-  '848697': 'Amazon',
-  'a4c494': 'Amazon',
-  'b47443': 'Amazon',
-  'b8f0b1': 'Amazon',
-  'c86000': 'Amazon',
-  'dca5b4': 'Amazon',
-  'e4a749': 'Amazon',
-  'f8b156': 'Amazon',
-
-  // Ruckus Wireless (enterprise APs)
-  '001c57': 'Ruckus',
-  '1801a2': 'Ruckus',
-  '286c07': 'Ruckus',
-  '3816a0': 'Ruckus',
-  '40f409': 'Ruckus',
-  '50678b': 'Ruckus',
-  '58698d': 'Ruckus',
-  '6cfa99': 'Ruckus',
-  '70b5d8': 'Ruckus',
-  '7885ba': 'Ruckus',
-  '88623d': 'Ruckus',
-  '9830a1': 'Ruckus',
-  'a00c29': 'Ruckus',
-  'b8b0c4': 'Ruckus',
-  'c402b6': 'Ruckus',
-  'd03745': 'Ruckus',
-  'e0cb4e': 'Ruckus',
-  'f0f7b3': 'Ruckus',
-
-  // Ubiquiti (UniFi APs)
-  '0024a5': 'Ubiquiti',
-  '0418b6': 'Ubiquiti',
-  '04d18c': 'Ubiquiti',
-  '0c2e6d': 'Ubiquiti',
-  '186d40': 'Ubiquiti',
-  '1c0e2c': 'Ubiquiti',
-  '202bc7': 'Ubiquiti',
-  '24a43c': 'Ubiquiti',
-  '286731': 'Ubiquiti',
-  '2c4165': 'Ubiquiti',
-  '308d84': 'Ubiquiti',
-  '3869cc': 'Ubiquiti',
-  '4048f3': 'Ubiquiti',
-  '44d9e7': 'Ubiquiti',
-  '5067f2': 'Ubiquiti',
-  '606dbd': 'Ubiquiti',
-  '68867c': 'Ubiquiti',
-  '6c7219': 'Ubiquiti',
-  '706f87': 'Ubiquiti',
-  '746d2e': 'Ubiquiti',
-  '788ada': 'Ubiquiti',
-  '7cdd90': 'Ubiquiti',
-  '802aa8': 'Ubiquiti',
-  '907259': 'Ubiquiti',
-  'a4cf12': 'Ubiquiti',
-  'b4fbd5': 'Ubiquiti',
-  'b827eb': 'Ubiquiti',
-  'c09aef': 'Ubiquiti',
-  'ccf861': 'Ubiquiti',
-  'd85dfb': 'Ubiquiti',
-  'e08406': 'Ubiquiti',
-  'e894f6': 'Ubiquiti',
-  'f092b1': 'Ubiquiti',
-  'fc9947': 'Ubiquiti',
-
-  // Cisco (enterprise APs)
-  '001122': 'Cisco',
-  '001457': 'Cisco',
-  '001a2b': 'Cisco',
-  '001c58': 'Cisco',
-  '001e7a': 'Cisco',
-  '001f9e': 'Cisco',
-  '002155': 'Cisco',
-  '00226b': 'Cisco',
-  '00236b': 'Cisco',
-  '00243c': 'Cisco',
-  '002564': 'Cisco',
-  '005056': 'Cisco',
-  '080273': 'Cisco',
-  '186d40': 'Cisco',
-  '2893fe': 'Cisco',
-  '30e4db': 'Cisco',
-  '34a7d8': 'Cisco',
-  '3c5282': 'Cisco',
-  '485b39': 'Cisco',
-  '50f1e8': 'Cisco',
-  '5475d0': 'Cisco',
-  '5897f8': 'Cisco',
-  '5c8196': 'Cisco',
-  '6c4b90': 'Cisco',
-  '6c9c04': 'Cisco',
-  '7081b3': 'Cisco',
-  '747695': 'Cisco',
-  '78da26': 'Cisco',
-  '7c0e24': 'Cisco',
-  '884347': 'Cisco',
-  '8c704a': 'Cisco',
-  'a4c494': 'Cisco',
-  'b4a984': 'Cisco',
-  'b8ac6f': 'Cisco',
-  'c4a81d': 'Cisco',
-  'c89c1d': 'Cisco',
-  'dca5b4': 'Cisco',
-  'e0191d': 'Cisco',
-  'e8e0e0': 'Cisco',
-  'f0b4d2': 'Cisco',
-  'f8bc12': 'Cisco',
-  'fc9947': 'Cisco',
-
-  // Aruba / HPE (enterprise APs)
-  '00119b': 'Aruba',
-  '0c866c': 'Aruba',
-  '20f372': 'Aruba',
-  '24de4c': 'Aruba',
-  '2c5212': 'Aruba',
-  '3c8ca8': 'Aruba',
-  '4c7de5': 'Aruba',
-  '5880bf': 'Aruba',
-  '6094c0': 'Aruba',
-  '70b5d8': 'Aruba',
-  '7c2d1e': 'Aruba',
-  '887208': 'Aruba',
-  'a0d3c1': 'Aruba',
-  'b4a984': 'Aruba',
-  'c050e6': 'Aruba',
-  'd87b37': 'Aruba',
-  'e04f43': 'Aruba',
-  'f07431': 'Aruba',
-  'f8b156': 'Aruba',
-
-  // Honor (Huawei sub-brand)
-  '704f57': 'Honor',
-  '78110b': 'Honor',
-  '9c99a0': 'Honor',
-  'a4cf12': 'Honor',
-  'b827eb': 'Honor',
-  'c8f2a0': 'Honor',
-  'd4619d': 'Honor',
-  'e4c36b': 'Honor',
-  'f8a45d': 'Honor',
-  '9876b6': 'Honor',
-
-  // Infinix / Tecno (popular in Africa/Asia)
-  '7844fd': 'Infinix',
-  'a4749a': 'Infinix',
-  '5caafd': 'Tecno',
-  '7cc537': 'Tecno',
-  'd4612e': 'Tecno',
-  'e4a749': 'Tecno',
+  // Tecno
+  ...[].map(oui => [oui, 'Tecno'] as OUIEntry), // shares OPPO/Huawei OUIs
 
   // Nothing Phone
-  'dca5b4': 'Nothing',
-  '80eaac': 'Nothing',
-  '60456b': 'Nothing',
+  ...[].map(oui => [oui, 'Nothing'] as OUIEntry), // shares OPPO OUIs
 
-  // Roku / Smart TV
-  '5c2d64': 'Roku',
-  '68c90b': 'Roku',
-  '786945': 'Roku',
-  'a0e482': 'Roku',
-  'b8b0c4': 'Roku',
-  'd86162': 'Roku',
-  'e04a13': 'Roku',
-  'f87716': 'Roku',
+  // Amazon (Kindle, Fire TV, Echo)
+  ...[
+    '40b4cd','685463','747548','7ce9a4','848697','b8f0b1','c86000','f8b156',
+  ].map(oui => [oui, 'Amazon'] as OUIEntry),
 
-  // Chromecast / Smart TV
-  '6c5697': 'Chromecast',
-  'a47733': 'Chromecast',
-  'b827eb': 'Chromecast',
-  'e4b318': 'Chromecast',
-  'f8a45d': 'Chromecast',
-};
+  // ═══════════════════════════════════════════════════════════════
+  // 2. LAPTOPS / DESKTOPS (lower priority — less common WiFi guests)
+  // ═══════════════════════════════════════════════════════════════
+
+  // Microsoft (Surface, Xbox)
+  ...[
+    '001dd8','2c41a1','3c52a0','4843b6','7ced8d','80ce62','a47b58','c89c1d',
+    'f0de71','001505',
+  ].map(oui => [oui, 'Microsoft'] as OUIEntry),
+
+  // Dell
+  ...[
+    '001e4f','001cc4','0022fa','0050b6','00609e','14aabe','1caadd','20773f',
+    '28cfe1','3417eb','3c5282','44870a','485b39','5c0e6b','6c4b90','88ae48',
+    '98f0de','b8ac6f','e0db55','f8bc12','a4f1e8','b0b448',
+  ].map(oui => [oui, 'Dell'] as OUIEntry),
+
+  // HP
+  ...[
+    '001a4b','001b78','001e0f','00225b','0080c7','10604b','1c6ab7','2c41a1',
+    '3417eb','3c5282','485b39','5c0e6b','6c4b90','88ae48','b8ac6f','f4ce46',
+    'a0f3c1','507ac5','6478d2',
+  ].map(oui => [oui, 'HP'] as OUIEntry),
+
+  // Lenovo (ThinkPad, IdeaPad)
+  ...[
+    '0015c5','001a6b','00e04c','083e8e','0c627c','1087fb','1cbfce','20e5c2',
+    '24773e','40167e','54bf64','606d3c','70b5e8','8c704a','90e6ba','b4f0ab',
+    'f0b4d2','f4ce46','507a21','782b46','88ae48','6c4b90','3c5282','485b39',
+    '3417eb','5c0e6b','b8ac6f','a0f3c1','c4a81d','28cfda',
+  ].map(oui => [oui, 'Lenovo'] as OUIEntry),
+
+  // Asus (laptops — also makes routers but guests are more likely laptops)
+  ...[
+    '001120','001e8c','04d4c4','1087fb','1cbfce','244b03','30f9ed','40167e',
+    '50465c','782b46','8439c1','a0ceb8','a8d0e6','bc1085','c079d5','d0bae9',
+    'd8bbc1','2cfda1','60456b','6c72e7','b0f1ec','e8e0e0','f0b4d2','b827eb',
+    'a4c494','b47443','d02598',
+  ].map(oui => [oui, 'Asus'] as OUIEntry),
+
+  // Acer
+  ...[
+    '001122','00179d','001e33','00716b','1c6ab7','24f5a2','2caaed','3417eb',
+    '3c5282','485b39','54bf64','6c4b90','70b5e8','782b46','88ae48','a0f3c1',
+    'b8ac6f','c079d5','dca5b4','e0191d','e8e0e0','f4ce46','b827eb',
+  ].map(oui => [oui, 'Acer'] as OUIEntry),
+
+  // ═══════════════════════════════════════════════════════════════
+  // 3. SMART TV / STREAMING
+  // ═══════════════════════════════════════════════════════════════
+
+  // Roku
+  ...[
+    '5c2d64','68c90b','786945','a0e482','b8b0c4','d86162','e04a13','f87716',
+  ].map(oui => [oui, 'Roku'] as OUIEntry),
+
+  // ═══════════════════════════════════════════════════════════════
+  // 4. NETWORKING EQUIPMENT (APs, routers, switches — lowest priority)
+  // ═══════════════════════════════════════════════════════════════
+
+  // MikroTik (RouterOS)
+  ...[
+    'e4d65d','7c695b','4c5e0c','001c23','00c07e','64820c','48a9d4','d4611b',
+    '788daf','e01ab3','b8aa1f','f0e1fe','a040a0','280fa8','64d14e','7ce423',
+    '9829a6','e47a5c','b4b024','d6ca6d',
+  ].map(oui => [oui, 'MikroTik'] as OUIEntry),
+
+  // Ruckus Wireless (enterprise APs)
+  ...[
+    '001c57','1801a2','286c07','3816a0','40f409','50678b','58698d','6cfa99',
+    '70b5d8','7885ba','88623d','9830a1','a00c29','c402b6','d03745','e0cb4e',
+    'f0f7b3',
+  ].map(oui => [oui, 'Ruckus'] as OUIEntry),
+
+  // Ubiquiti (UniFi APs)
+  ...[
+    '0024a5','0418b6','04d18c','0c2e6d','1c0e2c','202bc7','24a43c','286731',
+    '2c4165','308d84','3869cc','4048f3','44d9e7','5067f2','606dbd','68867c',
+    '6c7219','706f87','746d2e','788ada','7cdd90','802aa8','907259','b4fbd5',
+    'c09aef','ccf861','d85dfb','e08406','e894f6','f092b1','fc9947',
+  ].map(oui => [oui, 'Ubiquiti'] as OUIEntry),
+
+  // Cisco (enterprise APs/switches)
+  ...[
+    '001457','001a2b','001c58','001e7a','001f9e','002155','00226b','00236b',
+    '00243c','002564','005056','080273','2893fe','30e4db','34a7d8','50f1e8',
+    '5475d0','5897f8','6c9c04','7081b3','747695','78da26','7c0e24','884347',
+    '8c704a',
+  ].map(oui => [oui, 'Cisco'] as OUIEntry),
+
+  // Aruba / HPE (enterprise APs)
+  ...[
+    '00119b','0c866c','20f372','24de4c','2c5212','3c8ca8','4c7de5','5880bf',
+    '6094c0','70b5d8','7c2d1e','887208','a0d3c1','c050e6','d87b37','e04f43',
+    'f07431','f8b156',
+  ].map(oui => [oui, 'Aruba'] as OUIEntry),
+
+  // TP-Link (consumer routers/APs)
+  ...[
+    '500c0f','5c628b','6cb4ce','782bcb','840d8e','908d6c','9ca2f4','b0a7b9',
+    'c071bf','c83f65','d8bbd1','ec172f','a0f3c1','b4a984','e0191d','f0b4d2',
+    '5c8196','b8a160','18c05d',
+  ].map(oui => [oui, 'TP-Link'] as OUIEntry),
+
+  // D-Link (routers/APs)
+  ...[
+    '00195b','001e58','145992','24a4c1','340b5b','3c970e','6c19af','7c911b',
+    '84c9b2','c0a0bb','d8bbd1','e0191d','ec172f','a0c69a','70a8d3',
+  ].map(oui => [oui, 'D-Link'] as OUIEntry),
+
+  // Netgear (routers/APs)
+  ...[
+    '0013d4','001f33','00224b','08bd43','0c8063','2c3282','3c22fb','40463e',
+    '4c60de','6038e0','7854cf','7c8cca','900f52','a42b8c','b0a7b9','c43dc7',
+    'dce9e8','e0db55','f04f7c','607b89',
+  ].map(oui => [oui, 'Netgear'] as OUIEntry),
+
+  // Tenda (budget routers)
+  ...[
+    '500c0f','5c628b','6cb4ce','782bcb','840d8e','908d6c','c071bf','c83f65',
+    'd8bbd1','ec172f',
+  ].map(oui => [oui, 'Tenda'] as OUIEntry),
+];
 
 // ---------------------------------------------------------------------------
-// Vendor → Device type / OS inference
+// Build deduplicated map: first entry wins (priority-ordered above)
+// ---------------------------------------------------------------------------
+
+const OUI_MAP: Record<string, string> = {};
+for (const [oui, vendor] of RAW_OUI_ENTRIES) {
+  if (!OUI_MAP[oui]) {
+    OUI_MAP[oui] = vendor;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Vendor → Device info mapping
 // ---------------------------------------------------------------------------
 
 interface VendorInfo {
   vendor: string;
   deviceName: string;
-  deviceType: string;   // mobile | tablet | desktop | tv | router | unknown
-  os: string;           // iOS | Android | Windows | macOS | Linux | Router OS | Smart TV | Unknown
+  deviceType: string;
+  os: string;
 }
 
-// Vendor → typical device info (best-effort guess)
 const VENDOR_DEVICE_MAP: Record<string, VendorInfo> = {
-  'Apple':         { vendor: 'Apple',   deviceName: 'Apple Device',  deviceType: 'mobile',  os: 'iOS' },
-  'Samsung':       { vendor: 'Samsung', deviceName: 'Samsung Device',deviceType: 'mobile',  os: 'Android' },
-  'Xiaomi':        { vendor: 'Xiaomi',  deviceName: 'Xiaomi Device', deviceType: 'mobile',  os: 'Android' },
-  'Huawei':        { vendor: 'Huawei',  deviceName: 'Huawei Device', deviceType: 'mobile',  os: 'Android' },
-  'OPPO':          { vendor: 'OPPO',    deviceName: 'OPPO Device',   deviceType: 'mobile',  os: 'Android' },
-  'Vivo':          { vendor: 'Vivo',    deviceName: 'Vivo Device',   deviceType: 'mobile',  os: 'Android' },
-  'OnePlus':       { vendor: 'OnePlus', deviceName: 'OnePlus Device',deviceType: 'mobile',  os: 'Android' },
-  'Realme':        { vendor: 'Realme',  deviceName: 'Realme Device', deviceType: 'mobile',  os: 'Android' },
-  'Honor':         { vendor: 'Honor',   deviceName: 'Honor Device',  deviceType: 'mobile',  os: 'Android' },
-  'Google':        { vendor: 'Google',  deviceName: 'Google Device', deviceType: 'mobile',  os: 'Android' },
-  'Nokia':         { vendor: 'Nokia',   deviceName: 'Nokia Device',  deviceType: 'mobile',  os: 'Android' },
-  'Sony':          { vendor: 'Sony',    deviceName: 'Sony Device',   deviceType: 'mobile',  os: 'Android' },
-  'LG':            { vendor: 'LG',      deviceName: 'LG Device',     deviceType: 'mobile',  os: 'Android' },
-  'Motorola':      { vendor: 'Motorola',deviceName: 'Motorola Device',deviceType:'mobile',  os: 'Android' },
-  'Infinix':       { vendor: 'Infinix', deviceName: 'Infinix Device',deviceType: 'mobile',  os: 'Android' },
-  'Tecno':         { vendor: 'Tecno',   deviceName: 'Tecno Device',  deviceType: 'mobile',  os: 'Android' },
-  'Nothing':       { vendor: 'Nothing', deviceName: 'Nothing Device',deviceType: 'mobile',  os: 'Android' },
-  'Amazon':        { vendor: 'Amazon',  deviceName: 'Amazon Device', deviceType: 'mobile',  os: 'Fire OS' },
-  'Microsoft':     { vendor: 'Microsoft',deviceName: 'Windows PC',   deviceType: 'desktop', os: 'Windows' },
-  'Dell':          { vendor: 'Dell',    deviceName: 'Dell PC',       deviceType: 'desktop', os: 'Windows' },
-  'HP':            { vendor: 'HP',      deviceName: 'HP PC',         deviceType: 'desktop', os: 'Windows' },
-  'Lenovo':        { vendor: 'Lenovo',  deviceName: 'Lenovo PC',     deviceType: 'desktop', os: 'Windows' },
-  'Asus':          { vendor: 'Asus',    deviceName: 'Asus PC',       deviceType: 'desktop', os: 'Windows' },
-  'Acer':          { vendor: 'Acer',    deviceName: 'Acer PC',       deviceType: 'desktop', os: 'Windows' },
-  'TP-Link':       { vendor: 'TP-Link', deviceName: 'TP-Link',       deviceType: 'router',  os: 'Router OS' },
-  'D-Link':        { vendor: 'D-Link',  deviceName: 'D-Link',        deviceType: 'router',  os: 'Router OS' },
-  'Netgear':       { vendor: 'Netgear', deviceName: 'Netgear',       deviceType: 'router',  os: 'Router OS' },
-  'Tenda':         { vendor: 'Tenda',   deviceName: 'Tenda',         deviceType: 'router',  os: 'Router OS' },
-  'Ruckus':        { vendor: 'Ruckus',  deviceName: 'Ruckus AP',     deviceType: 'router',  os: 'Router OS' },
-  'Ubiquiti':      { vendor: 'Ubiquiti',deviceName: 'Ubiquiti AP',   deviceType: 'router',  os: 'Router OS' },
-  'Cisco':         { vendor: 'Cisco',   deviceName: 'Cisco AP',      deviceType: 'router',  os: 'Router OS' },
-  'Aruba':         { vendor: 'Aruba',   deviceName: 'Aruba AP',      deviceType: 'router',  os: 'Router OS' },
-  'Roku':          { vendor: 'Roku',    deviceName: 'Roku',          deviceType: 'tv',      os: 'Smart TV' },
-  'Chromecast':    { vendor: 'Chromecast',deviceName: 'Chromecast',  deviceType: 'tv',      os: 'Smart TV' },
+  'Apple':      { vendor: 'Apple',      deviceName: 'Apple Device',   deviceType: 'mobile',  os: 'iOS' },
+  'Samsung':    { vendor: 'Samsung',    deviceName: 'Samsung Device', deviceType: 'mobile',  os: 'Android' },
+  'Xiaomi':     { vendor: 'Xiaomi',     deviceName: 'Xiaomi Device',  deviceType: 'mobile',  os: 'Android' },
+  'Huawei':     { vendor: 'Huawei',     deviceName: 'Huawei Device',  deviceType: 'mobile',  os: 'Android' },
+  'OPPO':       { vendor: 'OPPO',       deviceName: 'OPPO Device',    deviceType: 'mobile',  os: 'Android' },
+  'Vivo':       { vendor: 'Vivo',       deviceName: 'Vivo Device',    deviceType: 'mobile',  os: 'Android' },
+  'OnePlus':    { vendor: 'OnePlus',    deviceName: 'OnePlus Device', deviceType: 'mobile',  os: 'Android' },
+  'Realme':     { vendor: 'Realme',     deviceName: 'Realme Device',  deviceType: 'mobile',  os: 'Android' },
+  'Honor':      { vendor: 'Honor',      deviceName: 'Honor Device',   deviceType: 'mobile',  os: 'Android' },
+  'Google':     { vendor: 'Google',     deviceName: 'Google Device',  deviceType: 'mobile',  os: 'Android' },
+  'Nokia':      { vendor: 'Nokia',      deviceName: 'Nokia Device',   deviceType: 'mobile',  os: 'Android' },
+  'Sony':       { vendor: 'Sony',       deviceName: 'Sony Device',    deviceType: 'mobile',  os: 'Android' },
+  'LG':         { vendor: 'LG',         deviceName: 'LG Device',      deviceType: 'mobile',  os: 'Android' },
+  'Motorola':   { vendor: 'Motorola',   deviceName: 'Motorola Device',deviceType: 'mobile',  os: 'Android' },
+  'Infinix':    { vendor: 'Infinix',    deviceName: 'Infinix Device', deviceType: 'mobile',  os: 'Android' },
+  'Tecno':      { vendor: 'Tecno',      deviceName: 'Tecno Device',   deviceType: 'mobile',  os: 'Android' },
+  'Nothing':    { vendor: 'Nothing',    deviceName: 'Nothing Device', deviceType: 'mobile',  os: 'Android' },
+  'Amazon':     { vendor: 'Amazon',     deviceName: 'Amazon Device',  deviceType: 'mobile',  os: 'Fire OS' },
+  'Microsoft':  { vendor: 'Microsoft',  deviceName: 'Windows PC',     deviceType: 'desktop', os: 'Windows' },
+  'Dell':       { vendor: 'Dell',       deviceName: 'Dell PC',        deviceType: 'desktop', os: 'Windows' },
+  'HP':         { vendor: 'HP',         deviceName: 'HP PC',          deviceType: 'desktop', os: 'Windows' },
+  'Lenovo':     { vendor: 'Lenovo',     deviceName: 'Lenovo PC',      deviceType: 'desktop', os: 'Windows' },
+  'Asus':       { vendor: 'Asus',       deviceName: 'Asus Device',    deviceType: 'desktop', os: 'Windows' },
+  'Acer':       { vendor: 'Acer',       deviceName: 'Acer PC',        deviceType: 'desktop', os: 'Windows' },
+  'Roku':       { vendor: 'Roku',       deviceName: 'Roku',          deviceType: 'tv',      os: 'Smart TV' },
+  'Chromecast': { vendor: 'Chromecast', deviceName: 'Chromecast',    deviceType: 'tv',      os: 'Smart TV' },
+  'MikroTik':   { vendor: 'MikroTik',   deviceName: 'MikroTik AP',   deviceType: 'router',  os: 'RouterOS' },
+  'Ruckus':     { vendor: 'Ruckus',     deviceName: 'Ruckus AP',     deviceType: 'router',  os: 'Router OS' },
+  'Ubiquiti':   { vendor: 'Ubiquiti',   deviceName: 'Ubiquiti AP',   deviceType: 'router',  os: 'Router OS' },
+  'Cisco':      { vendor: 'Cisco',      deviceName: 'Cisco AP',      deviceType: 'router',  os: 'Router OS' },
+  'Aruba':      { vendor: 'Aruba',      deviceName: 'Aruba AP',      deviceType: 'router',  os: 'Router OS' },
+  'TP-Link':    { vendor: 'TP-Link',    deviceName: 'TP-Link',       deviceType: 'router',  os: 'Router OS' },
+  'D-Link':     { vendor: 'D-Link',     deviceName: 'D-Link',        deviceType: 'router',  os: 'Router OS' },
+  'Netgear':    { vendor: 'Netgear',    deviceName: 'Netgear',       deviceType: 'router',  os: 'Router OS' },
+  'Tenda':      { vendor: 'Tenda',      deviceName: 'Tenda',         deviceType: 'router',  os: 'Router OS' },
 };
 
 // ---------------------------------------------------------------------------
-// Helper: normalize MAC address to 6-char OUI prefix (lowercase, no separators)
+// Helper: normalize MAC to 6-char OUI (lowercase, no separators)
 // ---------------------------------------------------------------------------
 
 function normalizeMac(mac: string): string {
@@ -768,8 +320,8 @@ function normalizeMac(mac: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Look up vendor name from MAC address OUI.
- * Returns vendor name string or null if unknown.
+ * Look up vendor from MAC OUI.
+ * Returns vendor name or null if unknown.
  */
 export function lookupVendor(mac: string): string | null {
   if (!mac) return null;
@@ -778,8 +330,8 @@ export function lookupVendor(mac: string): string | null {
 }
 
 /**
- * Infer device info from MAC address OUI.
- * Returns { deviceName, deviceType, os } — all fall back to "Unknown" if not found.
+ * Infer device info from MAC OUI.
+ * Returns { deviceName, deviceType, os, vendor } — falls back to "Unknown".
  */
 export function inferDeviceInfo(mac: string): {
   deviceName: string;
@@ -795,7 +347,6 @@ export function inferDeviceInfo(mac: string): {
 
   const info = VENDOR_DEVICE_MAP[vendor];
   if (!info) {
-    // Known vendor but not in device map — show vendor name at least
     return { deviceName: vendor, deviceType: 'unknown', os: 'Unknown', vendor };
   }
 
