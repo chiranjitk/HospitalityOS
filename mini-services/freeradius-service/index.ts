@@ -909,44 +909,23 @@ async function reloadRadius(): Promise<boolean> {
 }
 
 /**
- * Write all NAS clients to RADIUS clients.conf
- * Uses section markers so we only overwrite our managed section
+ * Ensure clients.conf does NOT contain managed NAS client definitions.
+ * FreeRADIUS loads NAS clients from SQL (read_clients = yes, client_table = "nas"),
+ * so writing to clients.conf causes "Ignoring duplicate client" / "Failed to add
+ * duplicate client" warnings. This function clears any previously-managed section.
  */
 async function writeAllNASClientsToConf(): Promise<boolean> {
   try {
     const clients = await getAllNASClients();
 
-    // Build our managed section content
-    const managedLines: string[] = [STAYSUITE_CLIENT_BEGIN];
-    for (const client of clients) {
-      managedLines.push('');
-      managedLines.push(`# NAS Client: ${client.name}`);
-      managedLines.push(`# Created: ${client.createdAt}`);
-      managedLines.push(`client ${client.shortname || client.name.replace(/\s+/g, '_')} {`);
-      managedLines.push(`    ipaddr = ${client.ipAddress}`);
-      managedLines.push(`    secret = "${client.sharedSecret}"`);
-      managedLines.push(`    shortname = ${client.shortname || client.name.replace(/\s+/g, '_')}`);
-      if (client.ports.auth !== 1812) {
-        managedLines.push(`    auth_port = ${client.ports.auth}`);
-      }
-      if (client.ports.acct !== 1813) {
-        managedLines.push(`    acct_port = ${client.ports.acct}`);
-      }
-      if (client.ports.coa !== 3799) {
-        managedLines.push(`    coa_port = ${client.ports.coa}`);
-      }
-      managedLines.push(`    nas_type = ${client.type}`);
-      // BlastRADIUS protection — MikroTik sends Message-Authenticator, require it
-      managedLines.push(`    require_message_authenticator = yes`);
-      managedLines.push(`    limit_proxy_state = yes`);
-      // CoA/DMR enabled — required for MikroTik bandwidth change, disconnect, etc.
-      // Note: coa_server is NOT a boolean in FreeRADIUS 3.x; it expects a home_server name.
-      // CoA works by default on the same server. response_window ensures timely CoA responses.
-      managedLines.push(`    response_window = 6`);
-      managedLines.push(`}`);
-    }
-    managedLines.push('');
-    managedLines.push(STAYSUITE_CLIENT_END);
+    // Build a minimal managed section (comment-only — actual clients come from SQL)
+    const managedLines: string[] = [
+      STAYSUITE_CLIENT_BEGIN,
+      `# NAS clients are loaded from SQL (nas table) via read_clients = yes.`,
+      `# DO NOT add client definitions here — they will duplicate the SQL entries.`,
+      `# Active clients: ${clients.map(c => `${c.name} (${c.ipAddress})`).join(', ')}`,
+      STAYSUITE_CLIENT_END,
+    ];
     const managedSection = managedLines.join('\n');
 
     // Read existing file or start empty
@@ -969,16 +948,16 @@ async function writeAllNASClientsToConf(): Promise<boolean> {
       newContent = existingContent + (existingContent.length > 0 ? '\n' : '') + managedSection + '\n';
     }
 
-    // Write clients.conf (sandbox-safe: no chown/chmod needed, read_clients=yes uses SQL)
+    // Write clients.conf — only comments, no actual client blocks
     await writeRadiusFile(RADIUS_CLIENTS_PATH, newContent);
-    log.info('Wrote NAS clients to clients.conf', { count: clients.length, path: RADIUS_CLIENTS_PATH });
+    log.info('Updated clients.conf (SQL-managed, no duplicates)', { count: clients.length, path: RADIUS_CLIENTS_PATH });
 
     // Trigger RADIUS reload (sandbox-safe: SIGHUP instead of systemctl)
     await reloadRadius();
 
     return true;
   } catch (error) {
-    log.error('Failed to write NAS clients to clients.conf', { error: String(error) });
+    log.error('Failed to update clients.conf', { error: String(error) });
     return false;
   }
 }
