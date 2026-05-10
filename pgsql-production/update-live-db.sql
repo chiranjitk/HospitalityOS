@@ -296,7 +296,7 @@ CREATE VIEW v_session_history AS
     r.connectinfo_start,
     r.connectinfo_stop,
     -- DeviceProfile enrichment columns
-    COALESCE(r.logintype, 'portal') AS "loginType",
+    COALESCE(r."loginType", 'portal') AS "loginType",
     dp."userAgent" AS "userAgent",
     dp."macAddress" AS "dp_macAddress",
     COALESCE(dp."authCount", 0) AS "dp_authCount",
@@ -343,7 +343,7 @@ CREATE VIEW v_session_history AS
             radacct.createdat,
             radacct.updatedat,
             radacct.class,
-            radacct.logintype
+            radacct."loginType"
            FROM radacct
           ORDER BY radacct.username, radacct.acctsessionid, radacct.radacctid DESC) r ON s.id::text = r.acctuniqueid
      LEFT JOIN LATERAL ( SELECT "WiFiUser".id,
