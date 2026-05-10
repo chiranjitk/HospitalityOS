@@ -323,7 +323,7 @@ export default function LoginPage() {
                 <Hotel className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-white via-teal-100 to-emerald-100 bg-clip-text text-transparent">
+                <h1 className="text-xl font-bold bg-gradient-to-r from-white via-teal-100 to-emerald-100 bg-clip-text text-transparent animate-[subtleShimmer_3s_ease-in-out_infinite]">
                   StaySuite
                 </h1>
                 <p className="text-emerald-200/80 text-xs font-medium">by Cryptsk Pvt Ltd</p>
@@ -384,6 +384,7 @@ export default function LoginPage() {
                 {/* Prev arrow */}
                 <button
                   type="button"
+                  aria-label="Previous slide"
                   onClick={() => goToSlide((currentSlide - 1 + slideshowImages.length) % slideshowImages.length)}
                   className="h-8 w-8 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all duration-300"
                 >
@@ -396,6 +397,7 @@ export default function LoginPage() {
                     <button
                       key={index}
                       type="button"
+                      aria-label={"Go to slide " + (index + 1)}
                       onClick={() => goToSlide(index)}
                       className="group relative"
                     >
@@ -414,6 +416,7 @@ export default function LoginPage() {
                 {/* Next arrow */}
                 <button
                   type="button"
+                  aria-label="Next slide"
                   onClick={() => goToSlide((currentSlide + 1) % slideshowImages.length)}
                   className="h-8 w-8 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all duration-300"
                 >
@@ -596,7 +599,7 @@ export default function LoginPage() {
                               animate="visible"
                               exit="exit"
                             >
-                              <Alert variant="destructive" className="border-red-200/80 dark:border-red-800/80 bg-red-50/80 dark:bg-red-950/40 backdrop-blur-sm">
+                              <Alert variant="destructive" role="alert" className="border-red-200/80 dark:border-red-800/80 bg-red-50/80 dark:bg-red-950/40 backdrop-blur-sm">
                                 <AlertDescription className="text-red-700 dark:text-red-300 font-medium text-sm flex items-center gap-2">
                                   <AlertCircle className="h-4 w-4 flex-shrink-0" />
                                   {error}
@@ -659,11 +662,20 @@ export default function LoginPage() {
                                   return;
                                 }
                                 try {
-                                  await fetch('/api/auth/forgot-password', {
+                                  const res = await fetch('/api/auth/forgot-password', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ email }),
                                   });
+                                  if (!res.ok) {
+                                    const data = await res.json().catch(() => ({}));
+                                    toast({
+                                      title: 'Error',
+                                      description: data?.error?.message || data?.message || 'Failed to send reset email.',
+                                      variant: 'destructive',
+                                    });
+                                    return;
+                                  }
                                   toast({
                                     title: t('checkYourEmail'),
                                     description: t('weveSentPasswordResetInstructionsToYourEmail'),
@@ -703,6 +715,12 @@ export default function LoginPage() {
                               {showPassword ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
                             </button>
                           </div>
+                          {showDemoCredentials && (
+                            <p className="mt-1.5 text-[11px] text-muted-foreground/50 font-medium pl-1 flex items-center gap-1">
+                              <Zap className="h-3 w-3 text-amber-500/70" />
+                              Use admin123 for quick demo access
+                            </p>
+                          )}
                         </motion.div>
 
                         {/* Remember me */}
@@ -738,10 +756,10 @@ export default function LoginPage() {
                           <Button
                             type="submit"
                             className={cn(
-                              "w-full h-12 rounded-xl font-semibold text-sm transition-all duration-300",
+                              "w-full h-12 rounded-xl font-semibold text-sm transition-transform duration-150",
                               "bg-gradient-to-r from-teal-600 via-emerald-500 to-cyan-500",
                               "hover:shadow-lg hover:shadow-teal-500/30 hover:scale-[1.02]",
-                              "active:scale-95",
+                              "active:scale-[0.98]",
                               "dark:from-teal-500 dark:via-emerald-600 dark:to-cyan-500",
                               "text-white",
                               "hover:-translate-y-0.5 active:translate-y-0",
@@ -841,7 +859,7 @@ export default function LoginPage() {
                               animate="visible"
                               exit="exit"
                             >
-                              <Alert variant="destructive" className="border-red-200/80 dark:border-red-800/80 bg-red-50/80 dark:bg-red-950/40 backdrop-blur-sm">
+                              <Alert variant="destructive" role="alert" className="border-red-200/80 dark:border-red-800/80 bg-red-50/80 dark:bg-red-950/40 backdrop-blur-sm">
                                 <AlertDescription className="text-red-700 dark:text-red-300 font-medium text-sm flex items-center gap-2">
                                   <AlertCircle className="h-4 w-4 flex-shrink-0" />
                                   {error}
@@ -1025,6 +1043,20 @@ export default function LoginPage() {
                     Register with a trial key
                   </button>
                 </p>
+              </motion.div>
+
+              {/* ── System Status indicator ── */}
+              <motion.div
+                className="flex items-center justify-end gap-1.5 mt-4 text-[11px] text-muted-foreground/60 font-medium"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.8, duration: 0.5 }}
+              >
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"
+                  style={{ animation: 'loginGlowPulse 3s ease-in-out infinite' }}
+                />
+                <span>All systems operational</span>
               </motion.div>
 
               {/* ── Mobile footer (sticky at bottom when content is short) ── */}

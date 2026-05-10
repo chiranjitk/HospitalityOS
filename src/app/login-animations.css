@@ -121,6 +121,11 @@
   75% { transform: translate(10px, -10px); }
 }
 
+@keyframes subtleShimmer {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.8; }
+}
+
 /* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

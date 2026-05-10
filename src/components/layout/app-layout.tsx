@@ -111,6 +111,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Main Content */}
       <main className={cn(
         "relative z-10 transition-all duration-300 pt-14 sm:pt-5 pb-2 px-2 sm:px-3 lg:px-4", // pt-14 to offset sticky header, minimal padding
+        "flex-1", // Fill remaining vertical space so footer sticks to bottom
         "ml-0 lg:ml-[260px]", // No margin on mobile, 260px on desktop
         sidebarCollapsed && "lg:ml-[68px]" // Collapsed width only on desktop
       )}>

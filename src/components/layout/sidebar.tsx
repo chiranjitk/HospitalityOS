@@ -60,6 +60,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { NotificationPopover } from '@/components/layout/notification-popover';
 
 // =============================================
 // CONSTANTS
@@ -454,6 +455,7 @@ function SearchInput({ searchQuery, setSearchQuery }: SearchInputProps) {
           )} />
         </motion.div>
         <Input
+          data-sidebar-search
           placeholder={tLayout('searchNavigation')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -1065,6 +1067,7 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
         />
         <QuickStats />
         <TenantSwitcher />
+        <NotificationPopover />
         <UserProfile />
       </aside>
 
@@ -1096,6 +1099,7 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
 
             <QuickStats collapsed />
             <TenantSwitcher collapsed />
+            <NotificationPopover collapsed />
             <UserProfile collapsed />
 
             {/* Collapse toggle */}
@@ -1139,8 +1143,9 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
             <div className="mx-4 h-px bg-gradient-to-r from-transparent via-sidebar-border/30 to-transparent" />
           </div>
 
-          {/* Header: Logo + Collapse button */}
-          <div className="absolute top-3 right-2 z-10">
+          {/* Header: Logo + Notification bell + Collapse button */}
+          <div className="absolute top-3 right-2 z-10 flex items-center gap-1">
+            <NotificationPopover />
             <Button
               variant="ghost"
               size="icon"
