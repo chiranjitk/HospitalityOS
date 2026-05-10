@@ -288,7 +288,9 @@ async function pollMikrotik(nas: NasConfig): Promise<Map<string, { downloadBytes
     const credentials = Buffer.from(`${apiUser}:${apiPass}`).toString('base64');
 
     const res = await fetch(url, {
-      agent: httpsAgent,
+      // Bun-specific: tls option disables cert verification for self-signed MikroTik certs
+      // Node.js would use agent: httpsAgent, but Bun ignores it
+      tls: { rejectUnauthorized: false },
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Basic ${credentials}`,
