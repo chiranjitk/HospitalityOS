@@ -164,5 +164,20 @@ module.exports = {
         PORTAL_PORT: 3000,
       },
     },
+    {
+      name: 'live-speed-service',
+      script: 'index.ts',
+      interpreter: BUN_PATH,
+      cwd: `${APP_DIR}/mini-services/live-speed-service`,
+      error_file: `${LOG_DIR}/live-speed-service-error.log`,
+      out_file: `${LOG_DIR}/live-speed-service-out.log`,
+      max_restarts: 10,
+      restart_delay: 3000,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3018,
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+      },
+    },
   ],
 };
