@@ -594,7 +594,7 @@ CREATE VIEW v_user_usage AS  SELECT u.id AS user_id,
     GREATEST(
         COALESCE(u."totalBytesIn", 0::bigint) + COALESCE(u."totalBytesOut", 0::bigint),
         COALESCE((
-            SELECT SUM(COALESCE(acct.inputoctets, 0) + COALESCE(acct.outputoctets, 0))
+            SELECT SUM(COALESCE(acct.acctinputoctets, 0) + COALESCE(acct.acctoutputoctets, 0))
             FROM radacct acct WHERE acct.username = u.username
         ), 0::bigint)
     ) AS total_data_used,
@@ -604,11 +604,11 @@ CREATE VIEW v_user_usage AS  SELECT u.id AS user_id,
     -- Download/Upload: prefer WiFiUser, fallback to radacct
     GREATEST(
         COALESCE(u."totalBytesOut", 0::bigint),
-        COALESCE((SELECT SUM(COALESCE(acct.outputoctets, 0)) FROM radacct acct WHERE acct.username = u.username), 0::bigint)
+        COALESCE((SELECT SUM(COALESCE(acct.acctoutputoctets, 0)) FROM radacct acct WHERE acct.username = u.username), 0::bigint)
     ) AS total_download_bytes,
     GREATEST(
         COALESCE(u."totalBytesIn", 0::bigint),
-        COALESCE((SELECT SUM(COALESCE(acct.inputoctets, 0)) FROM radacct acct WHERE acct.username = u.username), 0::bigint)
+        COALESCE((SELECT SUM(COALESCE(acct.acctinputoctets, 0)) FROM radacct acct WHERE acct.username = u.username), 0::bigint)
     ) AS total_upload_bytes,
     COALESCE((SELECT sum(acct.acctsessiontime) FROM radacct acct WHERE acct.username = u.username), 0::bigint) AS total_session_time,
     COALESCE((
