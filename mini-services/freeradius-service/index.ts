@@ -2590,8 +2590,12 @@ sql {
 
       // CLEANUP: Remove previously injected broken 'Auth-Type SQL { sql }' blocks
       // (from older version that didn't support FreeRADIUS 3.x)
+      // MUST use line-based removal — NOT [^}]* regex which can eat adjacent content
+      // and destroy Auth-Type PAP, CHAP, MS-CHAP blocks.
       if (sitesContent.includes('Auth-Type SQL')) {
-        sitesContent = sitesContent.replace(/\n\t#\s*StaySuite:.*?SQL.*?\n\tAuth-Type SQL \{[^}]*\}/g, '');
+        // Remove only lines that are exactly the Auth-Type SQL block (single-line)
+        sitesContent = sitesContent.replace(/^\t*#\s*StaySuite:.*?SQL.*?\n?/gm, '');
+        sitesContent = sitesContent.replace(/^\t*Auth-Type SQL \{[^}]*\}\n?/gm, '');
         details.push('Removed broken Auth-Type SQL block (FreeRADIUS 3.x incompatible)');
       }
 
@@ -2609,18 +2613,92 @@ sql {
         }
       }
 
-      // NOTE: Do NOT add sql to authenticate section in FreeRADIUS 3.x
-      // In v3, password verification (PAP/CHAP/MS-CHAP) happens automatically
-      // when the sql module finds Cleartext-Password in radcheck during authorize.
-      // Adding 'Auth-Type SQL { sql }' causes: "sql modules aren't allowed in 'authenticate' sections"
-      details.push('Skipped authenticate section (FreeRADIUS 3.x auto-verifies from authorize)');
+      // REPAIR: Ensure authenticate section has required Auth-Type blocks.
+      // Previous versions used a dangerous [^}]* regex that could destroy
+      // Auth-Type PAP/CHAP/MS-CHAP blocks, causing "Auth-Type sub-section not found".
+      // Use brace-counting to safely find the authenticate section boundaries.
+      {
+        const authOpenIdx = sitesContent.indexOf('authenticate {');
+        if (authOpenIdx !== -1) {
+          // Brace-counting to find the matching closing brace
+          let depth = 0;
+          let authEndIdx = -1;
+          for (let i = authOpenIdx; i < sitesContent.length; i++) {
+            if (sitesContent[i] === '{') depth++;
+            else if (sitesContent[i] === '}') {
+              depth--;
+              if (depth === 0) { authEndIdx = i; break; }
+            }
+          }
+          if (authEndIdx !== -1) {
+            const authSection = sitesContent.substring(authOpenIdx, authEndIdx + 1);
+            const requiredAuthTypes = [
+              { name: 'PAP', module: 'pap' },
+              { name: 'CHAP', module: 'chap' },
+              { name: 'MS-CHAP', module: 'mschap' },
+            ];
+            const missing = requiredAuthTypes.filter(
+              at => !authSection.includes(`Auth-Type ${at.name}`)
+            );
+            if (missing.length > 0) {
+              // Insert missing Auth-Type blocks right after "authenticate {"
+              const insertPos = sitesContent.indexOf('{', authOpenIdx) + 1;
+              const blocksToInsert = missing
+                .map(at => `\n\t\tAuth-Type ${at.name} {\n\t\t\t${at.module}\n\t\t}`)
+                .join('\n');
+              sitesContent =
+                sitesContent.substring(0, insertPos) +
+                blocksToInsert +
+                sitesContent.substring(insertPos);
+              details.push(`Repaired authenticate section (added missing: ${missing.map(m => m.name).join(', ')})`);
+            } else {
+              details.push('Authenticate section verified (Auth-Type PAP/CHAP/MS-CHAP present)');
+            }
+          }
+        } else {
+          details.push('WARNING: authenticate section not found in sites-available/default');
+        }
+      }
 
-      // DO NOT modify post-auth section ordering.
-      // The default FreeRADIUS config has sql in both post-auth {} and
-      // Post-Auth-Type REJECT {}, which correctly logs both Accept and Reject.
-      // Moving sql position breaks Reply-Message capture in REJECT context.
-      // Duplicate rows (Accept+Reject from IP pool reject) are handled in the
-      // v_auth_logs view using DISTINCT ON (picks the Reject row which has replyMessage).
+      // VERIFY: Post-Auth-Type REJECT must contain sql for proper reject logging.
+      // When IP pool check fires 'reject', FreeRADIUS jumps to Post-Auth-Type REJECT.
+      // Without sql here, reject events have empty replyMessage → GUI shows "invalid password".
+      {
+        const rejectOpenIdx = sitesContent.indexOf('Post-Auth-Type REJECT {');
+        if (rejectOpenIdx !== -1) {
+          const braceStart = sitesContent.indexOf('{', rejectOpenIdx);
+          let depth = 0;
+          let rejectEndIdx = -1;
+          for (let i = braceStart; i < sitesContent.length; i++) {
+            if (sitesContent[i] === '{') depth++;
+            else if (sitesContent[i] === '}') {
+              depth--;
+              if (depth === 0) { rejectEndIdx = i; break; }
+            }
+          }
+          if (rejectEndIdx !== -1) {
+            const rejectSection = sitesContent.substring(rejectOpenIdx, rejectEndIdx + 1);
+            // Match standalone 'sql' on its own line (not -sql, not inside other words)
+            if (!/^\s*sql\s*$/m.test(rejectSection)) {
+              // Insert sql right after 'Post-Auth-Type REJECT {'
+              const insertPos = braceStart + 1;
+              sitesContent =
+                sitesContent.substring(0, insertPos) +
+                '\n\t\t# StaySuite: Log rejected auth attempts to SQL\n\t\tsql' +
+                sitesContent.substring(insertPos);
+              details.push('Repaired Post-Auth-Type REJECT section (added sql for reject logging)');
+            } else {
+              details.push('Post-Auth-Type REJECT verified (sql present for reject logging)');
+            }
+          }
+        } else {
+          details.push('WARNING: Post-Auth-Type REJECT section not found');
+        }
+      }
+
+      // DO NOT modify post-auth main section sql ordering.
+      // The default config + deploy script places sql correctly for Accept logging.
+      // Post-Auth-Type REJECT handles Reject logging (verified above).
       details.push('Skipped post-auth sql placement (default config is correct)');
 
 
