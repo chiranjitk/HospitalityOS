@@ -41,7 +41,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   CircleDot,
-  Delete,
+  Trash2,
   Download,
   Gauge,
   Globe,
@@ -785,7 +785,7 @@ function ArpTableTool() {
             disabled={flushing}
             onClick={flushArp}
           >
-            {flushing ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Delete className="h-3.5 w-3.5 mr-1.5" />}
+            {flushing ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
             Flush ARP Cache
           </Button>
           <Button
