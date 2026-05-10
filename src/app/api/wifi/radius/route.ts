@@ -3201,23 +3201,51 @@ export async function POST(request: NextRequest) {
             coaMessage = 'No NAS secret configured for ' + cleanNasIp;
           } else {
 
-          // Build radclient attributes — MikroTik requires Framed-IP-Address to identify the session
+          // Build radclient attributes for disconnect
           const radclientPath = '/usr/bin/radclient';
-          // Resolve Framed-IP-Address: from request → fallback to radacct lookup
+
+          // Look up the REAL RADIUS session attributes from radacct.
+          // The frontend sends acctuniqueid as acctSessionId, but MikroTik needs
+          // the actual Acct-Session-Id and Calling-Station-Id (MAC) that IT assigned.
+          let realAcctSessionId = '';
           let resolvedIp = framedIpAddress ? framedIpAddress.replace(/\/\d+$/, '') : '';
-          if (!resolvedIp) {
-            try {
-              const ipRows = await db.$queryRawUnsafe<Array<{ framedipaddress: string }[]>>(`
-                SELECT framedipaddress FROM radacct
-                WHERE username = $1 AND acctstoptime IS NULL AND framedipaddress IS NOT NULL
-                  AND framedipaddress != '' AND framedipaddress != '0.0.0.0'
-                ORDER BY acctstarttime DESC LIMIT 1
-              `, disconnectUsername);
-              if (ipRows.length > 0) resolvedIp = ipRows[0].framedipaddress.replace(/\/\d+$/, '');
-            } catch { /* non-fatal */ }
+          let callingStationId = '';
+
+          try {
+            const sessionRows = await db.$queryRawUnsafe<Array<{
+              acctsessionid: string;
+              framedipaddress: string;
+              callingstationid: string;
+              acctuniqueid: string;
+            }[]>>(`
+              SELECT acctsessionid, framedipaddress, callingstationid, acctuniqueid
+              FROM radacct
+              WHERE (username = $1 OR acctuniqueid = $2)
+                AND acctstoptime IS NULL
+              ORDER BY acctstarttime DESC LIMIT 1
+            `, disconnectUsername, bareSessionId || '');
+            if (sessionRows.length > 0) {
+              const row = sessionRows[0];
+              realAcctSessionId = row.acctsessionid || '';
+              if (!resolvedIp && row.framedipaddress) {
+                resolvedIp = row.framedipaddress.replace(/\/\d+$/, '');
+              }
+              callingStationId = (row.callingstationid || '').replace(/\/\d+$/, '');
+            }
+          } catch { /* non-fatal */ }
+
+          // Build attribute lines:
+          // - User-Name: always (identifies the user)
+          // - Calling-Station-Id: MAC address (MikroTik's primary session identifier)
+          // - Framed-IP-Address: client IP (MikroTik secondary identifier)
+          // - Acct-Session-Id: ONLY use the real RADIUS value from radacct (NOT acctuniqueid)
+          const attrLines: string[] = [`User-Name="${disconnectUsername}"`];
+          if (callingStationId) attrLines.push(`Calling-Station-Id="${callingStationId}"`);
+          if (resolvedIp && resolvedIp !== '0.0.0.0') attrLines.push(`Framed-IP-Address=${resolvedIp}`);
+          if (realAcctSessionId && realAcctSessionId !== bareSessionId) {
+            attrLines.push(`Acct-Session-Id="${realAcctSessionId}"`);
           }
-          const ipLine = resolvedIp ? `\nFramed-IP-Address=${resolvedIp}` : '';
-          const attrs = `User-Name="${disconnectUsername}"${bareSessionId ? `\nAcct-Session-Id="${bareSessionId}"` : ''}${ipLine}`;
+          const attrs = attrLines.join('\n');
           const tmpAttrsFile = `/tmp/radclient-disconnect-${Date.now()}.txt`;
           const { execSync } = await import('child_process');
           const fs = await import('fs');
@@ -3225,8 +3253,8 @@ export async function POST(request: NextRequest) {
           try {
             fs.writeFileSync(tmpAttrsFile, attrs + '\n');
             const cmd = `${radclientPath} -t 3 -r 1 ${cleanNasIp}:${coaPort} disconnect ${nasSecret} < ${tmpAttrsFile} 2>&1`;
-            console.log('[live-sessions-disconnect] Sending RADIUS disconnect to ' + cleanNasIp + ':' + coaPort + ' user=' + disconnectUsername + ' session=' + (bareSessionId || '(any)') + ' ip=' + (resolvedIp || '(none)'));
-            console.log('[live-sessions-disconnect] radclient attrs: ' + attrs.split('\n').map(a => a.includes('secret') ? '(secret)' : a).join(', '));
+            console.log('[live-sessions-disconnect] Sending RADIUS disconnect to ' + cleanNasIp + ':' + coaPort + ' user=' + disconnectUsername + ' ip=' + (resolvedIp || '(none)') + ' mac=' + (callingStationId || '(none)'));
+            console.log('[live-sessions-disconnect] radclient attrs: ' + attrs);
             const output = execSync(cmd, { timeout: 5000 }).toString();
             coaMessage = output.trim();
             coaSuccess = output.includes('Disconnect-ACK') || output.includes('CoA-ACK') || output.includes('received');
