@@ -989,14 +989,9 @@ BEGIN
         IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
     END IF;
 
-    -- Priority 4: Plan exists but has NO pool → check ALL enabled pools
-    -- IP must be in at least one pool; if not found in any, reject
-    SELECT EXISTS (
-        SELECT 1 FROM "IpPoolRange" r
-        JOIN "IpPool" ip ON ip.id = r."poolId"
-        WHERE ip.enabled = true AND p_ip >= r."startIp" AND p_ip <= r."endIp"
-    ) INTO v_in_pool;
-    IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
+    -- Priority 4: Plan exists but has NO pool (use default) → don't check IP binding
+    -- When plan is set to "none / use default pool", skip IP pool restriction entirely
+    RETURN 1;
 END;
 $function$
 ;

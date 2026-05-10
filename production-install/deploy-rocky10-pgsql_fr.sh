@@ -564,10 +564,11 @@ sql {
   post-auth {
     query = "\
       INSERT INTO radpostauth (username, pass, reply, calledstationid, callingstationid, \
-        nasipaddress, clientipaddress, authdate, \"class\") \
+        nasipaddress, clientipaddress, authdate, \"class\", \"replyMessage\") \
       VALUES ('%{SQL-User-Name}', '%{%{User-Password}:-%{Chap-Password}}', '%{reply:Packet-Type}', \
         '%{Called-Station-Id}', '%{Calling-Station-Id}', \
-        '%{NAS-IP-Address}', NULLIF('%{Framed-IP-Address}', ''), NOW(), NULLIF('%{Class}', ''))"
+        '%{NAS-IP-Address}', NULLIF('%{Framed-IP-Address}', ''), NOW(), NULLIF('%{Class}', ''), \
+        '%{Reply-Message}')"
   }
 }
 EOCONF

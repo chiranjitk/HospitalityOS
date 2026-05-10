@@ -278,12 +278,20 @@ if [ -f "$SCRIPT_DIR/queries-postauth.patch" ]; then
     QUERIES_FILE="$RADDB/mods-config/sql/main/postgresql/queries.conf"
     if [ -f "$QUERIES_FILE" ]; then
         cp "$QUERIES_FILE" "${QUERIES_FILE}.bak.$(date +%Y%m%d%H%M%S)"
-        # The post-auth query should capture called/calling station IDs
-        if ! grep -q "calledstationid" "$QUERIES_FILE" 2>/dev/null; then
-            warn "Review queries-postauth.patch and apply manually if needed"
-        else
-            ok "Post-auth queries already configured"
+    fi
+    # Extract just the post-auth block from the patch file and replace/append
+    # The patch file contains the full post-auth { ... } section
+    if grep -q "replyMessage" "$QUERIES_FILE" 2>/dev/null; then
+        ok "Post-auth query already includes replyMessage"
+    else
+        # Replace existing post-auth section or append it
+        if grep -q "^post-auth {" "$QUERIES_FILE" 2>/dev/null; then
+            # Remove old post-auth section and append new one
+            sed -i '/^post-auth {/,/^}/d' "$QUERIES_FILE"
         fi
+        # Append the new post-auth section (skip comment lines starting with --)
+        grep -v '^--' "$SCRIPT_DIR/queries-postauth.patch" | grep -v '^$' >> "$QUERIES_FILE"
+        ok "Applied queries-postauth.patch (replyMessage capture enabled)"
     fi
 fi
 
