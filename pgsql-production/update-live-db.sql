@@ -345,7 +345,8 @@ CREATE VIEW v_session_history AS
             radacct.class,
             radacct."loginType"
            FROM radacct
-          ORDER BY radacct.username, radacct.acctsessionid, radacct.radacctid DESC) r ON s.id::text = r.acctuniqueid
+          ORDER BY radacct.username, radacct.acctsessionid, radacct.radacctid DESC) r ON COALESCE(s."acctUniqueId", '')::text = r.acctuniqueid
+     AND (s."acctUniqueId" IS NOT NULL OR s.id IS NULL)
      LEFT JOIN LATERAL ( SELECT "WiFiUser".id,
             "WiFiUser"."tenantId",
             "WiFiUser"."propertyId",
