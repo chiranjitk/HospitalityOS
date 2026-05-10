@@ -91,6 +91,7 @@ import { LoyaltyTierWidget } from './widgets/loyalty-tier-widget';
 import { MiniRevenueChart } from './widgets/mini-revenue-chart';
 import { LazySection } from './lazy-section';
 import { RoomFloorPlanWidget } from './widgets/room-floor-plan-widget';
+import { RoomStatusOverview } from './room-status-overview';
 
 const OccupancyHeatmap = React.lazy(() => import('./occupancy-heatmap').then(m => ({ default: m.OccupancyHeatmap })));
 
@@ -916,6 +917,11 @@ export default function OverviewDashboard() {
         {/* ── Today's Summary ── */}
         <div className="relative z-10">
           <TodaySummaryCard summary={summary} isLoading={isLoading} />
+        </div>
+
+        {/* ── Room Status Overview (Floor Map Grid) ── */}
+        <div className="relative z-10">
+          <RoomStatusOverview />
         </div>
 
         {/* ── Guest Journey Pipeline ── */}

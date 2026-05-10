@@ -25,6 +25,12 @@ export function SectionLoadingSkeleton({ section }: { section?: string }) {
   return (
     <div className="animate-in fade-in duration-300 w-full">
       <SkeletonLayoutRenderer layout={layout} />
+      {/* Loading indicator */}
+      <div className="flex items-center justify-center pt-6 pb-2">
+        <span className="text-[11px] font-medium text-muted-foreground/60 skeleton-text-pulse tracking-wide">
+          Loading...
+        </span>
+      </div>
     </div>
   );
 }
@@ -67,7 +73,7 @@ import { cn } from '@/lib/utils';
 function ShimmerBlock({ className }: { className?: string }) {
   return (
     <div
-      className={cn('relative overflow-hidden rounded-md bg-muted/50', className)}
+      className={cn('relative overflow-hidden rounded-xl bg-muted/40 dark:bg-muted/20', className)}
     >
       <div className="absolute inset-0 skeleton-shimmer-sweep" />
     </div>
@@ -97,13 +103,13 @@ function SectionHeaderSkeleton() {
 
 function DashboardSkeleton() {
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6">
+    <div className="w-full max-w-7xl mx-auto space-y-6 skeleton-glow rounded-2xl p-5">
       <SectionHeaderSkeleton />
 
       {/* Metric cards row — 4 cols */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="rounded-xl border border-border/30 p-4 space-y-3">
+          <div key={i} className="rounded-xl border border-border/30 dark:border-border/15 p-4 space-y-3 bg-card/50 dark:bg-card/30">
             <div className="flex items-center justify-between">
               <Skeleton className="h-4 w-20 rounded-full" />
               <Skeleton className="h-8 w-8 rounded-full" />
@@ -117,22 +123,22 @@ function DashboardSkeleton() {
       {/* Wide content cards — 2 cols */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {[...Array(2)].map((_, i) => (
-          <div key={i} className="rounded-xl border border-border/30 p-5 space-y-3">
+          <div key={i} className="rounded-xl border border-border/30 dark:border-border/15 p-5 space-y-3 bg-card/50 dark:bg-card/30">
             <div className="flex items-center justify-between">
               <Skeleton className="h-5 w-32 rounded-lg" />
               <Skeleton className="h-8 w-20 rounded-full" />
             </div>
-            <ShimmerBlock className="h-40 w-full rounded-lg" />
+            <ShimmerBlock className="h-40 w-full" />
           </div>
         ))}
       </div>
 
       {/* Bottom row — 1 full-width card */}
-      <div className="rounded-xl border border-border/30 p-5 space-y-3">
+      <div className="rounded-xl border border-border/30 dark:border-border/15 p-5 space-y-3 bg-card/50 dark:bg-card/30">
         <Skeleton className="h-5 w-28 rounded-lg" />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[...Array(3)].map((_, i) => (
-            <ShimmerBlock key={i} className="h-24 w-full rounded-lg" />
+            <ShimmerBlock key={i} className="h-24 w-full" />
           ))}
         </div>
       </div>
@@ -146,7 +152,7 @@ function DashboardSkeleton() {
 
 function TableSkeleton() {
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6">
+    <div className="w-full max-w-7xl mx-auto space-y-6 skeleton-glow rounded-2xl p-5">
       <SectionHeaderSkeleton />
 
       {/* Filter bar */}
@@ -163,9 +169,9 @@ function TableSkeleton() {
       </div>
 
       {/* Table container */}
-      <div className="rounded-xl border border-border/30 overflow-hidden">
+      <div className="rounded-xl border border-border/30 dark:border-border/15 overflow-hidden bg-card/50 dark:bg-card/30">
         {/* Table header */}
-        <div className="bg-muted/40 px-4 py-2.5 grid grid-cols-4 gap-4">
+        <div className="bg-muted/40 dark:bg-muted/20 px-4 py-2.5 grid grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
             <Skeleton key={i} className="h-4 rounded-md" />
           ))}
@@ -176,8 +182,8 @@ function TableSkeleton() {
           <div
             key={i}
             className={cn(
-              'px-4 py-3 grid grid-cols-4 gap-4 border-t border-border/30',
-              i % 2 === 1 ? 'bg-muted/20' : ''
+              'px-4 py-3 grid grid-cols-4 gap-4 border-t border-border/30 dark:border-border/15',
+              i % 2 === 1 ? 'bg-muted/20 dark:bg-muted/10' : ''
             )}
           >
             {[...Array(4)].map((_, j) => (
@@ -206,7 +212,7 @@ function TableSkeleton() {
 
 function CardsSkeleton() {
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6">
+    <div className="w-full max-w-7xl mx-auto space-y-6 skeleton-glow rounded-2xl p-5">
       <SectionHeaderSkeleton />
 
       {/* Filter / tab bar */}
@@ -225,7 +231,7 @@ function CardsSkeleton() {
       {/* Card grid — 3 cols */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="rounded-xl border border-border/30 p-4 space-y-3">
+          <div key={i} className="rounded-xl border border-border/30 dark:border-border/15 p-4 space-y-3 bg-card/50 dark:bg-card/30">
             {/* Card header bar */}
             <Skeleton className="h-5 w-32 rounded-lg" />
             {/* Text line 1 */}
@@ -252,7 +258,7 @@ function CardsSkeleton() {
 
 function FormSkeleton() {
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6">
+    <div className="w-full max-w-7xl mx-auto space-y-6 skeleton-glow rounded-2xl p-5">
       <SectionHeaderSkeleton />
 
       <div className="max-w-2xl space-y-6">
@@ -260,7 +266,7 @@ function FormSkeleton() {
         <Skeleton className="h-8 w-48 rounded-lg" />
 
         {/* Field group 1 */}
-        <div className="rounded-xl border border-border/30 p-5 space-y-5">
+        <div className="rounded-xl border border-border/30 dark:border-border/15 p-5 space-y-5 bg-card/50 dark:bg-card/30">
           <Skeleton className="h-5 w-24 rounded-lg" />
 
           {/* Field row 1 */}
@@ -295,7 +301,7 @@ function FormSkeleton() {
         </div>
 
         {/* Field group 2 */}
-        <div className="rounded-xl border border-border/30 p-5 space-y-5">
+        <div className="rounded-xl border border-border/30 dark:border-border/15 p-5 space-y-5 bg-card/50 dark:bg-card/30">
           <Skeleton className="h-5 w-28 rounded-lg" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -325,11 +331,11 @@ function FormSkeleton() {
 
 function WifiSkeleton() {
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6">
+    <div className="w-full max-w-7xl mx-auto space-y-6 skeleton-glow rounded-2xl p-5">
       <SectionHeaderSkeleton />
 
       {/* Network diagram — large card */}
-      <div className="rounded-xl border border-border/30 p-6 space-y-4">
+      <div className="rounded-xl border border-border/30 dark:border-border/15 p-6 space-y-4 bg-card/50 dark:bg-card/30">
         <div className="flex items-center justify-between">
           <Skeleton className="h-5 w-36 rounded-lg" />
           <div className="flex items-center gap-2">
@@ -339,18 +345,18 @@ function WifiSkeleton() {
         </div>
 
         {/* Network node diagram area */}
-        <div className="relative h-52 w-full rounded-lg bg-muted/30 flex items-center justify-center">
+        <div className="relative h-52 w-full rounded-xl bg-muted/30 dark:bg-muted/15 flex items-center justify-center">
           {/* Central node */}
-          <div className="w-14 h-14 rounded-full bg-muted/60 flex items-center justify-center">
-            <div className="w-7 h-7 rounded-full bg-muted/80" />
+          <div className="w-14 h-14 rounded-full bg-muted/60 dark:bg-muted/40 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-full bg-muted/80 dark:bg-muted/60" />
           </div>
           {/* Surrounding nodes */}
-          <div className="absolute top-4 left-1/4 w-10 h-10 rounded-full bg-muted/50" />
-          <div className="absolute top-4 right-1/4 w-10 h-10 rounded-full bg-muted/50" />
-          <div className="absolute bottom-4 left-1/3 w-10 h-10 rounded-full bg-muted/50" />
-          <div className="absolute bottom-4 right-1/3 w-10 h-10 rounded-full bg-muted/50" />
-          <div className="absolute top-1/2 left-4 w-10 h-10 rounded-full bg-muted/50" />
-          <div className="absolute top-1/2 right-4 w-10 h-10 rounded-full bg-muted/50" />
+          <div className="absolute top-4 left-1/4 w-10 h-10 rounded-full bg-muted/50 dark:bg-muted/30" />
+          <div className="absolute top-4 right-1/4 w-10 h-10 rounded-full bg-muted/50 dark:bg-muted/30" />
+          <div className="absolute bottom-4 left-1/3 w-10 h-10 rounded-full bg-muted/50 dark:bg-muted/30" />
+          <div className="absolute bottom-4 right-1/3 w-10 h-10 rounded-full bg-muted/50 dark:bg-muted/30" />
+          <div className="absolute top-1/2 left-4 w-10 h-10 rounded-full bg-muted/50 dark:bg-muted/30" />
+          <div className="absolute top-1/2 right-4 w-10 h-10 rounded-full bg-muted/50 dark:bg-muted/30" />
           {/* Connection lines (simulated with skeleton bars) */}
           <Skeleton className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[1px] w-48 rounded-full opacity-30" />
           <Skeleton className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-48 w-[1px] rounded-full opacity-30" />
@@ -360,7 +366,7 @@ function WifiSkeleton() {
       {/* Two smaller info cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {[...Array(2)].map((_, i) => (
-          <div key={i} className="rounded-xl border border-border/30 p-5 space-y-3">
+          <div key={i} className="rounded-xl border border-border/30 dark:border-border/15 p-5 space-y-3 bg-card/50 dark:bg-card/30">
             <Skeleton className="h-5 w-28 rounded-lg" />
             <div className="space-y-2">
               {[...Array(4)].map((_, j) => (
@@ -370,7 +376,7 @@ function WifiSkeleton() {
                 </div>
               ))}
             </div>
-            <ShimmerBlock className="h-16 w-full rounded-lg" />
+            <ShimmerBlock className="h-16 w-full" />
           </div>
         ))}
       </div>
@@ -378,7 +384,7 @@ function WifiSkeleton() {
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="rounded-xl border border-border/30 p-4 space-y-2">
+          <div key={i} className="rounded-xl border border-border/30 dark:border-border/15 p-4 space-y-2 bg-card/50 dark:bg-card/30">
             <Skeleton className="h-4 w-16 rounded-full" />
             <Skeleton className="h-6 w-12 rounded-lg" />
           </div>
@@ -394,10 +400,10 @@ function WifiSkeleton() {
 
 function CalendarSkeleton() {
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6">
+    <div className="w-full max-w-7xl mx-auto space-y-6 skeleton-glow rounded-2xl p-5">
       <SectionHeaderSkeleton />
 
-      <div className="rounded-xl border border-border/30 overflow-hidden p-5">
+      <div className="rounded-xl border border-border/30 dark:border-border/15 overflow-hidden p-5 bg-card/50 dark:bg-card/30">
         {/* Calendar navigation bar */}
         <div className="flex items-center justify-between mb-4">
           <Skeleton className="h-8 w-24 rounded-lg" />
@@ -422,8 +428,8 @@ function CalendarSkeleton() {
             <div
               key={i}
               className={cn(
-                'h-16 rounded-md bg-muted/30',
-                [2, 7, 11, 15, 18, 23, 27, 30].includes(i) && 'bg-muted/50'
+                'h-16 rounded-md bg-muted/30 dark:bg-muted/15',
+                [2, 7, 11, 15, 18, 23, 27, 30].includes(i) && 'bg-muted/50 dark:bg-muted/25'
               )}
             >
               {[2, 7, 11, 15, 18, 23, 27, 30].includes(i) && (
@@ -448,7 +454,7 @@ function KanbanSkeleton() {
   const columnCardCounts = [3, 2, 3];
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6">
+    <div className="w-full max-w-7xl mx-auto space-y-6 skeleton-glow rounded-2xl p-5">
       <SectionHeaderSkeleton />
 
       <div className="flex items-center gap-3">
@@ -476,11 +482,11 @@ function KanbanSkeleton() {
             </div>
 
             {/* Column body */}
-            <div className="rounded-xl border border-border/30 bg-muted/20 p-3 space-y-3 min-h-[16rem]">
+            <div className="rounded-xl border border-border/30 dark:border-border/15 bg-muted/20 dark:bg-muted/10 p-3 space-y-3 min-h-[16rem]">
               {[...Array(cardCount)].map((_, cardIdx) => (
                 <div
                   key={cardIdx}
-                  className="rounded-lg bg-background border border-border/40 p-3 space-y-2"
+                  className="rounded-lg bg-background border border-border/40 dark:border-border/20 p-3 space-y-2"
                 >
                   <Skeleton className="h-4 w-3/4 rounded-md" />
                   <Skeleton className="h-3 w-full rounded-sm" />
@@ -507,12 +513,12 @@ function KanbanSkeleton() {
 
 function SettingsSkeleton() {
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6">
+    <div className="w-full max-w-7xl mx-auto space-y-6 skeleton-glow rounded-2xl p-5">
       <SectionHeaderSkeleton />
 
       <div className="max-w-3xl space-y-6">
         {/* Settings section 1 */}
-        <div className="rounded-xl border border-border/30 p-5 space-y-5">
+        <div className="rounded-xl border border-border/30 dark:border-border/15 p-5 space-y-5 bg-card/50 dark:bg-card/30">
           {/* Section title */}
           <Skeleton className="h-7 w-64 rounded-lg" />
 
@@ -531,7 +537,7 @@ function SettingsSkeleton() {
         </div>
 
         {/* Settings section 2 */}
-        <div className="rounded-xl border border-border/30 p-5 space-y-5">
+        <div className="rounded-xl border border-border/30 dark:border-border/15 p-5 space-y-5 bg-card/50 dark:bg-card/30">
           <Skeleton className="h-7 w-48 rounded-lg" />
           <div className="space-y-4">
             {[...Array(2)].map((_, i) => (

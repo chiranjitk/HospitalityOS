@@ -13,6 +13,8 @@ import { useTranslations } from 'next-intl';
 import { Heart, Globe, Shield, Zap, ChevronUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { CommandPalette } from '@/components/common/command-palette';
+import { StatsFooterBar } from '@/components/common/stats-footer-bar';
+import { QuickActionsFAB } from '@/components/common/quick-actions-fab';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -162,6 +164,19 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* Back to Top floating button */}
         <BackToTopButton />
       </main>
+
+      {/* Stats Footer Bar — slim system status bar above footer */}
+      {user && (
+        <div className={cn(
+          'relative z-10 transition-all duration-300 ml-0 lg:ml-[260px]',
+          sidebarCollapsed && 'lg:ml-[68px]'
+        )}>
+          <StatsFooterBar />
+        </div>
+      )}
+
+      {/* Quick Actions FAB — floating button for mobile/tablet */}
+      {user && <QuickActionsFAB />}
 
       {/* Sticky Footer — only shown when authenticated */}
       {user && (
