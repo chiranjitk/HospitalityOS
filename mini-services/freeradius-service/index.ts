@@ -2624,32 +2624,70 @@ sql {
       //
       // On existing deployments, sql may already be at the TOP of post-auth (before IP pool check).
       // We must remove it from there and re-add at the bottom to prevent duplicate radpostauth rows.
-      const postAuthSection = sitesContent.match(/post-auth\s*\{([^}]*)\}/);
-      if (postAuthSection) {
-        let postAuthContent = postAuthSection[1];
-        const hadSqlAtTop = /^\s*# StaySuite: Log auth results to radpostauth[^\n]*\n\s*sql/.test(postAuthContent);
-        if (hadSqlAtTop) {
-          // Remove sql from top (was inserted before IP pool check — causes double rows)
-          postAuthContent = postAuthContent
-            .replace(/^\s*# StaySuite: Log auth results to radpostauth[^\n]*\n\s*sql\s*\n?/, '');
-          details.push('Removed sql from top of post-auth (was before IP pool check)');
-        } else if (/^\s*sql\s*$/m.test(postAuthContent)) {
-          // Also handle bare 'sql' at top without our comment (default FreeRADIUS placement)
-          const firstSqlIdx = postAuthContent.search(/^\s*sql\s*$/m);
-          if (firstSqlIdx < postAuthContent.search(/StaySuite: IP Pool/) && firstSqlIdx < 200) {
-            postAuthContent = postAuthContent.replace(/^\s*sql\s*\n?/m, '');
-            details.push('Moved sql from top to end of post-auth (before IP pool check)');
+      //
+      // NOTE: We cannot use [^}]* regex because post-auth contains nested braces (if blocks,
+      // Post-Auth-Type sub-sections). Use brace-counting helper instead.
+      const paStartIdx = sitesContent.indexOf('post-auth');
+      if (paStartIdx !== -1) {
+        const paBraceStart = sitesContent.indexOf('{', paStartIdx);
+        if (paBraceStart !== -1) {
+          // Find matching closing brace
+          let depth = 0;
+          let paEndIdx = -1;
+          for (let i = paBraceStart; i < sitesContent.length; i++) {
+            if (sitesContent[i] === '{') depth++;
+            else if (sitesContent[i] === '}') {
+              depth--;
+              if (depth === 0) { paEndIdx = i; break; }
+            }
+          }
+          if (paEndIdx !== -1) {
+            const fullMatch = sitesContent.substring(paStartIdx, paEndIdx + 1);
+            const innerStart = paBraceStart + 1;
+            let innerContent = sitesContent.substring(innerStart, paEndIdx);
+
+            // Check if 'sql' appears before the IP pool check (wrong position)
+            const ipPoolIdx = innerContent.indexOf('StaySuite: IP Pool');
+            const sqlPattern = /^\s*(# StaySuite: Log auth results to radpostauth[^\n]*\n\s*)?sql\s*$/m;
+            const firstSqlMatch = innerContent.match(sqlPattern);
+
+            if (firstSqlMatch && ipPoolIdx !== -1 && firstSqlMatch.index < ipPoolIdx) {
+              // Remove sql from before IP pool check
+              innerContent = innerContent.replace(firstSqlMatch[0], '');
+              details.push('Removed sql from before IP pool check in post-auth');
+            } else {
+              // Also check for bare sql at very top (no StaySuite comment)
+              const bareSqlMatch = innerContent.match(/^(\s*)sql\s*$/m);
+              if (bareSqlMatch && ipPoolIdx !== -1 && bareSqlMatch.index < ipPoolIdx && bareSqlMatch.index < 300) {
+                innerContent = innerContent.replace(bareSqlMatch[0], '');
+                details.push('Removed bare sql from top of post-auth (before IP pool check)');
+              }
+            }
+
+            // Add sql at the very end of post-auth inner content (after everything)
+            // Find the position just before the closing section markers
+            let insertPos = innerContent.length;
+            // Look for Post-Auth-Type sections — insert sql BEFORE them
+            const postAuthTypeMatch = innerContent.match(/\n\s*Post-Auth-Type/);
+            if (postAuthTypeMatch) {
+              insertPos = postAuthTypeMatch.index;
+            }
+
+            // Check if sql already exists in the correct position
+            const afterSql = innerContent.substring(insertPos);
+            if (!/\bsql\b/.test(afterSql) && !/\bsql\b/.test(innerContent.substring(Math.max(0, insertPos - 50), insertPos))) {
+              innerContent =
+                innerContent.substring(0, insertPos) +
+                '\n\t# StaySuite: Log auth results to radpostauth\n\tsql' +
+                innerContent.substring(insertPos);
+              details.push('Added sql to end of post-auth section (after IP pool check)');
+            }
+
+            // Replace the full section in sitesContent
+            const newSection = `post-auth {${innerContent}}`;
+            sitesContent = sitesContent.substring(0, paStartIdx) + newSection + sitesContent.substring(paEndIdx + 1);
           }
         }
-        // Add sql at the end of post-auth (after IP pool check and FUP blocks)
-        if (!/\bsql\b/.test(postAuthContent)) {
-          postAuthContent += '\n\t# StaySuite: Log auth results to radpostauth\n\tsql';
-          details.push('Added sql to end of post-auth section (after IP pool check)');
-        }
-        sitesContent = sitesContent.replace(
-          /post-auth\s*\{[^}]*\}/,
-          `post-auth {${postAuthContent}}`
-        );
       }
 
       // Ensure sql is in Post-Auth-Type REJECT (for reject logging when IP pool check fails)
