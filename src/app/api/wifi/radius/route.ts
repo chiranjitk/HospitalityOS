@@ -2247,7 +2247,7 @@ export async function POST(request: NextRequest) {
 
                   // Send Disconnect-Message via radclient (best-effort)
                   try {
-                    const radclientPath = process.cwd() + '/freeradius-install/bin/radclient';
+                    const radclientPath = '/usr/bin/radclient';
                     const { execSync } = await import('child_process');
                     const fs = await import('fs');
                     const attrs = 'User-Name="' + user.username + '"\nAcct-Session-Id="' + session.acctsessionid + '"';
@@ -3199,7 +3199,7 @@ export async function POST(request: NextRequest) {
           } else {
 
           // Build radclient attributes — use clean IP (without CIDR) for radclient
-          const radclientPath = `${process.cwd()}/freeradius-install/bin/radclient`;
+          const radclientPath = '/usr/bin/radclient';
           const attrs = `User-Name="${disconnectUsername}"${bareSessionId ? `\nAcct-Session-Id="${bareSessionId}"` : ''}`;
           const tmpAttrsFile = `/tmp/radclient-disconnect-${Date.now()}.txt`;
           const { execSync } = await import('child_process');

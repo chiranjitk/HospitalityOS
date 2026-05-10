@@ -2631,14 +2631,34 @@ sql {
       // Adding 'Auth-Type SQL { sql }' causes: "sql modules aren't allowed in 'authenticate' sections"
       details.push('Skipped authenticate section (FreeRADIUS 3.x auto-verifies from authorize)');
 
-      // Add sql to post-auth section (to send reply attributes)
+      // Add sql to post-auth section (to log auth results to radpostauth for all NAS)
       const postAuthSection = sitesContent.match(/post-auth\s*\{([^}]*)\}/);
       if (postAuthSection && !postAuthSection[1].includes('sql')) {
         sitesContent = sitesContent.replace(
           /post-auth\s*\{/,
-          'post-auth {\n\t# StaySuite: Send RADIUS reply attributes (bandwidth, session timeout)\n\tsql'
+          'post-auth {\n\t# StaySuite: Log auth results to radpostauth (Access-Accept)\n\tsql'
         );
         details.push('Added sql to post-auth section');
+      }
+
+      // Also add sql to Post-Auth-Type REJECT section to log failed auth attempts
+      // (MikroTik and other external NAS rejects won't appear in Auth Logs without this)
+      if (sitesContent.includes('Post-Auth-Type REJECT') && !sitesContent.match(/Post-Auth-Type REJECT\s*\{[^}]*sql/)) {
+        sitesContent = sitesContent.replace(
+          /Post-Auth-Type REJECT\s*\{/,
+          'Post-Auth-Type REJECT {\n\t\t# StaySuite: Log rejected auth attempts to radpostauth\n\t\tsql'
+        );
+        details.push('Added sql to Post-Auth-Type REJECT section');
+      } else if (!sitesContent.includes('Post-Auth-Type REJECT')) {
+        // If REJECT section doesn't exist, add it at end of post-auth
+        const postAuthEndMatch = sitesContent.match(/post-auth\s*\{[\s\S]*?\n\}/);
+        if (postAuthEndMatch) {
+          sitesContent = sitesContent.replace(
+            postAuthEndMatch[0],
+            postAuthEndMatch[0].replace(/\n\}$/, '\n\n\tPost-Auth-Type REJECT {\n\t\t# StaySuite: Log rejected auth attempts to radpostauth\n\t\tsql\n\t}')
+          );
+          details.push('Created Post-Auth-Type REJECT section with sql');
+        }
       }
 
       // Add sql to accounting section
@@ -2690,11 +2710,18 @@ sql {
         );
         // NOTE: Do NOT add sql to authenticate in FreeRADIUS 3.x (same reason as above)
         // SQL password verification is automatic from the authorize section
-        // Add sql to post-auth
+        // Add sql to post-auth (for Access-Accept logging)
         innerContent = innerContent.replace(
           /post-auth\s*\{/,
-          'post-auth {\n\tsql'
+          'post-auth {\n\t# StaySuite: Log auth results to radpostauth\n\tsql'
         );
+        // Also add sql to Post-Auth-Type REJECT (for Access-Reject logging)
+        if (innerContent.includes('Post-Auth-Type REJECT') && !innerContent.match(/Post-Auth-Type REJECT\s*\{[^}]*sql/)) {
+          innerContent = innerContent.replace(
+            /Post-Auth-Type REJECT\s*\{/,
+            'Post-Auth-Type REJECT {\n\t\t# StaySuite: Log rejected auth attempts\n\t\tsql'
+          );
+        }
         // Add sql to session
         innerContent = innerContent.replace(
           /session\s*\{/,
