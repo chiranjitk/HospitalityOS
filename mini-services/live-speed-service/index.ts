@@ -276,6 +276,7 @@ function processLocalCounters(now: number): void {
 /**
  * Poll a single MikroTik router for active hotspot users.
  * Returns per-IP byte counts from /rest/ip/hotspot/active.
+ * Uses Node.js https module (not fetch) for reliable self-signed cert support in Bun.
  */
 async function pollMikrotik(nas: NasConfig): Promise<Map<string, { downloadBytes: number; uploadBytes: number }>> {
   const result = new Map<string, { downloadBytes: number; uploadBytes: number }>();
@@ -284,29 +285,38 @@ async function pollMikrotik(nas: NasConfig): Promise<Map<string, { downloadBytes
     const apiPort = nas.apiPort || 443;
     const apiUser = nas.apiUsername || 'admin';
     const apiPass = nas.apiPassword || nas.secret; // Fallback to RADIUS secret if no API password set
-    const url = `https://${nas.ipAddress}:${apiPort}/rest/ip/hotspot/active`;
-    const credentials = Buffer.from(`${apiUser}:${apiPass}`).toString('base64');
 
-    const res = await fetch(url, {
-      // Bun-specific: tls option disables cert verification for self-signed MikroTik certs
-      // Node.js would use agent: httpsAgent, but Bun ignores it
-      tls: { rejectUnauthorized: false },
+    const options: https.RequestOptions = {
+      hostname: nas.ipAddress,
+      port: apiPort,
+      path: '/rest/ip/hotspot/active',
+      method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Basic ${credentials}`,
+        Authorization: `Basic ${Buffer.from(`${apiUser}:${apiPass}`).toString('base64')}`,
       },
-      signal: AbortSignal.timeout(5000),
+      rejectUnauthorized: false, // Accept self-signed certs (MikroTik default)
+      timeout: 5000,
+    };
+
+    const body = await new Promise<string>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        req.destroy(new Error('MikroTik request timed out'));
+      }, 5000);
+
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+        res.on('end', () => { clearTimeout(timer); resolve(data); });
+        res.on('error', (err: Error) => { clearTimeout(timer); reject(err); });
+      });
+
+      req.on('error', (err: Error) => { clearTimeout(timer); reject(err); });
+      req.on('timeout', () => { clearTimeout(timer); req.destroy(new Error('MikroTik request timed out')); });
+      req.end();
     });
 
-    if (!res.ok) {
-      log.warn(`MikroTik ${nas.ipAddress} returned ${res.status}`, {
-        nasName: nas.name,
-        status: res.status,
-      });
-      return result;
-    }
-
-    const users: MikroTikUser[] = (await res.json()) || [];
+    const users: MikroTikUser[] = JSON.parse(body) || [];
 
     for (const user of users) {
       if (!user.address) continue;
