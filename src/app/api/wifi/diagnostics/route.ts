@@ -3,6 +3,8 @@ import { execFile, spawn } from 'child_process';
 import dns from 'dns';
 import fs from 'fs';
 import net from 'net';
+import path from 'path';
+import os from 'os';
 import { requirePermission } from '@/lib/auth/tenant-context';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -404,12 +406,19 @@ async function handlePacketCapture(
   filter: string,
   durationSec: number,
   count: number,
+  savePcap = false,
 ) {
   if (!IFACE_REGEX.test(iface)) {
     return { interface: iface, packets: [], totalCaptured: 0, error: 'Invalid interface name' };
   }
   if (filter && !BPF_FILTER_REGEX.test(filter)) {
     return { interface: iface, packets: [], totalCaptured: 0, error: 'Invalid capture filter' };
+  }
+
+  // If savePcap, write to file simultaneously with text output
+  let captureId: string | undefined;
+  if (savePcap) {
+    captureId = `cap_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   }
 
   const args = ['-i', iface, '-c', String(count), '-nn', '-tt'];
@@ -420,14 +429,219 @@ async function handlePacketCapture(
   const packets = stdout.trim().split('\n').filter(Boolean);
   const failed = code !== null && code !== 0 && packets.length === 0;
 
+  // If savePcap, run a second capture to save the pcap file
+  let pcapSaved = false;
+  let pcapSize = 0;
+  if (savePcap && captureId && packets.length > 0) {
+    const pcapPath = path.join(CAPTURE_DIR, `${captureId}.pcap`);
+    const pcapArgs = ['-i', iface, '-c', String(count), '-w', pcapPath];
+    if (filter) pcapArgs.push(filter);
+    const pcapResult = await execSafe('tcpdump', pcapArgs, (durationSec + 5) * 1000);
+    try {
+      const st = fs.statSync(pcapPath);
+      pcapSaved = st.size > 0;
+      pcapSize = st.size;
+    } catch { /* file not created */ }
+    if (!pcapSaved) {
+      try { fs.unlinkSync(pcapPath); } catch {}
+      captureId = undefined;
+    }
+  }
+
+  // Build analysis from text output
+  const analysis = analyzePackets(packets);
+
   return {
     interface: iface,
     filter: filter || 'none',
     packets,
     totalCaptured: packets.length,
     rawOutput: stdout,
+    captureId: pcapSaved ? captureId : undefined,
+    pcapSaved,
+    pcapSizeBytes: pcapSize,
+    analysis,
     error: failed ? (stderr || 'tcpdump failed to capture packets') : undefined,
   };
+}
+
+function analyzePackets(packets: string[]) {
+  const protoCount: Record<string, number> = { TCP: 0, UDP: 0, ICMP: 0, ARP: 0, Other: 0 };
+  const srcIpCount: Record<string, number> = {};
+  const dstIpCount: Record<string, number> = {};
+  const srcPortCount: Record<string, number> = {};
+  const dstPortCount: Record<string, number> = {};
+
+  for (const pkt of packets) {
+    // Detect protocol
+    if (pkt.includes(' TCP ')) protoCount.TCP++;
+    else if (pkt.includes(' UDP ')) protoCount.UDP++;
+    else if (pkt.includes(' ICMP ')) protoCount.ICMP++;
+    else if (pkt.includes(' ARP, ')) protoCount.ARP++;
+    else protoCount.Other++;
+
+    // Extract IPs: "IP src > dst"
+    const ipMatch = pkt.match(/IP\s+([\d.]+)\s*>\s*([\d.]+)/);
+    if (ipMatch) {
+      srcIpCount[ipMatch[1]] = (srcIpCount[ipMatch[1]] || 0) + 1;
+      dstIpCount[ipMatch[2]] = (dstIpCount[ipMatch[2]] || 0) + 1;
+    }
+
+    // Extract ports
+    const portMatch = pkt.match(/\.(\d{1,5})\s*>\s*[\d.]+:(\d{1,5})/);
+    if (portMatch) {
+      srcPortCount[portMatch[1]] = (srcPortCount[portMatch[1]] || 0) + 1;
+      dstPortCount[portMatch[2]] = (dstPortCount[portMatch[2]] || 0) + 1;
+    }
+  }
+
+  const topN = (obj: Record<string, number>, n = 10) =>
+    Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => ({ key: k, count: v }));
+
+  return {
+    protocolBreakdown: protoCount,
+    totalAnalyzed: packets.length,
+    topSourceIps: topN(srcIpCount),
+    topDestIps: topN(dstIpCount),
+    topSourcePorts: topN(srcPortCount),
+    topDestPorts: topN(dstPortCount),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool: ARP FLUSH
+// ═══════════════════════════════════════════════════════════════════
+
+async function handleArpFlush(device?: string) {
+  const args = ['neigh', 'flush', 'all'];
+  if (device && DEVNAME_REGEX.test(device)) {
+    args.splice(2, 1, 'dev', device);
+  }
+  const { stdout, stderr, code } = await execSafe('ip', args, 10_000);
+  return {
+    success: code === 0,
+    device: device || 'all',
+    message: code === 0
+      ? `ARP cache flushed${device ? ` on ${device}` : ' (all devices)'}`
+      : `Failed to flush ARP: ${stderr || 'unknown error'}`,
+    stdout: stdout?.trim() || '',
+    error: code !== 0 ? (stderr || 'ip neigh flush failed') : undefined,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool: ARP ADD STATIC
+// ═══════════════════════════════════════════════════════════════════
+
+async function handleArpAddStatic(ip: string, mac: string, device: string) {
+  const { stdout, stderr, code } = await execSafe(
+    'ip',
+    ['neigh', 'add', ip, 'lladdr', mac, 'dev', device, 'nud', 'permanent'],
+    10_000,
+  );
+  return {
+    success: code === 0,
+    ip,
+    mac,
+    device,
+    message: code === 0
+      ? `Static ARP entry added: ${ip} → ${mac} on ${device}`
+      : `Failed to add ARP entry: ${stderr || 'unknown error'}`,
+    error: code !== 0 ? (stderr || 'ip neigh add failed') : undefined,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool: ROUTE TABLE — reads system routing table via ip route
+// ═══════════════════════════════════════════════════════════════════
+
+async function handleRouteTable() {
+  const { stdout, stderr, code } = await execSafe('ip', ['route', '-j'], 10_000);
+  let routes: any[] = [];
+  if (code === 0 && stdout.trim()) {
+    try { routes = JSON.parse(stdout.trim()); } catch { /* fallback to text */ }
+  }
+  if (routes.length === 0) {
+    const { stdout: txtOut } = await execSafe('ip', ['route'], 10_000);
+    return {
+      routes: [],
+      rawOutput: txtOut || stderr,
+      source: 'ip-route-text',
+      total: 0,
+    };
+  }
+  return { routes, source: 'ip-route-json', total: routes.length };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool: INTERFACE STATS — reads /proc/net/dev
+// ═══════════════════════════════════════════════════════════════════
+
+async function handleInterfaceStats() {
+  try {
+    const content = await fs.promises.readFile('/proc/net/dev', 'utf-8');
+    const lines = content.trim().split('\n');
+    const interfaces: Array<{
+      name: string;
+      rxBytes: number;
+      rxPackets: number;
+      rxErrors: number;
+      rxDrop: number;
+      rxFifo: number;
+      rxFrame: number;
+      rxCompressed: number;
+      rxMulticast: number;
+      txBytes: number;
+      txPackets: number;
+      txErrors: number;
+      txDrop: number;
+      txFifo: number;
+      txCollisions: number;
+      txCarrier: number;
+      txCompressed: number;
+    }> = [];
+
+    // Skip header lines (lines 0 and 1)
+    for (let i = 2; i < lines.length; i++) {
+      const parts = lines[i].trim().split(/\s+/);
+      if (parts.length < 17) continue;
+      const name = parts[0].replace(':', '');
+      // Skip loopback header
+      if (name === 'lo' && name === 'Inter-|' && name === 'face') continue;
+      interfaces.push({
+        name,
+        rxBytes: parseInt(parts[1]) || 0,
+        rxPackets: parseInt(parts[2]) || 0,
+        rxErrors: parseInt(parts[3]) || 0,
+        rxDrop: parseInt(parts[4]) || 0,
+        rxFifo: parseInt(parts[5]) || 0,
+        rxFrame: parseInt(parts[6]) || 0,
+        rxCompressed: parseInt(parts[7]) || 0,
+        rxMulticast: parseInt(parts[8]) || 0,
+        txBytes: parseInt(parts[9]) || 0,
+        txPackets: parseInt(parts[10]) || 0,
+        txErrors: parseInt(parts[11]) || 0,
+        txDrop: parseInt(parts[12]) || 0,
+        txFifo: parseInt(parts[13]) || 0,
+        txCollisions: parseInt(parts[14]) || 0,
+        txCarrier: parseInt(parts[15]) || 0,
+        txCompressed: parseInt(parts[16]) || 0,
+      });
+    }
+
+    return {
+      interfaces,
+      total: interfaces.length,
+      hostname: os.hostname(),
+    };
+  } catch (err: unknown) {
+    return {
+      interfaces: [],
+      total: 0,
+      hostname: os.hostname(),
+      error: err instanceof Error ? err.message : 'Failed to read interface stats',
+    };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -902,17 +1116,41 @@ async function handleConntrack(search?: string) {
 // Main GET Handler
 // ═══════════════════════════════════════════════════════════════════
 
+const MAC_REGEX = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
+const DEVNAME_REGEX = /^[a-zA-Z0-9._-]{1,15}$/;
+const CAPTURE_DIR = '/tmp/staysuite-captures';
+
+// Ensure capture directory exists
+try { fs.mkdirSync(CAPTURE_DIR, { recursive: true }); } catch {}
+
+// Cleanup captures older than 1 hour every 5 minutes
+setInterval(() => {
+  try {
+    const now = Date.now();
+    for (const f of fs.readdirSync(CAPTURE_DIR)) {
+      const fp = path.join(CAPTURE_DIR, f);
+      const st = fs.statSync(fp);
+      if (now - st.mtimeMs > 3_600_000) fs.unlinkSync(fp);
+    }
+  } catch {}
+}, 300_000).unref();
+
 const VALID_ACTIONS = new Set([
   'ping',
   'traceroute',
   'dns-lookup',
   'arp-table',
+  'arp-flush',
+  'arp-add-static',
   'network-scan',
   'packet-capture',
+  'pcap-download',
   'speed-test',
   'speed-test-status',
   'port-check',
   'conntrack',
+  'route-table',
+  'interface-stats',
 ]);
 
 export async function GET(request: NextRequest) {
@@ -1009,6 +1247,31 @@ export async function GET(request: NextRequest) {
         break;
       }
 
+      // ── ARP FLUSH ────────────────────────────────────────────────
+      case 'arp-flush': {
+        const device = searchParams.get('device') || '';
+        data = await handleArpFlush(device);
+        break;
+      }
+
+      // ── ARP ADD STATIC ───────────────────────────────────────────
+      case 'arp-add-static': {
+        const ip = searchParams.get('ip') || '';
+        const mac = searchParams.get('mac') || '';
+        const device = searchParams.get('device') || '';
+        if (!isValidIp(ip)) {
+          return NextResponse.json({ success: false, error: 'Invalid IP address' }, { status: 400 });
+        }
+        if (!MAC_REGEX.test(mac)) {
+          return NextResponse.json({ success: false, error: 'Invalid MAC address (use XX:XX:XX:XX:XX:XX format)' }, { status: 400 });
+        }
+        if (!DEVNAME_REGEX.test(device)) {
+          return NextResponse.json({ success: false, error: 'Invalid device name' }, { status: 400 });
+        }
+        data = await handleArpAddStatic(ip, mac, device);
+        break;
+      }
+
       // ── NETWORK SCAN ────────────────────────────────────────────
       case 'network-scan': {
         const subnet = searchParams.get('subnet');
@@ -1032,6 +1295,7 @@ export async function GET(request: NextRequest) {
         const filter = searchParams.get('filter') || '';
         const duration = clampInt(searchParams.get('duration'), 1, 60, 10);
         const pktCount = clampInt(searchParams.get('count'), 1, 1000, 100);
+        const savePcap = searchParams.get('savePcap') === 'true';
         if (!IFACE_REGEX.test(iface)) {
           return NextResponse.json(
             { success: false, error: 'Invalid interface name' },
@@ -1044,8 +1308,28 @@ export async function GET(request: NextRequest) {
             { status: 400 },
           );
         }
-        data = await handlePacketCapture(iface, filter, duration, pktCount);
+        data = await handlePacketCapture(iface, filter, duration, pktCount, savePcap);
         break;
+      }
+
+      // ── PCAP DOWNLOAD ────────────────────────────────────────────
+      case 'pcap-download': {
+        const captureId = searchParams.get('captureId');
+        if (!captureId || !/^[a-z0-9_-]+$/.test(captureId)) {
+          return NextResponse.json({ success: false, error: 'Invalid capture ID' }, { status: 400 });
+        }
+        const pcapPath = path.join(CAPTURE_DIR, `${captureId}.pcap`);
+        if (!fs.existsSync(pcapPath)) {
+          return NextResponse.json({ success: false, error: 'Capture file not found (may have expired)' }, { status: 404 });
+        }
+        const fileBuf = await fs.promises.readFile(pcapPath);
+        return new NextResponse(fileBuf, {
+          headers: {
+            'Content-Type': 'application/vnd.tcpdump.pcap',
+            'Content-Disposition': `attachment; filename="capture_${captureId}.pcap"`,
+            'Content-Length': String(fileBuf.length),
+          },
+        });
       }
 
       // ── SPEED TEST (start) ──────────────────────────────────
@@ -1092,6 +1376,18 @@ export async function GET(request: NextRequest) {
       case 'conntrack': {
         const search = searchParams.get('search') || undefined;
         data = await handleConntrack(search);
+        break;
+      }
+
+      // ── ROUTE TABLE ───────────────────────────────────────────────
+      case 'route-table': {
+        data = await handleRouteTable();
+        break;
+      }
+
+      // ── INTERFACE STATS ──────────────────────────────────────────
+      case 'interface-stats': {
+        data = await handleInterfaceStats();
         break;
       }
     }
