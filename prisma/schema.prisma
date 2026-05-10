@@ -4425,6 +4425,9 @@ model RadiusNAS {
   coaPort     Int       @default(3799)
   authPort    Int       @default(1812)
   acctPort    Int       @default(1813)
+  apiUsername String?   // REST API username for MikroTik / external NAS
+  apiPassword String?   // REST API password for MikroTik / external NAS
+  apiPort     Int       @default(443) // REST API port (default HTTPS)
   status            String    @default("active")
   lastSeenAt        DateTime? @db.Timestamptz
   lastWentOnlineAt  DateTime? @db.Timestamptz // When NAS last transitioned from offline → online (for uptime tracking)

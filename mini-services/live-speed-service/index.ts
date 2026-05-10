@@ -80,6 +80,9 @@ interface NasConfig {
   ipAddress: string;
   type: string;
   secret: string;
+  apiUsername: string | null;
+  apiPassword: string | null;
+  apiPort: number;
 }
 
 interface MikroTikUser {
@@ -121,7 +124,8 @@ let externalNasList: NasConfig[] = [];
 async function loadExternalNasList(): Promise<NasConfig[]> {
   try {
     const res = await pool.query<NasConfig>(`
-      SELECT id, "tenantId", "propertyId", name, "ipAddress", type, secret
+      SELECT id, "tenantId", "propertyId", name, "ipAddress", type, secret,
+             "apiUsername", "apiPassword", "apiPort"
       FROM "RadiusNAS"
       WHERE status = 'active'
         AND type = 'mikrotik'
@@ -277,8 +281,11 @@ async function pollMikrotik(nas: NasConfig): Promise<Map<string, { downloadBytes
   const result = new Map<string, { downloadBytes: number; uploadBytes: number }>();
 
   try {
-    const url = `https://${nas.ipAddress}/rest/ip/hotspot/active`;
-    const credentials = Buffer.from(`admin:${nas.secret}`).toString('base64');
+    const apiPort = nas.apiPort || 443;
+    const apiUser = nas.apiUsername || 'admin';
+    const apiPass = nas.apiPassword || nas.secret; // Fallback to RADIUS secret if no API password set
+    const url = `https://${nas.ipAddress}:${apiPort}/rest/ip/hotspot/active`;
+    const credentials = Buffer.from(`${apiUser}:${apiPass}`).toString('base64');
 
     const res = await fetch(url, {
       agent: httpsAgent,

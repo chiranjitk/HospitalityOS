@@ -96,6 +96,7 @@ import {
   EyeOff,
   Copy,
   CheckCheck,
+  Globe,
 } from 'lucide-react';
 import CredentialPolicyTab, { type CredentialConfig } from './credential-policy-tab';
 import { useToast } from '@/hooks/use-toast';
@@ -123,6 +124,9 @@ interface NASClient {
   coaPort: number;
   authPort: number;
   acctPort: number;
+  apiUsername: string | null;
+  apiPassword: string | null;
+  apiPort: number;
   status: string;
   lastSeenAt?: string;
 }
@@ -546,8 +550,12 @@ export default function AAAConfig() {
     coaPort: 3799,
     authPort: 1812,
     acctPort: 1813,
+    apiUsername: '',
+    apiPassword: '',
+    apiPort: 443,
   });
   const [showSecret, setShowSecret] = useState(false);
+  const [showApiPassword, setShowApiPassword] = useState(false);
   const [secretCopied, setSecretCopied] = useState(false);
   
   // AAA Config
@@ -1024,9 +1032,13 @@ export default function AAAConfig() {
       coaPort: 3799,
       authPort: 1812,
       acctPort: 1813,
+      apiUsername: '',
+      apiPassword: '',
+      apiPort: 443,
     });
-    setEditingNas(null);
     setShowSecret(false);
+    setShowApiPassword(false);
+    setEditingNas(null);
     setSecretCopied(false);
   };
 
@@ -1043,6 +1055,9 @@ export default function AAAConfig() {
       coaPort: nas.coaPort,
       authPort: nas.authPort,
       acctPort: nas.acctPort,
+      apiUsername: nas.apiUsername || '',
+      apiPassword: nas.apiPassword || '',
+      apiPort: nas.apiPort || 443,
     });
     setNasDialogOpen(true);
   };
@@ -1525,6 +1540,59 @@ export default function AAAConfig() {
                       />
                       <Label>Enable CoA (Change of Authorization)</Label>
                     </div>
+
+                    {/* MikroTik REST API Credentials — only shown for MikroTik type */}
+                    {nasForm.type === 'mikrotik' && (
+                      <>
+                        <div className="sm:col-span-2 pt-2 border-t mt-1">
+                          <p className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                            <Globe className="h-3.5 w-3.5" />
+                            MikroTik REST API Credentials
+                            <span className="text-xs font-normal">(for live speed polling)</span>
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>API Username</Label>
+                          <Input
+                            value={nasForm.apiUsername}
+                            onChange={(e) => setNasForm(prev => ({ ...prev, apiUsername: e.target.value }))}
+                            placeholder="admin"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>API Password</Label>
+                          <div className="relative">
+                            <Input
+                              value={nasForm.apiPassword}
+                              onChange={(e) => setNasForm(prev => ({ ...prev, apiPassword: e.target.value }))}
+                              placeholder="Enter MikroTik API password"
+                              type={showApiPassword ? 'text' : 'password'}
+                              className="pr-10"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                              onClick={() => setShowApiPassword(prev => !prev)}
+                              tabIndex={-1}
+                            >
+                              {showApiPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>API Port</Label>
+                          <Input
+                            type="number"
+                            value={nasForm.apiPort}
+                            onChange={(e) => setNasForm(prev => ({ ...prev, apiPort: parseInt(e.target.value) || 443 }))}
+                            placeholder="443"
+                          />
+                          <p className="text-xs text-muted-foreground">HTTPS port for REST API (default 443)</p>
+                        </div>
+                      </>
+                    )}
                   </div>
                   
                   <DialogFooter>

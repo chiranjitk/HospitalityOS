@@ -126,7 +126,8 @@ export async function GET(request: NextRequest) {
     // When no propertyId, show all tenant NAS (system entry is naturally included)
     let query = `
       SELECT id, "tenantId", "propertyId", name, shortname, "ipAddress", type,
-             secret, "coaEnabled", "coaPort", "authPort", "acctPort", status,
+             secret, "coaEnabled", "coaPort", "authPort", "acctPort",
+             "apiUsername", "apiPassword", "apiPort", status,
              "createdAt", "updatedAt"
       FROM "RadiusNAS"
       WHERE "tenantId" = $1::uuid
@@ -161,6 +162,9 @@ export async function GET(request: NextRequest) {
       acctPort: Number(n.acctPort) || 1813,
       coaPort: Number(n.coaPort) || 3799,
       secret: n.secret,
+      apiUsername: n.apiUsername || null,
+      apiPassword: n.apiPassword || null,
+      apiPort: Number(n.apiPort) || 443,
       status: n.status || 'active',
     }));
 
@@ -178,7 +182,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { propertyId, name, shortname, ipAddress, type, secret, sharedSecret, coaEnabled, coaPort, authPort, acctPort, description } = body;
+    const { propertyId, name, shortname, ipAddress, type, secret, sharedSecret, coaEnabled, coaPort, authPort, acctPort, description, apiUsername, apiPassword, apiPort } = body;
     if (!name || !ipAddress) {
       return NextResponse.json({ success: false, error: 'Missing required fields: name, ipAddress' }, { status: 400 });
     }
@@ -189,10 +193,12 @@ export async function POST(request: NextRequest) {
 
     // Insert into Prisma RadiusNAS
     await db.$executeRawUnsafe(`
-      INSERT INTO "RadiusNAS" (id, "tenantId", "propertyId", name, shortname, "ipAddress", type, secret, "coaEnabled", "coaPort", "authPort", "acctPort", status, "createdAt", "updatedAt")
-      VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'active', $13::timestamptz, $14::timestamptz)
+      INSERT INTO "RadiusNAS" (id, "tenantId", "propertyId", name, shortname, "ipAddress", type, secret, "coaEnabled", "coaPort", "authPort", "acctPort", "apiUsername", "apiPassword", "apiPort", status, "createdAt", "updatedAt")
+      VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'active', $16::timestamptz, $17::timestamptz)
     `, id, context.tenantId, propertyId || null, name, shortname || name.replace(/\s+/g, '_').toLowerCase().slice(0, 32), ipAddress, type || 'other', nasSecret,
-       coaEnabled !== false, coaPort || 3799, authPort || 1812, acctPort || 1813, now, now);
+       coaEnabled !== false, coaPort || 3799, authPort || 1812, acctPort || 1813,
+       apiUsername || null, apiPassword || null, apiPort || 443,
+       now, now);
 
     // Also insert into native FreeRADIUS nas table (ports = coaPort for RADIUS disconnect)
     try {
@@ -207,7 +213,7 @@ export async function POST(request: NextRequest) {
     // Sync clients.conf — FreeRADIUS needs this to accept packets from the new NAS
     await syncClientsConf();
 
-    return NextResponse.json({ success: true, data: { id, name, ipAddress, type, secret: nasSecret, coaEnabled: coaEnabled !== false, authPort: authPort || 1812, acctPort: acctPort || 1813, coaPort: coaPort || 3799, status: 'active' } });
+    return NextResponse.json({ success: true, data: { id, name, ipAddress, type, secret: nasSecret, coaEnabled: coaEnabled !== false, authPort: authPort || 1812, acctPort: acctPort || 1813, coaPort: coaPort || 3799, apiUsername: apiUsername || null, apiPassword: apiPassword || null, apiPort: apiPort || 443, status: 'active' } });
   } catch (error) {
     console.error('Error creating NAS client:', error);
     return NextResponse.json({ success: false, error: 'Failed to create NAS client', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
@@ -221,7 +227,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { id, name, shortname, ipAddress, type, secret, sharedSecret, coaEnabled, coaPort, authPort, acctPort } = body;
+    const { id, name, shortname, ipAddress, type, secret, sharedSecret, coaEnabled, coaPort, authPort, acctPort, apiUsername, apiPassword, apiPort } = body;
     if (!id) return NextResponse.json({ success: false, error: 'NAS id is required' }, { status: 400 });
 
     // Fetch current NAS to get the old IP and check if it's the system entry
@@ -246,6 +252,9 @@ export async function PUT(request: NextRequest) {
     if (coaPort) { updates.push(`"coaPort" = $${params.length + 1}`); params.push(Number(coaPort)); }
     if (authPort) { updates.push(`"authPort" = $${params.length + 1}`); params.push(Number(authPort)); }
     if (acctPort) { updates.push(`"acctPort" = $${params.length + 1}`); params.push(Number(acctPort)); }
+    if (apiUsername !== undefined) { updates.push(`"apiUsername" = $${params.length + 1}`); params.push(apiUsername || null); }
+    if (apiPassword !== undefined) { updates.push(`"apiPassword" = $${params.length + 1}`); params.push(apiPassword || null); }
+    if (apiPort) { updates.push(`"apiPort" = $${params.length + 1}`); params.push(Number(apiPort)); }
 
     if (updates.length > 0) {
       params.push(id);
