@@ -1,5 +1,5 @@
 import { execFileSync } from 'child_process';
-import { FREERADIUS_HOME, RADDB_PATH } from '@/lib/wifi/paths';
+import { FREERADIUS_HOME, RADDB_PATH, RADCLIENT_BIN } from '@/lib/wifi/paths';
 import path from 'path';
 
 /**
@@ -18,10 +18,14 @@ export async function radiusAuth(username: string, password: string): Promise<{
   rejectReason?: string;
 }> {
   try {
-    const radclientBin = `${FREERADIUS_HOME}/bin/radclient`;
+    const radclientBin = RADCLIENT_BIN;
     const raddbDir = RADDB_PATH;
-    const dictDir = `${FREERADIUS_HOME}/share/freeradius`;
-    const libDir = `${FREERADIUS_HOME}/lib`;
+    // Dictionary dir: dnf install → /usr/share/freeradius, source → $FREERADIUS_HOME/share/freeradius
+    const isProduction = process.env.NODE_ENV === 'production';
+    const dictDir = process.env.RADIUS_DICT_DIR ||
+      (isProduction ? '/usr/share/freeradius' : `${FREERADIUS_HOME}/share/freeradius`);
+    const libDir = process.env.RADIUS_LIB_DIR ||
+      (isProduction ? '/usr/lib64/freeradius' : `${FREERADIUS_HOME}/lib`);
 
     const radclientInput = `User-Name = '${username}', User-Password = '${password}', NAS-IP-Address = 127.0.0.1, NAS-Port = 0, NAS-Port-Type = Wireless-802.11, Called-Station-Id = '00:00:00:00:00:01'\n`;
 
