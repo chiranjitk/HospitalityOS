@@ -200,6 +200,31 @@ const topDestinations = new Map<string, number>();
 const topSources = new Map<string, number>();
 const topPorts = new Map<number, number>();
 
+// ─── dst_ip → SNI domain cache ───────────────────────────────────────────────
+// When a ClientHello carries SNI (e.g. dst_ip=142.250.80.14 → www.google.com),
+// we cache that mapping. Subsequent data packets to the same dst_ip (which have
+// empty sni.hostname) are then enriched with the cached domain. This turns the
+// ~97% of non-SNI packets into useful bandwidth-per-domain data.
+// TTL: 4 hours — stale mappings expire to handle CDN IP reuse.
+const DST_DOMAIN_CACHE_TTL_MS = 4 * 60 * 60 * 1000;
+const dstDomainCache = new Map<string, { domain: string; ts: number }>();
+let cacheHits = 0;
+let cacheMisses = 0;
+
+function cacheDstDomain(dstIp: string, domain: string): void {
+  dstDomainCache.set(dstIp, { domain, ts: Date.now() });
+}
+
+function lookupCachedDomain(dstIp: string): string | null {
+  const entry = dstDomainCache.get(dstIp);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > DST_DOMAIN_CACHE_TTL_MS) {
+    dstDomainCache.delete(dstIp);
+    return null;
+  }
+  return entry.domain;
+}
+
 // ─── SNI record parser ─────────────────────────────────────────────────────
 
 /**
@@ -271,16 +296,23 @@ function parseSimpleRecord(obj: Record<string, unknown>): any | null {
  * Parse ulogd2 PRINTSNI output (the format our ulogd2 stack produces).
  * Fields: sni.hostname, sni.tls.version, src_ip, dest_ip, timestamp, raw.pktlen, oob.in
  * This is the standard StaySuite ulogd2 stack: NFLOG → inp:ip → PRINTSNI → JSON
+ *
+ * KEY: ulogd2 captures ALL port-443 packets, but only ClientHello has SNI.
+ * The ~97% of data packets with empty sni.hostname are enriched via the
+ * dst_ip → domain cache (populated from earlier ClientHello entries).
  */
 function parsePrintsniRecord(obj: Record<string, unknown>): any | null {
-  // PRINTSNI plugin outputs "sni.hostname" key
-  const sniDomain = String(obj["sni.hostname"] || obj["sni_domain"] || "").trim();
-  if (!sniDomain) return null;
-
   const srcIp = String(obj.src_ip || obj["ip.saddr"] || "");
   const dstIp = String(obj.dest_ip || obj.dst_ip || obj["ip.daddr"] || "");
+
+  // Skip entries without src/dst IP
+  if (!srcIp || !dstIp) return null;
+
   const dstPort = parseInt(String(obj.dest_port || obj["tcp.dport"] || "443"), 10);
   const tlsVersion = String(obj["sni.tls.version"] || obj.tls_version || "unknown");
+
+  // Packet bytes from raw.pktlen or ip.totlen
+  const packetBytes = parseInt(String(obj["raw.pktlen"] || obj["ip.totlen"] || "0"), 10) || 0;
 
   // Timestamp: ulogd2 outputs ISO-like string or epoch seconds
   let timestamp: string;
@@ -292,6 +324,25 @@ function parsePrintsniRecord(obj: Record<string, unknown>): any | null {
     timestamp = timeSec ? new Date(timeSec * 1000).toISOString() : new Date().toISOString();
   }
 
+  // Check for direct SNI hostname from ClientHello
+  let sniDomain = String(obj["sni.hostname"] || obj["sni_domain"] || "").trim();
+
+  if (sniDomain) {
+    // ClientHello with SNI — cache the dst_ip → domain mapping
+    cacheDstDomain(dstIp, sniDomain);
+  } else {
+    // Data packet (no SNI) — look up domain from cache
+    sniDomain = lookupCachedDomain(dstIp) || "";
+    if (sniDomain) {
+      cacheHits++;
+    } else {
+      cacheMisses++;
+    }
+  }
+
+  // Only return entries with a resolved domain
+  if (!sniDomain) return null;
+
   return {
     timestamp,
     src_ip: srcIp,
@@ -299,6 +350,7 @@ function parsePrintsniRecord(obj: Record<string, unknown>): any | null {
     dst_port: dstPort || 443,
     sni_domain: sniDomain,
     tls_version: tlsVersion,
+    packet_bytes: packetBytes,
     ja3_hash: "",
   };
 }
@@ -340,7 +392,8 @@ function parseSniRecord(line: string): any | null {
 
     if (!record) return null;
 
-    // Skip records without SNI domain
+    // Skip records without SNI domain (already handled in parsePrintsniRecord,
+    // but other parsers may return records without domain)
     if (!record.sni_domain) return null;
 
     // Update aggregates
@@ -381,7 +434,8 @@ async function ensureClickHouseTable(): Promise<void> {
       dst_port UInt16,
       sni_domain String,
       tls_version String,
-      ja3_hash String DEFAULT ''
+      ja3_hash String DEFAULT '',
+      packet_bytes UInt32 DEFAULT 0
     )
     ENGINE = MergeTree()
     PARTITION BY toYYYYMMDD(timestamp)
@@ -400,6 +454,20 @@ async function ensureClickHouseTable(): Promise<void> {
       console.error(
         `[${SERVICE_NAME}] ClickHouse table creation error: ${await res.text()}`
       );
+    }
+
+    // Migration: add packet_bytes column if it doesn't exist (for existing installs)
+    try {
+      const alterRes = await fetch(CLICKHOUSE_URL, {
+        method: "POST",
+        body: "ALTER TABLE ipdr.sni_log ADD COLUMN IF NOT EXISTS packet_bytes UInt32 DEFAULT 0",
+      });
+      if (alterRes.ok) {
+        console.log(`[${SERVICE_NAME}] ClickHouse migration: packet_bytes column ensured`);
+      }
+      // Ignore errors — column may already exist or table may be new
+    } catch {
+      // Non-critical migration
     }
   } catch (err: any) {
     console.error(
@@ -424,11 +492,11 @@ async function flushBatch(): Promise<void> {
     .map(
       (e) =>
         `('${fmtTs(e.timestamp)}', '${e.src_ip}', '${e.dst_ip}', ${e.dst_port}, ` +
-        `'${escapeSql(e.sni_domain)}', '${escapeSql(e.tls_version)}', '${escapeSql(e.ja3_hash)}')`
+        `'${escapeSql(e.sni_domain)}', '${escapeSql(e.tls_version)}', '${escapeSql(e.ja3_hash)}', ${e.packet_bytes || 0})`
     )
     .join(",");
 
-  const sql = `INSERT INTO ipdr.sni_log (timestamp, src_ip, dst_ip, dst_port, sni_domain, tls_version, ja3_hash) VALUES ${values}`;
+  const sql = `INSERT INTO ipdr.sni_log (timestamp, src_ip, dst_ip, dst_port, sni_domain, tls_version, ja3_hash, packet_bytes) VALUES ${values}`;
 
   try {
     const res = await fetch(CLICKHOUSE_URL, {
@@ -553,6 +621,9 @@ function startServer(): void {
           clickHouseErrors: totalClickHouseErrors,
           parseErrors: totalParseErrors,
           filePosition: currentFilePos,
+          domainCacheSize: dstDomainCache.size,
+          domainCacheHits: cacheHits,
+          domainCacheMisses: cacheMisses,
         });
       }
 
@@ -600,6 +671,9 @@ function startServer(): void {
           totalEvents,
           uniqueDomains: topDomains.size,
           uniqueDestinations: topDestinations.size,
+          domainCacheSize: dstDomainCache.size,
+          domainCacheHits: cacheHits,
+          domainCacheMisses: cacheMisses,
           uniqueSources: topSources.size,
           batchesFlushed: totalBatches,
           clickHouseErrors: totalClickHouseErrors,

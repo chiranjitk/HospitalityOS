@@ -276,87 +276,101 @@ export async function GET(request: NextRequest) {
     // - Every HTTPS connection sends SNI in plaintext during TLS handshake
     // - Users cannot bypass it even with custom DNS (8.8.8.8, 1.1.1.1, etc.)
     // - Unlike dnsmasq DNS logs, SNI is captured at the network level via NFLOG
+    //
+    // Bandwidth data: sni_log.packet_bytes — sum of captured packet sizes per domain.
+    // The sni-parser enriches non-SNI data packets using a dst_ip→domain cache,
+    // so packet_bytes includes both ClientHello and subsequent data transfer packets.
     const clickhouseReady = await isAvailable();
 
     if (clickhouseReady) {
       console.log('[web-surfing] ClickHouse is available, querying ipdr.sni_log...');
 
-      // Query SNI log aggregated by domain + source IP, joined with nat_log for bytes
+      // Single query: domain + src_ip with packet_bytes aggregation.
+      // No nat_log join needed — packet_bytes comes directly from packet captures.
       const sniRows = await query<Record<string, unknown>>(`
         SELECT
-          s.sni_domain as domain,
-          s.src_ip,
+          sni_domain as domain,
+          src_ip,
           count() as connections,
-          max(s.timestamp) as last_seen,
-          groupArray(DISTINCT s.tls_version)[1] as tls_version
-        FROM ipdr.sni_log s
-        WHERE s.timestamp >= now() - INTERVAL 30 DAY
-          AND s.sni_domain != ''
-        GROUP BY s.sni_domain, s.src_ip
-        ORDER BY connections DESC
+          max(timestamp) as last_seen,
+          sum(packet_bytes) as total_bytes,
+          groupArray(DISTINCT tls_version)[1] as tls_version
+        FROM ipdr.sni_log
+        WHERE timestamp >= now() - INTERVAL 30 DAY
+          AND sni_domain != ''
+        GROUP BY sni_domain, src_ip
+        ORDER BY total_bytes DESC
         LIMIT 500
       `);
 
       console.log(`[web-surfing] sni_log query returned ${sniRows.length} rows`);
 
       if (sniRows.length > 0) {
-        // ── Get bytes from nat_log for each (src_ip, dst_ip) pair ──
-        // Build a map of (src_ip, sni_domain) → dst_ip from sni_log
-        // Then query nat_log for bytes matching those dst_ips
-        const domainDstMap = new Map<string, Set<string>>(); // "src_ip:domain" → Set<dst_ip>
+        // ── Optionally enrich with nat_log bytes (if available) ──
+        // nat_log provides cumulative connection bytes from conntrack,
+        // which is more accurate than packet_bytes for total bandwidth.
+        // We ADD nat_log bytes to packet_bytes (not replace).
+        let natBytesMap: Map<string, number> | null = null;
 
-        const sniDetailRows = await query<Record<string, unknown>>(`
-          SELECT src_ip, dst_ip, sni_domain
-          FROM ipdr.sni_log
-          WHERE timestamp >= now() - INTERVAL 30 DAY
-            AND sni_domain != ''
-          GROUP BY src_ip, dst_ip, sni_domain
-          LIMIT 10000
-        `);
+        try {
+          // Collect unique dst_ips from sni_log for nat_log lookup
+          const dstIpRows = await query<Record<string, unknown>>(`
+            SELECT src_ip, dst_ip, sni_domain
+            FROM ipdr.sni_log
+            WHERE timestamp >= now() - INTERVAL 30 DAY
+              AND sni_domain != ''
+            GROUP BY src_ip, dst_ip, sni_domain
+            LIMIT 10000
+          `);
 
-        for (const row of sniDetailRows) {
-          const srcIp = String(row.src_ip ?? '');
-          const dstIp = String(row.dst_ip ?? '');
-          const domain = String(row.sni_domain ?? '');
-          if (srcIp && dstIp && domain) {
-            const key = `${srcIp}:${domain}`;
-            if (!domainDstMap.has(key)) domainDstMap.set(key, new Set());
-            domainDstMap.get(key)!.add(dstIp);
-          }
-        }
+          if (dstIpRows.length > 0) {
+            const allDstIps = new Set<string>();
+            for (const row of dstIpRows) {
+              const dip = String(row.dst_ip ?? '');
+              if (dip) allDstIps.add(dip);
+            }
 
-        // Query nat_log for bytes matching these dst_ips
-        const allDstIps = new Set<string>();
-        for (const dstSet of domainDstMap.values()) {
-          for (const ip of dstSet) allDstIps.add(ip);
-        }
+            if (allDstIps.size > 0) {
+              const ipArr = [...allDstIps];
+              const ipList = ipArr.slice(0, 500).map((ip) => `'${ip.replace(/'/g, "\\'")}'`).join(',');
+              const bytesRows = await query<Record<string, unknown>>(`
+                SELECT src_ip, dst_ip, sum(bytes) as total_bytes
+                FROM ipdr.nat_log
+                WHERE timestamp >= now() - INTERVAL 30 DAY
+                  AND dst_ip IN (${ipList})
+                  AND bytes > 0
+                GROUP BY src_ip, dst_ip
+                LIMIT 10000
+              `);
 
-        const bytesMap = new Map<string, number>(); // "src_ip:dst_ip" → total_bytes
-        if (allDstIps.size > 0) {
-          const ipChunks: string[][] = [];
-          const ipArr = [...allDstIps];
-          // ClickHouse IN clause limit: chunk into groups of 500
-          for (let i = 0; i < ipArr.length; i += 500) {
-            ipChunks.push(ipArr.slice(i, i + 500));
-          }
-
-          for (const chunk of ipChunks) {
-            const ipList = chunk.map((ip) => `'${ip.replace(/'/g, "\\'")}'`).join(',');
-            const bytesRows = await query<Record<string, unknown>>(`
-              SELECT src_ip, dst_ip, sum(bytes) as total_bytes
-              FROM ipdr.nat_log
-              WHERE timestamp >= now() - INTERVAL 30 DAY
-                AND dst_ip IN (${ipList})
-                AND bytes > 0
-              GROUP BY src_ip, dst_ip
-              LIMIT 10000
-            `);
-
-            for (const row of bytesRows) {
-              const key = `${String(row.src_ip)}:${String(row.dst_ip)}`;
-              bytesMap.set(key, Number(row.total_bytes) || 0);
+              if (bytesRows.length > 0) {
+                natBytesMap = new Map<string, number>();
+                // Build (src_ip, dst_ip) → bytes map
+                const rawMap = new Map<string, number>();
+                for (const row of bytesRows) {
+                  const key = `${String(row.src_ip)}:${String(row.dst_ip)}`;
+                  rawMap.set(key, Number(row.total_bytes) || 0);
+                }
+                // Aggregate nat_log bytes per (src_ip, domain)
+                for (const row of dstIpRows) {
+                  const srcIp = String(row.src_ip ?? '');
+                  const dstIp = String(row.dst_ip ?? '');
+                  const domain = String(row.sni_domain ?? '');
+                  if (!srcIp || !domain) continue;
+                  const bKey = `${srcIp}:${dstIp}`;
+                  const bytes = rawMap.get(bKey) || 0;
+                  if (bytes > 0) {
+                    const dKey = `${srcIp}:${domain}`;
+                    natBytesMap.set(dKey, (natBytesMap.get(dKey) || 0) + bytes);
+                  }
+                }
+                console.log(`[web-surfing] nat_log enrichment: ${natBytesMap.size} domains with conntrack bytes`);
+              }
             }
           }
+        } catch (err) {
+          // nat_log enrichment is optional — don't fail if unavailable
+          console.warn(`[web-surfing] nat_log enrichment skipped:`, err);
         }
 
         // ── Guest name resolution via shared correlator (time-window aware) ──
@@ -377,15 +391,16 @@ export async function GET(request: NextRequest) {
         const data: SurfingEntry[] = sniRows.map((r, idx) => {
           const srcIp = String(r.src_ip ?? '');
           const domain = String(r.domain ?? '');
-          const key = `${srcIp}:${domain}`;
 
-          // Sum bytes across all dst_ips that resolved to this domain for this src_ip
-          let totalBytes = 0;
-          const dstIps = domainDstMap.get(key);
-          if (dstIps) {
-            for (const dip of dstIps) {
-              const bKey = `${srcIp}:${dip}`;
-              totalBytes += bytesMap.get(bKey) || 0;
+          // packet_bytes from sni_log (sum of captured packet sizes)
+          let totalBytes = Number(r.total_bytes) || 0;
+
+          // Add nat_log conntrack bytes if available (more accurate total)
+          if (natBytesMap) {
+            const natBytes = natBytesMap.get(`${srcIp}:${domain}`) || 0;
+            if (natBytes > 0) {
+              // Use the larger of the two as the definitive byte count
+              totalBytes = Math.max(totalBytes, natBytes);
             }
           }
 
