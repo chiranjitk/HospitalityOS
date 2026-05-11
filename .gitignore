@@ -41,10 +41,10 @@ yarn-error.log*
 !freeradius-install/etc/raddb/mods-enabled/detail.log
 pgsql-logfile
 
-# env files (can opt-in for committing if needed)
+# env files
+.env
 .env.local
 .env.production
-!.env
 
 # vercel
 .vercel
