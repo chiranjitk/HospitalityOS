@@ -309,7 +309,7 @@ CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS
     COALESCE(b.status, ''::text) AS booking_status,
     COALESCE(s.id::text, r.acctuniqueid) AS acctuniqueid,
     r.framedipv6address,
-    COALESCE(r.nasipaddress, '0.0.0.0'::text) AS nasipaddress,
+    COALESCE(r.nasipaddress, '127.0.0.1'::text) AS nasipaddress,
     ''::text AS nasidentifier,
     r.nasportid,
     COALESCE(r.nasporttype, 'Wireless-802.11'::text) AS nasporttype,
