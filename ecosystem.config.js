@@ -212,7 +212,7 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3022,
         CLICKHOUSE_URL: 'http://127.0.0.1:8123',
-        SNI_LOG_FILE: '/var/log/sni-queries.log',
+        SNI_LOG_FILE: '/var/log/ulogd2/sni.json',
       },
     },
   ],
