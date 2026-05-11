@@ -23,6 +23,15 @@ const BATCH_MAX_SIZE = 500;
 const FILE_POLL_INTERVAL_MS = 500;
 const SERVICE_NAME = "sni-parser";
 
+// Maximum file size to process from the beginning (100 MB).
+// If the log file is larger than this on startup, we skip to the end
+// to avoid re-processing a huge backlog (which caused the 1.6GB hang).
+const MAX_STARTUP_READ_BYTES = 100 * 1024 * 1024;
+
+// Runtime warning threshold (500 MB) — logged once when exceeded during polling.
+const RUNTIME_SIZE_WARN_BYTES = 500 * 1024 * 1024;
+let runtimeSizeWarned = false;
+
 // ─── TLS version map ────────────────────────────────────────────────────────
 const TLS_VERSION_MAP: Record<number, string> = {
   0x0300: "SSLv3",
@@ -191,6 +200,31 @@ const topDestinations = new Map<string, number>();
 const topSources = new Map<string, number>();
 const topPorts = new Map<number, number>();
 
+// ─── dst_ip → SNI domain cache ───────────────────────────────────────────────
+// When a ClientHello carries SNI (e.g. dst_ip=142.250.80.14 → www.google.com),
+// we cache that mapping. Subsequent data packets to the same dst_ip (which have
+// empty sni.hostname) are then enriched with the cached domain. This turns the
+// ~97% of non-SNI packets into useful bandwidth-per-domain data.
+// TTL: 4 hours — stale mappings expire to handle CDN IP reuse.
+const DST_DOMAIN_CACHE_TTL_MS = 4 * 60 * 60 * 1000;
+const dstDomainCache = new Map<string, { domain: string; ts: number }>();
+let cacheHits = 0;
+let cacheMisses = 0;
+
+function cacheDstDomain(dstIp: string, domain: string): void {
+  dstDomainCache.set(dstIp, { domain, ts: Date.now() });
+}
+
+function lookupCachedDomain(dstIp: string): string | null {
+  const entry = dstDomainCache.get(dstIp);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > DST_DOMAIN_CACHE_TTL_MS) {
+    dstDomainCache.delete(dstIp);
+    return null;
+  }
+  return entry.domain;
+}
+
 // ─── SNI record parser ─────────────────────────────────────────────────────
 
 /**
@@ -234,8 +268,10 @@ function parseUlogd2Record(obj: Record<string, unknown>): any | null {
   return {
     timestamp,
     src_ip: srcIp,
+    src_port: 0,
     dst_ip: dstIp,
     dst_port: dstPort || 443,
+    in_iface: "",
     sni_domain: sniDomain,
     tls_version: tlsVersion,
     ja3_hash: "",
@@ -250,8 +286,10 @@ function parseSimpleRecord(obj: Record<string, unknown>): any | null {
   return {
     timestamp: String(obj.timestamp || new Date().toISOString()),
     src_ip: String(obj.src_ip || ""),
+    src_port: parseInt(String(obj.src_port), 10) || 0,
     dst_ip: String(obj.dst_ip || ""),
     dst_port: parseInt(String(obj.dst_port), 10) || 443,
+    in_iface: String(obj.in_iface || ""),
     sni_domain: String(obj.sni_domain || ""),
     tls_version: String(obj.tls_version || "unknown"),
     ja3_hash: String(obj.ja3_hash || ""),
@@ -262,16 +300,25 @@ function parseSimpleRecord(obj: Record<string, unknown>): any | null {
  * Parse ulogd2 PRINTSNI output (the format our ulogd2 stack produces).
  * Fields: sni.hostname, sni.tls.version, src_ip, dest_ip, timestamp, raw.pktlen, oob.in
  * This is the standard StaySuite ulogd2 stack: NFLOG → inp:ip → PRINTSNI → JSON
+ *
+ * KEY: ulogd2 captures ALL port-443 packets, but only ClientHello has SNI.
+ * The ~97% of data packets with empty sni.hostname are enriched via the
+ * dst_ip → domain cache (populated from earlier ClientHello entries).
  */
 function parsePrintsniRecord(obj: Record<string, unknown>): any | null {
-  // PRINTSNI plugin outputs "sni.hostname" key
-  const sniDomain = String(obj["sni.hostname"] || obj["sni_domain"] || "").trim();
-  if (!sniDomain) return null;
-
   const srcIp = String(obj.src_ip || obj["ip.saddr"] || "");
   const dstIp = String(obj.dest_ip || obj.dst_ip || obj["ip.daddr"] || "");
+
+  // Skip entries without src/dst IP
+  if (!srcIp || !dstIp) return null;
+
+  const srcPort = parseInt(String(obj.src_port || obj["tcp.sport"] || "0"), 10) || 0;
   const dstPort = parseInt(String(obj.dest_port || obj["tcp.dport"] || "443"), 10);
+  const inIface = String(obj["oob.in"] || "");
   const tlsVersion = String(obj["sni.tls.version"] || obj.tls_version || "unknown");
+
+  // Packet bytes from raw.pktlen or ip.totlen
+  const packetBytes = parseInt(String(obj["raw.pktlen"] || obj["ip.totlen"] || "0"), 10) || 0;
 
   // Timestamp: ulogd2 outputs ISO-like string or epoch seconds
   let timestamp: string;
@@ -283,13 +330,35 @@ function parsePrintsniRecord(obj: Record<string, unknown>): any | null {
     timestamp = timeSec ? new Date(timeSec * 1000).toISOString() : new Date().toISOString();
   }
 
+  // Check for direct SNI hostname from ClientHello
+  let sniDomain = String(obj["sni.hostname"] || obj["sni_domain"] || "").trim();
+
+  if (sniDomain) {
+    // ClientHello with SNI — cache the dst_ip → domain mapping
+    cacheDstDomain(dstIp, sniDomain);
+  } else {
+    // Data packet (no SNI) — look up domain from cache
+    sniDomain = lookupCachedDomain(dstIp) || "";
+    if (sniDomain) {
+      cacheHits++;
+    } else {
+      cacheMisses++;
+    }
+  }
+
+  // Only return entries with a resolved domain
+  if (!sniDomain) return null;
+
   return {
     timestamp,
     src_ip: srcIp,
+    src_port: srcPort,
     dst_ip: dstIp,
     dst_port: dstPort || 443,
+    in_iface: inIface,
     sni_domain: sniDomain,
     tls_version: tlsVersion,
+    packet_bytes: packetBytes,
     ja3_hash: "",
   };
 }
@@ -331,7 +400,8 @@ function parseSniRecord(line: string): any | null {
 
     if (!record) return null;
 
-    // Skip records without SNI domain
+    // Skip records without SNI domain (already handled in parsePrintsniRecord,
+    // but other parsers may return records without domain)
     if (!record.sni_domain) return null;
 
     // Update aggregates
@@ -368,11 +438,14 @@ async function ensureClickHouseTable(): Promise<void> {
     CREATE TABLE IF NOT EXISTS ipdr.sni_log (
       timestamp DateTime,
       src_ip String,
+      src_port UInt16 DEFAULT 0,
       dst_ip String,
       dst_port UInt16,
+      in_iface String DEFAULT '',
       sni_domain String,
       tls_version String,
-      ja3_hash String DEFAULT ''
+      ja3_hash String DEFAULT '',
+      packet_bytes UInt32 DEFAULT 0
     )
     ENGINE = MergeTree()
     PARTITION BY toYYYYMMDD(timestamp)
@@ -391,6 +464,24 @@ async function ensureClickHouseTable(): Promise<void> {
       console.error(
         `[${SERVICE_NAME}] ClickHouse table creation error: ${await res.text()}`
       );
+    }
+
+    // Migration: add new columns if they don't exist (for existing installs)
+    const migrations = [
+      "ALTER TABLE ipdr.sni_log ADD COLUMN IF NOT EXISTS packet_bytes UInt32 DEFAULT 0",
+      "ALTER TABLE ipdr.sni_log ADD COLUMN IF NOT EXISTS src_port UInt16 DEFAULT 0",
+      "ALTER TABLE ipdr.sni_log ADD COLUMN IF NOT EXISTS in_iface String DEFAULT ''",
+    ];
+    for (const sql of migrations) {
+      try {
+        const alterRes = await fetch(CLICKHOUSE_URL, { method: "POST", body: sql });
+        if (alterRes.ok) {
+          const colName = sql.match(/ADD COLUMN IF NOT EXISTS (\w+)/)?.[1] || '?';
+          console.log(`[${SERVICE_NAME}] ClickHouse migration: ${colName} column ensured`);
+        }
+      } catch {
+        // Non-critical migration
+      }
     }
   } catch (err: any) {
     console.error(
@@ -414,12 +505,12 @@ async function flushBatch(): Promise<void> {
   const values = items
     .map(
       (e) =>
-        `('${fmtTs(e.timestamp)}', '${e.src_ip}', '${e.dst_ip}', ${e.dst_port}, ` +
-        `'${escapeSql(e.sni_domain)}', '${escapeSql(e.tls_version)}', '${escapeSql(e.ja3_hash)}')`
+        `('${fmtTs(e.timestamp)}', '${e.src_ip}', ${e.src_port || 0}, '${e.dst_ip}', ${e.dst_port}, ` +
+        `'${escapeSql(e.in_iface || "")}', '${escapeSql(e.sni_domain)}', '${escapeSql(e.tls_version)}', '${escapeSql(e.ja3_hash)}', ${e.packet_bytes || 0})`
     )
     .join(",");
 
-  const sql = `INSERT INTO ipdr.sni_log (timestamp, src_ip, dst_ip, dst_port, sni_domain, tls_version, ja3_hash) VALUES ${values}`;
+  const sql = `INSERT INTO ipdr.sni_log (timestamp, src_ip, src_port, dst_ip, dst_port, in_iface, sni_domain, tls_version, ja3_hash, packet_bytes) VALUES ${values}`;
 
   try {
     const res = await fetch(CLICKHOUSE_URL, {
@@ -460,6 +551,16 @@ async function checkLogFile(): Promise<void> {
       currentFilePos = 0;
     }
     currentInode = inode;
+
+    // Runtime size warning (log once)
+    if (!runtimeSizeWarned && stat.size > RUNTIME_SIZE_WARN_BYTES) {
+      const sizeMB = (stat.size / (1024 * 1024)).toFixed(1);
+      console.warn(
+        `[${SERVICE_NAME}] ⚠️  Log file grown to ${sizeMB}MB — add logrotate for ${SNI_LOG_FILE}. ` +
+        `Run: echo '/var/log/ulogd2/*.json { daily rotate 7 compress copytruncate maxsize 200M missingok }' > /etc/logrotate.d/staysuite-ulogd2`
+      );
+      runtimeSizeWarned = true;
+    }
 
     if (stat.size <= currentFilePos) return;
 
@@ -534,6 +635,9 @@ function startServer(): void {
           clickHouseErrors: totalClickHouseErrors,
           parseErrors: totalParseErrors,
           filePosition: currentFilePos,
+          domainCacheSize: dstDomainCache.size,
+          domainCacheHits: cacheHits,
+          domainCacheMisses: cacheMisses,
         });
       }
 
@@ -581,6 +685,9 @@ function startServer(): void {
           totalEvents,
           uniqueDomains: topDomains.size,
           uniqueDestinations: topDestinations.size,
+          domainCacheSize: dstDomainCache.size,
+          domainCacheHits: cacheHits,
+          domainCacheMisses: cacheMisses,
           uniqueSources: topSources.size,
           batchesFlushed: totalBatches,
           clickHouseErrors: totalClickHouseErrors,
@@ -702,12 +809,26 @@ async function main(): Promise<void> {
   console.log(`[${SERVICE_NAME}] Watching log file: ${SNI_LOG_FILE}`);
   fileWatcher = setInterval(checkLogFile, FILE_POLL_INTERVAL_MS);
 
-  // Initial file position
+  // Initial file position — with large-file safeguard
   try {
     const stat = await Bun.file(SNI_LOG_FILE).stat();
-    currentFilePos = stat.size;
     currentInode = `${stat.dev}:${stat.ino}`;
-    console.log(`[${SERVICE_NAME}] Starting from file position: ${currentFilePos}`);
+
+    if (stat.size > MAX_STARTUP_READ_BYTES) {
+      // File is too large to reprocess. Skip to the end to avoid hanging.
+      // Only recent events matter for the Web Surfing report (30-day window).
+      const sizeMB = (stat.size / (1024 * 1024)).toFixed(1);
+      console.warn(
+        `[${SERVICE_NAME}] ⚠️  Log file is ${sizeMB}MB — exceeds ${MAX_STARTUP_READ_BYTES / (1024 * 1024)}MB startup limit. ` +
+        `Skipping to end. Consider adding logrotate for ${SNI_LOG_FILE}. ` +
+        `Run: truncate -s 0 ${SNI_LOG_FILE}  if stale data is not needed.`
+      );
+      currentFilePos = stat.size;
+    } else {
+      // Small enough to read from beginning on startup
+      currentFilePos = 0;
+      console.log(`[${SERVICE_NAME}] Starting from file position: ${currentFilePos} (file ${stat.size} bytes)`);
+    }
   } catch {
     console.log(
       `[${SERVICE_NAME}] Log file not found yet, will start watching when it appears`

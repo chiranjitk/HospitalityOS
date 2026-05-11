@@ -364,6 +364,55 @@ html.dark * {
   animation: shimmer 1.8s ease-in-out infinite;
 }
 
+/* Skeleton shimmer sweep — translateX-based sweep for skeleton blocks (wider sweep) */
+@keyframes skeletonShimmerSweep {
+  0% { transform: translateX(-150%); }
+  100% { transform: translateX(150%); }
+}
+.skeleton-shimmer-sweep {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    oklch(1 0 0 / 0.35) 40%,
+    oklch(1 0 0 / 0.50) 50%,
+    oklch(1 0 0 / 0.35) 60%,
+    transparent 100%
+  );
+  animation: skeletonShimmerSweep 2s ease-in-out infinite;
+}
+.dark .skeleton-shimmer-sweep {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    oklch(1 0 0 / 0.06) 40%,
+    oklch(1 0 0 / 0.10) 50%,
+    oklch(1 0 0 / 0.06) 60%,
+    transparent 100%
+  );
+}
+
+/* Skeleton container pulsing glow */
+@keyframes skeletonGlow {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(from var(--border) l c h / 0); }
+  50% { box-shadow: 0 0 12px -2px oklch(from var(--border) l c h / 0.12); }
+}
+.skeleton-glow {
+  animation: skeletonGlow 3s ease-in-out infinite;
+}
+.dark .skeleton-glow {
+  animation: skeletonGlow 3s ease-in-out infinite;
+  box-shadow: 0 0 12px -2px oklch(from var(--border) l c h / 0.18);
+}
+
+/* Skeleton loading text pulse */
+@keyframes skeletonTextPulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.7; }
+}
+.skeleton-text-pulse {
+  animation: skeletonTextPulse 2s ease-in-out infinite;
+}
+
 /* Smooth number counter transition */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
@@ -684,12 +733,9 @@ html.dark * {
    Gradient text, card shine, number counter, gradient divider
    ============================================ */
 
-/* Gradient text — primary to teal gradient for headings */
+/* Gradient text — heading emphasis */
 .gradient-text {
-  background: linear-gradient(135deg, var(--primary), oklch(0.65 0.16 170));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--primary);
 }
 
 /* Card shine — diagonal gradient sweep on hover */

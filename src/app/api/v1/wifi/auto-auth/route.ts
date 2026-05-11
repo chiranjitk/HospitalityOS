@@ -543,7 +543,7 @@ export async function POST(request: NextRequest) {
     // check does not count the stale session against the user.
     try {
       await db.$executeRawUnsafe(
-        `UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'User-Request', acctstatus = 'stop', acctupdatetime = NOW(), "updatedAt" = NOW() WHERE username = $1 AND acctstoptime IS NULL`,
+        `UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'User-Request', acctstatus = 'stop', acctupdatetime = NOW(), updatedat = NOW() WHERE username = $1 AND acctstoptime IS NULL`,
         wifiUser.username
       );
     } catch (closeErr) {
@@ -866,6 +866,17 @@ function parseDeviceName(ua: string): string {
  * Write an auth log to radpostauth table.
  * This feeds the Auth Logs dashboard tab.
  */
+/**
+ * Convert a rejection reason code to human-readable message for replyMessage column.
+ */
+function getRejectMessageFromCode(code: string): string | null {
+  if (code.startsWith('IP_NOT_IN_POOL:')) return `IP not in managed pool: ${code.replace('IP_NOT_IN_POOL:', '')}`;
+  if (code === 'IP_NOT_DETERMINED') return 'Could not determine client IP';
+  if (code.startsWith('MAX_SESSION')) return 'Max concurrent sessions reached';
+  if (code.startsWith('ACCOUNT_')) return code.replace(/_/g, ' ').toLowerCase();
+  return null;
+}
+
 async function logAuthAttempt(
   username: string,
   reply: string,
@@ -897,13 +908,14 @@ async function logAuthAttempt(
     // clientipaddress = real client IP (from HTTP headers)
     // "nasIpAddress" = 127.0.0.1 for captive portal (the app itself IS the NAS)
     await db.$executeRawUnsafe(
-      `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, "nasIpAddress", callingstationid)
-       VALUES ($1, $2, $3, NOW(), $4, '127.0.0.1', $5)`,
+      `INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, "nasIpAddress", callingstationid, "replyMessage")
+       VALUES ($1, $2, $3, NOW(), $4, '127.0.0.1', $5, $6)`,
       username,
       extraInfo || '',
       reply,
       clientIp,
       effectiveMac,
+      extraInfo ? getRejectMessageFromCode(extraInfo) : null,
     );
   } catch (err) {
     // Non-fatal — auth logging failure should not block authentication
@@ -962,7 +974,7 @@ async function createAccountingSession(
          acctauthentic, framedipaddress, acctstatus,
          acctinputoctets, acctoutputoctets, acctsessiontime,
          calledstationid, callingstationid,
-         "loginType", "createdAt", "updatedAt"
+         "loginType", createdat, updatedat
        ) VALUES (
          $1, $2, $3,
          $4, 'Wireless-802.11', $5, $5,

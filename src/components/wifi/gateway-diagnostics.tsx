@@ -41,14 +41,18 @@ import {
   AlertTriangle,
   CheckCircle2,
   CircleDot,
+  Trash2,
   Download,
   Gauge,
   Globe,
+  HardDrive,
   Hash,
   Loader2,
   Network,
   Play,
+  Plus,
   Radar,
+  Route,
   Search,
   Shield,
   Terminal,
@@ -56,6 +60,7 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -674,6 +679,12 @@ function ArpTableTool() {
   const [search, setSearch] = useState('');
   const [state, setState] = useState<RunState>('idle');
   const [result, setResult] = useState<ToolResult | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addIp, setAddIp] = useState('');
+  const [addMac, setAddMac] = useState('');
+  const [addDevice, setAddDevice] = useState('');
+  const [addingStatic, setAddingStatic] = useState(false);
+  const [flushing, setFlushing] = useState(false);
 
   const run = useCallback(async () => {
     setState('loading');
@@ -700,6 +711,53 @@ function ArpTableTool() {
     }
   }, [search, toast]);
 
+  const flushArp = useCallback(async () => {
+    setFlushing(true);
+    try {
+      const qs = new URLSearchParams({ action: 'arp-flush' });
+      const res = await fetch(`/api/wifi/diagnostics?${qs}`);
+      const json = await res.json();
+      if (json.success) {
+        toast({ title: 'ARP Cache Flushed', description: 'ARP cache cleared successfully' });
+        run();
+      } else {
+        toast({ title: 'Flush Failed', description: json.error || 'Failed to flush ARP cache', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Network error flushing ARP', variant: 'destructive' });
+    }
+    setFlushing(false);
+  }, [toast, run]);
+
+  const addStaticEntry = useCallback(async () => {
+    if (!addIp.trim() || !addMac.trim()) {
+      toast({ title: 'Validation Error', description: 'IP and MAC are required', variant: 'destructive' });
+      return;
+    }
+    setAddingStatic(true);
+    try {
+      const qs = new URLSearchParams({ action: 'arp-add-static' });
+      qs.set('ip', addIp.trim());
+      qs.set('mac', addMac.trim());
+      if (addDevice.trim()) qs.set('device', addDevice.trim());
+      const res = await fetch(`/api/wifi/diagnostics?${qs}`);
+      const json = await res.json();
+      if (json.success) {
+        toast({ title: 'Static Entry Added', description: `${addIp.trim()} → ${addMac.trim()}` });
+        setAddIp('');
+        setAddMac('');
+        setAddDevice('');
+        setShowAddForm(false);
+        run();
+      } else {
+        toast({ title: 'Add Failed', description: json.error || 'Failed to add static entry', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Network error adding static entry', variant: 'destructive' });
+    }
+    setAddingStatic(false);
+  }, [addIp, addMac, addDevice, toast, run]);
+
   const data = result?.data as Record<string, unknown> | undefined;
   const entries = (data?.entries as Array<Record<string, unknown>>) || [];
 
@@ -708,8 +766,8 @@ function ArpTableTool() {
       <CardContent className="p-5">
         <ToolHeader icon={Hash} title="ARP Table" description="View the system ARP cache — MAC to IP address mappings from the gateway" gradient="from-emerald-500 to-cyan-600" />
 
-        <div className="flex items-end gap-3">
-          <div className="flex-1 max-w-sm">
+        <div className="flex items-end gap-3 flex-wrap">
+          <div className="flex-1 min-w-[180px] max-w-sm">
             <Label className="text-xs">Filter (IP / MAC / Device)</Label>
             <Input
               value={search}
@@ -720,8 +778,69 @@ function ArpTableTool() {
             />
           </div>
           <RunButton loading={state === 'loading'} onClick={run} label="Refresh ARP" />
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 px-3 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 border-red-200 dark:border-red-800"
+            disabled={flushing}
+            onClick={flushArp}
+          >
+            {flushing ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
+            Flush ARP Cache
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 px-3 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
+            onClick={() => setShowAddForm(!showAddForm)}
+          >
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            Add Static Entry
+          </Button>
           {result && <DurationBadge ms={result.duration_ms} />}
         </div>
+
+        {showAddForm && (
+          <div className="mt-4 rounded-lg border bg-muted/30 p-4">
+            <p className="text-xs font-medium mb-3">Add Static ARP Entry</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <Label className="text-xs">IP Address *</Label>
+                <Input
+                  value={addIp}
+                  onChange={(e) => setAddIp(e.target.value)}
+                  placeholder="192.168.1.100"
+                  className="mt-1 h-8 text-xs font-mono"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">MAC Address *</Label>
+                <Input
+                  value={addMac}
+                  onChange={(e) => setAddMac(e.target.value)}
+                  placeholder="aa:bb:cc:dd:ee:ff"
+                  className="mt-1 h-8 text-xs font-mono"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Device (optional)</Label>
+                <Input
+                  value={addDevice}
+                  onChange={(e) => setAddDevice(e.target.value)}
+                  placeholder="eth0"
+                  className="mt-1 h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-3">
+              <Button size="sm" className="h-7 text-xs px-3" disabled={addingStatic || !addIp.trim() || !addMac.trim()} onClick={addStaticEntry}>
+                {addingStatic ? <Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> : <Plus className="h-3 w-3 mr-1.5" />}
+                Submit
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs px-3" onClick={() => setShowAddForm(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
 
         {result?.error && <ErrorBox message={result.error} />}
 
@@ -896,6 +1015,7 @@ function PacketCaptureTool() {
   const [filter, setFilter] = useState('');
   const [duration, setDuration] = useState('10');
   const [count, setCount] = useState('100');
+  const [savePcap, setSavePcap] = useState(false);
   const [state, setState] = useState<RunState>('idle');
   const [result, setResult] = useState<ToolResult | null>(null);
 
@@ -910,6 +1030,7 @@ function PacketCaptureTool() {
         count,
       });
       if (filter.trim()) qs.set('filter', filter.trim());
+      if (savePcap) qs.set('savePcap', 'true');
       const res = await fetch(`/api/wifi/diagnostics?${qs}`);
       const json = await res.json();
       const r: ToolResult = {
@@ -932,10 +1053,28 @@ function PacketCaptureTool() {
       setState('done');
       setResult({ success: false, duration_ms: 0, data: {}, error: 'Network error' });
     }
-  }, [iface, filter, duration, count, toast]);
+  }, [iface, filter, duration, count, savePcap, toast]);
 
   const data = result?.data as Record<string, unknown> | undefined;
   const packets = (data?.packets as string[]) || [];
+  const captureId = data?.captureId as string | undefined;
+  const pcapSaved = data?.pcapSaved as boolean | undefined;
+  const analysis = data?.analysis as Record<string, unknown> | undefined;
+  const protocolBreakdown = (analysis?.protocolBreakdown as Record<string, number>) || {};
+  const topSourceIps = (analysis?.topSourceIps as Array<Record<string, unknown>>) || [];
+  const topDestIps = (analysis?.topDestIps as Array<Record<string, unknown>>) || [];
+  const topDestPorts = (analysis?.topDestPorts as Array<Record<string, unknown>>) || [];
+
+  const protoColors: Record<string, string> = {
+    TCP: 'bg-teal-500',
+    UDP: 'bg-cyan-500',
+    ICMP: 'bg-amber-500',
+    ARP: 'bg-orange-500',
+    DNS: 'bg-violet-500',
+    Other: 'bg-slate-400',
+  };
+
+  const totalProto = Object.values(protocolBreakdown).reduce((a, b) => a + b, 0);
 
   return (
     <Card>
@@ -985,7 +1124,15 @@ function PacketCaptureTool() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 mt-4">
+        <div className="flex items-center gap-4 mt-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="save-pcap"
+              checked={savePcap}
+              onCheckedChange={(v) => setSavePcap(v === true)}
+            />
+            <Label htmlFor="save-pcap" className="text-xs cursor-pointer select-none">Save PCAP</Label>
+          </div>
           <RunButton loading={state === 'loading'} onClick={run} label="Start Capture" />
           {result && <DurationBadge ms={result.duration_ms} />}
           {state === 'loading' && (
@@ -1004,8 +1151,131 @@ function PacketCaptureTool() {
               { label: 'Interface', value: String(data?.interface || iface) },
               { label: 'Filter', value: String(data?.filter || 'none') },
               { label: 'Captured', value: `${packets.length} packets` },
+              ...(pcapSaved ? [{ label: 'PCAP', value: 'Saved', color: 'text-emerald-600 dark:text-emerald-400' }] : []),
             ]}
           />
+        )}
+
+        {/* PCAP Download */}
+        {result?.success && pcapSaved && captureId && (
+          <div className="mt-4">
+            <a
+              href={`/api/wifi/diagnostics?action=pcap-download&captureId=${encodeURIComponent(captureId)}`}
+              download
+              className="inline-flex items-center gap-1.5 h-8 px-4 rounded-md text-xs font-medium bg-violet-600 hover:bg-violet-700 text-white transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Download PCAP
+            </a>
+          </div>
+        )}
+
+        {/* Analysis Panel */}
+        {result?.success && analysis && Object.keys(analysis).length > 0 && (
+          <div className="mt-6 space-y-5">
+            <div className="flex items-center gap-2 mb-1">
+              <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Capture Analysis
+              </span>
+            </div>
+
+            {/* Protocol Breakdown Bar Chart */}
+            {Object.keys(protocolBreakdown).length > 0 && (
+              <div className="rounded-lg border bg-muted/20 p-4">
+                <p className="text-xs font-medium mb-3">Protocol Breakdown</p>
+                <div className="space-y-2">
+                  {Object.entries(protocolBreakdown).sort(([, a], [, b]) => b - a).map(([proto, cnt]) => {
+                    const pct = totalProto > 0 ? (cnt / totalProto) * 100 : 0;
+                    return (
+                      <div key={proto} className="flex items-center gap-3">
+                        <span className="text-[11px] font-mono w-10 shrink-0 text-right">{proto}</span>
+                        <div className="flex-1 h-5 bg-muted rounded overflow-hidden">
+                          <div
+                            className={cn('h-full rounded transition-all duration-500', protoColors[proto] || protoColors.Other)}
+                            style={{ width: `${Math.max(pct, 1)}%` }}
+                          />
+                        </div>
+                        <span className="text-[11px] tabular-nums w-16 shrink-0">{cnt} ({pct.toFixed(1)}%)</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Top Talkers Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Top Source IPs */}
+              {topSourceIps.length > 0 && (
+                <div className="rounded-lg border bg-muted/20 p-4">
+                  <p className="text-xs font-medium mb-2">Top Source IPs</p>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="text-[10px]">IP</TableHead>
+                        <TableHead className="text-[10px] text-right">Count</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {topSourceIps.slice(0, 5).map((item, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-mono text-[11px]">{String(item.ip)}</TableCell>
+                          <TableCell className="text-[11px] text-right tabular-nums">{String(item.count)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {/* Top Dest IPs */}
+              {topDestIps.length > 0 && (
+                <div className="rounded-lg border bg-muted/20 p-4">
+                  <p className="text-xs font-medium mb-2">Top Dest IPs</p>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="text-[10px]">IP</TableHead>
+                        <TableHead className="text-[10px] text-right">Count</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {topDestIps.slice(0, 5).map((item, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-mono text-[11px]">{String(item.ip)}</TableCell>
+                          <TableCell className="text-[11px] text-right tabular-nums">{String(item.count)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {/* Top Dest Ports */}
+              {topDestPorts.length > 0 && (
+                <div className="rounded-lg border bg-muted/20 p-4">
+                  <p className="text-xs font-medium mb-2">Top Dest Ports</p>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="text-[10px]">Port</TableHead>
+                        <TableHead className="text-[10px] text-right">Count</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {topDestPorts.slice(0, 5).map((item, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-mono text-[11px]">{String(item.port)}</TableCell>
+                          <TableCell className="text-[11px] text-right tabular-nums">{String(item.count)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {packets.length > 0 && (
@@ -1696,6 +1966,7 @@ function ConntrackTool() {
   const [state, setState] = useState<RunState>('idle');
   const [result, setResult] = useState<ToolResult | null>(null);
   const [viewTab, setViewTab] = useState<'tcp' | 'udp'>('tcp');
+  const [stateFilter, setStateFilter] = useState<string>('all');
 
   const run = useCallback(async () => {
     setState('loading');
@@ -1723,40 +1994,95 @@ function ConntrackTool() {
   }, [search, toast]);
 
   const data = result?.data as Record<string, unknown> | undefined;
-  const connections = (data?.connections as Array<Record<string, unknown>>) || [];
+  const allConnections = (data?.connections as Array<Record<string, unknown>>) || [];
   const udpConnections = (data?.udpConnections as Array<Record<string, unknown>>) || [];
   const stateCounts = (data?.stateCounts as Record<string, number>) || {};
 
-  const getStateBadge = (state: string) => {
-    switch (state) {
-      case 'ESTABLISHED': return <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-[10px]">{state}</Badge>;
-      case 'LISTEN': return <Badge className="bg-teal-500 hover:bg-teal-600 text-white border-0 text-[10px]">{state}</Badge>;
-      case 'TIME_WAIT': return <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-[10px]">{state}</Badge>;
-      case 'CLOSE_WAIT': return <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-0 text-[10px]">{state}</Badge>;
-      case 'SYN_SENT': case 'SYN_RECV': return <Badge className="bg-cyan-500 hover:bg-cyan-600 text-white border-0 text-[10px]">{state}</Badge>;
-      default: return <Badge variant="outline" className="text-[10px]">{state}</Badge>;
+  const VISIBLE_STATES = ['ESTABLISHED', 'TIME_WAIT', 'CLOSE_WAIT', 'LISTEN', 'SYN_RECV', 'SYN_SENT'];
+
+  // Get combined list based on tab
+  const getBaseRows = () => {
+    if (viewTab === 'tcp') return allConnections;
+    return udpConnections;
+  };
+
+  // Apply filters
+  const getFilteredRows = () => {
+    let rows = getBaseRows();
+
+    // State filter: only show visible states
+    rows = rows.filter((r) => VISIBLE_STATES.includes(String(r.state || '').toUpperCase()));
+
+    // State dropdown filter
+    if (stateFilter !== 'all') {
+      rows = rows.filter((r) => String(r.state).toUpperCase() === stateFilter);
+    }
+
+    return rows;
+  };
+
+  const displayRows = getFilteredRows();
+
+  const getStateBadge = (connState: string) => {
+    switch (connState) {
+      case 'ESTABLISHED': return <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-[10px]">{connState}</Badge>;
+      case 'LISTEN': return <Badge className="bg-teal-500 hover:bg-teal-600 text-white border-0 text-[10px]">{connState}</Badge>;
+      case 'TIME_WAIT': return <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-[10px]">{connState}</Badge>;
+      case 'CLOSE_WAIT': return <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-0 text-[10px]">{connState}</Badge>;
+      case 'SYN_SENT': case 'SYN_RECV': return <Badge className="bg-cyan-500 hover:bg-cyan-600 text-white border-0 text-[10px]">{connState}</Badge>;
+      default: return <Badge variant="outline" className="text-[10px]">{connState}</Badge>;
     }
   };
 
-  const displayRows = viewTab === 'tcp' ? connections : udpConnections;
-  const maxRows = 200;
-  const shownRows = displayRows.slice(0, maxRows);
+  // Top talkers: aggregate by source IP
+  const topTalkers = (() => {
+    const map: Record<string, number> = {};
+    const baseRows = getBaseRows();
+    for (const row of baseRows) {
+      const ip = String(row.localAddress);
+      map[ip] = (map[ip] || 0) + 1;
+    }
+    return Object.entries(map)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10);
+  })();
+
+  // Connection state bar
+  const totalConns = (data?.total as number) || allConnections.length + udpConnections.length;
+  const established = stateCounts.ESTABLISHED || 0;
+  const listening = stateCounts.LISTEN || 0;
+  const timeWait = stateCounts.TIME_WAIT || 0;
+  const closeWait = stateCounts.CLOSE_WAIT || 0;
+  const synRecv = stateCounts.SYN_RECV || 0;
 
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Activity} title="Connection Table" description="All active TCP + UDP connections from /proc/net (no root required)" gradient="from-slate-500 to-gray-600" />
+        <ToolHeader icon={Activity} title="Connection Table" description="Active TCP + UDP connections — SonicWall-style view with state analysis" gradient="from-slate-500 to-gray-600" />
 
-        <div className="flex items-end gap-3">
-          <div className="flex-1 max-w-sm">
-            <Label className="text-xs">Filter (IP / Port / State)</Label>
+        {/* Filter bar */}
+        <div className="flex items-end gap-3 flex-wrap">
+          <div className="flex-1 min-w-[180px] max-w-sm">
+            <Label className="text-xs">Filter (IP / Port)</Label>
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="192.168 or ESTABLISHED or :443"
+              placeholder="192.168 or :443"
               className="mt-1 h-8 text-xs font-mono"
               onKeyDown={(e) => e.key === 'Enter' && run()}
             />
+          </div>
+          <div>
+            <Label className="text-xs">State</Label>
+            <Select value={stateFilter} onValueChange={setStateFilter}>
+              <SelectTrigger className="mt-1 h-8 text-xs w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All States</SelectItem>
+                {VISIBLE_STATES.map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <RunButton loading={state === 'loading'} onClick={run} label="Load Connections" />
           {result && <DurationBadge ms={result.duration_ms} />}
@@ -1766,66 +2092,645 @@ function ConntrackTool() {
 
         {result?.success && (
           <>
+            {/* Header Summary Bar */}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Badge variant="outline" className="text-xs px-3 py-1">
+                <span className="text-muted-foreground mr-1">Total</span>
+                <span className="font-bold tabular-nums">{totalConns}</span>
+              </Badge>
+              <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-xs px-3 py-1">
+                ESTABLISHED: {established}
+              </Badge>
+              <Badge className="bg-teal-500 hover:bg-teal-600 text-white border-0 text-xs px-3 py-1">
+                LISTEN: {listening}
+              </Badge>
+              <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-xs px-3 py-1">
+                TIME_WAIT: {timeWait}
+              </Badge>
+              <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-0 text-xs px-3 py-1">
+                CLOSE_WAIT: {closeWait}
+              </Badge>
+              <Badge className="bg-cyan-500 hover:bg-cyan-600 text-white border-0 text-xs px-3 py-1">
+                SYN_RECV: {synRecv}
+              </Badge>
+            </div>
+
+            {/* Utilization Bar */}
+            <div className="mt-3 rounded-lg border bg-muted/20 p-4">
+              <p className="text-xs font-medium mb-3">State Distribution</p>
+              <div className="flex h-6 rounded overflow-hidden bg-muted">
+                {totalConns > 0 && (
+                  <>
+                    {established > 0 && (
+                      <div className="bg-emerald-500 h-full transition-all" style={{ width: `${(established / totalConns) * 100}%` }} title={`ESTABLISHED: ${established}`} />
+                    )}
+                    {listening > 0 && (
+                      <div className="bg-teal-500 h-full transition-all" style={{ width: `${(listening / totalConns) * 100}%` }} title={`LISTEN: ${listening}`} />
+                    )}
+                    {timeWait > 0 && (
+                      <div className="bg-amber-500 h-full transition-all" style={{ width: `${(timeWait / totalConns) * 100}%` }} title={`TIME_WAIT: ${timeWait}`} />
+                    )}
+                    {closeWait > 0 && (
+                      <div className="bg-orange-500 h-full transition-all" style={{ width: `${(closeWait / totalConns) * 100}%` }} title={`CLOSE_WAIT: ${closeWait}`} />
+                    )}
+                    {synRecv > 0 && (
+                      <div className="bg-cyan-500 h-full transition-all" style={{ width: `${(synRecv / totalConns) * 100}%` }} title={`SYN_RECV: ${synRecv}`} />
+                    )}
+                  </>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> ESTABLISHED</span>
+                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-teal-500" /> LISTEN</span>
+                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> TIME_WAIT</span>
+                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" /> CLOSE_WAIT</span>
+                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-cyan-500" /> SYN_RECV</span>
+              </div>
+            </div>
+
+            {/* Summary Stats */}
             <SummaryBar
               items={[
-                { label: 'TCP', value: String(data?.totalTcp ?? 0) },
-                { label: 'UDP', value: String(data?.totalUdp ?? 0) },
-                { label: 'Total', value: String(data?.total ?? 0) },
+                { label: 'Total TCP', value: String(data?.totalTcp ?? allConnections.length) },
+                { label: 'Total UDP', value: String(data?.totalUdp ?? udpConnections.length) },
                 { label: 'Source', value: String(data?.source ?? '—') },
               ]}
             />
 
-            {Object.keys(stateCounts).length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {Object.entries(stateCounts).map(([state, count]) => (
-                  <Badge key={state} variant="outline" className="text-[10px]">{state}: {count}</Badge>
-                ))}
-              </div>
-            )}
-
+            {/* TCP/UDP Toggle */}
             <div className="flex gap-2 mt-4">
-              <Button variant={viewTab === 'tcp' ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => setViewTab('tcp')}>TCP ({connections.length})</Button>
-              <Button variant={viewTab === 'udp' ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => setViewTab('udp')}>UDP ({udpConnections.length})</Button>
+              <Button variant={viewTab === 'tcp' ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => { setViewTab('tcp'); setStateFilter('all'); }}>TCP ({allConnections.length})</Button>
+              <Button variant={viewTab === 'udp' ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => { setViewTab('udp'); setStateFilter('all'); }}>UDP ({udpConnections.length})</Button>
             </div>
 
-            {shownRows.length > 0 ? (
+            {/* Connection Table */}
+            {displayRows.length > 0 ? (
               <div className="mt-3">
                 <div className="rounded-lg border overflow-auto max-h-[500px]">
                   <Table>
                     <TableHeader className="sticky top-0 bg-background z-10">
                       <TableRow className="hover:bg-transparent">
-                        <TableHead className="text-[10px]">Proto</TableHead>
-                        <TableHead className="text-[10px]">Local</TableHead>
-                        <TableHead className="text-[10px]">Remote</TableHead>
-                        <TableHead className="text-[10px]">State</TableHead>
+                        <TableHead className="text-[10px] w-14">Proto</TableHead>
+                        <TableHead className="text-[10px]">Source IP</TableHead>
+                        <TableHead className="text-[10px] w-16">Src Port</TableHead>
+                        <TableHead className="text-[10px]">Dest IP</TableHead>
+                        <TableHead className="text-[10px] w-16">Dst Port</TableHead>
+                        <TableHead className="text-[10px] w-28">State</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {shownRows.map((e, i) => (
+                      {displayRows.map((e, i) => (
                         <TableRow key={i}>
                           <TableCell className="text-[11px] font-mono font-medium">{String(e.protocol)}</TableCell>
-                          <TableCell className="font-mono text-[11px]">{String(e.localAddress)}:{String(e.localPort)}</TableCell>
-                          <TableCell className="font-mono text-[11px]">{String(e.remoteAddress)}:{String(e.remotePort)}</TableCell>
+                          <TableCell className="font-mono text-[11px]">{String(e.localAddress)}</TableCell>
+                          <TableCell className="font-mono text-[11px] text-right">{String(e.localPort)}</TableCell>
+                          <TableCell className="font-mono text-[11px]">{String(e.remoteAddress)}</TableCell>
+                          <TableCell className="font-mono text-[11px] text-right">{String(e.remotePort)}</TableCell>
                           <TableCell>{getStateBadge(String(e.state))}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
                 </div>
-                {displayRows.length > maxRows && (
-                  <p className="mt-1 text-[10px] text-muted-foreground">
-                    Showing {maxRows} of {displayRows.length} {viewTab} connections. Use filter to narrow down.
-                  </p>
-                )}
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  Showing {displayRows.length} filtered {viewTab} connections
+                </p>
               </div>
             ) : (
               <div className="mt-4 text-center py-6 text-xs text-muted-foreground">
                 <Activity className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                No {viewTab} connections found{search ? ` matching "${search}"` : ''}
+                No {viewTab} connections found{search ? ` matching "${search}"` : ''}{stateFilter !== 'all' ? ` in ${stateFilter} state` : ''}
+              </div>
+            )}
+
+            {/* Top Talkers */}
+            {topTalkers.length > 0 && (
+              <div className="mt-5 rounded-lg border bg-muted/20 p-4">
+                <p className="text-xs font-medium mb-3">Top Talkers (by Source IP)</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                  {topTalkers.map(([ip, count], i) => (
+                    <div key={i} className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2">
+                      <span className="text-[10px] text-muted-foreground tabular-nums w-4">{i + 1}.</span>
+                      <span className="font-mono text-[11px] flex-1 truncate">{ip}</span>
+                      <Badge variant="outline" className="text-[10px] tabular-nums">{count}</Badge>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool 10: ROUTE TABLE
+// ═══════════════════════════════════════════════════════════════════
+
+function RouteTableTool() {
+  const { toast } = useToast();
+  const [state, setState] = useState<RunState>('idle');
+  const [result, setResult] = useState<ToolResult | null>(null);
+
+  const run = useCallback(async () => {
+    setState('loading');
+    setResult(null);
+    try {
+      const qs = new URLSearchParams({ action: 'route-table' });
+      const res = await fetch(`/api/wifi/diagnostics?${qs}`);
+      const json = await res.json();
+      const r: ToolResult = {
+        success: json.success !== false,
+        duration_ms: json.duration_ms || 0,
+        data: json.data || {},
+        error: json.error,
+      };
+      setResult(r);
+      setState('done');
+      if (r.success) {
+        toast({ title: 'Route Table Loaded', description: `${json.data?.total || 0} routes` });
+      }
+    } catch {
+      setState('done');
+      setResult({ success: false, duration_ms: 0, data: {}, error: 'Network error' });
+    }
+  }, [toast]);
+
+  const data = result?.data as Record<string, unknown> | undefined;
+  const routes = (data?.routes as Array<Record<string, unknown>>) || [];
+  const rawOutput = data?.rawOutput as string | undefined;
+
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <ToolHeader icon={Route} title="Route Table" description="Display the system routing table — kernel IP routing table entries" gradient="from-teal-500 to-emerald-600" />
+
+        <div className="flex items-center gap-2">
+          <RunButton loading={state === 'loading'} onClick={run} label="Show Routes" />
+          {result && <DurationBadge ms={result.duration_ms} />}
+          {result?.success && routes.length > 0 && (
+            <Badge variant="outline" className="text-[10px] ml-2">
+              {routes.length} routes
+            </Badge>
+          )}
+        </div>
+
+        {result?.error && <ErrorBox message={result.error} />}
+
+        {result?.success && routes.length > 0 && (
+          <div className="mt-4">
+            <div className="rounded-lg border overflow-auto max-h-[500px]">
+              <Table>
+                <TableHeader className="sticky top-0 bg-background z-10">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-[10px]">Destination</TableHead>
+                    <TableHead className="text-[10px]">Gateway</TableHead>
+                    <TableHead className="text-[10px]">Protocol</TableHead>
+                    <TableHead className="text-[10px]">Priority/Scope</TableHead>
+                    <TableHead className="text-[10px]">Dev</TableHead>
+                    <TableHead className="text-[10px] text-right">Metric</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {routes.map((r, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="font-mono text-[11px]">{String(r.destination)}</TableCell>
+                      <TableCell className="font-mono text-[11px]">{String(r.gateway || '*')}</TableCell>
+                      <TableCell className="text-[11px]">
+                        <Badge variant="outline" className="text-[10px]">{String(r.protocol || '—')}</Badge>
+                      </TableCell>
+                      <TableCell className="text-[11px]">{String(r.scope || '—')}</TableCell>
+                      <TableCell className="font-mono text-[11px]">{String(r.dev || r.interface || '—')}</TableCell>
+                      <TableCell className="text-[11px] text-right tabular-nums">{String(r.metric ?? '—')}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+
+        {result?.success && routes.length === 0 && rawOutput && (
+          <TerminalOutput content={rawOutput} label="Route Table Output" />
+        )}
+
+        {state === 'done' && routes.length === 0 && !rawOutput && !result?.error && (
+          <div className="mt-4 text-center py-8 text-xs text-muted-foreground">
+            <Route className="h-8 w-8 mx-auto mb-2 opacity-30" />
+            No route table data available
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool 11: INTERFACE STATS
+// ═══════════════════════════════════════════════════════════════════
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+}
+
+function InterfaceStatsTool() {
+  const { toast } = useToast();
+  const [state, setState] = useState<RunState>('idle');
+  const [result, setResult] = useState<ToolResult | null>(null);
+
+  const run = useCallback(async () => {
+    setState('loading');
+    setResult(null);
+    try {
+      const qs = new URLSearchParams({ action: 'interface-stats' });
+      const res = await fetch(`/api/wifi/diagnostics?${qs}`);
+      const json = await res.json();
+      const r: ToolResult = {
+        success: json.success !== false,
+        duration_ms: json.duration_ms || 0,
+        data: json.data || {},
+        error: json.error,
+      };
+      setResult(r);
+      setState('done');
+      if (r.success) {
+        const ifaces = json.data?.interfaces as Array<Record<string, unknown>> | undefined;
+        toast({ title: 'Interface Stats Loaded', description: `${ifaces?.length || 0} interfaces` });
+      }
+    } catch {
+      setState('done');
+      setResult({ success: false, duration_ms: 0, data: {}, error: 'Network error' });
+    }
+  }, [toast]);
+
+  const data = result?.data as Record<string, unknown> | undefined;
+  const hostname = data?.hostname as string | undefined;
+  const interfaces = (data?.interfaces as Array<Record<string, unknown>>) || [];
+
+  // Calculate total bytes for bandwidth bars
+  const totalRx = interfaces.reduce((sum, iface) => sum + Number(iface.rxBytes || 0), 0);
+  const totalTx = interfaces.reduce((sum, iface) => sum + Number(iface.txBytes || 0), 0);
+
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <ToolHeader icon={HardDrive} title="Interface Stats" description="Network interface statistics — RX/TX bytes, packets, errors, and drops" gradient="from-teal-500 to-cyan-600" />
+
+        <div className="flex items-center gap-2">
+          <RunButton loading={state === 'loading'} onClick={run} label="Refresh Stats" />
+          {result && <DurationBadge ms={result.duration_ms} />}
+        </div>
+
+        {result?.error && <ErrorBox message={result.error} />}
+
+        {result?.success && hostname && (
+          <div className="mt-4">
+            <Badge variant="outline" className="text-xs px-3 py-1">
+              <span className="text-muted-foreground mr-1">Hostname:</span>
+              <span className="font-mono">{hostname}</span>
+            </Badge>
+          </div>
+        )}
+
+        {result?.success && interfaces.length > 0 && (
+          <div className="mt-4 space-y-4">
+            {interfaces
+              .filter((iface) => String(iface.name) !== 'lo')
+              .map((iface, i) => {
+                const rxBytes = Number(iface.rxBytes || 0);
+                const txBytes = Number(iface.txBytes || 0);
+                const rxPackets = Number(iface.rxPackets || 0);
+                const txPackets = Number(iface.txPackets || 0);
+                const rxErrors = Number(iface.rxErrors || 0);
+                const txErrors = Number(iface.txErrors || 0);
+                const rxDrops = Number(iface.rxDrops || 0);
+                const txDrops = Number(iface.txDrops || 0);
+
+                const rxPct = totalRx > 0 ? (rxBytes / totalRx) * 100 : 0;
+                const txPct = totalTx > 0 ? (txBytes / totalTx) * 100 : 0;
+
+                return (
+                  <div key={i} className="rounded-lg border bg-muted/20 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <HardDrive className="h-4 w-4 text-teal-500" />
+                      <span className="text-sm font-semibold font-mono">{String(iface.name)}</span>
+                      {iface.operstate && (
+                        <Badge variant={String(iface.operstate) === 'UP' ? 'default' : 'outline'} className="text-[10px] ml-1">
+                          {String(iface.operstate)}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Bandwidth bars */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* RX */}
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-1">
+                          RX (Receive)
+                        </p>
+                        <div className="space-y-1.5">
+                          <div>
+                            <div className="flex justify-between text-[11px] mb-0.5">
+                              <span className="text-muted-foreground">Bytes</span>
+                              <span className="font-mono tabular-nums">{formatBytes(rxBytes)}</span>
+                            </div>
+                            <div className="h-2 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${Math.max(rxPct, 0.5)}%` }} />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-[11px]">
+                            <div><span className="text-muted-foreground">Packets:</span> <span className="font-mono tabular-nums">{rxPackets.toLocaleString()}</span></div>
+                            <div><span className="text-muted-foreground">Errors:</span> <span className={cn('font-mono tabular-nums', rxErrors > 0 ? 'text-red-500' : '')}>{rxErrors}</span></div>
+                            <div><span className="text-muted-foreground">Drops:</span> <span className={cn('font-mono tabular-nums', rxDrops > 0 ? 'text-red-500' : '')}>{rxDrops}</span></div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* TX */}
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-1">
+                          TX (Transmit)
+                        </p>
+                        <div className="space-y-1.5">
+                          <div>
+                            <div className="flex justify-between text-[11px] mb-0.5">
+                              <span className="text-muted-foreground">Bytes</span>
+                              <span className="font-mono tabular-nums">{formatBytes(txBytes)}</span>
+                            </div>
+                            <div className="h-2 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full bg-cyan-500 rounded-full transition-all" style={{ width: `${Math.max(txPct, 0.5)}%` }} />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-[11px]">
+                            <div><span className="text-muted-foreground">Packets:</span> <span className="font-mono tabular-nums">{txPackets.toLocaleString()}</span></div>
+                            <div><span className="text-muted-foreground">Errors:</span> <span className={cn('font-mono tabular-nums', txErrors > 0 ? 'text-red-500' : '')}>{txErrors}</span></div>
+                            <div><span className="text-muted-foreground">Drops:</span> <span className={cn('font-mono tabular-nums', txDrops > 0 ? 'text-red-500' : '')}>{txDrops}</span></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        )}
+
+        {result?.success && interfaces.length === 0 && (
+          <div className="mt-4 text-center py-8 text-xs text-muted-foreground">
+            <HardDrive className="h-8 w-8 mx-auto mb-2 opacity-30" />
+            No interface data available
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool 12: SERVER CONSOLE (WebSocket + xterm.js)
+// ═══════════════════════════════════════════════════════════════════
+
+function ServerConsoleTool() {
+  const [connected, setConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const termRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<ReturnType<typeof import('socket.io-client').io> | null>(null);
+  const termInstanceRef = useRef<import('@xterm/xterm').Terminal | null>(null);
+
+  const connectTerminal = useCallback(async () => {
+    if (connected || connecting) return;
+    setConnecting(true);
+
+    try {
+      // Dynamic imports for xterm
+      const { Terminal } = await import('@xterm/xterm');
+      const { FitAddon } = await import('@xterm/addon-fit');
+      const { io } = await import('socket.io-client');
+
+      // Import xterm CSS
+      await import('@xterm/xterm/css/xterm.css');
+
+      // Clear existing terminal
+      if (termRef.current) {
+        termRef.current.innerHTML = '';
+      }
+
+      // Create terminal
+      const term = new Terminal({
+        theme: {
+          background: '#0a0a0f',
+          foreground: '#d4d4d8',
+          cursor: '#10b981',
+          cursorAccent: '#0a0a0f',
+          selectionBackground: 'rgba(20, 184, 166, 0.3)',
+          black: '#0a0a0f',
+          red: '#ef4444',
+          green: '#10b981',
+          yellow: '#f59e0b',
+          blue: '#3b82f6',
+          magenta: '#a855f7',
+          cyan: '#06b6d4',
+          white: '#d4d4d8',
+          brightBlack: '#52525b',
+          brightRed: '#f87171',
+          brightGreen: '#34d399',
+          brightYellow: '#fbbf24',
+          brightBlue: '#60a5fa',
+          brightMagenta: '#c084fc',
+          brightCyan: '#22d3ee',
+          brightWhite: '#f4f4f5',
+        },
+        fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+        fontSize: 13,
+        lineHeight: 1.2,
+        cursorBlink: true,
+        cursorStyle: 'block',
+        scrollback: 5000,
+        convertEol: true,
+      });
+
+      const fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
+      termInstanceRef.current = term;
+
+      if (termRef.current) {
+        term.open(termRef.current);
+        // Delay fit slightly to ensure container is sized
+        setTimeout(() => fitAddon.fit(), 100);
+      }
+
+      term.writeln('\x1b[90mConnecting to server console...\x1b[0m');
+
+      // Connect socket.io
+      const socket = io('/?XTransformPort=3025', {
+        transports: ['websocket'],
+        reconnection: false,
+        timeout: 10000,
+      });
+      socketRef.current = socket as ReturnType<typeof import('socket.io-client').io>;
+
+      socket.on('connect', () => {
+        setConnected(true);
+        setConnecting(false);
+        term.writeln('\x1b[32m✓ Connected to server console\x1b[0m\r\n');
+
+        // Send initial resize
+        setTimeout(() => {
+          try {
+            fitAddon.fit();
+            socket.emit('resize', { cols: term.cols, rows: term.rows });
+          } catch { /* ignore */ }
+        }, 200);
+      });
+
+      socket.on('output', (data: string) => {
+        term.write(data);
+      });
+
+      socket.on('exit', (code: number) => {
+        term.writeln(`\r\n\x1b[33m⚠ Shell exited with code ${code}\x1b[0m`);
+        setConnected(false);
+        socket.disconnect();
+      });
+
+      socket.on('disconnect', (reason: string) => {
+        term.writeln(`\r\n\x1b[31m✗ Disconnected: ${reason}\x1b[0m`);
+        setConnected(false);
+      });
+
+      socket.on('connect_error', (err: Error) => {
+        term.writeln(`\r\n\x1b[31m✗ Connection failed: ${err.message}\x1b[0m`);
+        setConnected(false);
+        setConnecting(false);
+      });
+
+      // User input → send to server
+      term.onData((input: string) => {
+        if (socket.connected) {
+          socket.emit('input', input);
+        }
+      });
+
+      // Handle resize
+      term.onResize(({ cols, rows }) => {
+        if (socket.connected) {
+          socket.emit('resize', { cols, rows });
+        }
+      });
+
+      // Handle window resize
+      const handleResize = () => {
+        try { fitAddon.fit(); } catch { /* ignore */ }
+      };
+      window.addEventListener('resize', handleResize);
+
+      // Store cleanup
+      (termRef.current as unknown as Record<string, unknown>).__cleanup = () => {
+        window.removeEventListener('resize', handleResize);
+        term.dispose();
+        socket.disconnect();
+      };
+    } catch (err) {
+      setConnecting(false);
+      console.error('Failed to connect terminal:', err);
+    }
+  }, [connected, connecting]);
+
+  const disconnectTerminal = useCallback(() => {
+    if (termRef.current && (termRef.current as unknown as Record<string, unknown>).__cleanup) {
+      (termRef.current as unknown as Record<string, unknown>).__cleanup();
+    }
+    socketRef.current?.disconnect();
+    termInstanceRef.current?.dispose();
+    setConnected(false);
+  }, []);
+
+  const reconnectTerminal = useCallback(() => {
+    disconnectTerminal();
+    setTimeout(() => connectTerminal(), 300);
+  }, [disconnectTerminal, connectTerminal]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (termRef.current && (termRef.current as unknown as Record<string, unknown>).__cleanup) {
+        (termRef.current as unknown as Record<string, unknown>).__cleanup();
+      }
+      socketRef.current?.disconnect();
+      termInstanceRef.current?.dispose();
+    };
+  }, []);
+
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <ToolHeader icon={Terminal} title="Server Console" description="WebSocket-based terminal with real-time shell access to the gateway" gradient="from-slate-700 to-slate-900" />
+
+        <div className="flex items-center gap-3">
+          <Button
+            size="sm"
+            className="h-8 px-4"
+            disabled={connected || connecting}
+            onClick={connectTerminal}
+          >
+            {connecting ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                Connecting...
+              </>
+            ) : (
+              <>
+                <Play className="h-3.5 w-3.5 mr-1.5" />
+                Connect
+              </>
+            )}
+          </Button>
+          {connected && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-3"
+              onClick={reconnectTerminal}
+            >
+              Reconnect
+            </Button>
+          )}
+          <Badge
+            variant="outline"
+            className={cn(
+              'text-[10px] ml-1',
+              connected && 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20',
+              connecting && 'border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20',
+              !connected && !connecting && 'border-slate-400/50 text-slate-500',
+            )}
+          >
+            <span className={cn(
+              'h-1.5 w-1.5 rounded-full mr-1.5',
+              connected && 'bg-emerald-500',
+              connecting && 'bg-amber-500 animate-pulse',
+              !connected && !connecting && 'bg-slate-400',
+            )} />
+            {connected ? 'Connected' : connecting ? 'Connecting...' : 'Disconnected'}
+          </Badge>
+        </div>
+
+        <div className="mt-4">
+          <div
+            ref={termRef}
+            className="w-full rounded-lg border border-slate-800 overflow-hidden"
+            style={{
+              height: '400px',
+              minHeight: '400px',
+              background: '#0a0a0f',
+            }}
+          />
+        </div>
       </CardContent>
     </Card>
   );
@@ -1844,7 +2749,10 @@ const TOOLS = [
   { id: 'packet-capture', label: 'Packet Capture', icon: Shield },
   { id: 'speed-test', label: 'Speed Test', icon: Gauge },
   { id: 'port-check', label: 'Port Check', icon: Zap },
-  { id: 'conntrack', label: 'Connections', icon: Activity },
+  { id: 'connections', label: 'Connections', icon: Activity },
+  { id: 'route-table', label: 'Route Table', icon: Route },
+  { id: 'interface-stats', label: 'Interfaces', icon: HardDrive },
+  { id: 'server-console', label: 'Console', icon: Terminal },
 ];
 
 export default function GatewayDiagnostics() {
@@ -1857,7 +2765,7 @@ export default function GatewayDiagnostics() {
           Gateway Diagnostics
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Network troubleshooting tools — ping, traceroute, DNS, ARP, packet capture, speed test
+          Network troubleshooting tools — ping, traceroute, DNS, ARP, packet capture, speed test, console
         </p>
       </div>
 
@@ -1919,9 +2827,24 @@ export default function GatewayDiagnostics() {
           <PortCheckTool />
         </TabsContent>
 
-        {/* Tab: Conntrack */}
-        <TabsContent value="conntrack" className="mt-4">
+        {/* Tab: Connections */}
+        <TabsContent value="connections" className="mt-4">
           <ConntrackTool />
+        </TabsContent>
+
+        {/* Tab: Route Table */}
+        <TabsContent value="route-table" className="mt-4">
+          <RouteTableTool />
+        </TabsContent>
+
+        {/* Tab: Interface Stats */}
+        <TabsContent value="interface-stats" className="mt-4">
+          <InterfaceStatsTool />
+        </TabsContent>
+
+        {/* Tab: Server Console */}
+        <TabsContent value="server-console" className="mt-4">
+          <ServerConsoleTool />
         </TabsContent>
       </Tabs>
     </div>

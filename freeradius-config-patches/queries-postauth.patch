@@ -8,8 +8,9 @@
 -- This version also captures:
 --   - calledstationid: AP MAC address (Called-Station-Id from RADIUS request)
 --   - callingstationid: Client MAC address (Calling-Station-Id from RADIUS request)
---   - nasipaddress: NAS source IP address
+--   - "nasIpAddress": NAS source IP address (camelCase to match Prisma schema)
 --   - clientipaddress: User's Framed-IP-Address (assigned by NAS/DHCP)
+--   - "replyMessage": Actual RADIUS Reply-Message (e.g., IP pool denial reason)
 -- =============================================================================
 
 post-auth {
@@ -17,7 +18,8 @@ post-auth {
                 INSERT INTO ${..postauth_table} \
                         (username, pass, reply, authdate, \
                          calledstationid, callingstationid, \
-                         nasipaddress, clientipaddress \
+                         \"nasIpAddress\", clientipaddress, \
+                         \"replyMessage\" \
                          ${..class.column_name}) \
                 VALUES(\
                         '%{User-Name}', \
@@ -27,6 +29,7 @@ post-auth {
                         '%{Called-Station-Id}', \
                         '%{Calling-Station-Id}', \
                         '%{NAS-IP-Address}', \
-                        '%{request:Framed-IP-Address}' \
+                        '%{request:Framed-IP-Address}', \
+                        '%{reply:Reply-Message}' \
                         ${..class.reply_xlat})"
 }

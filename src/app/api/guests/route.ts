@@ -73,6 +73,21 @@ export async function GET(request: NextRequest) {
             bookings: true,
           },
         },
+        bookings: {
+          where: {
+            status: { in: ['confirmed', 'checked_in'] },
+          },
+          select: {
+            id: true,
+            confirmationCode: true,
+            status: true,
+            roomId: true,
+            checkIn: true,
+            checkOut: true,
+          },
+          orderBy: { checkIn: 'asc' },
+          take: 1,
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -81,16 +96,38 @@ export async function GET(request: NextRequest) {
       ...(offset && { skip: Math.max(parseInt(offset, 10), 0) }),
     });
 
+    // Fetch room numbers for active bookings
+    const roomIdsSet = new Set(guests.flatMap(g => g.bookings.map(b => b.roomId).filter(Boolean)));
+    const roomIds = Array.from(roomIdsSet) as string[];
+    const rooms = roomIds.length > 0
+      ? await db.room.findMany({
+          where: { id: { in: roomIds } },
+          select: { id: true, number: true },
+        })
+      : [];
+    const roomMap = new Map(rooms.map(r => [r.id, r.number]));
+
     const total = await db.guest.count({ where });
 
     return NextResponse.json({
       success: true,
-      data: guests.map((g) => ({
-        ...g,
-        preferences: safeJsonParse(g.preferences),
-        tags: safeJsonParse(g.tags),
-        totalBookings: g._count.bookings,
-      })),
+      data: guests.map((g) => {
+        const activeBooking = g.bookings[0] || null;
+        return {
+          ...g,
+          preferences: safeJsonParse(g.preferences),
+          tags: safeJsonParse(g.tags),
+          totalBookings: g._count.bookings,
+          activeBooking: activeBooking ? {
+            id: activeBooking.id,
+            confirmationCode: activeBooking.confirmationCode,
+            status: activeBooking.status,
+            roomNumber: activeBooking.roomId ? (roomMap.get(activeBooking.roomId) || null) : null,
+            checkIn: activeBooking.checkIn,
+            checkOut: activeBooking.checkOut,
+          } : null,
+        };
+      }),
       pagination: {
         total,
         limit: limit ? Math.min(Math.max(parseInt(limit, 10), 1), 100) : null,

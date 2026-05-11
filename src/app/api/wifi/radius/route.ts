@@ -19,6 +19,7 @@ import { requireAuth, requirePermission, hasPermission } from '@/lib/auth/tenant
 import { db } from '@/lib/db';
 import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
 import { updateUserBandwidthLive } from '@/lib/network/tc-bw-update';
+import { inferDeviceInfo } from '@/lib/mac-vendor-lookup';
 
 const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
 
@@ -85,6 +86,7 @@ async function freeradiusRequest(endpoint: string, options: RequestInit = {}) {
 const VIEW_ACTIONS = new Set([
   'auth-logs', 'auth-logs-stats',
   'live-sessions-list', 'live-sessions-get', 'live-sessions-stats',
+  'live-speeds',
   'user-usage-summary', 'user-usage-detail',
   'accounting', 'accounting-status', 'accounting-db', 'active-accounting',
   'sessions', 'active-sessions',
@@ -794,6 +796,8 @@ export async function GET(request: NextRequest) {
             sessionTime: number;
             dataDownload: number;
             dataUpload: number;
+            avgSpeedDown: number;
+            avgSpeedUp: number;
             status: 'active';
             startedAt: string | null;
             lastSeenAt: string | null;
@@ -803,6 +807,7 @@ export async function GET(request: NextRequest) {
             roomId: string;
             guestName: string;
             propertyName: string;
+            nasPortType: string;
           }
 
           const sessionsMap = new Map<string, LiveSessionEntry>();
@@ -812,6 +817,8 @@ export async function GET(request: NextRequest) {
             // Parse OS/browser from UA string
             let os = 'Unknown';
             let browser = 'Unknown';
+            let devType = s.deviceType || '';
+            let devName = s.deviceName || '';
             if (s.userAgent) {
               ({ os, browser } = parseDeviceFromUA(s.userAgent));
             } else if (s.deviceType || s.deviceName) {
@@ -824,6 +831,17 @@ export async function GET(request: NextRequest) {
               else if (/mac/.test(dn)) os = 'macOS';
               else if (/chromebook/.test(dn)) os = 'Chrome OS';
               else if (/linux/.test(dn)) os = 'Linux';
+            } else {
+              // No UA, no DeviceProfile (external NAS) — use MAC OUI vendor lookup
+              const mac = s.callingstationid || s.dp_macAddress || '';
+              if (mac) {
+                const ouiInfo = inferDeviceInfo(mac);
+                if (ouiInfo.vendor !== 'Unknown') {
+                  devName = ouiInfo.deviceName;
+                  devType = ouiInfo.deviceType;
+                  os = ouiInfo.os;
+                }
+              }
             }
             sessionsMap.set(sessionId, {
               id: sessionId,
@@ -832,9 +850,9 @@ export async function GET(request: NextRequest) {
               macAddress: s.callingstationid || s.dp_macAddress || '',
               nasIp: stripCidr(s.nasipaddress),
               nasIdentifier: s.calledstationid || '',
-              // Device info from DeviceProfile (enriched by browser fingerprint)
-              deviceType: s.deviceType || '',
-              deviceName: s.deviceName || '',
+              // Device info: DeviceProfile (fingerprint) > MAC OUI (external NAS) > empty
+              deviceType: devType,
+              deviceName: devName,
               operatingSystem: os,
               browser,
               userAgent: s.userAgent || '',
@@ -849,6 +867,9 @@ export async function GET(request: NextRequest) {
               // RADIUS: acctoutputoctets = NAS→client (download), acctinputoctets = client→NAS (upload)
               dataDownload: Number(s.acctoutputoctets || 0),
               dataUpload: Number(s.acctinputoctets || 0),
+              // Average speed: bytes * 8 bits / seconds = bps → Mbps
+              avgSpeedDown: (Number(s.acctoutputoctets || 0) * 8) / Math.max(1, Number(s.acctsessiontime || 1)) / 1_000_000,
+              avgSpeedUp: (Number(s.acctinputoctets || 0) * 8) / Math.max(1, Number(s.acctsessiontime || 1)) / 1_000_000,
               status: 'active' as const,
               startedAt: s.acctstarttime || '',
               lastSeenAt: s.acctupdatetime || '',
@@ -860,6 +881,7 @@ export async function GET(request: NextRequest) {
               // Enriched fields from view
               guestName: [s.guest_first_name, s.guest_last_name].filter(Boolean).join(' ') || '',
               propertyName: s.property_name || '',
+              nasPortType: s.nasporttype || '',
             });
           }
           const sessions = Array.from(sessionsMap.values());
@@ -1003,6 +1025,30 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // ─── Live Speeds (Tier 2: real-time speed from live-speed-service) ──
+      case 'live-speeds': {
+        try {
+          const speedRes = await fetch('http://127.0.0.1:3018/speeds', {
+            signal: AbortSignal.timeout(3000),
+          });
+          if (speedRes.ok) {
+            const speedData = await speedRes.json();
+            // Transform: { speeds: { [ip]: { speedDown, speedUp, ... } } } → { [ip]: { speedDown, speedUp } }
+            if (speedData.speeds && typeof speedData.speeds === 'object') {
+              const mapped: Record<string, { speedDown: number; speedUp: number }> = {};
+              for (const [ip, info] of Object.entries(speedData.speeds)) {
+                const s = info as { speedDown?: number; speedUp?: number };
+                mapped[ip] = { speedDown: s.speedDown || 0, speedUp: s.speedUp || 0 };
+              }
+              return NextResponse.json({ success: true, data: mapped });
+            }
+          }
+        } catch {
+          // Service not running — return empty (avg speed fallback works in frontend)
+        }
+        return NextResponse.json({ success: true, data: {} });
+      }
+
       // ─── Accsium Gap: CoA Audit ─────────────────────────────
       case 'coa-audit-list': {
         const queryParams = new URLSearchParams();
@@ -1052,7 +1098,7 @@ export async function GET(request: NextRequest) {
             LEFT JOIN "BandwidthPolicy" bp ON fap."switchOverBwPolicyId" = bp.id
             ${whereClause}
             ORDER BY fap.priority ASC, fap."createdAt" DESC
-            LIMIT $${sqlParams.length - 1} OFFSET $${sqlParams.length}
+            LIMIT $${sqlParams.length - 1}::bigint OFFSET $${sqlParams.length}::bigint
           `, ...sqlParams);
 
           const totalResult = await db.$queryRawUnsafe<[{ c: number | bigint }][]>(
@@ -1165,7 +1211,7 @@ export async function GET(request: NextRequest) {
             LEFT JOIN "User" u ON u.id::text = h."changedBy"
             ${whereClause}
             ORDER BY h."createdAt" DESC
-            LIMIT $${sqlParams.length - 1} OFFSET $${sqlParams.length}
+            LIMIT $${sqlParams.length - 1}::bigint OFFSET $${sqlParams.length}::bigint
           `, ...sqlParams);
 
           const safeRows = JSON.parse(JSON.stringify(rows, (_, v) => typeof v === 'bigint' ? Number(v) : v));
@@ -1344,13 +1390,14 @@ export async function GET(request: NextRequest) {
             room_number: string | null;
             property_name: string | null;
             plan_name: string | null;
+            nasporttype: string | null;
           }[]>(`
             SELECT DISTINCT ON (radacctid) radacctid, acctuniqueid, acctsessionid, username,
                    nasipaddress, calledstationid, framedipaddress, callingstationid,
                    acctstarttime, acctstoptime, acctsessiontime,
                    acctinputoctets, acctoutputoctets, acctupdatetime,
                    guest_first_name, guest_last_name, room_number,
-                   property_name, plan_name
+                   property_name, plan_name, nasporttype
             FROM v_session_history ${whereClause}
             ORDER BY radacctid, acctstarttime DESC
           `, ...sqlParams);
@@ -1374,6 +1421,7 @@ export async function GET(request: NextRequest) {
             roomNumber: r.room_number || '',
             propertyName: r.property_name || '',
             planName: r.plan_name || '',
+            nasPortType: r.nasporttype || '',
           }));
 
           // Build daily usage breakdown
@@ -1460,6 +1508,7 @@ export async function GET(request: NextRequest) {
                 uploadBytes: Number(s.acctinputoctets) || 0,
                 sessionTime: Number(s.acctsessiontime) || 0,
                 isActive: s.status === 'active' || s.acctstoptime === null,
+                nasPortType: s.nasporttype || '',
               }));
             }
             if (Array.isArray(backendData.dailyUsage)) {
@@ -2213,8 +2262,8 @@ export async function POST(request: NextRequest) {
           // Disconnect active sessions if suspending/deactivating
           if (newStatus === 'suspended' || newStatus === 'deactivated') {
             try {
-              const activeSessions = await db.$queryRawUnsafe<{ acctuniqueid: string; acctsessionid: string; nasipaddress: string }[]>(
-                'SELECT acctuniqueid, acctsessionid, nasipaddress FROM radacct WHERE username = $1 AND acctstoptime IS NULL LIMIT 10',
+              const activeSessions = await db.$queryRawUnsafe<{ acctuniqueid: string; acctsessionid: string; nasipaddress: string; framedipaddress: string }[]>(
+                'SELECT acctuniqueid, acctsessionid, nasipaddress, framedipaddress FROM radacct WHERE username = $1 AND acctstoptime IS NULL LIMIT 10',
                 user.username
               );
 
@@ -2247,10 +2296,10 @@ export async function POST(request: NextRequest) {
 
                   // Send Disconnect-Message via radclient (best-effort)
                   try {
-                    const radclientPath = process.cwd() + '/freeradius-install/bin/radclient';
+                    const radclientPath = '/usr/bin/radclient';
                     const { execSync } = await import('child_process');
                     const fs = await import('fs');
-                    const attrs = 'User-Name="' + user.username + '"\nAcct-Session-Id="' + session.acctsessionid + '"';
+                    const attrs = 'User-Name="' + user.username + '"\nAcct-Session-Id="' + session.acctsessionid + '"' + (session.framedipaddress ? '\nFramed-IP-Address=' + session.framedipaddress.replace(/\/\d+$/, '') : '');
                     const tmpAttrsFile = '/tmp/radclient-disconnect-' + Date.now() + '.txt';
                     fs.writeFileSync(tmpAttrsFile, attrs + '\n');
                     try {
@@ -2762,6 +2811,57 @@ export async function POST(request: NextRequest) {
             } catch (liveErr) {
               console.warn(`[update-user] Live bandwidth push failed (non-fatal):`, liveErr);
             }
+
+            // Push bandwidth via CoA to external NAS (MikroTik, Cisco, etc.)
+            try {
+              const dlMbpsCoa = dlBps / 1000000;
+              const ulMbpsCoa = ulBps / 1000000;
+              const extSessions = await db.$queryRawUnsafe<Array<{
+                framedipaddress: string; callingstationid: string; nasipaddress: string; acctsessionid: string;
+              }>>('SELECT framedipaddress, callingstationid, nasipaddress, acctsessionid FROM radacct WHERE username = $1 AND acctstoptime IS NULL AND nasipaddress != \'127.0.0.1\' LIMIT 1', existingUser.username);
+              console.log(`[update-user] External NAS check for ${existingUser.username}: ${extSessions.length} active external sessions found`);
+              if (extSessions.length > 0) {
+                const s = extSessions[0];
+                const nasIp = (s.nasipaddress || '').replace(/\/\d+$/, '');
+                console.log(`[update-user] External session: nasIp=${nasIp}, mac=${s.callingstationid}, ip=${s.framedipaddress}, sessionId=${s.acctsessionid}`);
+                const nasRows = await db.$queryRawUnsafe<Array<{ secret: string; ports: number; type: string }>>(
+                  `SELECT secret, ports, type FROM nas WHERE nasname = $1 LIMIT 1`, nasIp
+                );
+                console.log(`[update-user] NAS lookup for ${nasIp}: ${nasRows.length} rows found`);
+                if (nasRows.length > 0) {
+                  const nasInfo = nasRows[0];
+                  const vendor = (nasInfo.type || 'other').toLowerCase();
+                  let coaAttrs = `User-Name="${existingUser.username}"`;
+                  const mac = (s.callingstationid || '').replace(/\/\d+$/, '');
+                  if (mac) coaAttrs += `\nCalling-Station-Id="${mac}"`;
+                  if (s.framedipaddress) coaAttrs += `\nFramed-IP-Address=${s.framedipaddress.replace(/\/\d+$/, '')}`;
+                  if (s.acctsessionid) coaAttrs += `\nAcct-Session-Id="${s.acctsessionid}"`;
+                  if (vendor === 'mikrotik') {
+                    coaAttrs += `\nMikrotik-Rate-Limit="${ulMbpsCoa}M/${dlMbpsCoa}M"`;
+                  } else if (vendor === 'cisco') {
+                    coaAttrs += `\nCisco-AVPair="sub:Ingress-Committed-Data-Rate=${ulBps}"\nCisco-AVPair="sub:Egress-Committed-Data-Rate=${dlBps}"`;
+                  } else {
+                    coaAttrs += `\nWISPr-Bandwidth-Max-Down=${dlBps}\nWISPr-Bandwidth-Max-Up=${ulBps}`;
+                  }
+                  const { execSync: execCoA } = await import('child_process');
+                  const fsCoA = await import('fs');
+                  const tmpFile = `/tmp/radclient-coa-${Date.now()}.txt`;
+                  try {
+                    fsCoA.writeFileSync(tmpFile, coaAttrs + '\n');
+                    const cmd = `/usr/bin/radclient -t 3 -r 1 ${nasIp}:${nasInfo.ports || 3799} coa ${nasInfo.secret} < ${tmpFile} 2>&1`;
+                    const output = execCoA(cmd, { timeout: 5000 }).toString();
+                    console.log(`[update-user] CoA ${output.includes('CoA-ACK') ? 'OK' : 'FAIL'}: ${existingUser.username}@${nasIp} → ${ulMbpsCoa}M/${dlMbpsCoa}M vendor=${vendor}`);
+                  } catch (coaExecErr: unknown) {
+                    const errObj = coaExecErr as Error & { stdout?: string; stderr?: string };
+                    console.warn(`[update-user] CoA error: ${existingUser.username}@${nasIp}: ${(errObj.stdout || errObj.stderr || '').trim()}`);
+                  } finally {
+                    try { fsCoA.unlinkSync(tmpFile); } catch { /* ignore */ }
+                  }
+                }
+              }
+            } catch (coaErr) {
+              console.warn(`[update-user] External NAS CoA failed (non-fatal):`, coaErr);
+            }
           }
 
           // 6. Handle session timeout
@@ -3145,9 +3245,12 @@ export async function POST(request: NextRequest) {
 
       case 'live-sessions-disconnect': {
         // Accept both sessionId (LiveSession id, may have ls_ prefix) and acctSessionId (bare)
-        const { sessionId, acctSessionId, username, nasIp } = data;
+        const { sessionId, acctSessionId, username, nasIp, framedIpAddress } = data;
         const effectiveSessionId = sessionId || acctSessionId;
+        const disconnectNasIp = (nasIp || '').replace(/\/\d+$/, '');
+        const isLocalNas = disconnectNasIp === '127.0.0.1' || disconnectNasIp === '';
         console.log('[live-sessions-disconnect] RAW data:', JSON.stringify({ sessionId, acctSessionId, username, nasIp }));
+        console.log('[live-sessions-disconnect] isLocalNas:', isLocalNas, 'nasIp:', disconnectNasIp);
 
         if (!username && !effectiveSessionId) {
           return NextResponse.json({ success: false, error: 'Username or sessionId is required' }, { status: 400 });
@@ -3157,35 +3260,94 @@ export async function POST(request: NextRequest) {
         const bareSessionId = effectiveSessionId?.startsWith('ls_') ? effectiveSessionId.slice(3) : effectiveSessionId;
         const disconnectUsername = username || '';
         console.log('[live-sessions-disconnect] Resolved:', { bareSessionId, disconnectUsername, nasIp: nasIp || '' });
-        const disconnectNasIp = nasIp || '';
 
-        // 1. Try RADIUS CoA/Disconnect-Message to NAS (best-effort)
+
+        // 1. RADIUS CoA/Disconnect-Message — ONLY for external NAS (NOT 127.0.0.1)
+        // Local NAS is this machine — sessions are managed via nftables/TC, not RADIUS DM.
         let coaSuccess = false;
         let coaMessage = '';
+        if (!isLocalNas) {
         try {
-          // Look up NAS secret from PostgreSQL
+          // Look up NAS secret + CoA port from FreeRADIUS service (SQLite)
           // GUI may send nasIp with CIDR (e.g. 192.168.1.1/32) — strip it for NAS lookup
           let nasSecret = '';
           let coaPort = 3799;
-          const cleanNasIp = disconnectNasIp.replace(/\/\d+$/, ''); // strip /32 CIDR suffix
+          const cleanNasIp = disconnectNasIp;
           try {
-            const nasRows = await db.$queryRawUnsafe<{ nasname: string; secret: string; ports: number | null }[]>(
-              `SELECT nasname, secret, ports FROM nas WHERE nasname = $1 LIMIT 1`,
-              cleanNasIp
-            );
-            if (nasRows.length > 0) {
-              nasSecret = nasRows[0].secret;
-              coaPort = nasRows[0].ports || 3799;
+            // Try FreeRADIUS service first (has coaPort from SQLite)
+            const frRes = await fetch(`http://127.0.0.1:${process.env.FREERADIUS_PORT || 3004}/api/nas/lookup?nasIp=${encodeURIComponent(cleanNasIp)}`);
+            if (frRes.ok) {
+              const frData = await frRes.json();
+              if (frData.success && frData.data) {
+                nasSecret = frData.data.secret || '';
+                coaPort = frData.data.coaPort || 3799;
+                console.log('[live-sessions-disconnect] NAS from FreeRADIUS service: secret=' + (nasSecret ? '***' : '(none)') + ' coaPort=' + coaPort);
+              }
             }
-          } catch { /* NAS lookup failed */ }
+          } catch (e) { console.warn('[live-sessions-disconnect] FreeRADIUS NAS lookup failed, trying PostgreSQL:', e); }
+          // Fallback: look up from PostgreSQL nas table
+          if (!nasSecret) {
+            try {
+              const nasRows = await db.$queryRawUnsafe<{ nasname: string; secret: string; ports: number | null }[]>(
+                `SELECT nasname, secret, ports FROM nas WHERE nasname = $1 LIMIT 1`,
+                cleanNasIp
+              );
+              if (nasRows.length > 0) {
+                nasSecret = nasRows[0].secret;
+                coaPort = nasRows[0].ports || 3799;
+              }
+            } catch { /* PostgreSQL NAS lookup failed */ }
+          }
           if (!nasSecret) {
             console.warn('[live-sessions-disconnect] No NAS secret found for ' + cleanNasIp + ', cannot send RADIUS disconnect');
             coaMessage = 'No NAS secret configured for ' + cleanNasIp;
           } else {
 
-          // Build radclient attributes — use clean IP (without CIDR) for radclient
-          const radclientPath = `${process.cwd()}/freeradius-install/bin/radclient`;
-          const attrs = `User-Name="${disconnectUsername}"${bareSessionId ? `\nAcct-Session-Id="${bareSessionId}"` : ''}`;
+          // Build radclient attributes for disconnect
+          const radclientPath = '/usr/bin/radclient';
+
+          // Look up the REAL RADIUS session attributes from radacct.
+          // The frontend sends acctuniqueid as acctSessionId, but MikroTik needs
+          // the actual Acct-Session-Id and Calling-Station-Id (MAC) that IT assigned.
+          let realAcctSessionId = '';
+          let resolvedIp = framedIpAddress ? framedIpAddress.replace(/\/\d+$/, '') : '';
+          let callingStationId = '';
+
+          try {
+            const sessionRows = await db.$queryRawUnsafe<Array<{
+              acctsessionid: string;
+              framedipaddress: string;
+              callingstationid: string;
+              acctuniqueid: string;
+            }[]>>(`
+              SELECT acctsessionid, framedipaddress, callingstationid, acctuniqueid
+              FROM radacct
+              WHERE (username = $1 OR acctuniqueid = $2)
+                AND acctstoptime IS NULL
+              ORDER BY acctstarttime DESC LIMIT 1
+            `, disconnectUsername, bareSessionId || '');
+            if (sessionRows.length > 0) {
+              const row = sessionRows[0];
+              realAcctSessionId = row.acctsessionid || '';
+              if (!resolvedIp && row.framedipaddress) {
+                resolvedIp = row.framedipaddress.replace(/\/\d+$/, '');
+              }
+              callingStationId = (row.callingstationid || '').replace(/\/\d+$/, '');
+            }
+          } catch { /* non-fatal */ }
+
+          // Build attribute lines:
+          // - User-Name: always (identifies the user)
+          // - Calling-Station-Id: MAC address (MikroTik's primary session identifier)
+          // - Framed-IP-Address: client IP (MikroTik secondary identifier)
+          // - Acct-Session-Id: ONLY use the real RADIUS value from radacct (NOT acctuniqueid)
+          const attrLines: string[] = [`User-Name="${disconnectUsername}"`];
+          if (callingStationId) attrLines.push(`Calling-Station-Id="${callingStationId}"`);
+          if (resolvedIp && resolvedIp !== '0.0.0.0') attrLines.push(`Framed-IP-Address=${resolvedIp}`);
+          if (realAcctSessionId && realAcctSessionId !== bareSessionId) {
+            attrLines.push(`Acct-Session-Id="${realAcctSessionId}"`);
+          }
+          const attrs = attrLines.join('\n');
           const tmpAttrsFile = `/tmp/radclient-disconnect-${Date.now()}.txt`;
           const { execSync } = await import('child_process');
           const fs = await import('fs');
@@ -3193,15 +3355,22 @@ export async function POST(request: NextRequest) {
           try {
             fs.writeFileSync(tmpAttrsFile, attrs + '\n');
             const cmd = `${radclientPath} -t 3 -r 1 ${cleanNasIp}:${coaPort} disconnect ${nasSecret} < ${tmpAttrsFile} 2>&1`;
+            console.log('[live-sessions-disconnect] Sending RADIUS disconnect to ' + cleanNasIp + ':' + coaPort + ' user=' + disconnectUsername + ' ip=' + (resolvedIp || '(none)') + ' mac=' + (callingStationId || '(none)'));
+            console.log('[live-sessions-disconnect] radclient attrs: ' + attrs);
             const output = execSync(cmd, { timeout: 5000 }).toString();
             coaMessage = output.trim();
             coaSuccess = output.includes('Disconnect-ACK') || output.includes('CoA-ACK') || output.includes('received');
+            console.log('[live-sessions-disconnect] CoA result: success=' + coaSuccess + ' output=' + coaMessage);
           } catch (execErr: unknown) {
-            coaMessage = execErr instanceof Error ? execErr.message : String(execErr);
+            // execSync wraps the real error — extract stdout/stderr which contain the actual radclient output
+            const errObj = execErr as Error & { stdout?: string; stderr?: string };
+            const realOutput = [errObj.stdout || '', errObj.stderr || '', errObj.message || ''].filter(Boolean).join('\n');
+            coaMessage = realOutput.trim() || errObj.message;
             // radclient returns non-zero exit code even on timeout, but may have succeeded
             if (coaMessage.includes('Disconnect-ACK') || coaMessage.includes('CoA-ACK')) {
               coaSuccess = true;
             }
+            console.log('[live-sessions-disconnect] CoA result (exec error): success=' + coaSuccess + ' output=' + coaMessage);
           } finally {
             try { fs.unlinkSync(tmpAttrsFile); } catch { /* ignore */ }
           }
@@ -3209,6 +3378,7 @@ export async function POST(request: NextRequest) {
         } catch (coaErr) {
           coaMessage = coaErr instanceof Error ? coaErr.message : String(coaErr);
         }
+        } // end if (!isLocalNas) — skip radclient for local NAS
 
         // 2. ALWAYS end the session in PostgreSQL (the critical part)
         let localEnded = false;
@@ -3319,10 +3489,9 @@ export async function POST(request: NextRequest) {
             console.warn(`[live-sessions-disconnect] Could not resolve client IP for ${disconnectUsername} — counter + firewall cleanup SKIPPED`);
           }
 
-          // 2f. Call logout script for full nft + TC cleanup
-          // The live-sessions-disconnect only did DB cleanup above.
-          // We need to also remove: nft sets, mark rules, NAT rules, TC classes, counter rules.
-          if (clientIp && clientIp !== '0.0.0.0') {
+          // 2f. Call logout script for full nft + TC cleanup — ONLY for local NAS (127.0.0.1)
+          // External NAS (MikroTik etc.) manage their own firewall/state — do NOT run local scripts.
+          if (isLocalNas && clientIp && clientIp !== '0.0.0.0') {
             try {
               const { runLogoutScript } = await import('@/lib/network/script-runner');
               const logoutResult = runLogoutScript({ ip: clientIp });

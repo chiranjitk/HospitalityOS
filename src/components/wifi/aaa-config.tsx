@@ -92,6 +92,11 @@ import {
   Building2,
   Lock,
   ShieldCheck,
+  Eye,
+  EyeOff,
+  Copy,
+  CheckCheck,
+  Globe,
 } from 'lucide-react';
 import CredentialPolicyTab, { type CredentialConfig } from './credential-policy-tab';
 import { useToast } from '@/hooks/use-toast';
@@ -119,6 +124,9 @@ interface NASClient {
   coaPort: number;
   authPort: number;
   acctPort: number;
+  apiUsername: string | null;
+  apiPassword: string | null;
+  apiPort: number;
   status: string;
   lastSeenAt?: string;
 }
@@ -542,7 +550,13 @@ export default function AAAConfig() {
     coaPort: 3799,
     authPort: 1812,
     acctPort: 1813,
+    apiUsername: '',
+    apiPassword: '',
+    apiPort: 443,
   });
+  const [showSecret, setShowSecret] = useState(false);
+  const [showApiPassword, setShowApiPassword] = useState(false);
+  const [secretCopied, setSecretCopied] = useState(false);
   
   // AAA Config
   const [aaaConfig, setAaaConfig] = useState<AAAConfig>({
@@ -1018,8 +1032,14 @@ export default function AAAConfig() {
       coaPort: 3799,
       authPort: 1812,
       acctPort: 1813,
+      apiUsername: '',
+      apiPassword: '',
+      apiPort: 443,
     });
+    setShowSecret(false);
+    setShowApiPassword(false);
     setEditingNas(null);
+    setSecretCopied(false);
   };
 
   // Open Edit Dialog
@@ -1035,6 +1055,9 @@ export default function AAAConfig() {
       coaPort: nas.coaPort,
       authPort: nas.authPort,
       acctPort: nas.acctPort,
+      apiUsername: nas.apiUsername || '',
+      apiPassword: nas.apiPassword || '',
+      apiPort: nas.apiPort || 443,
     });
     setNasDialogOpen(true);
   };
@@ -1448,12 +1471,43 @@ export default function AAAConfig() {
                           Generate
                         </Button>
                       </div>
-                      <Input
-                        value={nasForm.secret}
-                        onChange={(e) => setNasForm(prev => ({ ...prev, secret: e.target.value }))}
-                        placeholder="Enter or generate a secret"
-                        type="password"
-                      />
+                      <div className="relative">
+                        <Input
+                          value={nasForm.secret}
+                          onChange={(e) => setNasForm(prev => ({ ...prev, secret: e.target.value }))}
+                          placeholder="Enter or generate a secret"
+                          type={showSecret ? 'text' : 'password'}
+                          className="pr-20"
+                        />
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                            onClick={() => setShowSecret(prev => !prev)}
+                            tabIndex={-1}
+                          >
+                            {showSecret ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              if (nasForm.secret) {
+                                navigator.clipboard.writeText(nasForm.secret);
+                                setSecretCopied(true);
+                                setTimeout(() => setSecretCopied(false), 2000);
+                              }
+                            }}
+                            tabIndex={-1}
+                          >
+                            {secretCopied ? <CheckCheck className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label>Auth Port</Label>
@@ -1486,6 +1540,78 @@ export default function AAAConfig() {
                       />
                       <Label>Enable CoA (Change of Authorization)</Label>
                     </div>
+
+                    {/* MikroTik REST API Credentials — only shown for MikroTik type */}
+                    {nasForm.type === 'mikrotik' && (
+                      <>
+                        <div className="sm:col-span-2 pt-2 border-t mt-1">
+                          <p className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                            <Globe className="h-3.5 w-3.5" />
+                            MikroTik REST API Credentials
+                            <span className="text-xs font-normal">(for live speed polling)</span>
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>API Username</Label>
+                          <Input
+                            value={nasForm.apiUsername}
+                            onChange={(e) => setNasForm(prev => ({ ...prev, apiUsername: e.target.value }))}
+                            placeholder="admin"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>API Password</Label>
+                          <div className="relative">
+                            <Input
+                              value={nasForm.apiPassword}
+                              onChange={(e) => setNasForm(prev => ({ ...prev, apiPassword: e.target.value }))}
+                              placeholder="Enter MikroTik API password"
+                              type={showApiPassword ? 'text' : 'password'}
+                              className="pr-10"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                              onClick={() => setShowApiPassword(prev => !prev)}
+                              tabIndex={-1}
+                            >
+                              {showApiPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>API Port</Label>
+                          <Input
+                            type="number"
+                            value={nasForm.apiPort}
+                            onChange={(e) => setNasForm(prev => ({ ...prev, apiPort: parseInt(e.target.value) || 443 }))}
+                            placeholder="443"
+                          />
+                          <p className="text-xs text-muted-foreground">HTTPS port for REST API (default 443)</p>
+                        </div>
+                        {/* MikroTik Setup Instructions */}
+                        <div className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3">
+                          <p className="text-xs font-semibold text-amber-800 dark:text-amber-400 flex items-center gap-1 mb-2">
+                            <Info className="h-3.5 w-3.5" />
+                            MikroTik Router Setup Required
+                          </p>
+                          <p className="text-xs text-amber-700 dark:text-amber-500 mb-2">
+                            SSH into your MikroTik and run these commands to enable the REST API with a self-signed certificate:
+                          </p>
+                          <div className="bg-amber-100 dark:bg-amber-900/40 rounded-md p-2.5 space-y-1.5">
+                            <code className="block text-[11px] font-mono text-amber-900 dark:text-amber-200 whitespace-pre-wrap">/ip service enable www-ssl</code>
+                            <code className="block text-[11px] font-mono text-amber-900 dark:text-amber-200 whitespace-pre-wrap">/certificate add name=local-cert common-name=mikrotik key-size=2048</code>
+                            <code className="block text-[11px] font-mono text-amber-900 dark:text-amber-200 whitespace-pre-wrap">/certificate sign local-cert</code>
+                            <code className="block text-[11px] font-mono text-amber-900 dark:text-amber-200 whitespace-pre-wrap">/ip service set www-ssl certificate=local-cert</code>
+                          </div>
+                          <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-2">
+                            Verify: <code className="font-mono">curl -k -u admin:PASSWORD https://MIKROTIK_IP/rest/ip/hotspot/active</code>
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
                   
                   <DialogFooter>

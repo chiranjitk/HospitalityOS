@@ -95,6 +95,7 @@ interface UserSessionDetail {
   uploadBytes: number;
   sessionTime: number;
   isActive: boolean;
+  nasPortType?: string;
 }
 
 interface DailyUsageEntry {
@@ -1023,6 +1024,12 @@ export default function UserUsageDashboard() {
                               </span>
                             </div>
                           </div>
+                          {session.nasPortType && (
+                            <div>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Port</p>
+                              <p className="text-xs text-muted-foreground">{session.nasPortType}</p>
+                            </div>
+                          )}
                         </div>
 
                         {/* Disconnect Button (active only) */}

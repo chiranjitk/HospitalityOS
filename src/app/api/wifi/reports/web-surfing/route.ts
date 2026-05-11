@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { query, isAvailable } from '@/lib/clickhouse';
 import { getWebSurfingFromUlogd, resolveGuestNames } from '@/lib/ulogd-reader';
+import { correlateIpsToGuests } from '@/lib/ip-user-correlator';
 
 // ─── Constants ──────────────────────────────────────────────────
 
@@ -177,6 +178,10 @@ function generateDemoData() {
       domain,
       sourceIp: ip,
       source_ip: ip,
+      srcPort: 0,
+      destIp: '',
+      destPort: 443,
+      inIface: '',
       category,
       totalBytes,
       connections,
@@ -200,6 +205,10 @@ interface SurfingEntry {
   domain: string;
   sourceIp: string;
   source_ip: string;
+  srcPort: number;
+  destIp: string;
+  destPort: number;
+  inIface: string;
   category: Category;
   totalBytes: number;
   connections: number;
@@ -275,194 +284,136 @@ export async function GET(request: NextRequest) {
     // - Every HTTPS connection sends SNI in plaintext during TLS handshake
     // - Users cannot bypass it even with custom DNS (8.8.8.8, 1.1.1.1, etc.)
     // - Unlike dnsmasq DNS logs, SNI is captured at the network level via NFLOG
+    //
+    // Bandwidth data: sni_log.packet_bytes — sum of captured packet sizes per domain.
+    // The sni-parser enriches non-SNI data packets using a dst_ip→domain cache,
+    // so packet_bytes includes both ClientHello and subsequent data transfer packets.
     const clickhouseReady = await isAvailable();
 
     if (clickhouseReady) {
-      // Query SNI log aggregated by domain + source IP, joined with nat_log for bytes
+      console.log('[web-surfing] ClickHouse is available, querying ipdr.sni_log...');
+
+      // Single query: domain + src_ip with packet_bytes aggregation.
+      // No nat_log join needed — packet_bytes comes directly from packet captures.
+      // Use ifNull to handle cases where packet_bytes column doesn't exist yet.
       const sniRows = await query<Record<string, unknown>>(`
         SELECT
-          s.sni_domain as domain,
-          s.src_ip,
+          sni_domain as domain,
+          src_ip,
+          max(ifNull(src_port, 0)) as src_port,
+          max(dst_ip) as dst_ip,
+          max(ifNull(dst_port, 443)) as dst_port,
+          max(ifNull(in_iface, '')) as in_iface,
           count() as connections,
-          max(s.timestamp) as last_seen,
-          groupArray(DISTINCT s.tls_version)[1] as tls_version
-        FROM ipdr.sni_log s
-        WHERE s.timestamp >= now() - INTERVAL 30 DAY
-          AND s.sni_domain != ''
-        GROUP BY s.sni_domain, s.src_ip
-        ORDER BY connections DESC
+          max(timestamp) as last_seen,
+          ifNull(toUInt64(sum(packet_bytes)), 0) as total_bytes,
+          groupArray(DISTINCT tls_version)[1] as tls_version
+        FROM ipdr.sni_log
+        WHERE timestamp >= now() - INTERVAL 30 DAY
+          AND sni_domain != ''
+        GROUP BY sni_domain, src_ip
+        ORDER BY total_bytes DESC
         LIMIT 500
       `);
 
+      console.log(`[web-surfing] sni_log query returned ${sniRows.length} rows`);
+
       if (sniRows.length > 0) {
-        // ── Get bytes from nat_log for each (src_ip, dst_ip) pair ──
-        // Build a map of (src_ip, sni_domain) → dst_ip from sni_log
-        // Then query nat_log for bytes matching those dst_ips
-        const domainDstMap = new Map<string, Set<string>>(); // "src_ip:domain" → Set<dst_ip>
+        // ── Optionally enrich with nat_log bytes (if available) ──
+        // nat_log provides cumulative connection bytes from conntrack,
+        // which is more accurate than packet_bytes for total bandwidth.
+        // We ADD nat_log bytes to packet_bytes (not replace).
+        let natBytesMap: Map<string, number> | null = null;
 
-        const sniDetailRows = await query<Record<string, unknown>>(`
-          SELECT src_ip, dst_ip, sni_domain
-          FROM ipdr.sni_log
-          WHERE timestamp >= now() - INTERVAL 30 DAY
-            AND sni_domain != ''
-          GROUP BY src_ip, dst_ip, sni_domain
-          LIMIT 10000
-        `);
+        try {
+          // Collect unique dst_ips from sni_log for nat_log lookup
+          const dstIpRows = await query<Record<string, unknown>>(`
+            SELECT src_ip, dst_ip, sni_domain
+            FROM ipdr.sni_log
+            WHERE timestamp >= now() - INTERVAL 30 DAY
+              AND sni_domain != ''
+            GROUP BY src_ip, dst_ip, sni_domain
+            LIMIT 10000
+          `);
 
-        for (const row of sniDetailRows) {
-          const srcIp = String(row.src_ip ?? '');
-          const dstIp = String(row.dst_ip ?? '');
-          const domain = String(row.sni_domain ?? '');
-          if (srcIp && dstIp && domain) {
-            const key = `${srcIp}:${domain}`;
-            if (!domainDstMap.has(key)) domainDstMap.set(key, new Set());
-            domainDstMap.get(key)!.add(dstIp);
-          }
-        }
-
-        // Query nat_log for bytes matching these dst_ips
-        const allDstIps = new Set<string>();
-        for (const dstSet of domainDstMap.values()) {
-          for (const ip of dstSet) allDstIps.add(ip);
-        }
-
-        const bytesMap = new Map<string, number>(); // "src_ip:dst_ip" → total_bytes
-        if (allDstIps.size > 0) {
-          const ipChunks: string[][] = [];
-          const ipArr = [...allDstIps];
-          // ClickHouse IN clause limit: chunk into groups of 500
-          for (let i = 0; i < ipArr.length; i += 500) {
-            ipChunks.push(ipArr.slice(i, i + 500));
-          }
-
-          for (const chunk of ipChunks) {
-            const ipList = chunk.map((ip) => `'${ip.replace(/'/g, "\\'")}'`).join(',');
-            const bytesRows = await query<Record<string, unknown>>(`
-              SELECT src_ip, dst_ip, sum(bytes) as total_bytes
-              FROM ipdr.nat_log
-              WHERE timestamp >= now() - INTERVAL 30 DAY
-                AND dst_ip IN (${ipList})
-                AND bytes > 0
-              GROUP BY src_ip, dst_ip
-              LIMIT 10000
-            `);
-
-            for (const row of bytesRows) {
-              const key = `${String(row.src_ip)}:${String(row.dst_ip)}`;
-              bytesMap.set(key, Number(row.total_bytes) || 0);
-            }
-          }
-        }
-
-        // ── Guest name resolution via WiFiSession + DHCP lease + DeviceProfile ──
-        const uniqueIps = [...new Set(sniRows.map((r) => String(r.src_ip ?? '')))];
-        const ipToGuest = new Map<string, string>();
-        const resolvedIps = new Set<string>();
-
-        if (uniqueIps.length > 0) {
-          try {
-            // Step 1: Match by WiFiSession.ipAddress (primary lookup)
-            const sessions = await db.wiFiSession.findMany({
-              where: { ipAddress: { in: uniqueIps } },
-              select: { id: true, guestId: true, ipAddress: true },
-            });
-
-            // Collect valid guest IDs
-            const guestIds = sessions
-              .map((s) => s.guestId)
-              .filter((g): g is string => !!g);
-            const uniqueGuestIds = [...new Set(guestIds)];
-
-            // Build IP → guestId map
-            const ipToGuestId = new Map<string, string>();
-            for (const s of sessions) {
-              if (s.ipAddress && s.guestId) {
-                ipToGuestId.set(s.ipAddress, s.guestId);
-                resolvedIps.add(s.ipAddress);
-              }
+          if (dstIpRows.length > 0) {
+            const allDstIps = new Set<string>();
+            for (const row of dstIpRows) {
+              const dip = String(row.dst_ip ?? '');
+              if (dip) allDstIps.add(dip);
             }
 
-            // Batch-fetch guest names
-            if (uniqueGuestIds.length > 0) {
-              const guests = await db.guest.findMany({
-                where: { id: { in: uniqueGuestIds } },
-                select: { id: true, firstName: true, lastName: true },
-              });
-              const guestNameMap = new Map<string, string>();
-              for (const g of guests) {
-                const name = `${g.firstName ?? ''} ${g.lastName ?? ''}`.trim();
-                if (name) guestNameMap.set(g.id, name);
-              }
-              // Map IP → guest name
-              ipToGuestId.forEach((guestId, ip) => {
-                const name = guestNameMap.get(guestId);
-                if (name) ipToGuest.set(ip, name);
-              });
-            }
+            if (allDstIps.size > 0) {
+              const ipArr = [...allDstIps];
+              const ipList = ipArr.slice(0, 500).map((ip) => `'${ip.replace(/'/g, "\\'")}'`).join(',');
+              const bytesRows = await query<Record<string, unknown>>(`
+                SELECT src_ip, dst_ip, sum(bytes) as total_bytes
+                FROM ipdr.nat_log
+                WHERE timestamp >= now() - INTERVAL 30 DAY
+                  AND dst_ip IN (${ipList})
+                  AND bytes > 0
+                GROUP BY src_ip, dst_ip
+                LIMIT 10000
+              `);
 
-            // Step 2: For unresolved IPs, try DHCP lease table (MAC→IP→guest mapping)
-            const unresolvedIps = uniqueIps.filter((ip) => !resolvedIps.has(ip));
-            if (unresolvedIps.length > 0) {
-              const dhcpLeases = await db.dhcpLease.findMany({
-                where: { ipAddress: { in: unresolvedIps } },
-                select: {
-                  ipAddress: true,
-                  macAddress: true,
-                },
-              });
-
-              for (const lease of dhcpLeases) {
-                if (ipToGuest.has(lease.ipAddress)) continue;
-                // Try matching MAC via DeviceProfile → WiFiUser → Guest
-                if (lease.macAddress && !ipToGuest.has(lease.ipAddress)) {
-                  try {
-                    const device = await db.deviceProfile.findFirst({
-                      where: {
-                        macAddress: lease.macAddress,
-                        isActive: true,
-                      },
-                      select: { guestId: true, wifiUserId: true },
-                    });
-                    let targetGuestId = device?.guestId;
-                    if (!targetGuestId && device?.wifiUserId) {
-                      const wu = await db.wiFiUser.findUnique({
-                        where: { id: device.wifiUserId },
-                        select: { guestId: true },
-                      });
-                      targetGuestId = wu?.guestId;
-                    }
-                    if (targetGuestId) {
-                      const guest = await db.guest.findUnique({
-                        where: { id: targetGuestId },
-                        select: { id: true, firstName: true, lastName: true },
-                      });
-                      if (guest) {
-                        const name = `${guest.firstName ?? ''} ${guest.lastName ?? ''}`.trim();
-                        if (name) ipToGuest.set(lease.ipAddress, name);
-                      }
-                    }
-                  } catch { /* skip */ }
+              if (bytesRows.length > 0) {
+                natBytesMap = new Map<string, number>();
+                // Build (src_ip, dst_ip) → bytes map
+                const rawMap = new Map<string, number>();
+                for (const row of bytesRows) {
+                  const key = `${String(row.src_ip)}:${String(row.dst_ip)}`;
+                  rawMap.set(key, Number(row.total_bytes) || 0);
                 }
+                // Aggregate nat_log bytes per (src_ip, domain)
+                for (const row of dstIpRows) {
+                  const srcIp = String(row.src_ip ?? '');
+                  const dstIp = String(row.dst_ip ?? '');
+                  const domain = String(row.sni_domain ?? '');
+                  if (!srcIp || !domain) continue;
+                  const bKey = `${srcIp}:${dstIp}`;
+                  const bytes = rawMap.get(bKey) || 0;
+                  if (bytes > 0) {
+                    const dKey = `${srcIp}:${domain}`;
+                    natBytesMap.set(dKey, (natBytesMap.get(dKey) || 0) + bytes);
+                  }
+                }
+                console.log(`[web-surfing] nat_log enrichment: ${natBytesMap.size} domains with conntrack bytes`);
               }
             }
-          } catch {
-            // Guest resolution is best-effort; continue without names
           }
+        } catch (err) {
+          // nat_log enrichment is optional — don't fail if unavailable
+          console.warn(`[web-surfing] nat_log enrichment skipped:`, err);
         }
+
+        // ── Guest name resolution via shared correlator (time-window aware) ──
+        // Pass IP+timestamp pairs so the correlator finds the RIGHT guest
+        // for the RIGHT time window (handles DHCP IP reuse correctly)
+        const ipTimestampPairs = sniRows.map((r) => {
+          const rawTs = String(r.last_seen ?? '');
+          const ts = rawTs.includes('T') ? rawTs : rawTs.replace(' ', 'T');
+          return {
+            ip: String(r.src_ip ?? ''),
+            timestamp: new Date(ts),
+          };
+        });
+        const correlation = await correlateIpsToGuests(ipTimestampPairs, user.tenantId);
+        const ipToGuest = correlation.ipToGuest;
 
         // ── Build response ──────────────────────────────────────
         const data: SurfingEntry[] = sniRows.map((r, idx) => {
           const srcIp = String(r.src_ip ?? '');
           const domain = String(r.domain ?? '');
-          const key = `${srcIp}:${domain}`;
 
-          // Sum bytes across all dst_ips that resolved to this domain for this src_ip
-          let totalBytes = 0;
-          const dstIps = domainDstMap.get(key);
-          if (dstIps) {
-            for (const dip of dstIps) {
-              const bKey = `${srcIp}:${dip}`;
-              totalBytes += bytesMap.get(bKey) || 0;
+          // packet_bytes from sni_log (sum of captured packet sizes)
+          let totalBytes = Number(r.total_bytes) || 0;
+
+          // Add nat_log conntrack bytes if available (more accurate total)
+          if (natBytesMap) {
+            const natBytes = natBytesMap.get(`${srcIp}:${domain}`) || 0;
+            if (natBytes > 0) {
+              // Use the larger of the two as the definitive byte count
+              totalBytes = Math.max(totalBytes, natBytes);
             }
           }
 
@@ -475,6 +426,10 @@ export async function GET(request: NextRequest) {
             domain,
             sourceIp: srcIp,
             source_ip: srcIp,
+            srcPort: Number(r.src_port) || 0,
+            destIp: String(r.dst_ip ?? ''),
+            destPort: Number(r.dst_port) || 443,
+            inIface: String(r.in_iface ?? ''),
             category: classifyDomain(domain),
             totalBytes,
             connections: Number(r.connections) || 0,
@@ -505,12 +460,17 @@ export async function GET(request: NextRequest) {
     // This is the live data path when ClickHouse is not set up.
     // ulogd2 captures TLS SNI via NFLOG and connection tracking via NFCT.
     {
+      console.log(`[web-surfing] ClickHouse ${clickhouseReady ? 'available but sni_log empty' : 'unavailable'}, trying ulogd2 fallback...`);
       const ulogdData = await getWebSurfingFromUlogd({ search, category });
 
       if (ulogdData.length > 0) {
-        // Resolve guest names from WiFi sessions
-        const uniqueIps = [...new Set(ulogdData.map((d) => d.sourceIp))];
-        const guestMap = await resolveGuestNames(uniqueIps, user.tenantId);
+        console.log(`[web-surfing] ulogd2 returned ${ulogdData.length} rows`);
+        // Resolve guest names with time-window matching
+        const ipTimestampPairs = ulogdData.map((d) => ({
+          ip: d.sourceIp,
+          timestamp: new Date(d.lastAccess || d.timestamp || Date.now()),
+        }));
+        const guestMap = await resolveGuestNames(ipTimestampPairs, user.tenantId);
 
         // Attach guest names
         for (const entry of ulogdData) {
@@ -530,6 +490,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Fallback 3: deterministic demo data ──────────────────────
+    console.log('[web-surfing] No live data from ClickHouse or ulogd2 — serving demo data');
     const demoData = generateDemoData();
     const filtered = applyFilters(demoData, search, category);
     const summary = computeSummary(filtered);

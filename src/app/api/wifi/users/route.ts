@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {    const user = await requireP
              booking_code, booking_status, booking_check_in, booking_check_out
       FROM v_wifi_users ${whereClause}
       ORDER BY "createdAt" DESC
-      LIMIT ${p()} OFFSET ${p()}
+      LIMIT ${p()}::bigint OFFSET ${p()}::bigint
     `, ...sqlParams);
 
     // Reconstruct the nested format to maintain backward compatibility

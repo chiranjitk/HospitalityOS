@@ -24,7 +24,7 @@ const nextConfig: NextConfig = {
     // This dramatically reduces build-time memory for projects with many files
     // importing from large icon / chart / date utility libraries.
     optimizePackageImports: [
-      'lucide-react',
+      // 'lucide-react', // Removed: causes stale chunk caching with Turbopack
       'date-fns',
       'recharts',
       'sonner',
@@ -71,6 +71,15 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
+        ],
+      },
+      {
+        // Prevent browser caching of JS chunks during development
+        source: "/_next/static/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, proxy-revalidate" },
+          { key: "Pragma", value: "no-cache" },
+          { key: "Expires", value: "0" },
         ],
       },
     ];

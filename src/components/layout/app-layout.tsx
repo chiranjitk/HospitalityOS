@@ -10,11 +10,50 @@ import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useTranslations } from 'next-intl';
-import { Heart, Globe, Shield, Zap } from 'lucide-react';
+import { Heart, Globe, Shield, Zap, ChevronUp } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { CommandPalette } from '@/components/common/command-palette';
+
+import { QuickActionsFAB } from '@/components/common/quick-actions-fab';
 
 interface AppLayoutProps {
   children: React.ReactNode;
+}
+
+function BackToTopButton() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setVisible(window.scrollY > 300);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  return (
+    <button
+      onClick={scrollToTop}
+      className={cn(
+        'fixed bottom-6 right-6 z-50 h-10 w-10 rounded-full',
+        'bg-primary text-primary-foreground shadow-lg',
+        'flex items-center justify-center',
+        'transition-all duration-300',
+        'hover:shadow-xl hover:scale-110',
+        'active:scale-95',
+        visible
+          ? 'opacity-100 translate-y-0 pointer-events-auto'
+          : 'opacity-0 translate-y-4 pointer-events-none'
+      )}
+      aria-label="Back to top"
+    >
+      <ChevronUp className="h-5 w-5" />
+    </button>
+  );
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
@@ -82,6 +121,8 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background relative app-background overflow-x-hidden">
+      {/* Command Palette — global overlay */}
+      <CommandPalette />
       {/* Decorative background elements - theme-specific */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-40 -left-40 w-80 h-80 bg-gradient-start/5 rounded-full blur-3xl" />
@@ -111,6 +152,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Main Content */}
       <main className={cn(
         "relative z-10 transition-all duration-300 pt-14 sm:pt-5 pb-2 px-2 sm:px-3 lg:px-4", // pt-14 to offset sticky header, minimal padding
+        "flex-1", // Fill remaining vertical space so footer sticks to bottom
         "ml-0 lg:ml-[260px]", // No margin on mobile, 260px on desktop
         sidebarCollapsed && "lg:ml-[68px]" // Collapsed width only on desktop
       )}>
@@ -118,7 +160,13 @@ export function AppLayout({ children }: AppLayoutProps) {
         <Breadcrumb />
 
         {children}
+
+        {/* Back to Top floating button */}
+        <BackToTopButton />
       </main>
+
+      {/* Quick Actions FAB — floating button for mobile/tablet */}
+      {user && <QuickActionsFAB />}
 
       {/* Sticky Footer — only shown when authenticated */}
       {user && (

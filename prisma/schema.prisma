@@ -4243,13 +4243,16 @@ model RadAcct {
   acctoutputpackets   Int?      @default(0)
   acctstatus          String?   @default("start")
   loginType           String?   @default("portal") // portal, mac, voucher, etc.
-  createdAt           DateTime  @default(now()) @db.Timestamptz
-  updatedAt           DateTime  @updatedAt @db.Timestamptz
+  createdAt           DateTime  @default(now()) @map("createdat") @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @map("updatedat") @db.Timestamptz
   radiusClass         String?   @map("class")
 
   @@index([acctuniqueid], map: "radacct_active_session_idx")
   @@index([nasipaddress, acctstarttime], map: "radacct_bulk_close")
   @@index([acctstarttime, username], map: "radacct_start_user_idx")
+  @@index([framedipaddress], map: "radacct_framedip_idx")
+  @@index([username], map: "radacct_username_idx")
+  @@index([callingstationid], map: "radacct_callingstation_idx")
   @@map("radacct")
 }
 
@@ -4425,6 +4428,9 @@ model RadiusNAS {
   coaPort     Int       @default(3799)
   authPort    Int       @default(1812)
   acctPort    Int       @default(1813)
+  apiUsername String?   // REST API username for MikroTik / external NAS
+  apiPassword String?   // REST API password for MikroTik / external NAS
+  apiPort     Int       @default(443) // REST API port (default HTTPS)
   status            String    @default("active")
   lastSeenAt        DateTime? @db.Timestamptz
   lastWentOnlineAt  DateTime? @db.Timestamptz // When NAS last transitioned from offline → online (for uptime tracking)
@@ -4514,6 +4520,7 @@ model RadPostAuth {
   nasIpAddress     String?
   clientipaddress  String?  @map("clientipaddress")
   radiusClass      String?  @map("class")
+  replyMessage     String?  @map("replyMessage")
 
   @@map("radpostauth")
 }

@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { ErrorBoundary } from '@/components/common/error-boundary';
 import { usePropertyId } from '@/hooks/use-property';
-
 // ─── Lazy imports for tab content ─────────────────────────────────────────
 // Keep 10 essential tabs — removed: Bandwidth Scheduler, Content Filter, Smart Bandwidth,
 // NAS Health, Provisioning Logs, CoA Audit (duplicates or low-usage)
@@ -443,6 +442,8 @@ export function WifiAccessPage() {
           </ErrorBoundary>
         </Suspense>
       </div>
+
+
     </div>
   );
 }

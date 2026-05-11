@@ -46,13 +46,36 @@ const RADIUS_CONFIG_PATH = process.env.RADIUS_CONFIG_PATH ||
       : '/etc/raddb');
 const RADIUS_CLIENTS_PATH = path.join(RADIUS_CONFIG_PATH, 'clients.conf');
 
+// Section markers for managed NAS clients in clients.conf
+const STAYSUITE_CLIENT_BEGIN = '### STAYSUITE_MANAGED_CLIENTS_BEGIN ###';
+const STAYSUITE_CLIENT_END = '### STAYSUITE_MANAGED_CLIENTS_END ###';
+
 // Database connection (sandbox uses local PG, production uses system PG)
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite';
 
-// RADIUS SQL module credentials — extract from DATABASE_URL or use defaults
-const DB_URL_PARSED = new URL(DATABASE_URL);
-const RADIUS_DB_USER = DB_URL_PARSED.username || 'postgres';
-const RADIUS_DB_PASS = DB_URL_PARSED.password || 'postgres';
+// RADIUS SQL module credentials — use RADIUS_DATABASE_URL if set (PostgreSQL),
+// otherwise fall back to DATABASE_URL. In sandbox, DATABASE_URL may point to
+// SQLite (file:...) which is not usable by FreeRADIUS rlm_sql_postgresql.
+const RADIUS_DATABASE_URL = process.env.RADIUS_DATABASE_URL || '';
+let RADIUS_DB_USER = 'postgres';
+let RADIUS_DB_PASS = 'postgres';
+if (RADIUS_DATABASE_URL) {
+  try {
+    const rUrl = new URL(RADIUS_DATABASE_URL);
+    RADIUS_DB_USER = rUrl.username || 'postgres';
+    RADIUS_DB_PASS = rUrl.password || 'postgres';
+  } catch {
+    // invalid URL, keep defaults
+  }
+} else if (DATABASE_URL.startsWith('postgresql://')) {
+  try {
+    const rUrl = new URL(DATABASE_URL);
+    RADIUS_DB_USER = rUrl.username || 'postgres';
+    RADIUS_DB_PASS = rUrl.password || 'postgres';
+  } catch {
+    // invalid URL, keep defaults
+  }
+}
 
 const pool = new pg.Pool({
   connectionString: DATABASE_URL,
@@ -905,44 +928,23 @@ async function reloadRadius(): Promise<boolean> {
 }
 
 /**
- * Write all NAS clients to RADIUS clients.conf
- * Uses section markers so we only overwrite our managed section
+ * Ensure clients.conf does NOT contain managed NAS client definitions.
+ * FreeRADIUS loads NAS clients from SQL (read_clients = yes, client_table = "nas"),
+ * so writing to clients.conf causes "Ignoring duplicate client" / "Failed to add
+ * duplicate client" warnings. This function clears any previously-managed section.
  */
 async function writeAllNASClientsToConf(): Promise<boolean> {
   try {
     const clients = await getAllNASClients();
 
-    // Build our managed section content
-    const managedLines: string[] = [STAYSUITE_CLIENT_BEGIN];
-    for (const client of clients) {
-      managedLines.push('');
-      managedLines.push(`# NAS Client: ${client.name}`);
-      managedLines.push(`# Created: ${client.createdAt}`);
-      managedLines.push(`client ${client.shortname || client.name.replace(/\s+/g, '_')} {`);
-      managedLines.push(`    ipaddr = ${client.ipAddress}`);
-      managedLines.push(`    secret = "${client.sharedSecret}"`);
-      managedLines.push(`    shortname = ${client.shortname || client.name.replace(/\s+/g, '_')}`);
-      if (client.ports.auth !== 1812) {
-        managedLines.push(`    auth_port = ${client.ports.auth}`);
-      }
-      if (client.ports.acct !== 1813) {
-        managedLines.push(`    acct_port = ${client.ports.acct}`);
-      }
-      if (client.ports.coa !== 3799) {
-        managedLines.push(`    coa_port = ${client.ports.coa}`);
-      }
-      managedLines.push(`    nas_type = ${client.type}`);
-      // BlastRADIUS protection — MikroTik sends Message-Authenticator, require it
-      managedLines.push(`    require_message_authenticator = yes`);
-      managedLines.push(`    limit_proxy_state = yes`);
-      // CoA/DMR enabled — required for MikroTik bandwidth change, disconnect, etc.
-      // Note: coa_server is NOT a boolean in FreeRADIUS 3.x; it expects a home_server name.
-      // CoA works by default on the same server. response_window ensures timely CoA responses.
-      managedLines.push(`    response_window = 6`);
-      managedLines.push(`}`);
-    }
-    managedLines.push('');
-    managedLines.push(STAYSUITE_CLIENT_END);
+    // Build a minimal managed section (comment-only — actual clients come from SQL)
+    const managedLines: string[] = [
+      STAYSUITE_CLIENT_BEGIN,
+      `# NAS clients are loaded from SQL (nas table) via read_clients = yes.`,
+      `# DO NOT add client definitions here — they will duplicate the SQL entries.`,
+      `# Active clients: ${clients.map(c => `${c.name} (${c.ipAddress})`).join(', ')}`,
+      STAYSUITE_CLIENT_END,
+    ];
     const managedSection = managedLines.join('\n');
 
     // Read existing file or start empty
@@ -965,16 +967,16 @@ async function writeAllNASClientsToConf(): Promise<boolean> {
       newContent = existingContent + (existingContent.length > 0 ? '\n' : '') + managedSection + '\n';
     }
 
-    // Write clients.conf (sandbox-safe: no chown/chmod needed, read_clients=yes uses SQL)
+    // Write clients.conf — only comments, no actual client blocks
     await writeRadiusFile(RADIUS_CLIENTS_PATH, newContent);
-    log.info('Wrote NAS clients to clients.conf', { count: clients.length, path: RADIUS_CLIENTS_PATH });
+    log.info('Updated clients.conf (SQL-managed, no duplicates)', { count: clients.length, path: RADIUS_CLIENTS_PATH });
 
     // Trigger RADIUS reload (sandbox-safe: SIGHUP instead of systemctl)
     await reloadRadius();
 
     return true;
   } catch (error) {
-    log.error('Failed to write NAS clients to clients.conf', { error: String(error) });
+    log.error('Failed to update clients.conf', { error: String(error) });
     return false;
   }
 }
@@ -1181,7 +1183,8 @@ function generateBandwidthAttributes(downloadBps: number, uploadBps: number, ven
 
   switch (vendor) {
     case 'mikrotik':
-      attrs['Mikrotik-Rate-Limit'] = `${downloadMbps}M/${uploadMbps}M`;
+      // rx=upload, tx=download from NAS perspective
+      attrs['Mikrotik-Rate-Limit'] = `${uploadMbps}M/${downloadMbps}M`;
       break;
 
     case 'cisco':
@@ -1588,6 +1591,28 @@ app.get('/api/nas', async (c) => {
   return c.json({
     success: true,
     data: nasClients
+  });
+});
+
+// Lookup NAS by IP address — returns secret and coaPort for RADIUS disconnect
+app.get('/api/nas/lookup', async (c) => {
+  const nasIp = c.req.query('nasIp') as string;
+  if (!nasIp) {
+    return c.json({ success: false, error: 'nasIp query param required' }, 400);
+  }
+  const allClients = await getAllNASClients();
+  const client = allClients.find(c => c.ipAddress === nasIp);
+  if (!client) {
+    return c.json({ success: false, error: 'NAS not found for ' + nasIp }, 404);
+  }
+  return c.json({
+    success: true,
+    data: {
+      secret: client.sharedSecret,
+      coaPort: client.ports.coa,
+      ipAddress: client.ipAddress,
+      name: client.name,
+    }
   });
 });
 
@@ -2353,7 +2378,7 @@ app.get('/api/config/sql-mod', async (c) => {
         # radacctid is now INTEGER PRIMARY KEY AUTOINCREMENT — no explicit value needed.
         # Uses acctupdatetime (native FreeRADIUS) instead of updatedAt.
         # Includes all native FreeRADIUS columns plus PMS extras.
-        query = "INSERT INTO radacct (acctsessionid, acctuniqueid, username, realm, nasipaddress, nasportid, nasporttype, acctstarttime, acctupdatetime, acctsessiontime, acctinterval, connectinfo_start, servicetype, framedprotocol, framedipaddress, framedipv6prefix, framedinterfaceid, delegatedipv6prefix, calledstationid, callingstationid, acctinputoctets, acctoutputoctets, acctinputpackets, acctoutputpackets, acctinputgigawords, acctoutputgigawords, class, acctstoptime, acctterminatecause, acctstatus, createdAt, updatedAt) VALUES ('%{Acct-Session-Id}', '%{Acct-Unique-Session-Id}', '%{SQL-User-Name}', '%{Realm}', '%{NAS-IP-Address}', '%{%{NAS-Port-ID}:-%{NAS-Port}}', '%{NAS-Port-Type}', '%S', '%S', %{%{Acct-Session-Time}:-0}, %{%{Acct-Interim-Interval}:-0}, '%{Connect-Info}', '%{Service-Type}', '%{Framed-Protocol}', '%{Framed-IP-Address}', '%{Framed-IPv6-Prefix}', '%{Framed-Interface-Id}', '%{Delegated-IPv6-Prefix}', '%{Called-Station-Id}', '%{Calling-Station-Id}', %{%{Acct-Input-Octets}:-0}, %{%{Acct-Output-Octets}:-0}, %{%{Acct-Input-Packets}:-0}, %{%{Acct-Output-Packets}:-0}, %{%{Acct-Input-Gigawords}:-0}, %{%{Acct-Output-Gigawords}:-0}, '%{Class}', CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%S' ELSE NULL END, CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%{Acct-Terminate-Cause}' ELSE '' END, '%{Acct-Status-Type}', '%S', '%S') ON CONFLICT(acctuniqueid) DO UPDATE SET acctupdatetime = '%S', acctsessiontime = %{%{Acct-Session-Time}:-0}, acctinterval = %{%{Acct-Interim-Interval}:-0}, framedipaddress = '%{Framed-IP-Address}', acctinputoctets = %{%{Acct-Input-Octets}:-0}, acctoutputoctets = %{%{Acct-Output-Octets}:-0}, acctinputpackets = %{%{Acct-Input-Packets}:-0}, acctoutputpackets = %{%{Acct-Output-Packets}:-0}, acctinputgigawords = %{%{Acct-Input-Gigawords}:-0}, acctoutputgigawords = %{%{Acct-Output-Gigawords}:-0}, acctstoptime = CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%S' ELSE acctstoptime END, acctterminatecause = CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%{Acct-Terminate-Cause}' ELSE acctterminatecause END, acctstatus = '%{Acct-Status-Type}', updatedAt = '%S'"
+        query = "INSERT INTO radacct (acctsessionid, acctuniqueid, username, realm, nasipaddress, nasportid, nasporttype, acctstarttime, acctupdatetime, acctsessiontime, acctinterval, connectinfo_start, servicetype, framedprotocol, framedipaddress, framedipv6prefix, framedinterfaceid, delegatedipv6prefix, calledstationid, callingstationid, acctinputoctets, acctoutputoctets, acctinputpackets, acctoutputpackets, acctinputgigawords, acctoutputgigawords, class, acctstoptime, acctterminatecause, acctstatus, createdat, updatedat) VALUES ('%{Acct-Session-Id}', '%{Acct-Unique-Session-Id}', '%{SQL-User-Name}', '%{Realm}', '%{NAS-IP-Address}', '%{%{NAS-Port-ID}:-%{NAS-Port}}', '%{NAS-Port-Type}', '%S', '%S', %{%{Acct-Session-Time}:-0}, %{%{Acct-Interim-Interval}:-0}, '%{Connect-Info}', '%{Service-Type}', '%{Framed-Protocol}', '%{Framed-IP-Address}', '%{Framed-IPv6-Prefix}', '%{Framed-Interface-Id}', '%{Delegated-IPv6-Prefix}', '%{Called-Station-Id}', '%{Calling-Station-Id}', %{%{Acct-Input-Octets}:-0}, %{%{Acct-Output-Octets}:-0}, %{%{Acct-Input-Packets}:-0}, %{%{Acct-Output-Packets}:-0}, %{%{Acct-Input-Gigawords}:-0}, %{%{Acct-Output-Gigawords}:-0}, '%{Class}', CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%S' ELSE NULL END, CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%{Acct-Terminate-Cause}' ELSE '' END, '%{Acct-Status-Type}', '%S', '%S') ON CONFLICT(acctuniqueid) DO UPDATE SET acctupdatetime = '%S', acctsessiontime = %{%{Acct-Session-Time}:-0}, acctinterval = %{%{Acct-Interim-Interval}:-0}, framedipaddress = '%{Framed-IP-Address}', acctinputoctets = %{%{Acct-Input-Octets}:-0}, acctoutputoctets = %{%{Acct-Output-Octets}:-0}, acctinputpackets = %{%{Acct-Input-Packets}:-0}, acctoutputpackets = %{%{Acct-Output-Packets}:-0}, acctinputgigawords = %{%{Acct-Input-Gigawords}:-0}, acctoutputgigawords = %{%{Acct-Output-Gigawords}:-0}, acctstoptime = CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%S' ELSE acctstoptime END, acctterminatecause = CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%{Acct-Terminate-Cause}' ELSE acctterminatecause END, acctstatus = '%{Acct-Status-Type}', updatedat = '%S'"
     }
 
     session {
@@ -2525,7 +2550,16 @@ sql {
     # Uses acctupdatetime (native FreeRADIUS) instead of updatedAt.
     # Includes all native FreeRADIUS columns plus PMS extras.
     accounting {
-        query = "INSERT INTO radacct (acctsessionid, acctuniqueid, username, realm, nasipaddress, nasportid, nasporttype, acctstarttime, acctupdatetime, acctsessiontime, acctinterval, connectinfo_start, servicetype, framedprotocol, framedipaddress, framedipv6prefix, framedinterfaceid, delegatedipv6prefix, calledstationid, callingstationid, acctinputoctets, acctoutputoctets, acctinputpackets, acctoutputpackets, acctinputgigawords, acctoutputgigawords, class, acctstoptime, acctterminatecause, acctstatus, createdAt, updatedAt) VALUES ('%{Acct-Session-Id}', '%{Acct-Unique-Session-Id}', '%{SQL-User-Name}', '%{Realm}', '%{NAS-IP-Address}', '%{%{NAS-Port-ID}:-%{NAS-Port}}', '%{NAS-Port-Type}', '%S', '%S', %{%{Acct-Session-Time}:-0}, %{%{Acct-Interim-Interval}:-0}, '%{Connect-Info}', '%{Service-Type}', '%{Framed-Protocol}', '%{Framed-IP-Address}', '%{Framed-IPv6-Prefix}', '%{Framed-Interface-Id}', '%{Delegated-IPv6-Prefix}', '%{Called-Station-Id}', '%{Calling-Station-Id}', %{%{Acct-Input-Octets}:-0}, %{%{Acct-Output-Octets}:-0}, %{%{Acct-Input-Packets}:-0}, %{%{Acct-Output-Packets}:-0}, %{%{Acct-Input-Gigawords}:-0}, %{%{Acct-Output-Gigawords}:-0}, '%{Class}', CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%S' ELSE NULL END, CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%{Acct-Terminate-Cause}' ELSE '' END, '%{Acct-Status-Type}', '%S', '%S') ON CONFLICT(acctuniqueid) DO UPDATE SET acctupdatetime = '%S', acctsessiontime = %{%{Acct-Session-Time}:-0}, acctinterval = %{%{Acct-Interim-Interval}:-0}, framedipaddress = '%{Framed-IP-Address}', acctinputoctets = %{%{Acct-Input-Octets}:-0}, acctoutputoctets = %{%{Acct-Output-Octets}:-0}, acctinputpackets = %{%{Acct-Input-Packets}:-0}, acctoutputpackets = %{%{Acct-Output-Packets}:-0}, acctinputgigawords = %{%{Acct-Input-Gigawords}:-0}, acctoutputgigawords = %{%{Acct-Output-Gigawords}:-0}, acctstoptime = CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%S' ELSE acctstoptime END, acctterminatecause = CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%{Acct-Terminate-Cause}' ELSE acctterminatecause END, acctstatus = '%{Acct-Status-Type}', updatedAt = '%S'"
+        query = "INSERT INTO radacct (acctsessionid, acctuniqueid, username, realm, nasipaddress, nasportid, nasporttype, acctstarttime, acctupdatetime, acctsessiontime, acctinterval, connectinfo_start, servicetype, framedprotocol, framedipaddress, framedipv6prefix, framedinterfaceid, delegatedipv6prefix, calledstationid, callingstationid, acctinputoctets, acctoutputoctets, acctinputpackets, acctoutputpackets, acctinputgigawords, acctoutputgigawords, class, acctstoptime, acctterminatecause, acctstatus, createdat, updatedat) VALUES ('%{Acct-Session-Id}', '%{Acct-Unique-Session-Id}', '%{SQL-User-Name}', '%{Realm}', '%{NAS-IP-Address}', '%{%{NAS-Port-ID}:-%{NAS-Port}}', '%{NAS-Port-Type}', '%S'::timestamptz, '%S'::timestamptz, %{%{Acct-Session-Time}:-0}, %{%{Acct-Interim-Interval}:-0}, '%{Connect-Info}', '%{Service-Type}', '%{Framed-Protocol}', '%{Framed-IP-Address}', '%{Framed-IPv6-Prefix}', '%{Framed-Interface-Id}', '%{Delegated-IPv6-Prefix}', '%{Called-Station-Id}', '%{Calling-Station-Id}', %{%{Acct-Input-Octets}:-0}, %{%{Acct-Output-Octets}:-0}, %{%{Acct-Input-Packets}:-0}, %{%{Acct-Output-Packets}:-0}, %{%{Acct-Input-Gigawords}:-0}, %{%{Acct-Output-Gigawords}:-0}, '%{Class}', CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%S'::timestamptz ELSE NULL END, CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%{Acct-Terminate-Cause}' ELSE '' END, '%{Acct-Status-Type}', '%S'::timestamptz, '%S'::timestamptz) ON CONFLICT(acctuniqueid) DO UPDATE SET acctupdatetime = '%S'::timestamptz, acctsessiontime = %{%{Acct-Session-Time}:-0}, acctinterval = %{%{Acct-Interim-Interval}:-0}, framedipaddress = '%{Framed-IP-Address}', acctinputoctets = %{%{Acct-Input-Octets}:-0}, acctoutputoctets = %{%{Acct-Output-Octets}:-0}, acctinputpackets = %{%{Acct-Input-Packets}:-0}, acctoutputpackets = %{%{Acct-Output-Packets}:-0}, acctinputgigawords = %{%{Acct-Input-Gigawords}:-0}, acctoutputgigawords = %{%{Acct-Output-Gigawords}:-0}, acctstoptime = CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%S'::timestamptz ELSE radacct.acctstoptime END, acctterminatecause = CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%{Acct-Terminate-Cause}' ELSE radacct.acctterminatecause END, acctstatus = '%{Acct-Status-Type}', updatedat = '%S'::timestamptz"
+    }
+
+    # Post-auth: log all authentication attempts (both local NAS and external NAS)
+    # This populates radpostauth so Auth Logs tab shows MikroTik and other external NAS entries.
+    # FreeRADIUS executes this after the post-auth { sql } section in sites-available/default.
+    # replyMessage captures the actual rejection reason (e.g., IP pool deny) for Auth Logs display.
+    # NOTE: nasIpAddress is camelCase in the DB, use escaped quotes in FreeRADIUS unlang.
+    post-auth {
+        query = "INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, callingstationid, calledstationid, \\"nasIpAddress\\", \\"replyMessage\\") VALUES ('%{SQL-User-Name}', '', '%{reply:Packet-Type}', '%S'::timestamptz, '%{NAS-IP-Address}', '%{Calling-Station-Id}', '%{Called-Station-Id}', '%{NAS-IP-Address}', '%{reply:Reply-Message}')"
     }
 
     # Session: check for existing active session
@@ -2575,8 +2609,12 @@ sql {
 
       // CLEANUP: Remove previously injected broken 'Auth-Type SQL { sql }' blocks
       // (from older version that didn't support FreeRADIUS 3.x)
+      // MUST use line-based removal — NOT [^}]* regex which can eat adjacent content
+      // and destroy Auth-Type PAP, CHAP, MS-CHAP blocks.
       if (sitesContent.includes('Auth-Type SQL')) {
-        sitesContent = sitesContent.replace(/\n\t#\s*StaySuite:.*?SQL.*?\n\tAuth-Type SQL \{[^}]*\}/g, '');
+        // Remove only lines that are exactly the Auth-Type SQL block (single-line)
+        sitesContent = sitesContent.replace(/^\t*#\s*StaySuite:.*?SQL.*?\n?/gm, '');
+        sitesContent = sitesContent.replace(/^\t*Auth-Type SQL \{[^}]*\}\n?/gm, '');
         details.push('Removed broken Auth-Type SQL block (FreeRADIUS 3.x incompatible)');
       }
 
@@ -2594,21 +2632,112 @@ sql {
         }
       }
 
-      // NOTE: Do NOT add sql to authenticate section in FreeRADIUS 3.x
-      // In v3, password verification (PAP/CHAP/MS-CHAP) happens automatically
-      // when the sql module finds Cleartext-Password in radcheck during authorize.
-      // Adding 'Auth-Type SQL { sql }' causes: "sql modules aren't allowed in 'authenticate' sections"
-      details.push('Skipped authenticate section (FreeRADIUS 3.x auto-verifies from authorize)');
-
-      // Add sql to post-auth section (to send reply attributes)
-      const postAuthSection = sitesContent.match(/post-auth\s*\{([^}]*)\}/);
-      if (postAuthSection && !postAuthSection[1].includes('sql')) {
-        sitesContent = sitesContent.replace(
-          /post-auth\s*\{/,
-          'post-auth {\n\t# StaySuite: Send RADIUS reply attributes (bandwidth, session timeout)\n\tsql'
-        );
-        details.push('Added sql to post-auth section');
+      // REPAIR: Ensure authenticate section has required Auth-Type blocks.
+      // Previous versions used a dangerous [^}]* regex that could destroy
+      // Auth-Type PAP/CHAP/MS-CHAP blocks, causing "Auth-Type sub-section not found".
+      // Use flexible matching — production uses tabs: "\tauthenticate\t{" not "authenticate {".
+      {
+        const authMatch = sitesContent.match(/^([ \t]*)authenticate[ \t]*\{/m);
+        const authOpenIdx = authMatch ? authMatch.index : -1;
+        if (authOpenIdx !== -1) {
+          const braceStart = sitesContent.indexOf('{', authOpenIdx);
+          // Brace-counting to find the matching closing brace
+          let depth = 0;
+          let authEndIdx = -1;
+          for (let i = braceStart; i < sitesContent.length; i++) {
+            if (sitesContent[i] === '{') depth++;
+            else if (sitesContent[i] === '}') {
+              depth--;
+              if (depth === 0) { authEndIdx = i; break; }
+            }
+          }
+          if (authEndIdx !== -1) {
+            const authSection = sitesContent.substring(authOpenIdx, authEndIdx + 1);
+            const requiredAuthTypes = [
+              { name: 'PAP', module: 'pap' },
+              { name: 'CHAP', module: 'chap' },
+              { name: 'MS-CHAP', module: 'mschap' },
+            ];
+            const missing = requiredAuthTypes.filter(
+              at => !authSection.includes(`Auth-Type ${at.name}`)
+            );
+            if (missing.length > 0) {
+              // Insert missing Auth-Type blocks right after "authenticate {"
+              const insertPos = braceStart + 1;
+              const blocksToInsert = missing
+                .map(at => `\n\t\tAuth-Type ${at.name} {\n\t\t\t${at.module}\n\t\t}`)
+                .join('\n');
+              sitesContent =
+                sitesContent.substring(0, insertPos) +
+                blocksToInsert +
+                sitesContent.substring(insertPos);
+              details.push(`Repaired authenticate section (added missing: ${missing.map(m => m.name).join(', ')})`);
+            } else {
+              details.push('Authenticate section verified (Auth-Type PAP/CHAP/MS-CHAP present)');
+            }
+          }
+        } else {
+          details.push('WARNING: authenticate section not found in sites-available/default — will insert full section');
+          // Insert a complete authenticate section before "post-auth {"
+          const postAuthIdx = sitesContent.indexOf('post-auth');
+          if (postAuthIdx !== -1) {
+            // Find line start of post-auth
+            const lineStart = sitesContent.lastIndexOf('\n', postAuthIdx) + 1;
+            const authSection = `\nauthenticate {\n\t\tAuth-Type PAP {\n\t\t\tpap\n\t\t}\n\n\t\tAuth-Type CHAP {\n\t\t\tchap\n\t\t}\n\n\t\tAuth-Type MS-CHAP {\n\t\t\tmschap\n\t\t}\n\n\t\tdigest\n}\n\n`;
+            sitesContent =
+              sitesContent.substring(0, lineStart) +
+              authSection +
+              sitesContent.substring(lineStart);
+            details.push('Inserted full authenticate section (PAP/CHAP/MS-CHAP/digest)');
+          }
+        }
       }
+
+      // VERIFY: Post-Auth-Type REJECT must contain sql for proper reject logging.
+      // When IP pool check fires 'reject', FreeRADIUS jumps to Post-Auth-Type REJECT.
+      // Without sql here, reject events have empty replyMessage → GUI shows "invalid password".
+      {
+        const rejectOpenIdx = sitesContent.indexOf('Post-Auth-Type REJECT {');
+        if (rejectOpenIdx !== -1) {
+          const braceStart = sitesContent.indexOf('{', rejectOpenIdx);
+          let depth = 0;
+          let rejectEndIdx = -1;
+          for (let i = braceStart; i < sitesContent.length; i++) {
+            if (sitesContent[i] === '{') depth++;
+            else if (sitesContent[i] === '}') {
+              depth--;
+              if (depth === 0) { rejectEndIdx = i; break; }
+            }
+          }
+          if (rejectEndIdx !== -1) {
+            const rejectSection = sitesContent.substring(rejectOpenIdx, rejectEndIdx + 1);
+            // Match standalone 'sql' on its own line (not -sql, not inside other words)
+            if (!/^\s*sql\s*$/m.test(rejectSection)) {
+              // Insert sql right after 'Post-Auth-Type REJECT {'
+              const insertPos = braceStart + 1;
+              sitesContent =
+                sitesContent.substring(0, insertPos) +
+                '\n\t\t# StaySuite: Log rejected auth attempts to SQL\n\t\tsql' +
+                sitesContent.substring(insertPos);
+              details.push('Repaired Post-Auth-Type REJECT section (added sql for reject logging)');
+            } else {
+              details.push('Post-Auth-Type REJECT verified (sql present for reject logging)');
+            }
+          }
+        } else {
+          details.push('WARNING: Post-Auth-Type REJECT section not found');
+        }
+      }
+
+      // DO NOT modify post-auth section content.
+      // Post-auth ordering (sql placement, IP pool check, etc.) is managed by
+      // the deploy script and template. Brace-counting is UNSAFE here because
+      // FreeRADIUS config has { } inside comments, which corrupts section
+      // boundary detection. Any post-auth dedup or reordering must be done
+      // manually or via the deploy script — never at runtime.
+      // Post-Auth-Type REJECT { sql } is verified above for reject logging.
+      details.push('Skipped post-auth modification (managed by template/deploy)');
+
 
       // Add sql to accounting section
       const acctSection = sitesContent.match(/accounting\s*\{([^}]*)\}/);
@@ -2659,11 +2788,8 @@ sql {
         );
         // NOTE: Do NOT add sql to authenticate in FreeRADIUS 3.x (same reason as above)
         // SQL password verification is automatic from the authorize section
-        // Add sql to post-auth
-        innerContent = innerContent.replace(
-          /post-auth\s*\{/,
-          'post-auth {\n\tsql'
-        );
+        // DO NOT modify post-auth in inner-tunnel (same reason as sites-enabled/default)
+        details.push('Skipped post-auth sql placement (default config is correct)');
         // Add sql to session
         innerContent = innerContent.replace(
           /session\s*\{/,
@@ -3586,7 +3712,8 @@ app.post('/api/coa/bandwidth', async (c) => {
     const vendor = normalizeVendor(nas.type);
     const dlMbps = downloadMbps || 0;
     const ulMbps = uploadMbps || 0;
-    const rateLimit = `${dlMbps}M/${ulMbps}M`;
+    // rx=upload, tx=download from NAS perspective
+    const rateLimit = `${ulMbps}M/${dlMbps}M`;
     const dlBps = dlMbps * 1000000;
     const ulBps = ulMbps * 1000000;
 
@@ -3820,7 +3947,7 @@ app.post('/api/data-cap/enforce', async (c) => {
 
         // Always close session locally (regardless of radclient success)
         // This ensures the session is terminated in the DB even if CoA to NAS fails
-        db.query("UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'Data-Cap-Exceeded', acctupdatetime = NOW(), updatedAt = NOW() WHERE username = ? AND acctsessionid = ? AND acctstoptime IS NULL")
+        db.query("UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'Data-Cap-Exceeded', acctupdatetime = NOW(), updatedat = NOW() WHERE username = ? AND acctsessionid = ? AND acctstoptime IS NULL")
           .run(username, session.acctsessionid);
         db.query(`UPDATE "LiveSession" SET status = 'ended', updatedAt = NOW() WHERE username = ? AND status = 'active'`)
           .run(username);
@@ -3841,7 +3968,7 @@ app.post('/api/data-cap/enforce', async (c) => {
       let throttleAttrs = `User-Name="${username}"`;
       switch (vendor) {
         case 'mikrotik':
-          throttleAttrs += '\nMikrotik-Rate-Limit="256k/128k"';
+          throttleAttrs += '\nMikrotik-Rate-Limit="128k/256k"';
           break;
         case 'cisco':
           throttleAttrs += '\nCisco-AVPair="sub:Ingress-Committed-Data-Rate=128000"\nCisco-AVPair="sub:Egress-Committed-Data-Rate=256000"';
@@ -5326,7 +5453,7 @@ setInterval(async () => {
               const attrs = `User-Name="${u.username}"\nAcct-Session-Id="${session.acctsessionid}"`;
               executeRadclient(nas.ip, nas.coaPort, 'disconnect', nas.secret, attrs).then(async (radResult) => {
                 // Always close session locally regardless of radclient result
-                db.query("UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'Data-Cap-Exceeded', acctupdatetime = NOW(), updatedAt = NOW() WHERE username = ? AND acctsessionid = ? AND acctstoptime IS NULL")
+                db.query("UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'Data-Cap-Exceeded', acctupdatetime = NOW(), updatedat = NOW() WHERE username = ? AND acctsessionid = ? AND acctstoptime IS NULL")
                   .run(u.username, session.acctsessionid);
                 db.query(`UPDATE "LiveSession" SET status = 'ended', updatedAt = NOW() WHERE username = ? AND status = 'active'`)
                   .run(u.username);
@@ -5339,7 +5466,7 @@ setInterval(async () => {
                 });
               }).catch(() => {
                 // Even on exception, close locally
-                db.query("UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'Data-Cap-Exceeded', acctupdatetime = NOW(), updatedAt = NOW() WHERE username = ? AND acctsessionid = ? AND acctstoptime IS NULL")
+                db.query("UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'Data-Cap-Exceeded', acctupdatetime = NOW(), updatedat = NOW() WHERE username = ? AND acctsessionid = ? AND acctstoptime IS NULL")
                   .run(u.username, session.acctsessionid);
                 db.query(`UPDATE "LiveSession" SET status = 'ended', updatedAt = NOW() WHERE username = ? AND status = 'active'`)
                   .run(u.username);
@@ -6202,7 +6329,7 @@ async function applyBandwidthCoA(
   let coaAttrs = `User-Name="${username}"`;
   switch (vendor) {
     case 'mikrotik':
-      coaAttrs += `\nMikrotik-Rate-Limit="${dlMbps}M/${ulMbps}M"`;
+      coaAttrs += `\nMikrotik-Rate-Limit="${ulMbps}M/${dlMbps}M"`;
       break;
     case 'cisco':
       coaAttrs += `\nCisco-AVPair="sub:Ingress-Committed-Data-Rate=${ulBps}"\nCisco-AVPair="sub:Egress-Committed-Data-Rate=${dlBps}"`;
@@ -7527,7 +7654,7 @@ setInterval(async () => {
             let attrs = `User-Name="${session.username}"`;
             switch (vendor) {
               case 'mikrotik':
-                attrs += `\nMikrotik-Rate-Limit="${throttleDown}k/${throttleUp}k"`;
+                attrs += `\nMikrotik-Rate-Limit="${throttleUp}k/${throttleDown}k"`;
                 break;
               case 'cisco':
                 attrs += `\nCisco-AVPair="sub:Ingress-Committed-Data-Rate=${upBps}"\nCisco-AVPair="sub:Egress-Committed-Data-Rate=${downBps}"`;

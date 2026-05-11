@@ -254,8 +254,8 @@ function KPICard({
         <TooltipTrigger asChild>
           <Card
             className={cn(
-              'group relative overflow-hidden transition-all duration-300 h-full rounded-2xl card-shine',
-              'hover:shadow-xl hover:-translate-y-1',
+              'group relative overflow-hidden transition-all duration-200 h-full rounded-2xl card-shine cursor-pointer',
+              'hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5',
               config.glowColor,
               isNeumorphism
                 ? 'border border-border/50 shadow-[6px_6px_12px_var(--neu-shadow-dark),-6px_-6px_12px_var(--neu-shadow-light)]'
@@ -631,6 +631,16 @@ export function KPICards() {
   return (
     <>
       <style>{iconPulseKeyframes}</style>
+      {/* Live indicator header */}
+      <div className="flex items-center justify-end mb-2">
+        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+          </span>
+          Live
+        </span>
+      </div>
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {kpiCards.map((kpi, index) => (
           <KPICard key={index} {...kpi} index={index} animateIn />

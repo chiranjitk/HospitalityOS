@@ -4,6 +4,10 @@ import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
 
+// Simple in-memory cache for dashboard data (keyed by tenantId)
+const dashboardCache = new Map<string, { data: any; timestamp: number }>();
+const DASHBOARD_CACHE_TTL = 15000; // 15 seconds
+
 export async function GET(request: NextRequest) {
   try {
     // Authentication check
@@ -25,6 +29,12 @@ export async function GET(request: NextRequest) {
 
     const tenantId = user.tenantId; // Use authenticated user's tenant
 
+    // Check cache first
+    const cached = dashboardCache.get(tenantId);
+    if (cached && Date.now() - cached.timestamp < DASHBOARD_CACHE_TTL) {
+      return NextResponse.json(cached.data);
+    }
+
     // Get current date info
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -38,6 +48,8 @@ export async function GET(request: NextRequest) {
     prevWeekAgo.setDate(prevWeekAgo.getDate() - 7);
     const prevMonthAgo = new Date(monthAgo);
     prevMonthAgo.setDate(prevMonthAgo.getDate() - 30);
+    const next30Days = new Date(today);
+    next30Days.setDate(next30Days.getDate() + 30);
 
     // Get all properties for tenant
     const properties = await db.property.findMany({
@@ -48,11 +60,15 @@ export async function GET(request: NextRequest) {
     const propertyIds = properties.map(p => p.id);
     const totalRooms = properties.reduce((sum, p) => sum + p.totalRooms, 0);
 
-    // Bookings stats
+    // Bookings stats — date-filtered to last 30 days, next 30 days, or currently checked-in
     const bookings = await db.booking.findMany({
       where: {
         propertyId: { in: propertyIds },
         deletedAt: null,
+        OR: [
+          { checkIn: { gte: monthAgo } },
+          { status: 'checked_in' },
+        ],
       },
       select: {
         id: true,
@@ -244,7 +260,15 @@ export async function GET(request: NextRequest) {
       });
       
       const dayRevenue = dayBookings.reduce((sum, b) => sum + b.totalAmount, 0);
-      const dayOccupancy = Math.round((occupiedRooms / totalRooms) * 100);
+
+      // Calculate per-day occupancy from bookings overlapping this day
+      const dayOccupiedRooms = bookings.filter(b => {
+        if (b.status === 'cancelled') return false;
+        const ci = new Date(b.checkIn);
+        const co = new Date(b.checkOut);
+        return ci < nextDate && co > date;
+      }).length;
+      const dayOccupancy = totalRooms > 0 ? Math.round((dayOccupiedRooms / totalRooms) * 100) : 0;
       
       revenueChartData.push({
         date: date.toLocaleDateString('en-US', { weekday: 'short' }),
@@ -498,7 +522,7 @@ export async function GET(request: NextRequest) {
       ? ((occupancyRate / 100) - (prevOccupiedRooms / totalRooms)) * 100 
       : 0;
 
-    return NextResponse.json({
+    const responseData = {
       success: true,
       data: {
         stats: {
@@ -577,7 +601,12 @@ export async function GET(request: NextRequest) {
           })),
         },
       },
-    });
+    };
+
+    // Store in cache before returning
+    dashboardCache.set(tenantId, { data: responseData, timestamp: Date.now() });
+
+    return NextResponse.json(responseData);
   } catch (error) {
     console.error('Dashboard API error:', error);
     return NextResponse.json(

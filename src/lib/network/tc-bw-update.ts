@@ -229,7 +229,7 @@ export async function updatePlanBandwidthForActiveSessions(
       AND (r.acctstatus IS NULL OR r.acctstatus = '' OR r.acctstatus = 'start')
       AND r.framedipaddress IS NOT NULL
       AND r.framedipaddress != '0.0.0.0'
-      AND u."planId" = $1
+      AND u."planId" = $1::uuid
       AND (r.nasipaddress = '127.0.0.1' OR r.nasipaddress IS NULL)
   `, planId);
 

@@ -165,27 +165,24 @@ async function buildPortalConfig(portalId: string) {
       hotelPhone: (designSettings.hotelPhone as string) || '',
       hotelWebsite: (designSettings.hotelWebsite as string) || '',
       logoUrl: portalPage?.logoUrl || '',
-      showHotelInfo: (designSettings.showHotelInfo as boolean) ?? true,
-      amenities: amenities.length > 0 ? amenities : ['WiFi', 'Pool', 'Spa', 'Gym'],
-      showAmenities: (designSettings.showAmenities as boolean) ?? true,
+      showHotelInfo: (designSettings.showHotelInfo as boolean) ?? false,
+      amenities: amenities,
+      showAmenities: (designSettings.showAmenities as boolean) ?? false,
       showSocialMedia: (designSettings.showSocialMedia as boolean) ?? false,
-      socialLinks: socialLinks.length > 0 ? socialLinks : [
-        { platform: 'instagram', url: 'https://instagram.com' },
-        { platform: 'facebook', url: 'https://facebook.com' },
-      ],
-      showClock: (designSettings.showClock as boolean) ?? true,
-      showWeather: (designSettings.showWeather as boolean) ?? true,
-      promotionTitle: (designSettings.promotionTitle as string) || 'Special Offer',
-      promotionDesc: (designSettings.promotionDesc as string) || 'Book 3 nights and get 20% off your stay!',
-      showPromotion: (designSettings.showPromotion as boolean) ?? true,
+      socialLinks: socialLinks,
+      showClock: (designSettings.showClock as boolean) ?? false,
+      showWeather: (designSettings.showWeather as boolean) ?? false,
+      promotionTitle: (designSettings.promotionTitle as string) || '',
+      promotionDesc: (designSettings.promotionDesc as string) || '',
+      showPromotion: (designSettings.showPromotion as boolean) ?? false,
       termsText: (designSettings.termsText as string) || portalPage?.termsText || '',
       termsUrl: (designSettings.termsUrl as string) || portalPage?.termsUrl || '',
-      showBranding: portalPage?.showBranding ?? true,
+      showBranding: portalPage?.showBranding ?? false,
       title: portalPage?.title || 'Welcome',
       subtitle: portalPage?.subtitle || 'Connect to WiFi',
 
       // ── Feature 1: Multi-Language Portal ──
-      languages: (designSettings.languages as string[]) || ['en'],
+      languages: (designSettings.languages as string[]) || [],
       defaultLanguage: (designSettings.defaultLanguage as string) || 'en',
       enableMultiLanguage: (designSettings.enableMultiLanguage as boolean) || false,
       translations: (designSettings.translations as Record<string, Record<string, string>>) || {},
@@ -195,32 +192,23 @@ async function buildPortalConfig(portalId: string) {
 
       // ── Feature 3: Multi-Slide Promotion Carousel ──
       customAmenities: (designSettings.customAmenities as Array<{ name: string; icon: string }>) || [],
-      // Derive showPromotions from useCarouselMode + having slides with content
-      showPromotions: (((designSettings.useCarouselMode as boolean) && (((designSettings.promotions as Array<Record<string, string>>) || []).some((p: Record<string, string>) => p.title || p.description))) || ((designSettings.showPromotions as boolean) ?? true)),
+      // showPromotions: ONLY true when parent promotion toggle is ON AND carousel mode is selected
+      showPromotions: (((designSettings.showPromotion as boolean) ?? false) && ((designSettings.useCarouselMode as boolean) ?? false)),
       useCarouselMode: (designSettings.useCarouselMode as boolean) || false,
-      promotions: ((designSettings.promotions as Array<Record<string, string>>) || []).length > 0
-        ? ((designSettings.promotions as Array<Record<string, string>>)).map((p: Record<string, string>) => ({
-            id: p.id || `promo-${Math.random().toString(36).slice(2, 8)}`,
-            title: p.title || '',
-            description: p.description || '',
-            imageUrl: p.imageUrl || '',
-            linkUrl: p.linkUrl || '',
-            backgroundColor: p.backgroundColor || p.bgColor || '#f59e0b',
-          }))
-        : [{
-            id: 'default-promo-1',
-            title: (designSettings.promotionTitle as string) || 'Special Offer',
-            description: (designSettings.promotionDesc as string) || 'Book 3 nights and get 20% off your stay!',
-            imageUrl: '',
-            linkUrl: '',
-            backgroundColor: '#f59e0b',
-          }],
+      promotions: ((designSettings.promotions as Array<Record<string, string>>) || []).map((p: Record<string, string>) => ({
+          id: p.id || `promo-${Math.random().toString(36).slice(2, 8)}`,
+          title: p.title || '',
+          description: p.description || '',
+          imageUrl: p.imageUrl || '',
+          linkUrl: p.linkUrl || '',
+          backgroundColor: p.backgroundColor || p.bgColor || '#f59e0b',
+        })),
 
       // ── Feature 4: Post-Connect Guest Survey ──
       surveyConfig: (designSettings.surveyConfig as { enabled: boolean; question: string; options: string[]; thankYouMessage: string }) || { enabled: false, question: '', options: [], thankYouMessage: '' },
 
       // ── Feature 5: Weather Widget ──
-      weatherLocation: (designSettings.weatherLocation as string) || 'New York',
+      weatherLocation: (designSettings.weatherLocation as string) || '',
 
       // ── Feature 9: Content Block Reordering ──
       contentBlockOrder: (designSettings.contentBlockOrder as string[]) || [],

@@ -514,8 +514,8 @@ function BandwidthUsageTab() {
           <CardTitle className="text-base">Detailed Usage Data</CardTitle>
         </CardHeader>
         <CardContent className="p-0 overflow-hidden">
-          <div className="max-h-96 overflow-auto">
-            <Table>
+          <div className="max-h-96 overflow-x-auto overflow-y-auto">
+            <Table className="min-w-max">
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-xs whitespace-nowrap">Date</TableHead>
@@ -829,8 +829,8 @@ function UserBandwidthTab() {
           <CardDescription>Click a row to expand session history</CardDescription>
         </CardHeader>
         <CardContent className="p-0 overflow-hidden">
-          <div className="max-h-96 overflow-auto">
-            <Table>
+          <div className="max-h-96 overflow-x-auto overflow-y-auto">
+            <Table className="min-w-max">
               <TableHeader>
                 <TableRow>
                   <TableHead className="cursor-pointer text-xs whitespace-nowrap" onClick={() => handleSort('username')}>Username <SortIcon col="username" isActive={sortKey === 'username'} /></TableHead>
@@ -983,8 +983,8 @@ function WebSurfingTab() {
   };
 
   const handleExportCSV = useCallback(() => {
-    const headers = 'Domain,Source IP,Guest Name,Category,Total Bytes,Connections,Last Accessed';
-    const rows = surfingLogs.map(l => `${l.domain},${l.sourceIp || l.source_ip},${l.guestName || ''},${l.category},${l.totalBytes},${l.connections},${l.lastAccess || l.last_access}`);
+    const headers = 'Domain,Source IP,Src Port,Dest IP,Dest Port,Interface,Guest Name,Category,Connections,Bytes,Last Accessed';
+    const rows = surfingLogs.map(l => `${l.domain},${l.sourceIp || l.source_ip},${l.srcPort || ''},${l.destIp || ''},${l.destPort || ''},${l.inIface || ''},${l.guestName || ''},${l.category},${l.connections},${l.totalBytes},${l.lastAccess || l.last_access}`);
     const csv = [headers, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1158,13 +1158,17 @@ function WebSurfingTab() {
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm sm:text-base">Domain Access Logs</CardTitle></CardHeader>
         <CardContent className="p-0 overflow-hidden">
-          <div className="max-h-96 overflow-auto">
-            <Table>
+          <div className="max-h-96 overflow-x-auto overflow-y-auto">
+            <Table className="min-w-max">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs whitespace-nowrap">Timestamp</TableHead>
                     <TableHead className="text-xs whitespace-nowrap">Domain</TableHead>
                     <TableHead className="text-xs whitespace-nowrap">Source IP</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Src Port</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Dest IP</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Dst Port</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden xl:table-cell">Interface</TableHead>
                     <TableHead className="text-xs whitespace-nowrap hidden sm:table-cell">Guest Name</TableHead>
                     <TableHead className="text-xs whitespace-nowrap hidden md:table-cell">Category</TableHead>
                     <TableHead className="text-xs whitespace-nowrap text-right">Conns</TableHead>
@@ -1173,12 +1177,20 @@ function WebSurfingTab() {
                 </TableHeader>
                 <TableBody>
                   {filteredLogs.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground text-xs">No web surfing data available. Data will appear once the DNS logging pipeline is active.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground text-xs">No web surfing data available. Data will appear once the DNS logging pipeline is active.</TableCell></TableRow>
                   ) : filteredLogs.slice(0, 200).map((log, idx) => (
                     <TableRow key={log.id || `${log.domain}-${log.sourceIp || log.source_ip}-${idx}`} className="hover:bg-muted/30">
                       <TableCell className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">{new Date(log.timestamp || log.lastAccess || log.last_access).toLocaleString()}</TableCell>
                       <TableCell className="font-mono text-xs sm:text-sm max-w-[100px] sm:max-w-[180px] truncate">{log.domain}</TableCell>
                       <TableCell className="font-mono text-[10px] sm:text-xs text-teal-600 dark:text-teal-400 whitespace-nowrap">{log.sourceIp || log.source_ip}</TableCell>
+                      <TableCell className="font-mono text-[10px] sm:text-xs text-muted-foreground hidden lg:table-cell">{log.srcPort || <span className="text-muted-foreground/50">—</span>}</TableCell>
+                      <TableCell className="font-mono text-[10px] sm:text-xs text-muted-foreground hidden lg:table-cell">{log.destIp || <span className="text-muted-foreground/50">—</span>}</TableCell>
+                      <TableCell className="font-mono text-[10px] sm:text-xs text-muted-foreground hidden lg:table-cell">{log.destPort || 443}</TableCell>
+                      <TableCell className="text-[10px] sm:text-xs hidden xl:table-cell">
+                        {log.inIface ? (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono h-5">{log.inIface}</Badge>
+                        ) : <span className="text-muted-foreground/50">—</span>}
+                      </TableCell>
                       <TableCell className="text-[10px] sm:text-xs hidden sm:table-cell">{log.guestName || <span className="text-muted-foreground">—</span>}</TableCell>
                       <TableCell className="hidden md:table-cell">
                         <span className={cn('text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-medium', catColors[log.category] || catColors.other)}>
@@ -1207,12 +1219,13 @@ function NATLogsTab() {
   const [searchQuery, setSearchQuery] = useState('');
   const [protocolFilter, setProtocolFilter] = useState('all');
   const [actionFilter, setActionFilter] = useState('all');
+  const [guestOnly, setGuestOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   const handleExportCSV = useCallback(() => {
-    const headers = 'Timestamp,Source IP:Port,Dest IP:Port,Proto,Event Type,Download,Upload,Packets,Duration(s),Domain,Guest Name,Action';
-    const rows = logs.map(l => `${l.timestamp},${l.source_ip}:${l.src_port},${l.dest_ip}:${l.dst_port},${l.proto},${l.event_type || '-'},${l.bytes_orig || 0},${l.bytes_reply || 0},${l.packets || 0},${l.duration || 0},${l.domain || ''},${l.guestName || ''},${l.action || 'allow'}`);
+    const headers = 'Timestamp,Source IP:Port,NAT IP:Port,Dest IP:Port,Proto,Event Type,Download,Upload,Packets,Duration(s),Domain,Guest Name,Action';
+    const rows = logs.map(l => `${l.timestamp},${l.source_ip}:${l.src_port},${l.nat_src_ip || ''}:${l.nat_src_port || ''},${l.dest_ip}:${l.dst_port},${l.proto},${l.event_type || '-'},${l.bytes_orig || 0},${l.bytes_reply || 0},${l.packets || 0},${l.duration || 0},${l.domain || ''},${l.guestName || ''},${l.action || 'allow'}`);
     const csv = [headers, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1231,6 +1244,7 @@ function NATLogsTab() {
       if (searchQuery) params.set('sourceIp', searchQuery);
       if (protocolFilter !== 'all') params.set('protocol', protocolFilter);
       if (actionFilter !== 'all') params.set('action', actionFilter);
+      if (guestOnly) params.set('guestOnly', 'true');
       const res = await fetch(`/api/wifi/reports/nat-logs?${params.toString()}`);
       const result = await res.json();
       if (result.success) {
@@ -1244,7 +1258,7 @@ function NATLogsTab() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, protocolFilter, actionFilter, toast]);
+  }, [searchQuery, protocolFilter, actionFilter, guestOnly, toast]);
 
   useEffect(() => { fetchNATLogs(); }, [fetchNATLogs]);
 
@@ -1260,6 +1274,19 @@ function NATLogsTab() {
   }, [logs, searchQuery, protocolFilter, actionFilter]);
 
   if (loading) return <LoadingSpinner message="Loading NAT logs..." />;
+
+  // Format timestamp with date
+  const formatTimestamp = (ts: string) => {
+    try {
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return ts;
+      const date = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
+      const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+      return `${date} ${time}`;
+    } catch {
+      return ts;
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -1313,6 +1340,15 @@ function NATLogsTab() {
                 <SelectItem value="deny">Deny</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              variant={guestOnly ? 'default' : 'outline'}
+              size="sm"
+              className={cn('w-full sm:w-auto', guestOnly && 'bg-emerald-600 hover:bg-emerald-700')}
+              onClick={() => setGuestOnly(!guestOnly)}
+            >
+              <Users className="h-3.5 w-3.5 mr-1.5" />
+              {guestOnly ? 'Guests Only' : 'All Traffic'}
+            </Button>
             <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleExportCSV}><FileDown className="h-3.5 w-3.5 mr-1.5" /> Export</Button>
           </div>
         </CardContent>
@@ -1321,12 +1357,13 @@ function NATLogsTab() {
       {/* NAT Logs Table */}
       <Card>
         <CardContent className="p-0 overflow-hidden">
-          <div className="max-h-[500px] overflow-auto">
-              <Table>
+          <div className="max-h-[500px] overflow-x-auto overflow-y-auto">
+              <Table className="min-w-max">
                 <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow>
-                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">Time</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">Timestamp</TableHead>
                     <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">Source</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden sm:table-cell">NAT</TableHead>
                     <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden lg:table-cell">Dest</TableHead>
                     <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">Proto</TableHead>
                     <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden sm:table-cell">Event</TableHead>
@@ -1339,14 +1376,21 @@ function NATLogsTab() {
                 </TableHeader>
                 <TableBody>
                   {filteredLogs.length === 0 ? (
-                    <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground text-xs">No NAT log data available. Data will appear once the conntrack logging pipeline is active.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground text-xs">No NAT log data available. Data will appear once the conntrack logging pipeline is active.</TableCell></TableRow>
                   ) : filteredLogs.slice(0, 200).map((log, idx) => (
                     <TableRow key={log.id || `nat-${idx}`} className={cn('hover:bg-muted/30', (log.action === 'deny') && 'bg-red-50/50 dark:bg-red-950/10')}>
                       <TableCell className="text-[10px] sm:text-xs text-muted-foreground font-mono whitespace-nowrap">
-                        {new Date(log.timestamp).toLocaleTimeString()}
+                        {formatTimestamp(log.timestamp)}
                       </TableCell>
                       <TableCell className="font-mono text-[10px] sm:text-xs whitespace-nowrap">
                         <span className="text-teal-600 dark:text-teal-400">{log.source_ip || log.sourceIp}</span>:<span className="text-muted-foreground">{log.src_port || log.sourcePort}</span>
+                      </TableCell>
+                      <TableCell className="font-mono text-[10px] sm:text-xs whitespace-nowrap hidden sm:table-cell">
+                        {log.nat_src_ip ? (
+                          <span className="text-violet-600 dark:text-violet-400">{log.nat_src_ip}<span className="text-muted-foreground">:{log.nat_src_port}</span></span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="font-mono text-[10px] sm:text-xs whitespace-nowrap hidden lg:table-cell">
                         <span className="text-amber-600 dark:text-amber-400">{log.dest_ip || log.destIp}</span>:<span className="text-muted-foreground">{log.dst_port || log.destPort}</span>
@@ -1592,8 +1636,8 @@ function VoucherReportTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0 overflow-hidden">
-          <div className="max-h-96 overflow-auto">
-            <Table>
+          <div className="max-h-96 overflow-x-auto overflow-y-auto">
+            <Table className="min-w-max">
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-xs whitespace-nowrap">Code</TableHead>
@@ -2904,8 +2948,8 @@ function SystemHealthTab() {
             </div>
           </CardHeader>
           <CardContent className="p-0 overflow-hidden">
-            <div className="max-h-64 overflow-auto">
-              <Table>
+            <div className="max-h-64 overflow-x-auto overflow-y-auto">
+              <Table className="min-w-max">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs whitespace-nowrap">Metric</TableHead>

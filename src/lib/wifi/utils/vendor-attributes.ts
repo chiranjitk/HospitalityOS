@@ -296,16 +296,6 @@ export function generateSessionAttributes(
   const interimInterval = interimIntervalSeconds || 60;
   attrs.push({ attribute: 'Acct-Interim-Interval', value: String(interimInterval) });
 
-  // RFC 2865 — Standard data limits (recognized by ALL NAS)
-  if (dataLimitMB && dataLimitMB > 0) {
-    const dataLimitBytes = dataLimitMB * 1024 * 1024;
-    attrs.push(
-      { attribute: 'Max-Total-Octets', value: String(dataLimitBytes) },
-      { attribute: 'Max-Input-Octets', value: String(dataLimitBytes) },
-      { attribute: 'Max-Output-Octets', value: String(dataLimitBytes) },
-    );
-  }
-
   // ── Vendor-specific data cap attributes (deduplicated) ──
   if (dataLimitMB && dataLimitMB > 0) {
     const dataLimitBytes = dataLimitMB * 1024 * 1024;
@@ -376,7 +366,8 @@ function getVendorBandwidthAttrs(
       break;
 
     case 'mikrotik':
-      attrs.push({ attribute: 'Mikrotik-Rate-Limit', value: `${downloadMbps}M/${uploadMbps}M` });
+      // rx=upload, tx=download from NAS perspective
+      attrs.push({ attribute: 'Mikrotik-Rate-Limit', value: `${uploadMbps}M/${downloadMbps}M` });
       break;
 
     case 'cisco':
@@ -514,14 +505,13 @@ function getVendorDataLimitAttrs(
 /**
  * Get all known data-limit attribute names that have a value set.
  * Used for deleting old vendor attrs before writing new ones.
- * Includes standard RFC attributes (Max-Input-Octets, Max-Output-Octets).
+ * Only includes vendor-specific attributes (no bare RFC Max-*-Octets,
+ * as those don't exist in any FreeRADIUS dictionary and cause parse failures).
  */
 export function getActiveDataLimitAttrs(attributes: Record<string, string> | undefined): string[] {
   if (!attributes) return [];
   return [
-    // Standard RFC attributes
-    'Max-Total-Octets', 'Max-Input-Octets', 'Max-Output-Octets',
-    // Vendor-specific attributes
+    // Vendor-specific attributes (dictionaries ARE loaded in FreeRADIUS)
     'Cryptsk-Total-Limit', 'Cryptsk-Max-Input-Octets', 'Cryptsk-Max-Output-Octets',
     'Mikrotik-Total-Limit',
     'ChilliSpot-Max-Total-Octets', 'ChilliSpot-Max-Input-Octets', 'ChilliSpot-Max-Output-Octets',

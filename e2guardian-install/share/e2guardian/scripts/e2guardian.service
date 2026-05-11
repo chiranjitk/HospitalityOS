@@ -1,0 +1,17 @@
+[Unit]
+Description=E2guardian Web filtering
+After=network.target
+
+[Service]
+TasksMax=infinity
+LimitNOFILE=65535
+LimitSTACK=infinity:infinity
+Type=forking
+IgnoreSIGPIPE=no
+GuessMainPID=no
+ExecStart=/home/z/my-project/e2guardian-install/sbin/e2guardian
+ExecReload=/home/z/my-project/e2guardian-install/sbin/e2guardian -r
+UMask=027
+
+[Install]
+WantedBy=multi-user.target

@@ -60,6 +60,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { NotificationPopover } from '@/components/layout/notification-popover';
+import { ThemeToggle } from '@/components/common/theme-toggle';
 
 // =============================================
 // CONSTANTS
@@ -184,12 +186,12 @@ function SidebarItem({ item, isActive, onClick, isFeatureEnabled, hasPermission,
               "relative flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 mx-auto group/item",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-primary/40 focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar",
               isActive
-                ? "bg-sidebar-accent/40 text-primary"
+                ? "bg-[oklch(0.65_0.16_170/0.12)] text-[oklch(0.50_0.16_170)]"
                 : "text-sidebar-foreground hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
             )}
           >
             {isActive && (
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 bg-primary rounded-r-full" />
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[oklch(0.65_0.16_170)] rounded-r-full" />
             )}
             <item.icon className="h-4 w-4" />
             {item.badge && (
@@ -227,14 +229,14 @@ function SidebarItem({ item, isActive, onClick, isFeatureEnabled, hasPermission,
       onMouseLeave={() => setIsHovered(false)}
       className={cn(
         "group/item relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-medium",
-        "transition-all duration-250 ease-out",
+        "transition-all duration-200 ease-out",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-primary/30 focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar",
         isActive
-          ? "bg-sidebar-accent/40 text-foreground font-semibold"
-          : "text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+          ? "bg-[oklch(0.65_0.16_170/0.08)] text-foreground font-semibold"
+          : "text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/40"
       )}
     >
-      {/* Active gradient background overlay */}
+      {/* Active gradient background overlay — teal tint */}
       {isActive && (
         <motion.div
           className="absolute inset-0 rounded-xl pointer-events-none"
@@ -242,19 +244,32 @@ function SidebarItem({ item, isActive, onClick, isFeatureEnabled, hasPermission,
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
           style={{
-            background: 'linear-gradient(135deg, oklch(from var(--sidebar-primary) l c h / 0.08), transparent 60%)',
+            background: 'linear-gradient(90deg, oklch(0.65 0.16 170 / 0.08), transparent 70%)',
           }}
         />
       )}
 
-      {/* Active left accent bar — gradient with slide animation */}
+      {/* Hover slide-in gradient background */}
+      {!isActive && (
+        <motion.div
+          className="absolute inset-0 rounded-xl pointer-events-none"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: isHovered ? 1 : 0 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+          style={{
+            background: 'linear-gradient(90deg, oklch(0.65 0.16 170 / 0.06), transparent 60%)',
+          }}
+        />
+      )}
+
+      {/* Active left accent bar — 3px teal bar with slide animation */}
       <div className={cn(
         "absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full",
         isActive
-          ? "h-5 w-[3px] bg-gradient-to-b from-sidebar-primary via-sidebar-ring to-sidebar-primary"
+          ? "h-5 w-[3px] bg-[oklch(0.65_0.16_170)]"
           : cn(
               "h-0 w-0 bg-transparent",
-              isHovered && "h-3 w-[2px] bg-sidebar-primary/40"
+              isHovered && "h-3 w-[2px] bg-[oklch(0.65_0.16_170/0.5)]"
             ),
         "transition-all duration-300 ease-out"
       )} />
@@ -314,6 +329,7 @@ function SidebarSection({ section, isExpanded, onToggle, activeSection, onNavCli
           "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] font-semibold uppercase tracking-[0.12em] transition-all duration-200 group/section section-btn-highlight",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-primary/30",
           "hover:bg-sidebar-accent/30",
+          isExpanded && "border-b border-sidebar-border/15",
           hasActiveItem 
             ? "text-sidebar-primary" 
             : "text-sidebar-foreground hover:text-sidebar-foreground"
@@ -454,6 +470,7 @@ function SearchInput({ searchQuery, setSearchQuery }: SearchInputProps) {
           )} />
         </motion.div>
         <Input
+          data-sidebar-search
           placeholder={tLayout('searchNavigation')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -768,6 +785,30 @@ function UserProfile({ collapsed }: { collapsed?: boolean }) {
 }
 
 // =============================================
+// SIDEBAR THEME TOGGLE ROW
+// =============================================
+function SidebarThemeToggleRow({ collapsed }: { collapsed?: boolean }) {
+  if (collapsed) {
+    return (
+      <div className="px-2 py-1.5 flex-shrink-0">
+        <ThemeToggle collapsed />
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-3 py-2 border-t border-sidebar-border/15 flex-shrink-0">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground">
+          Appearance
+        </span>
+        <ThemeToggle />
+      </div>
+    </div>
+  );
+}
+
+// =============================================
 // PREMIUM LOGO COMPONENT (Enhanced)
 // =============================================
 function Logo({ showClose, onClose, collapsed }: LogoProps) {
@@ -895,12 +936,12 @@ function CollapsedNavigation({
                     "relative flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 mx-auto group/item",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-primary/40 focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar",
                     isActive
-                      ? "bg-sidebar-accent/40 text-primary"
+                      ? "bg-[oklch(0.65_0.16_170/0.12)] text-[oklch(0.50_0.16_170)]"
                       : "text-sidebar-foreground hover:bg-sidebar-accent/35 hover:text-sidebar-foreground"
                   )}
                 >
                   {isActive && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 bg-primary rounded-r-full" />
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-[oklch(0.65_0.16_170)] rounded-r-full" />
                   )}
                   <section.icon className="h-4 w-4" />
                   {/* Notification indicator for section */}
@@ -943,19 +984,8 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
     return () => document.removeEventListener('keydown', handleEscape);
   }, [mobileOpen, onMobileClose]);
 
-  // Keyboard navigation support
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+K / Cmd+K to focus search
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        const searchInput = document.querySelector('[data-sidebar-search] input') as HTMLInputElement;
-        searchInput?.focus();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  // Keyboard navigation support — Ctrl+K now opens command palette (handled by CommandPalette component)
+  // Sidebar search remains accessible via click
 
   const toggleSection = (title: string) => {
     setExpandedSections((prev) =>
@@ -1063,9 +1093,13 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
           isMenuItemVisible={isMenuItemVisible}
           canAccessMenu={canAccessMenu}
         />
+        {/* Sidebar footer separator */}
+        <div className="h-px mx-3 bg-gradient-to-r from-transparent via-[oklch(0.65_0.16_170/0.25)] to-transparent flex-shrink-0" />
         <QuickStats />
         <TenantSwitcher />
+        <NotificationPopover />
         <UserProfile />
+        <SidebarThemeToggleRow collapsed={false} />
       </aside>
 
       {/* Desktop Collapsed Sidebar */}
@@ -1093,13 +1127,16 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
               canAccessMenu={canAccessMenu}
               navigation={translatedNavigation}
             />
+          {/* Sidebar footer separator */}
+          <div className="h-px mx-2 bg-gradient-to-r from-transparent via-[oklch(0.65_0.16_170/0.25)] to-transparent flex-shrink-0" />
+          <QuickStats collapsed />
+          <TenantSwitcher collapsed />
+          <NotificationPopover collapsed />
+          <UserProfile collapsed />
+          <SidebarThemeToggleRow collapsed />
 
-            <QuickStats collapsed />
-            <TenantSwitcher collapsed />
-            <UserProfile collapsed />
-
-            {/* Collapse toggle */}
-            <div className="p-2 border-t border-sidebar-border/[0.10] flex-shrink-0">
+          {/* Collapse toggle */}
+          <div className="p-2 border-t border-sidebar-border/[0.10] flex-shrink-0">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -1139,8 +1176,9 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
             <div className="mx-4 h-px bg-gradient-to-r from-transparent via-sidebar-border/30 to-transparent" />
           </div>
 
-          {/* Header: Logo + Collapse button */}
-          <div className="absolute top-3 right-2 z-10">
+          {/* Header: Logo + Notification bell + Collapse button */}
+          <div className="absolute top-3 right-2 z-10 flex items-center gap-1">
+            <NotificationPopover />
             <Button
               variant="ghost"
               size="icon"
@@ -1164,9 +1202,12 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
             isMenuItemVisible={isMenuItemVisible}
             canAccessMenu={canAccessMenu}
           />
+          {/* Sidebar footer separator */}
+          <div className="h-px mx-3 bg-gradient-to-r from-transparent via-[oklch(0.65_0.16_170/0.25)] to-transparent flex-shrink-0" />
           <QuickStats />
           <TenantSwitcher />
           <UserProfile />
+          <SidebarThemeToggleRow collapsed={false} />
         </aside>
       )}
     </>

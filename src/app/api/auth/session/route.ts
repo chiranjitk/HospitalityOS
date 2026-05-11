@@ -249,8 +249,10 @@ export async function POST(request: NextRequest) {
     const newToken = crypto.randomBytes(32).toString('hex');
     const newRefreshToken = crypto.randomBytes(32).toString('hex');
 
-    // Calculate new expiry — extend from now
-    const maxAge = 24 * 60 * 60; // 24 hours
+    // Calculate new expiry — respect original rememberMe choice by checking session duration
+    const originalDurationMs = new Date(session.expiresAt).getTime() - new Date(session.createdAt).getTime();
+    const isRememberMe = originalDurationMs > 7 * 24 * 60 * 60 * 1000; // > 7 days means "remember me for 30 days"
+    const maxAge = isRememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60; // 30 days or 24 hours
     const newExpiresAt = new Date(Date.now() + maxAge * 1000);
 
     // Update session with new tokens and extend expiry

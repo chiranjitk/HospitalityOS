@@ -68,6 +68,7 @@ import {
   Timer,
   Moon,
   Hourglass,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -104,6 +105,11 @@ interface LiveSession {
   roomId?: string;
   guestName?: string;
   propertyName?: string;
+  nasPortType?: string;
+  avgSpeedDown?: number;
+  avgSpeedUp?: number;
+  liveSpeedDown?: number;
+  liveSpeedUp?: number;
   // Login type tracking
   loginType?: string;   // 'portal' | 'auto_reauth'
   authCount?: number;    // Total times this device has authenticated
@@ -275,17 +281,48 @@ export default function LiveSessions() {
   const [isBulkDisconnecting, setIsBulkDisconnecting] = useState(false);
   const [bulkDisconnectTarget, setBulkDisconnectTarget] = useState(false);
 
+  // ─── Live Speed polling (Tier 2: real-time speed from live-speed-service) ──
+  // Polls the live-speed mini-service every 3 seconds and merges live speed data
+  // into sessions by matching on IP address. Falls back to avgSpeed when unavailable.
+  const [liveSpeedMap, setLiveSpeedMap] = useState<Record<string, { speedDown: number; speedUp: number }>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const pollSpeeds = async () => {
+      try {
+        const res = await fetch('/api/wifi/radius?action=live-speeds');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.data && !cancelled) {
+          setLiveSpeedMap(data.data);
+        }
+      } catch { /* non-critical — avg speed fallback works */ }
+    };
+    pollSpeeds();
+    const interval = setInterval(pollSpeeds, 3000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // Merge live speeds into session data
+  const sessionsWithSpeed = useMemo(() => {
+    return sessions.map(s => ({
+      ...s,
+      liveSpeedDown: liveSpeedMap[s.ipAddress]?.speedDown,
+      liveSpeedUp: liveSpeedMap[s.ipAddress]?.speedUp,
+    }));
+  }, [sessions, liveSpeedMap]);
+
   // CRITICAL: Always deduplicate sessions by id before rendering.
   // Even though the backend uses DISTINCT ON + Map dedup, and fetchSessions()
   // also filters via Set, this useMemo is the final safety net to guarantee
   // no duplicate React keys regardless of any race condition or stale data.
   const uniqueSessions = useMemo(() => {
     const seen = new Map<string, LiveSession>();
-    for (const s of sessions) {
+    for (const s of sessionsWithSpeed) {
       if (!seen.has(s.id)) seen.set(s.id, s);
     }
     return Array.from(seen.values());
-  }, [sessions]);
+  }, [sessionsWithSpeed]);
 
   // ─── Debounce search query (300ms) ───────────────────────────────────────
 
@@ -372,6 +409,7 @@ export default function LiveSessions() {
           acctSessionId,
           username: session.username,
           nasIp: session.nasIp,
+          framedIpAddress: session.ipAddress,
         }),
       });
       const data = await res.json();
@@ -528,6 +566,16 @@ export default function LiveSessions() {
     return `${bytes} B`;
   };
 
+  /** Format speed in Mbps — shows up to 1 decimal place, uses Kbps for < 0.1 Mbps */
+  const formatSpeed = (mbps: number): string => {
+    if (mbps <= 0) return '0';
+    if (mbps < 0.1) {
+      const kbps = Math.round(mbps * 1000);
+      return kbps > 0 ? `${kbps} Kbps` : '0';
+    }
+    return `${mbps.toFixed(1)} Mbps`;
+  };
+
   const getStatusBadge = (status: string) => {
     if (status === 'active') {
       return (
@@ -626,6 +674,12 @@ export default function LiveSessions() {
               <span className="truncate">{session.deviceName || session.deviceType || '—'}</span>
             </div>
           </div>
+          {session.nasPortType && (
+            <div>
+              <p className="text-muted-foreground mb-0.5">Port</p>
+              <p className="truncate">{session.nasPortType}</p>
+            </div>
+          )}
           <div>
             <p className="text-muted-foreground mb-0.5">Session</p>
             <p className="flex items-center gap-1">
@@ -685,6 +739,23 @@ export default function LiveSessions() {
             </div>
           </div>
         </div>
+
+        {/* Speed */}
+        {(session.avgSpeedDown || session.liveSpeedDown) ? (
+          <div>
+            <p className="text-muted-foreground mb-1 text-xs">Speed</p>
+            <div className="flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-0.5">
+                <ArrowDownToLine className="h-3 w-3 text-emerald-500" />
+                {formatSpeed(session.liveSpeedDown ?? session.avgSpeedDown ?? 0)}
+              </div>
+              <div className="flex items-center gap-0.5">
+                <ArrowUpFromLine className="h-3 w-3 text-amber-500" />
+                {formatSpeed(session.liveSpeedUp ?? session.avgSpeedUp ?? 0)}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {/* Row 4: NAS info */}
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -938,6 +1009,7 @@ export default function LiveSessions() {
                         <TableHead>User / IP</TableHead>
                         <TableHead>MAC</TableHead>
                         <TableHead>Device</TableHead>
+                        <TableHead className="hidden lg:table-cell">Port Type</TableHead>
                         <TableHead>BW Down / Up</TableHead>
                         <TableHead>
                           <div className="flex items-center gap-1">
@@ -946,6 +1018,12 @@ export default function LiveSessions() {
                           </div>
                         </TableHead>
                         <TableHead>Data Down / Up</TableHead>
+                        <TableHead>
+                          <div className="flex items-center gap-1">
+                            <Activity className="h-3 w-3" />
+                            Speed
+                          </div>
+                        </TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1000,6 +1078,7 @@ export default function LiveSessions() {
                               ) : null}
                             </div>
                           </TableCell>
+                          <TableCell className="hidden lg:table-cell"><p className="text-xs text-muted-foreground">{session.nasPortType || '—'}</p></TableCell>
                           <TableCell>
                             <div className="text-xs space-y-0.5">
                               <div className="flex items-center gap-1">
@@ -1033,6 +1112,18 @@ export default function LiveSessions() {
                               <div className="flex items-center gap-1">
                                 <ArrowUpFromLine className="h-3 w-3 text-amber-500" />
                                 <span>{formatBytes(session.dataUpload || 0)}</span>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-xs space-y-0.5 tabular-nums">
+                              <div className="flex items-center gap-1">
+                                <ArrowDownToLine className="h-3 w-3 text-emerald-500" />
+                                <span>{formatSpeed(session.liveSpeedDown ?? session.avgSpeedDown ?? 0)}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <ArrowUpFromLine className="h-3 w-3 text-amber-500" />
+                                <span>{formatSpeed(session.liveSpeedUp ?? session.avgSpeedUp ?? 0)}</span>
                               </div>
                             </div>
                           </TableCell>
@@ -1209,6 +1300,14 @@ export default function LiveSessions() {
                   <div>
                     <p className="text-xs text-muted-foreground">Idle Timeout</p>
                     <p className="text-sm">{selectedSession.idleTimeout ? formatDuration(selectedSession.idleTimeout) : '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Avg ↓ Speed</p>
+                    <p className="text-sm font-medium tabular-nums">{formatSpeed(selectedSession.avgSpeedDown ?? 0)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Avg ↑ Speed</p>
+                    <p className="text-sm font-medium tabular-nums">{formatSpeed(selectedSession.avgSpeedUp ?? 0)}</p>
                   </div>
                   {selectedSession.startedAt && (
                     <div className="col-span-2">

@@ -166,6 +166,12 @@ BEGIN
         ) THEN
             ALTER TABLE radpostauth ADD COLUMN "clientipaddress" text;
         END IF;
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'radpostauth' AND column_name = 'replyMessage'
+        ) THEN
+            ALTER TABLE radpostauth ADD COLUMN "replyMessage" text;
+        END IF;
     END IF;
 END $$;
 
@@ -303,7 +309,7 @@ CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS
     COALESCE(b.status, ''::text) AS booking_status,
     COALESCE(s.id::text, r.acctuniqueid) AS acctuniqueid,
     r.framedipv6address,
-    COALESCE(r.nasipaddress, '0.0.0.0'::text) AS nasipaddress,
+    COALESCE(r.nasipaddress, '127.0.0.1'::text) AS nasipaddress,
     ''::text AS nasidentifier,
     r.nasportid,
     COALESCE(r.nasporttype, 'Wireless-802.11'::text) AS nasporttype,
@@ -352,12 +358,13 @@ CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS
             radacct.acctinputpackets,
             radacct.acctoutputpackets,
             radacct.acctstatus,
-            radacct."createdAt",
-            radacct."updatedAt",
+            radacct.createdat,
+            radacct.updatedat,
             radacct.class,
             radacct."loginType"
            FROM radacct
-          ORDER BY radacct.username, radacct.acctsessionid, radacct.radacctid DESC) r ON s.id::text = r.acctuniqueid
+          ORDER BY radacct.username, radacct.acctsessionid, radacct.radacctid DESC) r ON COALESCE(s."acctUniqueId", '')::text = r.acctuniqueid
+             AND (s."acctUniqueId" IS NOT NULL OR s.id IS NULL)
      LEFT JOIN LATERAL ( SELECT "WiFiUser".id,
             "WiFiUser"."tenantId",
             "WiFiUser"."propertyId",
@@ -479,63 +486,68 @@ CREATE VIEW v_active_sessions AS  SELECT session_id,
 -- VIEW: v_auth_logs
 -- Authentication attempt log based on FreeRADIUS radpostauth.
 -- Used by: Auth Logs tab, security audit reports.
--- Enhanced: source_ip_address = clientipaddress (fallback to nasIpAddress).
--- Reject messages include username, source IP, and specific reason.
 --
 -- 2026-05-05: Added DeviceProfile MAC fallback for calling_station_id.
---   When radpostauth.callingstationid is NULL (WAN/captive portal auth),
---   falls back to DeviceProfile.macAddress for the matched WiFiUser.
+-- 2026-06: Uses radpostauth.replyMessage for external NAS rejects.
+-- 2026-06: Deduplicate Accept+Reject pairs from IP pool rejects via subquery
+--   with DISTINCT ON (username, date_trunc('second', authdate)), ORDER BY id DESC
+--   to pick the Reject row (higher id, has replyMessage).
 -- ---------------------------------------------------------------------------
-CREATE VIEW v_auth_logs AS  SELECT pa.id::text AS id,
+CREATE VIEW v_auth_logs AS
+SELECT pa.id::text AS id,
     pa.username,
     pa.reply AS auth_result,
     pa.authdate AS "timestamp",
     COALESCE(replace(acct.framedipaddress, '/32'::text, ''::text), ''::text) AS client_ip_address,
-    COALESCE(pa."nasIpAddress", ''::text) AS nas_ip_address,
+    COALESCE(NULLIF(pa."nasIpAddress", ''), pa.clientipaddress, ''::text) AS nas_ip_address,
     COALESCE(NULLIF(pa.clientipaddress, ''), COALESCE(pa."nasIpAddress", ''::text), ''::text) AS source_ip_address,
-    COALESCE(pa.callingstationid, dp_mac.mac_address, ''::text) AS calling_station_id,
+    COALESCE(pa.callingstationid, ''::text) AS calling_station_id,
     COALESCE(pa.calledstationid, ''::text) AS called_station_id,
     'PAP'::text AS auth_type,
+    CASE
+        WHEN pa.reply = 'Access-Accept'::text THEN
         CASE
-            WHEN pa.reply = 'Access-Accept'::text THEN
-            CASE
-                WHEN COALESCE(replace(acct.framedipaddress, '/32'::text, ''::text), ''::text) <> ''::text THEN 'Authenticated — client IP: '::text || replace(acct.framedipaddress, '/32'::text, ''::text)
-                WHEN COALESCE(pa."nasIpAddress", ''::text) <> ''::text THEN 'Authenticated from NAS '::text || pa."nasIpAddress"
-                ELSE 'Authenticated successfully'::text
-            END
+            WHEN COALESCE(replace(acct.framedipaddress, '/32'::text, ''::text), ''::text) <> ''::text THEN 'Authenticated — client IP: '::text || replace(acct.framedipaddress, '/32'::text, ''::text)
+            WHEN COALESCE(pa."nasIpAddress", ''::text) <> ''::text THEN 'Authenticated from NAS '::text || pa."nasIpAddress"
+            ELSE 'Authenticated successfully'::text
+        END
+        ELSE
+        CASE
+            WHEN pa."replyMessage" IS NOT NULL AND pa."replyMessage" != ''::text THEN
+                'Rejected — '::text || pa."replyMessage" ||
+                COALESCE(' — user: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+            WHEN pa.pass LIKE 'IP_NOT_IN_POOL:%%'::text THEN
+                'Rejected — IP not in managed pool: '::text || replace(pa.pass, 'IP_NOT_IN_POOL:'::text, ''::text) ||
+                COALESCE(' — user: '::text || pa.username, ''::text)
+            WHEN pa.pass LIKE 'IP_NOT_DETERMINED'::text THEN
+                'Rejected — could not determine client IP'::text ||
+                COALESCE(' — user: '::text || pa.username, ''::text)
+            WHEN pa.pass LIKE 'MAX_SESSION%%'::text THEN
+                'Rejected — max concurrent sessions reached'::text ||
+                COALESCE(' — user: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+            WHEN pa.pass LIKE 'RADIUS_UNREACHABLE'::text THEN
+                'Rejected — RADIUS server unreachable'::text ||
+                COALESCE(' — user: '::text || pa.username, ''::text)
+            WHEN pa.pass LIKE 'ACCOUNT_%%'::text THEN
+                'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
+                COALESCE(' — user: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+            WHEN pa.pass LIKE 'INVALID_%%'::text OR pa.pass LIKE 'MISSING_%%'::text OR pa.pass LIKE 'VOUCHER_%%'::text OR pa.pass LIKE 'AUTH_%%'::text THEN
+                'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
+                COALESCE(' — user: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+            WHEN wu.id IS NOT NULL THEN
+                'Rejected — invalid password'::text ||
+                COALESCE(' — user: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
             ELSE
-            CASE
-                WHEN pa.pass LIKE 'IP_NOT_IN_POOL:%%'::text THEN
-                    'Rejected — IP not in managed pool: '::text || replace(pa.pass, 'IP_NOT_IN_POOL:'::text, ''::text) ||
-                    COALESCE(' — user: '::text || pa.username, ''::text)
-                WHEN pa.pass LIKE 'IP_NOT_DETERMINED'::text THEN
-                    'Rejected — could not determine client IP'::text ||
-                    COALESCE(' — user: '::text || pa.username, ''::text)
-                WHEN pa.pass LIKE 'MAX_SESSIONS%%'::text THEN
-                    'Rejected — max concurrent sessions reached'::text ||
-                    COALESCE(' — user: '::text || pa.username, ''::text) ||
-                    COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
-                WHEN pa.pass LIKE 'RADIUS_UNREACHABLE'::text THEN
-                    'Rejected — RADIUS server unreachable'::text ||
-                    COALESCE(' — user: '::text || pa.username, ''::text)
-                WHEN pa.pass LIKE 'ACCOUNT_%%'::text THEN
-                    'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
-                    COALESCE(' — user: '::text || pa.username, ''::text) ||
-                    COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
-                WHEN pa.pass LIKE 'INVALID_%%'::text OR pa.pass LIKE 'MISSING_%%'::text OR pa.pass LIKE 'VOUCHER_%%'::text OR pa.pass LIKE 'AUTH_%%'::text THEN
-                    'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
-                    COALESCE(' — user: '::text || pa.username, ''::text) ||
-                    COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
-                WHEN wu.id IS NOT NULL THEN
-                    'Rejected — invalid password'::text ||
-                    COALESCE(' — user: '::text || pa.username, ''::text) ||
-                    COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
-                ELSE
-                    'Rejected — user not found'::text ||
-                    COALESCE(' — username: '::text || pa.username, ''::text) ||
-                    COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
-            END
-        END AS reply_message,
+                'Rejected — user not found'::text ||
+                COALESCE(' — username: '::text || pa.username, ''::text) ||
+                COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+        END
+    END AS reply_message,
     COALESCE(g."firstName", ''::text) AS guest_first_name,
     COALESCE(g."lastName", ''::text) AS guest_last_name,
     COALESCE(rm.number, ''::text) AS room_number,
@@ -546,31 +558,27 @@ CREATE VIEW v_auth_logs AS  SELECT pa.id::text AS id,
     wp."downloadSpeed" AS plan_download_speed,
     wp."uploadSpeed" AS plan_upload_speed,
     wp."dataLimit" AS plan_data_limit
-   FROM radpostauth pa
-     LEFT JOIN LATERAL ( SELECT radacct.framedipaddress
-           FROM radacct
-          WHERE radacct.username = pa.username
-          ORDER BY radacct.acctstarttime DESC
-         LIMIT 1) acct ON true
+   FROM (
+       SELECT DISTINCT ON (username, authdate_trunc) *
+       FROM (
+           SELECT *, date_trunc('second', authdate) AS authdate_trunc FROM radpostauth
+       ) r
+       ORDER BY username, authdate_trunc, id DESC
+   ) pa
+     LEFT JOIN LATERAL ( SELECT radacct.framedipaddress FROM radacct WHERE radacct.username = pa.username ORDER BY radacct.acctstarttime DESC LIMIT 1) acct ON true
      LEFT JOIN "WiFiUser" u ON pa.username = u.username
      LEFT JOIN "WiFiUser" wu ON pa.username = wu.username
-     LEFT JOIN LATERAL ( SELECT "DeviceProfile"."macAddress" AS mac_address
-           FROM "DeviceProfile"
-          WHERE "DeviceProfile"."wifiUserId" = u.id AND "DeviceProfile"."isActive" = true AND "DeviceProfile"."macAddress" IS NOT NULL
-          ORDER BY "DeviceProfile"."lastSeenAt" DESC
-         LIMIT 1) dp_mac ON true
      LEFT JOIN "Guest" g ON u."guestId" = g.id
      LEFT JOIN "Booking" b ON u."bookingId" = b.id
      LEFT JOIN "Room" rm ON b."roomId" = rm.id
      LEFT JOIN "Property" p ON u."propertyId" = p.id
      LEFT JOIN "WiFiPlan" wp ON u."planId" = wp.id
-     LEFT JOIN radusergroup rg ON pa.username = rg.username;;
+     LEFT JOIN LATERAL (SELECT groupname FROM radusergroup WHERE username = pa.username LIMIT 1) rg ON true;
 
 -- ---------------------------------------------------------------------------
 -- VIEW: v_user_usage
--- Per-user bandwidth and session aggregation.
--- NOTE: totalBytesOut=DOWNLOAD, totalBytesIn=UPLOAD (RADIUS convention)
--- Used by: User Usage dashboard, bandwidth reports, quota monitoring.
+-- Fixed: now aggregates bytes from BOTH WiFiUser AND radacct for external NAS
+-- users (MikroTik, etc.) where WiFiUser.totalBytesIn/Out may be 0.
 -- ---------------------------------------------------------------------------
 CREATE VIEW v_user_usage AS  SELECT u.id AS user_id,
     u."tenantId",
@@ -580,31 +588,45 @@ CREATE VIEW v_user_usage AS  SELECT u.id AS user_id,
     u.username,
     u."planId",
     u.status,
-    u."totalBytesIn",
-    u."totalBytesOut",
-    u."totalBytesIn" + u."totalBytesOut" AS total_data_used,
-    COALESCE(( SELECT count(DISTINCT radacctid) FROM v_session_history sh WHERE sh.username = u.username), 0) AS total_sessions,
-    COALESCE(( SELECT count(DISTINCT radacctid) FROM v_session_history sh WHERE sh.username = u.username AND sh.session_status = 'active'::text), 0) AS active_sessions,
-    u."totalBytesOut" AS total_download_bytes,
-    u."totalBytesIn" AS total_upload_bytes,
-    COALESCE(( SELECT sum(ws.duration) AS sum
-           FROM "WiFiSession" ws
-          WHERE ws."guestId" = u."guestId"), 0::bigint) AS total_session_time,
-    u."lastAccountingAt" AS last_session_start,
-    COALESCE(( SELECT min(ws."startTime") AS min
-           FROM "WiFiSession" ws
-          WHERE ws."guestId" = u."guestId"), '1970-01-01 00:00:00+00'::timestamp with time zone) AS first_session_start,
-    u."lastAccountingAt" AS "lastSeenAt",
+    -- Bytes: prefer WiFiUser (local NAS), fallback to radacct (external NAS)
+    COALESCE(u."totalBytesIn", 0::bigint) AS "totalBytesIn",
+    COALESCE(u."totalBytesOut", 0::bigint) AS "totalBytesOut",
+    GREATEST(
+        COALESCE(u."totalBytesIn", 0::bigint) + COALESCE(u."totalBytesOut", 0::bigint),
+        COALESCE((
+            SELECT SUM(COALESCE(acct.acctinputoctets, 0) + COALESCE(acct.acctoutputoctets, 0))
+            FROM radacct acct WHERE acct.username = u.username
+        ), 0::bigint)
+    ) AS total_data_used,
+    -- Sessions: count from radacct (works for both local and external NAS)
+    COALESCE((SELECT count(DISTINCT radacctid) FROM radacct sh WHERE sh.username = u.username), 0) AS total_sessions,
+    COALESCE((SELECT count(DISTINCT radacctid) FROM radacct sh WHERE sh.username = u.username AND sh.acctstoptime IS NULL), 0) AS active_sessions,
+    -- Download/Upload: prefer WiFiUser, fallback to radacct
+    GREATEST(
+        COALESCE(u."totalBytesOut", 0::bigint),
+        COALESCE((SELECT SUM(COALESCE(acct.acctoutputoctets, 0)) FROM radacct acct WHERE acct.username = u.username), 0::bigint)
+    ) AS total_download_bytes,
+    GREATEST(
+        COALESCE(u."totalBytesIn", 0::bigint),
+        COALESCE((SELECT SUM(COALESCE(acct.acctinputoctets, 0)) FROM radacct acct WHERE acct.username = u.username), 0::bigint)
+    ) AS total_upload_bytes,
+    COALESCE((SELECT sum(acct.acctsessiontime) FROM radacct acct WHERE acct.username = u.username), 0::bigint) AS total_session_time,
+    COALESCE((
+        SELECT MAX(acct.acctstarttime) FROM radacct acct WHERE acct.username = u.username
+    ), u."lastAccountingAt") AS last_session_start,
+    COALESCE((
+        SELECT MIN(acct.acctstarttime) FROM radacct acct WHERE acct.username = u.username
+    ), '1970-01-01 00:00:00+00'::timestamptz) AS first_session_start,
+    COALESCE((
+        SELECT MAX(acct.acctupdatetime) FROM radacct acct WHERE acct.username = u.username
+    ), u."lastAccountingAt") AS "lastSeenAt",
     u."createdAt",
     u."updatedAt",
     COALESCE(g."firstName", ''::text) AS guest_first_name,
     COALESCE(g."lastName", ''::text) AS guest_last_name,
     COALESCE(g.email, ''::citext) AS guest_email,
     COALESCE(g."loyaltyTier", ''::text) AS guest_loyalty_tier,
-        CASE
-            WHEN g."isVip" = true THEN 1
-            ELSE 0
-        END AS guest_is_vip,
+    CASE WHEN g."isVip" = true THEN 1 ELSE 0 END AS guest_is_vip,
     COALESCE(r.number, ''::text) AS room_number,
     COALESCE(r.name, ''::text) AS room_name,
     COALESCE(p.name, ''::text) AS property_name,
@@ -889,11 +911,12 @@ BEGIN
     SELECT wp."downloadSpeed" INTO v_plan_down
     FROM "WiFiUser" wu JOIN "WiFiPlan" wp ON wu."planId" = wp.id
     WHERE wu.username = p_username AND wu.status = 'active' LIMIT 1;
-    IF v_plan_down IS NULL THEN RETURN v_down || 'K/' || v_up || 'K'; END IF;
+    -- Mikrotik-Rate-Limit rx/tx: rx=upload(from client), tx=download(to client)
+    IF v_plan_down IS NULL THEN RETURN v_up || 'K/' || v_down || 'K'; END IF;
     IF v_down < v_plan_down * 1000 THEN
-        RETURN v_down || 'K/' || v_up || 'K';
+        RETURN v_up || 'K/' || v_down || 'K';
     ELSE
-        RETURN (v_down / 1000) || 'M/' || (v_up / 1000) || 'M';
+        RETURN (v_up / 1000) || 'M/' || (v_down / 1000) || 'M';
     END IF;
 END; $function$
 ;
@@ -933,25 +956,47 @@ CREATE OR REPLACE FUNCTION public.fn_check_ip_pool(p_username text, p_ip inet)
  STABLE
 AS $function$
 DECLARE
-    v_pool_id UUID;
+    v_user_pool_id UUID;
+    v_plan_id UUID;
+    v_plan_pool_id UUID;
     v_in_pool BOOLEAN;
 BEGIN
-    SELECT COALESCE(wu."ipPoolId", wp."ipPoolId")
-    INTO v_pool_id
+    -- Resolve user's pool assignment and plan
+    SELECT wu."ipPoolId", wu."planId"
+    INTO v_user_pool_id, v_plan_id
     FROM "WiFiUser" wu
-    LEFT JOIN "WiFiPlan" wp ON wu."planId" = wp.id
     WHERE wu.username = p_username AND wu.status = 'active'
     LIMIT 1;
-    IF v_pool_id IS NULL THEN
-        SELECT id INTO v_pool_id FROM "IpPool"
-        WHERE "isDefault" = true AND enabled = true LIMIT 1;
+
+    -- Priority 1: User-level IP pool override
+    IF v_user_pool_id IS NOT NULL THEN
+        SELECT EXISTS (
+            SELECT 1 FROM "IpPoolRange"
+            WHERE "poolId" = v_user_pool_id AND p_ip >= "startIp" AND p_ip <= "endIp"
+        ) INTO v_in_pool;
+        IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
     END IF;
-    IF v_pool_id IS NULL THEN RETURN 1; END IF;
-    SELECT EXISTS (
-        SELECT 1 FROM "IpPoolRange"
-        WHERE "poolId" = v_pool_id AND p_ip >= "startIp" AND p_ip <= "endIp"
-    ) INTO v_in_pool;
-    IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
+
+    -- Priority 2: No plan at all → don't check, allow
+    IF v_plan_id IS NULL THEN
+        RETURN 1;
+    END IF;
+
+    -- Priority 3: Plan has a specific pool → check that pool only
+    SELECT wp."ipPoolId" INTO v_plan_pool_id
+    FROM "WiFiPlan" wp WHERE wp.id = v_plan_id LIMIT 1;
+
+    IF v_plan_pool_id IS NOT NULL THEN
+        SELECT EXISTS (
+            SELECT 1 FROM "IpPoolRange"
+            WHERE "poolId" = v_plan_pool_id AND p_ip >= "startIp" AND p_ip <= "endIp"
+        ) INTO v_in_pool;
+        IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
+    END IF;
+
+    -- Priority 4: Plan exists but has NO pool (use default) → don't check IP binding
+    -- When plan is set to "none / use default pool", skip IP pool restriction entirely
+    RETURN 1;
 END;
 $function$
 ;

@@ -1,0 +1,3 @@
+# Weighted phrase list
+#<weightedphrase> <weight>
+# Add weighted phrases, one per line with weight value

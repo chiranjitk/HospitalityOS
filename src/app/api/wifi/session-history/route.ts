@@ -78,6 +78,36 @@ interface SessionHistoryResponse {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// radacct cleanup — shared with radius/route.ts
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Fix radacct DateTime columns that FreeRADIUS fills with empty strings ""
+ * instead of NULL. Without this cleanup, MikroTik rows with empty dates
+ * are silently excluded by the date range filter (NULL comparisons are falsy).
+ */
+let radacctCleaned = false;
+async function ensureRadacctClean() {
+  if (radacctCleaned) return;
+  try {
+    const cleanups = [
+      "UPDATE radacct SET acctstoptime = NULL WHERE acctstoptime::text IN ('', '0000-00-00 00:00:00')",
+      "UPDATE radacct SET acctstarttime = NULL WHERE acctstarttime::text IN ('', '0000-00-00 00:00:00')",
+      "UPDATE radacct SET acctupdatetime = NULL WHERE acctupdatetime::text IN ('', '0000-00-00 00:00:00')",
+      "UPDATE radacct SET acctinterval = NULL WHERE acctinterval::text IN ('', '0')",
+      "UPDATE radacct SET connectinfo_start = NULL WHERE connectinfo_start = ''",
+      "UPDATE radacct SET connectinfo_stop = NULL WHERE connectinfo_stop = ''",
+    ];
+    for (const sql of cleanups) {
+      await db.$executeRawUnsafe(sql);
+    }
+    radacctCleaned = true;
+  } catch (e) {
+    console.warn('[session-history] radacct cleanup warning:', e instanceof Error ? e.message : e);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -122,9 +152,12 @@ function getDefaultDateRange(): { startDate: string; endDate: string } {
   const endDate = new Date(now)
   endDate.setHours(23, 59, 59, 999)
 
+  // Use local date formatting (not toISOString which returns UTC)
+  const fmtLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
   return {
-    startDate: startDate.toISOString().slice(0, 10),
-    endDate: endDate.toISOString().slice(0, 10) + ' 23:59:59',
+    startDate: fmtLocal(startDate),
+    endDate: fmtLocal(endDate) + ' 23:59:59',
   }
 }
 
@@ -146,8 +179,6 @@ function parseDateRange(
     : '2000-01-01'
 
   // endDate: if date-only (YYYY-MM-DD), extend to end of day (23:59:59)
-  // CRITICAL: Without this, PostgreSQL casts '2026-04-26' to '2026-04-26 00:00:00+00'
-  // which excludes all sessions that started after midnight on endDate.
   const endDate = endDateStr
     ? (endDateStr.length === 10 ? endDateStr + ' 23:59:59' : endDateStr)
     : new Date().toISOString().slice(0, 10) + ' 23:59:59'
@@ -158,9 +189,10 @@ function parseDateRange(
 /**
  * Build SQL WHERE conditions from the parsed filters.
  *
- * CRITICAL: The date range filter on acctstarttime is ALWAYS applied
- * — either from user-provided dates or the default 7-day range.
- * This prevents accidental full-table scans on large datasets.
+ * The date range filter uses OR acctstarttime IS NULL to include MikroTik
+ * rows where FreeRADIUS may have stored empty/zero dates (now cleaned to NULL).
+ * The NULL rows sort last in DESC order so they don't steal pagination slots
+ * from real sessions.
  */
 function buildSqlConditions(
   filters: SessionHistoryFilters,
@@ -169,10 +201,11 @@ function buildSqlConditions(
   const conditions: string[] = []
   const params: unknown[] = []
 
-  // ALWAYS filter by acctstarttime to prevent full table scans
-  conditions.push(`acctstarttime >= $${params.length + 1}::timestamptz`)
+  // Filter by acctstarttime — include NULL rows (external NAS with unparseable dates)
+  // NULL rows sort last (NULLS LAST is default for DESC), so they don't steal pagination
+  conditions.push(`(acctstarttime >= $${params.length + 1}::timestamptz OR acctstarttime IS NULL)`)
   params.push(dateRange.startDate)
-  conditions.push(`acctstarttime <= $${params.length + 1}::timestamptz`)
+  conditions.push(`(acctstarttime <= $${params.length + 1}::timestamptz OR acctstarttime IS NULL)`)
   params.push(dateRange.endDate)
 
   // Username LIKE search (case-insensitive substring match)
@@ -225,6 +258,38 @@ function formatForCsv(value: unknown): string {
   return String(value)
 }
 
+/** Columns that may not exist if view was created with older schema */
+const EXTENDED_COLS = `"sessionTimeoutSec", "idleTimeoutSec", "dp_macAddress"`;
+
+/**
+ * Try to execute a query with extended columns; fallback to without them.
+ * Handles the case where the live DB view was created by an older version
+ * that didn't have these columns (CREATE OR REPLACE can't change column lists).
+ */
+async function queryWithFallback<T>(
+  baseQuery: string,
+  ...params: unknown[]
+): Promise<T[]> {
+  // Try with extended columns first
+  try {
+    return await db.$queryRawUnsafe<T[]>(
+      baseQuery.replace('__EXTENDED_COLS__', EXTENDED_COLS),
+      ...(params as [unknown, ...unknown[]])
+    );
+  } catch (err) {
+    // Column might not exist in the live view — retry without extended cols
+    const msg = err instanceof Error ? err.message : '';
+    if (msg.includes('does not exist') || msg.includes('column')) {
+      console.warn('[session-history] Extended columns missing, using fallback query');
+      return await db.$queryRawUnsafe<T[]>(
+        baseQuery.replace('__EXTENDED_COLS__', ''),
+        ...(params as [unknown, ...unknown[]])
+      );
+    }
+    throw err;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GET Handler
 // ─────────────────────────────────────────────────────────────────────────────
@@ -233,6 +298,9 @@ export async function GET(request: NextRequest) {
   try {
     const context = await requirePermission(request, 'reports.view')
     if (context instanceof NextResponse) return context
+
+    // Clean radacct empty-string dates BEFORE querying
+    await ensureRadacctClean();
 
     const { searchParams } = request.nextUrl
 
@@ -252,10 +320,15 @@ export async function GET(request: NextRequest) {
     )
 
     // ── Determine date range ────────────────────────────────────────────────
-    // CRITICAL: Default to last 7 days if no dates provided to prevent
-    // accidental full-table scans on production datasets with 1M+ rows.
+    console.log('[session-history] raw query params:', Object.fromEntries(searchParams.entries()))
     let dateRange = parseDateRange(startDateStr, endDateStr)
     if (!dateRange) {
+      dateRange = getDefaultDateRange()
+    }
+    // Validate date range — reject obviously bad values
+    const dateCheck = /^\d{4}-\d{2}-\d{2}/
+    if (!dateCheck.test(dateRange.startDate) || !dateCheck.test(dateRange.endDate)) {
+      console.error('[session-history] invalid date range, falling back to default:', dateRange)
       dateRange = getDefaultDateRange()
     }
 
@@ -275,31 +348,52 @@ export async function GET(request: NextRequest) {
 
     const { whereClause, params } = buildSqlConditions(filters, dateRange)
 
+    // ── Diagnostic: check view data by NAS IP (runs once) ──────────────────
+    let diagRun = false;
+    if (!diagRun) {
+      try {
+        const diag = await db.$queryRawUnsafe<{ nasipaddress: string; cnt: number | bigint; null_dates: number | bigint }[]>(`
+          SELECT nasipaddress,
+                 COUNT(*) as cnt,
+                 SUM(CASE WHEN acctstarttime IS NULL THEN 1 ELSE 0 END) as null_dates
+          FROM v_session_history
+          GROUP BY nasipaddress
+          ORDER BY cnt DESC
+        `);
+        console.log('[session-history] DIAG view rows by NAS:', diag.map(d => ({ nasipaddress: d.nasipaddress, cnt: Number(d.cnt), null_dates: Number(d.null_dates) })));
+        diagRun = true;
+      } catch (e) { console.error('[session-history] DIAG failed:', e) }
+    }
+
+    // Debug: log the actual params for troubleshooting
+    console.log('[session-history] params:', JSON.stringify(params), 'limit:', limit, 'offset:', offset, 'whereClause:', whereClause)
+    console.log('[session-history] dateRange:', JSON.stringify(dateRange))
+
     // ── CSV Export path ─────────────────────────────────────────────────────
     if (exportFormat === 'csv') {
       return handleCsvExport(whereClause, params, dateRange, filters)
     }
 
     // ── Execute queries in parallel for efficiency ──────────────────────────
-    // 1. Count total matching rows
-    // 2. Aggregate summary stats (within filter!)
-    // 3. Count active sessions (acctstoptime IS NULL, within filter)
-    // 4. Fetch paginated results
-
     const activeWhereClause = whereClause
       ? `${whereClause} AND acctstoptime IS NULL`
       : 'WHERE acctstoptime IS NULL'
 
-    const [totalResult, summaryResult, activeCountResult, paginatedSessions] = await Promise.all([
-      // Total count within filters
-      db.$queryRawUnsafe<{ c: number | bigint }[]>(
+    // Run each query separately with individual error handling to isolate failures
+    let totalResult: { c: number | bigint }[] = []
+    let summaryResult: { total: number | bigint; total_input: number | bigint; total_output: number | bigint }[] = []
+    let activeCountResult: { c: number | bigint }[] = []
+    let paginatedSessions: Record<string, unknown>[] = []
+
+    try {
+      totalResult = await db.$queryRawUnsafe<{ c: number | bigint }[]>(
         `SELECT COUNT(*) as c FROM v_session_history ${whereClause}`,
         ...params
-      ),
+      )
+    } catch (e) { console.error('[session-history] total count query failed:', e) }
 
-      // Summary aggregation — CRITICAL: this uses the same WHERE clause
-      // so it only counts/sums rows within the applied date filters
-      db.$queryRawUnsafe<{
+    try {
+      summaryResult = await db.$queryRawUnsafe<{
         total: number | bigint;
         total_input: number | bigint;
         total_output: number | bigint;
@@ -308,17 +402,25 @@ export async function GET(request: NextRequest) {
                COALESCE(SUM(acctinputoctets), 0) as total_input,
                COALESCE(SUM(acctoutputoctets), 0) as total_output
         FROM v_session_history ${whereClause}
-      `, ...params),
+      `, ...params)
+    } catch (e) { console.error('[session-history] summary query failed:', e) }
 
-      // Active count (acctstoptime IS NULL) — within the same filter scope
-      db.$queryRawUnsafe<{ c: number | bigint }[]>(
+    try {
+      activeCountResult = await db.$queryRawUnsafe<{ c: number | bigint }[]>(
         `SELECT COUNT(*) as c FROM v_session_history ${activeWhereClause}`,
         ...params
-      ),
+      )
+    } catch (e) { console.error('[session-history] active count query failed:', e) }
 
-      // Paginated session data, ordered by most recent first
-      db.$queryRawUnsafe<Record<string, unknown>[]>(`
-        SELECT radacctid, acctsessionid, acctuniqueid, username, nasipaddress,
+    try {
+      // Inline LIMIT/OFFSET — they are validated integers from parsePagination(),
+      // no SQL injection risk. Using $params for LIMIT/OFFSET causes Prisma
+      // parameter binding issues (misroutes param positions with timestamptz casts).
+      const safeLimit = Math.max(1, Math.min(limit, 500))
+      const safeOffset = Math.max(0, offset)
+      paginatedSessions = await queryWithFallback<Record<string, unknown>>(`
+        SELECT DISTINCT ON (acctuniqueid)
+               radacctid, acctsessionid, acctuniqueid, username, nasipaddress,
                nasportid, nasporttype, acctstarttime, acctupdatetime, acctstoptime,
                acctsessiontime, acctinputoctets, acctoutputoctets,
                callingstationid, calledstationid, acctterminatecause,
@@ -327,15 +429,14 @@ export async function GET(request: NextRequest) {
                guest_first_name, guest_last_name, guest_email, guest_phone,
                room_number, room_name, room_floor,
                property_name, plan_name,
-               downloadSpeed, uploadSpeed, dataLimit,
+               downloadspeed as "downloadSpeed", uploadspeed as "uploadSpeed", datalimit as "dataLimit",
                wifi_user_status, wifi_mac, session_status,
-               "sessionTimeoutSec", "idleTimeoutSec",
-               "dp_macAddress"
+               __EXTENDED_COLS__
         FROM v_session_history ${whereClause}
-        ORDER BY acctstarttime DESC
-        LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-      `, ...params, limit, offset),
-    ])
+        ORDER BY acctuniqueid, acctstarttime DESC NULLS LAST
+        LIMIT ${safeLimit} OFFSET ${safeOffset}
+      `, ...params)
+    } catch (e) { console.error('[session-history] paginated query failed:', e) }
 
     const total = Number(totalResult[0]?.c ?? 0)
     const aggregateRow = summaryResult[0]
@@ -346,6 +447,17 @@ export async function GET(request: NextRequest) {
     // Convert BigInt values from PostgreSQL to Number for JSON serialization
     // Strip /32 CIDR suffix from PostgreSQL inet columns
     const safeData = JSON.parse(JSON.stringify(paginatedSessions, (_, v) => typeof v === 'bigint' ? Number(v) : v));
+
+    // Sort the DISTINCT ON results by acctstarttime DESC for display
+    // (DISTINCT ON requires acctuniqueid as first ORDER BY, so we re-sort in JS)
+    safeData.sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
+      // NULL dates go last
+      if (!a.acctstarttime && !b.acctstarttime) return 0;
+      if (!a.acctstarttime) return 1;
+      if (!b.acctstarttime) return -1;
+      return new Date(b.acctstarttime as string).getTime() - new Date(a.acctstarttime as string).getTime();
+    });
+
     const stripCidr = (v: unknown) => String(v ?? '').replace(/\/\d+$/, '');
     const cleaned = safeData.map((row: Record<string, unknown>) => ({
       ...row,
@@ -386,6 +498,10 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('[session-history] GET error:', error)
+    // Log the full query details for debugging parameter binding issues
+    if (error instanceof Error && error.message.includes('timestamptz')) {
+      console.error('[session-history] timestamptz debug — check startDate/endDate values above')
+    }
 
     return NextResponse.json(
       {
@@ -418,9 +534,9 @@ async function handleCsvExport(
            acctterminatecause, connectinfo_start, connectinfo_stop,
            guest_first_name, guest_last_name, room_number, property_name, plan_name
     FROM v_session_history ${whereClause}
-    ORDER BY acctstarttime DESC
-    LIMIT $${params.length + 1}
-  `, ...params, EXPORT_MAX_ROWS)
+    ORDER BY acctstarttime DESC NULLS LAST
+    LIMIT 50000
+  `, ...params)
 
   // Generate CSV
   const csvRows: string[] = []

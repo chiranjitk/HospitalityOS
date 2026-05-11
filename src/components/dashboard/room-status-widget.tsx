@@ -51,8 +51,8 @@ function DistributionBar({ statusCounts, totalRooms, t }: { statusCounts: RoomSt
   const segments = statusItems.map((s) => ({ key: s.key, bar: s.bar, pct: totalRooms > 0 ? (statusCounts[s.key] / totalRooms) * 100 : 0, count: statusCounts[s.key] }));
   return (
     <div className="space-y-2">
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted"><AnimatePresence>{segments.map((seg) => <motion.div key={seg.key} className={cn('h-full', seg.bar)} initial={{ width: 0 }} animate={{ width: `${seg.pct}%` }} transition={{ duration: 0.8, ease: 'easeOut', delay: 0.3 }} />)}</AnimatePresence></div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1">{segments.map((seg) => { const config = statusItems.find((s) => s.key === seg.key)!; return (<div key={seg.key} className="flex items-center gap-1.5"><span className={cn('inline-block h-2 w-2 rounded-full', seg.bar)} /><span className="text-[11px] text-muted-foreground leading-none">{t(config.labelKey)}{' '}<span className="font-medium tabular-nums">{seg.count}</span></span></div>); })}</div>
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted"><AnimatePresence>{segments.map((seg) => <motion.div key={seg.key} className={cn('h-full', seg.bar)} initial={{ width: 0 }} animate={{ width: `${seg.pct}%` }} transition={{ duration: 0.8, ease: 'easeOut', delay: 0.3 }} whileHover={{ opacity: 0.8 }} />)}</AnimatePresence></div>
+      <div className="flex flex-wrap gap-x-2 gap-y-1">{segments.map((seg) => { const config = statusItems.find((s) => s.key === seg.key)!; return (<div key={seg.key} className="flex items-center gap-1.5 hover:bg-accent/50 rounded-md px-2 py-0.5 transition-colors duration-150 cursor-default"><span className={cn('inline-block h-2 w-2 rounded-full', seg.bar)} /><span className="text-[11px] text-muted-foreground leading-none hover:font-medium">{t(config.labelKey)}{' '}<span className="font-medium tabular-nums">{seg.count}</span></span></div>); })}</div>
     </div>
   );
 }
@@ -83,7 +83,7 @@ export function RoomStatusWidget() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: 'easeOut' }}>
-      <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow duration-300">
+      <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow duration-300 ring-1 ring-border/30">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold flex items-center gap-2"><DoorOpen className="h-4 w-4 text-teal-600 dark:text-teal-400" />{t('roomStatusOverview')}</CardTitle>

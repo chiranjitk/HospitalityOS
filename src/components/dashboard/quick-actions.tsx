@@ -53,11 +53,11 @@ export function QuickActions() {
             onClick={() => setActiveSection(action.section)}
             className={cn(
               "group/action relative flex flex-col items-center gap-2 py-3 px-2.5 rounded-xl border border-border/40",
-              "cursor-pointer transition-all duration-300 ease-out",
+              "cursor-pointer transition-all duration-150 ease-out",
               "bg-gradient-to-br",
               action.cardBg,
-              "hover:border-border/60",
-              "active:shadow-sm",
+              "hover:bg-accent/80 hover:shadow-md hover:border-border/60",
+              "active:scale-[0.97]",
               "card-shine"
             )}
             title={t(action.tooltipKey)}

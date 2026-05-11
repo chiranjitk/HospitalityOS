@@ -401,18 +401,8 @@ function LanguageSwitcher({ design, selectedLanguage, setSelectedLanguage }: {
   const languages = (design.languages || []).filter(Boolean);
   const mutedColor = getMutedTextColor(design);
 
-  // Show a subtle language indicator even with 1 language
-  if (languages.length <= 1) {
-    const lang = languages[0] || 'en';
-    return (
-      <div className="flex items-center justify-center gap-1.5 mb-2">
-        <Languages className="w-3.5 h-3.5" style={{ color: mutedColor }} />
-        <span className="text-xs" style={{ color: mutedColor }}>
-          {getLanguageLabel(lang)}
-        </span>
-      </div>
-    );
-  }
+  // Don't render if fewer than 2 languages
+  if (languages.length <= 1) return null;
 
   return (
     <div className="flex items-center justify-center gap-1.5 mb-2">
@@ -1715,7 +1705,7 @@ function SuccessScreen({
 function HotelInfoBlock({ design, dark }: { design: PortalDesignConfig; dark: boolean }) {
   const lang = usePortalLang();
   const hasContent = design.hotelName || design.hotelAddress || design.hotelPhone || design.hotelWebsite;
-  if (!design.showHotelInfo && !hasContent) return null;
+  if (!design.showHotelInfo) return null;
   const textColor = dark ? '#ffffff' : design.textColor;
   const mutedColor = dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
 
@@ -1754,7 +1744,7 @@ function AmenitiesBlock({ design, dark }: { design: PortalDesignConfig; dark: bo
     ...customAmenities,
   ];
 
-  if (!design.showAmenities && allAmenities.length === 0) return null;
+  if (!design.showAmenities) return null;
   const iconColor = dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)';
 
   return (
@@ -1787,7 +1777,7 @@ function AmenitiesBlock({ design, dark }: { design: PortalDesignConfig; dark: bo
 
 function PromotionBlock({ design }: { design: PortalDesignConfig }) {
   const lang = usePortalLang();
-  if (!design.showPromotion && !design.promotionTitle) return null;
+  if (!design.showPromotion) return null;
   const dark = isDarkBackground(design);
 
   const promoTitle = getLocalizedText(design, 'promotionTitle', lang);
@@ -1826,7 +1816,7 @@ function PromotionBlock({ design }: { design: PortalDesignConfig }) {
 function SocialLinksBlock({ design }: { design: PortalDesignConfig }) {
   const activeLinks = (design.socialLinks || []).filter((l) => l.url);
 
-  if (!design.showSocialMedia && activeLinks.length === 0) return null;
+  if (!design.showSocialMedia) return null;
   const dark = isDarkBackground(design);
 
   return (
@@ -2445,6 +2435,9 @@ function PortalContent() {
 
   // ── Layout type ──
   const isSplit = design.layoutType === 'split_left' || design.layoutType === 'split_right';
+  const isHeroBanner = design.layoutType === 'hero_banner';
+  const isSidePanel = design.layoutType === 'side_panel';
+  const isBottomSheet = design.layoutType === 'bottom_sheet';
   const formCls = getFormContainerClasses(design);
   const cardShadowStyle = getCardShadowCSS(design);
 
@@ -2554,32 +2547,28 @@ function PortalContent() {
       case 'promotion': {
         if (state === 'success') return null;
         const hasPromoContent = design.promotions?.some(p => p.title || p.description);
-        const hasSinglePromo = design.promotionTitle || design.promotionDesc;
-        // Carousel mode: show if carousel enabled with valid slides OR if promotions exist with content
-        if (hasPromoContent && (design.showPromotions || (design as any).useCarouselMode)) {
+        // Carousel mode: show only when promotion toggle ON + carousel mode selected + has slides
+        if (hasPromoContent && design.showPromotions) {
           const validSlides = design.promotions.filter(p => p.title || p.description);
           if (validSlides.length > 0) return <PromotionCarousel design={design} />;
         }
-        // Single promotion mode: show if enabled with title OR if single promo content exists
-        if (design.showPromotion || hasSinglePromo) {
+        // Single promotion mode: show ONLY when the toggle is explicitly ON
+        if (design.showPromotion) {
           return <PromotionBlock design={design} />;
-        }
-        // useCarouselMode fallback: check if useCarouselMode is set and promotions exist
-        if ((design as any).useCarouselMode && design.promotions?.length > 0) {
-          return <PromotionCarousel design={design} />;
         }
         return null;
       }
       case 'clock':
-        // Always render clock — it's a nice-to-have feature
+        if (!design.showClock) return null;
         return <div className="mb-3 flex justify-center"><LiveClock design={design} /></div>;
       case 'weather':
-        // Render if flag enabled OR if weatherLocation is set
-        if (!design.showWeather && !design.weatherLocation) return null;
+        if (!design.showWeather) return null;
         return <div className="mb-3 flex justify-center"><WeatherWidget design={design} /></div>;
       case 'logo':
         return <PortalLogo design={design} size="large" />;
       case 'language':
+        // Only render language switcher when multi-language is enabled AND has languages
+        if (!design.enableMultiLanguage || !(design.languages?.length > 1)) return null;
         return <LanguageSwitcher design={design} selectedLanguage={effectiveLanguage} setSelectedLanguage={setSelectedLanguage} />;
       case 'title':
         return (
@@ -2601,12 +2590,10 @@ function PortalContent() {
           </div>
         );
       case 'hotelInfo':
-        // Render if flag enabled OR if hotel info content exists
-        if (!design.showHotelInfo && !design.hotelName && !design.hotelAddress && !design.hotelPhone && !design.hotelWebsite) return null;
+        if (!design.showHotelInfo) return null;
         return <div className="mb-4"><HotelInfoBlock design={design} dark={dark} /></div>;
       case 'amenities':
-        // Render if flag enabled OR if amenities/customAmenities have items
-        if (!design.showAmenities && !(design.amenities?.length) && !(design.customAmenities?.filter(a => a.name).length)) return null;
+        if (!design.showAmenities) return null;
         return <div className="mb-5"><AmenitiesBlock design={design} dark={dark} /></div>;
       case 'form':
         return (
@@ -2621,8 +2608,7 @@ function PortalContent() {
           </div>
         );
       case 'social':
-        // Render if flag enabled OR if socialLinks have items with URLs
-        if (!design.showSocialMedia && !(design.socialLinks?.filter(l => l.url).length)) return null;
+        if (!design.showSocialMedia) return null;
         return <div className="mt-4"><SocialLinksBlock design={design} /></div>;
       case 'survey':
         // Render survey after success or always if enabled (GuestSurvey handles its own state)
@@ -2632,6 +2618,9 @@ function PortalContent() {
         return null;
     }
   };
+
+  // ── renderFormContent — used by side-panel and bottom-sheet layouts ──
+  const renderFormContent = () => renderCardContent();
 
   // ── Localized strings for portal-level content ──
   const localizedTitle = getLocalizedText(design, 'title', effectiveLanguage);
@@ -2654,7 +2643,7 @@ function PortalContent() {
         <div className="fixed inset-0 pointer-events-none" style={overlayStyle} />
 
         {/* Main content */}
-        <main className="flex-1 flex items-center justify-center p-4 relative z-10">
+        <main className={cn('flex-1 flex items-center justify-center p-4 relative z-10', isBottomSheet && 'items-end')}>
           {isSplit ? (
             // ══════════════════════════════════════════════════════════
             // SPLIT LAYOUT — Left info panel + Right form panel
@@ -2662,8 +2651,8 @@ function PortalContent() {
             <div className="w-full max-w-5xl flex flex-col md:flex-row gap-6">
               {/* ── Left Panel: Hotel Info + Features ── */}
               <div className="flex-1 flex flex-col justify-center p-6 md:p-10 space-y-5" style={{ color: dark ? '#ffffff' : design.textColor }}>
-                {/* Language Switcher (Feature 1) */}
-                {(design.languages?.length && design.languages.length > 0) && (
+                {/* Language Switcher (Feature 1) — only when enabled AND 2+ languages */}
+                {(design.enableMultiLanguage && (design.languages?.length ?? 0) > 1) && (
                   <div className="flex justify-end">
                     <LanguageSwitcher design={design} selectedLanguage={effectiveLanguage} setSelectedLanguage={setSelectedLanguage} />
                   </div>
@@ -2684,8 +2673,8 @@ function PortalContent() {
 
                 {/* Clock + Weather Row */}
                 <div className="flex items-center justify-center gap-4">
-                  {design.showClock !== false && <LiveClock design={design} />}
-                  {(design.showWeather || design.weatherLocation) && (
+                  {design.showClock && <LiveClock design={design} />}
+                  {design.showWeather && (
                     <>
                       <span style={{ color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)' }}>|</span>
                       <WeatherWidget design={design} />
@@ -2693,11 +2682,11 @@ function PortalContent() {
                   )}
                 </div>
 
-                <HotelInfoBlock design={design} dark={dark} />
-                <AmenitiesBlock design={design} dark={dark} />
+                {design.showHotelInfo && <HotelInfoBlock design={design} dark={dark} />}
+                {design.showAmenities && <AmenitiesBlock design={design} dark={dark} />}
 
                 {/* Social Links (Feature 8: More Social Platforms) */}
-                {(design.showSocialMedia || design.socialLinks?.some(l => l.url)) && (
+                {design.showSocialMedia && (
                   <SocialLinksBlock design={design} />
                 )}
 
@@ -2714,11 +2703,12 @@ function PortalContent() {
                 {/* Promotion Carousel (Feature 3) — above the form card */}
                 {state !== 'success' && (() => {
                   const hasPromoContent = design.promotions?.some(p => p.title || p.description);
-                  const hasSinglePromo = design.promotionTitle || design.promotionDesc;
-                  if (hasPromoContent && (design.showPromotions || (design as any).useCarouselMode)) {
+                  // Carousel: show only when promotion toggle ON + carousel mode selected + has slides
+                  if (hasPromoContent && design.showPromotions) {
                     return <PromotionCarousel design={design} />;
                   }
-                  if (design.showPromotion || hasSinglePromo) {
+                  // Single promotion: show ONLY when toggle is ON
+                  if (design.showPromotion) {
                     return <PromotionBlock design={design} />;
                   }
                   return null;
@@ -2740,10 +2730,12 @@ function PortalContent() {
                     </h2>
                     <p className="text-sm" style={{ color: getMutedTextColor(design) }}>{localizedSubtitle}</p>
                     {/* Mobile clock + weather */}
+                    {(design.showClock || design.showWeather) && (
                     <div className="flex items-center justify-center gap-3 pt-2">
-                      <LiveClock design={design} />
-                      <WeatherWidget design={design} />
+                      {design.showClock && <LiveClock design={design} />}
+                      {design.showWeather && <WeatherWidget design={design} />}
                     </div>
+                    )}
                   </div>
 
                   {renderCardContent()}
@@ -2759,6 +2751,173 @@ function PortalContent() {
                   {state === 'success' && design.surveyConfig?.enabled && (
                     <GuestSurvey design={design} />
                   )}
+                </div>
+              </div>
+            </div>
+          ) : isHeroBanner ? (
+            // ══════════════════════════════════════════════════════════
+            // HERO BANNER LAYOUT — Full-width hero, form below
+            // ══════════════════════════════════════════════════════════
+            <div className="w-full max-w-lg mx-auto">
+              {/* Hero section */}
+              <div className="text-center mb-6 space-y-3">
+                <PortalLogo design={design} size="large" />
+                {(design.enableMultiLanguage && (design.languages?.length ?? 0) > 1) && (
+                  <div className="flex justify-center">
+                    <LanguageSwitcher design={design} selectedLanguage={effectiveLanguage} setSelectedLanguage={setSelectedLanguage} />
+                  </div>
+                )}
+                <h1 className="text-3xl md:text-4xl font-bold drop-shadow-sm" style={{ fontFamily: design.headingFontFamily, color: dark ? '#ffffff' : design.textColor }}>
+                  {localizedTitle}
+                </h1>
+                <p className="text-base" style={{ color: getSubtitleColor(design) }}>{localizedSubtitle}</p>
+                {localizedWelcome && (
+                  <p className="text-sm" style={{ color: getMutedTextColor(design) }}>{localizedWelcome}</p>
+                )}
+                {/* Clock + Weather row */}
+                {(design.showClock || design.showWeather) && (
+                  <div className="flex items-center justify-center gap-4 pt-1">
+                    {design.showClock && <LiveClock design={design} />}
+                    {design.showWeather && <WeatherWidget design={design} />}
+                  </div>
+                )}
+              </div>
+
+              {/* Hotel info + amenities above form */}
+              {design.showHotelInfo && <HotelInfoBlock design={design} dark={dark} />}
+              {design.showAmenities && <AmenitiesBlock design={design} dark={dark} />}
+
+              {/* Promotion */}
+              {state !== 'success' && (() => {
+                const hasPromoContent = design.promotions?.some(p => p.title || p.description);
+                if (hasPromoContent && design.showPromotions) return <PromotionCarousel design={design} />;
+                if (design.showPromotion) return <PromotionBlock design={design} />;
+                return null;
+              })()}
+
+              {/* Form Card */}
+              <div className={cn(formCls, 'mt-2')} style={cardShadowStyle}>
+                {renderFormContent()}
+              </div>
+
+              {/* Social Links */}
+              {design.showSocialMedia && <div className="mt-4"><SocialLinksBlock design={design} /></div>}
+
+              {/* Branding */}
+              {design.showBranding && (
+                <div className="text-center mt-4" style={{ color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }}>
+                  <p className="text-[10px]">{localizedPoweredBy}</p>
+                </div>
+              )}
+            </div>
+          ) : isSidePanel ? (
+            // ══════════════════════════════════════════════════════════
+            // SIDE PANEL LAYOUT — Slim left panel form, right content
+            // ══════════════════════════════════════════════════════════
+            <div className="w-full max-w-4xl flex flex-col md:flex-row min-h-[60vh]">
+              {/* Left Panel: Form */}
+              <div className="w-full md:w-[380px] flex flex-col p-6 md:p-8 space-y-4"
+                style={{ backgroundColor: dark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)' }}>
+                <PortalLogo design={design} size="small" />
+                {(design.enableMultiLanguage && (design.languages?.length ?? 0) > 1) && (
+                  <LanguageSwitcher design={design} selectedLanguage={effectiveLanguage} setSelectedLanguage={setSelectedLanguage} />
+                )}
+                <h2 className="text-xl font-bold" style={{ color: getCardTextColor(design), fontFamily: design.headingFontFamily }}>
+                  {localizedTitle}
+                </h2>
+                <p className="text-sm" style={{ color: getMutedTextColor(design) }}>{localizedSubtitle}</p>
+
+                {/* Promotion */}
+                {state !== 'success' && (() => {
+                  const hasPromoContent = design.promotions?.some(p => p.title || p.description);
+                  if (hasPromoContent && design.showPromotions) return <PromotionCarousel design={design} />;
+                  if (design.showPromotion) return <PromotionBlock design={design} />;
+                  return null;
+                })()}
+
+                <div className="flex-1">
+                  {renderFormContent()}
+                </div>
+
+                {/* Social Links */}
+                {design.showSocialMedia && <SocialLinksBlock design={design} />}
+              </div>
+
+              {/* Right Panel: Hotel Info */}
+              <div className="flex-1 flex flex-col justify-center p-8 md:p-12 space-y-6" style={{ color: dark ? '#ffffff' : design.textColor }}>
+                {localizedWelcome && (
+                  <p className="text-lg italic" style={{ color: getMutedTextColor(design) }}>"{localizedWelcome}"</p>
+                )}
+                {design.showHotelInfo && <HotelInfoBlock design={design} dark={dark} />}
+                {design.showAmenities && <AmenitiesBlock design={design} dark={dark} />}
+                {(design.showClock || design.showWeather) && (
+                  <div className="flex items-center gap-4 pt-4">
+                    {design.showClock && <LiveClock design={design} />}
+                    {design.showWeather && <WeatherWidget design={design} />}
+                  </div>
+                )}
+                {design.showBranding && (
+                  <div className="mt-auto pt-4" style={{ color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }}>
+                    <p className="text-[10px]">{localizedPoweredBy}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : isBottomSheet ? (
+            // ══════════════════════════════════════════════════════════
+            // BOTTOM SHEET LAYOUT — Mobile-first, form slides up
+            // ══════════════════════════════════════════════════════════
+            <div className="w-full max-w-md">
+              {/* Spacer for background visibility */}
+              <div className="h-16" />
+              {/* Sheet card */}
+              <div className="rounded-t-3xl overflow-hidden shadow-2xl"
+                style={{ backgroundColor: dark ? 'rgba(20,20,20,0.95)' : 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)' }}>
+                {/* Drag handle */}
+                <div className="flex justify-center pt-3 pb-1">
+                  <div className="w-10 h-1 rounded-full" style={{ backgroundColor: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)' }} />
+                </div>
+                <div className="p-6 space-y-5">
+                  <div className="text-center space-y-2">
+                    <PortalLogo design={design} size="small" />
+                    {(design.enableMultiLanguage && (design.languages?.length ?? 0) > 1) && (
+                      <div className="flex justify-center">
+                        <LanguageSwitcher design={design} selectedLanguage={effectiveLanguage} setSelectedLanguage={setSelectedLanguage} />
+                      </div>
+                    )}
+                    <h1 className="text-2xl font-bold" style={{ color: getCardTextColor(design), fontFamily: design.headingFontFamily }}>
+                      {localizedTitle}
+                    </h1>
+                    <p className="text-sm" style={{ color: getMutedTextColor(design) }}>{localizedSubtitle}</p>
+                  </div>
+
+                  {/* Promotion */}
+                  {state !== 'success' && (() => {
+                    const hasPromoContent = design.promotions?.some(p => p.title || p.description);
+                    if (hasPromoContent && design.showPromotions) return <PromotionCarousel design={design} />;
+                    if (design.showPromotion) return <PromotionBlock design={design} />;
+                    return null;
+                  })()}
+
+                  {renderFormContent()}
+
+                  {/* Clock + Weather */}
+                  {(design.showClock || design.showWeather) && (
+                    <div className="flex items-center justify-center gap-4">
+                      {design.showClock && <LiveClock design={design} />}
+                      {design.showWeather && <WeatherWidget design={design} />}
+                    </div>
+                  )}
+
+                  {/* Social + Branding */}
+                  <div className="flex items-center justify-between">
+                    {design.showSocialMedia && <SocialLinksBlock design={design} />}
+                    {design.showBranding && (
+                      <p className="text-[10px]" style={{ color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }}>
+                        {localizedPoweredBy}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

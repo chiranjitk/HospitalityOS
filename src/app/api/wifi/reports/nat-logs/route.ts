@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { query, isAvailable } from '@/lib/clickhouse';
 import { getNatLogsFromUlogd, resolveGuestNames } from '@/lib/ulogd-reader';
+import { correlateIpsToGuests } from '@/lib/ip-user-correlator';
 
 // ─── Static data for demo fallback ──────────────────────────────
 
@@ -100,6 +101,10 @@ function generateDemoData(count: number) {
     // Action: all allow for demo
     const action = 'allow';
 
+    // Demo NAT IP: simulate server WAN IP
+    const natSrcIp = i % 3 === 0 ? '' : '10.121.18.163';
+    const natSrcPort = i % 3 === 0 ? 0 : 10000 + (i * 7919) % 55000;
+
     logs.push({
       id: `nl-${i + 1}`,
       timestamp: timestamp.toISOString(),
@@ -115,6 +120,8 @@ function generateDemoData(count: number) {
       packets,
       duration,
       status,
+      nat_src_ip: natSrcIp,
+      nat_src_port: natSrcPort,
       domain,
       guestName,
       action,
@@ -207,6 +214,7 @@ export async function GET(request: NextRequest) {
     const protocol = searchParams.get('protocol');
     const startDate = searchParams.get('startDate');
     const action = searchParams.get('action');
+    const guestOnly = searchParams.get('guestOnly') === 'true';
 
     // ── Try ClickHouse ──────────────────────────────────────────
     const chReady = await isAvailable();
@@ -222,7 +230,8 @@ export async function GET(request: NextRequest) {
       const whereClause = wheres.join(' AND ');
 
       const natRows = await query<Record<string, unknown>>(
-        `SELECT timestamp, proto, event_type, src_ip, src_port, dst_ip, dst_port, bytes, packets, duration, status ` +
+        `SELECT timestamp, proto, event_type, src_ip, src_port, dst_ip, dst_port, ` +
+        `nat_src_ip, nat_src_port, bytes, packets, duration, status ` +
         `FROM ipdr.nat_log ` +
         `WHERE ${whereClause} AND bytes > 0 ` +
         `ORDER BY timestamp DESC LIMIT 1000`,
@@ -267,107 +276,19 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // ── Guest name resolution ─────────────────────────────
-        const guestMap = new Map<string, string>();
-        const uniqueSourceIps = [...new Set(natRows.map((r) => String(r.src_ip ?? '')))];
-        const resolvedIps = new Set<string>();
-
-        try {
-          // Step 1: Match by WiFiSession.ipAddress (primary lookup)
-          const sessions = await db.wiFiSession.findMany({
-            where: {
-              tenantId: user.tenantId,
-              ipAddress: { in: uniqueSourceIps },
-            },
-            select: {
-              ipAddress: true,
-              guestId: true,
-            },
-          });
-
-          // Collect unique guest IDs and build IP→guestId map
-          const ipToGuestId = new Map<string, string>();
-          const guestIds: string[] = [];
-          for (const session of sessions) {
-            if (session.ipAddress && session.guestId) {
-              ipToGuestId.set(session.ipAddress, session.guestId);
-              guestIds.push(session.guestId);
-              resolvedIps.add(session.ipAddress);
-            }
-          }
-
-          // Batch-resolve guest names
-          if (guestIds.length > 0) {
-            const uniqueGuestIds = [...new Set(guestIds)];
-            const guests = await db.guest.findMany({
-              where: { id: { in: uniqueGuestIds } },
-              select: { id: true, firstName: true, lastName: true },
-            });
-
-            const guestNameById = new Map<string, string>();
-            for (const g of guests) {
-              const name = [g.firstName, g.lastName].filter(Boolean).join(' ');
-              if (name) guestNameById.set(g.id, name);
-            }
-
-            // Map IP → guest name
-            for (const [ip, guestId] of ipToGuestId) {
-              const name = guestNameById.get(guestId);
-              if (name) guestMap.set(ip, name);
-            }
-          }
-
-          // Step 2: For unresolved IPs, try DHCP lease table (MAC→IP→guest mapping)
-          const unresolvedIps = uniqueSourceIps.filter((ip) => !resolvedIps.has(ip));
-          if (unresolvedIps.length > 0) {
-            const dhcpLeases = await db.dhcpLease.findMany({
-              where: {
-                ipAddress: { in: unresolvedIps },
-              },
-              select: {
-                ipAddress: true,
-                macAddress: true,
-              },
-            });
-
-            for (const lease of dhcpLeases) {
-              if (guestMap.has(lease.ipAddress)) continue;
-              // Try matching MAC via DeviceProfile → WiFiUser → Guest
-              if (lease.macAddress && !guestMap.has(lease.ipAddress)) {
-                try {
-                  const device = await db.deviceProfile.findFirst({
-                    where: {
-                      macAddress: lease.macAddress,
-                      isActive: true,
-                    },
-                    select: { guestId: true, wifiUserId: true },
-                  });
-                  let targetGuestId = device?.guestId;
-                  // If no direct guestId, check via WiFiUser
-                  if (!targetGuestId && device?.wifiUserId) {
-                    const wu = await db.wiFiUser.findUnique({
-                      where: { id: device.wifiUserId },
-                      select: { guestId: true },
-                    });
-                    targetGuestId = wu?.guestId;
-                  }
-                  if (targetGuestId) {
-                    const guest = await db.guest.findUnique({
-                      where: { id: targetGuestId },
-                      select: { id: true, firstName: true, lastName: true },
-                    });
-                    if (guest) {
-                      const name = [guest.firstName, guest.lastName].filter(Boolean).join(' ');
-                      if (name) guestMap.set(lease.ipAddress, name);
-                    }
-                  }
-                } catch { /* skip */ }
-              }
-            }
-          }
-        } catch {
-          // Guest resolution is best-effort — continue without it
-        }
+        // ── Guest name resolution via shared correlator (time-window aware) ──
+        // Pass IP+timestamp pairs so the correlator finds the RIGHT guest
+        // for the RIGHT time window (handles DHCP IP reuse correctly)
+        const ipTimestampPairs = natRows.map((r) => {
+          const rawTs = String(r.timestamp ?? '');
+          const ts = rawTs.includes('T') ? rawTs : rawTs.replace(' ', 'T');
+          return {
+            ip: String(r.src_ip ?? ''),
+            timestamp: new Date(ts),
+          };
+        });
+        const correlation = await correlateIpsToGuests(ipTimestampPairs, user.tenantId);
+        const guestMap = correlation.ipToGuest;
 
         // ── Build enriched response ───────────────────────────
         enriched = natRows.map((row, idx) => {
@@ -389,6 +310,9 @@ export async function GET(request: NextRequest) {
           packets: Number(row.packets ?? 0),
           duration: Number(row.duration ?? 0),
           status: String(row.status ?? ''),
+          // NAT translated source (server WAN IP from conntrack-bridge)
+          nat_src_ip: String(row.nat_src_ip ?? ''),
+          nat_src_port: Number(row.nat_src_port ?? 0),
           // Domain from SNI log (trusted source — captured from TLS handshake)
           domain: domainMap.get(String(row.dst_ip ?? '')) ?? '',
           guestName: guestMap.get(String(row.src_ip ?? '')) ?? '',
@@ -399,6 +323,14 @@ export async function GET(request: NextRequest) {
         // Apply action filter if needed
         if (action) {
           enriched = enriched.filter((row) => String(row.action) === action);
+        }
+
+        // Apply guest-only filter
+        if (guestOnly) {
+          enriched = enriched.filter((row) => {
+            const guest = String(row.guestName ?? '');
+            return guest.length > 0;
+          });
         }
       }
     }
@@ -414,9 +346,12 @@ export async function GET(request: NextRequest) {
       });
 
       if (ulogdData.length > 0) {
-        // Resolve guest names from WiFi sessions
-        const uniqueIps = [...new Set(ulogdData.map((d) => d.source_ip))];
-        const guestMap = await resolveGuestNames(uniqueIps, user.tenantId);
+        // Resolve guest names with time-window matching
+        const ipTimestampPairs = ulogdData.map((d) => ({
+          ip: d.source_ip,
+          timestamp: new Date(d.timestamp || Date.now()),
+        }));
+        const guestMap = await resolveGuestNames(ipTimestampPairs, user.tenantId);
 
         // Attach guest names
         for (const entry of ulogdData) {
@@ -424,9 +359,14 @@ export async function GET(request: NextRequest) {
         }
 
         // Apply action filter if needed
-        const filtered = action
+        let filtered = action
           ? ulogdData.filter((row) => row.action === action)
           : ulogdData;
+
+        // Apply guest-only filter
+        if (guestOnly) {
+          filtered = filtered.filter((row) => row.guestName && row.guestName.length > 0);
+        }
 
         const summary = computeSummary(filtered);
 
@@ -444,7 +384,16 @@ export async function GET(request: NextRequest) {
       const demoData = generateDemoData(100);
 
       // Apply all filters to demo data
-      const filtered = applyFilters(demoData, sourceIp, protocol, startDate, action);
+      let filtered = applyFilters(demoData, sourceIp, protocol, startDate, action);
+
+      // Apply guest-only filter
+      if (guestOnly) {
+        filtered = filtered.filter((row) => {
+          const guest = String(row.guestName ?? '');
+          return guest.length > 0;
+        });
+      }
+
       const summary = computeSummary(filtered);
 
       return NextResponse.json({

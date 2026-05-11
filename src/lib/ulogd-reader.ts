@@ -33,7 +33,7 @@ export interface SniRecord {
   dest_port: number;
   sni_hostname: string;
   sni_tls_version: string;
-  oob_in: string;
+  packet_bytes: number;
 }
 
 export interface FlowRecord {
@@ -50,6 +50,8 @@ export interface FlowRecord {
   ct_event: string;
   duration: number;
   print: string;
+  nat_src_ip: string;
+  nat_src_port: number;
 }
 
 export interface NatLogEntry {
@@ -67,6 +69,8 @@ export interface NatLogEntry {
   packets: number;
   duration: number;
   status: string;
+  nat_src_ip: string;     // NAT translated source IP (server WAN IP, e.g. 10.121.18.163)
+  nat_src_port: number;   // NAT translated source port
   domain: string;
   guestName: string;
   action: string;
@@ -78,6 +82,10 @@ export interface SurfingEntry {
   domain: string;
   sourceIp: string;
   source_ip: string;
+  srcPort: number;
+  destIp: string;
+  destPort: number;
+  inIface: string;
   category: string;
   totalBytes: number;
   connections: number;
@@ -105,19 +113,59 @@ async function readLastLines(filePath: string, maxLines: number): Promise<string
 
 // ─── Parsing ─────────────────────────────────────────────────────
 
-function parseSniRecord(raw: Record<string, unknown>): SniRecord | null {
-  const hostname = String(raw['sni.hostname'] ?? '').trim();
-  // Skip empty SNI records (ACK-only packets with no TLS payload)
+/**
+ * Parse an SNI record from ulogd2 PRINTSNI JSON output.
+ * Unlike parseSniRecord above, this version ALSO handles non-SNI data packets
+ * by enriching them with a dst_ip → domain cache (populated from ClientHello entries).
+ */
+function parseSniRecordWithCache(
+  raw: Record<string, unknown>,
+  dstDomainCache: Map<string, string>,
+): { src_ip: string; src_port: number; dest_ip: string; dest_port: number; in_iface: string; sni_hostname: string; sni_tls_version: string; timestamp: string; packet_bytes: number } | null {
+  const srcIp = String(raw.src_ip ?? raw['ip.saddr.str'] ?? '').trim();
+  const destIp = String(raw.dest_ip ?? raw['ip.daddr.str'] ?? '').trim();
+  if (!srcIp || !destIp) return null;
+
+  const srcPort = Number(raw.src_port ?? raw['tcp.sport'] ?? 0) || 0;
+  const destPort = Number(raw.dest_port ?? raw['tcp.dport'] ?? 443);
+  const inIface = String(raw['oob.in'] ?? '').trim();
+  const tlsVersion = String(raw['sni.tls.version'] ?? '');
+  const packetBytes = Number(raw['raw.pktlen'] ?? raw['ip.totlen'] ?? 0) || 0;
+
+  // Timestamp: ulogd2 outputs ISO-like string or epoch seconds
+  let timestamp: string;
+  const tsRaw = String(raw.timestamp ?? '');
+  if (tsRaw && !isNaN(Date.parse(tsRaw))) {
+    timestamp = tsRaw;
+  } else {
+    const timeSec = Number(raw.timestamp ?? raw['oob.time.sec'] ?? 0);
+    timestamp = timeSec ? new Date(timeSec * 1000).toISOString() : new Date().toISOString();
+  }
+
+  // Check for direct SNI hostname from ClientHello
+  let hostname = String(raw['sni.hostname'] ?? '').trim();
+
+  if (hostname) {
+    // ClientHello with SNI — cache the dst_ip → domain mapping
+    dstDomainCache.set(destIp, hostname);
+  } else {
+    // Data packet (no SNI) — look up domain from cache
+    hostname = dstDomainCache.get(destIp) ?? '';
+  }
+
+  // Only return entries with a resolved domain
   if (!hostname) return null;
 
   return {
-    timestamp: String(raw.timestamp ?? ''),
-    src_ip: String(raw.src_ip ?? raw['ip.saddr.str'] ?? ''),
-    dest_ip: String(raw.dest_ip ?? raw['ip.daddr.str'] ?? ''),
-    dest_port: Number(raw.dest_port ?? 0),
+    src_ip: srcIp,
+    src_port: srcPort,
+    dest_ip: destIp,
+    dest_port: destPort,
+    in_iface: inIface,
     sni_hostname: hostname,
-    sni_tls_version: String(raw['sni.tls.version'] ?? ''),
-    oob_in: String(raw['oob.in'] ?? ''),
+    sni_tls_version: tlsVersion,
+    timestamp,
+    packet_bytes: packetBytes,
   };
 }
 
@@ -155,6 +203,12 @@ function parseFlowRecord(raw: Record<string, unknown>): FlowRecord {
     ct_event: eventType,
     duration: Math.round(duration * 10) / 10,
     print: String(raw.print ?? ''),
+    // NAT fields from conntrack reply tuple
+    // In conntrack: orig = pre-NAT (client view), reply = post-NAT (server view)
+    // reply.dst_ip = the NATed source IP (e.g. server WAN IP)
+    // reply.dst_port = the NATed source port
+    nat_src_ip: String(raw['reply.ip.daddr.str'] ?? raw['reply.dst_ip'] ?? ''),
+    nat_src_port: Number(raw['reply.l4.dport'] ?? raw['reply.dst_port'] ?? 0),
   };
 }
 
@@ -196,12 +250,14 @@ export async function getNatLogsFromUlogd(
   ]);
 
   // Build SNI domain map: dst_ip → sni_hostname (latest wins)
+  // Also enrich non-SNI data packets via dst_ip cache
+  const dstDomainCache = new Map<string, string>();
   const domainMap = new Map<string, string>();
   for (const line of sniLines) {
     const raw = parseLine(line);
     if (!raw) continue;
-    const sni = parseSniRecord(raw);
-    if (!sni || !sni.dest_ip) continue;
+    const sni = parseSniRecordWithCache(raw, dstDomainCache);
+    if (!sni || !sni.dest_ip || !sni.sni_hostname) continue;
     domainMap.set(sni.dest_ip, sni.sni_hostname);
   }
 
@@ -250,6 +306,9 @@ export async function getNatLogsFromUlogd(
     packets: flow.packets_orig + flow.packets_reply,
     duration: flow.duration,
     status: flow.ct_event === 'NEW' ? 'NEW' : 'ASSURED',
+    // NAT translated source (server WAN IP from conntrack reply tuple)
+    nat_src_ip: flow.nat_src_ip,
+    nat_src_port: flow.nat_src_port,
     // Enrich with SNI domain name (trusted source from TLS handshake)
     domain: domainMap.get(flow.dest_ip) ?? '',
     guestName: '', // Will be filled by API route from WiFiSession
@@ -259,9 +318,14 @@ export async function getNatLogsFromUlogd(
 }
 
 /**
- * Build web surfing entries from sni.json + flow.json.
- * Joins SNI domain names with flow byte counters by (src_ip, dst_ip).
- * This feeds the Web Surfing tab.
+ * Build web surfing entries from sni.json using dst_ip → domain cache enrichment.
+ *
+ * Key insight: ulogd2 captures ALL port-443 packets, but only ~2.5% are ClientHello
+ * (with SNI hostname). The remaining ~97.5% are data packets carrying actual bandwidth.
+ * We enrich those data packets using a dst_ip → domain cache built from ClientHello
+ * entries, and use raw.pktlen as per-domain byte totals.
+ *
+ * This feeds the Web Surfing tab (ulogd2 fallback path when ClickHouse is unavailable).
  */
 export async function getWebSurfingFromUlogd(
   options?: { search?: string; category?: string; maxRecords?: number },
@@ -269,102 +333,80 @@ export async function getWebSurfingFromUlogd(
   const available = await isUlogdAvailable();
   if (!available) return [];
 
-  const [sniLines, flowLines] = await Promise.all([
-    readLastLines(SNI_FILE, MAX_LINES),
-    readLastLines(FLOW_FILE, MAX_LINES),
-  ]);
+  const sniLines = await readLastLines(SNI_FILE, MAX_LINES);
 
-  // ── Aggregate SNI records by (src_ip, dest_ip, sni_hostname) ──
-  const sniKey = (src: string, dst: string, domain: string) => `${src}:${dst}:${domain}`;
-  const sniAgg = new Map<string, { src_ip: string; dest_ip: string; domain: string; count: number; lastSeen: string }>();
+  // ── Pass 1: Parse ALL sni.json entries with dst_ip → domain cache ──
+  const dstDomainCache = new Map<string, string>(); // dst_ip → sni_hostname
+
+  // Aggregate by (src_ip, domain) with packet_bytes sum
+  const domainAgg = new Map<string, {
+    src_ip: string;
+    src_port: number;
+    dest_ip: string;
+    dest_port: number;
+    in_iface: string;
+    domain: string;
+    count: number;
+    lastSeen: string;
+    totalBytes: number;
+  }>();
 
   for (const line of sniLines) {
     const raw = parseLine(line);
     if (!raw) continue;
-    const sni = parseSniRecord(raw);
-    if (!sni || !sni.sni_hostname) continue;
-    if (!sni.src_ip) continue;
 
-    const key = sniKey(sni.src_ip, sni.dest_ip, sni.sni_hostname);
-    const existing = sniAgg.get(key);
+    const record = parseSniRecordWithCache(raw, dstDomainCache);
+    if (!record || !record.sni_hostname || !record.src_ip) continue;
+
+    const aggKey = `${record.src_ip}:${record.sni_hostname}`;
+    const existing = domainAgg.get(aggKey);
     if (existing) {
       existing.count++;
-      if (sni.timestamp > existing.lastSeen) existing.lastSeen = sni.timestamp;
+      existing.totalBytes += record.packet_bytes;
+      if (record.timestamp > existing.lastSeen) existing.lastSeen = record.timestamp;
+      // Take latest src_port, dest_ip, dest_port, in_iface
+      if (record.src_port) existing.src_port = record.src_port;
+      if (record.dest_ip) existing.dest_ip = record.dest_ip;
+      if (record.dest_port) existing.dest_port = record.dest_port;
+      if (record.in_iface) existing.in_iface = record.in_iface;
     } else {
-      sniAgg.set(key, {
-        src_ip: sni.src_ip,
-        dest_ip: sni.dest_ip,
-        domain: sni.sni_hostname,
+      domainAgg.set(aggKey, {
+        src_ip: record.src_ip,
+        src_port: record.src_port,
+        dest_ip: record.dest_ip,
+        dest_port: record.dest_port,
+        in_iface: record.in_iface,
+        domain: record.sni_hostname,
         count: 1,
-        lastSeen: sni.timestamp,
+        lastSeen: record.timestamp,
+        totalBytes: record.packet_bytes,
       });
     }
   }
 
-  // ── Aggregate flow bytes by (src_ip, dest_ip) ──
-  const flowKey = (src: string, dst: string) => `${src}:${dst}`;
-  const flowAgg = new Map<string, { bytes_orig: number; bytes_reply: number; packets_orig: number; packets_reply: number }>();
-
-  for (const line of flowLines) {
-    const raw = parseLine(line);
-    if (!raw) continue;
-    const flow = parseFlowRecord(raw);
-    if (!flow.src_ip || flow.src_ip === '127.0.0.1') continue;
-
-    const key = flowKey(flow.src_ip, flow.dest_ip);
-    const existing = flowAgg.get(key);
-    if (existing) {
-      existing.bytes_orig += flow.bytes_orig;
-      existing.bytes_reply += flow.bytes_reply;
-      existing.packets_orig += flow.packets_orig;
-      existing.packets_reply += flow.packets_reply;
-    } else {
-      flowAgg.set(key, {
-        bytes_orig: flow.bytes_orig,
-        bytes_reply: flow.bytes_reply,
-        packets_orig: flow.packets_orig,
-        packets_reply: flow.packets_reply,
-      });
-    }
-  }
-
-  // ── Join SNI + flow data ──
+  // ── Build entries ──
   const entries: SurfingEntry[] = [];
-  const seen = new Set<string>(); // Deduplicate by (src_ip, domain)
-
-  for (const [_, sniData] of sniAgg) {
-    const userKey = `${sniData.src_ip}:${sniData.domain}`;
-    if (seen.has(userKey)) continue;
-    seen.add(userKey);
-
-    // Sum bytes across all dst_ips for this (src_ip, domain) pair
-    let totalBytes = 0;
-    let totalConnections = 0;
-
-    for (const [_, flowData] of flowAgg) {
-      const fKey = flowKey(sniData.src_ip, sniData.dest_ip);
-      if (fKey === flowKey(sniData.src_ip, sniData.dest_ip)) {
-        totalBytes += flowData.bytes_orig + flowData.bytes_reply;
-        totalConnections += flowData.packets_orig + flowData.packets_reply;
-      }
-    }
-
-    // Normalize ulogd timestamp for JavaScript Date compatibility
-    const tsRaw = sniData.lastSeen;
+  for (const [_, data] of domainAgg) {
+    // Normalize timestamp for JavaScript Date compatibility
+    const tsRaw = data.lastSeen;
     const tsNorm = tsRaw.includes('T') ? tsRaw : tsRaw.replace(' ', 'T');
 
     entries.push({
       id: `ulogd-${entries.length + 1}`,
       timestamp: tsNorm,
-      domain: sniData.domain,
-      sourceIp: sniData.src_ip,
-      source_ip: sniData.src_ip,
-      category: classifyDomain(sniData.domain),
-      totalBytes,
-      connections: sniData.count,
+      domain: data.domain,
+      sourceIp: data.src_ip,
+      source_ip: data.src_ip,
+      srcPort: data.src_port,
+      destIp: data.dest_ip,
+      destPort: data.dest_port,
+      inIface: data.in_iface,
+      category: classifyDomain(data.domain),
+      totalBytes: data.totalBytes,
+      connections: data.count,
       lastAccess: tsNorm,
       last_access: tsNorm,
-      guestName: '', // Will be filled by API route from WiFiSession
+      guestName: '', // Will be filled by API route
     });
   }
 
@@ -437,75 +479,249 @@ function classifyDomain(domain: string): string {
 
 // ─── Guest Name Resolver (shared helper for API routes) ──────────
 
+/** A single IP+timestamp pair from ClickHouse/ulogd2 */
+export interface IpTimestamp {
+  ip: string;
+  timestamp: Date;
+}
+
 /**
- * Resolve guest names for a set of IPs using WiFiSession + Guest tables.
+ * Resolve guest names for IP+timestamp pairs using RadAcct + WiFiSession + Guest tables.
  * Called by API routes after getting ulogd data.
+ *
+ * Uses TIME-WINDOW matching to handle DHCP IP reuse:
+ *   - IP 10.0.1.101 on Jan 3 → Guest A (session Jan 1-5)
+ *   - IP 10.0.1.101 on Jan 10 → Guest B (session Jan 10-12)
+ *
+ * Four-tier lookup (most reliable first):
+ *   0. RadAcct.framedipaddress + time window → WiFiUser.guestId → Guest
+ *      Also: RadAcct.callingstationid → RadiusMacAuth.guestName (MAC auto-auth)
+ *   1. WiFiSession.ipAddress + time window → Guest (name)
+ *   2. DhcpLease → DeviceProfile → WiFiUser → Guest (MAC-based bridge)
+ *
+ * @param ipTimestamps - Array of {ip, timestamp} pairs (or plain string[] for backward compat)
+ * @param tenantId - Optional tenant scope
  */
 export async function resolveGuestNames(
-  ips: string[],
+  ipTimestamps: IpTimestamp[] | string[],
   tenantId?: string,
 ): Promise<Map<string, string>> {
   // Dynamic import to avoid Prisma dependency at module level
   const { db } = await import('@/lib/db');
   const guestMap = new Map<string, string>();
 
-  if (ips.length === 0) return guestMap;
+  // Backward-compatible: accept plain string[] (treat as now)
+  const pairs: IpTimestamp[] = typeof ipTimestamps[0] === 'string'
+    ? (ipTimestamps as string[]).map((ip) => ({ ip, timestamp: new Date() }))
+    : ipTimestamps as IpTimestamp[];
+
+  if (pairs.length === 0) return guestMap;
 
   try {
-    const uniqueIps = Array.from(new Set(ips));
+    const uniqueIps = Array.from(new Set(pairs.map((p) => p.ip)));
     const resolvedIps = new Set<string>();
 
-    // WiFiSession has no `guest` relation — do a two-step lookup
-    const sessions = await db.wiFiSession.findMany({
+    // ── Step 0: RadAcct lookup with time-window matching ──────────
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    const radAcctRecords = await db.radAcct.findMany({
       where: {
-        ...(tenantId ? { tenantId } : {}),
-        ipAddress: { in: uniqueIps },
+        framedipaddress: { in: uniqueIps },
+        acctstarttime: { gte: ninetyDaysAgo },
       },
       select: {
-        ipAddress: true,
-        guestId: true,
+        framedipaddress: true,
+        username: true,
+        callingstationid: true,
+        acctstarttime: true,
+        acctstoptime: true,
       },
+      orderBy: { acctstarttime: 'desc' },
     });
 
-    // Collect valid guest IDs and build IP → guestId map
-    const guestIds: string[] = [];
-    const ipToGuestId = new Map<string, string>();
+    if (radAcctRecords.length > 0) {
+      // Group by IP
+      const radAcctByIp = new Map<string, typeof radAcctRecords>();
+      for (const r of radAcctRecords) {
+        if (!r.framedipaddress) continue;
+        const list = radAcctByIp.get(r.framedipaddress) || [];
+        list.push(r);
+        radAcctByIp.set(r.framedipaddress, list);
+      }
 
-    for (const s of sessions) {
-      const ip = s.ipAddress;
-      if (ip && s.guestId) {
-        ipToGuestId.set(ip, s.guestId);
-        guestIds.push(s.guestId);
-        resolvedIps.add(ip);
+      // Collect all unique usernames + MACs for batch lookup
+      const allRadUsernames = new Set<string>();
+      const allRadMacs = new Set<string>();
+      for (const r of radAcctRecords) {
+        if (r.username) allRadUsernames.add(r.username);
+        if (r.callingstationid) allRadMacs.add(r.callingstationid);
+      }
+
+      // Batch: WiFiUser by username → guestId
+      const wifiUserGuestMap = new Map<string, string>();
+      if (allRadUsernames.size > 0) {
+        const wifiUsers = await db.wiFiUser.findMany({
+          where: { username: { in: [...allRadUsernames] } },
+          select: { username: true, guestId: true },
+        });
+        for (const wu of wifiUsers) {
+          if (wu.guestId) wifiUserGuestMap.set(wu.username, wu.guestId);
+        }
+      }
+
+      // Batch: RadiusMacAuth by MAC → guestName / guestId
+      const macAuthNameMap = new Map<string, string>();
+      const macAuthGuestIdMap = new Map<string, string>();
+      if (allRadMacs.size > 0) {
+        const macAuths = await db.radiusMacAuth.findMany({
+          where: { macAddress: { in: [...allRadMacs] } },
+          select: { macAddress: true, guestName: true, guestId: true },
+        });
+        for (const ma of macAuths) {
+          if (ma.guestName && !macAuthNameMap.has(ma.macAddress)) {
+            macAuthNameMap.set(ma.macAddress, ma.guestName);
+          }
+          if (ma.guestId && !macAuthGuestIdMap.has(ma.macAddress)) {
+            macAuthGuestIdMap.set(ma.macAddress, ma.guestId);
+          }
+        }
+      }
+
+      // Batch fetch guest names for all RadAcct chain IDs
+      const allRadGuestIds = [...new Set([
+        ...wifiUserGuestMap.values(),
+        ...macAuthGuestIdMap.values(),
+      ])];
+      const radGuestNameMap = new Map<string, string>();
+      if (allRadGuestIds.length > 0) {
+        const radGuests = await db.guest.findMany({
+          where: { id: { in: allRadGuestIds } },
+          select: { id: true, firstName: true, lastName: true },
+        });
+        for (const g of radGuests) {
+          const name = [g.firstName, g.lastName].filter(Boolean).join(' ');
+          if (name) radGuestNameMap.set(g.id, name);
+        }
+      }
+
+      // Resolve each (IP, timestamp) pair with time-window matching
+      for (const pair of pairs) {
+        if (resolvedIps.has(pair.ip)) continue;
+
+        const sessions = radAcctByIp.get(pair.ip);
+        if (!sessions) continue;
+
+        // Find RadAcct session active at this timestamp
+        const matched = sessions.find((s) => {
+          if (!s.acctstarttime) return false;
+          if (pair.timestamp < new Date(s.acctstarttime)) return false;
+          if (s.acctstoptime && pair.timestamp > new Date(s.acctstoptime)) return false;
+          return true;
+        });
+
+        if (!matched) continue;
+
+        // Path A: RadAcct.username → WiFiUser → Guest
+        if (matched.username) {
+          const guestId = wifiUserGuestMap.get(matched.username);
+          if (guestId) {
+            const name = radGuestNameMap.get(guestId);
+            if (name) { guestMap.set(pair.ip, name); resolvedIps.add(pair.ip); continue; }
+          }
+        }
+
+        // Path B: RadAcct.callingstationid (MAC) → RadiusMacAuth
+        if (matched.callingstationid) {
+          const mac = matched.callingstationid;
+          const macName = macAuthNameMap.get(mac);
+          if (macName) { guestMap.set(pair.ip, macName); resolvedIps.add(pair.ip); continue; }
+
+          const macGuestId = macAuthGuestIdMap.get(mac);
+          if (macGuestId) {
+            const name = radGuestNameMap.get(macGuestId);
+            if (name) { guestMap.set(pair.ip, name); resolvedIps.add(pair.ip); continue; }
+          }
+        }
+
+        // Path C: Use RadAcct.username as display name
+        if (matched.username && !guestMap.has(pair.ip)) {
+          guestMap.set(pair.ip, matched.username);
+          resolvedIps.add(pair.ip);
+        }
       }
     }
 
-    // Batch-resolve guest names from Guest table
-    if (guestIds.length > 0) {
-      const uniqueGuestIds = Array.from(new Set(guestIds));
-      const guests = await db.guest.findMany({
-        where: { id: { in: uniqueGuestIds } },
-        select: { id: true, firstName: true, lastName: true },
+    // ── Step 1: WiFiSession lookup with time-window matching ───────
+    const step1Pairs = pairs.filter((p) => !resolvedIps.has(p.ip));
+    const step1Ips = [...new Set(step1Pairs.map((p) => p.ip))];
+
+    if (step1Ips.length > 0) {
+      const sessions = await db.wiFiSession.findMany({
+        where: {
+          ...(tenantId ? { tenantId } : {}),
+          ipAddress: { in: step1Ips },
+        },
+        select: {
+          ipAddress: true,
+          guestId: true,
+          startTime: true,
+          endTime: true,
+        },
       });
 
-      const guestNameMap = new Map<string, string>();
-      for (const g of guests) {
-        const name = [g.firstName, g.lastName].filter(Boolean).join(' ');
-        if (name) guestNameMap.set(g.id, name);
+      if (sessions.length > 0) {
+        // Group by IP
+        const sessionsByIp = new Map<string, typeof sessions>();
+        for (const s of sessions) {
+          const list = sessionsByIp.get(s.ipAddress) || [];
+          list.push(s);
+          sessionsByIp.set(s.ipAddress, list);
+        }
+
+        // Collect guest IDs
+        const guestIds = [...new Set(
+          sessions.map((s) => s.guestId).filter((g): g is string => !!g),
+        )];
+
+        if (guestIds.length > 0) {
+          const guests = await db.guest.findMany({
+            where: { id: { in: [...new Set(guestIds)] } },
+            select: { id: true, firstName: true, lastName: true },
+          });
+          const guestNameMap = new Map<string, string>();
+          for (const g of guests) {
+            const name = [g.firstName, g.lastName].filter(Boolean).join(' ');
+            if (name) guestNameMap.set(g.id, name);
+          }
+
+          // Resolve with time-window matching
+          for (const pair of step1Pairs) {
+            if (resolvedIps.has(pair.ip)) continue;
+            const ipSessions = sessionsByIp.get(pair.ip);
+            if (!ipSessions) continue;
+
+            const matched = ipSessions.find((s) => {
+              if (!s.startTime) return false;
+              if (pair.timestamp < new Date(s.startTime)) return false;
+              if (s.endTime && pair.timestamp > new Date(s.endTime)) return false;
+              return true;
+            });
+
+            if (matched && matched.guestId) {
+              const name = guestNameMap.get(matched.guestId);
+              if (name) { guestMap.set(pair.ip, name); resolvedIps.add(pair.ip); }
+            }
+          }
+        }
       }
-
-      // Map IP → guest name
-      ipToGuestId.forEach((gId, ip) => {
-        const name = guestNameMap.get(gId);
-        if (name) guestMap.set(ip, name);
-      });
     }
 
-    // Step 2: For unresolved IPs, try DHCP lease table (MAC→IP→guest mapping)
-    const unresolvedIps = uniqueIps.filter((ip) => !resolvedIps.has(ip));
-    if (unresolvedIps.length > 0) {
+    // ── Step 2: DHCP lease bridge for unresolved IPs ───────────────
+    const step2Ips = [...new Set(pairs.filter((p) => !resolvedIps.has(p.ip)).map((p) => p.ip))];
+    if (step2Ips.length > 0) {
       const dhcpLeases = await db.dhcpLease.findMany({
-        where: { ipAddress: { in: unresolvedIps } },
+        where: { ipAddress: { in: step2Ips } },
         select: {
           ipAddress: true,
           macAddress: true,
@@ -514,7 +730,6 @@ export async function resolveGuestNames(
 
       for (const lease of dhcpLeases) {
         if (guestMap.has(lease.ipAddress)) continue;
-        // Try matching MAC via DeviceProfile → WiFiUser → Guest
         if (lease.macAddress && !guestMap.has(lease.ipAddress)) {
           try {
             const device = await db.deviceProfile.findFirst({

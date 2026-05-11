@@ -4,12 +4,104 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUIStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertTriangle, HomeIcon, RefreshCw } from 'lucide-react';
 import { AppLayout } from '@/components/layout/app-layout';
 import { ErrorBoundary } from '@/components/common/error-boundary';
+import { SectionHeader } from '@/components/common/section-header';
 import { SectionLoadingSkeleton } from '@/components/sections/section-loading-skeleton';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+
+function getErrorType(error: string): 'timeout' | 'not-found' | 'load-failure' {
+  if (error.includes('timed out')) return 'timeout';
+  if (error.includes('No component found')) return 'not-found';
+  return 'load-failure';
+}
+
+function getErrorConfig(error: string) {
+  const type = getErrorType(error);
+  switch (type) {
+    case 'timeout':
+      return {
+        title: 'Loading Took Too Long',
+        description:
+          'This section is taking longer than expected to load. This could be due to a slow network connection or a temporary server issue. Please try refreshing the page.',
+      };
+    case 'not-found':
+      return {
+        title: 'Section Not Available',
+        description:
+          'The requested section could not be found. It may have been moved, renamed, or is currently under maintenance. You can go back to the dashboard or try refreshing.',
+      };
+    case 'load-failure':
+    default:
+      return {
+        title: 'Something Went Wrong',
+        description:
+          'An unexpected error occurred while loading this section. This is usually temporary — try refreshing the page or navigating back to the dashboard.',
+      };
+  }
+}
+
+function SectionLoadError({
+  error,
+  onGoToDashboard,
+}: {
+  error: string;
+  onGoToDashboard: () => void;
+}) {
+  const tDash = useTranslations('dashboard');
+  const { title, description } = getErrorConfig(error);
+
+  return (
+    <div className="flex items-center justify-center min-h-[400px] p-4">
+      <Card className="w-full max-w-lg border-0 shadow-lg">
+        <CardContent className="flex flex-col items-center text-center gap-6 pt-8 pb-6">
+          {/* Gradient Icon Container */}
+          <div className="relative flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 shadow-lg shadow-amber-500/20 dark:shadow-amber-500/10">
+            <AlertTriangle className="h-10 w-10 text-white" />
+            {/* Subtle ring effect */}
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 opacity-20 blur-xl" />
+          </div>
+
+          {/* Text Content */}
+          <div className="space-y-2 max-w-sm">
+            <h2 className="text-xl font-semibold text-foreground">{title}</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {description}
+            </p>
+          </div>
+
+          {/* Error Detail (subtle) */}
+          <p className="text-xs text-muted-foreground/70 font-mono bg-muted/50 px-3 py-1.5 rounded-md max-w-full truncate">
+            {error}
+          </p>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:justify-center pt-1">
+            <Button
+              onClick={onGoToDashboard}
+              className="gap-2 bg-teal-600 hover:bg-teal-700 text-white shadow-md shadow-teal-600/20 dark:bg-teal-500 dark:hover:bg-teal-600 dark:shadow-teal-500/10 w-full sm:w-auto"
+            >
+              <HomeIcon className="h-4 w-4" />
+              Go to Dashboard
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => window.location.reload()}
+              className="gap-2 w-full sm:w-auto"
+            >
+              <RefreshCw className="h-4 w-4" />
+              {tDash('refreshPage')}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 function SectionContent({ section }: { section: string }) {
   const [Comp, setComp] = useState<React.ComponentType<any> | null>(null);
@@ -57,21 +149,21 @@ function SectionContent({ section }: { section: string }) {
     return () => { cancelled = true; clearTimeout(timeout); };
   }, [section]);
 
+  const handleGoToDashboard = () => {
+    useUIStore.getState().setActiveSection('overview');
+  };
+
   if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
-        <p className="text-red-500 dark:text-red-400 font-medium">{error}</p>
-        <button className="px-4 py-2 border rounded-md text-sm hover:bg-accent" onClick={() => window.location.reload()}>{tDash('refreshPage')}</button>
-      </div>
-    );
+    return <SectionLoadError error={error} onGoToDashboard={handleGoToDashboard} />;
   }
 
   if (!Comp) {
-    return <SectionLoadingSkeleton />;
+    return <SectionLoadingSkeleton section={section} />;
   }
 
   return (
     <div className="space-y-4">
+      <SectionHeader sectionId={section} />
       <ErrorBoundary section={section}>
         <Comp />
       </ErrorBoundary>

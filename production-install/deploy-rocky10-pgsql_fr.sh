@@ -564,10 +564,11 @@ sql {
   post-auth {
     query = "\
       INSERT INTO radpostauth (username, pass, reply, calledstationid, callingstationid, \
-        nasipaddress, clientipaddress, authdate, \"class\") \
+        \"nasIpAddress\", clientipaddress, authdate, \"class\", \"replyMessage\") \
       VALUES ('%{SQL-User-Name}', '%{%{User-Password}:-%{Chap-Password}}', '%{reply:Packet-Type}', \
         '%{Called-Station-Id}', '%{Calling-Station-Id}', \
-        '%{NAS-IP-Address}', NULLIF('%{Framed-IP-Address}', ''), NOW(), NULLIF('%{Class}', ''))"
+        '%{NAS-IP-Address}', NULLIF('%{Framed-IP-Address}', ''), NOW(), NULLIF('%{Class}', ''), \
+        '%{reply:Reply-Message}')"
   }
 }
 EOCONF
@@ -1016,6 +1017,13 @@ else
   warn "complete-database.sql not found, skipping advanced schema"
 fi
 
+# Apply live DB updates (idempotent — safe to re-run on existing deployments)
+if [[ -f "${APP_DIR}/pgsql-production/update-live-db.sql" ]]; then
+  step 11b "Schema" "Applying update-live-db.sql (incremental migrations)"
+  psql -h 127.0.0.1 -U staysuite -d staysuite -f "${APP_DIR}/pgsql-production/update-live-db.sql" 2>&1 | grep -v NOTICE
+  success "update-live-db.sql applied (incremental schema fixes)"
+fi
+
 # nftables-service tables (firewall mini-service DB storage)
 if [[ -f "${APP_DIR}/pgsql-production/nftables-service-tables.sql" ]]; then
   psql -h 127.0.0.1 -U staysuite -d staysuite -f "${APP_DIR}/pgsql-production/nftables-service-tables.sql" 2>&1 | grep -v NOTICE
@@ -1427,6 +1435,20 @@ cat > /etc/logrotate.d/staysuite-ipdr << 'LOGEOF'
     notifempty
     copytruncate
     maxsize 500M
+}
+
+# Log rotation for ulogd2 JSON output files (sni.json, flow.json)
+# Without rotation these files grow unbounded — a 1.6GB sni.json caused
+# the sni-parser to hang on restart, blocking all Web Surfing reports.
+/var/log/ulogd2/*.json {
+    daily
+    missingok
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    copytruncate
+    maxsize 200M
 }
 LOGEOF
 

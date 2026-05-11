@@ -33,6 +33,9 @@ import {
   MessageSquare,
   Crown,
   Wifi,
+  Activity,
+  Hotel,
+  IndianRupee,
   type LucideIcon,
 } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
@@ -88,6 +91,7 @@ import { LoyaltyTierWidget } from './widgets/loyalty-tier-widget';
 import { MiniRevenueChart } from './widgets/mini-revenue-chart';
 import { LazySection } from './lazy-section';
 import { RoomFloorPlanWidget } from './widgets/room-floor-plan-widget';
+import { RoomStatusOverview } from './room-status-overview';
 
 const OccupancyHeatmap = React.lazy(() => import('./occupancy-heatmap').then(m => ({ default: m.OccupancyHeatmap })));
 
@@ -622,6 +626,169 @@ function AlertsWidget({ alerts, isLoading }: { alerts: TodaySummary['alerts']; i
   );
 }
 
+// ─── Live Clock Widget ──────────────────────────────────────────────────
+
+function LiveClockWidget() {
+  const [now, setNow] = useState(new Date());
+  const { currentProperty } = useAuthStore();
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const timeStr = now.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+
+  const dateStr = now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="bg-muted/50 backdrop-blur-sm rounded-lg border border-border/50 p-3"
+    >
+      <div className="flex items-center justify-between gap-3">
+        {/* Left: Property name + Date */}
+        <div className="flex flex-col min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <Hotel className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs font-semibold text-foreground truncate">
+              {currentProperty?.name || 'Royal Stay Hotels'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <Calendar className="h-3 w-3 text-muted-foreground shrink-0" />
+            <span className="text-[11px] text-muted-foreground truncate">{dateStr}</span>
+          </div>
+        </div>
+
+        {/* Right: Time + LIVE indicator */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-sm font-mono font-semibold tabular-nums text-foreground tracking-tight">
+            {timeStr}
+          </span>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              Live
+            </span>
+          </span>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Quick Stats Ticker ─────────────────────────────────────────────────
+
+function QuickStatsTicker({ summary, isLoading }: { summary: TodaySummary | null; isLoading: boolean }) {
+  const tickerRef = useRef<HTMLDivElement>(null);
+  const [shouldScroll, setShouldScroll] = useState(false);
+
+  useEffect(() => {
+    const checkOverflow = () => {
+      if (tickerRef.current) {
+        setShouldScroll(tickerRef.current.scrollWidth > tickerRef.current.clientWidth);
+      }
+    };
+    checkOverflow();
+    window.addEventListener('resize', checkOverflow);
+    return () => window.removeEventListener('resize', checkOverflow);
+  }, [summary]);
+
+  if (isLoading || !summary) {
+    return (
+      <div className="bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-amber-500/10 rounded-lg p-2.5">
+        <div className="flex gap-4">
+          {[...Array(5)].map((_, i) => (
+            <Skeleton key={i} className="h-4 w-20 rounded" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const metrics = [
+    {
+      icon: Activity,
+      label: 'Occupancy',
+      value: `${summary.occupancy}%`,
+      color: 'text-teal-600 dark:text-teal-400',
+    },
+    {
+      icon: Users,
+      label: 'Active Guests',
+      value: `${summary.inHouse}`,
+      color: 'text-emerald-600 dark:text-emerald-400',
+    },
+    {
+      icon: IndianRupee,
+      label: "Today's Revenue",
+      value: `₹${summary.revenue.toLocaleString('en-IN')}`,
+      color: 'text-amber-600 dark:text-amber-400',
+    },
+    {
+      icon: Bed,
+      label: 'Available Rooms',
+      value: `${summary.availableRooms}`,
+      color: 'text-cyan-600 dark:text-cyan-400',
+    },
+    {
+      icon: Wrench,
+      label: 'Service Requests',
+      value: `${summary.alerts.length}`,
+      color: 'text-orange-600 dark:text-orange-400',
+    },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.1 }}
+      className="bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-amber-500/10 rounded-lg overflow-hidden"
+    >
+      <div
+        ref={tickerRef}
+        className={cn(
+          "flex items-center gap-3 p-2.5 text-xs",
+          shouldScroll && "overflow-x-auto scrollbar-none"
+        )}
+      >
+        {metrics.map((metric, idx) => (
+          <React.Fragment key={metric.label}>
+            {idx > 0 && (
+              <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />
+            )}
+            <div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+              <metric.icon className={cn("h-3 w-3 text-muted-foreground")} />
+              <span className="text-muted-foreground hidden sm:inline">{metric.label}:</span>
+              <span className={cn("font-semibold font-mono tabular-nums", metric.color)}>
+                {metric.value}
+              </span>
+            </div>
+          </React.Fragment>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── Main Overview Dashboard ────────────────────────────────────────────
 
 export default function OverviewDashboard() {
@@ -711,6 +878,16 @@ export default function OverviewDashboard() {
           alertsCount={summary?.alerts?.length || 0}
         />
 
+        {/* ── Live Clock Widget ── */}
+        <div className="relative z-10">
+          <LiveClockWidget />
+        </div>
+
+        {/* ── Quick Stats Ticker ── */}
+        <div className="relative z-10">
+          <QuickStatsTicker summary={summary} isLoading={isLoading} />
+        </div>
+
         {/* ── Live data bar ── */}
         <div className="flex items-center justify-between relative z-10">
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50">
@@ -740,6 +917,11 @@ export default function OverviewDashboard() {
         {/* ── Today's Summary ── */}
         <div className="relative z-10">
           <TodaySummaryCard summary={summary} isLoading={isLoading} />
+        </div>
+
+        {/* ── Room Status Overview (Floor Map Grid) ── */}
+        <div className="relative z-10">
+          <RoomStatusOverview />
         </div>
 
         {/* ── Guest Journey Pipeline ── */}

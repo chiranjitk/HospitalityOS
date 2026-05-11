@@ -1,0 +1,13 @@
+{
+  "name": "live-speed-service",
+  "version": "1.0.0",
+  "description": "StaySuite Live Speed Polling Service — reads nftables + MikroTik REST API every 3s, calculates real-time per-IP speed in Mbps",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot index.ts",
+    "start": "bun index.ts"
+  },
+  "dependencies": {
+    "pg": "^8.20.0"
+  }
+}
