@@ -24,7 +24,7 @@
  *   pm2 startup
  */
 
-const BUN_PATH = process.env.BUN_PATH || '/root/.bun/bin/bun';
+const BUN_PATH = process.env.BUN_PATH || '/usr/bin/bun';
 const APP_DIR = __dirname;
 const LOG_DIR = `${APP_DIR}/logs`;
 
