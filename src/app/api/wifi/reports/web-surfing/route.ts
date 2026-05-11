@@ -279,6 +279,8 @@ export async function GET(request: NextRequest) {
     const clickhouseReady = await isAvailable();
 
     if (clickhouseReady) {
+      console.log('[web-surfing] ClickHouse is available, querying ipdr.sni_log...');
+
       // Query SNI log aggregated by domain + source IP, joined with nat_log for bytes
       const sniRows = await query<Record<string, unknown>>(`
         SELECT
@@ -294,6 +296,8 @@ export async function GET(request: NextRequest) {
         ORDER BY connections DESC
         LIMIT 500
       `);
+
+      console.log(`[web-surfing] sni_log query returned ${sniRows.length} rows`);
 
       if (sniRows.length > 0) {
         // ── Get bytes from nat_log for each (src_ip, dst_ip) pair ──
@@ -424,9 +428,11 @@ export async function GET(request: NextRequest) {
     // This is the live data path when ClickHouse is not set up.
     // ulogd2 captures TLS SNI via NFLOG and connection tracking via NFCT.
     {
+      console.log(`[web-surfing] ClickHouse ${clickhouseReady ? 'available but sni_log empty' : 'unavailable'}, trying ulogd2 fallback...`);
       const ulogdData = await getWebSurfingFromUlogd({ search, category });
 
       if (ulogdData.length > 0) {
+        console.log(`[web-surfing] ulogd2 returned ${ulogdData.length} rows`);
         // Resolve guest names with time-window matching
         const ipTimestampPairs = ulogdData.map((d) => ({
           ip: d.sourceIp,
@@ -452,6 +458,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Fallback 3: deterministic demo data ──────────────────────
+    console.log('[web-surfing] No live data from ClickHouse or ulogd2 — serving demo data');
     const demoData = generateDemoData();
     const filtered = applyFilters(demoData, search, category);
     const summary = computeSummary(filtered);
