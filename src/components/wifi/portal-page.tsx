@@ -295,25 +295,71 @@ interface PortalTemplate {
   preview: string; // CSS gradient for thumbnail
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// PREMIUM TEMPLATE COLLECTION — 20 Professional Themes
+// Categories: Premium, Corporate, Lifestyle, Modern, Seasonal, Specialty
+// ═══════════════════════════════════════════════════════════════════════════════
+
 const PORTAL_TEMPLATES: PortalTemplate[] = [
+  // ── PREMIUM COLLECTION ──────────────────────────────────────────────────────
   {
-    id: 'luxury', name: 'Luxury Hotel', category: 'Premium', description: 'Dark elegance with gold accents and serif typography',
+    id: 'luxury', name: 'Royal Palace', category: 'Premium', description: 'Deep navy & gold opulence with serif elegance',
     design: { layoutType: 'split_left', backgroundType: 'solid', fontFamily: 'Inter', headingFontFamily: 'Playfair Display', formStyle: 'glass', inputStyle: 'underline', buttonStyle: 'pill', buttonSize: 'large', cardShadow: 'large', animationType: 'fade' },
     colors: { bg: '#1a1a2e', text: '#f5f5f5', accent: '#d4af37', gradientFrom: '#1a1a2e', gradientTo: '#16213e' },
     preview: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
   },
   {
-    id: 'resort', name: 'Modern Resort', category: 'Premium', description: 'Vibrant tropical gradients with rounded playful elements',
+    id: 'champagne', name: 'Champagne Gold', category: 'Premium', description: 'Warm ivory & rose-gold, sophisticated luxury',
+    design: { layoutType: 'centered', backgroundType: 'gradient', gradientFrom: '#f5f0e8', gradientTo: '#e8ddd0', gradientAngle: 180, fontFamily: 'Playfair Display', headingFontFamily: 'Playfair Display', formStyle: 'glass', inputStyle: 'underline', buttonStyle: 'pill', buttonSize: 'large', cardShadow: 'large', animationType: 'fade' },
+    colors: { bg: '#f5f0e8', text: '#3d2c1e', accent: '#b76e79', gradientFrom: '#f5f0e8', gradientTo: '#e8ddd0' },
+    preview: 'linear-gradient(180deg, #f5f0e8 0%, #e8ddd0 100%)',
+  },
+  {
+    id: 'noir', name: 'Midnight Noir', category: 'Premium', description: 'Ultra-dark with emerald accents, exclusive & mysterious',
+    design: { layoutType: 'split_right', backgroundType: 'solid', fontFamily: 'Montserrat', headingFontFamily: 'Playfair Display', formStyle: 'glass', inputStyle: 'underline', buttonStyle: 'pill', buttonSize: 'large', cardShadow: 'large', animationType: 'zoom' },
+    colors: { bg: '#0a0a0a', text: '#e8e8e8', accent: '#059669', gradientFrom: '#0a0a0a', gradientTo: '#1a1a1a' },
+    preview: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)',
+  },
+  {
+    id: 'resort', name: 'Tropical Paradise', category: 'Premium', description: 'Vibrant tropical gradients with rounded playful elements',
     design: { layoutType: 'centered', backgroundType: 'gradient', gradientFrom: '#0ea5e9', gradientTo: '#8b5cf6', gradientAngle: 135, fontFamily: 'Poppins', headingFontFamily: 'Poppins', formStyle: 'pill', inputStyle: 'pill', buttonStyle: 'pill', buttonSize: 'large', cardShadow: 'large', animationType: 'zoom' },
     colors: { bg: '#0ea5e9', text: '#ffffff', accent: '#8b5cf6', gradientFrom: '#0ea5e9', gradientTo: '#8b5cf6' },
     preview: 'linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%)',
   },
   {
-    id: 'business', name: 'Business Hotel', category: 'Corporate', description: 'Clean, professional look with sharp lines',
+    id: 'skyline', name: 'Skyline Penthouse', category: 'Premium', description: 'Dramatic city skyline with copper & amber tones',
+    design: { layoutType: 'full_bleed', backgroundType: 'gradient', gradientFrom: '#1e1b4b', gradientTo: '#4c1d95', gradientAngle: 200, fontFamily: 'Montserrat', headingFontFamily: 'Montserrat', formStyle: 'glass', inputStyle: 'pill', buttonStyle: 'gradient', buttonSize: 'large', cardShadow: 'large', animationType: 'slide_up' },
+    colors: { bg: '#1e1b4b', text: '#f5f3ff', accent: '#f59e0b', gradientFrom: '#1e1b4b', gradientTo: '#4c1d95' },
+    preview: 'linear-gradient(200deg, #1e1b4b 0%, #4c1d95 100%)',
+  },
+
+  // ── CORPORATE COLLECTION ────────────────────────────────────────────────────
+  {
+    id: 'business', name: 'Executive Suite', category: 'Corporate', description: 'Clean, professional look with sharp lines',
     design: { layoutType: 'card', backgroundType: 'solid', fontFamily: 'Inter', headingFontFamily: 'Inter', formStyle: 'square', inputStyle: 'rounded', buttonStyle: 'rounded', buttonSize: 'medium', cardShadow: 'medium', animationType: 'fade' },
     colors: { bg: '#f8fafc', text: '#1e293b', accent: '#2563eb', gradientFrom: '#f8fafc', gradientTo: '#e2e8f0' },
     preview: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
   },
+  {
+    id: 'airport', name: 'Airport Lounge', category: 'Corporate', description: 'Sleek silver & navy, premium travel feel',
+    design: { layoutType: 'split_left', backgroundType: 'gradient', gradientFrom: '#1e3a5f', gradientTo: '#0f172a', gradientAngle: 180, fontFamily: 'Inter', headingFontFamily: 'Montserrat', formStyle: 'rounded', inputStyle: 'rounded', buttonStyle: 'filled', buttonSize: 'medium', cardShadow: 'medium', animationType: 'fade' },
+    colors: { bg: '#1e3a5f', text: '#e2e8f0', accent: '#60a5fa', gradientFrom: '#1e3a5f', gradientTo: '#0f172a' },
+    preview: 'linear-gradient(180deg, #1e3a5f 0%, #0f172a 100%)',
+  },
+  {
+    id: 'cowork', name: 'Co-Working Space', category: 'Corporate', description: 'Bold coral & slate, energetic modern workspace',
+    design: { layoutType: 'centered', backgroundType: 'solid', fontFamily: 'Poppins', headingFontFamily: 'Poppins', formStyle: 'rounded', inputStyle: 'rounded', buttonStyle: 'rounded', buttonSize: 'medium', cardShadow: 'medium', animationType: 'slide_up' },
+    colors: { bg: '#1e293b', text: '#f1f5f9', accent: '#f97316', gradientFrom: '#1e293b', gradientTo: '#334155' },
+    preview: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+  },
+  {
+    id: 'conference', name: 'Conference Center', category: 'Corporate', description: 'Neutral tones with authoritative teal, event-ready',
+    design: { layoutType: 'card', backgroundType: 'gradient', gradientFrom: '#f1f5f9', gradientTo: '#e2e8f0', gradientAngle: 180, fontFamily: 'Roboto', headingFontFamily: 'Montserrat', formStyle: 'square', inputStyle: 'square', buttonStyle: 'filled', buttonSize: 'medium', cardShadow: 'large', animationType: 'fade' },
+    colors: { bg: '#f1f5f9', text: '#0f172a', accent: '#0d9488', gradientFrom: '#f1f5f9', gradientTo: '#e2e8f0' },
+    preview: 'linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%)',
+  },
+
+  // ── LIFESTYLE COLLECTION ────────────────────────────────────────────────────
   {
     id: 'boutique', name: 'Boutique Hotel', category: 'Lifestyle', description: 'Warm earth tones with artistic, unique personality',
     design: { layoutType: 'split_right', backgroundType: 'gradient', gradientFrom: '#92400e', gradientTo: '#78350f', gradientAngle: 160, fontFamily: 'Lato', headingFontFamily: 'Merriweather', formStyle: 'rounded', inputStyle: 'rounded', buttonStyle: 'filled', buttonSize: 'medium', cardShadow: 'large', animationType: 'slide_up' },
@@ -321,17 +367,37 @@ const PORTAL_TEMPLATES: PortalTemplate[] = [
     preview: 'linear-gradient(135deg, #92400e 0%, #78350f 100%)',
   },
   {
-    id: 'beach', name: 'Beach Resort', category: 'Lifestyle', description: 'Ocean-inspired blues with sandy warm accents',
+    id: 'beach', name: 'Ocean Breeze', category: 'Lifestyle', description: 'Ocean-inspired blues with sandy warm accents',
     design: { layoutType: 'full_bleed', backgroundType: 'gradient', gradientFrom: '#0369a1', gradientTo: '#065f46', gradientAngle: 180, fontFamily: 'Open Sans', headingFontFamily: 'Montserrat', formStyle: 'glass', inputStyle: 'rounded', buttonStyle: 'pill', buttonSize: 'large', cardShadow: 'none', animationType: 'fade' },
     colors: { bg: '#0369a1', text: '#ffffff', accent: '#22d3ee', gradientFrom: '#0369a1', gradientTo: '#065f46' },
     preview: 'linear-gradient(180deg, #0369a1 0%, #065f46 100%)',
   },
   {
-    id: 'mountain', name: 'Mountain Lodge', category: 'Lifestyle', description: 'Forest greens with cozy warm wood tones',
+    id: 'mountain', name: 'Alpine Retreat', category: 'Lifestyle', description: 'Forest greens with cozy warm wood tones',
     design: { layoutType: 'card', backgroundType: 'gradient', gradientFrom: '#14532d', gradientTo: '#1c1917', gradientAngle: 150, fontFamily: 'Lato', headingFontFamily: 'Merriweather', formStyle: 'rounded', inputStyle: 'rounded', buttonStyle: 'rounded', buttonSize: 'medium', cardShadow: 'large', animationType: 'fade' },
     colors: { bg: '#14532d', text: '#fefce8', accent: '#a3e635', gradientFrom: '#14532d', gradientTo: '#1c1917' },
     preview: 'linear-gradient(150deg, #14532d 0%, #1c1917 100%)',
   },
+  {
+    id: 'mediterranean', name: 'Mediterranean Villa', category: 'Lifestyle', description: 'Terracotta & azure, sun-drenched coastal charm',
+    design: { layoutType: 'split_right', backgroundType: 'gradient', gradientFrom: '#c2410c', gradientTo: '#9a3412', gradientAngle: 170, fontFamily: 'Lato', headingFontFamily: 'Playfair Display', formStyle: 'rounded', inputStyle: 'rounded', buttonStyle: 'filled', buttonSize: 'medium', cardShadow: 'medium', animationType: 'slide_up' },
+    colors: { bg: '#c2410c', text: '#fff7ed', accent: '#fbbf24', gradientFrom: '#c2410c', gradientTo: '#9a3412' },
+    preview: 'linear-gradient(170deg, #c2410c 0%, #9a3412 100%)',
+  },
+  {
+    id: 'spa', name: 'Spa & Wellness', category: 'Lifestyle', description: 'Sage & lavender, calming zen-like serenity',
+    design: { layoutType: 'centered', backgroundType: 'gradient', gradientFrom: '#e8e0d4', gradientTo: '#d4c5b2', gradientAngle: 180, fontFamily: 'Lato', headingFontFamily: 'Playfair Display', formStyle: 'rounded', inputStyle: 'rounded', buttonStyle: 'rounded', buttonSize: 'medium', cardShadow: 'medium', animationType: 'fade' },
+    colors: { bg: '#e8e0d4', text: '#3d3226', accent: '#7c9a82', gradientFrom: '#e8e0d4', gradientTo: '#d4c5b2' },
+    preview: 'linear-gradient(180deg, #e8e0d4 0%, #d4c5b2 100%)',
+  },
+  {
+    id: 'golf', name: 'Golf & Country Club', category: 'Lifestyle', description: 'Classic green & cream, prestigious country club',
+    design: { layoutType: 'split_left', backgroundType: 'gradient', gradientFrom: '#14532d', gradientTo: '#365314', gradientAngle: 160, fontFamily: 'Merriweather', headingFontFamily: 'Playfair Display', formStyle: 'rounded', inputStyle: 'rounded', buttonStyle: 'filled', buttonSize: 'medium', cardShadow: 'large', animationType: 'fade' },
+    colors: { bg: '#14532d', text: '#fefce8', accent: '#fbbf24', gradientFrom: '#14532d', gradientTo: '#365314' },
+    preview: 'linear-gradient(160deg, #14532d 0%, #365314 100%)',
+  },
+
+  // ── MODERN COLLECTION ───────────────────────────────────────────────────────
   {
     id: 'urban', name: 'City Hotel', category: 'Modern', description: 'Sleek dark theme with neon accent highlights',
     design: { layoutType: 'centered', backgroundType: 'solid', fontFamily: 'Inter', headingFontFamily: 'Inter', formStyle: 'minimal', inputStyle: 'underline', buttonStyle: 'filled', buttonSize: 'medium', cardShadow: 'none', animationType: 'slide_up' },
@@ -343,6 +409,62 @@ const PORTAL_TEMPLATES: PortalTemplate[] = [
     design: { layoutType: 'centered', backgroundType: 'solid', fontFamily: 'Inter', headingFontFamily: 'Inter', formStyle: 'rounded', inputStyle: 'rounded', buttonStyle: 'filled', buttonSize: 'medium', cardShadow: 'small', animationType: 'none' },
     colors: { bg: '#ffffff', text: '#18181b', accent: '#0d9488', gradientFrom: '#ffffff', gradientTo: '#f0fdfa' },
     preview: 'linear-gradient(135deg, #ffffff 0%, #f0fdfa 100%)',
+  },
+  {
+    id: 'neon', name: 'Neon Nights', category: 'Modern', description: 'Dark base with vivid electric gradients, cyber-modern',
+    design: { layoutType: 'centered', backgroundType: 'gradient', gradientFrom: '#0c0c1d', gradientTo: '#1a0a2e', gradientAngle: 135, fontFamily: 'Montserrat', headingFontFamily: 'Montserrat', formStyle: 'glass', inputStyle: 'pill', buttonStyle: 'gradient', buttonSize: 'large', cardShadow: 'large', animationType: 'zoom' },
+    colors: { bg: '#0c0c1d', text: '#f0f0ff', accent: '#a855f7', gradientFrom: '#0c0c1d', gradientTo: '#1a0a2e' },
+    preview: 'linear-gradient(135deg, #0c0c1d 0%, #1a0a2e 100%)',
+  },
+  {
+    id: 'glassmorphism', name: 'Frosted Glass', category: 'Modern', description: 'Translucent glass panels on vivid gradient, trendy',
+    design: { layoutType: 'centered', backgroundType: 'gradient', gradientFrom: '#6366f1', gradientTo: '#ec4899', gradientAngle: 135, fontFamily: 'Inter', headingFontFamily: 'Inter', formStyle: 'glass', inputStyle: 'pill', buttonStyle: 'pill', buttonSize: 'large', cardShadow: 'large', animationType: 'fade' },
+    colors: { bg: '#6366f1', text: '#ffffff', accent: '#fbbf24', gradientFrom: '#6366f1', gradientTo: '#ec4899' },
+    preview: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
+  },
+  {
+    id: 'eco', name: 'Eco Green', category: 'Modern', description: 'Sustainable green palette with organic earthy feel',
+    design: { layoutType: 'card', backgroundType: 'gradient', gradientFrom: '#d1fae5', gradientTo: '#a7f3d0', gradientAngle: 180, fontFamily: 'Open Sans', headingFontFamily: 'Montserrat', formStyle: 'rounded', inputStyle: 'rounded', buttonStyle: 'rounded', buttonSize: 'medium', cardShadow: 'medium', animationType: 'fade' },
+    colors: { bg: '#d1fae5', text: '#064e3b', accent: '#059669', gradientFrom: '#d1fae5', gradientTo: '#a7f3d0' },
+    preview: 'linear-gradient(180deg, #d1fae5 0%, #a7f3d0 100%)',
+  },
+
+  // ── SEASONAL / SPECIALTY COLLECTION ─────────────────────────────────────────
+  {
+    id: 'winter', name: 'Winter Wonderland', category: 'Seasonal', description: 'Icy blue & silver, magical snowy ambiance',
+    design: { layoutType: 'centered', backgroundType: 'gradient', gradientFrom: '#1e3a5f', gradientTo: '#0c4a6e', gradientAngle: 180, fontFamily: 'Montserrat', headingFontFamily: 'Playfair Display', formStyle: 'glass', inputStyle: 'rounded', buttonStyle: 'pill', buttonSize: 'large', cardShadow: 'large', animationType: 'fade' },
+    colors: { bg: '#1e3a5f', text: '#e0f2fe', accent: '#93c5fd', gradientFrom: '#1e3a5f', gradientTo: '#0c4a6e' },
+    preview: 'linear-gradient(180deg, #1e3a5f 0%, #0c4a6e 100%)',
+  },
+  {
+    id: 'sakura', name: 'Cherry Blossom', category: 'Seasonal', description: 'Soft pink & cream, delicate Japanese-inspired spring',
+    design: { layoutType: 'centered', backgroundType: 'gradient', gradientFrom: '#fce7f3', gradientTo: '#fbcfe8', gradientAngle: 180, fontFamily: 'Lato', headingFontFamily: 'Playfair Display', formStyle: 'rounded', inputStyle: 'rounded', buttonStyle: 'rounded', buttonSize: 'medium', cardShadow: 'medium', animationType: 'fade' },
+    colors: { bg: '#fce7f3', text: '#831843', accent: '#ec4899', gradientFrom: '#fce7f3', gradientTo: '#fbcfe8' },
+    preview: 'linear-gradient(180deg, #fce7f3 0%, #fbcfe8 100%)',
+  },
+  {
+    id: 'wedding', name: 'Wedding Venue', category: 'Specialty', description: 'Romantic blush & ivory, elegant celebration',
+    design: { layoutType: 'split_right', backgroundType: 'gradient', gradientFrom: '#fdf2f8', gradientTo: '#fce7f3', gradientAngle: 180, fontFamily: 'Playfair Display', headingFontFamily: 'Playfair Display', formStyle: 'rounded', inputStyle: 'rounded', buttonStyle: 'pill', buttonSize: 'medium', cardShadow: 'large', animationType: 'fade' },
+    colors: { bg: '#fdf2f8', text: '#4a1942', accent: '#be185d', gradientFrom: '#fdf2f8', gradientTo: '#fce7f3' },
+    preview: 'linear-gradient(180deg, #fdf2f8 0%, #fce7f3 100%)',
+  },
+  {
+    id: 'casino', name: 'Casino Royale', category: 'Specialty', description: 'Rich purple & gold, glamorous high-roller vibe',
+    design: { layoutType: 'split_left', backgroundType: 'gradient', gradientFrom: '#2e1065', gradientTo: '#4c1d95', gradientAngle: 150, fontFamily: 'Montserrat', headingFontFamily: 'Playfair Display', formStyle: 'glass', inputStyle: 'pill', buttonStyle: 'gradient', buttonSize: 'large', cardShadow: 'large', animationType: 'zoom' },
+    colors: { bg: '#2e1065', text: '#f5f3ff', accent: '#eab308', gradientFrom: '#2e1065', gradientTo: '#4c1d95' },
+    preview: 'linear-gradient(150deg, #2e1065 0%, #4c1d95 100%)',
+  },
+  {
+    id: 'safari', name: 'Safari Lodge', category: 'Specialty', description: 'Warm amber & burnt sienna, African adventure',
+    design: { layoutType: 'full_bleed', backgroundType: 'gradient', gradientFrom: '#78350f', gradientTo: '#451a03', gradientAngle: 180, fontFamily: 'Merriweather', headingFontFamily: 'Playfair Display', formStyle: 'rounded', inputStyle: 'rounded', buttonStyle: 'filled', buttonSize: 'medium', cardShadow: 'large', animationType: 'slide_up' },
+    colors: { bg: '#78350f', text: '#fef3c7', accent: '#f97316', gradientFrom: '#78350f', gradientTo: '#451a03' },
+    preview: 'linear-gradient(180deg, #78350f 0%, #451a03 100%)',
+  },
+  {
+    id: 'hostel', name: 'Urban Hostel', category: 'Specialty', description: 'Colorful & youthful, backpacker-friendly energy',
+    design: { layoutType: 'centered', backgroundType: 'gradient', gradientFrom: '#f97316', gradientTo: '#ef4444', gradientAngle: 135, fontFamily: 'Poppins', headingFontFamily: 'Poppins', formStyle: 'pill', inputStyle: 'pill', buttonStyle: 'pill', buttonSize: 'large', cardShadow: 'medium', animationType: 'zoom' },
+    colors: { bg: '#f97316', text: '#ffffff', accent: '#fbbf24', gradientFrom: '#f97316', gradientTo: '#ef4444' },
+    preview: 'linear-gradient(135deg, #f97316 0%, #ef4444 100%)',
   },
 ];
 
@@ -1535,47 +1657,68 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
             <div className="overflow-y-auto max-h-[70vh] overscroll-contain">
               <div className="p-5 space-y-5">
                 {/* ── Templates Sub-Tab ──────────────────────────────────────── */}
-                {subTab === 'templates' && (
+                {subTab === 'templates' && (() => {
+                  const CATEGORIES = ['All', ...Array.from(new Set(PORTAL_TEMPLATES.map(t => t.category)))];
+                  const [catFilter, setCatFilter] = useState('All');
+                  const filtered = catFilter === 'All' ? PORTAL_TEMPLATES : PORTAL_TEMPLATES.filter(t => t.category === catFilter);
+                  const CATEGORY_ICONS: Record<string, string> = { All: '🌟', Premium: '👑', Corporate: '💼', Lifestyle: '🌴', Modern: '✨', Seasonal: '❄️', Specialty: '🎰' };
+                  const isCurrent = (tmpl: PortalTemplate) => design.settings.layoutType === tmpl.design.layoutType && design.backgroundColor === tmpl.colors.bg;
+                  return (
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-sm font-semibold flex items-center gap-2"><Sparkles className="h-4 w-4 text-amber-500 dark:text-amber-400" />Choose a Template</h3>
-                      <p className="text-xs text-muted-foreground mt-1">Start with a professionally designed theme, then customize every detail</p>
+                      <p className="text-xs text-muted-foreground mt-1">{PORTAL_TEMPLATES.length} professionally designed themes — pick one, then customize every detail</p>
+                    </div>
+                    {/* Category filter pills */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {CATEGORIES.map((cat) => (
+                        <button key={cat} onClick={() => setCatFilter(cat)}
+                          className={cn('px-2.5 py-1 text-[10px] font-medium rounded-full transition-all border',
+                            catFilter === cat ? 'bg-teal-500 text-white border-teal-500' : 'bg-card text-muted-foreground border-border hover:border-teal-300'
+                          )}>
+                          {CATEGORY_ICONS[cat] || '🏷️'} {cat}
+                        </button>
+                      ))}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      {PORTAL_TEMPLATES.map((tmpl) => (
+                      {filtered.map((tmpl) => (
                         <button key={tmpl.id} onClick={() => applyTemplate(tmpl)}
                           className={cn('group relative rounded-xl overflow-hidden border-2 transition-all hover:shadow-lg text-left',
-                            design.settings.layoutType === tmpl.design.layoutType && design.backgroundColor === tmpl.colors.bg
+                            isCurrent(tmpl)
                               ? 'border-teal-500 ring-2 ring-teal-500/20' : 'border-border hover:border-teal-300'
                           )}>
                           {/* Thumbnail */}
                           <div className="h-28 relative" style={{ background: tmpl.preview }}>
                             <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-white/90 p-3">
                               <Building className="h-6 w-6 opacity-60" />
-                              <div className="text-[10px] font-semibold text-center">{tmpl.name}</div>
+                              <div className="text-[10px] font-semibold text-center drop-shadow">{tmpl.name}</div>
                             </div>
-                            {design.settings.layoutType === tmpl.design.layoutType && design.backgroundColor === tmpl.colors.bg && (
-                              <div className="absolute top-2 right-2 bg-teal-500 rounded-full p-0.5"><CheckCircle2 className="h-3 w-3 text-white" /></div>
+                            {/* Category badge */}
+                            <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full bg-black/30 backdrop-blur-sm text-[8px] font-medium text-white/80">
+                              {CATEGORY_ICONS[tmpl.category] || ''} {tmpl.category}
+                            </div>
+                            {isCurrent(tmpl) && (
+                              <div className="absolute top-1.5 right-1.5 bg-teal-500 rounded-full p-0.5"><CheckCircle2 className="h-3 w-3 text-white" /></div>
                             )}
                           </div>
-                          <div className="p-3 bg-card">
+                          <div className="p-2.5 bg-card">
                             <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-xs font-semibold">{tmpl.name}</p>
-                                <p className="text-[10px] text-muted-foreground">{tmpl.category}</p>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-semibold truncate">{tmpl.name}</p>
+                                <p className="text-[9px] text-muted-foreground truncate">{tmpl.description}</p>
                               </div>
-                              <div className="flex gap-1">
-                                <div className="w-3 h-3 rounded-full border border-gray-300" style={{ background: tmpl.colors.bg }} />
-                                <div className="w-3 h-3 rounded-full border border-gray-300" style={{ background: tmpl.colors.accent }} />
+                              <div className="flex gap-0.5 ml-2 flex-shrink-0">
+                                <div className="w-2.5 h-2.5 rounded-full border border-gray-300/50" style={{ background: tmpl.colors.accent }} />
+                                <div className="w-2.5 h-2.5 rounded-full border border-gray-300/50" style={{ background: tmpl.colors.bg }} />
                               </div>
                             </div>
-                            <p className="text-[10px] text-muted-foreground mt-1">{tmpl.description}</p>
                           </div>
                         </button>
                       ))}
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* ── Layout Sub-Tab ─────────────────────────────────────────── */}
                 {subTab === 'layout' && (
