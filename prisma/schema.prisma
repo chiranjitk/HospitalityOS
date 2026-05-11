@@ -4250,6 +4250,9 @@ model RadAcct {
   @@index([acctuniqueid], map: "radacct_active_session_idx")
   @@index([nasipaddress, acctstarttime], map: "radacct_bulk_close")
   @@index([acctstarttime, username], map: "radacct_start_user_idx")
+  @@index([framedipaddress], map: "radacct_framedip_idx")
+  @@index([username], map: "radacct_username_idx")
+  @@index([callingstationid], map: "radacct_callingstation_idx")
   @@map("radacct")
 }
 
