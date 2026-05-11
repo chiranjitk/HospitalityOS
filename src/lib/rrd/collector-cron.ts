@@ -45,9 +45,10 @@ const LOG_PREFIX = `[RRD-Cron ${new Date().toISOString()}]`;
 
 // Parse CLI flags
 const args = process.argv.slice(2);
-const RUN_USERS = !args.includes('--interfaces') && !args.includes('--system');
-const RUN_INTERFACES = !args.includes('--users') && !args.includes('--system');
-const RUN_SYSTEM = !args.includes('--users') && !args.includes('--interfaces');
+const RUN_USERS = !args.includes('--interfaces') && !args.includes('--system') && !args.includes('--pools');
+const RUN_INTERFACES = !args.includes('--users') && !args.includes('--system') && !args.includes('--pools');
+const RUN_SYSTEM = !args.includes('--users') && !args.includes('--interfaces') && !args.includes('--pools');
+const RUN_POOLS = args.includes('--pools') || (!args.includes('--users') && !args.includes('--interfaces') && !args.includes('--system'));
 
 // ─── Lazy imports (after env is loaded) ─────────────────────
 let prisma: any;
@@ -58,6 +59,8 @@ let interfaceRRDPath: any;
 let getRRDBasePath: any;
 let ensureSystemRRDs: any;
 let updateSystemRRDs: any;
+let ensurePoolRRD: any;
+let updatePoolRRD: any;
 
 async function init() {
   const { PrismaClient } = await import('@prisma/client');
@@ -73,12 +76,15 @@ async function init() {
   const sysRrd = await import('./system-rrd');
   ensureSystemRRDs = sysRrd.ensureSystemRRDs;
   updateSystemRRDs = sysRrd.updateSystemRRDs;
+  ensurePoolRRD = sysRrd.ensurePoolRRD;
+  updatePoolRRD = sysRrd.updatePoolRRD;
 }
 
 // ─── State file helpers ─────────────────────────────────────
 interface CounterState {
   users: Record<string, { input: number; output: number; ts: number }>;
   interfaces: Record<string, { rx: number; tx: number; ts: number }>;
+  pools: Record<string, { dn: number; up: number; ts: number }>;
   system: {
     cpuPrevIdle: number;
     cpuPrevTotal: number;
@@ -95,12 +101,16 @@ function loadState(): CounterState {
       if (!parsed.system) {
         parsed.system = { cpuPrevIdle: 0, cpuPrevTotal: 0, cpuCorePrev: {} };
       }
+      // Ensure pools state exists
+      if (!parsed.pools) {
+        parsed.pools = {};
+      }
       return parsed as CounterState;
     }
   } catch (err) {
     console.error(`${LOG_PREFIX} Error loading state file:`, err);
   }
-  return { users: {}, interfaces: {}, system: { cpuPrevIdle: 0, cpuPrevTotal: 0, cpuCorePrev: {} } };
+  return { users: {}, interfaces: {}, pools: {}, system: { cpuPrevIdle: 0, cpuPrevTotal: 0, cpuCorePrev: {} } };
 }
 
 function saveState(state: CounterState): void {
@@ -589,10 +599,80 @@ async function pollSystemHealth(state: CounterState): Promise<string> {
   }
 }
 
+// ─── Pool bandwidth poll ───────────────────────────────────
+async function pollPools(state: CounterState): Promise<number> {
+  try {
+    // Import TC counter reader (Node.js-only module)
+    const { readTcClassCounters } = await import('@/lib/network/tc-counters');
+
+    // Query enabled BandwidthPools from DB
+    const pools = await prisma.bandwidthPool.findMany({
+      where: { enabled: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, name: true },
+    });
+
+    if (pools.length === 0) {
+      return 0;
+    }
+
+    // Build pool UUID → classid minor mapping (same logic as script-runner.ts)
+    const poolClassMap = new Map<string, number>();
+    for (let i = 0; i < Math.min(pools.length, 100); i++) {
+      poolClassMap.set(pools[i].id, 2 + i); // 1:2, 1:3, ...
+    }
+
+    // Read TC counters
+    const tcCounters = readTcClassCounters();
+    const now = Math.floor(Date.now() / 1000);
+    let updated = 0;
+
+    for (const pool of pools) {
+      const minor = poolClassMap.get(pool.id);
+      if (!minor) continue;
+
+      const counters = tcCounters.get(minor);
+      if (!counters) continue;
+
+      // Ensure RRD file exists
+      await ensurePoolRRD(pool.id);
+
+      const prev = state.pools[pool.id];
+
+      if (prev) {
+        const deltaDn = counters.dnBytes - prev.dn;
+        const deltaUp = counters.upBytes - prev.up;
+        const deltaT = now - prev.ts;
+
+        if (deltaT > 0 && deltaDn >= 0 && deltaUp >= 0) {
+          await updatePoolRRD(pool.id, Math.max(0, deltaDn), Math.max(0, deltaUp));
+          updated++;
+        }
+      }
+
+      // Store current counters
+      state.pools[pool.id] = { dn: counters.dnBytes, up: counters.upBytes, ts: now };
+    }
+
+    // Clean stale pools (not found in DB anymore)
+    const activePoolIds = new Set(pools.map(p => p.id));
+    for (const poolId of Object.keys(state.pools)) {
+      if (!activePoolIds.has(poolId) && (now - state.pools[poolId].ts) > 600) {
+        delete state.pools[poolId];
+      }
+    }
+
+    return updated;
+  } catch (err) {
+    console.error(`${LOG_PREFIX} Pool poll error:`, err);
+    return 0;
+  }
+}
+
 // ─── Main ───────────────────────────────────────────────────
 async function main() {
   const startTime = Date.now();
-  console.log(`${LOG_PREFIX} Starting cron collection (users=${RUN_USERS}, interfaces=${RUN_INTERFACES}, system=${RUN_SYSTEM})`);
+  console.log(`${LOG_PREFIX} Starting cron collection (users=${RUN_USERS}, interfaces=${RUN_INTERFACES}, system=${RUN_SYSTEM}, pools=${RUN_POOLS})`);
 
   await init();
 
@@ -601,12 +681,14 @@ async function main() {
   fs.mkdirSync(`${base}/users`, { recursive: true });
   fs.mkdirSync(`${base}/interfaces`, { recursive: true });
   fs.mkdirSync(`${base}/system`, { recursive: true });
+  fs.mkdirSync(`${base}/pools`, { recursive: true });
 
   // Load previous counter state
   const state = loadState();
 
   let usersUpdated = 0;
   let ifacesUpdated = 0;
+  let poolsUpdated = 0;
   let systemStatus = 'skipped';
 
   if (RUN_USERS) {
@@ -624,11 +706,16 @@ async function main() {
     console.log(`${LOG_PREFIX} System: ${systemStatus}`);
   }
 
+  if (RUN_POOLS) {
+    poolsUpdated = await pollPools(state);
+    console.log(`${LOG_PREFIX} Pools: ${poolsUpdated} RRD updates`);
+  }
+
   // Save counter state for next run
   saveState(state);
 
   const elapsed = Date.now() - startTime;
-  console.log(`${LOG_PREFIX} Done in ${elapsed}ms (users=${usersUpdated}, ifaces=${ifacesUpdated}, system=${systemStatus})`);
+  console.log(`${LOG_PREFIX} Done in ${elapsed}ms (users=${usersUpdated}, ifaces=${ifacesUpdated}, system=${systemStatus}, pools=${poolsUpdated})`);
 
   await prisma.$disconnect();
 }

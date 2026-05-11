@@ -105,6 +105,7 @@ import {
   Network,
   Check,
   X,
+  Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -1888,11 +1889,62 @@ function SystemHealthTab() {
   const [userBwSearch, setUserBwSearch] = useState('');
   const [userBwComboOpen, setUserBwComboOpen] = useState(false);
 
+  // Pool bandwidth graph
+  const [poolList, setPoolList] = useState<any[]>([]);
+  const [selectedPool, setSelectedPool] = useState<any>(null);
+  const [poolBwRange, setPoolBwRange] = useState('24h');
+  const [poolBwData, setPoolBwData] = useState<any>(null);
+  const [poolBwLoading, setPoolBwLoading] = useState(false);
+  const [poolSearch, setPoolSearch] = useState('');
+  const [poolComboOpen, setPoolComboOpen] = useState(false);
+
   // Active Users history graphs
   const [sessionHistRange, setSessionHistRange] = useState('24h');
   const [sessionHistData, setSessionHistData] = useState<any>(null);
   const [authHistRange, setAuthHistRange] = useState('24h');
-  const [authHistData, setAuthHistData] = useState<any>(null);
+ const [authHistData, setAuthHistData] = useState<any>(null);
+
+  // --- Fetch pool list on mount ---
+  useEffect(() => {
+    const fetchPools = async () => {
+      try {
+        const res = await fetch('/api/wifi/health?action=list-pools');
+        const result = await res.json();
+        if (result.success) {
+          setPoolList(result.data || []);
+          // Auto-select first pool if none selected
+          if (!selectedPool && result.data?.length > 0) {
+            setSelectedPool(result.data[0]);
+          }
+        }
+      } catch { /* silent */ }
+    };
+    fetchPools();
+  }, []);
+
+  // --- Fetch pool bandwidth history ---
+  useEffect(() => {
+    if (!selectedPool?.id) return;
+    let cancelled = false;
+    setPoolBwLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/wifi/health?action=pool-graph&poolId=${encodeURIComponent(selectedPool.id)}&range=${poolBwRange}`);
+        const result = await res.json();
+        if (!cancelled && result.success) {
+          setPoolBwData(result.data);
+        } else {
+          console.error('[Pool BW] API error:', result.error);
+          if (!cancelled) setPoolBwData(null);
+        }
+      } catch (err) {
+        console.error('[Pool BW] Fetch error:', err);
+        if (!cancelled) setPoolBwData(null);
+      }
+      if (!cancelled) setPoolBwLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedPool, poolBwRange]);
 
   // --- Fetch metrics every 2s ---
   const fetchMetrics = useCallback(async () => {
@@ -2167,6 +2219,15 @@ function SystemHealthTab() {
 
   // Deduplicated, non-empty user list for the per-user BW select dropdown
   // Merges active sessions + users who have RRD files (may be offline but have history)
+  const poolBwChartData = useMemo(() => {
+    if (!poolBwData?.timestamps?.length) return [];
+    return poolBwData.timestamps.map((ts: number, i: number) => ({
+      time: formatTime(ts),
+      download: poolBwData.data?.download?.[i] ?? 0,
+      upload: poolBwData.data?.upload?.[i] ?? 0,
+    }));
+  }, [poolBwData]);
+
   const deduplicatedUsers = useMemo(() => {
     const map = new Map<string, any>();
     // First, add active users (they have richer data: roomId, IP, MAC)
@@ -2280,11 +2341,12 @@ function SystemHealthTab() {
 
   return (
     <Tabs defaultValue="overview" className="space-y-4">
-      <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+      <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
         <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
         <TabsTrigger value="interfaces" className="text-xs sm:text-sm">Interfaces</TabsTrigger>
         <TabsTrigger value="resources" className="text-xs sm:text-sm">Resources</TabsTrigger>
         <TabsTrigger value="users" className="text-xs sm:text-sm">Active Users</TabsTrigger>
+        <TabsTrigger value="pool-bw" className="text-xs sm:text-sm">Pool BW</TabsTrigger>
         <TabsTrigger value="alerts" className="text-xs sm:text-sm">Alerts</TabsTrigger>
       </TabsList>
 
@@ -3119,6 +3181,124 @@ function SystemHealthTab() {
               <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">No bandwidth history for this user</div>
             ) : (
               <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">Select a user above to view bandwidth history</div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* ==================== SUB-TAB 6: POOL BANDWIDTH ==================== */}
+      <TabsContent value="pool-bw" className="space-y-4">
+        {/* Pool selector + stats bar */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Layers className="h-4 w-4 text-teal-500 dark:text-teal-400" /> Per-Pool Bandwidth
+              </CardTitle>
+              <RangeSelector value={poolBwRange} onChange={setPoolBwRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* Searchable pool combobox */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Popover open={poolComboOpen} onOpenChange={(open) => { setPoolComboOpen(open); if (!open) setPoolSearch(''); }}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={poolComboOpen}
+                    className="w-[280px] justify-between h-8 text-xs font-normal"
+                  >
+                    {selectedPool
+                      ? <span className="truncate">{selectedPool.name}</span>
+                      : <span className="text-muted-foreground">Select a bandwidth pool...</span>
+                    }
+                    <Search className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[320px] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Type to search pools..."
+                      value={poolSearch}
+                      onValueChange={setPoolSearch}
+                      className="h-8 text-xs"
+                    />
+                    <CommandList className="max-h-[260px]">
+                      <CommandEmpty className="text-xs py-4">
+                        {poolList.length === 0
+                          ? 'No bandwidth pools configured'
+                          : `No pools match "${poolSearch}"`}
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {poolList.map((pool: any) => (
+                          <CommandItem
+                            key={pool.id}
+                            value={pool.id}
+                            onSelect={() => {
+                              setSelectedPool(pool);
+                              setPoolComboOpen(false);
+                              setPoolSearch('');
+                            }}
+                            className="text-xs gap-2 py-1.5"
+                          >
+                            <Layers className="h-3.5 w-3.5 shrink-0 text-teal-500 dark:text-teal-400" />
+                            <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                              <span className="truncate font-medium">{pool.name}</span>
+                              {pool.subnet && <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 font-mono">{pool.subnet}</Badge>}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              {selectedPool && poolBwChartData.length > 0 && (
+                <Badge variant="secondary" className="text-xs shrink-0">{formatBps(poolBwChartData[poolBwChartData.length - 1].download + poolBwChartData[poolBwChartData.length - 1].upload)}</Badge>
+              )}
+              {selectedPool && (
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1"><span className="text-teal-600 dark:text-teal-400">↓</span>{formatBps(selectedPool.totalDownloadKbps * 1000)}</span>
+                  <span className="flex items-center gap-1"><span className="text-orange-600 dark:text-orange-400">↑</span>{formatBps(selectedPool.totalUploadKbps * 1000)}</span>
+                </div>
+              )}
+              {poolList.length > 0 && (
+                <Badge variant="outline" className="text-[10px] shrink-0">{poolList.length} pool{poolList.length !== 1 ? 's' : ''}</Badge>
+              )}
+            </div>
+
+            {/* Graph */}
+            {poolBwLoading ? (
+              <div className="flex items-center justify-center h-[260px]"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+            ) : poolBwChartData.length > 0 ? (
+              <ChartContainer config={{
+                download: { label: 'Download', color: '#14b8a6' },
+                upload: { label: 'Upload', color: '#f97316' },
+              }} className="h-[260px] w-full">
+                <AreaChart data={poolBwChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="pool-dl-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.02} />
+                    </linearGradient>
+                    <linearGradient id="pool-ul-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#f97316" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
+                  <XAxis dataKey="time" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={50} tickFormatter={(v: number) => formatBps(v)} />
+                  <ChartTooltip content={<HealthChartTooltip />} />
+                  <Area type="monotone" dataKey="download" name="Download" stroke="#14b8a6" fill="url(#pool-dl-grad)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="upload" name="Upload" stroke="#f97316" fill="url(#pool-ul-grad)" strokeWidth={2} dot={false} />
+                </AreaChart>
+              </ChartContainer>
+            ) : selectedPool ? (
+              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">No bandwidth history for this pool</div>
+            ) : (
+              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">Select a pool above to view bandwidth history</div>
             )}
           </CardContent>
         </Card>

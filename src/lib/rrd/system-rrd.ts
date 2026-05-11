@@ -832,3 +832,181 @@ async function getDSNamesFromRRD(filePath: string): Promise<string[]> {
     return [];
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Pool Bandwidth RRD ───────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const POOL_RRD_DIR = path.join(getRRDBasePath(), 'pools');
+
+const POOL_BW_DS: RRDDataSource[] = [
+  { name: 'download', type: 'DERIVE', heartbeat: 120, min: '0', max: 'U' },
+  { name: 'upload', type: 'DERIVE', heartbeat: 120, min: '0', max: 'U' },
+];
+
+/**
+ * Ensure a pool RRD file exists, creating it if necessary.
+ * Pool IDs are UUIDs — the full UUID is used as filename.
+ *
+ * @param poolId - BandwidthPool UUID from database
+ */
+export async function ensurePoolRRD(poolId: string): Promise<void> {
+  if (!fs.existsSync(POOL_RRD_DIR)) {
+    fs.mkdirSync(POOL_RRD_DIR, { recursive: true });
+  }
+
+  const filePath = path.join(POOL_RRD_DIR, `${poolId}.rrd`);
+  if (fs.existsSync(filePath)) return;
+
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const args = [
+      'create',
+      filePath,
+      '--step', String(DEFAULT_STEP),
+      '--start', String(now - DEFAULT_STEP),
+      ...POOL_BW_DS.map(dsToString),
+      ...SYSTEM_RRAS.map(rraToString),
+    ];
+    await rrdExec(args);
+  } catch (err) {
+    console.error(`[PoolRRD] Failed to create ${filePath}:`, err);
+  }
+}
+
+/**
+ * Update a pool RRD file with delta bandwidth values (bytes/sec).
+ *
+ * @param poolId    - BandwidthPool UUID from database
+ * @param download  - Download delta bytes since last poll
+ * @param upload    - Upload delta bytes since last poll
+ */
+export async function updatePoolRRD(poolId: string, download: number, upload: number): Promise<void> {
+  const filePath = path.join(POOL_RRD_DIR, `${poolId}.rrd`);
+  if (!fs.existsSync(filePath)) return;
+
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const valueStr = `${now}:${download}:${upload}`;
+    await rrdExec(['update', filePath, valueStr]);
+  } catch (err) {
+    console.error(`[PoolRRD] Failed to update ${poolId}:`, err);
+  }
+}
+
+/**
+ * Fetch historical bandwidth data for a pool from its RRD file.
+ *
+ * @param poolId - BandwidthPool UUID from database
+ * @param range  - Time range: '1h' | '6h' | '24h' | '7d' | '30d' | '90d' | '1y'
+ * @returns SystemGraphResult with download/upload data series (bytes/sec)
+ */
+export async function fetchPoolGraph(poolId: string, range: string): Promise<SystemGraphResult> {
+  const now = Math.floor(Date.now() / 1000);
+  const rangeSeconds: Record<string, number> = {
+    '1h': 3600,
+    '6h': 21600,
+    '24h': 86400,
+    '7d': 604800,
+    '30d': 2592000,
+    '90d': 7776000,
+    '1y': 31536000,
+  };
+
+  const seconds = rangeSeconds[range] || 86400;
+  const start = now - seconds;
+  const resolution = RANGE_RESOLUTIONS[range] || 300;
+  const cf = 'AVERAGE';
+  const dsNames = ['download', 'upload'];
+
+  // Try multiple candidate paths (same pattern as user-graph)
+  const candidates = [
+    path.join(POOL_RRD_DIR, `${poolId}.rrd`),
+    path.join(getRRDBasePath(), 'pools', `${poolId}.rrd`),
+  ];
+
+  // Also try short-id variant (first 8 chars of UUID)
+  const shortId = poolId.replace(/-/g, '').substring(0, 8);
+  candidates.push(
+    path.join(POOL_RRD_DIR, `${shortId}.rrd`),
+    path.join(getRRDBasePath(), 'pools', `${shortId}.rrd`),
+  );
+
+  let filePath = '';
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      filePath = candidate;
+      break;
+    }
+  }
+
+  if (!filePath) {
+    return {
+      timestamps: [],
+      data: { download: [], upload: [] },
+      meta: { step: resolution, start, end: now, cf, dsNames, type: 'pool', name: poolId, range },
+    };
+  }
+
+  try {
+    const args: string[] = [
+      'xport',
+      '--json',
+      '--start', String(start),
+      '--end', String(now),
+      '--step', String(resolution),
+      `DEF:download=${filePath}:download:${cf}`,
+      `DEF:upload=${filePath}:upload:${cf}`,
+      'XPORT:download:Download',
+      'XPORT:upload:Upload',
+    ];
+
+    const stdout = await rrdExec(args);
+    const parsed = JSON.parse(stdout);
+
+    const data: Record<string, number[]> = {
+      download: [],
+      upload: [],
+    };
+    const timestamps: number[] = [];
+
+    if (parsed.data && Array.isArray(parsed.data)) {
+      const metaStart = parsed.meta?.start ?? start;
+      const metaStep = parsed.meta?.step ?? resolution;
+      for (let idx = 0; idx < parsed.data.length; idx++) {
+        const row = parsed.data[idx];
+        timestamps.push(metaStart + idx * metaStep);
+        for (let i = 0; i < dsNames.length; i++) {
+          const val = row[i];
+          if (val !== null && val !== undefined && !isNaN(Number(val))) {
+            data[dsNames[i]].push(Number(val));
+          } else {
+            data[dsNames[i]].push(0);
+          }
+        }
+      }
+    }
+
+    return {
+      timestamps,
+      data,
+      meta: {
+        step: resolution,
+        start,
+        end: now,
+        cf,
+        dsNames,
+        type: 'pool',
+        name: poolId,
+        range,
+      },
+    };
+  } catch (err) {
+    console.error(`[PoolRRD] Failed to fetch graph for ${poolId}:`, err);
+    return {
+      timestamps: [],
+      data: { download: [], upload: [] },
+      meta: { step: resolution, start, end: now, cf, dsNames, type: 'pool', name: poolId, range },
+    };
+  }
+}

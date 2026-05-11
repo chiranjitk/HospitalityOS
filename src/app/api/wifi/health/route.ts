@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
 import { getSystemMetrics, getMetricsHistory } from '@/lib/system-metrics';
-import { fetchSystemGraph } from '@/lib/rrd/system-rrd';
+import { fetchSystemGraph, fetchPoolGraph } from '@/lib/rrd/system-rrd';
 import { fetchRRD, userRRDPath, getRRDBasePath } from '@/lib/rrd';
 // Node.js-only modules — loaded via require() to avoid Turbopack Edge Runtime analysis.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -143,6 +143,10 @@ export async function GET(request: NextRequest) {
         return handleUserGraph(searchParams);
       case 'list-user-rrds':
         return handleListUserRRDs();
+      case 'pool-graph':
+        return handlePoolGraph(searchParams);
+      case 'list-pools':
+        return handleListPools();
       case 'alerts':
         return handleAlerts();
       default:
@@ -675,6 +679,88 @@ function handleListUserRRDs() {
   }
 
   return NextResponse.json({ success: true, data: [] });
+}
+
+/**
+ * action=pool-graph — Per-pool bandwidth history from RRD
+ *
+ * Params: poolId (required), range (1h/6h/24h/7d/30d/90d/1y)
+ */
+async function handlePoolGraph(searchParams: URLSearchParams) {
+  const poolId = searchParams.get('poolId');
+  const range = searchParams.get('range') || '24h';
+
+  if (!poolId) {
+    return NextResponse.json(
+      { success: false, error: 'Missing "poolId" parameter' },
+      { status: 400 }
+    );
+  }
+
+  const validRanges = ['1h', '6h', '24h', '7d', '30d', '90d', '1y'];
+  if (!validRanges.includes(range)) {
+    return NextResponse.json(
+      { success: false, error: `Invalid range: ${range}. Must be one of: ${validRanges.join(', ')}` },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const result = await fetchPoolGraph(poolId, range);
+
+    // Convert download/upload from bytes/sec to bits/sec for display
+    const downloadBps = (result.data?.download || []).map(v => Math.round(Number(v) * 8));
+    const uploadBps = (result.data?.upload || []).map(v => Math.round(Number(v) * 8));
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        timestamps: result.timestamps,
+        data: { download: downloadBps, upload: uploadBps },
+        meta: {
+          step: result.meta.step,
+          start: result.meta.start,
+          end: result.meta.end,
+          cf: 'AVERAGE',
+          dsNames: ['download', 'upload'],
+          type: 'pool',
+          poolId,
+          range,
+        },
+      },
+    });
+  } catch (err) {
+    console.error(`[Health API] Failed to fetch pool graph for ${poolId}:`, err);
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch pool bandwidth graph' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * action=list-pools — List all enabled BandwidthPools
+ * Returns pool list for the UI dropdown selector.
+ */
+async function handleListPools() {
+  try {
+    const pools = await db.bandwidthPool.findMany({
+      where: { enabled: true },
+      select: {
+        id: true,
+        name: true,
+        subnet: true,
+        totalDownloadKbps: true,
+        totalUploadKbps: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return NextResponse.json({ success: true, data: pools });
+  } catch (error) {
+    console.error('[Health API] list-pools error:', error);
+    return NextResponse.json({ success: true, data: [] });
+  }
 }
 
 /**
