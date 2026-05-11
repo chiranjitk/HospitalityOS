@@ -51,6 +51,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
@@ -1882,6 +1884,8 @@ function SystemHealthTab() {
   const [userBwData, setUserBwData] = useState<any>(null);
   const [selectedBwUser, setSelectedBwUser] = useState<string>('');
   const [userBwLoading, setUserBwLoading] = useState(false);
+  const [userBwSearch, setUserBwSearch] = useState('');
+  const [userBwComboOpen, setUserBwComboOpen] = useState(false);
 
   // Active Users history graphs
   const [sessionHistRange, setSessionHistRange] = useState('24h');
@@ -2163,6 +2167,20 @@ function SystemHealthTab() {
       .filter((u: any) => { if (seen.has(u.username)) return false; seen.add(u.username); return true; })
       .sort((a: any, b: any) => a.username.localeCompare(b.username));
   }, [activeUsers]);
+
+  // Filtered user list for the searchable combobox (top 50 matches)
+  const { filtered: filteredBwUsers, totalMatches: totalBwMatchCount } = useMemo(() => {
+    const q = userBwSearch.trim().toLowerCase();
+    const matched = q
+      ? deduplicatedUsers.filter((u: any) =>
+          u.username.toLowerCase().includes(q) ||
+          (u.roomId && u.roomId.toLowerCase().includes(q)) ||
+          (u.framedIpAddress && u.framedIpAddress.includes(q)) ||
+          (u.macAddress && u.macAddress.toLowerCase().includes(q))
+        )
+      : deduplicatedUsers;
+    return { filtered: matched.slice(0, 50), totalMatches: matched.length };
+  }, [deduplicatedUsers, userBwSearch]);
 
   // Fetch per-user bandwidth history from RRD
   useEffect(() => {
@@ -2964,23 +2982,75 @@ function SystemHealthTab() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {/* User selector */}
+            {/* Searchable user combobox */}
             <div className="flex items-center gap-2">
-              <Select value={selectedBwUser || undefined} onValueChange={setSelectedBwUser}>
-                <SelectTrigger className="w-[240px] h-8 text-xs">
-                  <SelectValue placeholder={deduplicatedUsers.length > 0 ? "Select a user..." : "No active users"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {deduplicatedUsers.length > 0 ? deduplicatedUsers.map((u: any) => (
-                      <SelectItem key={u.username} value={u.username} className="text-xs">
-                        {u.username}{u.roomId ? ` (${u.roomId})` : ''}
-                      </SelectItem>
-                    ))
-                  : null}
-                </SelectContent>
-              </Select>
+              <Popover open={userBwComboOpen} onOpenChange={(open) => { setUserBwComboOpen(open); if (!open) setUserBwSearch(''); }}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={userBwComboOpen}
+                    className="w-[280px] justify-between h-8 text-xs font-normal"
+                  >
+                    {selectedBwUser
+                      ? <span className="truncate">{selectedBwUser}{(() => { const u = deduplicatedUsers.find((du: any) => du.username === selectedBwUser); return u?.roomId ? ` (${u.roomId})` : ''; })()}</span>
+                      : <span className="text-muted-foreground">Search by username, room, IP, MAC...</span>
+                    }
+                    <Search className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[320px] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Type to search users..."
+                      value={userBwSearch}
+                      onValueChange={setUserBwSearch}
+                      className="h-8 text-xs"
+                    />
+                    <CommandList className="max-h-[260px]">
+                      <CommandEmpty className="text-xs py-4">
+                        {deduplicatedUsers.length === 0
+                          ? 'No active users'
+                          : `No users match "${userBwSearch}"`}
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {filteredBwUsers.map((u: any) => (
+                          <CommandItem
+                            key={u.username}
+                            value={u.username}
+                            onSelect={() => {
+                              setSelectedBwUser(u.username);
+                              setUserBwComboOpen(false);
+                              setUserBwSearch('');
+                            }}
+                            className="text-xs gap-2 py-1.5"
+                          >
+                            <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                              <span className="truncate font-medium">{u.username}</span>
+                              {u.roomId && <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{u.roomId}</Badge>}
+                            </div>
+                            {u.framedIpAddress && <span className="text-[10px] font-mono text-muted-foreground shrink-0">{u.framedIpAddress}</span>}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                      {totalBwMatchCount > 50 && (
+                        <div className="px-3 py-2 text-[10px] text-muted-foreground border-t">
+                          {userBwSearch
+                            ? <>Showing 50 of {totalBwMatchCount} matches — narrow your search</>
+                            : <>Showing 50 of {totalBwMatchCount} users — type to search</>
+                          }
+                        </div>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               {selectedBwUser && userBwChartData.length > 0 && (
-                <Badge variant="secondary" className="text-xs">{formatBps(userBwChartData[userBwChartData.length - 1].download + userBwChartData[userBwChartData.length - 1].upload)}</Badge>
+                <Badge variant="secondary" className="text-xs shrink-0">{formatBps(userBwChartData[userBwChartData.length - 1].download + userBwChartData[userBwChartData.length - 1].upload)}</Badge>
+              )}
+              {deduplicatedUsers.length > 0 && (
+                <Badge variant="outline" className="text-[10px] shrink-0">{deduplicatedUsers.length} users</Badge>
               )}
             </div>
 
