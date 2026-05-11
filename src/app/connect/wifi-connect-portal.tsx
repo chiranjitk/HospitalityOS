@@ -2435,6 +2435,9 @@ function PortalContent() {
 
   // ── Layout type ──
   const isSplit = design.layoutType === 'split_left' || design.layoutType === 'split_right';
+  const isHeroBanner = design.layoutType === 'hero_banner';
+  const isSidePanel = design.layoutType === 'side_panel';
+  const isBottomSheet = design.layoutType === 'bottom_sheet';
   const formCls = getFormContainerClasses(design);
   const cardShadowStyle = getCardShadowCSS(design);
 
@@ -2637,7 +2640,7 @@ function PortalContent() {
         <div className="fixed inset-0 pointer-events-none" style={overlayStyle} />
 
         {/* Main content */}
-        <main className="flex-1 flex items-center justify-center p-4 relative z-10">
+        <main className={cn('flex-1 flex items-center justify-center p-4 relative z-10', isBottomSheet && 'items-end')}>
           {isSplit ? (
             // ══════════════════════════════════════════════════════════
             // SPLIT LAYOUT — Left info panel + Right form panel
@@ -2745,6 +2748,173 @@ function PortalContent() {
                   {state === 'success' && design.surveyConfig?.enabled && (
                     <GuestSurvey design={design} />
                   )}
+                </div>
+              </div>
+            </div>
+          ) : isHeroBanner ? (
+            // ══════════════════════════════════════════════════════════
+            // HERO BANNER LAYOUT — Full-width hero, form below
+            // ══════════════════════════════════════════════════════════
+            <div className="w-full max-w-lg mx-auto">
+              {/* Hero section */}
+              <div className="text-center mb-6 space-y-3">
+                <PortalLogo design={design} size="large" />
+                {(design.enableMultiLanguage && (design.languages?.length ?? 0) > 1) && (
+                  <div className="flex justify-center">
+                    <LanguageSwitcher design={design} selectedLanguage={effectiveLanguage} setSelectedLanguage={setSelectedLanguage} />
+                  </div>
+                )}
+                <h1 className="text-3xl md:text-4xl font-bold drop-shadow-sm" style={{ fontFamily: design.headingFontFamily, color: dark ? '#ffffff' : design.textColor }}>
+                  {localizedTitle}
+                </h1>
+                <p className="text-base" style={{ color: getSubtitleColor(design) }}>{localizedSubtitle}</p>
+                {localizedWelcome && (
+                  <p className="text-sm" style={{ color: getMutedTextColor(design) }}>{localizedWelcome}</p>
+                )}
+                {/* Clock + Weather row */}
+                {(design.showClock || design.showWeather) && (
+                  <div className="flex items-center justify-center gap-4 pt-1">
+                    {design.showClock && <LiveClock design={design} />}
+                    {design.showWeather && <WeatherWidget design={design} />}
+                  </div>
+                )}
+              </div>
+
+              {/* Hotel info + amenities above form */}
+              {design.showHotelInfo && <HotelInfoBlock design={design} dark={dark} />}
+              {design.showAmenities && <AmenitiesBlock design={design} dark={dark} />}
+
+              {/* Promotion */}
+              {state !== 'success' && (() => {
+                const hasPromoContent = design.promotions?.some(p => p.title || p.description);
+                if (hasPromoContent && design.showPromotions) return <PromotionCarousel design={design} />;
+                if (design.showPromotion) return <PromotionBlock design={design} />;
+                return null;
+              })()}
+
+              {/* Form Card */}
+              <div className={cn(formCls, 'mt-2')} style={cardShadowStyle}>
+                {renderFormContent()}
+              </div>
+
+              {/* Social Links */}
+              {design.showSocialMedia && <div className="mt-4"><SocialLinksBlock design={design} /></div>}
+
+              {/* Branding */}
+              {design.showBranding && (
+                <div className="text-center mt-4" style={{ color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }}>
+                  <p className="text-[10px]">{localizedPoweredBy}</p>
+                </div>
+              )}
+            </div>
+          ) : isSidePanel ? (
+            // ══════════════════════════════════════════════════════════
+            // SIDE PANEL LAYOUT — Slim left panel form, right content
+            // ══════════════════════════════════════════════════════════
+            <div className="w-full max-w-4xl flex flex-col md:flex-row min-h-[60vh]">
+              {/* Left Panel: Form */}
+              <div className="w-full md:w-[380px] flex flex-col p-6 md:p-8 space-y-4"
+                style={{ backgroundColor: dark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)' }}>
+                <PortalLogo design={design} size="small" />
+                {(design.enableMultiLanguage && (design.languages?.length ?? 0) > 1) && (
+                  <LanguageSwitcher design={design} selectedLanguage={effectiveLanguage} setSelectedLanguage={setSelectedLanguage} />
+                )}
+                <h2 className="text-xl font-bold" style={{ color: getCardTextColor(design), fontFamily: design.headingFontFamily }}>
+                  {localizedTitle}
+                </h2>
+                <p className="text-sm" style={{ color: getMutedTextColor(design) }}>{localizedSubtitle}</p>
+
+                {/* Promotion */}
+                {state !== 'success' && (() => {
+                  const hasPromoContent = design.promotions?.some(p => p.title || p.description);
+                  if (hasPromoContent && design.showPromotions) return <PromotionCarousel design={design} />;
+                  if (design.showPromotion) return <PromotionBlock design={design} />;
+                  return null;
+                })()}
+
+                <div className="flex-1">
+                  {renderFormContent()}
+                </div>
+
+                {/* Social Links */}
+                {design.showSocialMedia && <SocialLinksBlock design={design} />}
+              </div>
+
+              {/* Right Panel: Hotel Info */}
+              <div className="flex-1 flex flex-col justify-center p-8 md:p-12 space-y-6" style={{ color: dark ? '#ffffff' : design.textColor }}>
+                {localizedWelcome && (
+                  <p className="text-lg italic" style={{ color: getMutedTextColor(design) }}>"{localizedWelcome}"</p>
+                )}
+                {design.showHotelInfo && <HotelInfoBlock design={design} dark={dark} />}
+                {design.showAmenities && <AmenitiesBlock design={design} dark={dark} />}
+                {(design.showClock || design.showWeather) && (
+                  <div className="flex items-center gap-4 pt-4">
+                    {design.showClock && <LiveClock design={design} />}
+                    {design.showWeather && <WeatherWidget design={design} />}
+                  </div>
+                )}
+                {design.showBranding && (
+                  <div className="mt-auto pt-4" style={{ color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }}>
+                    <p className="text-[10px]">{localizedPoweredBy}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : isBottomSheet ? (
+            // ══════════════════════════════════════════════════════════
+            // BOTTOM SHEET LAYOUT — Mobile-first, form slides up
+            // ══════════════════════════════════════════════════════════
+            <div className="w-full max-w-md">
+              {/* Spacer for background visibility */}
+              <div className="h-16" />
+              {/* Sheet card */}
+              <div className="rounded-t-3xl overflow-hidden shadow-2xl"
+                style={{ backgroundColor: dark ? 'rgba(20,20,20,0.95)' : 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)' }}>
+                {/* Drag handle */}
+                <div className="flex justify-center pt-3 pb-1">
+                  <div className="w-10 h-1 rounded-full" style={{ backgroundColor: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)' }} />
+                </div>
+                <div className="p-6 space-y-5">
+                  <div className="text-center space-y-2">
+                    <PortalLogo design={design} size="small" />
+                    {(design.enableMultiLanguage && (design.languages?.length ?? 0) > 1) && (
+                      <div className="flex justify-center">
+                        <LanguageSwitcher design={design} selectedLanguage={effectiveLanguage} setSelectedLanguage={setSelectedLanguage} />
+                      </div>
+                    )}
+                    <h1 className="text-2xl font-bold" style={{ color: getCardTextColor(design), fontFamily: design.headingFontFamily }}>
+                      {localizedTitle}
+                    </h1>
+                    <p className="text-sm" style={{ color: getMutedTextColor(design) }}>{localizedSubtitle}</p>
+                  </div>
+
+                  {/* Promotion */}
+                  {state !== 'success' && (() => {
+                    const hasPromoContent = design.promotions?.some(p => p.title || p.description);
+                    if (hasPromoContent && design.showPromotions) return <PromotionCarousel design={design} />;
+                    if (design.showPromotion) return <PromotionBlock design={design} />;
+                    return null;
+                  })()}
+
+                  {renderFormContent()}
+
+                  {/* Clock + Weather */}
+                  {(design.showClock || design.showWeather) && (
+                    <div className="flex items-center justify-center gap-4">
+                      {design.showClock && <LiveClock design={design} />}
+                      {design.showWeather && <WeatherWidget design={design} />}
+                    </div>
+                  )}
+
+                  {/* Social + Branding */}
+                  <div className="flex items-center justify-between">
+                    {design.showSocialMedia && <SocialLinksBlock design={design} />}
+                    {design.showBranding && (
+                      <p className="text-[10px]" style={{ color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }}>
+                        {localizedPoweredBy}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

@@ -193,7 +193,7 @@ const CREDENTIAL_CATEGORY_LABELS: Record<CredentialCategory, string> = {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface DesignSettings {
-  layoutType: 'centered' | 'split_left' | 'split_right' | 'card' | 'full_bleed';
+  layoutType: 'centered' | 'split_left' | 'split_right' | 'card' | 'full_bleed' | 'hero_banner' | 'side_panel' | 'bottom_sheet';
   backgroundType: 'solid' | 'gradient' | 'image';
   gradientFrom: string;
   gradientTo: string;
@@ -476,6 +476,9 @@ const LAYOUT_OPTIONS = [
   { value: 'split_right' as const, label: 'Split Right', desc: 'Form left, image right' },
   { value: 'card' as const, label: 'Floating Card', desc: 'Card floating over background' },
   { value: 'full_bleed' as const, label: 'Full Bleed', desc: 'Full-screen image with overlay' },
+  { value: 'hero_banner' as const, label: 'Hero Banner', desc: 'Full-width hero with form below' },
+  { value: 'side_panel' as const, label: 'Side Panel', desc: 'Slim left panel with form, right content area' },
+  { value: 'bottom_sheet' as const, label: 'Bottom Sheet', desc: 'Form slides up from bottom on mobile-friendly layout' },
 ];
 
 const FONT_OPTIONS = [
@@ -2528,6 +2531,25 @@ function LayoutMiniPreview({ layout }: { layout: string }) {
         <div className={outerCls}>
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/30 to-blue-500/30" />
           <div className={cn(formCls, 'w-7 h-4 left-1/2 bottom-1.5 -translate-x-1/2 backdrop-blur bg-white/20')} />
+        </div>
+      );
+    case 'hero_banner':
+      return (
+        <div className={outerCls} style={{ background: 'linear-gradient(180deg, #a78bfa 0%, #e2e8f0 60%)' }}>
+          <div className={cn(formCls, 'w-7 h-3 left-1/2 bottom-1 -translate-x-1/2 rounded')} />
+        </div>
+      );
+    case 'side_panel':
+      return (
+        <div className={outerCls}>
+          <div className="absolute left-0 top-0 w-3.5 h-full bg-gradient-to-b from-teal-500/40 to-teal-500/20" />
+          <div className={cn(formCls, 'left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-5')} />
+        </div>
+      );
+    case 'bottom_sheet':
+      return (
+        <div className={outerCls} style={{ background: 'linear-gradient(180deg, #e2e8f0, #f8fafc)' }}>
+          <div className={cn(formCls, 'w-full h-3 left-0 bottom-0 rounded-t-md')} />
         </div>
       );
     default:
