@@ -268,9 +268,18 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // ── Guest name resolution via shared correlator ──────────
-        const uniqueSourceIps = [...new Set(natRows.map((r) => String(r.src_ip ?? '')))];
-        const correlation = await correlateIpsToGuests(uniqueSourceIps, user.tenantId);
+        // ── Guest name resolution via shared correlator (time-window aware) ──
+        // Pass IP+timestamp pairs so the correlator finds the RIGHT guest
+        // for the RIGHT time window (handles DHCP IP reuse correctly)
+        const ipTimestampPairs = natRows.map((r) => {
+          const rawTs = String(r.timestamp ?? '');
+          const ts = rawTs.includes('T') ? rawTs : rawTs.replace(' ', 'T');
+          return {
+            ip: String(r.src_ip ?? ''),
+            timestamp: new Date(ts),
+          };
+        });
+        const correlation = await correlateIpsToGuests(ipTimestampPairs, user.tenantId);
         const guestMap = correlation.ipToGuest;
 
         // ── Build enriched response ───────────────────────────
@@ -318,9 +327,12 @@ export async function GET(request: NextRequest) {
       });
 
       if (ulogdData.length > 0) {
-        // Resolve guest names from WiFi sessions
-        const uniqueIps = [...new Set(ulogdData.map((d) => d.source_ip))];
-        const guestMap = await resolveGuestNames(uniqueIps, user.tenantId);
+        // Resolve guest names with time-window matching
+        const ipTimestampPairs = ulogdData.map((d) => ({
+          ip: d.source_ip,
+          timestamp: new Date(d.timestamp || Date.now()),
+        }));
+        const guestMap = await resolveGuestNames(ipTimestampPairs, user.tenantId);
 
         // Attach guest names
         for (const entry of ulogdData) {

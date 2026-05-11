@@ -437,34 +437,56 @@ function classifyDomain(domain: string): string {
 
 // ─── Guest Name Resolver (shared helper for API routes) ──────────
 
+/** A single IP+timestamp pair from ClickHouse/ulogd2 */
+export interface IpTimestamp {
+  ip: string;
+  timestamp: Date;
+}
+
 /**
- * Resolve guest names for a set of IPs using RadAcct + WiFiSession + Guest tables.
+ * Resolve guest names for IP+timestamp pairs using RadAcct + WiFiSession + Guest tables.
  * Called by API routes after getting ulogd data.
  *
+ * Uses TIME-WINDOW matching to handle DHCP IP reuse:
+ *   - IP 10.0.1.101 on Jan 3 → Guest A (session Jan 1-5)
+ *   - IP 10.0.1.101 on Jan 10 → Guest B (session Jan 10-12)
+ *
  * Four-tier lookup (most reliable first):
- *   0. RadAcct.framedipaddress → WiFiUser.guestId → Guest (RADIUS accounting)
+ *   0. RadAcct.framedipaddress + time window → WiFiUser.guestId → Guest
  *      Also: RadAcct.callingstationid → RadiusMacAuth.guestName (MAC auto-auth)
- *   1. WiFiSession.ipAddress → Guest (name)
+ *   1. WiFiSession.ipAddress + time window → Guest (name)
  *   2. DhcpLease → DeviceProfile → WiFiUser → Guest (MAC-based bridge)
+ *
+ * @param ipTimestamps - Array of {ip, timestamp} pairs (or plain string[] for backward compat)
+ * @param tenantId - Optional tenant scope
  */
 export async function resolveGuestNames(
-  ips: string[],
+  ipTimestamps: IpTimestamp[] | string[],
   tenantId?: string,
 ): Promise<Map<string, string>> {
   // Dynamic import to avoid Prisma dependency at module level
   const { db } = await import('@/lib/db');
   const guestMap = new Map<string, string>();
 
-  if (ips.length === 0) return guestMap;
+  // Backward-compatible: accept plain string[] (treat as now)
+  const pairs: IpTimestamp[] = typeof ipTimestamps[0] === 'string'
+    ? (ipTimestamps as string[]).map((ip) => ({ ip, timestamp: new Date() }))
+    : ipTimestamps as IpTimestamp[];
+
+  if (pairs.length === 0) return guestMap;
 
   try {
-    const uniqueIps = Array.from(new Set(ips));
+    const uniqueIps = Array.from(new Set(pairs.map((p) => p.ip)));
     const resolvedIps = new Set<string>();
 
-    // ── Step 0: RadAcct lookup (most reliable — always populated by FreeRADIUS) ──
+    // ── Step 0: RadAcct lookup with time-window matching ──────────
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
     const radAcctRecords = await db.radAcct.findMany({
       where: {
         framedipaddress: { in: uniqueIps },
+        acctstarttime: { gte: ninetyDaysAgo },
       },
       select: {
         framedipaddress: true,
@@ -476,120 +498,122 @@ export async function resolveGuestNames(
       orderBy: { acctstarttime: 'desc' },
     });
 
-    // De-duplicate: keep latest RadAcct record per IP (active session preferred)
-    const latestRadAcct = new Map<string, (typeof radAcctRecords)[0]>();
-    for (const r of radAcctRecords) {
-      if (!r.framedipaddress) continue;
-      const existing = latestRadAcct.get(r.framedipaddress);
-      if (!existing) {
-        latestRadAcct.set(r.framedipaddress, r);
-      } else {
-        const isActive = !r.acctstoptime;
-        const existingActive = !existing.acctstoptime;
-        if (isActive && !existingActive) {
-          latestRadAcct.set(r.framedipaddress, r);
-        } else if (isActive === existingActive && r.acctstarttime > existing.acctstarttime) {
-          latestRadAcct.set(r.framedipaddress, r);
+    if (radAcctRecords.length > 0) {
+      // Group by IP
+      const radAcctByIp = new Map<string, typeof radAcctRecords>();
+      for (const r of radAcctRecords) {
+        if (!r.framedipaddress) continue;
+        const list = radAcctByIp.get(r.framedipaddress) || [];
+        list.push(r);
+        radAcctByIp.set(r.framedipaddress, list);
+      }
+
+      // Collect all unique usernames + MACs for batch lookup
+      const allRadUsernames = new Set<string>();
+      const allRadMacs = new Set<string>();
+      for (const r of radAcctRecords) {
+        if (r.username) allRadUsernames.add(r.username);
+        if (r.callingstationid) allRadMacs.add(r.callingstationid);
+      }
+
+      // Batch: WiFiUser by username → guestId
+      const wifiUserGuestMap = new Map<string, string>();
+      if (allRadUsernames.size > 0) {
+        const wifiUsers = await db.wiFiUser.findMany({
+          where: { username: { in: [...allRadUsernames] } },
+          select: { username: true, guestId: true },
+        });
+        for (const wu of wifiUsers) {
+          if (wu.guestId) wifiUserGuestMap.set(wu.username, wu.guestId);
+        }
+      }
+
+      // Batch: RadiusMacAuth by MAC → guestName / guestId
+      const macAuthNameMap = new Map<string, string>();
+      const macAuthGuestIdMap = new Map<string, string>();
+      if (allRadMacs.size > 0) {
+        const macAuths = await db.radiusMacAuth.findMany({
+          where: { macAddress: { in: [...allRadMacs] } },
+          select: { macAddress: true, guestName: true, guestId: true },
+        });
+        for (const ma of macAuths) {
+          if (ma.guestName && !macAuthNameMap.has(ma.macAddress)) {
+            macAuthNameMap.set(ma.macAddress, ma.guestName);
+          }
+          if (ma.guestId && !macAuthGuestIdMap.has(ma.macAddress)) {
+            macAuthGuestIdMap.set(ma.macAddress, ma.guestId);
+          }
+        }
+      }
+
+      // Batch fetch guest names for all RadAcct chain IDs
+      const allRadGuestIds = [...new Set([
+        ...wifiUserGuestMap.values(),
+        ...macAuthGuestIdMap.values(),
+      ])];
+      const radGuestNameMap = new Map<string, string>();
+      if (allRadGuestIds.length > 0) {
+        const radGuests = await db.guest.findMany({
+          where: { id: { in: allRadGuestIds } },
+          select: { id: true, firstName: true, lastName: true },
+        });
+        for (const g of radGuests) {
+          const name = [g.firstName, g.lastName].filter(Boolean).join(' ');
+          if (name) radGuestNameMap.set(g.id, name);
+        }
+      }
+
+      // Resolve each (IP, timestamp) pair with time-window matching
+      for (const pair of pairs) {
+        if (resolvedIps.has(pair.ip)) continue;
+
+        const sessions = radAcctByIp.get(pair.ip);
+        if (!sessions) continue;
+
+        // Find RadAcct session active at this timestamp
+        const matched = sessions.find((s) => {
+          if (!s.acctstarttime) return false;
+          if (pair.timestamp < new Date(s.acctstarttime)) return false;
+          if (s.acctstoptime && pair.timestamp > new Date(s.acctstoptime)) return false;
+          return true;
+        });
+
+        if (!matched) continue;
+
+        // Path A: RadAcct.username → WiFiUser → Guest
+        if (matched.username) {
+          const guestId = wifiUserGuestMap.get(matched.username);
+          if (guestId) {
+            const name = radGuestNameMap.get(guestId);
+            if (name) { guestMap.set(pair.ip, name); resolvedIps.add(pair.ip); continue; }
+          }
+        }
+
+        // Path B: RadAcct.callingstationid (MAC) → RadiusMacAuth
+        if (matched.callingstationid) {
+          const mac = matched.callingstationid;
+          const macName = macAuthNameMap.get(mac);
+          if (macName) { guestMap.set(pair.ip, macName); resolvedIps.add(pair.ip); continue; }
+
+          const macGuestId = macAuthGuestIdMap.get(mac);
+          if (macGuestId) {
+            const name = radGuestNameMap.get(macGuestId);
+            if (name) { guestMap.set(pair.ip, name); resolvedIps.add(pair.ip); continue; }
+          }
+        }
+
+        // Path C: Use RadAcct.username as display name
+        if (matched.username && !guestMap.has(pair.ip)) {
+          guestMap.set(pair.ip, matched.username);
+          resolvedIps.add(pair.ip);
         }
       }
     }
 
-    // Collect unique usernames + MACs from RadAcct
-    const radUsernames = [...new Set(
-      [...latestRadAcct.values()]
-        .map((r) => r.username)
-        .filter((u): u is string => !!u),
-    )];
-    const radMacs = [...new Set(
-      [...latestRadAcct.values()]
-        .map((r) => r.callingstationid)
-        .filter((m): m is string => !!m),
-    )];
+    // ── Step 1: WiFiSession lookup with time-window matching ───────
+    const step1Pairs = pairs.filter((p) => !resolvedIps.has(p.ip));
+    const step1Ips = [...new Set(step1Pairs.map((p) => p.ip))];
 
-    // Batch: WiFiUser by username → guestId
-    const wifiUserGuestMap = new Map<string, string>();
-    if (radUsernames.length > 0) {
-      const wifiUsers = await db.wiFiUser.findMany({
-        where: { username: { in: radUsernames } },
-        select: { username: true, guestId: true },
-      });
-      for (const wu of wifiUsers) {
-        if (wu.guestId) wifiUserGuestMap.set(wu.username, wu.guestId);
-      }
-    }
-
-    // Batch: RadiusMacAuth by MAC → guestName / guestId
-    const macAuthNameMap = new Map<string, string>();
-    const macAuthGuestIdMap = new Map<string, string>();
-    const macAuthGuestIds: string[] = [];
-    if (radMacs.length > 0) {
-      const macAuths = await db.radiusMacAuth.findMany({
-        where: { macAddress: { in: radMacs } },
-        select: { macAddress: true, guestName: true, guestId: true },
-      });
-      for (const ma of macAuths) {
-        if (ma.guestName && !macAuthNameMap.has(ma.macAddress)) {
-          macAuthNameMap.set(ma.macAddress, ma.guestName);
-        }
-        if (ma.guestId && !macAuthGuestIdMap.has(ma.macAddress)) {
-          macAuthGuestIdMap.set(ma.macAddress, ma.guestId);
-          macAuthGuestIds.push(ma.guestId);
-        }
-      }
-    }
-
-    // Batch fetch guest names for all RadAcct chain IDs
-    const allRadGuestIds = [...new Set([
-      ...wifiUserGuestMap.values(),
-      ...macAuthGuestIds,
-    ])];
-    const radGuestNameMap = new Map<string, string>();
-    if (allRadGuestIds.length > 0) {
-      const radGuests = await db.guest.findMany({
-        where: { id: { in: allRadGuestIds } },
-        select: { id: true, firstName: true, lastName: true },
-      });
-      for (const g of radGuests) {
-        const name = [g.firstName, g.lastName].filter(Boolean).join(' ');
-        if (name) radGuestNameMap.set(g.id, name);
-      }
-    }
-
-    // Resolve IPs via RadAcct chain
-    for (const [ip, radRecord] of latestRadAcct) {
-      if (guestMap.has(ip)) { resolvedIps.add(ip); continue; }
-
-      // Path A: RadAcct.username → WiFiUser → Guest
-      if (radRecord.username) {
-        const guestId = wifiUserGuestMap.get(radRecord.username);
-        if (guestId) {
-          const name = radGuestNameMap.get(guestId);
-          if (name) { guestMap.set(ip, name); resolvedIps.add(ip); continue; }
-        }
-      }
-
-      // Path B: RadAcct.callingstationid (MAC) → RadiusMacAuth
-      if (radRecord.callingstationid) {
-        const mac = radRecord.callingstationid;
-        const macName = macAuthNameMap.get(mac);
-        if (macName) { guestMap.set(ip, macName); resolvedIps.add(ip); continue; }
-
-        const macGuestId = macAuthGuestIdMap.get(mac);
-        if (macGuestId) {
-          const name = radGuestNameMap.get(macGuestId);
-          if (name) { guestMap.set(ip, name); resolvedIps.add(ip); continue; }
-        }
-      }
-
-      // Path C: Use RadAcct.username as display name (last resort for this tier)
-      if (radRecord.username && !guestMap.has(ip)) {
-        guestMap.set(ip, radRecord.username);
-        resolvedIps.add(ip);
-      }
-    }
-
-    // ── Step 1: WiFiSession lookup ─────────────────────────────────
-    const step1Ips = uniqueIps.filter((ip) => !resolvedIps.has(ip));
     if (step1Ips.length > 0) {
       const sessions = await db.wiFiSession.findMany({
         where: {
@@ -599,43 +623,60 @@ export async function resolveGuestNames(
         select: {
           ipAddress: true,
           guestId: true,
+          startTime: true,
+          endTime: true,
         },
       });
 
-      const guestIds: string[] = [];
-      const ipToGuestId = new Map<string, string>();
-
-      for (const s of sessions) {
-        const ip = s.ipAddress;
-        if (ip && s.guestId) {
-          ipToGuestId.set(ip, s.guestId);
-          guestIds.push(s.guestId);
-          resolvedIps.add(ip);
-        }
-      }
-
-      if (guestIds.length > 0) {
-        const uniqueGuestIds = Array.from(new Set(guestIds));
-        const guests = await db.guest.findMany({
-          where: { id: { in: uniqueGuestIds } },
-          select: { id: true, firstName: true, lastName: true },
-        });
-
-        const guestNameMap = new Map<string, string>();
-        for (const g of guests) {
-          const name = [g.firstName, g.lastName].filter(Boolean).join(' ');
-          if (name) guestNameMap.set(g.id, name);
+      if (sessions.length > 0) {
+        // Group by IP
+        const sessionsByIp = new Map<string, typeof sessions>();
+        for (const s of sessions) {
+          const list = sessionsByIp.get(s.ipAddress) || [];
+          list.push(s);
+          sessionsByIp.set(s.ipAddress, list);
         }
 
-        ipToGuestId.forEach((gId, ip) => {
-          const name = guestNameMap.get(gId);
-          if (name) guestMap.set(ip, name);
-        });
+        // Collect guest IDs
+        const guestIds = [...new Set(
+          sessions.map((s) => s.guestId).filter((g): g is string => !!g),
+        )];
+
+        if (guestIds.length > 0) {
+          const guests = await db.guest.findMany({
+            where: { id: { in: [...new Set(guestIds)] } },
+            select: { id: true, firstName: true, lastName: true },
+          });
+          const guestNameMap = new Map<string, string>();
+          for (const g of guests) {
+            const name = [g.firstName, g.lastName].filter(Boolean).join(' ');
+            if (name) guestNameMap.set(g.id, name);
+          }
+
+          // Resolve with time-window matching
+          for (const pair of step1Pairs) {
+            if (resolvedIps.has(pair.ip)) continue;
+            const ipSessions = sessionsByIp.get(pair.ip);
+            if (!ipSessions) continue;
+
+            const matched = ipSessions.find((s) => {
+              if (!s.startTime) return false;
+              if (pair.timestamp < new Date(s.startTime)) return false;
+              if (s.endTime && pair.timestamp > new Date(s.endTime)) return false;
+              return true;
+            });
+
+            if (matched && matched.guestId) {
+              const name = guestNameMap.get(matched.guestId);
+              if (name) { guestMap.set(pair.ip, name); resolvedIps.add(pair.ip); }
+            }
+          }
+        }
       }
     }
 
     // ── Step 2: DHCP lease bridge for unresolved IPs ───────────────
-    const step2Ips = uniqueIps.filter((ip) => !resolvedIps.has(ip));
+    const step2Ips = [...new Set(pairs.filter((p) => !resolvedIps.has(p.ip)).map((p) => p.ip))];
     if (step2Ips.length > 0) {
       const dhcpLeases = await db.dhcpLease.findMany({
         where: { ipAddress: { in: step2Ips } },
