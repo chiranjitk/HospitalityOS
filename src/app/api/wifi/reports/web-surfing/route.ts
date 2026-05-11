@@ -178,6 +178,10 @@ function generateDemoData() {
       domain,
       sourceIp: ip,
       source_ip: ip,
+      srcPort: 0,
+      destIp: '',
+      destPort: 443,
+      inIface: '',
       category,
       totalBytes,
       connections,
@@ -201,6 +205,10 @@ interface SurfingEntry {
   domain: string;
   sourceIp: string;
   source_ip: string;
+  srcPort: number;
+  destIp: string;
+  destPort: number;
+  inIface: string;
   category: Category;
   totalBytes: number;
   connections: number;
@@ -292,6 +300,10 @@ export async function GET(request: NextRequest) {
         SELECT
           sni_domain as domain,
           src_ip,
+          max(ifNull(src_port, 0)) as src_port,
+          max(dst_ip) as dst_ip,
+          max(ifNull(dst_port, 443)) as dst_port,
+          max(ifNull(in_iface, '')) as in_iface,
           count() as connections,
           max(timestamp) as last_seen,
           ifNull(toUInt64(sum(packet_bytes)), 0) as total_bytes,
@@ -414,6 +426,10 @@ export async function GET(request: NextRequest) {
             domain,
             sourceIp: srcIp,
             source_ip: srcIp,
+            srcPort: Number(r.src_port) || 0,
+            destIp: String(r.dst_ip ?? ''),
+            destPort: Number(r.dst_port) || 443,
+            inIface: String(r.in_iface ?? ''),
             category: classifyDomain(domain),
             totalBytes,
             connections: Number(r.connections) || 0,

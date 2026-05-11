@@ -78,6 +78,10 @@ export interface SurfingEntry {
   domain: string;
   sourceIp: string;
   source_ip: string;
+  srcPort: number;
+  destIp: string;
+  destPort: number;
+  inIface: string;
   category: string;
   totalBytes: number;
   connections: number;
@@ -113,12 +117,14 @@ async function readLastLines(filePath: string, maxLines: number): Promise<string
 function parseSniRecordWithCache(
   raw: Record<string, unknown>,
   dstDomainCache: Map<string, string>,
-): { src_ip: string; dest_ip: string; dest_port: number; sni_hostname: string; sni_tls_version: string; timestamp: string; packet_bytes: number } | null {
+): { src_ip: string; src_port: number; dest_ip: string; dest_port: number; in_iface: string; sni_hostname: string; sni_tls_version: string; timestamp: string; packet_bytes: number } | null {
   const srcIp = String(raw.src_ip ?? raw['ip.saddr.str'] ?? '').trim();
   const destIp = String(raw.dest_ip ?? raw['ip.daddr.str'] ?? '').trim();
   if (!srcIp || !destIp) return null;
 
+  const srcPort = Number(raw.src_port ?? raw['tcp.sport'] ?? 0) || 0;
   const destPort = Number(raw.dest_port ?? raw['tcp.dport'] ?? 443);
+  const inIface = String(raw['oob.in'] ?? '').trim();
   const tlsVersion = String(raw['sni.tls.version'] ?? '');
   const packetBytes = Number(raw['raw.pktlen'] ?? raw['ip.totlen'] ?? 0) || 0;
 
@@ -148,8 +154,10 @@ function parseSniRecordWithCache(
 
   return {
     src_ip: srcIp,
+    src_port: srcPort,
     dest_ip: destIp,
     dest_port: destPort,
+    in_iface: inIface,
     sni_hostname: hostname,
     sni_tls_version: tlsVersion,
     timestamp,
@@ -320,6 +328,10 @@ export async function getWebSurfingFromUlogd(
   // Aggregate by (src_ip, domain) with packet_bytes sum
   const domainAgg = new Map<string, {
     src_ip: string;
+    src_port: number;
+    dest_ip: string;
+    dest_port: number;
+    in_iface: string;
     domain: string;
     count: number;
     lastSeen: string;
@@ -339,9 +351,18 @@ export async function getWebSurfingFromUlogd(
       existing.count++;
       existing.totalBytes += record.packet_bytes;
       if (record.timestamp > existing.lastSeen) existing.lastSeen = record.timestamp;
+      // Take latest src_port, dest_ip, dest_port, in_iface
+      if (record.src_port) existing.src_port = record.src_port;
+      if (record.dest_ip) existing.dest_ip = record.dest_ip;
+      if (record.dest_port) existing.dest_port = record.dest_port;
+      if (record.in_iface) existing.in_iface = record.in_iface;
     } else {
       domainAgg.set(aggKey, {
         src_ip: record.src_ip,
+        src_port: record.src_port,
+        dest_ip: record.dest_ip,
+        dest_port: record.dest_port,
+        in_iface: record.in_iface,
         domain: record.sni_hostname,
         count: 1,
         lastSeen: record.timestamp,
@@ -363,6 +384,10 @@ export async function getWebSurfingFromUlogd(
       domain: data.domain,
       sourceIp: data.src_ip,
       source_ip: data.src_ip,
+      srcPort: data.src_port,
+      destIp: data.dest_ip,
+      destPort: data.dest_port,
+      inIface: data.in_iface,
       category: classifyDomain(data.domain),
       totalBytes: data.totalBytes,
       connections: data.count,

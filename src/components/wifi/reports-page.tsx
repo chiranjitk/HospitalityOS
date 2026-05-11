@@ -983,8 +983,8 @@ function WebSurfingTab() {
   };
 
   const handleExportCSV = useCallback(() => {
-    const headers = 'Domain,Source IP,Guest Name,Category,Total Bytes,Connections,Last Accessed';
-    const rows = surfingLogs.map(l => `${l.domain},${l.sourceIp || l.source_ip},${l.guestName || ''},${l.category},${l.totalBytes},${l.connections},${l.lastAccess || l.last_access}`);
+    const headers = 'Domain,Source IP,Src Port,Dest IP,Dest Port,Interface,Guest Name,Category,Connections,Bytes,Last Accessed';
+    const rows = surfingLogs.map(l => `${l.domain},${l.sourceIp || l.source_ip},${l.srcPort || ''},${l.destIp || ''},${l.destPort || ''},${l.inIface || ''},${l.guestName || ''},${l.category},${l.connections},${l.totalBytes},${l.lastAccess || l.last_access}`);
     const csv = [headers, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1165,6 +1165,10 @@ function WebSurfingTab() {
                     <TableHead className="text-xs whitespace-nowrap">Timestamp</TableHead>
                     <TableHead className="text-xs whitespace-nowrap">Domain</TableHead>
                     <TableHead className="text-xs whitespace-nowrap">Source IP</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Src Port</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Dest IP</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Dst Port</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden xl:table-cell">Interface</TableHead>
                     <TableHead className="text-xs whitespace-nowrap hidden sm:table-cell">Guest Name</TableHead>
                     <TableHead className="text-xs whitespace-nowrap hidden md:table-cell">Category</TableHead>
                     <TableHead className="text-xs whitespace-nowrap text-right">Conns</TableHead>
@@ -1173,12 +1177,20 @@ function WebSurfingTab() {
                 </TableHeader>
                 <TableBody>
                   {filteredLogs.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground text-xs">No web surfing data available. Data will appear once the DNS logging pipeline is active.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground text-xs">No web surfing data available. Data will appear once the DNS logging pipeline is active.</TableCell></TableRow>
                   ) : filteredLogs.slice(0, 200).map((log, idx) => (
                     <TableRow key={log.id || `${log.domain}-${log.sourceIp || log.source_ip}-${idx}`} className="hover:bg-muted/30">
                       <TableCell className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">{new Date(log.timestamp || log.lastAccess || log.last_access).toLocaleString()}</TableCell>
                       <TableCell className="font-mono text-xs sm:text-sm max-w-[100px] sm:max-w-[180px] truncate">{log.domain}</TableCell>
                       <TableCell className="font-mono text-[10px] sm:text-xs text-teal-600 dark:text-teal-400 whitespace-nowrap">{log.sourceIp || log.source_ip}</TableCell>
+                      <TableCell className="font-mono text-[10px] sm:text-xs text-muted-foreground hidden lg:table-cell">{log.srcPort || <span className="text-muted-foreground/50">—</span>}</TableCell>
+                      <TableCell className="font-mono text-[10px] sm:text-xs text-muted-foreground hidden lg:table-cell">{log.destIp || <span className="text-muted-foreground/50">—</span>}</TableCell>
+                      <TableCell className="font-mono text-[10px] sm:text-xs text-muted-foreground hidden lg:table-cell">{log.destPort || 443}</TableCell>
+                      <TableCell className="text-[10px] sm:text-xs hidden xl:table-cell">
+                        {log.inIface ? (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono h-5">{log.inIface}</Badge>
+                        ) : <span className="text-muted-foreground/50">—</span>}
+                      </TableCell>
                       <TableCell className="text-[10px] sm:text-xs hidden sm:table-cell">{log.guestName || <span className="text-muted-foreground">—</span>}</TableCell>
                       <TableCell className="hidden md:table-cell">
                         <span className={cn('text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-medium', catColors[log.category] || catColors.other)}>

@@ -268,8 +268,10 @@ function parseUlogd2Record(obj: Record<string, unknown>): any | null {
   return {
     timestamp,
     src_ip: srcIp,
+    src_port: 0,
     dst_ip: dstIp,
     dst_port: dstPort || 443,
+    in_iface: "",
     sni_domain: sniDomain,
     tls_version: tlsVersion,
     ja3_hash: "",
@@ -284,8 +286,10 @@ function parseSimpleRecord(obj: Record<string, unknown>): any | null {
   return {
     timestamp: String(obj.timestamp || new Date().toISOString()),
     src_ip: String(obj.src_ip || ""),
+    src_port: parseInt(String(obj.src_port), 10) || 0,
     dst_ip: String(obj.dst_ip || ""),
     dst_port: parseInt(String(obj.dst_port), 10) || 443,
+    in_iface: String(obj.in_iface || ""),
     sni_domain: String(obj.sni_domain || ""),
     tls_version: String(obj.tls_version || "unknown"),
     ja3_hash: String(obj.ja3_hash || ""),
@@ -308,7 +312,9 @@ function parsePrintsniRecord(obj: Record<string, unknown>): any | null {
   // Skip entries without src/dst IP
   if (!srcIp || !dstIp) return null;
 
+  const srcPort = parseInt(String(obj.src_port || obj["tcp.sport"] || "0"), 10) || 0;
   const dstPort = parseInt(String(obj.dest_port || obj["tcp.dport"] || "443"), 10);
+  const inIface = String(obj["oob.in"] || "");
   const tlsVersion = String(obj["sni.tls.version"] || obj.tls_version || "unknown");
 
   // Packet bytes from raw.pktlen or ip.totlen
@@ -346,8 +352,10 @@ function parsePrintsniRecord(obj: Record<string, unknown>): any | null {
   return {
     timestamp,
     src_ip: srcIp,
+    src_port: srcPort,
     dst_ip: dstIp,
     dst_port: dstPort || 443,
+    in_iface: inIface,
     sni_domain: sniDomain,
     tls_version: tlsVersion,
     packet_bytes: packetBytes,
@@ -430,8 +438,10 @@ async function ensureClickHouseTable(): Promise<void> {
     CREATE TABLE IF NOT EXISTS ipdr.sni_log (
       timestamp DateTime,
       src_ip String,
+      src_port UInt16 DEFAULT 0,
       dst_ip String,
       dst_port UInt16,
+      in_iface String DEFAULT '',
       sni_domain String,
       tls_version String,
       ja3_hash String DEFAULT '',
@@ -456,18 +466,22 @@ async function ensureClickHouseTable(): Promise<void> {
       );
     }
 
-    // Migration: add packet_bytes column if it doesn't exist (for existing installs)
-    try {
-      const alterRes = await fetch(CLICKHOUSE_URL, {
-        method: "POST",
-        body: "ALTER TABLE ipdr.sni_log ADD COLUMN IF NOT EXISTS packet_bytes UInt32 DEFAULT 0",
-      });
-      if (alterRes.ok) {
-        console.log(`[${SERVICE_NAME}] ClickHouse migration: packet_bytes column ensured`);
+    // Migration: add new columns if they don't exist (for existing installs)
+    const migrations = [
+      "ALTER TABLE ipdr.sni_log ADD COLUMN IF NOT EXISTS packet_bytes UInt32 DEFAULT 0",
+      "ALTER TABLE ipdr.sni_log ADD COLUMN IF NOT EXISTS src_port UInt16 DEFAULT 0",
+      "ALTER TABLE ipdr.sni_log ADD COLUMN IF NOT EXISTS in_iface String DEFAULT ''",
+    ];
+    for (const sql of migrations) {
+      try {
+        const alterRes = await fetch(CLICKHOUSE_URL, { method: "POST", body: sql });
+        if (alterRes.ok) {
+          const colName = sql.match(/ADD COLUMN IF NOT EXISTS (\w+)/)?.[1] || '?';
+          console.log(`[${SERVICE_NAME}] ClickHouse migration: ${colName} column ensured`);
+        }
+      } catch {
+        // Non-critical migration
       }
-      // Ignore errors — column may already exist or table may be new
-    } catch {
-      // Non-critical migration
     }
   } catch (err: any) {
     console.error(
@@ -491,12 +505,12 @@ async function flushBatch(): Promise<void> {
   const values = items
     .map(
       (e) =>
-        `('${fmtTs(e.timestamp)}', '${e.src_ip}', '${e.dst_ip}', ${e.dst_port}, ` +
-        `'${escapeSql(e.sni_domain)}', '${escapeSql(e.tls_version)}', '${escapeSql(e.ja3_hash)}', ${e.packet_bytes || 0})`
+        `('${fmtTs(e.timestamp)}', '${e.src_ip}', ${e.src_port || 0}, '${e.dst_ip}', ${e.dst_port}, ` +
+        `'${escapeSql(e.in_iface || "")}', '${escapeSql(e.sni_domain)}', '${escapeSql(e.tls_version)}', '${escapeSql(e.ja3_hash)}', ${e.packet_bytes || 0})`
     )
     .join(",");
 
-  const sql = `INSERT INTO ipdr.sni_log (timestamp, src_ip, dst_ip, dst_port, sni_domain, tls_version, ja3_hash, packet_bytes) VALUES ${values}`;
+  const sql = `INSERT INTO ipdr.sni_log (timestamp, src_ip, src_port, dst_ip, dst_port, in_iface, sni_domain, tls_version, ja3_hash, packet_bytes) VALUES ${values}`;
 
   try {
     const res = await fetch(CLICKHOUSE_URL, {
