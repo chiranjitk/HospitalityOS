@@ -90,11 +90,11 @@ export const PG_PORT = parseInt(process.env.PG_PORT || '5432', 10);
 
 /** Path to radclient binary */
 export const RADCLIENT_BIN = process.env.RADCLIENT_BIN ||
-  `${FREERADIUS_HOME}/bin/radclient`;
+  (isProduction ? '/usr/bin/radclient' : `${FREERADIUS_HOME}/bin/radclient`);
 
 /** Path to radtest binary */
 export const RADTEST_BIN = process.env.RADTEST_BIN ||
-  `${FREERADIUS_HOME}/bin/radtest`;
+  (isProduction ? '/usr/bin/radtest' : `${FREERADIUS_HOME}/bin/radtest`);
 
 // ── Service Management ────────────────────────────────────────────
 

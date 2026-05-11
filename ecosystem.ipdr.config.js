@@ -17,6 +17,9 @@ module.exports = {
       env: {
         PORT: '3020',
         CLICKHOUSE_URL: 'http://127.0.0.1:8123',
+        DATABASE_URL: process.env.DATABASE_URL || '',
+        GUEST_CACHE_TTL: '60000',
+        GUEST_CACHE_MAX: '5000',
       },
       max_restarts: 10,
       restart_delay: 3000,
