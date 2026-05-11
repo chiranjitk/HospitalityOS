@@ -1334,6 +1334,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
   const bgInputRef = useRef<HTMLInputElement>(null);
   const [bgUploading, setBgUploading] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const [catFilter, setCatFilter] = useState('All');
 
   // ── Design History for Undo/Redo (Feature 11) ──────────────────────────────
   const [history, setHistory] = useState<PortalPageDesign[]>([]);
@@ -1662,7 +1663,6 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                 {/* ── Templates Sub-Tab ──────────────────────────────────────── */}
                 {subTab === 'templates' && (() => {
                   const CATEGORIES = ['All', ...Array.from(new Set(PORTAL_TEMPLATES.map(t => t.category)))];
-                  const [catFilter, setCatFilter] = useState('All');
                   const filtered = catFilter === 'All' ? PORTAL_TEMPLATES : PORTAL_TEMPLATES.filter(t => t.category === catFilter);
                   const CATEGORY_ICONS: Record<string, string> = { All: '🌟', Premium: '👑', Corporate: '💼', Lifestyle: '🌴', Modern: '✨', Seasonal: '❄️', Specialty: '🎰' };
                   const isCurrent = (tmpl: PortalTemplate) => design.settings.layoutType === tmpl.design.layoutType && design.backgroundColor === tmpl.colors.bg;
