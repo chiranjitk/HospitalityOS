@@ -563,11 +563,10 @@ async function handleUserGraph(searchParams: URLSearchParams) {
   try {
     const result = await fetchRRD(rrdFile, 'AVERAGE', now - seconds, now, resolution);
 
-    // Convert ds_in/download and ds_out/upload to bps (bytes per second)
-    // RRD stores delta bytes per step interval; divide by step to get bytes/sec
-    const step = result.meta.step || 60;
-    const downloadBps = (result.data['in'] || []).map(v => Math.round((v / step) * 8));
-    const uploadBps = (result.data['out'] || []).map(v => Math.round((v / step) * 8));
+    // Convert ds_in/download and ds_out/upload from bytes/sec to bits/sec
+    // DERIVE DS type already stores values as bytes/sec (delta_bytes / delta_time)
+    const downloadBps = (result.data['in'] || []).map(v => Math.round(v * 8));
+    const uploadBps = (result.data['out'] || []).map(v => Math.round(v * 8));
 
     return NextResponse.json({
       success: true,

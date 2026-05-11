@@ -1884,6 +1884,7 @@ function SystemHealthTab() {
   const [userBwData, setUserBwData] = useState<any>(null);
   const [selectedBwUser, setSelectedBwUser] = useState<string>('');
   const [userBwLoading, setUserBwLoading] = useState(false);
+  const [rrdUsernames, setRrdUsernames] = useState<string[]>([]);
   const [userBwSearch, setUserBwSearch] = useState('');
   const [userBwComboOpen, setUserBwComboOpen] = useState(false);
 
@@ -1959,11 +1960,27 @@ function SystemHealthTab() {
     }
   }, []);
 
+  // --- Fetch RRD usernames (users that have bandwidth history files) ---
+  const fetchRrdUsers = useCallback(async () => {
+    try {
+      const res = await fetch('/api/wifi/health?action=list-user-rrds');
+      const result = await res.json();
+      if (result.success) setRrdUsernames(result.data || []);
+    } catch {
+      // silent
+    }
+  }, []);
+
   useEffect(() => {
     fetchUsers();
     const interval = setInterval(fetchUsers, 10000);
     return () => clearInterval(interval);
   }, [fetchUsers]);
+
+  // Fetch RRD user list once on mount (RRD files don't change frequently)
+  useEffect(() => {
+    fetchRrdUsers();
+  }, [fetchRrdUsers]);
 
   // --- Fetch interface history ---
   useEffect(() => {
@@ -2160,13 +2177,30 @@ function SystemHealthTab() {
   }, [userBwData]);
 
   // Deduplicated, non-empty user list for the per-user BW select dropdown
+  // Merges active sessions + users who have RRD files (may be offline but have history)
   const deduplicatedUsers = useMemo(() => {
-    const seen = new Set<string>();
-    return activeUsers
-      .filter((u: any) => u.username && u.username.trim() !== '')
-      .filter((u: any) => { if (seen.has(u.username)) return false; seen.add(u.username); return true; })
+    const map = new Map<string, any>();
+    // First, add active users (they have richer data: roomId, IP, MAC)
+    for (const u of activeUsers) {
+      if (!u.username || !u.username.trim()) continue;
+      if (!map.has(u.username)) {
+        map.set(u.username, { ...u, hasRrd: false });
+      }
+    }
+    // Then merge RRD-only users (no active session but have bandwidth history)
+    for (const name of rrdUsernames) {
+      if (!name || !name.trim()) continue;
+      if (!map.has(name)) {
+        map.set(name, { username: name, roomId: '', framedIpAddress: '', macAddress: '', hasRrd: true });
+      } else {
+        map.get(name).hasRrd = true;
+      }
+    }
+    // Only show users that have RRD data (either active with RRD, or RRD-only)
+    return Array.from(map.values())
+      .filter((u: any) => u.hasRrd)
       .sort((a: any, b: any) => a.username.localeCompare(b.username));
-  }, [activeUsers]);
+  }, [activeUsers, rrdUsernames]);
 
   // Filtered user list for the searchable combobox (top 50 matches)
   const { filtered: filteredBwUsers, totalMatches: totalBwMatchCount } = useMemo(() => {
@@ -3031,6 +3065,7 @@ function SystemHealthTab() {
                               {u.roomId && <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{u.roomId}</Badge>}
                             </div>
                             {u.framedIpAddress && <span className="text-[10px] font-mono text-muted-foreground shrink-0">{u.framedIpAddress}</span>}
+                            {!u.framedIpAddress && u.hasRrd && <History className="h-3 w-3 shrink-0 text-violet-400" />}
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -3050,7 +3085,7 @@ function SystemHealthTab() {
                 <Badge variant="secondary" className="text-xs shrink-0">{formatBps(userBwChartData[userBwChartData.length - 1].download + userBwChartData[userBwChartData.length - 1].upload)}</Badge>
               )}
               {deduplicatedUsers.length > 0 && (
-                <Badge variant="outline" className="text-[10px] shrink-0">{deduplicatedUsers.length} users</Badge>
+                <Badge variant="outline" className="text-[10px] shrink-0">{deduplicatedUsers.length} user{deduplicatedUsers.length !== 1 ? 's' : ''} w/ history</Badge>
               )}
             </div>
 
