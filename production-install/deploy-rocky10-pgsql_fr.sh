@@ -1436,6 +1436,20 @@ cat > /etc/logrotate.d/staysuite-ipdr << 'LOGEOF'
     copytruncate
     maxsize 500M
 }
+
+# Log rotation for ulogd2 JSON output files (sni.json, flow.json)
+# Without rotation these files grow unbounded — a 1.6GB sni.json caused
+# the sni-parser to hang on restart, blocking all Web Surfing reports.
+/var/log/ulogd2/*.json {
+    daily
+    missingok
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    copytruncate
+    maxsize 200M
+}
 LOGEOF
 
 # IMPORTANT: We do NOT log DNS (port 53) via NFLOG.

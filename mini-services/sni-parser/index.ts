@@ -23,6 +23,15 @@ const BATCH_MAX_SIZE = 500;
 const FILE_POLL_INTERVAL_MS = 500;
 const SERVICE_NAME = "sni-parser";
 
+// Maximum file size to process from the beginning (100 MB).
+// If the log file is larger than this on startup, we skip to the end
+// to avoid re-processing a huge backlog (which caused the 1.6GB hang).
+const MAX_STARTUP_READ_BYTES = 100 * 1024 * 1024;
+
+// Runtime warning threshold (500 MB) — logged once when exceeded during polling.
+const RUNTIME_SIZE_WARN_BYTES = 500 * 1024 * 1024;
+let runtimeSizeWarned = false;
+
 // ─── TLS version map ────────────────────────────────────────────────────────
 const TLS_VERSION_MAP: Record<number, string> = {
   0x0300: "SSLv3",
@@ -461,6 +470,16 @@ async function checkLogFile(): Promise<void> {
     }
     currentInode = inode;
 
+    // Runtime size warning (log once)
+    if (!runtimeSizeWarned && stat.size > RUNTIME_SIZE_WARN_BYTES) {
+      const sizeMB = (stat.size / (1024 * 1024)).toFixed(1);
+      console.warn(
+        `[${SERVICE_NAME}] ⚠️  Log file grown to ${sizeMB}MB — add logrotate for ${SNI_LOG_FILE}. ` +
+        `Run: echo '/var/log/ulogd2/*.json { daily rotate 7 compress copytruncate maxsize 200M missingok }' > /etc/logrotate.d/staysuite-ulogd2`
+      );
+      runtimeSizeWarned = true;
+    }
+
     if (stat.size <= currentFilePos) return;
 
     const file = Bun.file(SNI_LOG_FILE);
@@ -702,12 +721,26 @@ async function main(): Promise<void> {
   console.log(`[${SERVICE_NAME}] Watching log file: ${SNI_LOG_FILE}`);
   fileWatcher = setInterval(checkLogFile, FILE_POLL_INTERVAL_MS);
 
-  // Initial file position
+  // Initial file position — with large-file safeguard
   try {
     const stat = await Bun.file(SNI_LOG_FILE).stat();
-    currentFilePos = stat.size;
     currentInode = `${stat.dev}:${stat.ino}`;
-    console.log(`[${SERVICE_NAME}] Starting from file position: ${currentFilePos}`);
+
+    if (stat.size > MAX_STARTUP_READ_BYTES) {
+      // File is too large to reprocess. Skip to the end to avoid hanging.
+      // Only recent events matter for the Web Surfing report (30-day window).
+      const sizeMB = (stat.size / (1024 * 1024)).toFixed(1);
+      console.warn(
+        `[${SERVICE_NAME}] ⚠️  Log file is ${sizeMB}MB — exceeds ${MAX_STARTUP_READ_BYTES / (1024 * 1024)}MB startup limit. ` +
+        `Skipping to end. Consider adding logrotate for ${SNI_LOG_FILE}. ` +
+        `Run: truncate -s 0 ${SNI_LOG_FILE}  if stale data is not needed.`
+      );
+      currentFilePos = stat.size;
+    } else {
+      // Small enough to read from beginning on startup
+      currentFilePos = 0;
+      console.log(`[${SERVICE_NAME}] Starting from file position: ${currentFilePos} (file ${stat.size} bytes)`);
+    }
   } catch {
     console.log(
       `[${SERVICE_NAME}] Log file not found yet, will start watching when it appears`
