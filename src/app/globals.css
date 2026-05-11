@@ -733,12 +733,9 @@ html.dark * {
    Gradient text, card shine, number counter, gradient divider
    ============================================ */
 
-/* Gradient text — primary to teal gradient for headings */
+/* Gradient text — heading emphasis */
 .gradient-text {
-  background: linear-gradient(135deg, var(--primary), oklch(0.65 0.16 170));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--primary);
 }
 
 /* Card shine — diagonal gradient sweep on hover */
