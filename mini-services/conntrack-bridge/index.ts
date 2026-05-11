@@ -10,8 +10,11 @@
  * Features:
  * - ReplacingMergeTree deduplication (latest timestamp per conntrack_id wins)
  * - Optional syslog forwarding (UDP/TCP) to external collectors
+ * - Guest IP enrichment (name, room, username, MAC) via PostgreSQL
  * - Graceful degradation: runs in simulation mode if conntrack binary unavailable.
  */
+
+import { enrichEventsWithGuestInfo, getCacheStats, type GuestInfo } from './guest-enricher';
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || "3020", 10);
@@ -60,18 +63,25 @@ function formatSyslogBSD(event: any, server: SyslogServerConfig): string {
   const month = now.toLocaleString("en-US", { month: "short" });
   const day = now.getDate().toString().padStart(2, " ");
   const time = now.toTimeString().slice(0, 8);
-  const msg = `NAT ${event.proto} ${event.src_ip}:${event.src_port} -> ${event.dst_ip}:${event.dst_port} bytes=${event.bytes} pkts=${event.packets} event=${event.eventType}`;
+  const guest = event._guest as GuestInfo | undefined;
+  const guestTag = guest?.guest_name ? ` guest=${guest.guest_name}` : "";
+  const roomTag = guest?.room_number ? ` room=${guest.room_number}` : "";
+  const msg = `NAT ${event.proto} ${event.src_ip}:${event.src_port} -> ${event.dst_ip}:${event.dst_port} bytes=${event.bytes} pkts=${event.packets} event=${event.eventType}${guestTag}${roomTag}`;
   return `<${pri}>${month} ${day} ${time} ${HOSTNAME} ${SERVICE_NAME}: ${msg}`;
 }
 
 function formatSyslogIETF(event: any, server: SyslogServerConfig): string {
   const pri = (FACILITY_MAP[server.facility] || 136) + (SEVERITY_MAP[server.severity] || 6);
   const ts = event.timestamp.replace("T", " ").replace("Z", "").slice(0, 19);
-  const msg = `NAT ${event.proto} ${event.src_ip}:${event.src_port} -> ${event.dst_ip}:${event.dst_port} bytes=${event.bytes} pkts=${event.packets} event=${event.eventType}`;
+  const guest = event._guest as GuestInfo | undefined;
+  const guestTag = guest?.guest_name ? ` guest=${guest.guest_name}` : "";
+  const roomTag = guest?.room_number ? ` room=${guest.room_number}` : "";
+  const msg = `NAT ${event.proto} ${event.src_ip}:${event.src_port} -> ${event.dst_ip}:${event.dst_port} bytes=${event.bytes} pkts=${event.packets} event=${event.eventType}${guestTag}${roomTag}`;
   return `<${pri}>1 ${ts} ${HOSTNAME} ${SERVICE_NAME} - - ${msg}`;
 }
 
 function formatSyslogJSON(event: any, server: SyslogServerConfig): string {
+  const guest = event._guest as GuestInfo | undefined;
   const obj = {
     timestamp: event.timestamp,
     facility: server.facility,
@@ -91,6 +101,10 @@ function formatSyslogJSON(event: any, server: SyslogServerConfig): string {
     packets: event.packets,
     duration: event.duration,
     status: event.status,
+    guest_name: guest?.guest_name || "",
+    room_number: guest?.room_number || "",
+    username: guest?.username || "",
+    mac_address: guest?.mac_address || "",
   };
   return JSON.stringify(obj);
 }
@@ -165,6 +179,24 @@ async function forwardToSyslog(events: any[]): Promise<void> {
         }
       }
     }
+  }
+}
+
+/**
+ * Enrich events with guest info before forwarding to syslog.
+ * Attaches _guest field to each event (non-mutating to ClickHouse data).
+ */
+async function enrichAndForwardToSyslog(events: any[]): Promise<void> {
+  if (events.length === 0) return;
+
+  try {
+    const guestMap = await enrichEventsWithGuestInfo(events);
+    // Attach guest info to each event (does not modify ClickHouse INSERT data)
+    const enriched = events.map((e) => ({ ...e, _guest: guestMap.get(e.src_ip) }));
+    await forwardToSyslog(enriched);
+  } catch (err: any) {
+    console.error(`[${SERVICE_NAME}] Guest enrichment failed, forwarding without guest info: ${err.message}`);
+    await forwardToSyslog(events);
   }
 }
 
@@ -410,8 +442,8 @@ async function flushBatch(): Promise<void> {
     );
   }
 
-  // Forward to syslog servers (fire-and-forget, non-blocking)
-  forwardToSyslog(items).catch(() => { /* errors already counted inside */ });
+  // Forward to syslog servers with guest enrichment (fire-and-forget, non-blocking)
+  enrichAndForwardToSyslog(items).catch(() => { /* errors already counted inside */ });
 }
 
 // ─── Conntrack spawner ──────────────────────────────────────────────────────
@@ -580,6 +612,10 @@ function startServer(): void {
           pendingBatch: batch.length,
           batchesFlushed: totalBatches,
           clickHouseErrors: totalClickHouseErrors,
+          guestEnrichment: {
+            enabled: !!process.env.DATABASE_URL,
+            cache: getCacheStats(),
+          },
           syslog: {
             serversConfigured: syslogServers.length,
             serversEnabled: syslogServers.filter((s) => s.enabled).length,
@@ -705,6 +741,7 @@ function startServer(): void {
             packets: 8,
             duration: 0,
             status: "TEST",
+            _guest: { guest_name: "Test Guest", room_number: "101", username: "test101", mac_address: "AA:BB:CC:DD:EE:FF" },
           };
 
           const message = formatSyslogMessage(testEvent, testServer);
