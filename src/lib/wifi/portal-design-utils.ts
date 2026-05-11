@@ -150,7 +150,7 @@ export const DEFAULT_DESIGN_SETTINGS: DesignSettings = {
   showPromotion: false,
 
   // Multi-Language
-  languages: ['en'],
+  languages: [],
   defaultLanguage: 'en',
 
   // Marketing Opt-In
@@ -327,28 +327,25 @@ export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
   hotelPhone: '',
   hotelWebsite: '',
   logoUrl: '',
-  showHotelInfo: true,
-  amenities: ['WiFi', 'Pool', 'Spa', 'Gym'],
-  showAmenities: true,
+  showHotelInfo: false,
+  amenities: [],
+  showAmenities: false,
   showSocialMedia: false,
-  socialLinks: [
-    { platform: 'instagram', url: 'https://instagram.com' },
-    { platform: 'facebook', url: 'https://facebook.com' },
-  ],
-  showClock: true,
-  showWeather: true,
+  socialLinks: [],
+  showClock: false,
+  showWeather: false,
   promotionTitle: '',
   promotionDesc: '',
   showPromotion: false,
   termsText: '',
   termsUrl: '',
-  showBranding: true,
+  showBranding: false,
   title: 'Welcome',
   subtitle: 'Connect to WiFi',
   gradientAngle: 135,
 
   // Multi-Language
-  languages: ['en'],
+  languages: [],
   defaultLanguage: 'en',
   translations: {},
 
@@ -374,7 +371,7 @@ export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
   },
 
   // Weather Widget
-  weatherLocation: 'New York',
+  weatherLocation: '',
 
   // Custom Amenities
   customAmenities: [],

@@ -165,27 +165,24 @@ async function buildPortalConfig(portalId: string) {
       hotelPhone: (designSettings.hotelPhone as string) || '',
       hotelWebsite: (designSettings.hotelWebsite as string) || '',
       logoUrl: portalPage?.logoUrl || '',
-      showHotelInfo: (designSettings.showHotelInfo as boolean) ?? true,
-      amenities: amenities.length > 0 ? amenities : ['WiFi', 'Pool', 'Spa', 'Gym'],
-      showAmenities: (designSettings.showAmenities as boolean) ?? true,
+      showHotelInfo: (designSettings.showHotelInfo as boolean) ?? false,
+      amenities: amenities,
+      showAmenities: (designSettings.showAmenities as boolean) ?? false,
       showSocialMedia: (designSettings.showSocialMedia as boolean) ?? false,
-      socialLinks: socialLinks.length > 0 ? socialLinks : [
-        { platform: 'instagram', url: 'https://instagram.com' },
-        { platform: 'facebook', url: 'https://facebook.com' },
-      ],
-      showClock: (designSettings.showClock as boolean) ?? true,
-      showWeather: (designSettings.showWeather as boolean) ?? true,
+      socialLinks: socialLinks,
+      showClock: (designSettings.showClock as boolean) ?? false,
+      showWeather: (designSettings.showWeather as boolean) ?? false,
       promotionTitle: (designSettings.promotionTitle as string) || '',
       promotionDesc: (designSettings.promotionDesc as string) || '',
       showPromotion: (designSettings.showPromotion as boolean) ?? false,
       termsText: (designSettings.termsText as string) || portalPage?.termsText || '',
       termsUrl: (designSettings.termsUrl as string) || portalPage?.termsUrl || '',
-      showBranding: portalPage?.showBranding ?? true,
+      showBranding: portalPage?.showBranding ?? false,
       title: portalPage?.title || 'Welcome',
       subtitle: portalPage?.subtitle || 'Connect to WiFi',
 
       // ── Feature 1: Multi-Language Portal ──
-      languages: (designSettings.languages as string[]) || ['en'],
+      languages: (designSettings.languages as string[]) || [],
       defaultLanguage: (designSettings.defaultLanguage as string) || 'en',
       enableMultiLanguage: (designSettings.enableMultiLanguage as boolean) || false,
       translations: (designSettings.translations as Record<string, Record<string, string>>) || {},
@@ -211,7 +208,7 @@ async function buildPortalConfig(portalId: string) {
       surveyConfig: (designSettings.surveyConfig as { enabled: boolean; question: string; options: string[]; thankYouMessage: string }) || { enabled: false, question: '', options: [], thankYouMessage: '' },
 
       // ── Feature 5: Weather Widget ──
-      weatherLocation: (designSettings.weatherLocation as string) || 'New York',
+      weatherLocation: (designSettings.weatherLocation as string) || '',
 
       // ── Feature 9: Content Block Reordering ──
       contentBlockOrder: (designSettings.contentBlockOrder as string[]) || [],

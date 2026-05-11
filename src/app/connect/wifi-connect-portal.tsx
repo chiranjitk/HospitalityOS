@@ -1715,7 +1715,7 @@ function SuccessScreen({
 function HotelInfoBlock({ design, dark }: { design: PortalDesignConfig; dark: boolean }) {
   const lang = usePortalLang();
   const hasContent = design.hotelName || design.hotelAddress || design.hotelPhone || design.hotelWebsite;
-  if (!design.showHotelInfo && !hasContent) return null;
+  if (!design.showHotelInfo) return null;
   const textColor = dark ? '#ffffff' : design.textColor;
   const mutedColor = dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
 
@@ -1754,7 +1754,7 @@ function AmenitiesBlock({ design, dark }: { design: PortalDesignConfig; dark: bo
     ...customAmenities,
   ];
 
-  if (!design.showAmenities && allAmenities.length === 0) return null;
+  if (!design.showAmenities) return null;
   const iconColor = dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)';
 
   return (
@@ -1787,7 +1787,7 @@ function AmenitiesBlock({ design, dark }: { design: PortalDesignConfig; dark: bo
 
 function PromotionBlock({ design }: { design: PortalDesignConfig }) {
   const lang = usePortalLang();
-  if (!design.showPromotion && !design.promotionTitle) return null;
+  if (!design.showPromotion) return null;
   const dark = isDarkBackground(design);
 
   const promoTitle = getLocalizedText(design, 'promotionTitle', lang);
@@ -1826,7 +1826,7 @@ function PromotionBlock({ design }: { design: PortalDesignConfig }) {
 function SocialLinksBlock({ design }: { design: PortalDesignConfig }) {
   const activeLinks = (design.socialLinks || []).filter((l) => l.url);
 
-  if (!design.showSocialMedia && activeLinks.length === 0) return null;
+  if (!design.showSocialMedia) return null;
   const dark = isDarkBackground(design);
 
   return (
@@ -2566,11 +2566,10 @@ function PortalContent() {
         return null;
       }
       case 'clock':
-        // Always render clock — it's a nice-to-have feature
+        if (!design.showClock) return null;
         return <div className="mb-3 flex justify-center"><LiveClock design={design} /></div>;
       case 'weather':
-        // Render if flag enabled OR if weatherLocation is set
-        if (!design.showWeather && !design.weatherLocation) return null;
+        if (!design.showWeather) return null;
         return <div className="mb-3 flex justify-center"><WeatherWidget design={design} /></div>;
       case 'logo':
         return <PortalLogo design={design} size="large" />;
@@ -2596,12 +2595,10 @@ function PortalContent() {
           </div>
         );
       case 'hotelInfo':
-        // Render if flag enabled OR if hotel info content exists
-        if (!design.showHotelInfo && !design.hotelName && !design.hotelAddress && !design.hotelPhone && !design.hotelWebsite) return null;
+        if (!design.showHotelInfo) return null;
         return <div className="mb-4"><HotelInfoBlock design={design} dark={dark} /></div>;
       case 'amenities':
-        // Render if flag enabled OR if amenities/customAmenities have items
-        if (!design.showAmenities && !(design.amenities?.length) && !(design.customAmenities?.filter(a => a.name).length)) return null;
+        if (!design.showAmenities) return null;
         return <div className="mb-5"><AmenitiesBlock design={design} dark={dark} /></div>;
       case 'form':
         return (
@@ -2616,8 +2613,7 @@ function PortalContent() {
           </div>
         );
       case 'social':
-        // Render if flag enabled OR if socialLinks have items with URLs
-        if (!design.showSocialMedia && !(design.socialLinks?.filter(l => l.url).length)) return null;
+        if (!design.showSocialMedia) return null;
         return <div className="mt-4"><SocialLinksBlock design={design} /></div>;
       case 'survey':
         // Render survey after success or always if enabled (GuestSurvey handles its own state)
@@ -2658,7 +2654,7 @@ function PortalContent() {
               {/* ── Left Panel: Hotel Info + Features ── */}
               <div className="flex-1 flex flex-col justify-center p-6 md:p-10 space-y-5" style={{ color: dark ? '#ffffff' : design.textColor }}>
                 {/* Language Switcher (Feature 1) */}
-                {(design.languages?.length && design.languages.length > 0) && (
+                {(design.enableMultiLanguage && design.languages?.length) && (
                   <div className="flex justify-end">
                     <LanguageSwitcher design={design} selectedLanguage={effectiveLanguage} setSelectedLanguage={setSelectedLanguage} />
                   </div>
@@ -2679,8 +2675,8 @@ function PortalContent() {
 
                 {/* Clock + Weather Row */}
                 <div className="flex items-center justify-center gap-4">
-                  {design.showClock !== false && <LiveClock design={design} />}
-                  {(design.showWeather || design.weatherLocation) && (
+                  {design.showClock && <LiveClock design={design} />}
+                  {design.showWeather && (
                     <>
                       <span style={{ color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)' }}>|</span>
                       <WeatherWidget design={design} />
@@ -2688,11 +2684,11 @@ function PortalContent() {
                   )}
                 </div>
 
-                <HotelInfoBlock design={design} dark={dark} />
-                <AmenitiesBlock design={design} dark={dark} />
+                {design.showHotelInfo && <HotelInfoBlock design={design} dark={dark} />}
+                {design.showAmenities && <AmenitiesBlock design={design} dark={dark} />}
 
                 {/* Social Links (Feature 8: More Social Platforms) */}
-                {(design.showSocialMedia || design.socialLinks?.some(l => l.url)) && (
+                {design.showSocialMedia && (
                   <SocialLinksBlock design={design} />
                 )}
 
@@ -2734,10 +2730,12 @@ function PortalContent() {
                     </h2>
                     <p className="text-sm" style={{ color: getMutedTextColor(design) }}>{localizedSubtitle}</p>
                     {/* Mobile clock + weather */}
+                    {(design.showClock || design.showWeather) && (
                     <div className="flex items-center justify-center gap-3 pt-2">
-                      <LiveClock design={design} />
-                      <WeatherWidget design={design} />
+                      {design.showClock && <LiveClock design={design} />}
+                      {design.showWeather && <WeatherWidget design={design} />}
                     </div>
+                    )}
                   </div>
 
                   {renderCardContent()}
