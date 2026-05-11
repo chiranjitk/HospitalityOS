@@ -476,11 +476,36 @@ async function handleActiveUsers() {
     // Also return RRD usernames (users with bandwidth history, including offline)
     let rrdUsernames: string[] = [];
     try {
-      const usersDir = path.join(getRRDBasePath(), 'users');
-      if (fs.existsSync(usersDir)) {
-        rrdUsernames = fs.readdirSync(usersDir).filter(f => f.endsWith('.rrd')).map(f => f.replace(/\.rrd$/, ''));
+      // Try multiple possible RRD data paths (dev, production, sandbox)
+      const candidates = [
+        getRRDBasePath(),
+        path.join(process.cwd(), 'data', 'rrd'),
+        path.join('/home/z/my-project', 'data', 'rrd'),
+        '/opt/staysuite/data/rrd',
+      ];
+      for (const base of candidates) {
+        const dir = path.join(base, 'users');
+        if (fs.existsSync(dir)) {
+          const files = fs.readdirSync(dir).filter(f => f.endsWith('.rrd'));
+          if (files.length > 0) {
+            rrdUsernames = files.map(f => f.replace(/\.rrd$/, ''));
+            console.log(`[Health API] active-users: found ${rrdUsernames.length} RRD users from ${dir}`);
+            break;
+          }
+        }
       }
-    } catch { /* ignore */ }
+      // Debug: write path resolution to temp file
+      try {
+        fs.appendFileSync('/tmp/rrd-active-users-debug.log',
+          `[${new Date().toISOString()}] cwd=${process.cwd()} getRRDBase=${getRRDBasePath()} candidates=${candidates.join(',')} rrdUsers=${rrdUsernames.length}\n`);
+      } catch { /* ignore */ }
+    } catch (err) {
+      console.error('[Health API] RRD scan error:', err);
+      try {
+        fs.appendFileSync('/tmp/rrd-active-users-debug.log',
+          `[${new Date().toISOString()}] ERROR: ${err}\n`);
+      } catch { /* ignore */ }
+    }
 
     return NextResponse.json({ success: true, data: users, rrdUsernames });
   } catch (error) {
