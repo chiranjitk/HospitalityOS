@@ -287,13 +287,14 @@ export async function GET(request: NextRequest) {
 
       // Single query: domain + src_ip with packet_bytes aggregation.
       // No nat_log join needed — packet_bytes comes directly from packet captures.
+      // Use ifNull to handle cases where packet_bytes column doesn't exist yet.
       const sniRows = await query<Record<string, unknown>>(`
         SELECT
           sni_domain as domain,
           src_ip,
           count() as connections,
           max(timestamp) as last_seen,
-          sum(packet_bytes) as total_bytes,
+          ifNull(toUInt64(sum(packet_bytes)), 0) as total_bytes,
           groupArray(DISTINCT tls_version)[1] as tls_version
         FROM ipdr.sni_log
         WHERE timestamp >= now() - INTERVAL 30 DAY

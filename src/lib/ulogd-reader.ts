@@ -33,7 +33,7 @@ export interface SniRecord {
   dest_port: number;
   sni_hostname: string;
   sni_tls_version: string;
-  oob_in: string;
+  packet_bytes: number;
 }
 
 export interface FlowRecord {
@@ -105,19 +105,55 @@ async function readLastLines(filePath: string, maxLines: number): Promise<string
 
 // ─── Parsing ─────────────────────────────────────────────────────
 
-function parseSniRecord(raw: Record<string, unknown>): SniRecord | null {
-  const hostname = String(raw['sni.hostname'] ?? '').trim();
-  // Skip empty SNI records (ACK-only packets with no TLS payload)
+/**
+ * Parse an SNI record from ulogd2 PRINTSNI JSON output.
+ * Unlike parseSniRecord above, this version ALSO handles non-SNI data packets
+ * by enriching them with a dst_ip → domain cache (populated from ClientHello entries).
+ */
+function parseSniRecordWithCache(
+  raw: Record<string, unknown>,
+  dstDomainCache: Map<string, string>,
+): { src_ip: string; dest_ip: string; dest_port: number; sni_hostname: string; sni_tls_version: string; timestamp: string; packet_bytes: number } | null {
+  const srcIp = String(raw.src_ip ?? raw['ip.saddr.str'] ?? '').trim();
+  const destIp = String(raw.dest_ip ?? raw['ip.daddr.str'] ?? '').trim();
+  if (!srcIp || !destIp) return null;
+
+  const destPort = Number(raw.dest_port ?? raw['tcp.dport'] ?? 443);
+  const tlsVersion = String(raw['sni.tls.version'] ?? '');
+  const packetBytes = Number(raw['raw.pktlen'] ?? raw['ip.totlen'] ?? 0) || 0;
+
+  // Timestamp: ulogd2 outputs ISO-like string or epoch seconds
+  let timestamp: string;
+  const tsRaw = String(raw.timestamp ?? '');
+  if (tsRaw && !isNaN(Date.parse(tsRaw))) {
+    timestamp = tsRaw;
+  } else {
+    const timeSec = Number(raw.timestamp ?? raw['oob.time.sec'] ?? 0);
+    timestamp = timeSec ? new Date(timeSec * 1000).toISOString() : new Date().toISOString();
+  }
+
+  // Check for direct SNI hostname from ClientHello
+  let hostname = String(raw['sni.hostname'] ?? '').trim();
+
+  if (hostname) {
+    // ClientHello with SNI — cache the dst_ip → domain mapping
+    dstDomainCache.set(destIp, hostname);
+  } else {
+    // Data packet (no SNI) — look up domain from cache
+    hostname = dstDomainCache.get(destIp) ?? '';
+  }
+
+  // Only return entries with a resolved domain
   if (!hostname) return null;
 
   return {
-    timestamp: String(raw.timestamp ?? ''),
-    src_ip: String(raw.src_ip ?? raw['ip.saddr.str'] ?? ''),
-    dest_ip: String(raw.dest_ip ?? raw['ip.daddr.str'] ?? ''),
-    dest_port: Number(raw.dest_port ?? 0),
+    src_ip: srcIp,
+    dest_ip: destIp,
+    dest_port: destPort,
     sni_hostname: hostname,
-    sni_tls_version: String(raw['sni.tls.version'] ?? ''),
-    oob_in: String(raw['oob.in'] ?? ''),
+    sni_tls_version: tlsVersion,
+    timestamp,
+    packet_bytes: packetBytes,
   };
 }
 
@@ -196,12 +232,14 @@ export async function getNatLogsFromUlogd(
   ]);
 
   // Build SNI domain map: dst_ip → sni_hostname (latest wins)
+  // Also enrich non-SNI data packets via dst_ip cache
+  const dstDomainCache = new Map<string, string>();
   const domainMap = new Map<string, string>();
   for (const line of sniLines) {
     const raw = parseLine(line);
     if (!raw) continue;
-    const sni = parseSniRecord(raw);
-    if (!sni || !sni.dest_ip) continue;
+    const sni = parseSniRecordWithCache(raw, dstDomainCache);
+    if (!sni || !sni.dest_ip || !sni.sni_hostname) continue;
     domainMap.set(sni.dest_ip, sni.sni_hostname);
   }
 
@@ -259,9 +297,14 @@ export async function getNatLogsFromUlogd(
 }
 
 /**
- * Build web surfing entries from sni.json + flow.json.
- * Joins SNI domain names with flow byte counters by (src_ip, dst_ip).
- * This feeds the Web Surfing tab.
+ * Build web surfing entries from sni.json using dst_ip → domain cache enrichment.
+ *
+ * Key insight: ulogd2 captures ALL port-443 packets, but only ~2.5% are ClientHello
+ * (with SNI hostname). The remaining ~97.5% are data packets carrying actual bandwidth.
+ * We enrich those data packets using a dst_ip → domain cache built from ClientHello
+ * entries, and use raw.pktlen as per-domain byte totals.
+ *
+ * This feeds the Web Surfing tab (ulogd2 fallback path when ClickHouse is unavailable).
  */
 export async function getWebSurfingFromUlogd(
   options?: { search?: string; category?: string; maxRecords?: number },
@@ -269,102 +312,63 @@ export async function getWebSurfingFromUlogd(
   const available = await isUlogdAvailable();
   if (!available) return [];
 
-  const [sniLines, flowLines] = await Promise.all([
-    readLastLines(SNI_FILE, MAX_LINES),
-    readLastLines(FLOW_FILE, MAX_LINES),
-  ]);
+  const sniLines = await readLastLines(SNI_FILE, MAX_LINES);
 
-  // ── Aggregate SNI records by (src_ip, dest_ip, sni_hostname) ──
-  const sniKey = (src: string, dst: string, domain: string) => `${src}:${dst}:${domain}`;
-  const sniAgg = new Map<string, { src_ip: string; dest_ip: string; domain: string; count: number; lastSeen: string }>();
+  // ── Pass 1: Parse ALL sni.json entries with dst_ip → domain cache ──
+  const dstDomainCache = new Map<string, string>(); // dst_ip → sni_hostname
+
+  // Aggregate by (src_ip, domain) with packet_bytes sum
+  const domainAgg = new Map<string, {
+    src_ip: string;
+    domain: string;
+    count: number;
+    lastSeen: string;
+    totalBytes: number;
+  }>();
 
   for (const line of sniLines) {
     const raw = parseLine(line);
     if (!raw) continue;
-    const sni = parseSniRecord(raw);
-    if (!sni || !sni.sni_hostname) continue;
-    if (!sni.src_ip) continue;
 
-    const key = sniKey(sni.src_ip, sni.dest_ip, sni.sni_hostname);
-    const existing = sniAgg.get(key);
+    const record = parseSniRecordWithCache(raw, dstDomainCache);
+    if (!record || !record.sni_hostname || !record.src_ip) continue;
+
+    const aggKey = `${record.src_ip}:${record.sni_hostname}`;
+    const existing = domainAgg.get(aggKey);
     if (existing) {
       existing.count++;
-      if (sni.timestamp > existing.lastSeen) existing.lastSeen = sni.timestamp;
+      existing.totalBytes += record.packet_bytes;
+      if (record.timestamp > existing.lastSeen) existing.lastSeen = record.timestamp;
     } else {
-      sniAgg.set(key, {
-        src_ip: sni.src_ip,
-        dest_ip: sni.dest_ip,
-        domain: sni.sni_hostname,
+      domainAgg.set(aggKey, {
+        src_ip: record.src_ip,
+        domain: record.sni_hostname,
         count: 1,
-        lastSeen: sni.timestamp,
+        lastSeen: record.timestamp,
+        totalBytes: record.packet_bytes,
       });
     }
   }
 
-  // ── Aggregate flow bytes by (src_ip, dest_ip) ──
-  const flowKey = (src: string, dst: string) => `${src}:${dst}`;
-  const flowAgg = new Map<string, { bytes_orig: number; bytes_reply: number; packets_orig: number; packets_reply: number }>();
-
-  for (const line of flowLines) {
-    const raw = parseLine(line);
-    if (!raw) continue;
-    const flow = parseFlowRecord(raw);
-    if (!flow.src_ip || flow.src_ip === '127.0.0.1') continue;
-
-    const key = flowKey(flow.src_ip, flow.dest_ip);
-    const existing = flowAgg.get(key);
-    if (existing) {
-      existing.bytes_orig += flow.bytes_orig;
-      existing.bytes_reply += flow.bytes_reply;
-      existing.packets_orig += flow.packets_orig;
-      existing.packets_reply += flow.packets_reply;
-    } else {
-      flowAgg.set(key, {
-        bytes_orig: flow.bytes_orig,
-        bytes_reply: flow.bytes_reply,
-        packets_orig: flow.packets_orig,
-        packets_reply: flow.packets_reply,
-      });
-    }
-  }
-
-  // ── Join SNI + flow data ──
+  // ── Build entries ──
   const entries: SurfingEntry[] = [];
-  const seen = new Set<string>(); // Deduplicate by (src_ip, domain)
-
-  for (const [_, sniData] of sniAgg) {
-    const userKey = `${sniData.src_ip}:${sniData.domain}`;
-    if (seen.has(userKey)) continue;
-    seen.add(userKey);
-
-    // Sum bytes across all dst_ips for this (src_ip, domain) pair
-    let totalBytes = 0;
-    let totalConnections = 0;
-
-    for (const [_, flowData] of flowAgg) {
-      const fKey = flowKey(sniData.src_ip, sniData.dest_ip);
-      if (fKey === flowKey(sniData.src_ip, sniData.dest_ip)) {
-        totalBytes += flowData.bytes_orig + flowData.bytes_reply;
-        totalConnections += flowData.packets_orig + flowData.packets_reply;
-      }
-    }
-
-    // Normalize ulogd timestamp for JavaScript Date compatibility
-    const tsRaw = sniData.lastSeen;
+  for (const [_, data] of domainAgg) {
+    // Normalize timestamp for JavaScript Date compatibility
+    const tsRaw = data.lastSeen;
     const tsNorm = tsRaw.includes('T') ? tsRaw : tsRaw.replace(' ', 'T');
 
     entries.push({
       id: `ulogd-${entries.length + 1}`,
       timestamp: tsNorm,
-      domain: sniData.domain,
-      sourceIp: sniData.src_ip,
-      source_ip: sniData.src_ip,
-      category: classifyDomain(sniData.domain),
-      totalBytes,
-      connections: sniData.count,
+      domain: data.domain,
+      sourceIp: data.src_ip,
+      source_ip: data.src_ip,
+      category: classifyDomain(data.domain),
+      totalBytes: data.totalBytes,
+      connections: data.count,
       lastAccess: tsNorm,
       last_access: tsNorm,
-      guestName: '', // Will be filled by API route from WiFiSession
+      guestName: '', // Will be filled by API route
     });
   }
 
