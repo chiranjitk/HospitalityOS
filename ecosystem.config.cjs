@@ -1,15 +1,6 @@
 module.exports = {
   apps: [
     {
-      name: 'staysuite-postgresql',
-      script: 'pg_ctl',
-      args: '-D /home/z/my-project/pgsql-runtime/data start -o "-p 5432" -w',
-      cwd: '/home/z/my-project',
-      interpreter: 'none',
-      watch: false,
-      autorestart: false,
-    },
-    {
       name: 'staysuite-freeradius',
       script: '/home/z/my-project/freeradius-install/sbin/radiusd',
       args: '-d /home/z/my-project/freeradius-install/etc/raddb -D /home/z/my-project/freeradius-install/share/freeradius -f',
@@ -19,18 +10,6 @@ module.exports = {
       autorestart: true,
       env: {
         LD_LIBRARY_PATH: '/home/z/my-project/freeradius-install/lib:/home/z/my-project/freeradius-install/lib/freeradius:/home/z/my-project/pgsql-runtime/lib',
-      },
-    },
-    {
-      name: 'staysuite-e2guardian',
-      script: '/home/z/my-project/e2guardian-install/sbin/e2guardian',
-      args: '',
-      cwd: '/home/z/my-project',
-      interpreter: 'none',
-      watch: false,
-      autorestart: true,
-      env: {
-        LD_LIBRARY_PATH: '/home/z/my-project/e2guardian-install/lib:/home/z/my-project/freeradius-install/lib:/home/z/my-project/freeradius-install/lib/freeradius:/home/z/my-project/pgsql-runtime/lib',
       },
     },
     {
