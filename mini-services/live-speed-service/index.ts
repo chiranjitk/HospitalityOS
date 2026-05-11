@@ -215,13 +215,15 @@ function readNftablesCounters(): Map<string, { downloadBytes: number; uploadByte
 
     if (ips.size === 0) return result;
 
-    // For each IP, parse all matching counter rules and sum bytes
+    // For each IP, parse all matching counter rules and sum bytes.
+    // nftables output format: ip daddr <IP> counter packets N bytes N comment "user_in_<safe_ip> stayuser <IP>"
+    // Note: "bytes" appears BEFORE the comment, so regex must match bytes → comment order.
     for (const ip of ips) {
       const safeIp = ip.replace(/\./g, '_');
 
       // Download counters: "user_in_<safe_ip>" (ip daddr = user IP)
       let downloadBytes = 0;
-      const inRegex = new RegExp(`user_in_${safeIp}[^\\n]*bytes\\s+(\\d+)`, 'g');
+      const inRegex = new RegExp(`bytes\\s+(\\d+)[^\\n]*user_in_${safeIp}\\b`, 'g');
       let dlMatch: RegExpExecArray | null;
       while ((dlMatch = inRegex.exec(output)) !== null) {
         downloadBytes += parseInt(dlMatch[1], 10) || 0;
@@ -229,7 +231,7 @@ function readNftablesCounters(): Map<string, { downloadBytes: number; uploadByte
 
       // Upload counters: "user_out_<safe_ip>" (ip saddr = user IP)
       let uploadBytes = 0;
-      const outRegex = new RegExp(`user_out_${safeIp}[^\\n]*bytes\\s+(\\d+)`, 'g');
+      const outRegex = new RegExp(`bytes\\s+(\\d+)[^\\n]*user_out_${safeIp}\\b`, 'g');
       let ulMatch: RegExpExecArray | null;
       while ((ulMatch = outRegex.exec(output)) !== null) {
         uploadBytes += parseInt(ulMatch[1], 10) || 0;
