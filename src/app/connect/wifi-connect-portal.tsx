@@ -401,18 +401,8 @@ function LanguageSwitcher({ design, selectedLanguage, setSelectedLanguage }: {
   const languages = (design.languages || []).filter(Boolean);
   const mutedColor = getMutedTextColor(design);
 
-  // Show a subtle language indicator even with 1 language
-  if (languages.length <= 1) {
-    const lang = languages[0] || 'en';
-    return (
-      <div className="flex items-center justify-center gap-1.5 mb-2">
-        <Languages className="w-3.5 h-3.5" style={{ color: mutedColor }} />
-        <span className="text-xs" style={{ color: mutedColor }}>
-          {getLanguageLabel(lang)}
-        </span>
-      </div>
-    );
-  }
+  // Don't render if fewer than 2 languages
+  if (languages.length <= 1) return null;
 
   return (
     <div className="flex items-center justify-center gap-1.5 mb-2">
@@ -2574,6 +2564,8 @@ function PortalContent() {
       case 'logo':
         return <PortalLogo design={design} size="large" />;
       case 'language':
+        // Only render language switcher when multi-language is enabled AND has languages
+        if (!design.enableMultiLanguage || !(design.languages?.length > 1)) return null;
         return <LanguageSwitcher design={design} selectedLanguage={effectiveLanguage} setSelectedLanguage={setSelectedLanguage} />;
       case 'title':
         return (
@@ -2653,8 +2645,8 @@ function PortalContent() {
             <div className="w-full max-w-5xl flex flex-col md:flex-row gap-6">
               {/* ── Left Panel: Hotel Info + Features ── */}
               <div className="flex-1 flex flex-col justify-center p-6 md:p-10 space-y-5" style={{ color: dark ? '#ffffff' : design.textColor }}>
-                {/* Language Switcher (Feature 1) */}
-                {(design.enableMultiLanguage && design.languages?.length) && (
+                {/* Language Switcher (Feature 1) — only when enabled AND 2+ languages */}
+                {(design.enableMultiLanguage && (design.languages?.length ?? 0) > 1) && (
                   <div className="flex justify-end">
                     <LanguageSwitcher design={design} selectedLanguage={effectiveLanguage} setSelectedLanguage={setSelectedLanguage} />
                   </div>
