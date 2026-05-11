@@ -48,6 +48,7 @@ const RANGE_RESOLUTIONS: Record<string, number> = {
   '24h': 300,
   '7d': 3600,
   '30d': 3600,
+  '90d': 86400,
   '1y': 86400,
 };
 
@@ -542,6 +543,7 @@ export async function fetchSystemGraph(
     '24h': 86400,
     '7d': 604800,
     '30d': 2592000,
+    '90d': 7776000,
     '1y': 31536000,
   };
 

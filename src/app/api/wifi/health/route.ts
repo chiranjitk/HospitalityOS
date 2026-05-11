@@ -409,7 +409,7 @@ async function handleRRDGraph(searchParams: URLSearchParams) {
     );
   }
 
-  const validRanges = ['1h', '6h', '24h', '7d', '30d', '1y'];
+  const validRanges = ['1h', '6h', '24h', '7d', '30d', '90d', '1y'];
   if (!validRanges.includes(range)) {
     return NextResponse.json(
       { success: false, error: `Invalid range: ${range}. Must be one of: ${validRanges.join(', ')}` },
@@ -564,7 +564,7 @@ async function handleUserGraph(searchParams: URLSearchParams) {
     );
   }
 
-  const validRanges = ['1h', '6h', '24h', '7d', '30d', '1y'];
+  const validRanges = ['1h', '6h', '24h', '7d', '30d', '90d', '1y'];
   if (!validRanges.includes(range)) {
     return NextResponse.json(
       { success: false, error: `Invalid range: ${range}. Must be one of: ${validRanges.join(', ')}` },
@@ -575,10 +575,10 @@ async function handleUserGraph(searchParams: URLSearchParams) {
   const now = Math.floor(Date.now() / 1000);
   const rangeSeconds: Record<string, number> = {
     '1h': 3600, '6h': 21600, '24h': 86400,
-    '7d': 604800, '30d': 2592000, '1y': 31536000,
+    '7d': 604800, '30d': 2592000, '90d': 7776000, '1y': 31536000,
   };
   const rangeResolutions: Record<string, number> = {
-    '1h': 60, '6h': 300, '24h': 300, '7d': 3600, '30d': 3600, '1y': 86400,
+    '1h': 60, '6h': 300, '24h': 300, '7d': 3600, '30d': 3600, '90d': 86400, '1y': 86400,
   };
 
   const seconds = rangeSeconds[range];

@@ -1796,7 +1796,7 @@ function formatBytesColored(bytes: number): { text: string; color: string } {
 
 // --- Range selector component ---
 function RangeSelector({ value, onChange, ranges }: { value: string; onChange: (r: string) => void; ranges?: string[] }) {
-  const opts = ranges || ['1h', '6h', '24h', '7d', '30d', '1y'];
+  const opts = ranges || ['1h', '6h', '24h', '7d', '30d', '90d', '1y'];
   return (
     <div className="flex gap-1">
       {opts.map(r => (
@@ -2551,7 +2551,7 @@ function SystemHealthTab() {
                 <div className="h-full rounded-full bg-gradient-to-r from-teal-400 to-emerald-500 transition-all duration-700" style={{ width: `${cpuPct}%` }} />
               </div>
               <div className="flex items-center justify-between">
-                <RangeSelector value={cpuRange} onChange={setCpuRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+                <RangeSelector value={cpuRange} onChange={setCpuRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
               {cpuHistChartData.length > 0 ? (
                 <ChartContainer config={{ usage: { label: 'CPU', color: '#14b8a6' } }} className="h-[160px] w-full">
@@ -2589,7 +2589,7 @@ function SystemHealthTab() {
                 <div className="h-full rounded-full bg-gradient-to-r from-orange-400 to-amber-500 transition-all duration-700" style={{ width: `${ramPct}%` }} />
               </div>
               <div className="flex items-center justify-between">
-                <RangeSelector value={memRange} onChange={setMemRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+                <RangeSelector value={memRange} onChange={setMemRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
               {memHistChartData.length > 0 ? (
                 <ChartContainer config={{ percent: { label: 'RAM', color: '#f97316' } }} className="h-[160px] w-full">
@@ -2627,7 +2627,7 @@ function SystemHealthTab() {
                 <div className="h-full rounded-full bg-gradient-to-r from-rose-400 to-rose-500 transition-all duration-700" style={{ width: `${diskPct}%` }} />
               </div>
               <div className="flex items-center justify-between">
-                <RangeSelector value={diskRange} onChange={setDiskRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+                <RangeSelector value={diskRange} onChange={setDiskRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
               {diskHistChartData.length > 0 ? (
                 <ChartContainer config={{ percent: { label: 'Disk', color: '#f43f5e' } }} className="h-[160px] w-full">
@@ -2666,7 +2666,7 @@ function SystemHealthTab() {
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>1m / 5m / 15m</span>
-                <RangeSelector value={loadRange} onChange={setLoadRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+                <RangeSelector value={loadRange} onChange={setLoadRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
               {loadHistChartData.length > 0 ? (
                 <ChartContainer config={{
@@ -2705,7 +2705,7 @@ function SystemHealthTab() {
                 <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 transition-all duration-700" style={{ width: `${swapPct}%` }} />
               </div>
               <div className="flex items-center justify-between">
-                <RangeSelector value={swapRange} onChange={setSwapRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+                <RangeSelector value={swapRange} onChange={setSwapRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
               {swapHistChartData.length > 0 ? (
                 <ChartContainer config={{ percent: { label: 'Swap', color: '#eab308' } }} className="h-[160px] w-full">
@@ -2743,7 +2743,7 @@ function SystemHealthTab() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
-                <RangeSelector value={diskIoRange} onChange={setDiskIoRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+                <RangeSelector value={diskIoRange} onChange={setDiskIoRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
               {diskIoHistChartData.length > 0 ? (
                 <ChartContainer config={{
@@ -2780,7 +2780,7 @@ function SystemHealthTab() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
-                <RangeSelector value={thermalRange} onChange={setThermalRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+                <RangeSelector value={thermalRange} onChange={setThermalRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
               {thermalHistChartData.length > 0 ? (
                 <ChartContainer config={{ cpu_temp: { label: 'CPU Temp', color: '#f43f5e' } }} className="h-[160px] w-full">
@@ -2817,7 +2817,7 @@ function SystemHealthTab() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
-                <RangeSelector value={netErrRange} onChange={setNetErrRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+                <RangeSelector value={netErrRange} onChange={setNetErrRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
               {netErrHistChartData.length > 0 ? (
                 <ChartContainer config={{
@@ -2851,7 +2851,7 @@ function SystemHealthTab() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
-                <RangeSelector value={tcpRange} onChange={setTcpRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+                <RangeSelector value={tcpRange} onChange={setTcpRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
               {tcpHistChartData.length > 0 ? (
                 <ChartContainer config={{
@@ -2935,7 +2935,7 @@ function SystemHealthTab() {
               <CardTitle className="text-base flex items-center gap-2">
                 <Users className="h-4 w-4 text-teal-500 dark:text-teal-400" /> Active Sessions — History
               </CardTitle>
-              <RangeSelector value={sessionHistRange} onChange={setSessionHistRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+              <RangeSelector value={sessionHistRange} onChange={setSessionHistRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
             </div>
           </CardHeader>
           <CardContent>
@@ -2968,7 +2968,7 @@ function SystemHealthTab() {
               <CardTitle className="text-base flex items-center gap-2">
                 <Shield className="h-4 w-4 text-emerald-500 dark:text-emerald-400" /> Authentication Stats
               </CardTitle>
-              <RangeSelector value={authHistRange} onChange={setAuthHistRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+              <RangeSelector value={authHistRange} onChange={setAuthHistRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
             </div>
           </CardHeader>
           <CardContent>
@@ -3010,7 +3010,7 @@ function SystemHealthTab() {
                 <Activity className="h-4 w-4 text-violet-500 dark:text-violet-400" /> Per-User Bandwidth History
               </CardTitle>
               <div className="flex items-center gap-2">
-                <RangeSelector value={userBwRange} onChange={setUserBwRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+                <RangeSelector value={userBwRange} onChange={setUserBwRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
             </div>
           </CardHeader>
