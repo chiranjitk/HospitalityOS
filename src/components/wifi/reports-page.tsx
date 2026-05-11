@@ -514,8 +514,8 @@ function BandwidthUsageTab() {
           <CardTitle className="text-base">Detailed Usage Data</CardTitle>
         </CardHeader>
         <CardContent className="p-0 overflow-hidden">
-          <div className="max-h-96 overflow-auto">
-            <Table>
+          <div className="max-h-96 overflow-x-auto overflow-y-auto">
+            <Table className="min-w-max">
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-xs whitespace-nowrap">Date</TableHead>
@@ -829,8 +829,8 @@ function UserBandwidthTab() {
           <CardDescription>Click a row to expand session history</CardDescription>
         </CardHeader>
         <CardContent className="p-0 overflow-hidden">
-          <div className="max-h-96 overflow-auto">
-            <Table>
+          <div className="max-h-96 overflow-x-auto overflow-y-auto">
+            <Table className="min-w-max">
               <TableHeader>
                 <TableRow>
                   <TableHead className="cursor-pointer text-xs whitespace-nowrap" onClick={() => handleSort('username')}>Username <SortIcon col="username" isActive={sortKey === 'username'} /></TableHead>
@@ -1158,8 +1158,8 @@ function WebSurfingTab() {
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm sm:text-base">Domain Access Logs</CardTitle></CardHeader>
         <CardContent className="p-0 overflow-hidden">
-          <div className="max-h-96 overflow-auto">
-            <Table>
+          <div className="max-h-96 overflow-x-auto overflow-y-auto">
+            <Table className="min-w-max">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs whitespace-nowrap">Timestamp</TableHead>
@@ -1357,8 +1357,8 @@ function NATLogsTab() {
       {/* NAT Logs Table */}
       <Card>
         <CardContent className="p-0 overflow-hidden">
-          <div className="max-h-[500px] overflow-auto">
-              <Table>
+          <div className="max-h-[500px] overflow-x-auto overflow-y-auto">
+              <Table className="min-w-max">
                 <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow>
                     <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">Timestamp</TableHead>
@@ -1636,8 +1636,8 @@ function VoucherReportTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0 overflow-hidden">
-          <div className="max-h-96 overflow-auto">
-            <Table>
+          <div className="max-h-96 overflow-x-auto overflow-y-auto">
+            <Table className="min-w-max">
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-xs whitespace-nowrap">Code</TableHead>
@@ -2948,8 +2948,8 @@ function SystemHealthTab() {
             </div>
           </CardHeader>
           <CardContent className="p-0 overflow-hidden">
-            <div className="max-h-64 overflow-auto">
-              <Table>
+            <div className="max-h-64 overflow-x-auto overflow-y-auto">
+              <Table className="min-w-max">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs whitespace-nowrap">Metric</TableHead>
