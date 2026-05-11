@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
 import { getSystemMetrics } from '@/lib/system-metrics';
-import { execFile } from 'child_process';
+// Node.js-only modules — loaded via require() to avoid Turbopack Edge Runtime analysis.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { execFile } = /*turbopackIgnore: true*/ require('child_process');
 import { promisify } from 'util';
-import fs from 'fs';
-import os from 'os';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const fs = /*turbopackIgnore: true*/ require('fs');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const os = /*turbopackIgnore: true*/ require('os');
 
 const execFileAsync = promisify(execFile);
 
@@ -61,21 +65,17 @@ export async function GET(request: NextRequest) {
 
     // Read CPU temperature from thermal zone (Rocky Linux / standard Linux)
     let cpuTemperature: number | null = null;
+    // Inline thermal path reads with string literals — avoids dynamic-variable file-pattern analysis
     try {
-      const thermalPaths = [
-        '/sys/class/thermal/thermal_zone0/temp',
-        '/sys/class/hwmon/hwmon0/temp1_input',
-      ];
-      for (const tp of thermalPaths) {
-        if (fs.existsSync(tp)) {
-          const raw = parseInt(fs.readFileSync(tp, 'utf-8').trim(), 10);
-          if (!isNaN(raw)) {
-            cpuTemperature = raw >= 1000 ? raw / 1000 : raw; // Some report in millidegrees
-            break;
-          }
-        }
-      }
-    } catch { /* ignore */ }
+      const raw = parseInt(fs['readFileSync']('/sys/class/thermal/thermal_zone0/temp', 'utf-8').trim(), 10);
+      if (!isNaN(raw)) { cpuTemperature = raw >= 1000 ? raw / 1000 : raw; }
+    } catch { /* not found */ }
+    if (cpuTemperature === null) {
+      try {
+        const raw = parseInt(fs['readFileSync']('/sys/class/hwmon/hwmon0/temp1_input', 'utf-8').trim(), 10);
+        if (!isNaN(raw)) { cpuTemperature = raw >= 1000 ? raw / 1000 : raw; }
+      } catch { /* not found */ }
+    }
 
     // Check service status via systemd or process checking
     const services = await getServiceStatus();

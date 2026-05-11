@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { execFile, spawn } from 'child_process';
-import dns from 'dns';
-import fs from 'fs';
-import net from 'net';
-import path from 'path';
-import os from 'os';
+// Node.js-only modules — loaded via require() to avoid Turbopack Edge Runtime analysis.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { execFile, spawn } = /*turbopackIgnore: true*/ require('child_process');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const dns = /*turbopackIgnore: true*/ require('dns');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const fs = /*turbopackIgnore: true*/ require('fs');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const net = /*turbopackIgnore: true*/ require('net');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const path = /*turbopackIgnore: true*/ require('path');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const os = /*turbopackIgnore: true*/ require('os');
 import { requirePermission } from '@/lib/auth/tenant-context';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -699,11 +706,13 @@ async function runSpeedTest(testId: string, session: SpeedTestSession) {
     let stdoutBuf = '';
 
     try {
-      const child = spawn(
-        SPEEDTEST_BIN,
+      // Use the configured speedtest binary path — inline default to avoid dynamic-variable file-pattern analysis
+      const bin = /*turbopackIgnore: true*/ (process.env.SPEEDTEST_BIN || '/usr/bin/speedtest');
+      const child = /*turbopackIgnore: true*/ (() => spawn(
+        bin,
         ['--accept-license', '--accept-gdpr', '--progress=yes', '--format=json-pretty'],
         { timeout: 120_000 },
-      );
+      ))();
 
       // Real-time progress comes on stderr as JSON lines
       child.stderr.on('data', (chunk: Buffer) => {

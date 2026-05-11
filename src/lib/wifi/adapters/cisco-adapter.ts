@@ -22,7 +22,9 @@ import {
   GatewayStatus,
   BandwidthPolicy,
 } from './gateway-adapter';
-import * as net from 'net';
+// Node.js-only module — loaded via require() to avoid Turbopack Edge Runtime analysis.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const net = /*turbopackIgnore: true*/ require('net');
 
 // ---------------------------------------------------------------------------
 // Type exports

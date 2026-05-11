@@ -7,7 +7,9 @@
  * Output format: iv:authTag:encryptedData (hex encoded)
  */
 
-import crypto from 'crypto';
+// Node.js-only module — loaded via require() to avoid Turbopack Edge Runtime analysis.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const crypto = /*turbopackIgnore: true*/ require('crypto');
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16; // 16 bytes for IV

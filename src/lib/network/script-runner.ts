@@ -1,4 +1,6 @@
-import { execSync } from 'child_process';
+// Node.js-only module — loaded via require() to avoid Turbopack Edge Runtime analysis.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { execSync } = /*turbopackIgnore: true*/ require('child_process');
 
 /**
  * StaySuite Firewall Script Runner
@@ -293,8 +295,8 @@ function runScript(scriptPath: string, args: string[], timeoutMs: number): Scrip
   }
 
   // Dev/sandbox: override paths to writable locations when not running as root
-  if (/*turbopackIgnore: true*/ process.getuid?.() !== 0) {
-    const projectRoot = /*turbopackIgnore: true*/ process.cwd();
+  if (/*turbopackIgnore: true*/ (() => process['getuid']?.())() !== 0) {
+    const projectRoot = /*turbopackIgnore: true*/ (() => process['cwd']())();
     scriptEnv.LOGFILE = scriptEnv.LOGFILE || `${projectRoot}/.staysuite/logs/staysuite_login.log`;
     scriptEnv.SS_STATEDIR = scriptEnv.SS_STATEDIR || `${projectRoot}/.staysuite/sessions`;
     scriptEnv.SS_PERSIST_STATEDIR = scriptEnv.SS_PERSIST_STATEDIR || `${projectRoot}/.staysuite/sessions`;

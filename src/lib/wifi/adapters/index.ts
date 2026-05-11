@@ -9,6 +9,9 @@ import {
   GatewayConfig,
   GatewayVendor,
 } from './gateway-adapter';
+// Node.js-only module — loaded via require() to avoid Turbopack Edge Runtime analysis.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const net = /*turbopackIgnore: true*/ require('net');
 import { CryptskAdapter, CryptskConfig } from './cryptsk-adapter';
 import { MikrotikAdapter, MikrotikConfig } from './mikrotik-adapter';
 import { TPLinkAdapter, TPLinkConfig } from './tplink-adapter';
@@ -551,6 +554,4 @@ class GenericAdapter extends GatewayAdapter {
   }
 }
 
-// Import net module
-import * as net from 'net';
 import type { CoARequest, CoAResponse, SessionInfo, GatewayStatus, BandwidthPolicy } from './gateway-adapter';

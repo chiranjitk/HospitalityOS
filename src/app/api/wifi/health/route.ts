@@ -14,8 +14,11 @@ import { db } from '@/lib/db';
 import { getSystemMetrics, getMetricsHistory } from '@/lib/system-metrics';
 import { fetchSystemGraph } from '@/lib/rrd/system-rrd';
 import { fetchRRD, userRRDPath, getRRDBasePath } from '@/lib/rrd';
-import fs from 'fs';
-import path from 'path';
+// Node.js-only modules — loaded via require() to avoid Turbopack Edge Runtime analysis.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const fs = /*turbopackIgnore: true*/ require('fs');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const path = /*turbopackIgnore: true*/ require('path');
 
 // ─── Alert System (in-memory) ────────────────────────────────────────────────
 
@@ -479,12 +482,12 @@ async function handleActiveUsers() {
       // Try multiple possible RRD data paths (dev, production, sandbox)
       const candidates = [
         getRRDBasePath(),
-        path.join(process.cwd(), 'data', 'rrd'),
-        path.join('/home/z/my-project', 'data', 'rrd'),
+        /*turbopackIgnore: true*/ process['cwd']() + '/data/rrd',
+        '/home/z/my-project/data/rrd',
         '/opt/staysuite/data/rrd',
       ];
       for (const base of candidates) {
-        const dir = path.join(base, 'users');
+        const dir = base + '/users';
         if (fs.existsSync(dir)) {
           const files = fs.readdirSync(dir).filter(f => f.endsWith('.rrd'));
           if (files.length > 0) {
@@ -497,7 +500,7 @@ async function handleActiveUsers() {
       // Debug: write path resolution to temp file
       try {
         fs.appendFileSync('/tmp/rrd-active-users-debug.log',
-          `[${new Date().toISOString()}] cwd=${process.cwd()} getRRDBase=${getRRDBasePath()} candidates=${candidates.join(',')} rrdUsers=${rrdUsernames.length}\n`);
+          `[${new Date().toISOString()}] cwd=${/*turbopackIgnore: true*/ process['cwd']()} getRRDBase=${getRRDBasePath()} candidates=${candidates.join(',')} rrdUsers=${rrdUsernames.length}\n`);
       } catch { /* ignore */ }
     } catch (err) {
       console.error('[Health API] RRD scan error:', err);
@@ -584,13 +587,13 @@ async function handleUserGraph(searchParams: URLSearchParams) {
   // Try multiple candidate paths to find the RRD file
   const candidates = [
     userRRDPath(username),
-    path.join(process.cwd(), 'data', 'rrd', 'users', `${username}.rrd`),
-    path.join('/home/z/my-project', 'data', 'rrd', 'users', `${username}.rrd`),
+    /*turbopackIgnore: true*/ process['cwd']() + '/data/rrd/users/' + username + '.rrd',
+    '/home/z/my-project/data/rrd/users/' + username + '.rrd',
   ];
 
   let rrdFile = '';
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
+    if (/*turbopackIgnore: true*/ (() => fs['existsSync'](candidate))()) {
       rrdFile = candidate;
       break;
     }
@@ -650,13 +653,13 @@ function handleListUserRRDs() {
   // Try multiple candidate paths (same logic as handleActiveUsers)
   const candidates = [
     getRRDBasePath(),
-    path.join(process.cwd(), 'data', 'rrd'),
-    path.join('/home/z/my-project', 'data', 'rrd'),
+    /*turbopackIgnore: true*/ process['cwd']() + '/data/rrd',
+    '/home/z/my-project/data/rrd',
     '/opt/staysuite/data/rrd',
   ];
 
   for (const base of candidates) {
-    const usersDir = path.join(base, 'users');
+    const usersDir = base + '/users';
     if (fs.existsSync(usersDir)) {
       try {
         const files = fs.readdirSync(usersDir).filter(f => f.endsWith('.rrd'));

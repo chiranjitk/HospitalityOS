@@ -15,8 +15,6 @@
  * Set NODE_ENV=production to auto-switch to system paths.
  */
 
-import { existsSync as fsExistsSync } from 'fs';
-
 const isProduction = process.env.NODE_ENV === 'production';
 
 // ── FreeRADIUS Paths ──────────────────────────────────────────────
@@ -25,9 +23,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 export const FREERADIUS_HOME = process.env.FREERADIUS_HOME ||
   (isProduction
     ? '/usr'                          // Rocky 10: dnf installs to /usr
-    : fsExistsSync('/home/z/my-project/freeradius-install')
-      ? '/home/z/my-project/freeradius-install'
-      : '/usr');
+    : process.env.FREERADIUS_SANDBOX_HOME || '/home/z/my-project/freeradius-install');
 
 /** FreeRADIUS configuration directory (raddb) */
 export const RADDB_PATH = process.env.RADDB_PATH ||
@@ -114,9 +110,7 @@ export const DNSMASQ_BIN = process.env.DNSMASQ_BIN ||
 export const DNSMASQ_CONF_DIR = process.env.DNSMASQ_CONF_DIR ||
   (isProduction
     ? '/etc/dnsmasq.d'
-    : fsExistsSync('/home/z/my-project/dhcp-local')
-      ? '/home/z/my-project/dhcp-local'
-      : '/etc/dnsmasq.d');
+    : process.env.DHCP_SANDBOX_HOME || '/home/z/my-project/dhcp-local');
 
 /** Managed DHCP config file */
 export const DNSMASQ_DHCP_CONF = `${DNSMASQ_CONF_DIR}/staysuite-dhcp.conf`;

@@ -12,14 +12,17 @@
  *   3. Enforce session/idle/data-limit policies
  */
 
-import { execSync } from 'child_process';
-import * as path from 'path';
+// Node.js-only modules — loaded via require() to avoid Turbopack Edge Runtime analysis.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { execSync } = /*turbopackIgnore: true*/ require('child_process');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const path = /*turbopackIgnore: true*/ require('path');
 import { STAYSUITE_SCRIPTS_DIR } from '@/lib/wifi/paths';
 
 // Counter script path: production uses STAYSUITE_SCRIPTS_DIR (same as login/logout),
 // dev/sandbox falls back to project-relative path.
 const SCRIPTS_DIR = STAYSUITE_SCRIPTS_DIR;
-const COUNTER_SCRIPT_FALLBACK = path.join(/*turbopackIgnore: true*/ process.cwd(), 'scripts/nftables/staysuite-traffic-counters.sh');
+const COUNTER_SCRIPT_FALLBACK = /*turbopackIgnore: true*/ (() => path.join(process['cwd'](), 'scripts/nftables/staysuite-traffic-counters.sh'))();
 
 function getCounterScript(): string {
   const primary = path.join(SCRIPTS_DIR, 'staysuite-traffic-counters.sh');

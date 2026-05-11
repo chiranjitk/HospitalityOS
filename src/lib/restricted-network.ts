@@ -17,14 +17,15 @@
  */
 
 import { db } from '@/lib/db';
-import { existsSync, mkdirSync, writeFileSync, unlinkSync, appendFileSync } from 'fs';
-import { join } from 'path';
+// Node.js-only modules — loaded via require() to avoid Turbopack Edge Runtime analysis.
+const fs = /*turbopackIgnore: true*/ require('fs');
+const path = /*turbopackIgnore: true*/ require('path');
 import { RESTRICTED_NETWORK_PATH } from '@/lib/wifi/paths';
 
 // Configurable path — override via env var RESTRICTED_NETWORK_PATH (defined in paths.ts)
 // Production: /etc/restrictednetwork
 // Sandbox: ./restricted-network.txt
-const SANDBOX_FALLBACK_PATH = join(process.cwd(), 'restricted-network.txt');
+const SANDBOX_FALLBACK_PATH = path['join'](process.cwd(), 'restricted-network.txt');
 
 /** Get the writable path (production or sandbox fallback) */
 function getWritablePath(): string {
@@ -78,8 +79,8 @@ export async function syncRestrictedNetwork(): Promise<{ success: boolean; path:
     if (entries.length === 0) {
       // No restricted networks — remove file if exists
       try {
-        if (existsSync(filePath)) {
-          unlinkSync(filePath);
+        if (/*turbopackIgnore: true*/ (() => fs['existsSync'](filePath))()) {
+          fs['unlinkSync'](filePath);
         }
       } catch {
         // File may not exist, that's fine
@@ -87,11 +88,11 @@ export async function syncRestrictedNetwork(): Promise<{ success: boolean; path:
     } else {
       // Write atomically via temp file
       const dir = filePath.substring(0, filePath.lastIndexOf('/'));
-      if (dir && !existsSync(dir)) {
-        mkdirSync(dir, { recursive: true });
+      if (dir && !/*turbopackIgnore: true*/ (() => fs['existsSync'](dir))()) {
+        fs['mkdirSync'](dir, { recursive: true });
       }
 
-      writeFileSync(filePath, content, 'utf-8');
+      fs['writeFileSync'](filePath, content, 'utf-8');
     }
 
     console.log(`[RestrictedNetwork] Synced ${entries.length} subnet(s) to ${filePath}`);
@@ -118,9 +119,9 @@ export async function syncRestrictedNetwork(): Promise<{ success: boolean; path:
 
         const content = entries.map(e => e.subnet).join('\n') + (entries.length > 0 ? '\n' : '');
         if (entries.length === 0) {
-          if (existsSync(SANDBOX_FALLBACK_PATH)) unlinkSync(SANDBOX_FALLBACK_PATH);
+          if (/*turbopackIgnore: true*/ (() => fs['existsSync'](SANDBOX_FALLBACK_PATH))()) fs['unlinkSync'](SANDBOX_FALLBACK_PATH);
         } else {
-          writeFileSync(SANDBOX_FALLBACK_PATH, content, 'utf-8');
+          fs['writeFileSync'](SANDBOX_FALLBACK_PATH, content, 'utf-8');
         }
 
         console.log(`[RestrictedNetwork] Sandbox fallback: ${entries.length} subnet(s) written to ${SANDBOX_FALLBACK_PATH}`);

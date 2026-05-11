@@ -851,7 +851,8 @@ async function checkNftablesAvailability(): Promise<boolean> {
   }
   try {
     // Dynamic import to avoid Turbopack tracing child_process at build time
-    const { execSync } = await import('child_process');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { execSync } = /*turbopackIgnore: true*/ require('child_process');
     execSync('which nft 2>/dev/null', { encoding: 'utf-8', timeout: 3000 });
     nftablesAvailable = true;
   } catch {

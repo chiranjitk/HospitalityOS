@@ -17,10 +17,14 @@
  */
 
 import { db } from '@/lib/db';
-import { exec } from 'child_process';
+// Node.js-only modules — loaded via require() to avoid Turbopack Edge Runtime analysis.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { exec } = /*turbopackIgnore: true*/ require('child_process');
 import { promisify } from 'util';
-import net from 'net';
-import dgram from 'dgram';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const net = /*turbopackIgnore: true*/ require('net');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const dgram = /*turbopackIgnore: true*/ require('dgram');
 import * as SELog from './session-engine-logger';
 
 const execAsync = promisify(exec);

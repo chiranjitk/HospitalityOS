@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/tenant-context';
 import { fetchRRD, userRRDPath, interfaceRRDPath } from '@/lib/rrd';
 import { db } from '@/lib/db';
-import fs from 'fs';
+// Node.js-only module — loaded via require() to avoid Turbopack Edge Runtime analysis.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const fs = /*turbopackIgnore: true*/ require('fs');
 
 export const runtime = 'nodejs';
 
@@ -84,7 +86,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch from RRD
-    if (!rrdPath || !fs.existsSync(rrdPath)) {
+    if (!rrdPath || !/*turbopackIgnore: true*/ (() => fs['existsSync'](rrdPath))()) {
       return NextResponse.json({
         success: true,
         timestamps: [],
@@ -141,7 +143,7 @@ async function getAggregateData(start: number, end: number, resolution: number) 
 
     for (const username of usernames) {
       const rrdPath = userRRDPath(username);
-      if (!fs.existsSync(rrdPath)) continue;
+      if (!/*turbopackIgnore: true*/ fs.existsSync(rrdPath)) continue;
 
       try {
         const result = await fetchRRD(rrdPath, 'AVERAGE', start, end, resolution);

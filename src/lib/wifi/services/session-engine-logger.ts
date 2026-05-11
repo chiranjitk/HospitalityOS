@@ -10,14 +10,18 @@
  * Log format: [ISO8601] [LEVEL] [SessionEngine] message
  */
 
-import fs from 'fs';
-import path from 'path';
+// Node.js-only modules — loaded via require() to avoid Turbopack Edge Runtime analysis.
+// These files only execute in Node.js runtime (instrumentation + API routes with runtime='nodejs').
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const fs = /*turbopackIgnore: true*/ require('fs');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const path = /*turbopackIgnore: true*/ require('path');
 
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
 
-const LOG_DIR = path.join(/*turbopackIgnore: true*/ process.cwd(), 'logs');
+const LOG_DIR = /*turbopackIgnore: true*/ (() => path.join(process['cwd'](), 'logs'))();
 const LOG_FILE = path.join(LOG_DIR, 'session-engine.log');
 const MAX_IN_MEMORY_ENTRIES = 100;
 const MAX_LOG_FILE_LINES = 10000;      // Rotate after this many lines

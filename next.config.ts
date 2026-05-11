@@ -10,9 +10,20 @@ const nextConfig: NextConfig = {
   // Without this, Turbopack traces them into the Edge Runtime analysis and emits warnings.
   serverExternalPackages: [
     'node-pre-gyp', '@mapbox/node-pre-gyp', 'node-cron',
-    // Node.js built-ins used by scheduler/session-engine/network modules:
-    'child_process', 'net', 'dgram', 'fs', 'path', 'crypto',
   ],
+  // Exclude system-only paths from output file tracing to prevent unexpected NFT entries.
+  outputFileTracingExcludes: {
+    '*': [
+      '.git/**',
+      '.next/**',
+      'node_modules/**',
+      'logs/**',
+      '.staysuite/**',
+      'data/rrd/**',
+      'restricted-network.txt',
+      '*.log',
+    ],
+  },
   typescript: {
     // Skip type-checking during build to avoid OOM on servers with limited RAM.
     // The project has 700+ source files; tsc requires >2GB which exceeds typical VPS memory.
