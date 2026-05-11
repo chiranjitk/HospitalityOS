@@ -101,6 +101,10 @@ function generateDemoData(count: number) {
     // Action: all allow for demo
     const action = 'allow';
 
+    // Demo NAT IP: simulate server WAN IP
+    const natSrcIp = i % 3 === 0 ? '' : '10.121.18.163';
+    const natSrcPort = i % 3 === 0 ? 0 : 10000 + (i * 7919) % 55000;
+
     logs.push({
       id: `nl-${i + 1}`,
       timestamp: timestamp.toISOString(),
@@ -116,6 +120,8 @@ function generateDemoData(count: number) {
       packets,
       duration,
       status,
+      nat_src_ip: natSrcIp,
+      nat_src_port: natSrcPort,
       domain,
       guestName,
       action,
@@ -208,6 +214,7 @@ export async function GET(request: NextRequest) {
     const protocol = searchParams.get('protocol');
     const startDate = searchParams.get('startDate');
     const action = searchParams.get('action');
+    const guestOnly = searchParams.get('guestOnly') === 'true';
 
     // ── Try ClickHouse ──────────────────────────────────────────
     const chReady = await isAvailable();
@@ -223,7 +230,8 @@ export async function GET(request: NextRequest) {
       const whereClause = wheres.join(' AND ');
 
       const natRows = await query<Record<string, unknown>>(
-        `SELECT timestamp, proto, event_type, src_ip, src_port, dst_ip, dst_port, bytes, packets, duration, status ` +
+        `SELECT timestamp, proto, event_type, src_ip, src_port, dst_ip, dst_port, ` +
+        `nat_src_ip, nat_src_port, bytes, packets, duration, status ` +
         `FROM ipdr.nat_log ` +
         `WHERE ${whereClause} AND bytes > 0 ` +
         `ORDER BY timestamp DESC LIMIT 1000`,
@@ -302,6 +310,9 @@ export async function GET(request: NextRequest) {
           packets: Number(row.packets ?? 0),
           duration: Number(row.duration ?? 0),
           status: String(row.status ?? ''),
+          // NAT translated source (server WAN IP from conntrack-bridge)
+          nat_src_ip: String(row.nat_src_ip ?? ''),
+          nat_src_port: Number(row.nat_src_port ?? 0),
           // Domain from SNI log (trusted source — captured from TLS handshake)
           domain: domainMap.get(String(row.dst_ip ?? '')) ?? '',
           guestName: guestMap.get(String(row.src_ip ?? '')) ?? '',
@@ -312,6 +323,14 @@ export async function GET(request: NextRequest) {
         // Apply action filter if needed
         if (action) {
           enriched = enriched.filter((row) => String(row.action) === action);
+        }
+
+        // Apply guest-only filter
+        if (guestOnly) {
+          enriched = enriched.filter((row) => {
+            const guest = String(row.guestName ?? '');
+            return guest.length > 0;
+          });
         }
       }
     }
@@ -340,9 +359,14 @@ export async function GET(request: NextRequest) {
         }
 
         // Apply action filter if needed
-        const filtered = action
+        let filtered = action
           ? ulogdData.filter((row) => row.action === action)
           : ulogdData;
+
+        // Apply guest-only filter
+        if (guestOnly) {
+          filtered = filtered.filter((row) => row.guestName && row.guestName.length > 0);
+        }
 
         const summary = computeSummary(filtered);
 
@@ -360,7 +384,16 @@ export async function GET(request: NextRequest) {
       const demoData = generateDemoData(100);
 
       // Apply all filters to demo data
-      const filtered = applyFilters(demoData, sourceIp, protocol, startDate, action);
+      let filtered = applyFilters(demoData, sourceIp, protocol, startDate, action);
+
+      // Apply guest-only filter
+      if (guestOnly) {
+        filtered = filtered.filter((row) => {
+          const guest = String(row.guestName ?? '');
+          return guest.length > 0;
+        });
+      }
+
       const summary = computeSummary(filtered);
 
       return NextResponse.json({

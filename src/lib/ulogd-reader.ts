@@ -50,6 +50,8 @@ export interface FlowRecord {
   ct_event: string;
   duration: number;
   print: string;
+  nat_src_ip: string;
+  nat_src_port: number;
 }
 
 export interface NatLogEntry {
@@ -67,6 +69,8 @@ export interface NatLogEntry {
   packets: number;
   duration: number;
   status: string;
+  nat_src_ip: string;     // NAT translated source IP (server WAN IP, e.g. 10.121.18.163)
+  nat_src_port: number;   // NAT translated source port
   domain: string;
   guestName: string;
   action: string;
@@ -199,6 +203,12 @@ function parseFlowRecord(raw: Record<string, unknown>): FlowRecord {
     ct_event: eventType,
     duration: Math.round(duration * 10) / 10,
     print: String(raw.print ?? ''),
+    // NAT fields from conntrack reply tuple
+    // In conntrack: orig = pre-NAT (client view), reply = post-NAT (server view)
+    // reply.dst_ip = the NATed source IP (e.g. server WAN IP)
+    // reply.dst_port = the NATed source port
+    nat_src_ip: String(raw['reply.ip.daddr.str'] ?? raw['reply.dst_ip'] ?? ''),
+    nat_src_port: Number(raw['reply.l4.dport'] ?? raw['reply.dst_port'] ?? 0),
   };
 }
 
@@ -296,6 +306,9 @@ export async function getNatLogsFromUlogd(
     packets: flow.packets_orig + flow.packets_reply,
     duration: flow.duration,
     status: flow.ct_event === 'NEW' ? 'NEW' : 'ASSURED',
+    // NAT translated source (server WAN IP from conntrack reply tuple)
+    nat_src_ip: flow.nat_src_ip,
+    nat_src_port: flow.nat_src_port,
     // Enrich with SNI domain name (trusted source from TLS handshake)
     domain: domainMap.get(flow.dest_ip) ?? '',
     guestName: '', // Will be filled by API route from WiFiSession
