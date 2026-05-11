@@ -2214,8 +2214,18 @@ function SystemHealthTab() {
       try {
         const res = await fetch(`/api/wifi/health?action=user-graph&username=${encodeURIComponent(selectedBwUser)}&range=${userBwRange}`);
         const result = await res.json();
-        if (!cancelled && result.success) setUserBwData(result.data);
-      } catch { /* silent */ }
+        if (!cancelled) {
+          if (result.success) {
+            setUserBwData(result.data);
+          } else {
+            console.error('[BW History] API error:', result.error);
+            setUserBwData(null);
+          }
+        }
+      } catch (err) {
+        console.error('[BW History] Fetch error:', err);
+        if (!cancelled) setUserBwData(null);
+      }
       if (!cancelled) setUserBwLoading(false);
     })();
     return () => { cancelled = true; };

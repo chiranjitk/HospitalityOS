@@ -581,9 +581,23 @@ async function handleUserGraph(searchParams: URLSearchParams) {
   const seconds = rangeSeconds[range];
   const resolution = rangeResolutions[range];
 
-  const rrdFile = userRRDPath(username);
+  // Try multiple candidate paths to find the RRD file
+  const candidates = [
+    userRRDPath(username),
+    path.join(process.cwd(), 'data', 'rrd', 'users', `${username}.rrd`),
+    path.join('/home/z/my-project', 'data', 'rrd', 'users', `${username}.rrd`),
+  ];
 
-  if (!fs.existsSync(rrdFile)) {
+  let rrdFile = '';
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      rrdFile = candidate;
+      break;
+    }
+  }
+
+  if (!rrdFile) {
+    console.log(`[Health API] user-graph: no RRD file found for ${username} (tried ${candidates.length} paths)`);
     return NextResponse.json({
       success: true,
       data: {
@@ -633,27 +647,31 @@ async function handleUserGraph(searchParams: URLSearchParams) {
  * Returns usernames that have bandwidth history data.
  */
 function handleListUserRRDs() {
-  const basePath = getRRDBasePath();
-  const usersDir = path.join(basePath, 'users');
+  // Try multiple candidate paths (same logic as handleActiveUsers)
+  const candidates = [
+    getRRDBasePath(),
+    path.join(process.cwd(), 'data', 'rrd'),
+    path.join('/home/z/my-project', 'data', 'rrd'),
+    '/opt/staysuite/data/rrd',
+  ];
 
-  // Debug: write to temp file
-  try {
-    fs.appendFileSync('/tmp/rrd-api-debug.log', `[${new Date().toISOString()}] basePath=${basePath} usersDir=${usersDir} exists=${fs.existsSync(usersDir)}\n`);
-  } catch { /* ignore */ }
-
-  if (!fs.existsSync(usersDir)) {
-    return NextResponse.json({ success: true, data: [] });
+  for (const base of candidates) {
+    const usersDir = path.join(base, 'users');
+    if (fs.existsSync(usersDir)) {
+      try {
+        const files = fs.readdirSync(usersDir).filter(f => f.endsWith('.rrd'));
+        if (files.length > 0) {
+          const usernames = files.map(f => f.replace(/\.rrd$/, ''));
+          console.log(`[Health API] list-user-rrds: found ${usernames.length} users from ${usersDir}`);
+          return NextResponse.json({ success: true, data: usernames });
+        }
+      } catch (err) {
+        console.error('[Health API] Failed to list user RRDs:', err);
+      }
+    }
   }
 
-  try {
-    const files = fs.readdirSync(usersDir).filter(f => f.endsWith('.rrd'));
-    const usernames = files.map(f => f.replace(/\.rrd$/, ''));
-    console.log(`[Health API] list-user-rrds: found ${usernames.length} users: ${usernames.join(', ')}`);
-    return NextResponse.json({ success: true, data: usernames });
-  } catch (err) {
-    console.error('[Health API] Failed to list user RRDs:', err);
-    return NextResponse.json({ success: true, data: [] });
-  }
+  return NextResponse.json({ success: true, data: [] });
 }
 
 /**
