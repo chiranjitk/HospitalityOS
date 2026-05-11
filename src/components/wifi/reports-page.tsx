@@ -2155,6 +2155,15 @@ function SystemHealthTab() {
     }));
   }, [userBwData]);
 
+  // Deduplicated, non-empty user list for the per-user BW select dropdown
+  const deduplicatedUsers = useMemo(() => {
+    const seen = new Set<string>();
+    return activeUsers
+      .filter((u: any) => u.username && u.username.trim() !== '')
+      .filter((u: any) => { if (seen.has(u.username)) return false; seen.add(u.username); return true; })
+      .sort((a: any, b: any) => a.username.localeCompare(b.username));
+  }, [activeUsers]);
+
   // Fetch per-user bandwidth history from RRD
   useEffect(() => {
     if (!selectedBwUser) return;
@@ -2957,21 +2966,17 @@ function SystemHealthTab() {
           <CardContent className="space-y-3">
             {/* User selector */}
             <div className="flex items-center gap-2">
-              <Select value={selectedBwUser} onValueChange={setSelectedBwUser}>
+              <Select value={selectedBwUser || undefined} onValueChange={setSelectedBwUser}>
                 <SelectTrigger className="w-[240px] h-8 text-xs">
-                  <SelectValue placeholder="Select a user..." />
+                  <SelectValue placeholder={deduplicatedUsers.length > 0 ? "Select a user..." : "No active users"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {activeUsers.length > 0 ? activeUsers
-                    .filter((u: any, i: number, arr: any[]) => arr.findIndex((a: any) => a.username === u.username) === i)
-                    .sort((a: any, b: any) => a.username.localeCompare(b.username))
-                    .map((u: any) => (
+                  {deduplicatedUsers.length > 0 ? deduplicatedUsers.map((u: any) => (
                       <SelectItem key={u.username} value={u.username} className="text-xs">
                         {u.username}{u.roomId ? ` (${u.roomId})` : ''}
                       </SelectItem>
                     ))
-                  : <SelectItem value="_none" disabled className="text-xs text-muted-foreground">No active users</SelectItem>
-                  }
+                  : null}
                 </SelectContent>
               </Select>
               {selectedBwUser && userBwChartData.length > 0 && (
