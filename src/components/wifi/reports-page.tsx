@@ -1882,7 +1882,6 @@ function SystemHealthTab() {
   // User bandwidth graph
   const [userBwData, setUserBwData] = useState<any>(null);
   const [selectedBwUser, setSelectedBwUser] = useState<string>('');
-  const [userBwRange, setUserBwRange] = useState('24h');
   const [userBwLoading, setUserBwLoading] = useState(false);
 
   // Active Users history graphs
