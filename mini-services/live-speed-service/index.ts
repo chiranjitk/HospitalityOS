@@ -123,6 +123,7 @@ let externalNasList: NasConfig[] = [];
 
 async function loadExternalNasList(): Promise<NasConfig[]> {
   try {
+    // Try full query with API columns first (schema may or may not have them)
     const res = await pool.query<NasConfig>(`
       SELECT id, "tenantId", "propertyId", name, "ipAddress", type, secret,
              "apiUsername", "apiPassword", "apiPort"
@@ -139,9 +140,38 @@ async function loadExternalNasList(): Promise<NasConfig[]> {
     log.info(`Loaded ${res.rows.length} external MikroTik NAS devices from DB`);
     return res.rows;
   } catch (err) {
-    log.error('Failed to load NAS list from DB', {
-      error: err instanceof Error ? err.message : String(err),
-    });
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('apiUsername') || msg.includes('apiPassword') || msg.includes('apiPort')) {
+      // Schema migration not applied — retry without API columns
+      try {
+        const res = await pool.query<NasConfig>(`
+          SELECT id, "tenantId", "propertyId", name, "ipAddress", type, secret
+          FROM "RadiusNAS"
+          WHERE status = 'active'
+            AND type = 'mikrotik'
+            AND "ipAddress" IS NOT NULL
+            AND "ipAddress" != ''
+            AND "ipAddress" != '0.0.0.0'
+            AND "ipAddress" != '127.0.0.1'
+          ORDER BY "ipAddress"
+        `);
+        lastNasLoadAt = Date.now();
+        log.info(`Loaded ${res.rows.length} external MikroTik NAS devices from DB (no API columns — schema migration pending)`);
+        // Fill defaults for missing columns
+        return res.rows.map(r => ({
+          ...r,
+          apiUsername: null,
+          apiPassword: null,
+          apiPort: 443,
+        }));
+      } catch (fallbackErr) {
+        log.error('Failed to load NAS list from DB (both queries failed)', {
+          error: fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr),
+        });
+        return [];
+      }
+    }
+    log.error('Failed to load NAS list from DB', { error: msg });
     return [];
   }
 }
@@ -219,6 +249,11 @@ function readNftablesCounters(): Map<string, { downloadBytes: number; uploadByte
  */
 function processLocalCounters(now: number): void {
   const counters = readNftablesCounters();
+
+  // Log on first successful local poll or when counters change significantly
+  if (localPollSuccessCount === 0 && counters.size > 0) {
+    log.info(`First local nftables poll: ${counters.size} IPs tracked`);
+  }
 
   for (const [ip, { downloadBytes, uploadBytes }] of counters) {
     const key = `local:${ip}`;
