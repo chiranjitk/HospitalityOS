@@ -13,7 +13,9 @@ import { requirePermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
 import { getSystemMetrics, getMetricsHistory } from '@/lib/system-metrics';
 import { fetchSystemGraph } from '@/lib/rrd/system-rrd';
+import { fetchRRD, userRRDPath, getRRDBasePath } from '@/lib/rrd';
 import fs from 'fs';
+import path from 'path';
 
 // ─── Alert System (in-memory) ────────────────────────────────────────────────
 
@@ -134,6 +136,10 @@ export async function GET(request: NextRequest) {
         return handleRRDGraph(searchParams);
       case 'active-users':
         return handleActiveUsers();
+      case 'user-graph':
+        return handleUserGraph(searchParams);
+      case 'list-user-rrds':
+        return handleListUserRRDs();
       case 'alerts':
         return handleAlerts();
       default:
@@ -501,6 +507,112 @@ async function handleActiveUsers() {
     } catch {
       return NextResponse.json({ success: true, data: [] });
     }
+  }
+}
+
+/**
+ * action=user-graph — Per-user bandwidth history from RRD
+ * Uses the same RRD infrastructure as system graphs.
+ *
+ * Params: username (required), range (1h/6h/24h/7d/30d/1y)
+ */
+async function handleUserGraph(searchParams: URLSearchParams) {
+  const username = searchParams.get('username');
+  const range = searchParams.get('range') || '24h';
+
+  if (!username) {
+    return NextResponse.json(
+      { success: false, error: 'Missing "username" parameter' },
+      { status: 400 }
+    );
+  }
+
+  const validRanges = ['1h', '6h', '24h', '7d', '30d', '1y'];
+  if (!validRanges.includes(range)) {
+    return NextResponse.json(
+      { success: false, error: `Invalid range: ${range}. Must be one of: ${validRanges.join(', ')}` },
+      { status: 400 }
+    );
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const rangeSeconds: Record<string, number> = {
+    '1h': 3600, '6h': 21600, '24h': 86400,
+    '7d': 604800, '30d': 2592000, '1y': 31536000,
+  };
+  const rangeResolutions: Record<string, number> = {
+    '1h': 60, '6h': 300, '24h': 300, '7d': 3600, '30d': 3600, '1y': 86400,
+  };
+
+  const seconds = rangeSeconds[range];
+  const resolution = rangeResolutions[range];
+
+  const rrdFile = userRRDPath(username);
+
+  if (!fs.existsSync(rrdFile)) {
+    return NextResponse.json({
+      success: true,
+      data: {
+        timestamps: [],
+        data: { download: [], upload: [] },
+        meta: { step: resolution, start: now - seconds, end: now, cf: 'AVERAGE', dsNames: ['download', 'upload'], type: 'user', username, range },
+      },
+    });
+  }
+
+  try {
+    const result = await fetchRRD(rrdFile, 'AVERAGE', now - seconds, now, resolution);
+
+    // Convert ds_in/download and ds_out/upload to bps (bytes per second)
+    // RRD stores delta bytes per step interval; divide by step to get bytes/sec
+    const step = result.meta.step || 60;
+    const downloadBps = (result.data['in'] || []).map(v => Math.round((v / step) * 8));
+    const uploadBps = (result.data['out'] || []).map(v => Math.round((v / step) * 8));
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        timestamps: result.timestamps,
+        data: { download: downloadBps, upload: uploadBps },
+        meta: {
+          step: result.meta.step,
+          start: now - seconds,
+          end: now,
+          cf: 'AVERAGE',
+          dsNames: ['download', 'upload'],
+          type: 'user',
+          username,
+          range,
+        },
+      },
+    });
+  } catch (err) {
+    console.error(`[Health API] Failed to fetch user graph for ${username}:`, err);
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch user bandwidth graph' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * action=list-user-rrds — List available user RRD files
+ * Returns usernames that have bandwidth history data.
+ */
+function handleListUserRRDs() {
+  const usersDir = path.join(getRRDBasePath(), 'users');
+
+  if (!fs.existsSync(usersDir)) {
+    return NextResponse.json({ success: true, data: [] });
+  }
+
+  try {
+    const files = fs.readdirSync(usersDir).filter(f => f.endsWith('.rrd'));
+    const usernames = files.map(f => f.replace(/\.rrd$/, ''));
+    return NextResponse.json({ success: true, data: usernames });
+  } catch (err) {
+    console.error('[Health API] Failed to list user RRDs:', err);
+    return NextResponse.json({ success: true, data: [] });
   }
 }
 

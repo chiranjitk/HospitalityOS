@@ -103,6 +103,7 @@ import {
   Network,
   Check,
   X,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -147,6 +148,13 @@ function formatDuration(seconds: number) {
   if (d > 0) return `${d}d ${h}h`;
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
+}
+
+function formatBps(bps: number): string {
+  if (bps >= 1000000000) return `${(bps / 1000000000).toFixed(1)} Gbps`;
+  if (bps >= 1000000) return `${(bps / 1000000).toFixed(1)} Mbps`;
+  if (bps >= 1000) return `${(bps / 1000).toFixed(1)} Kbps`;
+  return `${bps} bps`;
 }
 
 function formatDate(dateStr: string) {
@@ -1874,6 +1882,9 @@ function SystemHealthTab() {
 
   // User bandwidth graph
   const [userBwData, setUserBwData] = useState<any>(null);
+  const [selectedBwUser, setSelectedBwUser] = useState<string>('');
+  const [userBwRange, setUserBwRange] = useState('24h');
+  const [userBwLoading, setUserBwLoading] = useState(false);
 
   // Active Users history graphs
   const [sessionHistRange, setSessionHistRange] = useState('24h');
@@ -2151,15 +2162,31 @@ function SystemHealthTab() {
   const sessionHistChartData = useMemo(() => buildRrdChartData(sessionHistData), [sessionHistData, buildRrdChartData]);
   const authHistChartData = useMemo(() => buildRrdChartData(authHistData), [authHistData, buildRrdChartData]);
 
-  // User BW chart data
+  // User BW chart data (from RRD user-graph endpoint — returns download/upload in bps)
   const userBwChartData = useMemo(() => {
     if (!userBwData?.timestamps?.length) return [];
     return userBwData.timestamps.map((ts: number, i: number) => ({
       time: formatTime(ts),
-      download: userBwData.data?.in?.[i] ?? 0,
-      upload: userBwData.data?.out?.[i] ?? 0,
+      download: userBwData.data?.download?.[i] ?? 0,
+      upload: userBwData.data?.upload?.[i] ?? 0,
     }));
   }, [userBwData]);
+
+  // Fetch per-user bandwidth history from RRD
+  useEffect(() => {
+    if (!selectedBwUser) return;
+    let cancelled = false;
+    setUserBwLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/wifi/health?action=user-graph&username=${encodeURIComponent(selectedBwUser)}&range=${userBwRange}`);
+        const result = await res.json();
+        if (!cancelled && result.success) setUserBwData(result.data);
+      } catch { /* silent */ }
+      if (!cancelled) setUserBwLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedBwUser, userBwRange]);
 
   // Build bandwidth chart config
   const bwChartConfig = useMemo((): ChartConfig => {
@@ -2928,6 +2955,78 @@ function SystemHealthTab() {
               </ChartContainer>
             ) : (
               <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">No authentication stats data</div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Per-User Bandwidth History (RRD) */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Activity className="h-4 w-4 text-violet-500 dark:text-violet-400" /> Per-User Bandwidth History
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <RangeSelector value={userBwRange} onChange={setUserBwRange} ranges={['1h', '6h', '24h', '7d', '30d']} />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* User selector */}
+            <div className="flex items-center gap-2">
+              <Select value={selectedBwUser} onValueChange={setSelectedBwUser}>
+                <SelectTrigger className="w-[240px] h-8 text-xs">
+                  <SelectValue placeholder="Select a user..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeUsers.length > 0 ? activeUsers
+                    .filter((u: any, i: number, arr: any[]) => arr.findIndex((a: any) => a.username === u.username) === i)
+                    .sort((a: any, b: any) => a.username.localeCompare(b.username))
+                    .map((u: any) => (
+                      <SelectItem key={u.username} value={u.username} className="text-xs">
+                        {u.username}{u.roomId ? ` (${u.roomId})` : ''}
+                      </SelectItem>
+                    ))
+                  : <SelectItem value="_none" disabled className="text-xs text-muted-foreground">No active users</SelectItem>
+                  }
+                </SelectContent>
+              </Select>
+              {selectedBwUser && userBwChartData.length > 0 && (
+                <Badge variant="secondary" className="text-xs">{formatBps(userBwChartData[userBwChartData.length - 1].download + userBwChartData[userBwChartData.length - 1].upload)}</Badge>
+              )}
+            </div>
+
+            {/* Graph */}
+            {userBwLoading ? (
+              <div className="flex items-center justify-center h-[260px]"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+            ) : userBwChartData.length > 0 ? (
+              <ChartContainer config={{
+                download: { label: 'Download', color: '#8b5cf6' },
+                upload: { label: 'Upload', color: '#f97316' },
+              }} className="h-[260px] w-full">
+                <AreaChart data={userBwChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="user-dl-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
+                    </linearGradient>
+                    <linearGradient id="user-ul-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#f97316" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
+                  <XAxis dataKey="time" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={50} tickFormatter={(v: number) => formatBps(v)} />
+                  <ChartTooltip content={<HealthChartTooltip />} />
+                  <Area type="monotone" dataKey="download" name="Download" stroke="#8b5cf6" fill="url(#user-dl-grad)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="upload" name="Upload" stroke="#f97316" fill="url(#user-ul-grad)" strokeWidth={2} dot={false} />
+                </AreaChart>
+              </ChartContainer>
+            ) : selectedBwUser ? (
+              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">No bandwidth history for this user</div>
+            ) : (
+              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">Select a user above to view bandwidth history</div>
             )}
           </CardContent>
         </Card>
