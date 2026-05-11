@@ -2554,19 +2554,14 @@ function PortalContent() {
       case 'promotion': {
         if (state === 'success') return null;
         const hasPromoContent = design.promotions?.some(p => p.title || p.description);
-        const hasSinglePromo = design.promotionTitle || design.promotionDesc;
-        // Carousel mode: show if carousel enabled with valid slides OR if promotions exist with content
+        // Carousel mode: show only if carousel enabled with valid slides
         if (hasPromoContent && (design.showPromotions || (design as any).useCarouselMode)) {
           const validSlides = design.promotions.filter(p => p.title || p.description);
           if (validSlides.length > 0) return <PromotionCarousel design={design} />;
         }
-        // Single promotion mode: show if enabled with title OR if single promo content exists
-        if (design.showPromotion || hasSinglePromo) {
+        // Single promotion mode: show ONLY when the toggle is explicitly ON
+        if (design.showPromotion) {
           return <PromotionBlock design={design} />;
-        }
-        // useCarouselMode fallback: check if useCarouselMode is set and promotions exist
-        if ((design as any).useCarouselMode && design.promotions?.length > 0) {
-          return <PromotionCarousel design={design} />;
         }
         return null;
       }
@@ -2714,11 +2709,10 @@ function PortalContent() {
                 {/* Promotion Carousel (Feature 3) — above the form card */}
                 {state !== 'success' && (() => {
                   const hasPromoContent = design.promotions?.some(p => p.title || p.description);
-                  const hasSinglePromo = design.promotionTitle || design.promotionDesc;
                   if (hasPromoContent && (design.showPromotions || (design as any).useCarouselMode)) {
                     return <PromotionCarousel design={design} />;
                   }
-                  if (design.showPromotion || hasSinglePromo) {
+                  if (design.showPromotion) {
                     return <PromotionBlock design={design} />;
                   }
                   return null;

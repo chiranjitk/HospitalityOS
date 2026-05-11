@@ -175,9 +175,9 @@ async function buildPortalConfig(portalId: string) {
       ],
       showClock: (designSettings.showClock as boolean) ?? true,
       showWeather: (designSettings.showWeather as boolean) ?? true,
-      promotionTitle: (designSettings.promotionTitle as string) || 'Special Offer',
-      promotionDesc: (designSettings.promotionDesc as string) || 'Book 3 nights and get 20% off your stay!',
-      showPromotion: (designSettings.showPromotion as boolean) ?? true,
+      promotionTitle: (designSettings.promotionTitle as string) || '',
+      promotionDesc: (designSettings.promotionDesc as string) || '',
+      showPromotion: (designSettings.showPromotion as boolean) ?? false,
       termsText: (designSettings.termsText as string) || portalPage?.termsText || '',
       termsUrl: (designSettings.termsUrl as string) || portalPage?.termsUrl || '',
       showBranding: portalPage?.showBranding ?? true,
@@ -196,25 +196,16 @@ async function buildPortalConfig(portalId: string) {
       // ── Feature 3: Multi-Slide Promotion Carousel ──
       customAmenities: (designSettings.customAmenities as Array<{ name: string; icon: string }>) || [],
       // Derive showPromotions from useCarouselMode + having slides with content
-      showPromotions: (((designSettings.useCarouselMode as boolean) && (((designSettings.promotions as Array<Record<string, string>>) || []).some((p: Record<string, string>) => p.title || p.description))) || ((designSettings.showPromotions as boolean) ?? true)),
+      showPromotions: (((designSettings.useCarouselMode as boolean) && (((designSettings.promotions as Array<Record<string, string>>) || []).some((p: Record<string, string>) => p.title || p.description))) || ((designSettings.showPromotions as boolean) ?? false)),
       useCarouselMode: (designSettings.useCarouselMode as boolean) || false,
-      promotions: ((designSettings.promotions as Array<Record<string, string>>) || []).length > 0
-        ? ((designSettings.promotions as Array<Record<string, string>>)).map((p: Record<string, string>) => ({
-            id: p.id || `promo-${Math.random().toString(36).slice(2, 8)}`,
-            title: p.title || '',
-            description: p.description || '',
-            imageUrl: p.imageUrl || '',
-            linkUrl: p.linkUrl || '',
-            backgroundColor: p.backgroundColor || p.bgColor || '#f59e0b',
-          }))
-        : [{
-            id: 'default-promo-1',
-            title: (designSettings.promotionTitle as string) || 'Special Offer',
-            description: (designSettings.promotionDesc as string) || 'Book 3 nights and get 20% off your stay!',
-            imageUrl: '',
-            linkUrl: '',
-            backgroundColor: '#f59e0b',
-          }],
+      promotions: ((designSettings.promotions as Array<Record<string, string>>) || []).map((p: Record<string, string>) => ({
+          id: p.id || `promo-${Math.random().toString(36).slice(2, 8)}`,
+          title: p.title || '',
+          description: p.description || '',
+          imageUrl: p.imageUrl || '',
+          linkUrl: p.linkUrl || '',
+          backgroundColor: p.backgroundColor || p.bgColor || '#f59e0b',
+        })),
 
       // ── Feature 4: Post-Connect Guest Survey ──
       surveyConfig: (designSettings.surveyConfig as { enabled: boolean; question: string; options: string[]; thankYouMessage: string }) || { enabled: false, question: '', options: [], thankYouMessage: '' },

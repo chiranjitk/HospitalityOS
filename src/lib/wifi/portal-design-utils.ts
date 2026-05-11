@@ -337,9 +337,9 @@ export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
   ],
   showClock: true,
   showWeather: true,
-  promotionTitle: 'Special Offer',
-  promotionDesc: 'Book 3 nights and get 20% off your stay!',
-  showPromotion: true,
+  promotionTitle: '',
+  promotionDesc: '',
+  showPromotion: false,
   termsText: '',
   termsUrl: '',
   showBranding: true,
@@ -361,17 +361,9 @@ export const DEFAULT_PORTAL_DESIGN: PortalDesignConfig = {
   },
 
   // Multi-Slide Carousel
-  promotions: [
-    {
-      id: 'default-promo-1',
-      title: 'Special Offer',
-      description: 'Book 3 nights and get 20% off your stay!',
-      imageUrl: '',
-      linkUrl: '',
-      backgroundColor: '#f59e0b',
-    },
-  ],
-  showPromotions: true,
+  promotions: [],
+  showPromotions: false,
+  useCarouselMode: false,
 
   // Post-Connect Survey
   surveyConfig: {
