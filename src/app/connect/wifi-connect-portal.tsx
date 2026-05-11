@@ -2619,6 +2619,9 @@ function PortalContent() {
     }
   };
 
+  // ── renderFormContent — used by side-panel and bottom-sheet layouts ──
+  const renderFormContent = () => renderCardContent();
+
   // ── Localized strings for portal-level content ──
   const localizedTitle = getLocalizedText(design, 'title', effectiveLanguage);
   const localizedSubtitle = getLocalizedText(design, 'subtitle', effectiveLanguage);
