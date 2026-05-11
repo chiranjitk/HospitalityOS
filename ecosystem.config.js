@@ -45,6 +45,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
         CRON_SECRET: 'staysuite-cron-secret-2025',
         RRD_BIN_PATH: `${APP_DIR}/rrdtool/bin/rrdtool`,
         RRD_LIB_PATH: `${APP_DIR}/rrdtool/lib`,
