@@ -1844,7 +1844,6 @@ function SystemHealthTab() {
 
   // Active users state
   const [activeUsers, setActiveUsers] = useState<any[]>([]);
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [userBwRange, setUserBwRange] = useState('24h');
 
   // Add rule dialog
@@ -2012,20 +2011,6 @@ function SystemHealthTab() {
     fetchRrd('tcp', tcpRange, setTcpHistData);
     return () => { cancelled = true; };
   }, [loadRange, swapRange, diskIoRange, thermalRange, netErrRange, tcpRange]);
-
-  // --- Fetch user bandwidth graph ---
-  useEffect(() => {
-    if (!selectedUser) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/wifi/reports/bandwidth-graph?source=user&name=${encodeURIComponent(selectedUser)}&range=${userBwRange}`);
-        const result = await res.json();
-        if (!cancelled && result.success) setUserBwData(result);
-      } catch { /* silent */ }
-    })();
-    return () => { cancelled = true; };
-  }, [selectedUser, userBwRange]);
 
   // --- Fetch active sessions and auth history ---
   useEffect(() => {
