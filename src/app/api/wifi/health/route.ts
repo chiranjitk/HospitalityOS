@@ -473,7 +473,16 @@ async function handleActiveUsers() {
       roomId: r.room_number || '',
     }));
 
-    return NextResponse.json({ success: true, data: users });
+    // Also return RRD usernames (users with bandwidth history, including offline)
+    let rrdUsernames: string[] = [];
+    try {
+      const usersDir = path.join(getRRDBasePath(), 'users');
+      if (fs.existsSync(usersDir)) {
+        rrdUsernames = fs.readdirSync(usersDir).filter(f => f.endsWith('.rrd')).map(f => f.replace(/\.rrd$/, ''));
+      }
+    } catch { /* ignore */ }
+
+    return NextResponse.json({ success: true, data: users, rrdUsernames });
   } catch (error) {
     console.error('[Health API] Active users query error:', error);
     // Fallback to direct radacct query if view doesn't exist
@@ -599,7 +608,13 @@ async function handleUserGraph(searchParams: URLSearchParams) {
  * Returns usernames that have bandwidth history data.
  */
 function handleListUserRRDs() {
-  const usersDir = path.join(getRRDBasePath(), 'users');
+  const basePath = getRRDBasePath();
+  const usersDir = path.join(basePath, 'users');
+
+  // Debug: write to temp file
+  try {
+    fs.appendFileSync('/tmp/rrd-api-debug.log', `[${new Date().toISOString()}] basePath=${basePath} usersDir=${usersDir} exists=${fs.existsSync(usersDir)}\n`);
+  } catch { /* ignore */ }
 
   if (!fs.existsSync(usersDir)) {
     return NextResponse.json({ success: true, data: [] });
@@ -608,6 +623,7 @@ function handleListUserRRDs() {
   try {
     const files = fs.readdirSync(usersDir).filter(f => f.endsWith('.rrd'));
     const usernames = files.map(f => f.replace(/\.rrd$/, ''));
+    console.log(`[Health API] list-user-rrds: found ${usernames.length} users: ${usernames.join(', ')}`);
     return NextResponse.json({ success: true, data: usernames });
   } catch (err) {
     console.error('[Health API] Failed to list user RRDs:', err);

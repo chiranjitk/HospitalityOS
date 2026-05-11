@@ -1949,23 +1949,17 @@ function SystemHealthTab() {
     return () => clearInterval(interval);
   }, [fetchAlerts]);
 
-  // --- Fetch active users ---
+  // --- Fetch active users + RRD usernames ---
   const fetchUsers = useCallback(async () => {
     try {
       const res = await fetch('/api/wifi/health?action=active-users');
       const result = await res.json();
-      if (result.success) setActiveUsers(result.data || []);
-    } catch {
-      // silent
-    }
-  }, []);
-
-  // --- Fetch RRD usernames (users that have bandwidth history files) ---
-  const fetchRrdUsers = useCallback(async () => {
-    try {
-      const res = await fetch('/api/wifi/health?action=list-user-rrds');
-      const result = await res.json();
-      if (result.success) setRrdUsernames(result.data || []);
+      if (result.success) {
+        setActiveUsers(result.data || []);
+        if (result.rrdUsernames) {
+          setRrdUsernames(result.rrdUsernames);
+        }
+      }
     } catch {
       // silent
     }
@@ -1976,11 +1970,6 @@ function SystemHealthTab() {
     const interval = setInterval(fetchUsers, 10000);
     return () => clearInterval(interval);
   }, [fetchUsers]);
-
-  // Fetch RRD user list once on mount (RRD files don't change frequently)
-  useEffect(() => {
-    fetchRrdUsers();
-  }, [fetchRrdUsers]);
 
   // --- Fetch interface history ---
   useEffect(() => {

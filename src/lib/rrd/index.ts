@@ -66,6 +66,11 @@ console.log(`[RRD] rrdtool binary: ${RRD_BIN}`);
 console.log(`[RRD] RRD data path: ${RRD_BASE}`);
 console.log(`[RRD] LD_LIBRARY_PATH: ${RRD_ENV.LD_LIBRARY_PATH}`);
 
+// Write resolved paths to file for easy debugging
+try {
+  fs.appendFileSync('/tmp/rrd-debug.log', `[${new Date().toISOString()}] PROJECT_ROOT=${PROJECT_ROOT} RRD_BASE=${RRD_BASE} RRD_BIN=${RRD_BIN}\n`);
+} catch { /* ignore */ }
+
 // Default step (60 seconds)
 const DEFAULT_STEP = 60;
 
