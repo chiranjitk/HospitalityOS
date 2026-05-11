@@ -2554,8 +2554,8 @@ function PortalContent() {
       case 'promotion': {
         if (state === 'success') return null;
         const hasPromoContent = design.promotions?.some(p => p.title || p.description);
-        // Carousel mode: show only if carousel enabled with valid slides
-        if (hasPromoContent && (design.showPromotions || (design as any).useCarouselMode)) {
+        // Carousel mode: show only when promotion toggle ON + carousel mode selected + has slides
+        if (hasPromoContent && design.showPromotions) {
           const validSlides = design.promotions.filter(p => p.title || p.description);
           if (validSlides.length > 0) return <PromotionCarousel design={design} />;
         }
@@ -2705,9 +2705,11 @@ function PortalContent() {
                 {/* Promotion Carousel (Feature 3) — above the form card */}
                 {state !== 'success' && (() => {
                   const hasPromoContent = design.promotions?.some(p => p.title || p.description);
-                  if (hasPromoContent && (design.showPromotions || (design as any).useCarouselMode)) {
+                  // Carousel: show only when promotion toggle ON + carousel mode selected + has slides
+                  if (hasPromoContent && design.showPromotions) {
                     return <PromotionCarousel design={design} />;
                   }
+                  // Single promotion: show ONLY when toggle is ON
                   if (design.showPromotion) {
                     return <PromotionBlock design={design} />;
                   }
