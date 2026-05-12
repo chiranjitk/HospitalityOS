@@ -193,6 +193,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['guests.view', 'guests.manage', 'guests.*', '*'],
     description: 'View and manage guest profiles'
   },
+  'guests-journey': {
+    permissions: ['guests.view', 'guests.manage', 'guests.*', '*'],
+    description: 'View guest journey map and communication history'
+  },
   'guests-vip-alerts': {
     permissions: ['guests.manage', 'guests.*', '*'],
     description: 'Manage VIP recognition rules and alerts'

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Fragment } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,6 +34,8 @@ import {
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+
+import BookingStatusTimeline from '@/components/bookings/booking-status-timeline';
 import { 
   CalendarDays, 
   Plus, 
@@ -48,6 +50,7 @@ import {
   Hash,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   CreditCard,
   CheckCircle,
   Clock,
@@ -55,6 +58,7 @@ import {
   Calendar,
   SlidersHorizontal,
   Download,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { exportToCSV } from '@/lib/export-utils';
@@ -106,6 +110,14 @@ interface Booking {
   property: { id: string; name: string };
   payments?: Payment[];
   paymentStatus?: string;
+  createdAt?: string;
+  actualCheckIn?: string | null;
+  actualCheckOut?: string | null;
+  checkedInBy?: string | null;
+  checkedOutBy?: string | null;
+  cancelledAt?: string | null;
+  cancelledBy?: string | null;
+  cancellationReason?: string | null;
 }
 
 const bookingStatuses = [
@@ -166,6 +178,9 @@ export default function BookingsList() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   
+  // Expanded booking row for timeline
+  const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
+
   // Dialog states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -742,11 +757,23 @@ export default function BookingsList() {
                       const nights = differenceInDays(new Date(booking.checkOut), new Date(booking.checkIn));
                       const isArrivingToday = new Date(booking.checkIn).toDateString() === new Date().toDateString();
                       const isDepartingToday = new Date(booking.checkOut).toDateString() === new Date().toDateString();
+                      const isExpanded = expandedBookingId === booking.id;
                       
                       return (
-                        <TableRow key={booking.id} className="transition-all duration-200 hover:bg-gradient-to-r hover:from-primary/[0.03] hover:to-primary/[0.06] hover:shadow-sm group">
+                        <Fragment key={booking.id}>
+                        <TableRow className="transition-all duration-200 hover:bg-gradient-to-r hover:from-primary/[0.03] hover:to-primary/[0.06] hover:shadow-sm group">
                           <TableCell>
                             <div className="flex items-center gap-2">
+                                <button
+                                  className={cn(
+                                    'p-0.5 rounded transition-all duration-200 hover:bg-muted/80',
+                                    isExpanded && 'rotate-180',
+                                  )}
+                                  onClick={() => setExpandedBookingId(isExpanded ? null : booking.id)}
+                                  aria-label="Toggle timeline"
+                                >
+                                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                </button>
                               <Hash className="h-4 w-4 text-muted-foreground" />
                               <span className="font-mono font-medium">{booking.confirmationCode}</span>
                             </div>
@@ -824,6 +851,18 @@ export default function BookingsList() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setExpandedBookingId(isExpanded ? null : booking.id)}
+                                className={cn(
+                                  'text-muted-foreground hover:text-foreground',
+                                  isExpanded && 'text-primary bg-primary/5',
+                                )}
+                              >
+                                <Activity className="h-3.5 w-3.5 mr-1" />
+                                <span className="hidden sm:inline">Timeline</span>
+                              </Button>
                               {isArrivingToday && booking.status === 'confirmed' && (
                                 <Button
                                   variant="outline"
@@ -849,6 +888,29 @@ export default function BookingsList() {
                             </div>
                           </TableCell>
                         </TableRow>
+                        {/* Expandable Timeline Row */}
+                        {isExpanded && (
+                        <TableRow className="bg-muted/20 hover:bg-muted/20">
+                          <TableCell colSpan={9} className="p-0">
+                              <div className="px-6 py-2">
+                                <BookingStatusTimeline
+                                  status={booking.status}
+                                  createdAt={booking.createdAt || ''}
+                                  actualCheckIn={booking.actualCheckIn}
+                                  actualCheckOut={booking.actualCheckOut}
+                                  checkedInBy={booking.checkedInBy}
+                                  checkedOutBy={booking.checkedOutBy}
+                                  cancelledAt={booking.cancelledAt}
+                                  cancelledBy={booking.cancelledBy}
+                                  cancellationReason={booking.cancellationReason}
+                                  bookingId={booking.id}
+                                  confirmationCode={booking.confirmationCode}
+                                />
+                              </div>
+                          </TableCell>
+                        </TableRow>
+                        )}
+                        </Fragment>
                       );
                     })}
                   </TableBody>

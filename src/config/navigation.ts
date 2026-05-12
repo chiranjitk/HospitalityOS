@@ -89,7 +89,8 @@ import {
   FileCheck2,
   RotateCcw,
   Gamepad2,
- Trophy,
+  Trophy,
+  Route,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -202,6 +203,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'guests-history', title: 'Stay History', href: '#guests-history', icon: History },
       { id: 'guests-loyalty', title: 'Loyalty & Points', href: '#guests-loyalty', icon: Star },
       { id: 'guests-profile', title: 'Guest Profile', href: '#guests-profile', icon: UserCheck },
+      { id: 'guests-journey', title: 'Journey Map', href: '#guests-journey', icon: Route },
       { id: 'guests-vip-alerts', title: 'VIP Recognition', href: '#guests-vip-alerts', icon: Crown },
     ],
   },

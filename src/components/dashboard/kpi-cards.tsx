@@ -91,57 +91,103 @@ const variantConfig: Record<CardVariant, {
   iconBg: string;
   leftBorderStart: string;
   leftBorderEnd: string;
+  cardBg: string;
+  hoverGlowShadow: string;
+  borderHoverColor: string;
+  trendUpBg: string;
+  trendUpText: string;
+  trendUpBorder: string;
+  trendDownBg: string;
+  trendDownText: string;
+  trendDownBorder: string;
 }> = {
   emerald: {
-    iconGradient: 'bg-gradient-to-br from-primary to-primary',
-    topBarGradient: 'bg-gradient-to-r from-primary via-primary to-primary',
-    barColor: 'bg-primary dark:bg-primary',
-    barHoverColor: 'bg-primary/80 dark:bg-primary/80',
-    glowColor: 'group-hover:shadow-primary/40',
-    iconBg: 'from-primary to-primary',
+    iconGradient: 'bg-gradient-to-br from-emerald-400 to-teal-600',
+    topBarGradient: 'bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500',
+    barColor: 'bg-emerald-500 dark:bg-emerald-500',
+    barHoverColor: 'bg-emerald-600 dark:bg-emerald-400',
+    glowColor: 'group-hover:shadow-emerald-500/30',
+    iconBg: 'from-emerald-500 to-teal-600',
     leftBorderStart: 'oklch(0.65 0.18 160)',
     leftBorderEnd: 'oklch(0.60 0.14 170)',
+    cardBg: 'bg-gradient-to-br from-emerald-50/60 via-white to-teal-50/40 dark:from-emerald-950/25 dark:via-card/90 dark:to-teal-950/20',
+    hoverGlowShadow: 'group-hover:shadow-[0_0_30px_-5px_oklch(0.65_0.18_160/0.3),0_8px_25px_-8px_oklch(0.65_0.18_160/0.15)] dark:group-hover:shadow-[0_0_40px_-5px_oklch(0.65_0.18_160/0.25),0_8px_25px_-8px_oklch(0_0_0/0.3)]',
+    borderHoverColor: 'group-hover:border-emerald-300/60 dark:group-hover:border-emerald-700/50',
+    trendUpBg: 'bg-emerald-100/80 text-emerald-700 border-emerald-300/50 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/40',
+    trendUpText: 'text-emerald-600 dark:text-emerald-400',
+    trendUpBorder: 'border-emerald-200/60 dark:border-emerald-800/40',
+    trendDownBg: 'bg-red-100/80 text-red-700 border-red-300/50 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800/40',
+    trendDownText: 'text-red-500 dark:text-red-400',
+    trendDownBorder: 'border-red-200/60 dark:border-red-800/40',
   },
   violet: {
     iconGradient: 'bg-gradient-to-br from-violet-400 to-purple-600',
-    topBarGradient: 'bg-gradient-to-r from-violet-500 via-purple-500 to-violet-600',
+    topBarGradient: 'bg-gradient-to-r from-violet-400 via-purple-400 to-violet-500',
     barColor: 'bg-violet-500 dark:bg-violet-500',
     barHoverColor: 'bg-violet-600 dark:bg-violet-400',
-    glowColor: 'group-hover:shadow-violet-500/40',
+    glowColor: 'group-hover:shadow-violet-500/30',
     iconBg: 'from-violet-500 to-purple-600',
     leftBorderStart: 'oklch(0.65 0.20 295)',
     leftBorderEnd: 'oklch(0.55 0.18 310)',
+    cardBg: 'bg-gradient-to-br from-violet-50/60 via-white to-purple-50/40 dark:from-violet-950/25 dark:via-card/90 dark:to-purple-950/20',
+    hoverGlowShadow: 'group-hover:shadow-[0_0_30px_-5px_oklch(0.55_0.20_295/0.3),0_8px_25px_-8px_oklch(0.55_0.20_295/0.15)] dark:group-hover:shadow-[0_0_40px_-5px_oklch(0.55_0.20_295/0.25),0_8px_25px_-8px_oklch(0_0_0/0.3)]',
+    borderHoverColor: 'group-hover:border-violet-300/60 dark:group-hover:border-violet-700/50',
+    trendUpBg: 'bg-violet-100/80 text-violet-700 border-violet-300/50 dark:bg-violet-950/60 dark:text-violet-300 dark:border-violet-800/40',
+    trendUpText: 'text-violet-600 dark:text-violet-400',
+    trendUpBorder: 'border-violet-200/60 dark:border-violet-800/40',
+    trendDownBg: 'bg-red-100/80 text-red-700 border-red-300/50 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800/40',
+    trendDownText: 'text-red-500 dark:text-red-400',
+    trendDownBorder: 'border-red-200/60 dark:border-red-800/40',
   },
   cyan: {
     iconGradient: 'bg-gradient-to-br from-teal-400 to-cyan-500',
-    topBarGradient: 'bg-gradient-to-r from-teal-500 via-cyan-500 to-teal-600',
+    topBarGradient: 'bg-gradient-to-r from-teal-400 via-cyan-400 to-teal-500',
     barColor: 'bg-teal-500 dark:bg-teal-500',
     barHoverColor: 'bg-teal-600 dark:bg-teal-400',
-    glowColor: 'group-hover:shadow-teal-500/40',
+    glowColor: 'group-hover:shadow-teal-500/30',
     iconBg: 'from-teal-500 to-cyan-600',
     leftBorderStart: 'oklch(0.65 0.14 175)',
     leftBorderEnd: 'oklch(0.60 0.16 190)',
+    cardBg: 'bg-gradient-to-br from-teal-50/60 via-white to-cyan-50/40 dark:from-teal-950/25 dark:via-card/90 dark:to-cyan-950/20',
+    hoverGlowShadow: 'group-hover:shadow-[0_0_30px_-5px_oklch(0.65_0.14_175/0.3),0_8px_25px_-8px_oklch(0.65_0.14_175/0.15)] dark:group-hover:shadow-[0_0_40px_-5px_oklch(0.65_0.14_175/0.25),0_8px_25px_-8px_oklch(0_0_0/0.3)]',
+    borderHoverColor: 'group-hover:border-teal-300/60 dark:group-hover:border-teal-700/50',
+    trendUpBg: 'bg-teal-100/80 text-teal-700 border-teal-300/50 dark:bg-teal-950/60 dark:text-teal-300 dark:border-teal-800/40',
+    trendUpText: 'text-teal-600 dark:text-teal-400',
+    trendUpBorder: 'border-teal-200/60 dark:border-teal-800/40',
+    trendDownBg: 'bg-red-100/80 text-red-700 border-red-300/50 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800/40',
+    trendDownText: 'text-red-500 dark:text-red-400',
+    trendDownBorder: 'border-red-200/60 dark:border-red-800/40',
   },
   amber: {
     iconGradient: 'bg-gradient-to-br from-amber-400 to-orange-500',
-    topBarGradient: 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600',
+    topBarGradient: 'bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500',
     barColor: 'bg-amber-500 dark:bg-amber-500',
     barHoverColor: 'bg-amber-600 dark:bg-amber-400',
-    glowColor: 'group-hover:shadow-amber-500/40',
+    glowColor: 'group-hover:shadow-amber-500/30',
     iconBg: 'from-amber-500 to-orange-600',
     leftBorderStart: 'oklch(0.75 0.15 75)',
     leftBorderEnd: 'oklch(0.70 0.14 55)',
+    cardBg: 'bg-gradient-to-br from-amber-50/60 via-white to-orange-50/40 dark:from-amber-950/25 dark:via-card/90 dark:to-orange-950/20',
+    hoverGlowShadow: 'group-hover:shadow-[0_0_30px_-5px_oklch(0.75_0.15_75/0.3),0_8px_25px_-8px_oklch(0.75_0.15_75/0.15)] dark:group-hover:shadow-[0_0_40px_-5px_oklch(0.75_0.15_75/0.25),0_8px_25px_-8px_oklch(0_0_0/0.3)]',
+    borderHoverColor: 'group-hover:border-amber-300/60 dark:group-hover:border-amber-700/50',
+    trendUpBg: 'bg-amber-100/80 text-amber-700 border-amber-300/50 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/40',
+    trendUpText: 'text-amber-600 dark:text-amber-400',
+    trendUpBorder: 'border-amber-200/60 dark:border-amber-800/40',
+    trendDownBg: 'bg-red-100/80 text-red-700 border-red-300/50 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800/40',
+    trendDownText: 'text-red-500 dark:text-red-400',
+    trendDownBorder: 'border-red-200/60 dark:border-red-800/40',
   },
 };
 
 // ─── Animated Trend Arrow Component ──────────────────────────────────────────
-function AnimatedTrendArrow({ trend }: { trend: 'up' | 'down' | 'neutral' }) {
+function AnimatedTrendArrow({ trend, variant }: { trend: 'up' | 'down' | 'neutral'; variant?: CardVariant }) {
   const iconClass = "h-3 w-3";
+  const config = variant ? variantConfig[variant] : null;
 
   if (trend === 'up') {
     return (
       <motion.span
-        className="inline-flex text-emerald-600 dark:text-emerald-400"
+        className={cn('inline-flex', config?.trendUpText || 'text-emerald-600 dark:text-emerald-400')}
         animate={{ y: [0, -2, 0] }}
         transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
       >
@@ -153,7 +199,7 @@ function AnimatedTrendArrow({ trend }: { trend: 'up' | 'down' | 'neutral' }) {
   if (trend === 'down') {
     return (
       <motion.span
-        className="inline-flex text-red-500 dark:text-red-400"
+        className={cn('inline-flex', config?.trendDownText || 'text-red-500 dark:text-red-400')}
         animate={{ y: [0, 2, 0] }}
         transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
       >
@@ -254,59 +300,61 @@ function KPICard({
         <TooltipTrigger asChild>
           <Card
             className={cn(
-              'group relative overflow-hidden transition-all duration-200 h-full rounded-2xl card-shine cursor-pointer',
-              'hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5',
-              config.glowColor,
+              'group relative overflow-hidden transition-all duration-300 h-full rounded-2xl card-shine cursor-pointer',
+              'hover:-translate-y-1',
+              config.hoverGlowShadow,
+              config.borderHoverColor,
               isNeumorphism
                 ? 'border border-border/50 shadow-[6px_6px_12px_var(--neu-shadow-dark),-6px_-6px_12px_var(--neu-shadow-light)]'
                 : isGlassmorphism
-                  ? 'border border-white/40 bg-card/60 backdrop-blur-xl shadow-lg'
-                  : 'border border-border/50 bg-white/80 dark:bg-card/80 backdrop-blur-sm shadow-md'
+                  ? 'border border-white/40 backdrop-blur-xl shadow-lg'
+                  : cn('border border-border/50 backdrop-blur-sm shadow-md', config.cardBg)
             )}
             style={
               { '--kpi-accent-start': config.leftBorderStart, '--kpi-accent-end': config.leftBorderEnd } as React.CSSProperties
             }
           >
-            {/* Gradient left border (3px) */}
+            {/* Gradient left border (3px) with enhanced glow */}
             <div
               className={cn(
                 'absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full z-10',
-                'bg-gradient-to-b',
+                'bg-gradient-to-b transition-all duration-300',
                 variant === 'emerald' && 'from-emerald-400 to-teal-500',
                 variant === 'violet' && 'from-violet-400 to-purple-600',
                 variant === 'cyan' && 'from-teal-400 to-cyan-500',
                 variant === 'amber' && 'from-amber-400 to-orange-500',
+                'group-hover:w-[4px] group-hover:top-2 group-hover:bottom-2'
               )}
             />
 
-            {/* Gradient top accent bar — 2px */}
+            {/* Gradient top accent bar — 2px with variant colors */}
             <div
               className={cn(
                 'absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl z-20',
-                'bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500'
+                config.topBarGradient
               )}
             />
 
-            {/* Decorative background blur orb */}
+            {/* Decorative background blur orb — top-right */}
             <div
               className={cn(
-                'absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-[0.06] blur-2xl transition-all duration-700',
-                'group-hover:opacity-[0.12] group-hover:scale-125',
+                'absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-[0.08] blur-2xl transition-all duration-700',
+                'group-hover:opacity-[0.18] group-hover:scale-150',
                 config.iconGradient
               )}
             />
 
-            {/* Bottom-left subtle glow on hover */}
+            {/* Decorative blur orb — bottom-left */}
             <div
               className={cn(
-                'absolute -bottom-8 -left-8 w-24 h-24 rounded-full opacity-0 blur-2xl transition-opacity duration-700',
-                'group-hover:opacity-[0.08]',
+                'absolute -bottom-8 -left-8 w-28 h-28 rounded-full opacity-0 blur-2xl transition-all duration-700',
+                'group-hover:opacity-[0.12] group-hover:scale-110',
                 config.iconGradient
               )}
             />
 
-            {/* Bottom gradient overlay */}
-            <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black/[0.02] to-transparent dark:from-black/[0.05] dark:to-transparent pointer-events-none z-0" />
+            {/* Bottom gradient overlay for depth */}
+            <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/[0.02] to-transparent dark:from-black/[0.06] dark:to-transparent pointer-events-none z-0" />
 
             <CardContent className="p-5 pt-6 relative z-10">
               <div className="flex items-start justify-between gap-4">
@@ -318,7 +366,14 @@ function KPICard({
 
                   <div className="flex items-baseline gap-2 flex-wrap">
                     <motion.span
-                      className="text-[28px] font-extrabold tracking-tight tabular-nums text-foreground leading-none"
+                      className={cn(
+                        "text-[28px] font-extrabold tracking-tight tabular-nums leading-none",
+                        "bg-gradient-to-br bg-clip-text text-transparent",
+                        variant === 'emerald' && 'from-emerald-700 via-emerald-600 to-teal-600 dark:from-emerald-300 dark:via-emerald-200 dark:to-teal-300',
+                        variant === 'violet' && 'from-violet-700 via-violet-600 to-purple-600 dark:from-violet-300 dark:via-violet-200 dark:to-purple-300',
+                        variant === 'cyan' && 'from-teal-700 via-teal-600 to-cyan-600 dark:from-teal-300 dark:via-teal-200 dark:to-cyan-300',
+                        variant === 'amber' && 'from-amber-700 via-amber-600 to-orange-600 dark:from-amber-300 dark:via-amber-200 dark:to-orange-300'
+                      )}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.4, delay: index * 0.08 + 0.15 }}
@@ -332,21 +387,20 @@ function KPICard({
                     )}
                   </div>
 
-                  {/* Trend badge with animated arrow */}
+                  {/* Trend badge with animated arrow — variant-colored */}
                   {change !== undefined && (
                     <div className="flex items-center gap-1.5 pt-1">
                       <span
                         className={cn(
-                          'inline-flex items-center gap-1 text-[11px] font-bold px-2 py-[3px] rounded-full border transition-all duration-300',
-                          trend === 'up' &&
-                            'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50',
-                          trend === 'down' &&
-                            'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/50',
+                          'inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-[3px] rounded-full border transition-all duration-300',
+                          'group-hover:shadow-sm',
+                          trend === 'up' && config.trendUpBg,
+                          trend === 'down' && config.trendDownBg,
                           trend === 'neutral' &&
                             'bg-muted/50 text-muted-foreground border-border dark:bg-muted/40 dark:border-border'
                         )}
                       >
-                        <AnimatedTrendArrow trend={trend || 'neutral'} />
+                        <AnimatedTrendArrow trend={trend || 'neutral'} variant={variant} />
                         {change > 0 ? '+' : ''}
                         {change}%
                       </span>
@@ -359,13 +413,25 @@ function KPICard({
                   )}
                 </div>
 
-                {/* Right: circular icon */}
+                {/* Right: circular icon with premium ring effect */}
                 <div className="relative flex-shrink-0">
+                  {/* Outer ring — subtle border glow */}
+                  <div
+                    className={cn(
+                      'absolute -inset-[3px] rounded-full opacity-0 transition-all duration-500',
+                      'group-hover:opacity-100 group-hover:scale-105',
+                      'bg-gradient-to-br',
+                      variant === 'emerald' && 'from-emerald-200/40 to-teal-200/40 dark:from-emerald-500/20 dark:to-teal-500/20',
+                      variant === 'violet' && 'from-violet-200/40 to-purple-200/40 dark:from-violet-500/20 dark:to-purple-500/20',
+                      variant === 'cyan' && 'from-teal-200/40 to-cyan-200/40 dark:from-teal-500/20 dark:to-cyan-500/20',
+                      variant === 'amber' && 'from-amber-200/40 to-orange-200/40 dark:from-amber-500/20 dark:to-orange-500/20'
+                    )}
+                  />
                   {/* Pulse ring on hover */}
                   <div
                     className={cn(
                       'absolute inset-0 rounded-full opacity-0 scale-100 transition-all duration-500',
-                      'group-hover:opacity-30 group-hover:scale-125 group-hover:animate-[iconPulse_1.5s_ease-out]',
+                      'group-hover:opacity-25 group-hover:scale-125 group-hover:animate-[iconPulse_1.5s_ease-out]',
                       config.iconGradient
                     )}
                   />
@@ -374,6 +440,7 @@ function KPICard({
                       'relative w-12 h-12 rounded-full flex items-center justify-center',
                       'shadow-lg transition-all duration-300',
                       'group-hover:scale-110 group-hover:shadow-xl',
+                      'ring-2 ring-white/50 dark:ring-white/20',
                       config.iconGradient
                     )}
                   >

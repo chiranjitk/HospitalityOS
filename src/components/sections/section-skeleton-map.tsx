@@ -66,6 +66,7 @@ export const sectionSkeletonMap: Record<string, SkeletonLayout> = {
   'guests-history': 'table',
   'guests-loyalty': 'cards',
   'guests-profile': 'form',
+  'guests-journey': 'dashboard',
   'guests-vip-alerts': 'table',
 
   // Housekeeping

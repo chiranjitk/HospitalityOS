@@ -17,7 +17,10 @@ import {
   Calendar,
   Clock,
   Bell,
+  BellRing,
   AlertTriangle,
+  XCircle,
+  Info,
   CheckCircle2,
   ArrowRight,
   Bed,
@@ -36,9 +39,15 @@ import {
   Activity,
   Hotel,
   IndianRupee,
+  CalendarPlus,
+  Sparkles,
+  DoorOpen,
+  X,
+  CheckCheck,
   type LucideIcon,
 } from 'lucide-react';
-import { motion, useInView } from 'framer-motion';
+import { motion, AnimatePresence, useInView } from 'framer-motion';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { KPICards } from './kpi-cards';
 import { QuickActions } from './quick-actions';
 import { DashboardCharts } from './charts';
@@ -114,6 +123,7 @@ interface TodaySummary {
     message: string;
     action?: string;
     section?: string;
+    read?: boolean;
   }>;
 }
 
@@ -397,34 +407,50 @@ function TodaySummaryCard({ summary, isLoading }: { summary: TodaySummary | null
     {
       label: t('arrivals'), count: arrivalsCount, icon: LogIn,
       gradient: 'from-emerald-500 to-teal-500',
-      lightBg: 'bg-emerald-50 dark:bg-emerald-950/50',
+      cardBg: 'bg-gradient-to-br from-emerald-50/50 via-white/80 to-teal-50/30 dark:from-emerald-950/20 dark:via-card/90 dark:to-teal-950/15',
+      hoverBg: 'group-hover:from-emerald-50/80 group-hover:via-white group-hover:to-teal-50/50 dark:group-hover:from-emerald-950/40 dark:group-hover:via-card dark:group-hover:to-teal-950/30',
+      borderColor: 'border-emerald-200/40 dark:border-emerald-800/30',
+      hoverBorder: 'group-hover:border-emerald-300/70 dark:group-hover:border-emerald-700/50',
       section: 'frontdesk-checkin',
-      glowColor: '0 0 20px -4px oklch(0.65 0.16 160 / 0.35)',
+      glowColor: '0 0 25px -5px oklch(0.65 0.16 160 / 0.35)',
       textGradient: 'bg-gradient-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-teal-400',
+      ringGradient: 'from-emerald-200/50 to-teal-200/50 dark:from-emerald-500/25 dark:to-teal-500/25',
     },
     {
       label: t('departures'), count: departuresCount, icon: LogOut,
       gradient: 'from-amber-500 to-orange-500',
-      lightBg: 'bg-amber-50 dark:bg-amber-950/50',
+      cardBg: 'bg-gradient-to-br from-amber-50/50 via-white/80 to-orange-50/30 dark:from-amber-950/20 dark:via-card/90 dark:to-orange-950/15',
+      hoverBg: 'group-hover:from-amber-50/80 group-hover:via-white group-hover:to-orange-50/50 dark:group-hover:from-amber-950/40 dark:group-hover:via-card dark:group-hover:to-orange-950/30',
+      borderColor: 'border-amber-200/40 dark:border-amber-800/30',
+      hoverBorder: 'group-hover:border-amber-300/70 dark:group-hover:border-amber-700/50',
       section: 'frontdesk-checkout',
-      glowColor: '0 0 20px -4px oklch(0.75 0.15 75 / 0.35)',
+      glowColor: '0 0 25px -5px oklch(0.75 0.15 75 / 0.35)',
       textGradient: 'bg-gradient-to-r from-amber-600 to-orange-500 dark:from-amber-400 dark:to-orange-400',
+      ringGradient: 'from-amber-200/50 to-orange-200/50 dark:from-amber-500/25 dark:to-orange-500/25',
     },
     {
       label: t('inHouse'), count: inHouseCount, icon: Users,
       gradient: 'from-violet-500 to-purple-500',
-      lightBg: 'bg-violet-50 dark:bg-violet-950/50',
+      cardBg: 'bg-gradient-to-br from-violet-50/50 via-white/80 to-purple-50/30 dark:from-violet-950/20 dark:via-card/90 dark:to-purple-950/15',
+      hoverBg: 'group-hover:from-violet-50/80 group-hover:via-white group-hover:to-purple-50/50 dark:group-hover:from-violet-950/40 dark:group-hover:via-card dark:group-hover:to-purple-950/30',
+      borderColor: 'border-violet-200/40 dark:border-violet-800/30',
+      hoverBorder: 'group-hover:border-violet-300/70 dark:group-hover:border-violet-700/50',
       section: 'guests-list',
-      glowColor: '0 0 20px -4px oklch(0.55 0.15 310 / 0.35)',
+      glowColor: '0 0 25px -5px oklch(0.55 0.15 310 / 0.35)',
       textGradient: 'bg-gradient-to-r from-violet-600 to-purple-500 dark:from-violet-400 dark:to-purple-400',
+      ringGradient: 'from-violet-200/50 to-purple-200/50 dark:from-violet-500/25 dark:to-purple-500/25',
     },
     {
       label: t('available'), count: availableCount, icon: Bed,
       gradient: 'from-cyan-500 to-teal-500',
-      lightBg: 'bg-cyan-50 dark:bg-cyan-950/50',
+      cardBg: 'bg-gradient-to-br from-cyan-50/50 via-white/80 to-teal-50/30 dark:from-cyan-950/20 dark:via-card/90 dark:to-teal-950/15',
+      hoverBg: 'group-hover:from-cyan-50/80 group-hover:via-white group-hover:to-teal-50/50 dark:group-hover:from-cyan-950/40 dark:group-hover:via-card dark:group-hover:to-teal-950/30',
+      borderColor: 'border-cyan-200/40 dark:border-cyan-800/30',
+      hoverBorder: 'group-hover:border-cyan-300/70 dark:group-hover:border-cyan-700/50',
       section: 'frontdesk-room-grid',
-      glowColor: '0 0 20px -4px oklch(0.65 0.16 190 / 0.35)',
+      glowColor: '0 0 25px -5px oklch(0.65 0.16 190 / 0.35)',
       textGradient: 'bg-gradient-to-r from-cyan-600 to-teal-500 dark:from-cyan-400 dark:to-teal-400',
+      ringGradient: 'from-cyan-200/50 to-teal-200/50 dark:from-cyan-500/25 dark:to-teal-500/25',
     },
   ];
 
@@ -449,27 +475,44 @@ function TodaySummaryCard({ summary, isLoading }: { summary: TodaySummary | null
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.08, duration: 0.4 }}
-              whileHover={{ scale: 1.04, y: -3 }}
+              whileHover={{ scale: 1.04, y: -4 }}
               className={cn(
-                "relative p-4 rounded-xl cursor-pointer transition-all duration-300",
-                "bg-card border border-border/40 overflow-hidden group",
-                "hover:shadow-lg hover:border-border/60"
+                "relative p-4 sm:p-5 rounded-xl cursor-pointer transition-all duration-300",
+                "border overflow-hidden group",
+                stat.cardBg,
+                stat.borderColor,
+                stat.hoverBorder,
+                "hover:shadow-xl"
               )}
               style={{ '--stat-glow': stat.glowColor } as React.CSSProperties}
               onMouseEnter={(e) => { e.currentTarget.style.boxShadow = stat.glowColor; }}
               onMouseLeave={(e) => { e.currentTarget.style.boxShadow = ''; }}
               onClick={() => setActiveSection(stat.section)}
             >
-              {/* Subtle gradient background on hover */}
+              {/* Enhanced gradient background — always slightly visible, stronger on hover */}
               <div className={cn(
-                "absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity duration-300",
-                stat.lightBg
+                "absolute inset-0 bg-gradient-to-br transition-opacity duration-500",
+                stat.cardBg,
+                stat.hoverBg
               )} />
 
               <div className="relative z-10">
-                <div className="flex items-center justify-between mb-2">
-                  <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center bg-gradient-to-br shadow-sm", stat.gradient)}>
-                    <stat.icon className="h-4 w-4 text-white" />
+                <div className="flex items-center justify-between mb-2.5">
+                  {/* Icon with outer ring glow */}
+                  <div className="relative">
+                    <div className={cn(
+                      "absolute -inset-[2px] rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-500",
+                      "bg-gradient-to-br",
+                      stat.ringGradient
+                    )} />
+                    <div className={cn(
+                      "relative h-9 w-9 rounded-lg flex items-center justify-center bg-gradient-to-br shadow-md",
+                      "transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg",
+                      "ring-1 ring-white/50 dark:ring-white/20",
+                      stat.gradient
+                    )}>
+                      <stat.icon className="h-4 w-4 text-white drop-shadow-sm" />
+                    </div>
                   </div>
                 </div>
                 <p className="text-[11px] font-medium text-muted-foreground mb-0.5">{stat.label}</p>
@@ -524,11 +567,52 @@ function SectionLabel({ icon: Icon, title }: { icon: LucideIcon; title: string }
   );
 }
 
+// ─── Animated Alert Icon ───────────────────────────────────────────────
+
+function AnimatedAlertIcon({ type, className }: { type: string; className?: string }) {
+  const iconMap: Record<string, { Icon: LucideIcon; color: string; animation: string }> = {
+    error: {
+      Icon: XCircle,
+      color: 'text-red-600 dark:text-red-400',
+      animation: 'animate-[alertShake_0.6s_ease-in-out_infinite]',
+    },
+    warning: {
+      Icon: AlertTriangle,
+      color: 'text-amber-600 dark:text-amber-400',
+      animation: 'animate-[alertPulse_2s_ease-in-out_infinite]',
+    },
+    info: {
+      Icon: Info,
+      color: 'text-sky-600 dark:text-sky-400',
+      animation: 'animate-[alertFloat_3s_ease-in-out_infinite]',
+    },
+    success: {
+      Icon: CheckCircle2,
+      color: 'text-emerald-600 dark:text-emerald-400',
+      animation: 'animate-[alertCheck_0.8s_ease-in-out]',
+    },
+  };
+  const config = iconMap[type] || iconMap.info;
+
+  return (
+    <motion.div
+      className={cn("flex-shrink-0", config.color)}
+      initial={{ scale: 0, rotate: -180 }}
+      animate={{ scale: 1, rotate: 0 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 20, delay: 0.05 }}
+    >
+      <config.Icon className={cn("h-4 w-4", className, config.animation)} />
+    </motion.div>
+  );
+}
+
 // ─── Alerts Widget ──────────────────────────────────────────────────────
 
 function AlertsWidget({ alerts, isLoading }: { alerts: TodaySummary['alerts']; isLoading: boolean }) {
   const { setActiveSection } = useUIStore();
   const t = useTranslations('dashboard');
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
 
   if (isLoading) {
     return (
@@ -543,31 +627,77 @@ function AlertsWidget({ alerts, isLoading }: { alerts: TodaySummary['alerts']; i
     );
   }
 
-  const alertIcons: Record<string, LucideIcon> = { warning: AlertTriangle, error: AlertTriangle, info: Bell, success: CheckCircle2 };
-  const alertStyles: Record<string, { bg: string; iconColor: string; dotColor: string; borderColor: string }> = {
-    warning: { bg: 'bg-amber-50 dark:bg-amber-950/50', iconColor: 'text-amber-600 dark:text-amber-400', dotColor: 'bg-amber-500', borderColor: 'border-l-amber-500' },
-    error: { bg: 'bg-red-50 dark:bg-red-950/50', iconColor: 'text-red-600 dark:text-red-400', dotColor: 'bg-red-500', borderColor: 'border-l-red-500' },
-    info: { bg: 'bg-sky-50 dark:bg-sky-950/50', iconColor: 'text-sky-600 dark:text-sky-400', dotColor: 'bg-sky-500', borderColor: 'border-l-teal-500' },
-    success: { bg: 'bg-primary/10 dark:bg-primary/10', iconColor: 'text-primary dark:text-primary', dotColor: 'bg-primary', borderColor: 'border-l-emerald-500' },
+  const alertStyles: Record<string, { bg: string; iconBg: string; borderColor: string; ringColor: string }> = {
+    error: { bg: 'bg-red-50 dark:bg-red-950/30', iconBg: 'bg-red-100 dark:bg-red-900/50', borderColor: 'border-l-red-500', ringColor: 'ring-red-500/20' },
+    warning: { bg: 'bg-amber-50 dark:bg-amber-950/30', iconBg: 'bg-amber-100 dark:bg-amber-900/50', borderColor: 'border-l-amber-500', ringColor: 'ring-amber-500/20' },
+    info: { bg: 'bg-sky-50 dark:bg-sky-950/30', iconBg: 'bg-sky-100 dark:bg-sky-900/50', borderColor: 'border-l-sky-500', ringColor: 'ring-sky-500/20' },
+    success: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', iconBg: 'bg-emerald-100 dark:bg-emerald-900/50', borderColor: 'border-l-emerald-500', ringColor: 'ring-emerald-500/20' },
   };
 
-  const limitedAlerts = alerts.slice(0, 4);
+  const visibleAlerts = alerts.filter(a => !dismissedIds.has(a.id)).slice(0, 5);
+  const unreadCount = visibleAlerts.filter(a => !readIds.has(a.id) && !a.read).length;
+
+  const handleDismiss = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDismissedIds(prev => new Set(prev).add(id));
+  };
+
+  const handleMarkRead = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setReadIds(prev => new Set(prev).add(id));
+  };
+
+  const handleMarkAllRead = () => {
+    setReadIds(prev => {
+      const next = new Set(prev);
+      visibleAlerts.forEach(a => next.add(a.id));
+      return next;
+    });
+  };
 
   return (
     <Card className="card-accent border border-border/60 shadow-md rounded-2xl bg-card hover-lift">
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Bell className="h-4 w-4 text-amber-500" />
+            <div className="relative">
+              <BellRing className="h-4 w-4 text-amber-500" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-red-500 text-white text-[8px] font-bold px-0.5">
+                  {unreadCount}
+                </span>
+              )}
+            </div>
             <h3 className="text-sm font-semibold text-foreground">{t('alerts')}</h3>
           </div>
-          {alerts.length > 0 && (
-            <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400 text-[11px] font-semibold alert-badge-pulse">
-              {alerts.length}
-            </Badge>
-          )}
+          <div className="flex items-center gap-1.5">
+            {unreadCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground gap-1"
+                onClick={handleMarkAllRead}
+              >
+                <CheckCheck className="h-3 w-3" />
+                <span className="hidden sm:inline">{t('markAllRead')}</span>
+              </Button>
+            )}
+            {visibleAlerts.length > 0 && (
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "text-[11px] font-semibold",
+                  unreadCount > 0
+                    ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
+                    : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                )}
+              >
+                {unreadCount > 0 ? `${unreadCount} unread` : 'All read'}
+              </Badge>
+            )}
+          </div>
         </div>
-        {limitedAlerts.length === 0 ? (
+        {visibleAlerts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
@@ -581,48 +711,159 @@ function AlertsWidget({ alerts, isLoading }: { alerts: TodaySummary['alerts']; i
             <p className="text-xs text-muted-foreground mt-0.5">{t('noPendingAlerts')}</p>
           </div>
         ) : (
-          <div className="space-y-2 max-h-[280px] overflow-y-auto scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent pr-1">
-            {limitedAlerts.map((alert, idx) => {
-              const Icon = alertIcons[alert.type] || Bell;
-              const style = alertStyles[alert.type] || alertStyles.info;
-              return (
-                <motion.div
-                  key={alert.id}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className={cn(
-                    "flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200",
-                    "hover:shadow-sm hover:-translate-y-0.5 border-l-2",
-                    style.bg,
-                    style.borderColor
-                  )}
-                  onClick={() => alert.section && setActiveSection(alert.section)}
-                >
-                  <div className={cn("h-2 w-2 rounded-full mt-1.5 flex-shrink-0", style.dotColor)} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{alert.title}</p>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{alert.message}</p>
-                  </div>
-                  <Icon className={cn("h-4 w-4 mt-0.5 flex-shrink-0", style.iconColor)} />
-                </motion.div>
-              );
-            })}
+          <div className="space-y-2 max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent pr-1">
+            <AnimatePresence initial={false}>
+              {visibleAlerts.map((alert, idx) => {
+                const isRead = readIds.has(alert.id) || alert.read;
+                const style = alertStyles[alert.type] || alertStyles.info;
+                return (
+                  <motion.div
+                    key={alert.id}
+                    layout
+                    initial={{ opacity: 0, x: -16, scale: 0.95 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: 40, scale: 0.9, height: 0, marginBottom: 0, paddingTop: 0, paddingBottom: 0 }}
+                    transition={{ duration: 0.3, delay: idx * 0.03 }}
+                    className={cn(
+                      "flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200",
+                      "hover:shadow-sm hover:-translate-y-0.5 border-l-[3px] group/alert",
+                      style.bg,
+                      style.borderColor,
+                      isRead && "opacity-60"
+                    )}
+                    onClick={() => alert.section && setActiveSection(alert.section)}
+                  >
+                    <div className={cn(
+                      "h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ring-1",
+                      style.iconBg,
+                      style.ringColor
+                    )}>
+                      <AnimatedAlertIcon type={alert.type} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        {!isRead && (
+                          <span className="h-2 w-2 rounded-full bg-primary flex-shrink-0" />
+                        )}
+                        <p className={cn("text-sm truncate", isRead ? "font-medium text-muted-foreground" : "font-semibold text-foreground")}>
+                          {alert.title}
+                        </p>
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{alert.message}</p>
+                      {/* Action buttons on hover */}
+                      <div className="flex items-center gap-1 mt-1.5 opacity-0 group-hover/alert:opacity-100 transition-opacity">
+                        {!isRead && (
+                          <button
+                            type="button"
+                            onClick={handleMarkRead.bind(null, alert.id)}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors"
+                          >
+                            <CheckCheck className="h-3 w-3" />
+                            Mark read
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleDismiss.bind(null, alert.id)}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
           </div>
         )}
-        {alerts.length > 4 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full mt-3 hover:bg-muted/60 transition-colors text-xs font-medium"
-            onClick={() => setActiveSection('dashboard-alerts')}
-          >
-            {t('viewAllAlerts')} ({alerts.length})
-            <ArrowRight className="ml-1 h-3 w-3" />
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full mt-3 hover:bg-muted/60 transition-colors text-xs font-medium"
+          onClick={() => setActiveSection('notifications')}
+        >
+          View All Alerts
+          <ArrowRight className="ml-1 h-3 w-3" />
+        </Button>
       </CardContent>
     </Card>
+  );
+}
+
+// ─── Floating Quick Actions Bar ─────────────────────────────────────────
+
+const FLOATING_ACTIONS = [
+  { label: 'New Booking', icon: CalendarPlus, gradient: 'from-primary to-emerald-500', section: 'bookings-calendar' },
+  { label: 'Check-in Guest', icon: LogIn, gradient: 'from-teal-400 to-teal-600', section: 'frontdesk-checkin' },
+  { label: 'Service Request', icon: Sparkles, gradient: 'from-cyan-400 to-teal-500', section: 'experience-requests' },
+  { label: 'Room Status', icon: DoorOpen, gradient: 'from-slate-400 to-slate-600', section: 'frontdesk-room-grid' },
+  { label: 'Reports', icon: BarChart3, gradient: 'from-violet-400 to-purple-500', section: 'reports-revenue' },
+];
+
+function FloatingQuickActionsBar() {
+  const { setActiveSection } = useUIStore();
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsVisible(window.scrollY > 300);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  return (
+    <AnimatePresence>
+      {isVisible && (
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 20, scale: 0.95 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40"
+        >
+          <div className={cn(
+            "flex items-center gap-2 px-3 py-2 rounded-2xl",
+            "bg-background/70 backdrop-blur-xl border border-border/50",
+            "shadow-lg shadow-black/[0.08] shadow-primary/[0.04]"
+          )}>
+            {/* Gradient top accent */}
+            <div className="absolute -top-px left-4 right-4 h-[2px] rounded-full bg-gradient-to-r from-primary/60 via-teal-400/40 to-amber-400/30" />
+            {FLOATING_ACTIONS.map((action, i) => (
+              <motion.div
+                key={action.section}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 + 0.1 }}
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection(action.section)}
+                      className={cn(
+                        "relative flex items-center justify-center w-10 h-10 rounded-xl",
+                        "transition-all duration-200 hover:scale-110 active:scale-95",
+                        "bg-gradient-to-br shadow-sm hover:shadow-md",
+                        action.gradient
+                      )}
+                    >
+                      <action.icon className="h-4.5 w-4.5 text-white" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={8} className="text-xs font-medium rounded-lg">
+                    {action.label}
+                  </TooltipContent>
+                </Tooltip>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -860,6 +1101,32 @@ export default function OverviewDashboard() {
         @keyframes gradientSlide {
           0%, 100% { opacity: 0.3; transform: translateX(-30%); }
           50% { opacity: 1; transform: translateX(30%); }
+        }
+        @keyframes alertShake {
+          0%, 100% { transform: rotate(0deg); }
+          10%, 50%, 90% { transform: rotate(-3deg); }
+          30%, 70% { transform: rotate(3deg); }
+        }
+        @keyframes alertPulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.7; transform: scale(1.1); }
+        }
+        @keyframes alertFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-2px); }
+        }
+        @keyframes alertCheck {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.2); }
+          100% { transform: scale(1); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .animate-\\[alertShake_0\\.6s_ease-in-out_infinite\\],
+          .animate-\\[alertPulse_2s_ease-in-out_infinite\\],
+          .animate-\\[alertFloat_3s_ease-in-out_infinite\\],
+          .animate-\\[alertCheck_0\\.8s_ease-in-out\\] {
+            animation: none !important;
+          }
         }
       `}</style>
 
