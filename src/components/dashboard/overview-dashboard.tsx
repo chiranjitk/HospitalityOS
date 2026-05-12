@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { useTimezone } from '@/contexts/TimezoneContext';
 import { useUIStore, useAuthStore } from '@/store';
 import { useTranslations } from 'next-intl';
 import { useDashboardData } from '@/hooks/use-dashboard-data';
@@ -158,41 +157,6 @@ function useCountUp(target: number, duration: number = 1200) {
   return { count, ref };
 }
 
-// ─── Mini Sparkline SVG ─────────────────────────────────────────────────
-
-function MiniSparkline({ color, width = 28, height = 12 }: { color: string; width?: number; height?: number }) {
-  // Generate deterministic sparkline points based on a simple pattern
-  const points = useMemo(() => {
-    const pts: string[] = [];
-    const steps = 6;
-    const stepX = width / (steps - 1);
-    // Use a simple hash-like pattern for visual variety
-    const seed = color.length;
-    for (let i = 0; i < steps; i++) {
-      const x = i * stepX;
-      const progress = i / (steps - 1);
-      // Create an upward trend with some variation
-      const variation = Math.sin((i + seed) * 1.5) * 0.3;
-      const y = height - (progress * 0.6 + 0.2 + variation) * height;
-      pts.push(`${x.toFixed(1)},${Math.max(1, Math.min(height - 1, y)).toFixed(1)}`);
-    }
-    return pts.join(' ');
-  }, [color, width, height]);
-
-  return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 // ─── Animated background mesh ───────────────────────────────────────────
 
 function MeshBackground() {
@@ -202,170 +166,6 @@ function MeshBackground() {
       <div className="absolute -bottom-16 -left-16 w-60 h-60 rounded-full bg-gradient-to-br from-amber-400/10 to-orange-400/6 blur-3xl animate-[float2_10s_ease-in-out_infinite]" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-gradient-to-br from-violet-400/6 to-purple-400/5 blur-3xl animate-[float3_12s_ease-in-out_infinite]" />
     </div>
-  );
-}
-
-// ─── Greeting Card ──────────────────────────────────────────────────────
-
-function GreetingCard({ occupancy = 0, arrivals = 0, alertsCount = 0 }: {
-  occupancy?: number; arrivals?: number; alertsCount?: number;
-}) {
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const { formatTime } = useTimezone();
-  const { currentProperty } = useAuthStore();
-  const t = useTranslations('dashboard');
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const hour = currentTime.getHours();
-  let greeting: string;
-  let Icon: LucideIcon;
-  let accentColor = 'emerald';
-  let gradient = 'from-emerald-500 to-teal-500';
-  let iconBg = 'bg-gradient-to-br from-emerald-400 to-teal-600';
-  let ringColor = 'ring-emerald-400/40';
-  let chipBg = 'bg-emerald-50 dark:bg-emerald-950/40';
-  let chipText = 'text-emerald-700 dark:text-emerald-400';
-  let clockColor = 'text-emerald-600 dark:text-emerald-400';
-  let cardGradientBg = '';
-  let sparklineColor = '#10b981'; // emerald-500
-  let borderGradientColors = 'from-emerald-500 via-teal-400 to-cyan-500';
-
-  if (hour >= 12 && hour < 17) {
-    greeting = t('goodAfternoon'); Icon = CloudSun; accentColor = 'sky';
-    gradient = 'from-sky-500 to-cyan-500';
-    iconBg = 'bg-gradient-to-br from-sky-400 to-cyan-600';
-    ringColor = 'ring-sky-400/40'; chipBg = 'bg-sky-50 dark:bg-sky-950/40';
-    chipText = 'text-sky-700 dark:text-sky-400'; clockColor = 'text-sky-600 dark:text-sky-400';
-    cardGradientBg = 'bg-gradient-to-r from-sky-50/80 via-white to-cyan-50/60 dark:from-sky-950/20 dark:via-background dark:to-cyan-950/15';
-    sparklineColor = '#0ea5e9'; // sky-500
-    borderGradientColors = 'from-sky-500 via-cyan-400 to-teal-500';
-  } else if (hour >= 17 && hour < 21) {
-    greeting = t('goodEvening'); Icon = Moon; accentColor = 'violet';
-    gradient = 'from-violet-500 to-purple-500';
-    iconBg = 'bg-gradient-to-br from-violet-400 to-purple-600';
-    ringColor = 'ring-violet-400/40'; chipBg = 'bg-violet-50 dark:bg-violet-950/40';
-    chipText = 'text-violet-700 dark:text-violet-400'; clockColor = 'text-violet-600 dark:text-violet-400';
-    cardGradientBg = 'bg-gradient-to-r from-amber-50/60 via-violet-50/80 to-purple-50/60 dark:from-amber-950/10 dark:via-violet-950/20 dark:to-purple-950/15';
-    sparklineColor = '#8b5cf6'; // violet-500
-    borderGradientColors = 'from-amber-500 via-violet-500 to-purple-500';
-  } else if (hour >= 21 || hour < 5) {
-    greeting = t('goodNight'); Icon = Moon; accentColor = 'slate';
-    gradient = 'from-slate-600 to-slate-800';
-    iconBg = 'bg-gradient-to-br from-slate-500 to-slate-700';
-    ringColor = 'ring-slate-400/40'; chipBg = 'bg-slate-100 dark:bg-slate-800/40';
-    chipText = 'text-slate-700 dark:text-slate-400'; clockColor = 'text-slate-500 dark:text-slate-400';
-    cardGradientBg = 'bg-gradient-to-r from-slate-50/80 via-white to-slate-100/60 dark:from-slate-950/20 dark:via-background dark:to-slate-900/15';
-    sparklineColor = '#64748b'; // slate-500
-    borderGradientColors = 'from-slate-500 via-slate-400 to-slate-600';
-  } else {
-    greeting = t('goodMorning'); Icon = Sun;
-    cardGradientBg = 'bg-gradient-to-r from-amber-50/60 via-emerald-50/80 to-teal-50/60 dark:from-amber-950/10 dark:via-emerald-950/20 dark:to-teal-950/15';
-    sparklineColor = '#10b981'; // emerald-500
-    borderGradientColors = 'from-amber-500 via-emerald-500 to-teal-500';
-  }
-
-  const dayName = currentTime.toLocaleDateString('en-US', { weekday: 'long' });
-  const monthDay = currentTime.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-
-  // Elegant time with seconds
-  const timeStr = currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-  const [timeMain, timeSec, period] = (() => {
-    const parts = timeStr.split(':');
-    const lastPart = parts[2] || '';
-    const secAndPeriod = lastPart.split(' ');
-    return [`${parts[0]}:${parts[1]}`, secAndPeriod[0], secAndPeriod[1] || ''];
-  })();
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
-      <Card className={cn(
-        "relative overflow-hidden rounded-xl border border-border/60 shadow-md hover-lift greeting-card-animated-border",
-        cardGradientBg || "bg-card"
-      )}>
-        {/* Animated gradient border - top flowing line */}
-        <div className="greeting-border-top" style={{ '--border-gradient-from': `var(--color-${accentColor}-500, var(--primary))` } as React.CSSProperties} />
-        {/* Animated gradient border - bottom glow */}
-        <div className={cn("absolute bottom-0 left-0 right-0 h-[2px] greeting-border-bottom bg-gradient-to-r", borderGradientColors)} />
-
-        {/* Property watermark behind greeting */}
-        {currentProperty?.name && (
-          <div className="absolute top-1/2 right-4 -translate-y-1/2 select-none pointer-events-none">
-            <span className="text-5xl sm:text-6xl font-extrabold text-foreground/[0.03] dark:text-foreground/[0.04] leading-none tracking-tight whitespace-nowrap">
-              {currentProperty.name}
-            </span>
-          </div>
-        )}
-
-        <CardContent className="p-4 sm:p-5 relative z-10">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              {/* Icon with gradient ring */}
-              <div className="relative flex-shrink-0">
-                <div className={cn("absolute -inset-1 rounded-xl bg-gradient-to-br opacity-30 blur-sm animate-[breathe_2.5s_ease-in-out_infinite]", gradient)} />
-                <div className={cn("relative flex items-center justify-center w-10 h-10 rounded-xl shadow-md", iconBg)}>
-                  <Icon className="h-5 w-5 text-white" />
-                </div>
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground text-shadow-sm">
-                    {greeting}<span className="inline-block animate-[wave_2s_ease-in-out_infinite] origin-[70%_70%]">!</span>
-                  </h1>
-                  <div className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono font-semibold tabular-nums", chipBg, chipText, "border-border/40")}>
-                    <div className="relative flex h-1.5 w-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-live opacity-60" />
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-live" />
-                    </div>
-                    <span>{timeMain}</span>
-                    <span className="text-[10px] opacity-50">:{timeSec}</span>
-                    <span className="text-[10px] opacity-70 font-medium">{period}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 mt-1">
-                  <span className="text-xs text-muted-foreground">{dayName}, {monthDay}</span>
-                  {currentProperty?.name && (
-                    <span className="hidden sm:inline-flex items-center gap-1 text-xs text-muted-foreground/60">
-                      <Building2 className="h-3 w-3" />
-                      {currentProperty.name}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Status pills with sparklines */}
-            <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
-              <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border group", chipBg, chipText, "border-border/40")}>
-                <Bed className="h-3 w-3" />
-                {occupancy}%
-                <span className="hidden sm:inline"><MiniSparkline color={sparklineColor} /></span>
-              </span>
-              <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border group", chipBg, chipText, "border-border/40")}>
-                <LogIn className="h-3 w-3" />
-                {arrivals}
-                <span className="hidden sm:inline"><MiniSparkline color="#f59e0b" /></span>
-              </span>
-              {alertsCount > 0 && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border group bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400 border-red-200/50 dark:border-red-800/40">
-                  <Bell className="h-3 w-3" />
-                  {alertsCount}
-                  <span className="hidden sm:inline"><MiniSparkline color="#ef4444" /></span>
-                </span>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
   );
 }
 
@@ -1137,13 +937,6 @@ export default function OverviewDashboard() {
         <div className="relative z-10">
           <WelcomeBannerWidget />
         </div>
-
-        {/* ── Greeting ── */}
-        <GreetingCard
-          occupancy={summary?.occupancy || 0}
-          arrivals={summary?.arrivals || 0}
-          alertsCount={summary?.alerts?.length || 0}
-        />
 
         {/* ── Live Clock Widget ── */}
         <div className="relative z-10">
