@@ -3275,7 +3275,7 @@ export async function POST(request: NextRequest) {
           const cleanNasIp = disconnectNasIp;
           try {
             // Try FreeRADIUS service first (has coaPort from SQLite)
-            const frRes = await fetch(`http://127.0.0.1:${process.env.FREERADIUS_PORT || 3004}/api/nas/lookup?nasIp=${encodeURIComponent(cleanNasIp)}`);
+            const frRes = await fetch(`http://127.0.0.1:${process.env.FREERADIUS_PORT || 3010}/api/nas/lookup?nasIp=${encodeURIComponent(cleanNasIp)}`);
             if (frRes.ok) {
               const frData = await frRes.json();
               if (frData.success && frData.data) {

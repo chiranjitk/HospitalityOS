@@ -138,7 +138,7 @@ async function resolveViaRadAcct(
         ra.username
       ) AS guest_name,
       rm."number" AS room_number
-    FROM "RadAcct" ra
+    FROM radacct ra
     LEFT JOIN "WiFiUser" wu ON wu.username = ra.username
     LEFT JOIN "Guest" g_wu ON g_wu.id = wu."guestId"
     LEFT JOIN "RadiusMacAuth" ma ON ma."macAddress" = ra."callingstationid" AND ma."guestName" IS NOT NULL
