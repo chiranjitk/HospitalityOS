@@ -157,13 +157,18 @@ export const sectionSkeletonMap: Record<string, SkeletonLayout> = {
   'crm-retention': 'dashboard',
 
   // Channels
+  'channel-analytics': 'dashboard',
   'channel-ota': 'table',
   'channel-inventory': 'table',
   'channel-rate': 'table',
   'channel-booking': 'table',
   'channel-restrictions': 'settings',
+  'channel-stop-sell': 'dashboard',
+  'channel-allocations': 'dashboard',
   'channel-mapping': 'table',
+  'channel-parity': 'dashboard',
   'channel-logs': 'table',
+  'channel-health': 'dashboard',
   'channel-crs': 'table',
   'channel-gds': 'table',
 

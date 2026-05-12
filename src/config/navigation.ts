@@ -91,6 +91,10 @@ import {
   Gamepad2,
   Trophy,
   Route,
+  HeartPulse,
+  ShieldOff,
+  BarChart3 as BarChart3Icon,
+  PieChart,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -407,13 +411,18 @@ export const navigationConfig: NavSection[] = [
     icon: Globe,
     category: 'addons',
     items: [
+      { id: 'channel-analytics', title: 'Channel Analytics', href: '#channel-analytics', icon: BarChart3Icon },
       { id: 'channel-ota', title: 'OTA Connections', href: '#channel-ota', icon: Globe },
       { id: 'channel-inventory', title: 'Inventory Sync', href: '#channel-inventory', icon: Zap },
       { id: 'channel-rate', title: 'Rate Sync', href: '#channel-rate', icon: DollarSign },
       { id: 'channel-booking', title: 'Booking Sync', href: '#channel-booking', icon: CalendarDays },
       { id: 'channel-restrictions', title: 'Restrictions', href: '#channel-restrictions', icon: Lock },
+      { id: 'channel-stop-sell', title: 'Bulk Stop-Sell', href: '#channel-stop-sell', icon: ShieldOff },
+      { id: 'channel-allocations', title: 'Allocations', href: '#channel-allocations', icon: PieChart },
       { id: 'channel-mapping', title: 'Channel Mapping', href: '#channel-mapping', icon: Layers },
+      { id: 'channel-parity', title: 'Rate Parity', href: '#channel-parity', icon: ShieldCheck },
       { id: 'channel-logs', title: 'Sync Logs', href: '#channel-logs', icon: History },
+      { id: 'channel-health', title: 'Channel Health', href: '#channel-health', icon: HeartPulse },
       { id: 'channel-crs', title: 'CRS', href: '#channel-crs', icon: Building },
       { id: 'channel-gds', title: 'GDS Connectivity', href: '#channel-gds', icon: Radio },
     ],

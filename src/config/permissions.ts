@@ -561,6 +561,10 @@ export const menuPermissions: PermissionConfig = {
   },
 
   // ---- Channel Manager ----
+  'channel-analytics': {
+    permissions: ['channels.view', 'channels.manage', 'channels.*', '*'],
+    description: 'View channel analytics dashboard with performance, revenue, and commission data'
+  },
   'channel-ota': {
     permissions: ['channels.view', 'channels.manage', 'channels.*', '*'],
     description: 'Manage OTA connections'
@@ -581,13 +585,29 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['channels.manage', 'channels.*', '*'],
     description: 'Manage channel restrictions'
   },
+  'channel-stop-sell': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Manage bulk stop-sell across channels'
+  },
+  'channel-allocations': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Manage channel room allocations and allotments'
+  },
   'channel-mapping': {
     permissions: ['channels.manage', 'channels.*', '*'],
     description: 'Manage channel mapping'
   },
+  'channel-parity': {
+    permissions: ['channels.manage', 'channels.view', 'channels.*', '*'],
+    description: 'View and manage rate parity across channels'
+  },
   'channel-logs': {
     permissions: ['channels.view', 'channels.*', '*'],
     description: 'View sync logs'
+  },
+  'channel-health': {
+    permissions: ['channels.view', 'channels.*', '*'],
+    description: 'Monitor channel health'
   },
   'channel-crs': {
     permissions: ['channels.manage', 'channels.*', '*'],
