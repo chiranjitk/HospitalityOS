@@ -13,39 +13,59 @@
  * Set NODE_ENV=production to prefer system-wide paths.
  */
 
-import { existsSync } from 'fs';
-
 const isProduction = process.env.NODE_ENV === 'production';
 
 // ── Auto-detect FreeRADIUS install prefix ──────────────────────────
 // Probes for the radclient binary in the two most common locations.
 // Returns the *prefix* (parent of bin/ sbin/ etc/ share/).
+//
+// Uses lazy require('fs') instead of top-level import so this module
+// is safe to import from Edge Runtime (instrumentation.ts).
+
+/** Cached result — detection runs once per process */
+let _detectedPrefix: string | null = null;
 
 function detectFreeradiusPrefix(): string {
-  // 1) Explicit env override wins
-  if (process.env.FREERADIUS_HOME) return process.env.FREERADIUS_HOME;
+  if (_detectedPrefix !== null) return _detectedPrefix;
 
-  // 2) On sandbox dev, use the local build
-  if (!isProduction) {
-    const sandboxHome = process.env.FREERADIUS_SANDBOX_HOME || '/home/z/my-project/freeradius-install';
-    if (existsSync(`${sandboxHome}/bin/radclient`) || existsSync(`${sandboxHome}/sbin/radiusd`)) {
-      return sandboxHome;
+  // 1) Explicit env override wins (no fs needed)
+  if (process.env.FREERADIUS_HOME) {
+    _detectedPrefix = process.env.FREERADIUS_HOME;
+    return _detectedPrefix;
+  }
+
+  // 2) Try filesystem probing (only works in Node.js, not Edge)
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { existsSync } = /*turbopackIgnore: true*/ require('fs');
+
+    // Sandbox dev build
+    if (!isProduction) {
+      const sandboxHome = process.env.FREERADIUS_SANDBOX_HOME || '/home/z/my-project/freeradius-install';
+      if (existsSync(`${sandboxHome}/bin/radclient`) || existsSync(`${sandboxHome}/sbin/radiusd`)) {
+        _detectedPrefix = sandboxHome;
+        return _detectedPrefix;
+      }
     }
+
+    // RPM (dnf) → /usr/bin/radclient, /usr/sbin/radiusd
+    if (existsSync('/usr/bin/radclient') || existsSync('/usr/sbin/radiusd')) {
+      _detectedPrefix = '/usr';
+      return _detectedPrefix;
+    }
+
+    // Source compile → /usr/local/bin/radclient, /usr/local/sbin/radiusd
+    if (existsSync('/usr/local/bin/radclient') || existsSync('/usr/local/sbin/radiusd')) {
+      _detectedPrefix = '/usr/local';
+      return _detectedPrefix;
+    }
+  } catch {
+    // fs not available (Edge Runtime / build-time) — fall through to default
   }
 
-  // 3) Production: probe both RPM and source-install locations
-  //    RPM (dnf) → /usr/bin/radclient, /usr/sbin/radiusd, /etc/raddb
-  if (existsSync('/usr/bin/radclient') || existsSync('/usr/sbin/radiusd')) {
-    return '/usr';
-  }
-
-  //    Source compile (default) → /usr/local/bin/radclient, /usr/local/sbin/radiusd
-  if (existsSync('/usr/local/bin/radclient') || existsSync('/usr/local/sbin/radiusd')) {
-    return '/usr/local';
-  }
-
-  // 4) Fallback: if we can't find it, assume RPM layout (most common)
-  return '/usr';
+  // 3) Fallback: assume RPM layout (most common on Rocky / RHEL)
+  _detectedPrefix = isProduction ? '/usr' : '/home/z/my-project/freeradius-install';
+  return _detectedPrefix;
 }
 
 const FREERADIUS_PREFIX = detectFreeradiusPrefix();
