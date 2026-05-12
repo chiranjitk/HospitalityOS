@@ -1079,6 +1079,24 @@ info "Building Next.js (this may take a few minutes)..."
 bun run build 2>&1 | tail -10
 success "Next.js build complete"
 
+# ── Copy standalone build artifacts ──────────────────────────────────────────
+# Next.js standalone output (.next/standalone/) only contains a pruned node_modules
+# and server.js. It does NOT include the server build output, static assets, or
+# BUILD_ID. These MUST be copied in after every build.
+#
+# As of Next.js 16.2.x, the server bootstrap (next/dist/server/next.js) requires
+# '../build/output/log' which resolves to node_modules/next/dist/build/output/log.
+# The standalone file tracer prunes this file because it's not directly imported
+# by user code — only by Next.js internals. Copying the full .next/server dir
+# into standalone fixes this AND ensures routes, middleware, and other server
+# components are available at runtime.
+info "Copying build artifacts into standalone output..."
+rm -rf "${APP_DIR}/.next/standalone/.next/server" "${APP_DIR}/.next/standalone/.next/static" "${APP_DIR}/.next/standalone/.next/BUILD_ID" 2>/dev/null
+cp -r "${APP_DIR}/.next/server" "${APP_DIR}/.next/standalone/.next/server"
+cp -r "${APP_DIR}/.next/static" "${APP_DIR}/.next/standalone/.next/static"
+cp "${APP_DIR}/.next/BUILD_ID" "${APP_DIR}/.next/standalone/.next/BUILD_ID" 2>/dev/null || true
+success "Standalone artifacts copied (server + static + BUILD_ID)"
+
 # Install Ookla speedtest CLI (used by Gateway Diagnostics > Speed Test)
 # No native Node.js modules needed — just a standalone binary.
 if ! command -v speedtest &>/dev/null; then
