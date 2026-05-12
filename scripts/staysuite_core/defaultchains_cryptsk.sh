@@ -47,6 +47,10 @@ PORTAL_HTTP="${PORTAL_HTTP:-8888}"   # captive-redirect HTTP
 PORTAL_HTTPS="${PORTAL_HTTPS:-8443}"  # captive-redirect HTTPS/TLS SNI
 PORTAL_APP="${PORTAL_APP:-3000}"       # Next.js portal app
 
+# e2guardian transparent proxy ports — only used when e2guardian service is running
+E2G_HTTP_PORT="${E2G_HTTP_PORT:-8080}"     # transparent HTTP proxy (filterports)
+E2G_HTTPS_PORT="${E2G_HTTPS_PORT:-18443}"  # transparent HTTPS/SNI proxy (transparenthttpsport)
+
 ## ============================================================================
 ## CONFIGURATION VARIABLES
 ## ============================================================================
@@ -68,6 +72,32 @@ else
 fi
 
 echo "httpmodule=$httpmodule (captive-redirect on port $PORTAL_HTTP: $([ $httpmodule -eq 1 ] && echo 'YES' || echo 'NO'))"
+
+## ============================================================================
+## E2GUARDIAN CONTENT FILTER MODULE CHECK
+## ============================================================================
+# Check if e2guardian content filter is running.
+# e2guardian only gets REDIRECT rules in NAT prerouting when ACTIVE.
+# When DISABLED, guest traffic goes directly to internet (no content filtering).
+#
+# Detection order:
+#   1. systemctl is-active (systemd service)
+#   2. pgrep binary (fallback for manual/standalone starts)
+#   3. Port check on filterports (last resort — verifies listener)
+#
+# The mark & 0x10000000 flag is set in mangle prerouting for IPs in @usersset
+# (logged-in guest users). Pre-login guests (not in @usersset) never get this
+# bit, so they always hit the captive portal redirect first.
+e2module=0
+if systemctl is-active --quiet e2guardian 2>/dev/null; then
+    e2module=1
+elif pgrep -x e2guardian >/dev/null 2>&1; then
+    e2module=1
+elif ss -tln sport = :${E2G_HTTP_PORT} 2>/dev/null | grep -q LISTEN; then
+    e2module=1
+fi
+
+echo "e2guardian=$e2module (content filter on port $E2G_HTTP_PORT/$E2G_HTTPS_PORT: $([ $e2module -eq 1 ] && echo 'ACTIVE' || echo 'DISABLED'))"
 
 ## ============================================================================
 ## HELPER FUNCTIONS
@@ -430,6 +460,55 @@ if [ "${multiplegateways:-N}" = "Y" ] || [ "${multiplegateways:-N}" = "y" ]; the
         echo "Gateway $gatewayid (fwmark=$fwmark) inserted at nat prerouting"
     done
     unset gw_entries
+fi
+
+## ============================================================================
+## E2GUARDIAN TRANSPARENT PROXY REDIRECT (Post-Login Content Filtering)
+## ============================================================================
+#
+# PLACEMENT: After captive portal redirect + jump open + jump frchainspre.
+# Only post-login guest traffic reaches these rules.
+#
+# TRAFFIC FLOW:
+#   Pre-login guest  → mark 10000/20000 (from firewallchains) → captive portal redirect [pos 0/1]
+#   Gateway local    → jump open accepts [pos 2]
+#   GUI DNAT rules   → jump frchainspre [pos 3]
+#   Post-login guest → mark & 0x10000000 (set in mangle prerouting for @usersset IPs)
+#                      → redirect to e2guardian ports [pos N/N+1]  ← THIS SECTION
+#
+# MARK LOGIC (from mangle prerouting, lines ~329-334):
+#   ip saddr @usersset meta mark set ct mark        # restore mark from conntrack
+#   ip saddr @usersset ct mark != 0 accept          # authorized users accepted here
+#   ip saddr @usersset meta mark set mark | 0x10000000  # flag: "processed by firewall"
+#   ip saddr @usersset ct mark set mark             # save back to conntrack
+#
+#   Pre-login guests are NOT in @usersset → no 0x10000000 bit → captive portal matches
+#   Post-login guests ARE in @usersset → have 0x10000000 bit → e2guardian matches
+#
+# LOOP PREVENTION: e2guardian's own outbound connections originate from the
+#   gateway's IP (not in @usersset), so mark & 0x10000000 == 0 → no redirect.
+#
+# PORTS (from /etc/e2guardian/e2guardian/e2guardian.conf):
+#   filterports           = 8080   → transparent HTTP proxy
+#   transparenthttpsport  = 18443  → transparent HTTPS/SNI proxy
+## ============================================================================
+
+if [ "$e2module" -eq 1 ]; then
+    echo "Installing e2guardian transparent proxy redirect rules..."
+
+    # HTTP: redirect port 80 → e2guardian HTTP proxy port
+    # Only for traffic from logged-in users (mark has 0x10000000 bit set)
+    nft "add rule inet nat prerouting mark & 0x10000000 != 0 tcp dport 80 redirect to :$E2G_HTTP_PORT"
+    echo "  [e2guardian] TCP 80  → redirect to :$E2G_HTTP_PORT (HTTP content filter)"
+
+    # HTTPS: redirect port 443 → e2guardian HTTPS/SNI proxy port
+    # Only for traffic from logged-in users (mark has 0x10000000 bit set)
+    nft "add rule inet nat prerouting mark & 0x10000000 != 0 tcp dport 443 redirect to :$E2G_HTTPS_PORT"
+    echo "  [e2guardian] TCP 443 → redirect to :$E2G_HTTPS_PORT (HTTPS/SNI content filter)"
+
+    echo "e2guardian transparent proxy redirect ACTIVE (HTTP→$E2G_HTTP_PORT, HTTPS→$E2G_HTTPS_PORT)"
+else
+    echo "e2guardian not running — skipping transparent proxy redirect rules"
 fi
 
 ## ============================================================================
