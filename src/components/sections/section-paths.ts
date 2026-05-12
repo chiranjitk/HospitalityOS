@@ -79,6 +79,15 @@ const sectionPaths: Record<string, string> = {
   'wifi-access': '@/components/wifi/wifi-access-page',
   'wifi-gateway-radius': '@/components/wifi/gateway-radius-page',
   'wifi-dns': '@/components/wifi/dns-page',
+  'wifi-health-alerts': '@/components/wifi/wifi-health-alerts',
+  'wifi-pre-arrival': '@/components/wifi/wifi-pre-arrival',
+  'wifi-device-management': '@/components/wifi/wifi-device-management',
+  'wifi-identity-verification': '@/components/wifi/wifi-identity-verification',
+  'wifi-consent-management': '@/components/wifi/wifi-consent-management',
+  'wifi-bandwidth-upsell': '@/components/wifi/wifi-bandwidth-upsell',
+  'wifi-revenue-dashboard': '@/components/wifi/wifi-revenue-dashboard',
+  'wifi-satisfaction-surveys': '@/components/wifi/wifi-satisfaction-surveys',
+  'wifi-sla-monitoring': '@/components/wifi/wifi-sla-monitoring',
 
   // Billing
   'billing-folios': '@/components/billing/folios',

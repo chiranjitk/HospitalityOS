@@ -33,6 +33,15 @@ const UserStatusHistory = lazy(() => import('@/components/wifi/user-status-histo
 const NasHealth = lazy(() => import('@/components/wifi/nas-health'));
 const BwPolicyDetails = lazy(() => import('@/components/wifi/bw-policy-details'));
 const GatewayDiagnostics = lazy(() => import('@/components/wifi/gateway-diagnostics'));
+const WifiHealthAlerts = lazy(() => import('@/components/wifi/wifi-health-alerts'));
+const WifiPreArrival = lazy(() => import('@/components/wifi/wifi-pre-arrival'));
+const WifiDeviceManagement = lazy(() => import('@/components/wifi/wifi-device-management'));
+const WifiIdentityVerification = lazy(() => import('@/components/wifi/wifi-identity-verification'));
+const WifiConsentManagement = lazy(() => import('@/components/wifi/wifi-consent-management'));
+const WifiBandwidthUpsell = lazy(() => import('@/components/wifi/wifi-bandwidth-upsell'));
+const WifiRevenueDashboard = lazy(() => import('@/components/wifi/wifi-revenue-dashboard'));
+const WifiSatisfactionSurveys = lazy(() => import('@/components/wifi/wifi-satisfaction-surveys'));
+const WifiSlaMonitoring = lazy(() => import('@/components/wifi/wifi-sla-monitoring'));
 
 export const wifiSections: Record<string, React.LazyExoticComponent<any>> = {
   WifiSessions,
@@ -66,4 +75,13 @@ export const wifiSections: Record<string, React.LazyExoticComponent<any>> = {
   NasHealth,
   BwPolicyDetails,
   GatewayDiagnostics,
+  WifiHealthAlerts,
+  WifiPreArrival,
+  WifiDeviceManagement,
+  WifiIdentityVerification,
+  WifiConsentManagement,
+  WifiBandwidthUpsell,
+  WifiRevenueDashboard,
+  WifiSatisfactionSurveys,
+  WifiSlaMonitoring,
 };

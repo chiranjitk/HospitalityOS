@@ -30,6 +30,15 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'wifi-nas-health': () => import('@/components/wifi/nas-health'),
   'wifi-bw-policy-details': () => import('@/components/wifi/bw-policy-details'),
   'wifi-diagnostics': () => import('@/components/wifi/gateway-diagnostics'),
+  'wifi-health-alerts': () => import('@/components/wifi/wifi-health-alerts'),
+  'wifi-pre-arrival': () => import('@/components/wifi/wifi-pre-arrival'),
+  'wifi-device-management': () => import('@/components/wifi/wifi-device-management'),
+  'wifi-identity-verification': () => import('@/components/wifi/wifi-identity-verification'),
+  'wifi-consent-management': () => import('@/components/wifi/wifi-consent-management'),
+  'wifi-bandwidth-upsell': () => import('@/components/wifi/wifi-bandwidth-upsell'),
+  'wifi-revenue-dashboard': () => import('@/components/wifi/wifi-revenue-dashboard'),
+  'wifi-satisfaction-surveys': () => import('@/components/wifi/wifi-satisfaction-surveys'),
+  'wifi-sla-monitoring': () => import('@/components/wifi/wifi-sla-monitoring'),
 };
 
 export const wifiMap = sectionMap;

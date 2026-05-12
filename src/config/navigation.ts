@@ -103,6 +103,7 @@ import {
   Gauge,
   Timer,
   Calculator,
+  Send,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -396,6 +397,15 @@ export const navigationConfig: NavSection[] = [
       { id: 'wifi-content-filter', title: 'Content Filter', href: '#wifi-content-filter', icon: ShieldAlert },
       { id: 'wifi-diagnostics', title: 'Gateway Diagnostics', href: '#wifi-diagnostics', icon: Stethoscope },
       { id: 'wifi-reports', title: 'Reports', href: '#wifi-reports', icon: Activity },
+      { id: 'wifi-health-alerts', title: 'Health Alerts', href: '#wifi-health-alerts', icon: Bell },
+      { id: 'wifi-pre-arrival', title: 'Pre-Arrival Delivery', href: '#wifi-pre-arrival', icon: Send },
+      { id: 'wifi-device-management', title: 'Multi-Device Registration', href: '#wifi-device-management', icon: Smartphone },
+      { id: 'wifi-identity-verification', title: 'Identity Verification', href: '#wifi-identity-verification', icon: ShieldCheck },
+      { id: 'wifi-consent-management', title: 'GDPR Consent', href: '#wifi-consent-management', icon: FileCheck2 },
+      { id: 'wifi-bandwidth-upsell', title: 'Bandwidth Upsell', href: '#wifi-bandwidth-upsell', icon: TrendingUp },
+      { id: 'wifi-revenue-dashboard', title: 'Revenue Analytics', href: '#wifi-revenue-dashboard', icon: DollarSign },
+      { id: 'wifi-satisfaction-surveys', title: 'Guest Surveys', href: '#wifi-satisfaction-surveys', icon: Star },
+      { id: 'wifi-sla-monitoring', title: 'SLA Monitoring', href: '#wifi-sla-monitoring', icon: Gauge },
     ],
   },
 

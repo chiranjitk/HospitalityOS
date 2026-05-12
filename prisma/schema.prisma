@@ -2678,6 +2678,9 @@ model Guest {
   deviceProfiles     DeviceProfile[]
   lostFoundItems      LostFoundItem[]
   laundryOrders       LaundryOrder[]
+  wifiDevices         WiFiDevice[]
+  wifiSatisfactionSurveys WiFiSatisfactionSurvey[]
+  wifiPartnerAuths    WiFiPartnerAuth[]
 
   @@index([tenantId])
   @@index([email])
@@ -4610,6 +4613,16 @@ model Property {
   gstReturns                GstReturn[]
   tcsRecords                TcsRecord[]
   tdsRecords                TdsRecord[]
+  wifiAlerts                WiFiAlert[]
+  wifiDevices               WiFiDevice[]
+  wifiConsentLogs           WiFiConsentLog[]
+  wifiIdentityLogs          WiFiIdentityLog[]
+  wifiBandwidthUpgrades     WiFiBandwidthUpgrade[]
+  wifiSatisfactionSurveys   WiFiSatisfactionSurvey[]
+  wifiPreArrivalConfigs     WiFiPreArrivalConfig[]
+  wifiSLAConfigs            WiFiSLAConfig[]
+  wifiSLAMetrics            WiFiSLAMetric[]
+  portalAdCampaigns         PortalAdCampaign[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -6360,6 +6373,18 @@ model Tenant {
   wifiSessions              WiFiSession[]
   wifiUsers                 WiFiUser[]
   vouchers                  WiFiVoucher[]
+  wifiAlerts                WiFiAlert[]
+  wifiDevices               WiFiDevice[]
+  wifiConsentLogs           WiFiConsentLog[]
+  wifiIdentityLogs          WiFiIdentityLog[]
+  wifiBandwidthUpgrades     WiFiBandwidthUpgrade[]
+  wifiSatisfactionSurveys   WiFiSatisfactionSurvey[]
+  wifiPreArrivalConfigs     WiFiPreArrivalConfig[]
+  wifiSLAConfigs            WiFiSLAConfig[]
+  wifiSLAMetrics            WiFiSLAMetric[]
+  portalAdCampaigns         PortalAdCampaign[]
+  wifiPartners              WiFiPartner[]
+  wifiPartnerAuths          WiFiPartnerAuth[]
   radiusNAS                 RadiusNAS[]
   radiusServerConfigs       RadiusServerConfig[]
   amenities                 Amenity[]
@@ -7434,6 +7459,329 @@ model WiFiVoucher {
 
   @@index([tenantId])
   @@index([code])
+}
+
+// ============================================================
+// WIFI FEATURE SUGGESTIONS — NEW MODELS
+// ============================================================
+
+/// WiFi Health Alert (F21) — Automatic alerts when WiFi quality degrades
+model WiFiAlert {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  propertyId  String?   @db.Uuid
+  type        String    // ap_down, latency, capacity, auth_failure, radius_error, bandwidth_exhaustion, nas_offline
+  severity    String    @default("warning") // critical, warning, info
+  title       String
+  message     String
+  source      String?   // NAS identifier, AP MAC, etc.
+  metadata    String?   @default("{}") // JSON: extra context (signal strength, client count, etc.)
+  status      String    @default("active") // active, acknowledged, resolved
+  acknowledgedBy String? @db.Uuid
+  acknowledgedAt DateTime? @db.Timestamptz
+  resolvedAt  DateTime? @db.Timestamptz
+  resolvedBy  String?   @db.Uuid
+  resolveNote String?
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property    Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([severity])
+  @@index([type])
+  @@index([createdAt])
+}
+
+/// Multi-Device Registration (F9) — Track guest devices for auto-authentication
+model WiFiDevice {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  guestId     String    @db.Uuid
+  propertyId  String?   @db.Uuid
+  macAddress  String
+  deviceName  String?
+  deviceType  String?   // phone, laptop, tablet, watch, tv, other
+  userAgent   String?
+  ipAddress   String?
+  isApproved  Boolean   @default(true)
+  firstSeen   DateTime  @default(now()) @db.Timestamptz
+  lastSeen    DateTime  @default(now()) @db.Timestamptz
+  autoAuth    Boolean   @default(true) // Auto-authenticate this device
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+  guest       Guest     @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property    Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, macAddress])
+  @@index([tenantId])
+  @@index([guestId])
+  @@index([macAddress])
+  @@index([lastSeen])
+}
+
+/// GDPR/Privacy Consent Log (F13) — Mandatory consent before WiFi access
+model WiFiConsentLog {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  guestId         String?   @db.Uuid
+  propertyId      String?   @db.Uuid
+  sessionId       String?   // Radius session ID
+  consentType     String    @default("wifi_access") // wifi_access, marketing, data_processing
+  consentTextHash String    // SHA256 hash of consent text shown
+  ipAddress       String
+  macAddress      String?
+  userAgent       String?
+  optInMarketing  Boolean   @default(false)
+  dataRetentionDays Int     @default(90)
+  expiresAt       DateTime  @db.Timestamptz
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property        Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([guestId])
+  @@index([sessionId])
+  @@index([ipAddress])
+  @@index([createdAt])
+}
+
+/// Identity Verification Log (F14) — KYC for regulatory compliance
+model WiFiIdentityLog {
+  id                 String    @id @default(uuid()) @db.Uuid
+  tenantId           String    @db.Uuid
+  propertyId         String?   @db.Uuid
+  sessionId          String?   // Radius session ID
+  username           String
+  verificationMethod String    // none, room_number, otp_sms, otp_email, government_id, selfie_verify
+  verifiedIdentity   String?   // Room number, masked phone/email, ID number, etc.
+  verificationStatus String    @default("pending") // pending, verified, failed, skipped
+  ipAddress          String
+  macAddress         String?
+  countryCode        String?   // ID issuing country
+  idType             String?   // aadhaar, passport, national_id, driving_license
+  failureReason      String?
+  verifiedAt         DateTime? @db.Timestamptz
+  createdAt          DateTime  @default(now()) @db.Timestamptz
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property           Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([username])
+  @@index([sessionId])
+  @@index([verificationMethod])
+  @@index([verificationStatus])
+  @@index([createdAt])
+}
+
+/// Bandwidth Upgrade Purchase (F1) — Guest upsell transactions
+model WiFiBandwidthUpgrade {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  propertyId  String?   @db.Uuid
+  guestId     String?   @db.Uuid
+  bookingId   String?   @db.Uuid
+  sessionId   String?   // Radius session ID
+  username    String
+  fromPlanId  String    @db.Uuid
+  toPlanId    String    @db.Uuid
+  amount      Float
+  currency    String    @default("INR")
+  folioId     String?   @db.Uuid // If charged to room
+  paymentStatus String  @default("pending") // pending, completed, failed, refunded
+  coaStatus   String?   // pending, applied, failed
+  activatedAt DateTime? @db.Timestamptz
+  expiresAt   DateTime? @db.Timestamptz
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property    Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([guestId])
+  @@index([bookingId])
+  @@index([sessionId])
+  @@index([paymentStatus])
+  @@index([createdAt])
+}
+
+/// WiFi Satisfaction Survey (F12) — In-portal guest feedback
+model WiFiSatisfactionSurvey {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  propertyId  String?   @db.Uuid
+  guestId     String?   @db.Uuid
+  sessionId   String?   // Radius session ID
+  rating      Int       // 1-5 stars
+  comment     String?
+  categories  String?   @default("{}") // JSON: { speed: 4, coverage: 3, easeOfConnect: 5 }
+  deviceType  String?
+  roomNumber  String?
+  apName      String?
+  ipAddress   String?
+  guest       Guest?    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property    Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([guestId])
+  @@index([rating])
+  @@index([createdAt])
+}
+
+/// Pre-Arrival WiFi Credential Config (F7) — Settings per property
+model WiFiPreArrivalConfig {
+  id                    String    @id @default(uuid()) @db.Uuid
+  tenantId              String    @db.Uuid
+  propertyId            String    @db.Uuid
+  enabled               Boolean   @default(false)
+  hoursBeforeArrival    Int       @default(24) // 6, 12, 24, 48
+  sendEmail             Boolean   @default(true)
+  sendSms               Boolean   @default(true)
+  emailTemplateId       String?   @db.Uuid
+  smsTemplate           String?   @default("Your WiFi at {{hotel_name}}: Network: {{ssid}}, Username: {{username}}, Password: {{password}}")
+  includeQrCode         Boolean   @default(true)
+  autoGenerateCreds     Boolean   @default(true) // Auto-create RADIUS user at booking confirmation
+  planId                String?   @db.Uuid // Default WiFi plan for guests
+  createdAt             DateTime  @default(now()) @db.Timestamptz
+  updatedAt             DateTime  @updatedAt @db.Timestamptz
+  tenant                Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property              Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, propertyId])
+  @@index([tenantId])
+}
+
+/// WiFi SLA Configuration (F23) — SLA targets and metrics
+model WiFiSLAConfig {
+  id                  String    @id @default(uuid()) @db.Uuid
+  tenantId            String    @db.Uuid
+  propertyId          String    @db.Uuid
+  uptimeTarget        Float     @default(99.9) // Percentage
+  speedTargetDown     Float     @default(50)   // Mbps
+  speedTargetUp       Float     @default(10)   // Mbps
+  latencyTarget       Int       @default(20)   // ms
+  measurementInterval Int       @default(5)    // Minutes
+  alertOnBreach       Boolean   @default(true)
+  breachDuration      Int       @default(15)   // Minutes before alert
+  createdAt           DateTime  @default(now()) @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @db.Timestamptz
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property            Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  metrics             WiFiSLAMetric[]
+
+  @@unique([tenantId, propertyId])
+  @@index([tenantId])
+}
+
+/// WiFi SLA Metric (F23) — Periodic measurement
+model WiFiSLAMetric {
+  id              String        @id @default(uuid()) @db.Uuid
+  tenantId        String        @db.Uuid
+  propertyId      String        @db.Uuid
+  slaConfigId     String        @db.Uuid
+  periodStart     DateTime      @db.Timestamptz
+  periodEnd       DateTime      @db.Timestamptz
+  actualUptime    Float?        // Percentage
+  avgSpeedDown    Float?        // Mbps
+  avgSpeedUp      Float?        // Mbps
+  avgLatency      Float?        // ms
+  totalSessions   Int           @default(0)
+  totalBandwidth  Float         @default(0) // GB
+  breached        Boolean       @default(false)
+  breachTypes     String?       @default("[]") // JSON array of breach types
+  createdAt       DateTime      @default(now()) @db.Timestamptz
+  slaConfig       WiFiSLAConfig @relation(fields: [slaConfigId], references: [id], onDelete: Cascade)
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property        Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([slaConfigId])
+  @@index([periodStart])
+}
+
+/// Portal Ad Campaign (F2) — Monetized WiFi portal ads
+model PortalAdCampaign {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  propertyId  String?   @db.Uuid
+  name        String
+  advertiser  String
+  creativeUrl String    // Image or video URL
+  creativeType String   @default("image") // image, video, html
+  linkUrl     String?   // Click-through URL
+  slot        String    @default("banner") // banner, interstitial, footer, sidebar
+  priority    Int       @default(0)
+  impressions Int       @default(0)
+  clicks      Int       @default(0)
+  revenue     Float     @default(0)
+  status      String    @default("active") // draft, active, paused, completed
+  startDate   DateTime  @db.Timestamptz
+  endDate     DateTime  @db.Timestamptz
+  maxBudget   Float?
+  spentBudget Float     @default(0)
+  targeting   String?   @default("{}") // JSON: { guestType, roomType, language, etc. }
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property    Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+/// WiFi Partner (F3) — Sponsored WiFi access partners
+model WiFiPartner {
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @db.Uuid
+  name              String
+  description       String?
+  partnerType       String    @default("loyalty") // loyalty, airline, credit_card, corporate
+  authMethod        String    @default("promo_code") // promo_code, auto_detect, deep_link
+  costPerAuth       Float     @default(0)
+  commission        Float     @default(0)
+  maxDailyAuths     Int?
+  activeAuths       Int       @default(0)
+  totalAuths        Int       @default(0)
+  totalRevenue      Float     @default(0)
+  status            String    @default("active") // active, paused, inactive
+  config            String?   @default("{}") // JSON: { apiEndpoint, apiKey, loyaltyTierMapping, etc. }
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+  partnerAuths      WiFiPartnerAuth[]
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+/// WiFi Partner Auth (F3) — Individual sponsored sessions
+model WiFiPartnerAuth {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  partnerId   String    @db.Uuid
+  guestId     String?   @db.Uuid
+  sessionId   String?
+  username    String
+  partnerRef  String?   // Loyalty number, promo code, etc.
+  partnerTier String?
+  costToPartner Float   @default(0)
+  commission  Float     @default(0)
+  ipAddress   String?
+  guest       Guest?    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  partner     WiFiPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([partnerId])
+  @@index([sessionId])
+  @@index([createdAt])
 }
 
 model WorkOrder {
@@ -10701,3 +11049,4 @@ model AllotmentReleaseLog {
   @@index([tenantId, ruleId, date])
   @@index([connectionId])
 }
+
