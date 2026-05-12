@@ -534,7 +534,7 @@ export function AllotmentRelease() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-semibold">Allotment Release</h2>
+            <h2 className="text-2xl font-bold tracking-tight">Allotment Release</h2>
             <p className="text-sm text-muted-foreground mt-1">
               Automatically release unsold allotment rooms back to the general pool before arrival
             </p>

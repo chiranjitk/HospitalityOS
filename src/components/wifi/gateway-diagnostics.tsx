@@ -2760,7 +2760,7 @@ export default function GatewayDiagnostics() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-xl font-semibold flex items-center gap-2">
+        <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Terminal className="h-5 w-5" />
           Gateway Diagnostics
         </h2>

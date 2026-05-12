@@ -594,7 +594,7 @@ export function DhcpAdvancedTabs({
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold flex items-center gap-2"><Ban className="h-5 w-5 text-teal-600 dark:text-teal-400" />MAC Blacklist</h2>
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Ban className="h-5 w-5 text-teal-600 dark:text-teal-400" />MAC Blacklist</h2>
             <p className="text-sm text-muted-foreground">{blacklist.length} blocked MAC address(es)</p>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -659,7 +659,7 @@ export function DhcpAdvancedTabs({
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold flex items-center gap-2"><Settings className="h-5 w-5 text-teal-600 dark:text-teal-400" />Custom DHCP Options</h2>
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Settings className="h-5 w-5 text-teal-600 dark:text-teal-400" />Custom DHCP Options</h2>
             <p className="text-sm text-muted-foreground">{dhcpOptions.length} custom option(s) configured</p>
           </div>
           <Button onClick={openAddOpt}><Plus className="h-4 w-4 mr-2" />Add Option</Button>
@@ -721,7 +721,7 @@ export function DhcpAdvancedTabs({
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between gap-4">
-          <div><h2 className="text-xl font-semibold flex items-center gap-2"><Tag className="h-5 w-5 text-teal-600 dark:text-teal-400" />Tag Rules</h2><p className="text-sm text-muted-foreground">{tagRules.length} rule(s) configured</p></div>
+          <div><h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Tag className="h-5 w-5 text-teal-600 dark:text-teal-400" />Tag Rules</h2><p className="text-sm text-muted-foreground">{tagRules.length} rule(s) configured</p></div>
           <Button onClick={openAddTr}><Plus className="h-4 w-4 mr-2" />Add Rule</Button>
         </div>
         <Card><CardContent className="p-4"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search by name, tag, or pattern..." value={trSearch} onChange={e => setTrSearch(e.target.value)} className="pl-9" /></div></CardContent></Card>
@@ -775,7 +775,7 @@ export function DhcpAdvancedTabs({
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between gap-4">
-          <div><h2 className="text-xl font-semibold flex items-center gap-2"><Filter className="h-5 w-5 text-teal-600 dark:text-teal-400" />Hostname Filter</h2><p className="text-sm text-muted-foreground">{hostnameFilters.length} filter(s) configured</p></div>
+          <div><h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Filter className="h-5 w-5 text-teal-600 dark:text-teal-400" />Hostname Filter</h2><p className="text-sm text-muted-foreground">{hostnameFilters.length} filter(s) configured</p></div>
           <Button onClick={openAddHf}><Plus className="h-4 w-4 mr-2" />Add Filter</Button>
         </div>
         {/* Info Banner */}
@@ -832,7 +832,7 @@ export function DhcpAdvancedTabs({
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between gap-4">
-          <div><h2 className="text-xl font-semibold flex items-center gap-2"><Terminal className="h-5 w-5 text-teal-600 dark:text-teal-400" />Event Scripts</h2><p className="text-sm text-muted-foreground">{leaseScripts.length} script(s) configured</p></div>
+          <div><h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Terminal className="h-5 w-5 text-teal-600 dark:text-teal-400" />Event Scripts</h2><p className="text-sm text-muted-foreground">{leaseScripts.length} script(s) configured</p></div>
           <Button onClick={openAddLs}><Plus className="h-4 w-4 mr-2" />Add Script</Button>
         </div>
         {leaseScripts.length === 0 ? (
@@ -884,7 +884,7 @@ export function DhcpAdvancedTabs({
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between gap-4">
-          <div><h2 className="text-xl font-semibold flex items-center gap-2"><Globe className="h-5 w-5 text-teal-600 dark:text-teal-400" />IPv6 Dual-Stack</h2><p className="text-sm text-muted-foreground">Configure IPv6 per subnet for DHCPv6 support</p></div>
+          <div><h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Globe className="h-5 w-5 text-teal-600 dark:text-teal-400" />IPv6 Dual-Stack</h2><p className="text-sm text-muted-foreground">Configure IPv6 per subnet for DHCPv6 support</p></div>
         </div>
         {/* Info Banner */}
         <div className="flex items-start gap-2 p-3 rounded-lg bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900 text-sm">

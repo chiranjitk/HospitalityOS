@@ -612,7 +612,7 @@ export default function SyslogTab() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Radio className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-            <h2 className="text-xl font-semibold tracking-tight">Syslog Forwarding</h2>
+            <h2 className="text-2xl font-bold tracking-tight">Syslog Forwarding</h2>
           </div>
           <p className="text-sm text-muted-foreground">
             Forward NAT connection logs to external syslog collectors for SIEM integration and IPDR compliance

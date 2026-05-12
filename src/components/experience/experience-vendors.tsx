@@ -134,7 +134,7 @@ export default function ExperienceVendors() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold flex items-center gap-2"><Handshake className="h-5 w-5" /> Vendor Management</h2>
+          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Handshake className="h-5 w-5" /> Vendor Management</h2>
           <p className="text-sm text-muted-foreground">Manage external experience providers and partners</p>
         </div>
         <div className="flex gap-2">

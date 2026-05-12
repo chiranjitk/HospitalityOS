@@ -972,7 +972,7 @@ export default function FloorPlans() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold flex items-center gap-2">
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <Map className="h-5 w-5" />
               Floor Plans
             </h2>
@@ -1330,7 +1330,7 @@ export default function FloorPlans() {
           <Button variant="outline" size="sm" onClick={() => setViewMode('list')}>
             <ArrowLeft className="h-4 w-4 mr-2" />Back
           </Button>
-          <h2 className="text-xl font-semibold">Advanced Floor Plan Editor</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Advanced Floor Plan Editor</h2>
           <Badge variant="outline">Multi-select • Align • Lock</Badge>
         </div>
         <div className="h-[calc(100vh-12rem)] border rounded-lg overflow-hidden">
@@ -1369,7 +1369,7 @@ export default function FloorPlans() {
           <Button variant="outline" size="sm" onClick={() => setViewMode('list')}>
             <ArrowLeft className="h-4 w-4 mr-2" />Back
           </Button>
-          <h2 className="text-xl font-semibold">Floor Plan Viewer</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Floor Plan Viewer</h2>
           <Badge variant="outline">Read-only</Badge>
         </div>
         <div className="h-[calc(100vh-12rem)] border rounded-lg overflow-hidden">

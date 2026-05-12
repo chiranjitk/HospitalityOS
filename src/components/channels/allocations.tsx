@@ -339,7 +339,7 @@ export function ChannelAllocations() {
     return (
       <div className="space-y-6 p-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-semibold">Channel Allocations</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Channel Allocations</h2>
         </div>
         <Card className="border-red-200 dark:border-red-800">
           <CardContent className="flex flex-col items-center justify-center py-12 gap-4">
@@ -358,7 +358,7 @@ export function ChannelAllocations() {
     return (
       <div className="space-y-6 p-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-semibold">Channel Allocations</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Channel Allocations</h2>
         </div>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 gap-4">
@@ -382,7 +382,7 @@ export function ChannelAllocations() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold">Channel Allocations</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Channel Allocations</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Assign room inventory to specific channels per day
           </p>

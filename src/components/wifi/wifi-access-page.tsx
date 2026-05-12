@@ -309,7 +309,7 @@ export function WifiAccessPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between gap-4 relative z-10">
         <div>
-          <h2 className="text-xl font-semibold flex items-center gap-2">
+          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Wifi className="h-5 w-5 text-teal-600 dark:text-teal-400" />
             <span className="gradient-text">WiFi Access</span>
           </h2>

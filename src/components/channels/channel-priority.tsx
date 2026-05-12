@@ -385,7 +385,7 @@ export function ChannelPrioritySettings() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold">Channel Priority</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Channel Priority</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Configure the order and weights in which channels receive inventory updates and bookings
           </p>

@@ -125,7 +125,7 @@ export default function NotificationCenterPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold flex items-center gap-2">
+          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Bell className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             Notification Center
             {unreadCount > 0 && (

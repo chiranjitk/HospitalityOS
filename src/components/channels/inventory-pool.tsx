@@ -521,7 +521,7 @@ export function InventoryPooling() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold">Inventory Pooling</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Inventory Pooling</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Create shared inventory pools across channels to maximize occupancy
           </p>
