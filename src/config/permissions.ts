@@ -699,6 +699,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['staff.view', 'staff.attendance', 'staff.*', '*'],
     description: 'Track attendance'
   },
+  'staff-leave': {
+    permissions: ['staff.view', 'staff.leave', 'staff.*', '*'],
+    description: 'Manage leave requests'
+  },
   'staff-tasks': {
     permissions: ['staff.view', 'tasks.assign', 'staff.*', '*'],
     description: 'Assign tasks to staff'

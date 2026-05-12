@@ -141,6 +141,7 @@ export const sectionSkeletonMap: Record<string, SkeletonLayout> = {
   // Staff
   'staff-shifts': 'table',
   'staff-attendance': 'table',
+  'staff-leave': 'table',
   'staff-tasks': 'kanban',
   'staff-communication': 'table',
   'staff-performance': 'dashboard',

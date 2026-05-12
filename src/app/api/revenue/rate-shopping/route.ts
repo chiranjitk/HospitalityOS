@@ -24,9 +24,6 @@ export async function GET(request: NextRequest) {
     const competitors = await db.rateShoppingCompetitor.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: {
-        _count: { select: { rateShoppingResults: true } },
-      },
     });
 
     // Get latest results summary per competitor

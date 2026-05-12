@@ -501,6 +501,7 @@ export const navigationConfig: NavSection[] = [
     items: [
       { id: 'staff-shifts', title: 'Shift Scheduling', href: '#staff-shifts', icon: CalendarDays },
       { id: 'staff-attendance', title: 'Attendance Tracking', href: '#staff-attendance', icon: UserCheck },
+      { id: 'staff-leave', title: 'Leave Management', href: '#staff-leave', icon: CalendarClock },
       { id: 'staff-tasks', title: 'Task Assignment', href: '#staff-tasks', icon: ClipboardList },
       { id: 'staff-communication', title: 'Internal Communication', href: '#staff-communication', icon: MessageSquare },
       { id: 'staff-performance', title: 'Performance Metrics', href: '#staff-performance', icon: BarChart3 },
