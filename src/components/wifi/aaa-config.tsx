@@ -1376,8 +1376,8 @@ export default function AAAConfig() {
                     Add External NAS
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
+                <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+                  <DialogHeader className="shrink-0">
                     <DialogTitle>
                       {editingNas ? 'Edit NAS Client' : 'Add NAS Client'}
                     </DialogTitle>
@@ -1386,7 +1386,7 @@ export default function AAAConfig() {
                     </DialogDescription>
                   </DialogHeader>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4 overflow-y-auto flex-1 pr-1">
                     <div className="space-y-2">
                       <Label>Name *</Label>
                       <Input
@@ -1614,7 +1614,7 @@ export default function AAAConfig() {
                     )}
                   </div>
                   
-                  <DialogFooter>
+                  <DialogFooter className="shrink-0 pt-2 border-t">
                     <Button variant="outline" onClick={() => setNasDialogOpen(false)}>
                       Cancel
                     </Button>
