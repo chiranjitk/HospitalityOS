@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
-import { Breadcrumb } from './breadcrumb';
 import { QuickStatsBar } from '@/components/dashboard/quick-stats-bar';
 import { useUIStore, useAuthStore } from '@/store';
 import { cn } from '@/lib/utils';
@@ -156,9 +155,6 @@ export function AppLayout({ children }: AppLayoutProps) {
         "ml-0 lg:ml-[260px]", // No margin on mobile, 260px on desktop
         sidebarCollapsed && "lg:ml-[68px]" // Collapsed width only on desktop
       )}>
-        {/* Breadcrumb Navigation */}
-        <Breadcrumb />
-
         {children}
 
         {/* Back to Top floating button */}
