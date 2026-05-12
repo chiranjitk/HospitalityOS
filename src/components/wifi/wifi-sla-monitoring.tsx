@@ -522,7 +522,7 @@ export default function WiFiSLAMonitoring() {
           )}
 
           {/* Overall Compliance Score */}
-          {complianceData?.overallCompliance.overallScore !== null && (
+          {complianceData?.overallCompliance && complianceData.overallCompliance.overallScore !== null && (
             <Card className="border-0 shadow-sm bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-teal-950/20 dark:to-emerald-950/20">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -532,7 +532,7 @@ export default function WiFiSLAMonitoring() {
                       {complianceData.overallCompliance.overallScore}%
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {complianceData.breachSummary.totalBreaches} breach events in last 30 days
+                      {complianceData.breachSummary?.totalBreaches ?? 0} breach events in last 30 days
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
