@@ -161,7 +161,9 @@ rewrite_paths() {
 
         # Check if file contains any e2guardian paths that need rewriting
         # Look for common patterns: paths containing /e2guardian-install/ or /e2guardian/
-        if ! rg -q "e2guardian" "$f" 2>/dev/null; then continue; fi
+        # IMPORTANT: Use grep (NOT rg/ripgrep) — rg is not available on minimal Rocky/RHEL installs.
+        # The 2>/dev/null handles the rare case where grep fails on special files.
+        if ! grep -q "e2guardian" "$f" 2>/dev/null; then continue; fi
 
         # Build sed commands to rewrite ALL discovered old paths
         # Strategy: find all absolute path references to e2guardian-install
