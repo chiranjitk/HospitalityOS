@@ -187,7 +187,7 @@ rewrite_paths() {
 # INSTALLATION STEPS
 # =============================================================================
 install_deps() {
-    step "Step 1/7: Installing runtime dependencies"
+    step "Step 1/8: Installing runtime dependencies"
     dnf install -y \
         zlib-devel \
         openssl-libs \
@@ -202,7 +202,7 @@ install_deps() {
 }
 
 create_user() {
-    step "Step 2/7: Creating e2guardian system user"
+    step "Step 2/8: Creating e2guardian system user"
     if id "$SERVICE_NAME" &>/dev/null; then
         info "User '$SERVICE_NAME' already exists — skipping."
     else
@@ -212,13 +212,13 @@ create_user() {
 }
 
 install_binary() {
-    step "Step 3/7: Installing binary to /usr/sbin"
+    step "Step 3/8: Installing binary to /usr/sbin"
     install -m 0755 "$SCRIPT_DIR/sbin/e2guardian" "$BIN_TARGET"
     info "Installed $BIN_TARGET ($(du -h "$BIN_TARGET" | cut -f1))"
 }
 
 install_configs() {
-    step "Step 4/7: Installing config files to /etc/e2guardian"
+    step "Step 4/8: Installing config files to /etc/e2guardian"
 
     # Preserve any existing configs by backing up
     if [[ -d "$CONF_DIR" ]]; then
@@ -252,7 +252,7 @@ install_configs() {
 }
 
 install_shared() {
-    step "Step 5/7: Installing shared data to /usr/share/e2guardian"
+    step "Step 5/8: Installing shared data to /usr/share/e2guardian"
 
     # Languages (27 language packs)
     mkdir -p "$LANG_DIR"
@@ -286,14 +286,57 @@ install_shared() {
     fi
 }
 
+generate_certs() {
+    step "Step 6/8: Checking & generating SSL certificates"
+
+    mkdir -p "$CERT_DIR/generatedcerts"
+
+    # Check if ca.pem exists; generate from ca.key if missing
+    if [[ ! -f "$CERT_DIR/ca.pem" ]]; then
+        if [[ -f "$CERT_DIR/ca.key" ]]; then
+            info "Generating CA certificate from existing ca.key..."
+            openssl req -new -x509 -days 3650 \
+                -key "$CERT_DIR/ca.key" \
+                -out "$CERT_DIR/ca.pem" \
+                -subj "/C=IN/ST=Kolkata/L=Kolkata/O=StaySuite HospitalityOS/OU=ContentFilter/CN=StaySuite-CA" \
+                2>/dev/null
+            if [[ -f "$CERT_DIR/ca.pem" ]]; then
+                info "Generated $CERT_DIR/ca.pem (valid 10 years)"
+            else
+                warn "Failed to generate ca.pem from ca.key — SSL features may not work"
+            fi
+        else
+            warn "No ca.key found — generating a new CA key + certificate..."
+            openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+                -keyout "$CERT_DIR/ca.key" \
+                -out "$CERT_DIR/ca.pem" \
+                -subj "/C=IN/ST=Kolkata/L=Kolkata/O=StaySuite HospitalityOS/OU=ContentFilter/CN=StaySuite-CA" \
+                2>/dev/null
+            if [[ -f "$CERT_DIR/ca.pem" ]]; then
+                info "Generated new CA key + certificate (valid 10 years)"
+            else
+                warn "Failed to generate CA certificate — SSL features may not work"
+            fi
+        fi
+    else
+        info "CA certificate exists: $CERT_DIR/ca.pem"
+    fi
+
+    # Verify certificates are valid
+    if [[ -f "$CERT_DIR/ca.pem" ]]; then
+        local expiry
+        expiry=$(openssl x509 -in "$CERT_DIR/ca.pem" -noout -enddate 2>/dev/null | cut -d= -f2)
+        info "CA cert expiry: $expiry"
+    fi
+}
+
 install_runtime() {
-    step "Step 6/7: Creating runtime directories & fixing permissions"
+    step "Step 7/8: Creating runtime directories & fixing permissions"
 
     # Runtime directories
     mkdir -p "$LOG_DIR"
     mkdir -p "$RUN_DIR"
     mkdir -p "$LIB_DIR"
-    mkdir -p "$CERT_DIR/generatedcerts"
 
     # Ownership on runtime dirs
     chown -R "${SERVICE_NAME}:${SERVICE_NAME}" "$LOG_DIR"
@@ -323,7 +366,7 @@ install_runtime() {
 }
 
 install_systemd() {
-    step "Step 7/7: Installing systemd service & logrotate"
+    step "Step 8/8: Installing systemd service & logrotate"
 
     # --- systemd service unit ---
     cat > "/etc/systemd/system/${SERVICE_NAME}.service" << UNIT_EOF
@@ -576,6 +619,7 @@ main() {
     install_binary
     install_configs
     install_shared
+    generate_certs
     install_runtime
     install_systemd
     start_service "$@"
