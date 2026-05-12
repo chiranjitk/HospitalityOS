@@ -2,43 +2,32 @@
  * e2guardian Configuration Sync Engine
  *
  * Reads ContentFilter records from PostgreSQL and generates e2guardian
- * configuration files (banned/exception site lists, filter group configs).
+ * list files (banned/exception domains) on the actual e2guardian install.
  *
- * File output structure:
- *   data/e2guardian/
- *     configs/
- *       e2guardian.conf        (main config, generated from template)
- *       e2guardianf1.conf      (filter group 1 - most restrictive)
- *       e2guardianf2.conf      (filter group 2 - moderate)
- *       e2guardianf3.conf      (filter group 3 - minimal filtering)
- *     lists/
- *       staysuite/
- *         banned/
- *           adult               (one domain per line)
- *           malware
- *           phishing
- *           social_media
- *           streaming
- *           gambling
- *           drugs
- *           violence
- *           proxy
- *           vpn
- *           ads
- *           custom
- *         exception/
- *           (same structure for whitelisted domains)
- *     logs/
- *     status.json               (last sync metadata)
+ * On production (Rocky Linux), e2guardian reads from FHS system paths:
+ *   /etc/e2guardian/e2guardian/           — configs
+ *   /etc/e2guardian/e2guardian/lists/    — list files
+ *
+ * Environment variables (set in .env or ecosystem.config.cjs):
+ *   E2GUARDIAN_CONF_DIR  — config root (default: /etc/e2guardian/e2guardian)
+ *   E2GUARDIAN_LIST_DIR  — lists root   (default: ${E2GUARDIAN_CONF_DIR}/lists)
+ *
+ * Filter group → list directory mapping:
+ *   Group 1 (Kids):     lists/group1/   (most restrictive — all categories)
+ *   Group 2 (Standard): lists/group2/   (moderate — security + adult + gambling)
+ *   Group 3 (Premium):  lists/group3/   (minimal — malware + phishing only)
+ *
+ * The installed group configs reference __LISTDIR__/localbannedsitelist,
+ * so we write domains to each group's list directory.
  */
 
 import { db } from '@/lib/db';
-import { writeFile, mkdir, readFile, readdir, stat } from 'fs/promises';
+import { writeFile, mkdir, readFile, readdir, stat, copyFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 
 // ---------------------------------------------------------------------------
-// Constants
+// Constants — FHS system paths (configurable via env)
 // ---------------------------------------------------------------------------
 
 export const VALID_CATEGORIES = [
@@ -64,13 +53,63 @@ const CATEGORY_FILE_MAP: Record<string, string> = {
   custom: 'custom',
 };
 
-// Base path for e2guardian generated config (relative to project root)
-const BASE_DIR = join(/*turbopackIgnore: true*/ process.cwd(), 'data', 'e2guardian');
-const LISTS_DIR = join(BASE_DIR, 'lists', 'staysuite');
-const BANNED_DIR = join(LISTS_DIR, 'banned');
-const EXCEPTION_DIR = join(LISTS_DIR, 'exception');
-const CONFIGS_DIR = join(BASE_DIR, 'configs');
-const STATUS_FILE = join(BASE_DIR, 'status.json');
+/**
+ * Which categories each filter group blocks.
+ * This MUST match the StaySuite hospitality policy.
+ */
+const GROUP_POLICIES: Record<number, string[]> = {
+  1: ['adult', 'malware', 'phishing', 'social_media', 'streaming', 'gambling', 'drugs', 'violence', 'proxy', 'vpn', 'ads'],
+  2: ['malware', 'phishing', 'ads', 'violence', 'drugs', 'gambling', 'proxy', 'vpn', 'adult'],
+  3: ['malware', 'phishing'],
+};
+
+// ---------------------------------------------------------------------------
+// Path Resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve e2guardian config directory.
+ * Production: /etc/e2guardian/e2guardian
+ * Sandbox: falls back to local data directory for development
+ */
+function getConfDir(): string {
+  if (process.env.E2GUARDIAN_CONF_DIR) {
+    return process.env.E2GUARDIAN_CONF_DIR;
+  }
+  // Production FHS path
+  if (existsSync('/etc/e2guardian/e2guardian')) {
+    return '/etc/e2guardian/e2guardian';
+  }
+  // Sandbox fallback
+  return join(process.cwd(), 'data', 'e2guardian', 'configs');
+}
+
+function getListDir(): string {
+  if (process.env.E2GUARDIAN_LIST_DIR) {
+    return process.env.E2GUARDIAN_LIST_DIR;
+  }
+  const confDir = getConfDir();
+  const listDir = join(confDir, 'lists');
+  if (existsSync(listDir)) {
+    return listDir;
+  }
+  // Sandbox fallback
+  return join(process.cwd(), 'data', 'e2guardian', 'lists');
+}
+
+function getGroupListDir(groupNum: number): string {
+  return join(getListDir(), `group${groupNum}`);
+}
+
+function getStatusFile(): string {
+  if (process.env.E2GUARDIAN_STATUS_FILE) {
+    return process.env.E2GUARDIAN_STATUS_FILE;
+  }
+  if (existsSync('/etc/e2guardian')) {
+    return '/etc/e2guardian/sync-status.json';
+  }
+  return join(process.cwd(), 'data', 'e2guardian', 'status.json');
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,6 +124,13 @@ export interface SyncResult {
   message: string;
   syncedAt: string;
   duration: number;
+  /** Which groups were updated */
+  groupsUpdated: number[];
+  /** Resolved paths used during sync (for debugging) */
+  resolvedPaths: {
+    confDir: string;
+    listDir: string;
+  };
 }
 
 interface SyncStatus {
@@ -94,7 +140,11 @@ interface SyncStatus {
   totalDomains: number;
   categoriesCount: number;
   filtersActive: number;
-  configFiles: string[];
+  groupsUpdated: number[];
+  resolvedPaths: {
+    confDir: string;
+    listDir: string;
+  };
 }
 
 interface CategoryData {
@@ -103,371 +153,73 @@ interface CategoryData {
 }
 
 // ---------------------------------------------------------------------------
-// Core: Generate list files from DB
+// Core: Write list files
 // ---------------------------------------------------------------------------
 
-async function ensureDirs(): Promise<void> {
-  await mkdir(BANNED_DIR, { recursive: true });
-  await mkdir(EXCEPTION_DIR, { recursive: true });
-  await mkdir(CONFIGS_DIR, { recursive: true });
+async function ensureGroupDirs(groups: number[]): Promise<void> {
+  for (const g of groups) {
+    const dir = getGroupListDir(g);
+    if (!existsSync(dir)) {
+      await mkdir(dir, { recursive: true });
+    }
+  }
 }
 
 function domainLine(domain: string): string {
   const cleaned = domain.trim().toLowerCase();
   if (!cleaned) return '';
-  // e2guardian format: just the domain, one per line
-  // Supports wildcards: *.domain.com blocks all subdomains
   return cleaned;
 }
 
-async function writeListFile(dir: string, category: string, domains: string[]): Promise<number> {
-  const fileName = CATEGORY_FILE_MAP[category] || category;
-  // turbopackIgnore: dir and fileName are dynamic runtime values; without
-  // this hint Turbopack enumerates all possible combinations (18 739 files).
-  const filePath = join(/*turbopackIgnore: true*/ dir, fileName);
+async function writeListFile(
+  dir: string,
+  fileName: string,
+  domains: string[],
+): Promise<number> {
+  const filePath = join(dir, fileName);
   const lines = domains.map(domainLine).filter(Boolean);
-
-  // Deduplicate while preserving order
   const unique = [...new Set(lines)];
   const content = unique.join('\n') + (unique.length > 0 ? '\n' : '');
-
   await writeFile(filePath, content, 'utf-8');
   return unique.length;
 }
 
 // ---------------------------------------------------------------------------
-// Filter Group Config Generator
+// Core: Sync domains to e2guardian list files
 // ---------------------------------------------------------------------------
 
-function generateFilterGroupConfig(groupNum: number, groupName: string, categories: string[]): string {
-  // Production filter group policies for hospitality WiFi:
-  // Group 1 (Kids/Family): ALL categories blocked — maximum protection
-  // Group 2 (Standard Guest): malware, phishing, ads, violence, drugs, gambling, proxy, vpn
-  // Group 3 (Premium/Business): malware, phishing only — minimal interference
-  const GROUP_POLICIES: Record<number, string[]> = {
-    1: ['adult', 'malware', 'phishing', 'social_media', 'streaming', 'gambling', 'drugs', 'violence', 'proxy', 'vpn', 'ads', 'gaming'],
-    2: ['malware', 'phishing', 'ads', 'violence', 'drugs', 'gambling', 'proxy', 'vpn', 'adult'],
-    3: ['malware', 'phishing'],
-  };
+/**
+ * For each filter group, write the appropriate domains to localbannedsitelist.
+ * The installed group configs reference __LISTDIR__/localbannedsitelist.
+ */
+async function syncGroupLists(
+  categories: Record<string, string[]>,
+  groups: number[],
+): Promise<{ groupsUpdated: number[]; filesWritten: Record<string, number> }> {
+  const groupsUpdated: number[] = [];
+  const filesWritten: Record<string, number> = {};
+  let total = 0;
 
-  const policyCategories = GROUP_POLICIES[groupNum] || categories;
-  const groupCategories = policyCategories.filter(c => categories.includes(c));
+  for (const groupNum of groups) {
+    const policyCategories = GROUP_POLICIES[groupNum] || [];
+    // Collect domains for categories that are both in the policy AND in our DB
+    const groupDomains: string[] = [];
+    for (const cat of policyCategories) {
+      if (categories[cat]) {
+        groupDomains.push(...categories[cat]);
+      }
+    }
 
-  const filteredIncludes = groupCategories
-    .map(cat => {
-      const fileName = CATEGORY_FILE_MAP[cat] || cat;
-      return `bannedsitelist = 'name=staysuite_${cat},path=${LISTS_DIR}/banned/${fileName}'`;
-    })
-    .join('\n');
+    // Deduplicate
+    const unique = [...new Set(groupDomains.map(d => d.trim().toLowerCase()).filter(Boolean))];
+    const dir = getGroupListDir(groupNum);
+    const count = await writeListFile(dir, 'localbannedsitelist', unique);
+    filesWritten[`group${groupNum}_localbanned`] = count;
+    total += count;
+    groupsUpdated.push(groupNum);
+  }
 
-  // No-MITM sites for safe browsing (banking, payments, government)
-  // These domains bypass SSL inspection to prevent certificate warnings
-  const noMitmSites = [
-    'online.banking', 'banking', 'secure.', 'payment',
-    'paypal.com', 'stripe.com', 'squareup.com',
-    'apple.com', 'icloud.com', 'google.com',
-    'microsoft.com', 'live.com', 'outlook.com',
-  ];
-
-  const noMitmIncludes = noMitmSites
-    .map(site => `  .${site}`)
-    .join('\n');
-
-  // Naughtyness limits per group (phrase filtering sensitivity)
-  const naughtynessLimits: Record<number, number> = {
-    1: 50,   // Kids: Very sensitive
-    2: 100,  // Standard: Moderate
-    3: 160,  // Premium: Lenient (phrase filtering off in practice)
-  };
-
-  return `# =============================================================================
-# StaySuite Filter Group ${groupNum} — ${groupName}
-# =============================================================================
-# Auto-generated by e2guardian-sync.ts — DO NOT EDIT
-# Generated: ${new Date().toISOString()}
-#
-# Policy: ${groupNum === 1 ? 'ALL categories blocked (Family/Kids mode)' : groupNum === 2 ? 'Security + Adult + Gambling blocked (Standard Guest)' : 'Malware + Phishing only (Premium/Business)'}
-# Active categories: ${groupCategories.length > 0 ? groupCategories.join(', ') : 'none'}
-# =============================================================================
-
-# --- SSL/TLS Inspection ---
-# SNI-only mode: filter by domain name from TLS ClientHello
-# No CA certificate needed on guest devices — transparent filtering
-ssl_mitm = off
-
-# --- StaySuite Banned Site Lists ---
-# Each list is auto-generated from the StaySuite ContentFilter database
-# Lists are deduplicated and sorted for optimal lookup performance
-${filteredIncludes || '# No categories assigned to this group'}
-
-# --- No-MITM Exception Sites ---
-# Critical banking/payment sites bypass MITM to prevent cert warnings
-sitelist = 'name=nomitm_staysuite,path=${LISTS_DIR}/banned/nomitm_staysuite'
-${noMitmIncludes ? `# (populate ${LISTS_DIR}/banned/nomitm_staysuite with one domain per line)` : ''}
-
-# --- Exception Lists ---
-# Management/staff IPs and whitelisted sites
-ipsitelist = 'name=exception,path=${LISTS_DIR}/../common/exceptioniplist'
-sitelist = 'name=exception,path=${LISTS_DIR}/../common/exceptionsitelist'
-
-# --- Reporting ---
-reportinglevel = 3
-
-# --- Weighted Phrase Filtering ---
-# Sensitivity threshold (lower = more restrictive)
-naughtynesslimit = ${naughtynessLimits[groupNum]}
-
-# --- Category Display ---
-categorydisplaythreshold = 1
-
-# --- Block Page ---
-htmltemplate = '/usr/share/e2guardian/languages/ukenglish/template.html'
-
-# --- Connection Handling ---
-maxuploadsize = -1
-connecttimeout = 15
-proxytimeout = 15
-`;
-}
-
-// ---------------------------------------------------------------------------
-// Main Config Generator
-// ---------------------------------------------------------------------------
-
-function generateMainConfig(): string {
-  return `# =============================================================================
-# StaySuite HospitalityOS — e2guardian Production Configuration
-# =============================================================================
-# AUTO-GENERATED by e2guardian-sync.ts — DO NOT EDIT MANUALLY
-# Generated: ${new Date().toISOString()}
-#
-# This is a production-ready configuration for hotel/hospitality guest WiFi.
-# Key features:
-#   - SNI-only TLS filtering (no MITM, no CA cert distribution needed)
-#   - 3 filter groups: Kids (strict), Standard Guest, Premium/Business
-#   - Tuned for 5000+ concurrent users
-#   - Comprehensive logging with structured format
-#   - Security-hardened cipher suites and timeouts
-#
-# For custom settings, use the StaySuite GUI or edit filter group configs.
-# This file is overwritten on every sync from the database.
-# =============================================================================
-
-# =============================================================================
-# LANGUAGE & PATHS
-# =============================================================================
-language = 'ukenglish'
-
-.Define LISTDIR ${join(BASE_DIR, 'lists', 'common')}
-languagedir = '${join(/*turbopackIgnore: true*/ process.cwd(), 'tools', 'e2guardian', 'data', 'languages')}'
-
-# =============================================================================
-# NETWORK CONFIGURATION
-# =============================================================================
-# Bind to all interfaces — iptables/nftables control external access
-filterip = ''
-# HTTP proxy port (for explicit proxy configuration)
-filterports = 8080
-# HTTPS/TLS proxy port
-tlsfilterports = 8090
-# Transparent HTTPS intercept port (iptables REDIRECT target)
-transparenthttpsport = 8443
-# IP address that the transparent proxy uses to connect upstream
-# Set to the gateway/management interface IP
-tlsproxycn = '10.10.0.1'
-
-# =============================================================================
-# SSL/TLS CONFIGURATION
-# =============================================================================
-enablessl = on
-
-# Certificate paths (auto-generated on first run if missing)
-cacertificatepath = '${BASE_DIR}/private/ca.pem'
-caprivatekeypath = '${BASE_DIR}/private/ca.key'
-certprivatekeypath = '${BASE_DIR}/private/cert.key'
-generatedcertpath = '${BASE_DIR}/private/generatedcerts/'
-generatedcertstart = auto
-useopensslconf = off
-
-# Production-hardened cipher suite (TLS 1.2+ only, no weak ciphers)
-setcipherlist = "HIGH:!aNULL:!eNULL:!MD5:!RC4:!3DES:!SRP:!PSK:!DSS:!SEED:!IDEA"
-
-# =============================================================================
-# TRANSPARENT MODE
-# =============================================================================
-defaulttransparentfiltergroup = 2
-useoriginalip = on
-
-# =============================================================================
-# FILTER GROUPS
-# =============================================================================
-# Group 1: Kids/Family — ALL categories blocked (adult, social, streaming, gaming, etc.)
-# Group 2: Standard Guest — malware, phishing, ads, adult, gambling, proxy/vpn, violence, drugs
-# Group 3: Premium/Business — malware + phishing only (minimal interference)
-filtergroups = 3
-defaultfiltergroup = 2
-
-# =============================================================================
-# AUTHENTICATION
-# =============================================================================
-# IP-based auth: guest devices are identified by their DHCP-assigned IP
-authplugin = '${join(/*turbopackIgnore: true*/ process.cwd(), 'tools', 'e2guardian', 'configs', 'authplugins', 'ip.conf')}'
-ipmaplist = 'name=ipmap,path=${join(BASE_DIR, 'lists', 'authplugins', 'ipgroups')}'
-maplist = 'name=defaultusermap,path=${join(BASE_DIR, 'lists', 'authplugins', 'filtergroupslist')}'
-maplist = 'name=portmap,path=${join(BASE_DIR, 'lists', 'authplugins', 'portgroups')}'
-authrequiresuserandgroup = off
-
-# =============================================================================
-# CLIENT IP ACCESS LISTS
-# =============================================================================
-# Banned client IPs (rate-limited or abusive devices)
-iplist = 'name=bannedclient,messageno=100,logmessageno=103,path=__LISTDIR__/bannediplist'
-# Exception client IPs (management, staff, admin devices — never filtered)
-iplist = 'name=exceptionclient,messageno=600,path=__LISTDIR__/exceptioniplist'
-reverseclientiplookups = off
-
-# =============================================================================
-# AUTH EXCEPTION SITES
-# =============================================================================
-# Sites that bypass authentication (captive portal, payment gateways, etc.)
-ipsitelist = 'name=authexception,messageno=602,path=__LISTDIR__/authexceptioniplist'
-sitelist = 'name=authexception,messageno=602,path=__LISTDIR__/authexceptionsitelist'
-urllist = 'name=authexception,messageno=603,path=__LISTDIR__/authexceptionurllist'
-regexpboollist = 'name=browser,path=__LISTDIR__/browserregexplist'
-
-# =============================================================================
-# NO-MITM SITES (Critical Security)
-# =============================================================================
-# Banking, payment, and government sites bypass MITM to prevent certificate warnings
-# This ensures guest banking sessions work without installing StaySuite CA
-sitelist = 'name=nomitm,path=__LISTDIR__/nomitmsitelist'
-ipsitelist = 'name=nomitm,path=__LISTDIR__/nomitmsiteiplist'
-
-# =============================================================================
-# LOGGING (Production Configuration)
-# =============================================================================
-set_accesslog = '${join(BASE_DIR, 'logs', 'access.log')}'
-set_error = 'syslog:LOG_ERR'
-set_info = 'syslog:LOG_INFO'
-set_warning = 'syslog:LOG_WARNING'
-
-# Structured log format (JSON-like, machine-parseable)
-logfileformat = 8
-loglevel = 3
-logexceptionhits = 2
-logadblocks = off
-showweightedfound = on
-usedashforblank = on
-
-# Client identification in logs
-logclientnameandip = on
-loguseragent = off
-logclienthostnames = off
-
-# Enhanced logging flags
-tag_logs = on
-addECHtoFlags = on
-maxlogitemlength = 2000
-
-# =============================================================================
-# MONITORING & HEALTH CHECKS
-# =============================================================================
-set_dstatslog = '${join(BASE_DIR, 'logs', 'dstats.log')}'
-dstatinterval = 300
-statshumanreadable = on
-internaltesturl = 'internal.test.e2guardian.org'
-internalstatusurl = 'internal.status.e2guardian.org'
-monitorflagprefix = '/run/e2guardian/e2g_flag_'
-
-# =============================================================================
-# URL FILTERING
-# =============================================================================
-reverseaddresslookups = off
-
-# =============================================================================
-# LIST SETTINGS
-# =============================================================================
-# Don't crash if a list file is missing (graceful degradation)
-abortiflistmissing = off
-searchsitelistforip = off
-
-# =============================================================================
-# ANTIVIRUS SCANNING (Optional — ClamAV integration)
-# =============================================================================
-contentscannertimeout = 60
-
-# =============================================================================
-# HTTP HEADERS
-# =============================================================================
-# Don't add X-Forwarded-For (preserves client IP privacy)
-addforwardedfor = off
-usexforwardedfor = off
-maxheaderlines = 2000
-
-# =============================================================================
-# BLOCK PAGE
-# =============================================================================
-reportinglevel = 3
-usecustombannedimage = on
-custombannedimagefile = '${join(/*turbopackIgnore: true*/ process.cwd(), 'tools', 'e2guardian', 'data', 'transparent1x1.gif')}'
-usecustombannedflash = on
-custombannedflashfile = '${join(/*turbopackIgnore: true*/ process.cwd(), 'tools', 'e2guardian', 'data', 'blockedflash.swf')}'
-
-# =============================================================================
-# DOWNLOAD MANAGEMENT
-# =============================================================================
-downloadmanager = '${join(/*turbopackIgnore: true*/ process.cwd(), 'tools', 'e2guardian', 'configs', 'downloadmanagers', 'default.conf.in')}'
-filecachedir = '/tmp'
-deletedownloadedtempfiles = on
-initialtrickledelay = 20
-trickledelay = 10
-
-# =============================================================================
-# PHRASE FILTERING (Content Inspection)
-# =============================================================================
-weightedphrasemode = 2
-phrasefiltermode = 2
-preservecase = 0
-hexdecodecontent = off
-forcequicksearch = off
-
-# =============================================================================
-# PERFORMANCE TUNING (5000+ concurrent hotel guests)
-# =============================================================================
-# HTTP worker threads — scale with CPU cores (default: 5000)
-httpworkers = 5000
-
-# Content scanning limits
-maxcontentfiltersize = 4096
-maxcontentramcachescansize = 4096
-maxcontentfilecachescansize = 50000
-
-# Timeout settings (seconds)
-proxytimeout = 15
-connecttimeout = 15
-pcontimeout = 60
-
-# Prefork server children — auto-scale with load
-serverresponsechildren = 30
-
-# Socket buffer sizes (128KB — optimal for hotel networks)
-socketreceivebuffer = 131072
-socketsendbuffer = 131072
-
-# Auto-scale child processes (0 = unlimited based on demand)
-maxchildren = 0
-
-# =============================================================================
-# LOOP PREVENTION
-# =============================================================================
-checkip = 127.0.0.1
-
-# =============================================================================
-# DAEMON SETTINGS
-# =============================================================================
-nodaemon = off
-softrestart = on
-`;
+  return { groupsUpdated, filesWritten: { ...filesWritten, _total: total } };
 }
 
 // ---------------------------------------------------------------------------
@@ -475,8 +227,10 @@ softrestart = on
 // ---------------------------------------------------------------------------
 
 /**
- * Full sync: reads DB, generates all e2guardian config files.
- * This is the REAL implementation — no stub.
+ * Full sync: reads DB, writes e2guardian list files to the FHS system path.
+ * Does NOT overwrite e2guardian.conf or filter group configs — the install
+ * script handles those. This only writes the domain list files that the
+ * installed configs reference via __LISTDIR__/localbannedsitelist.
  */
 export async function syncE2guardianConfig(
   tenantId: string,
@@ -484,13 +238,12 @@ export async function syncE2guardianConfig(
 ): Promise<SyncResult> {
   const startTime = Date.now();
   const filesWritten: Record<string, number> = {};
-  const configFilesGenerated: string[] = [];
-  let totalDomainsWritten = 0;
   const categoriesGenerated: string[] = [];
+  let totalDomainsWritten = 0;
+  const confDir = getConfDir();
+  const listDir = getListDir();
 
   try {
-    await ensureDirs();
-
     // 1. Query all enabled ContentFilter records
     const where: Record<string, unknown> = {
       tenantId,
@@ -504,7 +257,7 @@ export async function syncE2guardianConfig(
     });
 
     // 2. Group domains by category, deduplicate
-    const categories: Record<string, Set<string>> = {};
+    const categories: Record<string, string[]> = {};
     for (const filter of filters) {
       let domains: string[] = [];
       try {
@@ -513,58 +266,42 @@ export async function syncE2guardianConfig(
       } catch {
         // skip malformed
       }
-
       if (domains.length === 0) continue;
 
       if (!categories[filter.category]) {
-        categories[filter.category] = new Set();
+        categories[filter.category] = [];
       }
-      for (const d of domains) {
-        categories[filter.category].add(d.trim().toLowerCase());
-      }
+      categories[filter.category].push(
+        ...domains.map(d => d.trim().toLowerCase()),
+      );
     }
 
-    // 3. Write banned list files
-    for (const [category, domainSet] of Object.entries(categories)) {
-      const domainArr = [...domainSet];
-      const count = await writeListFile(BANNED_DIR, category, domainArr);
-      filesWritten[category] = count;
-      totalDomainsWritten += count;
-      categoriesGenerated.push(category);
+    // Deduplicate per category
+    for (const cat of Object.keys(categories)) {
+      categories[cat] = [...new Set(categories[cat])];
+      categoriesGenerated.push(cat);
+      totalDomainsWritten += categories[cat].length;
     }
 
-    // 4. Write empty placeholder files for categories with no domains
-    for (const cat of VALID_CATEGORIES) {
-      if (!categories[cat]) {
-        const filePath = join(BANNED_DIR, CATEGORY_FILE_MAP[cat]);
-        if (!existsSync(filePath)) {
-          await writeFile(filePath, '', 'utf-8');
-        }
-      }
+    // 3. Ensure group list directories exist
+    await ensureGroupDirs([1, 2, 3]);
+
+    // 4. Write per-group banned lists
+    const { groupsUpdated, filesWritten: groupFiles } = await syncGroupLists(categories, [1, 2, 3]);
+    Object.assign(filesWritten, groupFiles);
+
+    // 5. Write category-level list files (for reference/debugging)
+    const staysuiteDir = join(listDir, 'staysuite', 'banned');
+    if (!existsSync(staysuiteDir)) {
+      await mkdir(staysuiteDir, { recursive: true });
+    }
+    for (const [cat, domains] of Object.entries(categories)) {
+      const fileName = CATEGORY_FILE_MAP[cat] || cat;
+      const count = await writeListFile(staysuiteDir, fileName, domains);
+      filesWritten[`staysuite_${cat}`] = count;
     }
 
-    // 5. Generate filter group configs
-    const groupConfigs = [
-      { num: 1, name: 'Kids (Most Restrictive)' },
-      { num: 2, name: 'Basic (Standard)' },
-      { num: 3, name: 'Premium (Minimal)' },
-    ];
-    const allCategories = Object.keys(categories);
-
-    for (const group of groupConfigs) {
-      const config = generateFilterGroupConfig(group.num, group.name, allCategories);
-      const configPath = join(CONFIGS_DIR, `e2guardianf${group.num}.conf`);
-      await writeFile(configPath, config, 'utf-8');
-      configFilesGenerated.push(`e2guardianf${group.num}.conf`);
-    }
-
-    // 6. Generate main config
-    const mainConfig = generateMainConfig();
-    const mainConfigPath = join(CONFIGS_DIR, 'e2guardian.conf');
-    await writeFile(mainConfigPath, mainConfig, 'utf-8');
-    configFilesGenerated.push('e2guardian.conf');
-
-    // 7. Write status file
+    // 6. Write status file
     const status: SyncStatus = {
       lastSyncAt: new Date().toISOString(),
       tenantId,
@@ -572,25 +309,34 @@ export async function syncE2guardianConfig(
       totalDomains: totalDomainsWritten,
       categoriesCount: categoriesGenerated.length,
       filtersActive: filters.length,
-      configFiles: configFilesGenerated,
+      groupsUpdated,
+      resolvedPaths: { confDir, listDir },
     };
-    await writeFile(STATUS_FILE, JSON.stringify(status, null, 2), 'utf-8');
+    const statusFile = getStatusFile();
+    const statusDir = statusFile.substring(0, statusFile.lastIndexOf('/'));
+    if (!existsSync(statusDir)) {
+      await mkdir(statusDir, { recursive: true });
+    }
+    await writeFile(statusFile, JSON.stringify(status, null, 2), 'utf-8');
 
     const duration = Date.now() - startTime;
-
     console.log(
-      `[e2guardian-sync] Sync complete: ${totalDomainsWritten} domains across ${categoriesGenerated.length} categories, ${configFilesGenerated.length} config files in ${duration}ms`,
+      `[e2guardian-sync] Sync complete: ${totalDomainsWritten} domains across ${categoriesGenerated.length} categories, groups ${groupsUpdated.join(',')} updated in ${duration}ms`,
     );
+    console.log(`[e2guardian-sync] Config dir: ${confDir}`);
+    console.log(`[e2guardian-sync] List dir: ${listDir}`);
 
     return {
       success: true,
       categoriesGenerated,
       totalDomainsWritten,
       filesWritten,
-      configFilesGenerated,
-      message: `Synced ${totalDomainsWritten} domains across ${categoriesGenerated.length} categories. ${configFilesGenerated.length} config files generated.`,
+      configFilesGenerated: [],
+      message: `Synced ${totalDomainsWritten} domains across ${categoriesGenerated.length} categories to groups ${groupsUpdated.join('/')}.`,
       syncedAt: new Date().toISOString(),
       duration,
+      groupsUpdated,
+      resolvedPaths: { confDir, listDir },
     };
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -601,10 +347,12 @@ export async function syncE2guardianConfig(
       categoriesGenerated,
       totalDomainsWritten,
       filesWritten,
-      configFilesGenerated,
+      configFilesGenerated: [],
       message: `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       syncedAt: new Date().toISOString(),
       duration,
+      groupsUpdated: [],
+      resolvedPaths: { confDir, listDir },
     };
   }
 }
@@ -617,54 +365,53 @@ export async function syncE2guardianConfigFromData(
 ): Promise<SyncResult> {
   const startTime = Date.now();
   const filesWritten: Record<string, number> = {};
-  const configFilesGenerated: string[] = [];
-  let totalDomainsWritten = 0;
   const categoriesGenerated: string[] = [];
+  let totalDomainsWritten = 0;
+  const confDir = getConfDir();
+  const listDir = getListDir();
 
   try {
-    await ensureDirs();
-
+    // Deduplicate per category
+    const categories: Record<string, string[]> = {};
     for (const [category, domains] of Object.entries(categoriesWithDomains)) {
       if (!domains || domains.length === 0) continue;
-
-      const uniqueDomains = [...new Set(domains.map(d => d.trim().toLowerCase()).filter(Boolean))];
-      const count = await writeListFile(BANNED_DIR, category, uniqueDomains);
-      filesWritten[category] = count;
-      totalDomainsWritten += count;
+      categories[category] = [...new Set(domains.map(d => d.trim().toLowerCase()).filter(Boolean))];
       categoriesGenerated.push(category);
+      totalDomainsWritten += categories[category].length;
     }
 
-    // Regenerate filter group configs
-    const allCategories = Object.keys(categoriesWithDomains);
-    const groupConfigs = [
-      { num: 1, name: 'Kids (Most Restrictive)' },
-      { num: 2, name: 'Basic (Standard)' },
-      { num: 3, name: 'Premium (Minimal)' },
-    ];
+    // Ensure group dirs and write lists
+    await ensureGroupDirs([1, 2, 3]);
+    const { groupsUpdated, filesWritten: groupFiles } = await syncGroupLists(categories, [1, 2, 3]);
+    Object.assign(filesWritten, groupFiles);
 
-    for (const group of groupConfigs) {
-      const config = generateFilterGroupConfig(group.num, group.name, allCategories);
-      const configPath = join(CONFIGS_DIR, `e2guardianf${group.num}.conf`);
-      await writeFile(configPath, config, 'utf-8');
-      configFilesGenerated.push(`e2guardianf${group.num}.conf`);
+    // Category-level reference files
+    const staysuiteDir = join(listDir, 'staysuite', 'banned');
+    if (!existsSync(staysuiteDir)) {
+      await mkdir(staysuiteDir, { recursive: true });
+    }
+    for (const [cat, domains] of Object.entries(categories)) {
+      const fileName = CATEGORY_FILE_MAP[cat] || cat;
+      const count = await writeListFile(staysuiteDir, fileName, domains);
+      filesWritten[`staysuite_${cat}`] = count;
     }
 
-    // Regenerate main config
-    const mainConfig = generateMainConfig();
-    const mainConfigPath = join(CONFIGS_DIR, 'e2guardian.conf');
-    await writeFile(mainConfigPath, mainConfig, 'utf-8');
-    configFilesGenerated.push('e2guardian.conf');
-
-    // Write status
+    // Status
     const status: SyncStatus = {
       lastSyncAt: new Date().toISOString(),
       tenantId: 'unknown',
       totalDomains: totalDomainsWritten,
       categoriesCount: categoriesGenerated.length,
       filtersActive: 0,
-      configFiles: configFilesGenerated,
+      groupsUpdated,
+      resolvedPaths: { confDir, listDir },
     };
-    await writeFile(STATUS_FILE, JSON.stringify(status, null, 2), 'utf-8');
+    const statusFile = getStatusFile();
+    const statusDir = statusFile.substring(0, statusFile.lastIndexOf('/'));
+    if (!existsSync(statusDir)) {
+      await mkdir(statusDir, { recursive: true });
+    }
+    await writeFile(statusFile, JSON.stringify(status, null, 2), 'utf-8');
 
     const duration = Date.now() - startTime;
     return {
@@ -672,10 +419,12 @@ export async function syncE2guardianConfigFromData(
       categoriesGenerated,
       totalDomainsWritten,
       filesWritten,
-      configFilesGenerated,
-      message: `Synced ${totalDomainsWritten} domains across ${categoriesGenerated.length} categories from provided data.`,
+      configFilesGenerated: [],
+      message: `Synced ${totalDomainsWritten} domains across ${categoriesGenerated.length} categories to groups ${groupsUpdated.join('/')}.`,
       syncedAt: new Date().toISOString(),
       duration,
+      groupsUpdated,
+      resolvedPaths: { confDir, listDir },
     };
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -684,10 +433,12 @@ export async function syncE2guardianConfigFromData(
       categoriesGenerated,
       totalDomainsWritten,
       filesWritten,
-      configFilesGenerated,
+      configFilesGenerated: [],
       message: `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       syncedAt: new Date().toISOString(),
       duration,
+      groupsUpdated: [],
+      resolvedPaths: { confDir, listDir },
     };
   }
 }
@@ -697,8 +448,9 @@ export async function syncE2guardianConfigFromData(
  */
 export async function getSyncStatus(): Promise<SyncStatus | null> {
   try {
-    if (!existsSync(STATUS_FILE)) return null;
-    const raw = await readFile(STATUS_FILE, 'utf-8');
+    const statusFile = getStatusFile();
+    if (!existsSync(statusFile)) return null;
+    const raw = await readFile(statusFile, 'utf-8');
     return JSON.parse(raw) as SyncStatus;
   } catch {
     return null;
@@ -706,20 +458,47 @@ export async function getSyncStatus(): Promise<SyncStatus | null> {
 }
 
 /**
- * Get a summary of generated list files (for display purposes).
+ * Get a summary of generated list files (for display in the UI).
+ * Reads from both the per-group directories and the staysuite reference directory.
  */
 export async function getListFilesSummary(): Promise<{
   banned: Record<string, { file: string; domains: number; lastModified: string | null }>;
+  groups: Record<string, { localBannedDomains: number; lastModified: string | null }>;
   configs: string[];
   status: SyncStatus | null;
+  resolvedPaths: { confDir: string; listDir: string };
 }> {
   const banned: Record<string, { file: string; domains: number; lastModified: string | null }> = {};
+  const groups: Record<string, { localBannedDomains: number; lastModified: string | null }> = {};
+  const confDir = getConfDir();
+  const listDir = getListDir();
 
+  // Read per-group localbannedsitelist files
+  for (const g of [1, 2, 3]) {
+    const dir = getGroupListDir(g);
+    const filePath = join(dir, 'localbannedsitelist');
+    try {
+      if (existsSync(filePath)) {
+        const content = await readFile(filePath, 'utf-8');
+        const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+        const fileStat = await stat(filePath);
+        groups[`group${g}`] = {
+          localBannedDomains: lines.length,
+          lastModified: fileStat.mtime.toISOString(),
+        };
+      }
+    } catch {
+      groups[`group${g}`] = { localBannedDomains: 0, lastModified: null };
+    }
+  }
+
+  // Read staysuite reference lists
+  const staysuiteDir = join(listDir, 'staysuite', 'banned');
   try {
-    if (existsSync(BANNED_DIR)) {
-      const files = await readdir(BANNED_DIR);
+    if (existsSync(staysuiteDir)) {
+      const files = await readdir(staysuiteDir);
       for (const file of files) {
-        const filePath = join(BANNED_DIR, file);
+        const filePath = join(staysuiteDir, file);
         try {
           const content = await readFile(filePath, 'utf-8');
           const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
@@ -738,11 +517,13 @@ export async function getListFilesSummary(): Promise<{
     // directory doesn't exist yet
   }
 
+  // List config files
   const configs: string[] = [];
   try {
-    if (existsSync(CONFIGS_DIR)) {
-      const files = await readdir(CONFIGS_DIR);
-      configs.push(...files.sort());
+    if (existsSync(confDir)) {
+      const files = await readdir(confDir).catch(() => []);
+      const confFiles = files.filter(f => f.endsWith('.conf'));
+      configs.push(...confFiles.sort());
     }
   } catch {
     // directory doesn't exist yet
@@ -750,7 +531,9 @@ export async function getListFilesSummary(): Promise<{
 
   return {
     banned,
+    groups,
     configs,
     status: await getSyncStatus(),
+    resolvedPaths: { confDir, listDir },
   };
 }

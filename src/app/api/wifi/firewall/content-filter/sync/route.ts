@@ -28,8 +28,10 @@ export async function POST(request: NextRequest) {
         totalDomains: result.totalDomainsWritten,
         categoriesCount: result.categoriesGenerated.length,
         categories: result.categoriesGenerated,
+        groupsUpdated: result.groupsUpdated,
         filesWritten: result.filesWritten,
         configFiles: result.configFilesGenerated,
+        resolvedPaths: result.resolvedPaths,
       },
     });
   } catch (error) {
@@ -55,7 +57,9 @@ export async function GET(request: NextRequest) {
       data: {
         status,
         listFiles: files.banned,
+        groups: files.groups,
         configFiles: files.configs,
+        resolvedPaths: files.resolvedPaths,
       },
     });
   } catch (error) {
