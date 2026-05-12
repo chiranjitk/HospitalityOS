@@ -20,6 +20,7 @@ import { db } from '@/lib/db';
 import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
 import { updateUserBandwidthLive } from '@/lib/network/tc-bw-update';
 import { inferDeviceInfo } from '@/lib/mac-vendor-lookup';
+import { RADCLIENT_BIN } from '@/lib/wifi/paths';
 
 const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
 
@@ -2296,7 +2297,7 @@ export async function POST(request: NextRequest) {
 
                   // Send Disconnect-Message via radclient (best-effort)
                   try {
-                    const radclientPath = '/usr/bin/radclient';
+                    const radclientPath = RADCLIENT_BIN;
                     const { execSync } = await import('child_process');
                     const fs = await import('fs');
                     const attrs = 'User-Name="' + user.username + '"\nAcct-Session-Id="' + session.acctsessionid + '"' + (session.framedipaddress ? '\nFramed-IP-Address=' + session.framedipaddress.replace(/\/\d+$/, '') : '');
@@ -2848,7 +2849,7 @@ export async function POST(request: NextRequest) {
                   const tmpFile = `/tmp/radclient-coa-${Date.now()}.txt`;
                   try {
                     fsCoA.writeFileSync(tmpFile, coaAttrs + '\n');
-                    const cmd = `/usr/bin/radclient -t 3 -r 1 ${nasIp}:${nasInfo.ports || 3799} coa ${nasInfo.secret} < ${tmpFile} 2>&1`;
+                    const cmd = `${RADCLIENT_BIN} -t 3 -r 1 ${nasIp}:${nasInfo.ports || 3799} coa ${nasInfo.secret} < ${tmpFile} 2>&1`;
                     const output = execCoA(cmd, { timeout: 5000 }).toString();
                     console.log(`[update-user] CoA ${output.includes('CoA-ACK') ? 'OK' : 'FAIL'}: ${existingUser.username}@${nasIp} → ${ulMbpsCoa}M/${dlMbpsCoa}M vendor=${vendor}`);
                   } catch (coaExecErr: unknown) {
@@ -3304,7 +3305,7 @@ export async function POST(request: NextRequest) {
           } else {
 
           // Build radclient attributes for disconnect
-          const radclientPath = '/usr/bin/radclient';
+          const radclientPath = RADCLIENT_BIN;
 
           // Look up the REAL RADIUS session attributes from radacct.
           // The frontend sends acctuniqueid as acctSessionId, but MikroTik needs

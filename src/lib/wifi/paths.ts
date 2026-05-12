@@ -1,54 +1,84 @@
 /**
  * System Paths — Sandbox vs Production Abstraction
  *
- * Sandbox (this dev environment):
- *   FreeRADIUS = project-local build at freeradius-install/
- *   PostgreSQL  = project-local at pgsql-runtime/
- *   dnsmasq     = local config at dhcp-local/ / dns-local/
+ * Supports three install methods for FreeRADIUS:
+ *   1. RPM via dnf (Rocky Linux / RHEL)   → /usr/bin/radclient, /etc/raddb/
+ *   2. Source compile (default prefix)     → /usr/local/bin/radclient, /usr/local/etc/raddb/
+ *   3. Sandbox dev build                   → $FREERADIUS_SANDBOX_HOME/
  *
- * Production (Rocky Linux 10 via dnf):
- *   FreeRADIUS = dnf install freeradius → /usr/sbin/radiusd, /etc/raddb/
- *   PostgreSQL  = dnf install postgresql17-server → /usr/bin/pg_ctl, /var/lib/pgsql/
- *   dnsmasq     = dnf install dnsmasq → /usr/sbin/dnsmasq, /etc/dnsmasq.d/, /var/lib/dnsmasq/
+ * Auto-detection probes the filesystem so the correct paths are chosen
+ * regardless of how FreeRADIUS was installed.  Every path can still be
+ * overridden with an environment variable for edge cases.
  *
- * All paths are resolved via environment variables with sensible defaults.
- * Set NODE_ENV=production to auto-switch to system paths.
+ * Set NODE_ENV=production to prefer system-wide paths.
  */
+
+import { existsSync } from 'fs';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+// ── Auto-detect FreeRADIUS install prefix ──────────────────────────
+// Probes for the radclient binary in the two most common locations.
+// Returns the *prefix* (parent of bin/ sbin/ etc/ share/).
+
+function detectFreeradiusPrefix(): string {
+  // 1) Explicit env override wins
+  if (process.env.FREERADIUS_HOME) return process.env.FREERADIUS_HOME;
+
+  // 2) On sandbox dev, use the local build
+  if (!isProduction) {
+    const sandboxHome = process.env.FREERADIUS_SANDBOX_HOME || '/home/z/my-project/freeradius-install';
+    if (existsSync(`${sandboxHome}/bin/radclient`) || existsSync(`${sandboxHome}/sbin/radiusd`)) {
+      return sandboxHome;
+    }
+  }
+
+  // 3) Production: probe both RPM and source-install locations
+  //    RPM (dnf) → /usr/bin/radclient, /usr/sbin/radiusd, /etc/raddb
+  if (existsSync('/usr/bin/radclient') || existsSync('/usr/sbin/radiusd')) {
+    return '/usr';
+  }
+
+  //    Source compile (default) → /usr/local/bin/radclient, /usr/local/sbin/radiusd
+  if (existsSync('/usr/local/bin/radclient') || existsSync('/usr/local/sbin/radiusd')) {
+    return '/usr/local';
+  }
+
+  // 4) Fallback: if we can't find it, assume RPM layout (most common)
+  return '/usr';
+}
+
+const FREERADIUS_PREFIX = detectFreeradiusPrefix();
+
 // ── FreeRADIUS Paths ──────────────────────────────────────────────
 
-/** Base directory for FreeRADIUS installation */
-export const FREERADIUS_HOME = process.env.FREERADIUS_HOME ||
-  (isProduction
-    ? '/usr'                          // Rocky 10: dnf installs to /usr
-    : process.env.FREERADIUS_SANDBOX_HOME || '/home/z/my-project/freeradius-install');
+/** Base directory for FreeRADIUS installation (auto-detected) */
+export const FREERADIUS_HOME = FREERADIUS_PREFIX;
 
 /** FreeRADIUS configuration directory (raddb) */
 export const RADDB_PATH = process.env.RADDB_PATH ||
-  (isProduction
-    ? '/etc/raddb'                    // Rocky 10: dnf default
-    : `${FREERADIUS_HOME}/etc/raddb`);
+  (FREERADIUS_PREFIX === '/usr/local'
+    ? '/usr/local/etc/raddb'
+    : '/etc/raddb');
 
 /** FreeRADIUS binary name */
 export const RADIUSD_BIN = process.env.RADIUSD_BIN || 'radiusd';
 
 /** Full path to the radiusd binary */
 export const RADIUSD_EXECUTABLE = process.env.RADIUSD_EXECUTABLE ||
-  `${FREERADIUS_HOME}/sbin/${RADIUSD_BIN}`;
+  `${FREERADIUS_PREFIX}/sbin/${RADIUSD_BIN}`;
 
 /** FreeRADIUS PID file path */
 export const RADIUSD_PID_FILE = process.env.RADIUSD_PID_FILE ||
   (isProduction
     ? '/run/radiusd/radiusd.pid'     // Rocky 10 systemd
-    : `${FREERADIUS_HOME}/var/run/radiusd/radiusd.pid`);
+    : `${FREERADIUS_PREFIX}/var/run/radiusd/radiusd.pid`);
 
 /** FreeRADIUS log directory */
 export const RADIUSD_LOG_DIR = process.env.RADIUSD_LOG_DIR ||
-  (isProduction
-    ? '/var/log/radiusd'              // Rocky 10
-    : `${FREERADIUS_HOME}/var/log/radiusd`);
+  (FREERADIUS_PREFIX === '/usr/local'
+    ? '/usr/local/var/log/radiusd'
+    : '/var/log/radiusd');
 
 /** FreeRADIUS main config file */
 export const RADIUSD_CONF = `${RADDB_PATH}/radiusd.conf`;
@@ -61,6 +91,20 @@ export const MODS_DIR = `${RADDB_PATH}/mods-enabled`;
 
 /** sites directory */
 export const SITES_DIR = `${RADDB_PATH}/sites-enabled`;
+
+// ── RADIUS Dictionary & Library Paths ────────────────────────────
+
+/** FreeRADIUS dictionary/share directory (for radclient -D) */
+export const RADIUS_DICT_DIR = process.env.RADIUS_DICT_DIR ||
+  (FREERADIUS_PREFIX === '/usr/local'
+    ? '/usr/local/share/freeradius'
+    : '/usr/share/freeradius');
+
+/** FreeRADIUS library directory (for LD_LIBRARY_PATH) */
+export const RADIUS_LIB_DIR = process.env.RADIUS_LIB_DIR ||
+  (FREERADIUS_PREFIX === '/usr/local'
+    ? '/usr/local/lib/freeradius'
+    : '/usr/lib64/freeradius');
 
 // ── PostgreSQL Paths ──────────────────────────────────────────────
 
@@ -86,11 +130,11 @@ export const PG_PORT = parseInt(process.env.PG_PORT || '5432', 10);
 
 /** Path to radclient binary */
 export const RADCLIENT_BIN = process.env.RADCLIENT_BIN ||
-  (isProduction ? '/usr/bin/radclient' : `${FREERADIUS_HOME}/bin/radclient`);
+  `${FREERADIUS_PREFIX}/bin/radclient`;
 
 /** Path to radtest binary */
 export const RADTEST_BIN = process.env.RADTEST_BIN ||
-  (isProduction ? '/usr/bin/radtest' : `${FREERADIUS_HOME}/bin/radtest`);
+  `${FREERADIUS_PREFIX}/bin/radtest`;
 
 // ── Service Management ────────────────────────────────────────────
 
@@ -169,12 +213,15 @@ export const INTERFACES_FILE = '/etc/network/interfaces';
 export function getRuntimeInfo() {
   return {
     environment: isProduction ? 'production' : 'sandbox',
+    detectedPrefix: FREERADIUS_PREFIX,
     freeRADIUS: {
       home: FREERADIUS_HOME,
       raddb: RADDB_PATH,
       binary: RADIUSD_EXECUTABLE,
       pidFile: RADIUSD_PID_FILE,
       logDir: RADIUSD_LOG_DIR,
+      dictDir: RADIUS_DICT_DIR,
+      libDir: RADIUS_LIB_DIR,
       serviceMode: SERVICE_MODE,
     },
     postgresql: {

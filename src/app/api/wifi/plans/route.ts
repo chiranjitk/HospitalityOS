@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { syncRadiusGroup, deleteRadiusGroup } from '@/lib/wifi/services/wifi-user-service';
 import { updatePlanBandwidthForActiveSessions } from '@/lib/network/tc-bw-update';
+import { RADCLIENT_BIN } from '@/lib/wifi/paths';
 export async function GET(request: NextRequest) {    const user = await requirePermission(request, 'wifi.manage');
     if (user instanceof NextResponse) return user;
 
@@ -369,7 +370,7 @@ export async function PUT(request: NextRequest) {    const user = await requireP
             const tmpFile = `/tmp/radclient-coa-${Date.now()}-${Math.random().toString(36).slice(2,6)}.txt`;
             try {
               fs.writeFileSync(tmpFile, coaAttrs + '\n');
-              const cmd = `/usr/bin/radclient -t 3 -r 1 ${nasIp}:${nasInfo.coaPort} coa ${nasInfo.secret} < ${tmpFile} 2>&1`;
+              const cmd = `${RADCLIENT_BIN} -t 3 -r 1 ${nasIp}:${nasInfo.coaPort} coa ${nasInfo.secret} < ${tmpFile} 2>&1`;
               const output = execSync(cmd, { timeout: 5000 }).toString();
               if (output.includes('CoA-ACK')) {
                 coaOk++;

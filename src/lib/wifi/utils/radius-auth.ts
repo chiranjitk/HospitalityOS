@@ -1,6 +1,5 @@
 import { execFileSync } from 'child_process';
-import { FREERADIUS_HOME, RADDB_PATH, RADCLIENT_BIN } from '@/lib/wifi/paths';
-import path from 'path';
+import { RADDB_PATH, RADCLIENT_BIN, RADIUS_DICT_DIR, RADIUS_LIB_DIR } from '@/lib/wifi/paths';
 
 /**
  * Send a RADIUS Access-Request via radclient to FreeRADIUS on localhost.
@@ -11,6 +10,10 @@ import path from 'path';
  *
  * Uses execFileSync instead of execSync to avoid shell pipe dependency
  * on /bin/sh (which may not be resolvable in some sandbox environments).
+ *
+ * All FreeRADIUS paths (radclient binary, dictionary dir, lib dir) are
+ * resolved from @/lib/wifi/paths which auto-detects the install prefix
+ * by probing the filesystem (RPM at /usr vs source at /usr/local).
  */
 export async function radiusAuth(username: string, password: string): Promise<{
   accepted: boolean;
@@ -20,12 +23,9 @@ export async function radiusAuth(username: string, password: string): Promise<{
   try {
     const radclientBin = RADCLIENT_BIN;
     const raddbDir = RADDB_PATH;
-    // Dictionary dir: dnf install → /usr/share/freeradius, source → $FREERADIUS_HOME/share/freeradius
-    const isProduction = process.env.NODE_ENV === 'production';
-    const dictDir = process.env.RADIUS_DICT_DIR ||
-      (isProduction ? '/usr/share/freeradius' : `${FREERADIUS_HOME}/share/freeradius`);
-    const libDir = process.env.RADIUS_LIB_DIR ||
-      (isProduction ? '/usr/lib64/freeradius' : `${FREERADIUS_HOME}/lib`);
+    // Dictionary and lib dirs come from centralized paths.ts auto-detection
+    const dictDir = RADIUS_DICT_DIR;
+    const libDir = RADIUS_LIB_DIR;
 
     const radclientInput = `User-Name = '${username}', User-Password = '${password}', NAS-IP-Address = 127.0.0.1, NAS-Port = 0, NAS-Port-Type = Wireless-802.11, Called-Station-Id = '00:00:00:00:00:01'\n`;
 
