@@ -633,6 +633,7 @@
     "noActivityToday": "No activity recorded for today yet",
     "allClear": "All Clear",
     "noPendingAlerts": "No pending alerts",
+    "markAllRead": "Mark all read",
     "viewAllAlerts": "View All Alerts",
     "operationsCenter": "Operations Center",
     "networkConnectivity": "Network & Connectivity",
