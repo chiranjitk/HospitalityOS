@@ -6,6 +6,7 @@ const ChannelAnalytics = lazy(() => import('@/components/channels/channel-analyt
 const InventorySync = lazy(() => import('@/components/channels/inventory-sync').then(m => ({ default: m.InventorySync })));
 const RateSync = lazy(() => import('@/components/channels/rate-sync').then(m => ({ default: m.RateSync })));
 const BookingSync = lazy(() => import('@/components/channels/booking-sync').then(m => ({ default: m.BookingSync })));
+const BookingModifications = lazy(() => import('@/components/channels/booking-modifications').then(m => ({ default: m.BookingModifications })));
 const Restrictions = lazy(() => import('@/components/channels/restrictions').then(m => ({ default: m.Restrictions })));
 const ChannelMapping = lazy(() => import('@/components/channels/mapping').then(m => ({ default: m.ChannelMapping })));
 const RateParityDashboard = lazy(() => import('@/components/channels/rate-parity').then(m => ({ default: m.RateParityDashboard })));
@@ -25,6 +26,7 @@ export const channelsSections: Record<string, React.LazyExoticComponent<any>> = 
   InventorySync,
   RateSync,
   BookingSync,
+  BookingModifications,
   Restrictions,
   StopSellManager,
   ChannelAllocations,

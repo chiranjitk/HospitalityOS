@@ -502,7 +502,14 @@
     "channel-inventory-pool": "Inventory Pooling",
     "channel-priority": "Channel Priority",
     "channel-booking-pace": "Booking Pace",
-    "channel-settlement": "Settlements"
+    "channel-settlement": "Settlements",
+    "channel-booking-limits": "Booking Limits",
+    "channel-booking-modifications": "Booking Modifications",
+    "channel-rate-overrides": "Rate Overrides",
+    "channel-guest-rates": "Guest Rates",
+    "channel-allotment-release": "Allotment Release",
+    "channel-commission-config": "Commission Config",
+    "channel-derived-rates": "Derived Rate Plans"
   },
   "layout": {
     "searchNavigation": "வழிசெலுத்தலைத் தேடு...",

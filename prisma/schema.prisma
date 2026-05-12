@@ -928,6 +928,62 @@ model ChannelRestriction {
   @@index([startDate, endDate])
 }
 
+model ChannelBookingLimit {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String?  @db.Uuid
+  connectionId    String?  @db.Uuid
+  channelCode     String
+  roomTypeId      String?  @db.Uuid
+  startDate       DateTime @db.Timestamptz
+  endDate         DateTime @db.Timestamptz
+  maxBookings     Int      @default(0)
+  usedBookings    Int      @default(0)
+  appliesTo       String   @default("all_room_types") // all_room_types, specific_room_type
+  priority        Int      @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  @@unique([tenantId, connectionId, channelCode, roomTypeId, startDate])
+  @@index([tenantId, connectionId, channelCode])
+  @@index([startDate, endDate])
+}
+
+/// ChannelGuestRateConfig - Extra bed / child rate management per channel
+model ChannelGuestRateConfig {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @db.Uuid
+  propertyId        String?  @db.Uuid
+  connectionId      String?  @db.Uuid
+  channelCode       String
+  roomTypeId        String?  @db.Uuid
+  ratePlanId        String?  @db.Uuid
+  maxAdults         Int      @default(2)
+  maxChildren       Int      @default(1)
+  maxTotalGuests    Int      @default(3)
+  infantAgeMax      Int      @default(2)
+  childAgeMin       Int      @default(2)
+  childAgeMax       Int      @default(12)
+  adultAgeMin       Int      @default(13)
+  extraAdultRate    Float    @default(0)
+  extraAdultType    String   @default("per_night") // per_night, per_stay, percentage_of_rate, free
+  extraChildRate    Float    @default(0)
+  extraChildType    String   @default("per_night") // per_night, per_stay, percentage_of_rate, free, sharing_bed, extra_bed
+  cribRate          Float    @default(0)
+  cribAvailable     Boolean  @default(true)
+  extraBedRate      Float    @default(0)
+  extraBedAvailable Boolean  @default(true)
+  rollawayRate      Float    @default(0)
+  rollawayAvailable Boolean  @default(false)
+  currency          String   @default("USD")
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now()) @db.Timestamptz
+  updatedAt         DateTime @updatedAt @db.Timestamptz
+  @@unique([tenantId, connectionId, channelCode, roomTypeId, ratePlanId])
+  @@index([tenantId, connectionId, channelCode])
+  @@index([roomTypeId])
+}
+
 model ChannelRetryQueue {
   id            String    @id @default(uuid()) @db.Uuid
   tenantId      String    @db.Uuid
@@ -992,6 +1048,34 @@ model ChannelPriority {
   @@index([tenantId, priority])
 }
 
+model ChannelRateOverride {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String?   @db.Uuid
+  connectionId    String?   @db.Uuid
+  channelCode     String
+  name            String
+  description     String?
+  roomTypeId      String?   @db.Uuid
+  ratePlanId      String?   @db.Uuid
+  overrideType    String    @default("percentage") // percentage, fixed_amount, set_to
+  overrideValue   Float
+  currency        String    @default("USD")
+  minRate         Float?
+  maxRate         Float?
+  appliesTo       String    @default("all") // all, weekdays, weekends, specific_dates
+  specificDates   String?   @db.Text // JSON array of date ranges
+  priority        Int       @default(0)
+  isActive        Boolean   @default(true)
+  effectiveFrom   DateTime? @db.Timestamptz
+  effectiveTo     DateTime? @db.Timestamptz
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  @@index([tenantId, connectionId, channelCode, isActive])
+  @@index([roomTypeId])
+  @@index([ratePlanId])
+}
+
 model RateDerivationRule {
   id              String   @id @default(uuid()) @db.Uuid
   tenantId        String   @db.Uuid
@@ -1018,6 +1102,58 @@ model RateDerivationRule {
   updatedAt       DateTime @updatedAt @db.Timestamptz
   @@index([tenantId, connectionId, isActive])
   @@index([sourceRatePlanId])
+}
+
+/// DerivedRatePlan - Channel-specific rate plans derived from master rate plans
+/// Supports percentage, fixed_amount, margin, seasonal_percentage, competitor_based derivation
+/// Includes auto-sync to channels and rate snapshot history
+model DerivedRatePlan {
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @db.Uuid
+  propertyId        String?   @db.Uuid
+  name              String
+  description       String?
+  connectionId      String?   @db.Uuid
+  channelCode       String
+  sourceRatePlanId  String    @db.Uuid
+  roomTypeId        String?   @db.Uuid
+  derivationType    String    @default("percentage") // percentage, fixed_amount, margin, seasonal_percentage, competitor_based
+  adjustmentValue   Float     @default(0)
+  roundingMethod    String    @default("nearest") // nearest, up, down, none
+  floorRate         Float?
+  ceilingRate       Float?
+  minStay           Int?
+  maxStay           Int?
+  appliesTo         String    @default("all") // all, weekdays, weekends, specific_dates
+  specificDates     String?   @db.Text
+  autoSync          Boolean   @default(true)
+  syncInterval      Int       @default(60)
+  lastSyncAt        DateTime? @db.Timestamptz
+  lastSyncStatus    String?   // success, failed, partial
+  isActive          Boolean   @default(true)
+  effectiveFrom     DateTime? @db.Timestamptz
+  effectiveTo       DateTime? @db.Timestamptz
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+
+  @@unique([tenantId, connectionId, channelCode, sourceRatePlanId, roomTypeId])
+  @@index([tenantId, connectionId, channelCode, isActive])
+  @@index([sourceRatePlanId])
+}
+
+/// DerivedRateSnapshot - Historical snapshot of derived rates for a date
+model DerivedRateSnapshot {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @db.Uuid
+  derivedPlanId     String   @db.Uuid
+  date              DateTime @db.Timestamptz
+  sourceRate        Float
+  derivedRate       Float
+  adjustmentApplied Float
+  createdAt         DateTime @default(now()) @db.Timestamptz
+
+  @@unique([derivedPlanId, date])
+  @@index([tenantId, derivedPlanId, date])
 }
 
 model MealPlanMapping {
@@ -1277,6 +1413,48 @@ model ChannelPromoCode {
   @@index([tenantId, connectionId, channelCode])
   @@index([validFrom, validTo])
   @@index([isActive])
+}
+
+model BookingModification {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String?   @db.Uuid
+  connectionId    String?   @db.Uuid
+  channelCode     String
+  bookingId       String?   @db.Uuid
+  channelBookingRef String?
+  modificationType String   @default("date_change") // date_change, room_change, guest_change, rate_change, addon_change, cancellation_part, name_change, special_request
+  previousValue   String?   @db.Text
+  newValue        String?   @db.Text
+  previousCheckIn  DateTime? @db.Timestamptz
+  newCheckIn       DateTime? @db.Timestamptz
+  previousCheckOut DateTime? @db.Timestamptz
+  newCheckOut      DateTime? @db.Timestamptz
+  previousRoomType String?
+  newRoomType     String?
+  previousAdults   Int?
+  newAdults        Int?
+  previousChildren Int?
+  newChildren      Int?
+  previousRate     Float?
+  newRate          Float?
+  priceDifference  Float    @default(0)
+  status          String   @default("pending") // pending, approved, rejected, applied, failed
+  autoApply       Boolean  @default(false)
+  requiresApproval Boolean  @default(true)
+  requestedAt     DateTime @db.Timestamptz
+  processedAt     DateTime? @db.Timestamptz
+  processedBy     String?
+  rejectionReason String?
+  channelResponse String?  @db.Text
+  errorMessage    String?
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+
+  @@index([tenantId, connectionId, channelCode])
+  @@index([bookingId])
+  @@index([status])
+  @@index([requestedAt])
 }
 
 model ChatConversation {
@@ -10448,4 +10626,78 @@ model ChannelSettlementItem {
   @@index([tenantId, settlementId])
   @@index([bookingId])
   @@index([status])
+}
+
+model ChannelCommissionConfig {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String?  @db.Uuid
+  connectionId    String   @db.Uuid
+  channelCode     String
+  commissionType  String   @default("percentage") // percentage, fixed_amount, tiered
+  baseCommission  Float    @default(0)
+  currency        String   @default("USD")
+  commissionModel String   @default("gross") // gross, net, hybrid
+  billingCycle    String   @default("monthly") // monthly, bi_weekly, weekly, per_booking
+  paymentTerms    Int      @default(30) // days
+  vatApplicable   Boolean  @default(false)
+  vatRate         Float    @default(0)
+  includedInRate  Boolean  @default(false) // commission already included in displayed rate
+  minCommission   Float?
+  maxCommission   Float?
+  isActive        Boolean  @default(true)
+  effectiveFrom   DateTime? @db.Timestamptz
+  effectiveTo     DateTime? @db.Timestamptz
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+
+  @@unique([tenantId, connectionId])
+  @@index([tenantId, channelCode, isActive])
+}
+
+// ============================================================
+// ALLOTMENT RELEASE MODULE - Cutoff schedules for channel allotments
+// ============================================================
+
+/// AllotmentReleaseRule - Defines when unsold allotment rooms are released back to the general pool
+model AllotmentReleaseRule {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String?  @db.Uuid
+  connectionId    String?  @db.Uuid
+  channelCode     String
+  roomTypeId      String?  @db.Uuid
+  releaseType     String   @default("graduated") // graduated, fixed, percentage
+  releaseSchedule String   @db.Text // JSON: [{daysBefore: 30, releasePercent: 20}, {daysBefore: 14, releasePercent: 50}, {daysBefore: 7, releasePercent: 100}]
+  releaseAllDays  Int      @default(7) // For fixed type: release all N days before
+  releasePercentPerDay Int @default(10) // For percentage type: release X% per day
+  startReleaseFrom DateTime? @db.Timestamptz
+  endReleaseAt    DateTime? @db.Timestamptz
+  minAllotment    Int      @default(0) // Never release below this number
+  autoRelease     Boolean  @default(true)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  @@index([tenantId, connectionId, channelCode, isActive])
+  @@index([roomTypeId])
+}
+
+/// AllotmentReleaseLog - Records of release actions
+model AllotmentReleaseLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  ruleId          String   @db.Uuid
+  connectionId    String   @db.Uuid
+  channelCode     String
+  roomTypeId      String?  @db.Uuid
+  date            DateTime @db.Timestamptz
+  roomsReleased   Int      @default(0)
+  roomsBefore     Int      @default(0)
+  roomsAfter      Int      @default(0)
+  releaseType     String
+  daysBeforeArrival Int
+  triggeredBy     String   @default("auto") // auto, manual
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  @@index([tenantId, ruleId, date])
+  @@index([connectionId])
 }

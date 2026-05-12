@@ -12,6 +12,8 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/channels/rate-sync');
     case 'channel-booking':
       return import('@/components/channels/booking-sync');
+    case 'channel-booking-modifications':
+      return import('@/components/channels/booking-modifications');
     case 'channel-restrictions':
       return import('@/components/channels/restrictions');
     case 'channel-stop-sell':
@@ -50,10 +52,22 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/channels/booking-pace');
     case 'channel-inventory-pool':
       return import('@/components/channels/inventory-pool');
+    case 'channel-derived-rates':
+      return import('@/components/channels/derived-rate-plans');
     case 'channel-priority':
       return import('@/components/channels/channel-priority');
     case 'channel-settlement':
       return import('@/components/channels/settlement');
+    case 'channel-commission-config':
+      return import('@/components/channels/commission-config');
+    case 'channel-booking-limits':
+      return import('@/components/channels/booking-limits');
+    case 'channel-guest-rates':
+      return import('@/components/channels/guest-rates');
+    case 'channel-allotment-release':
+      return import('@/components/channels/allotment-release');
+    case 'channel-rate-overrides':
+      return import('@/components/channels/rate-overrides');
     default:
       throw new Error(`Unknown channel section: ${section}`);
   }

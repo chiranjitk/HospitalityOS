@@ -100,6 +100,9 @@ import {
   Landmark,
   Tag,
   Database,
+  Gauge,
+  Timer,
+  Calculator,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -421,6 +424,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'channel-inventory', title: 'Inventory Sync', href: '#channel-inventory', icon: Zap },
       { id: 'channel-rate', title: 'Rate Sync', href: '#channel-rate', icon: DollarSign },
       { id: 'channel-booking', title: 'Booking Sync', href: '#channel-booking', icon: CalendarDays },
+      { id: 'channel-booking-modifications', title: 'Booking Modifications', href: '#channel-booking-modifications', icon: RefreshCw },
       { id: 'channel-restrictions', title: 'Restrictions', href: '#channel-restrictions', icon: Lock },
       { id: 'channel-stop-sell', title: 'Bulk Stop-Sell', href: '#channel-stop-sell', icon: ShieldOff },
       { id: 'channel-allocations', title: 'Allocations', href: '#channel-allocations', icon: PieChart },
@@ -431,6 +435,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'channel-crs', title: 'CRS', href: '#channel-crs', icon: Building },
       { id: 'channel-gds', title: 'GDS Connectivity', href: '#channel-gds', icon: Radio },
       { id: 'channel-rate-derivation', title: 'Rate Derivation', href: '#channel-rate-derivation', icon: Percent },
+      { id: 'channel-rate-overrides', title: 'Rate Overrides', href: '#channel-rate-overrides', icon: Calculator },
       { id: 'channel-content-sync', title: 'Content Sync', href: '#channel-content-sync', icon: ImageIcon },
       { id: 'channel-tax-mapping', title: 'Tax Mapping', href: '#channel-tax-mapping', icon: Receipt },
       { id: 'channel-meal-plan', title: 'Meal Plan Mapping', href: '#channel-meal-plan', icon: UtensilsCrossed },
@@ -438,10 +443,15 @@ export const navigationConfig: NavSection[] = [
       { id: 'channel-currency', title: 'Currency Config', href: '#channel-currency', icon: Globe },
       { id: 'channel-cancellation-policy', title: 'Cancellation Policies', href: '#channel-cancellation-policy', icon: ShieldAlert },
       { id: 'channel-settlement', title: 'Settlements', href: '#channel-settlement', icon: Landmark },
+      { id: 'channel-allotment-release', title: 'Allotment Release', href: '#channel-allotment-release', icon: Timer },
       { id: 'channel-promo-codes', title: 'Promo Codes', href: '#channel-promo-codes', icon: Tag },
       { id: 'channel-booking-pace', title: 'Booking Pace', href: '#channel-booking-pace', icon: TrendingUp },
       { id: 'channel-priority', title: 'Channel Priority', href: '#channel-priority', icon: ArrowUpDown },
       { id: 'channel-inventory-pool', title: 'Inventory Pooling', href: '#channel-inventory-pool', icon: Database },
+      { id: 'channel-derived-rates', title: 'Derived Rate Plans', href: '#channel-derived-rates', icon: GitBranch },
+      { id: 'channel-commission-config', title: 'Commission Config', href: '#channel-commission-config', icon: Percent },
+      { id: 'channel-guest-rates', title: 'Guest Rates', href: '#channel-guest-rates', icon: Users },
+      { id: 'channel-booking-limits', title: 'Booking Limits', href: '#channel-booking-limits', icon: Gauge },
     ],
   },
 

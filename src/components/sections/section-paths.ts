@@ -173,6 +173,7 @@ const sectionPaths: Record<string, string> = {
   'channel-inventory': '@/components/channels/inventory-sync',
   'channel-rate': '@/components/channels/rate-sync',
   'channel-booking': '@/components/channels/booking-sync',
+  'channel-booking-modifications': '@/components/channels/booking-modifications',
   'channel-restrictions': '@/components/channels/restrictions',
   'channel-mapping': '@/components/channels/mapping',
   'channel-logs': '@/components/channels/sync-logs',

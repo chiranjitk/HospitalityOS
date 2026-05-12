@@ -162,6 +162,7 @@ export const sectionSkeletonMap: Record<string, SkeletonLayout> = {
   'channel-inventory': 'table',
   'channel-rate': 'table',
   'channel-booking': 'table',
+  'channel-booking-modifications': 'table',
   'channel-restrictions': 'settings',
   'channel-stop-sell': 'dashboard',
   'channel-allocations': 'dashboard',
@@ -175,6 +176,7 @@ export const sectionSkeletonMap: Record<string, SkeletonLayout> = {
   'channel-virtual-inventory': 'dashboard',
   'channel-booking-pace': 'dashboard',
   'channel-promo-codes': 'table',
+  'channel-allotment-release': 'dashboard',
 
   // Experience
   'experience-requests': 'table',

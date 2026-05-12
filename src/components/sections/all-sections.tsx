@@ -252,6 +252,7 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'channel-inventory': () => import('@/components/channels/inventory-sync'),
   'channel-rate': () => import('@/components/channels/rate-sync'),
   'channel-booking': () => import('@/components/channels/booking-sync'),
+  'channel-booking-modifications': () => import('@/components/channels/booking-modifications'),
   'channel-restrictions': () => import('@/components/channels/restrictions'),
   'channel-mapping': () => import('@/components/channels/mapping'),
   'channel-logs': () => import('@/components/channels/sync-logs'),
@@ -260,6 +261,8 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'channel-virtual-inventory': () => import('@/components/channels/virtual-inventory'),
   'channel-settlement': () => import('@/components/channels/settlement'),
   'channel-promo-codes': () => import('@/components/channels/promo-codes'),
+  'channel-guest-rates': () => import('@/components/channels/guest-rates'),
+  'channel-allotment-release': () => import('@/components/channels/allotment-release'),
 
   // ── settings (section-map-settings.tsx) ──
   'settings-general': () => import('@/components/settings/general'),
