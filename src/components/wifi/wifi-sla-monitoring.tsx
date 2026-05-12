@@ -560,7 +560,7 @@ export default function WiFiSLAMonitoring() {
           )}
 
           {/* SLA Trend Chart (simplified bar chart) */}
-          {complianceData && complianceData.breachSummary.trend.length > 0 && (
+          {complianceData?.breachSummary?.trend && complianceData.breachSummary.trend.length > 0 && (
             <Card className="border-0 shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold">Breach Trend (Last 30 Days)</CardTitle>
@@ -787,7 +787,7 @@ export default function WiFiSLAMonitoring() {
           )}
 
           {/* Breach by Type */}
-          {complianceData && Object.keys(complianceData.breachSummary.byType).length > 0 && (
+          {complianceData?.breachSummary?.byType && Object.keys(complianceData.breachSummary.byType).length > 0 && (
             <Card className="border-0 shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold">Breach Breakdown by Type</CardTitle>

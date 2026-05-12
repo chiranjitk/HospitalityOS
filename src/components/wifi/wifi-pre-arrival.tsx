@@ -216,7 +216,7 @@ export default function WifiPreArrival() {
       if (result.success) {
         setLogs(result.data);
         setLogsSummary(result.summary);
-        setLogsTotalPages(result.pagination.totalPages);
+        setLogsTotalPages(result.pagination?.totalPages ?? 1);
       }
     } catch (error) {
       console.error('Error fetching logs:', error);
@@ -226,12 +226,20 @@ export default function WifiPreArrival() {
   }, [logsPage, logStatusFilter, logChannelFilter]);
 
   useEffect(() => {
-    fetchConfigs();
-    fetchPlans();
+    let cancelled = false;
+    (async () => {
+      try { if (!cancelled) await fetchConfigs(); } catch { /* ignore */ }
+      try { if (!cancelled) await fetchPlans(); } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
   }, [fetchConfigs, fetchPlans]);
 
   useEffect(() => {
-    fetchLogs();
+    let cancelled = false;
+    (async () => {
+      try { if (!cancelled) await fetchLogs(); } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
   }, [fetchLogs]);
 
   // ─── Handlers ─────────────────────────────────────────────────────────
@@ -683,6 +691,7 @@ function PropertyConfigCard({
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: sync local state from prop
     setLocalConfig({ ...config });
     setHasChanges(false);
   }, [config]);

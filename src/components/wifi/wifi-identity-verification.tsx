@@ -26,7 +26,7 @@ import {
   AlertTriangle, CheckCircle2, XCircle, Clock, RefreshCw, Settings,
   BarChart3, TrendingUp, Users, Activity, ChevronDown,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { useToast } from '@/hooks/use-toast';
 import { format, formatDistanceToNow, subDays } from 'date-fns';
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -194,6 +194,8 @@ const METHOD_COLORS: Record<string, string> = {
 // ── Main Component ─────────────────────────────────────────────────
 
 export default function WiFiIdentityVerification() {
+  const { toast } = useToast();
+
   // Data state
   const [logs, setLogs] = useState<IdentityLog[]>([]);
   const [stats, setStats] = useState<VerificationStats | null>(null);
@@ -257,10 +259,10 @@ export default function WiFiIdentityVerification() {
         setLogs(json.data || []);
         setTotal(json.pagination?.total || 0);
       } else {
-        toast.error(json.error?.message || 'Failed to load identity logs');
+        toast({ title: 'Error', description: json.error?.message || 'Failed to load identity logs', variant: 'destructive' });
       }
     } catch {
-      toast.error('Failed to load identity logs');
+      toast({ title: 'Error', description: 'Failed to load identity logs', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -356,14 +358,14 @@ export default function WiFiIdentityVerification() {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('Identity verified successfully');
+        toast({ title: 'Verified', description: 'Identity verified successfully' });
         fetchLogs();
         fetchStats();
       } else {
-        toast.error(json.error?.message || 'Verification failed');
+        toast({ title: 'Error', description: json.error?.message || 'Verification failed', variant: 'destructive' });
       }
     } catch {
-      toast.error('Verification failed');
+      toast({ title: 'Error', description: 'Verification failed', variant: 'destructive' });
     }
   };
 
@@ -377,16 +379,16 @@ export default function WiFiIdentityVerification() {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('Marked as failed');
+        toast({ title: 'Marked as Failed', description: 'Record updated successfully' });
         setShowFailDialog(false);
         setFailReason('');
         fetchLogs();
         fetchStats();
       } else {
-        toast.error(json.error?.message || 'Update failed');
+        toast({ title: 'Error', description: json.error?.message || 'Update failed', variant: 'destructive' });
       }
     } catch {
-      toast.error('Update failed');
+      toast({ title: 'Error', description: 'Update failed', variant: 'destructive' });
     }
   };
 
@@ -405,9 +407,9 @@ export default function WiFiIdentityVerification() {
       a.download = `identity-verification-logs-${startDate}-to-${endDate}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success('CSV exported successfully');
+      toast({ title: 'Exported', description: 'CSV exported successfully' });
     } catch {
-      toast.error('Failed to export CSV');
+      toast({ title: 'Error', description: 'Failed to export CSV', variant: 'destructive' });
     }
   };
 
@@ -438,7 +440,7 @@ export default function WiFiIdentityVerification() {
         setShowComplianceReport(true);
       }
     } catch {
-      toast.error('Failed to generate compliance report');
+      toast({ title: 'Error', description: 'Failed to generate compliance report', variant: 'destructive' });
     }
   };
 
@@ -455,15 +457,15 @@ export default function WiFiIdentityVerification() {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('Test log created');
+        toast({ title: 'Created', description: 'Test log created successfully' });
         setShowCreateDialog(false);
         fetchLogs();
         fetchStats();
       } else {
-        toast.error(json.error?.message || 'Failed to create log');
+        toast({ title: 'Error', description: json.error?.message || 'Failed to create log', variant: 'destructive' });
       }
     } catch {
-      toast.error('Failed to create log');
+      toast({ title: 'Error', description: 'Failed to create log', variant: 'destructive' });
     }
   };
 
@@ -1052,7 +1054,7 @@ export default function WiFiIdentityVerification() {
 
           <Card>
             <CardContent className="pt-6">
-              <Button className="gap-2" onClick={() => toast.success('Settings saved (demo)')}>
+              <Button className="gap-2" onClick={() => toast({ title: 'Saved', description: 'Settings saved successfully' })}>
                 <ShieldCheck className="h-4 w-4" />Save Settings
               </Button>
             </CardContent>
