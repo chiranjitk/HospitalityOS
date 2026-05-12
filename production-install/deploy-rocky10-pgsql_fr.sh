@@ -1098,30 +1098,27 @@ cp -r "${APP_DIR}/.next/server" "${APP_DIR}/.next/standalone/.next/server"
 cp -r "${APP_DIR}/.next/static" "${APP_DIR}/.next/standalone/.next/static"
 cp "${APP_DIR}/.next/BUILD_ID" "${APP_DIR}/.next/standalone/.next/BUILD_ID" 2>/dev/null || true
 
-# 2) next/dist/build/output/ — Next.js 16.2.x standalone file tracing bug
-# The standalone tracer partially includes next/dist/build/ but misses the
-# output/ subdirectory. next/dist/server/next.js requires "../build/output/log"
-# at startup, causing MODULE_NOT_FOUND. The build/ dir EXISTS but is incomplete,
-# so we must always overwrite it with the full source version.
+# 2) next/dist/build/output/ — Safety net for Next.js 16.2.x standalone tracing
+# If the file tracer is working correctly (no outputFileTracingExcludes bug),
+# this directory will already exist and this copy will be a harmless no-op.
+# It only activates if something is wrong with the trace.
 STANDALONE_NM_BUILD="${APP_DIR}/.next/standalone/node_modules/next/dist/build"
 SOURCE_NM_BUILD="${APP_DIR}/node_modules/next/dist/build"
-if [[ -d "$SOURCE_NM_BUILD" ]]; then
-  info "  Fixing Next.js 16.2.x standalone tracing bug (next/dist/build/output missing)..."
-  # Remove the partial standalone copy and replace with complete source
-  rm -rf "$STANDALONE_NM_BUILD"
-  cp -r "$SOURCE_NM_BUILD" "$STANDALONE_NM_BUILD"
-  # Verify the critical file is present
-  if [[ -f "${STANDALONE_NM_BUILD}/output/log.js" ]]; then
-    info "  ✓ Verified: next/dist/build/output/log.js present in standalone"
+if [[ ! -f "${STANDALONE_NM_BUILD}/output/log.js" ]]; then
+  warn "  next/dist/build/output/log.js missing in standalone — copying from source..."
+  warn "  If this happens often, check next.config.ts outputFileTracingExcludes!"
+  rm -rf "$STANDALONE_NM_BUILD" 2>/dev/null
+  if [[ -d "$SOURCE_NM_BUILD" ]]; then
+    cp -r "$SOURCE_NM_BUILD" "$STANDALONE_NM_BUILD"
+    info "  ✓ Safety copy complete: next/dist/build/output/log.js restored"
   else
-    error "  ✗ CRITICAL: next/dist/build/output/log.js still missing after copy!"
-    error "  Source file check: $(ls -la "${SOURCE_NM_BUILD}/output/log.js" 2>&1)"
+    error "  Source next/dist/build/ not found — Next.js package may be corrupted"
   fi
 else
-  error "  Source next/dist/build/ not found — Next.js package may be corrupted"
+  info "  ✓ next/dist/build/output/log.js present (file trace OK)"
 fi
 
-success "Standalone artifacts copied (server + static + BUILD_ID + next/dist/build)"
+success "Standalone artifacts copied (server + static + BUILD_ID)"
 
 # Install Ookla speedtest CLI (used by Gateway Diagnostics > Speed Test)
 # No native Node.js modules needed — just a standalone binary.

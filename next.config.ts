@@ -11,12 +11,14 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     'node-pre-gyp', '@mapbox/node-pre-gyp', 'node-cron',
   ],
-  // Exclude system-only paths from output file tracing to prevent unexpected NFT entries.
+  // Exclude non-essential paths from output file tracing.
+  // WARNING: Do NOT add 'node_modules/**' here — it breaks standalone mode!
+  // The file tracer needs to trace INTO node_modules to copy required runtime
+  // files (e.g. next/dist/build/output/log.js) into .next/standalone/node_modules/.
   outputFileTracingExcludes: {
     '*': [
       '.git/**',
-      '.next/**',
-      'node_modules/**',
+      '.next/cache/**',
       'logs/**',
       '.staysuite/**',
       'data/rrd/**',
