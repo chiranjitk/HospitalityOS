@@ -34,11 +34,6 @@ import {
   LogOut,
   Settings,
   User,
-  Activity,
-  TrendingUp,
-  Users,
-  BedDouble,
-  DollarSign,
   Keyboard,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -103,14 +98,6 @@ const keyframeStyles = `
   }
   .search-ring-animate {
     animation: searchRingExpand 1.5s ease-out infinite;
-  }
-  @keyframes statBarGrow {
-    from { transform: scaleX(0); }
-    to { transform: scaleX(1); }
-  }
-  .stat-bar-grow {
-    animation: statBarGrow 1s ease-out forwards;
-    transform-origin: left;
   }
 `;
 
@@ -576,135 +563,6 @@ function TenantSwitcher({ collapsed }: { collapsed?: boolean }) {
 }
 
 // =============================================
-// QUICK STATS FOOTER (Enhanced with gradient bars & mount animation)
-// =============================================
-function formatRevenue(amount: number): string {
-  if (amount >= 1_000_000) {
-    return `$${(amount / 1_000_000).toFixed(1)}M`;
-  }
-  if (amount >= 1_000) {
-    return `$${(amount / 1_000).toFixed(1)}K`;
-  }
-  return `$${amount.toFixed(0)}`;
-}
-
-function QuickStats({ collapsed }: { collapsed?: boolean }) {
-  const tLayout = useTranslations('layout');
-  const [mounted, setMounted] = useState(false);
-  const [stats, setStats] = useState<{ occupancyRate: number; revenueToday: number } | null>(null);
-  const [loading, setLoading] = useState(true);
-  
-  useEffect(() => {
-    const timer = setTimeout(() => setMounted(true), 100);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchStats() {
-      try {
-        const res = await fetch('/api/dashboard/quick-stats');
-        if (!res.ok || cancelled) return;
-        const json = await res.json();
-        if (json.success && json.data && !cancelled) {
-          const { totalRooms, availableRooms, revenueToday } = json.data;
-          const occupancyRate = totalRooms > 0
-            ? Math.round(((totalRooms - availableRooms) / totalRooms) * 100)
-            : 0;
-          setStats({ occupancyRate, revenueToday: revenueToday || 0 });
-        }
-      } catch {
-        // Silently fail — will show "--" fallback
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    fetchStats();
-    return () => { cancelled = true; };
-  }, []);
-
-  const occupancyDisplay = loading ? '...' : stats ? `${stats.occupancyRate}%` : '--';
-  const revenueDisplay = loading ? '...' : stats ? formatRevenue(stats.revenueToday) : '--';
-  const barOccupancy = stats ? stats.occupancyRate : 0;
-  // Revenue bar: map today's revenue against a reasonable daily target ($10K)
-  // so the bar gives a visual sense of progress even without a real target
-  const revenueTarget = 10_000;
-  const barRevenue = stats && stats.revenueToday > 0
-    ? Math.min(100, Math.round((stats.revenueToday / revenueTarget) * 100))
-    : 0;
-
-  if (collapsed) {
-    return (
-      <div className="px-2 py-2 border-t border-sidebar-border/15 flex-shrink-0">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="flex items-center justify-center h-9 w-9 mx-auto rounded-xl bg-sidebar-accent/20 transition-all duration-200">
-              {loading ? (
-                <Loader2 className="h-3.5 w-3.5 text-live animate-spin" />
-              ) : (
-                <Activity className="h-3.5 w-3.5 text-live" />
-              )}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="right" sideOffset={8} className="text-xs font-medium">
-            {occupancyDisplay} {tLayout('occupancy')} · {revenueDisplay} {tLayout('revenue')}
-          </TooltipContent>
-        </Tooltip>
-      </div>
-    );
-  }
-
-  return (
-    <div className="px-3 py-2.5 border-t border-sidebar-border/15 flex-shrink-0">
-      <div className="flex items-center gap-3 px-2 py-2 rounded-xl bg-sidebar-accent/[0.12] border border-sidebar-border/[0.08]">
-        {/* Occupancy */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <BedDouble className="h-3 w-3 text-live flex-shrink-0" />
-            {loading ? (
-              <Loader2 className="h-3 w-3 text-sidebar-foreground animate-spin" />
-            ) : (
-              <span className="text-[11px] font-semibold text-sidebar-foreground tabular-nums">{occupancyDisplay}</span>
-            )}
-          </div>
-          <p className="text-[9px] text-sidebar-foreground mt-0.5 uppercase tracking-wider">{tLayout('occupancy')}</p>
-          {/* Mini gradient bar */}
-          <div className="mt-1 h-1 rounded-full bg-sidebar-accent/30 overflow-hidden">
-            <div 
-              className="h-full rounded-full bg-gradient-to-r from-sidebar-primary to-sidebar-ring stat-bar-grow w-0"
-              style={{ width: mounted && !loading ? `${barOccupancy}%` : undefined, transition: 'width 1s ease-out' }}
-            />
-          </div>
-        </div>
-        
-        {/* Divider */}
-        <div className="w-px h-6 bg-sidebar-border/15" />
-        
-        {/* Revenue */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <DollarSign className="h-3 w-3 text-sidebar-primary flex-shrink-0" />
-            {loading ? (
-              <Loader2 className="h-3 w-3 text-sidebar-foreground animate-spin" />
-            ) : (
-              <span className="text-[11px] font-semibold text-sidebar-foreground tabular-nums">{revenueDisplay}</span>
-            )}
-          </div>
-          <p className="text-[9px] text-sidebar-foreground mt-0.5 uppercase tracking-wider">{tLayout('revenue')}</p>
-          {/* Mini gradient bar */}
-          <div className="mt-1 h-1 rounded-full bg-sidebar-accent/30 overflow-hidden">
-            <div 
-              className="h-full rounded-full bg-gradient-to-r from-sidebar-primary to-sidebar-ring stat-bar-grow w-0"
-              style={{ width: mounted && !loading ? `${barRevenue}%` : undefined, transition: 'width 1s ease-out 0.2s' }}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =============================================
 // ULTRA-MODERN USER PROFILE (Enhanced)
 // =============================================
 function UserProfile({ collapsed }: { collapsed?: boolean }) {
@@ -1095,7 +953,6 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
         />
         {/* Sidebar footer separator */}
         <div className="h-px mx-3 bg-gradient-to-r from-transparent via-[oklch(0.65_0.16_170/0.25)] to-transparent flex-shrink-0" />
-        <QuickStats />
         <TenantSwitcher />
         <NotificationPopover />
         <UserProfile />
@@ -1129,7 +986,6 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
             />
           {/* Sidebar footer separator */}
           <div className="h-px mx-2 bg-gradient-to-r from-transparent via-[oklch(0.65_0.16_170/0.25)] to-transparent flex-shrink-0" />
-          <QuickStats collapsed />
           <TenantSwitcher collapsed />
           <NotificationPopover collapsed />
           <UserProfile collapsed />
@@ -1204,7 +1060,6 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
           />
           {/* Sidebar footer separator */}
           <div className="h-px mx-3 bg-gradient-to-r from-transparent via-[oklch(0.65_0.16_170/0.25)] to-transparent flex-shrink-0" />
-          <QuickStats />
           <TenantSwitcher />
           <UserProfile />
           <SidebarThemeToggleRow collapsed={false} />
