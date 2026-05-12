@@ -1091,11 +1091,27 @@ success "Next.js build complete"
 # into standalone fixes this AND ensures routes, middleware, and other server
 # components are available at runtime.
 info "Copying build artifacts into standalone output..."
+
+# 1) .next/server, .next/static, .next/BUILD_ID — standard Next.js standalone requirement
 rm -rf "${APP_DIR}/.next/standalone/.next/server" "${APP_DIR}/.next/standalone/.next/static" "${APP_DIR}/.next/standalone/.next/BUILD_ID" 2>/dev/null
 cp -r "${APP_DIR}/.next/server" "${APP_DIR}/.next/standalone/.next/server"
 cp -r "${APP_DIR}/.next/static" "${APP_DIR}/.next/standalone/.next/static"
 cp "${APP_DIR}/.next/BUILD_ID" "${APP_DIR}/.next/standalone/.next/BUILD_ID" 2>/dev/null || true
-success "Standalone artifacts copied (server + static + BUILD_ID)"
+
+# 2) next/dist/build/ — Next.js 16.2.x standalone file tracing bug
+# The standalone tracer prunes next/dist/build/ because it's only referenced
+# internally by next/dist/server/next.js (require("../build/output/log")),
+# not by user code. This causes MODULE_NOT_FOUND at startup.
+# Copy the entire build directory to fix it (safe — these are just build-time
+# utilities: log, format, store, webpack config, etc.)
+FR_BUILD_DIR="${APP_DIR}/.next/standalone/node_modules/next/dist/build"
+if [[ ! -d "$FR_BUILD_DIR" ]] || [[ -z "$(ls -A "$FR_BUILD_DIR" 2>/dev/null)" ]]; then
+  info "  Fixing Next.js 16.2.x standalone tracing bug (next/dist/build pruned)..."
+  rm -rf "$FR_BUILD_DIR" 2>/dev/null
+  cp -r "${APP_DIR}/node_modules/next/dist/build" "$FR_BUILD_DIR"
+fi
+
+success "Standalone artifacts copied (server + static + BUILD_ID + next/dist/build)"
 
 # Install Ookla speedtest CLI (used by Gateway Diagnostics > Speed Test)
 # No native Node.js modules needed — just a standalone binary.
