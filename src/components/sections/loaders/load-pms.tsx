@@ -1,6 +1,7 @@
 // Category loader: PMS
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'pms':
     case 'pms-properties':
       return import('@/components/pms/properties-list');
     case 'pms-room-types':

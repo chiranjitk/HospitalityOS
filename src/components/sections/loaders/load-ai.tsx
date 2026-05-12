@@ -1,6 +1,7 @@
 // Category loader: AI
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'ai':
     case 'ai-copilot':
       return import('@/components/ai/copilot');
     case 'ai-provider':

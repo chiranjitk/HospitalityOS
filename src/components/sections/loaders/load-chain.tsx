@@ -1,6 +1,7 @@
 // Category loader: Chain
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'chain':
     case 'chain-brands':
       return import('@/components/chain/brand-management');
     case 'chain-dashboard':

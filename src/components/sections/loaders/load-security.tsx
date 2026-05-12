@@ -1,6 +1,8 @@
 // Category loader: Security
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'security':
+    case 'surveillance':
     case 'security-cameras':
       return import('@/components/security/camera-management');
     case 'security-live':

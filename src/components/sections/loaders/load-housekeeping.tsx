@@ -1,6 +1,7 @@
 // Category loader: Housekeeping
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'housekeeping':
     case 'housekeeping-tasks':
       return import('@/components/housekeeping/tasks-list');
     case 'housekeeping-kanban':

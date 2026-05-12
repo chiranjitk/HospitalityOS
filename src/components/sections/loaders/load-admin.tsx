@@ -1,6 +1,7 @@
 // Category loader: Admin
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'admin':
     case 'admin-tenants':
       return import('@/components/admin/tenant-management');
     case 'admin-tenant-lifecycle':

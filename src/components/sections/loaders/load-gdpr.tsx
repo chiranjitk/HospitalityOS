@@ -1,6 +1,7 @@
 // Category loader: GDPR
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'gdpr':
     case 'settings-gdpr':
     case 'admin-gdpr':
     case 'gdpr-compliance':

@@ -1,6 +1,7 @@
 // Category loader: Settings
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'settings':
     case 'settings-general':
       return import('@/components/settings/general');
     case 'settings-tax':

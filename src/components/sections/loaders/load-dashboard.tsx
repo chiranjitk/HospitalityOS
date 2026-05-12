@@ -1,6 +1,7 @@
 // Category loader: Dashboard
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'dashboard':
     case 'overview':
     case 'dashboard-overview':
       return import('@/components/dashboard/overview-dashboard');

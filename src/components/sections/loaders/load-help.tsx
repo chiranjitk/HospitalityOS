@@ -1,6 +1,7 @@
 // Category loader: Help
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'help':
     case 'help-center':
       return import('@/components/help/help-center-landing');
     case 'help-articles':

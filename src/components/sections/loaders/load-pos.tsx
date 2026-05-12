@@ -1,6 +1,7 @@
 // Category loader: POS
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'pos':
     case 'pos-orders':
       return import('@/components/pos/orders');
     case 'pos-tables':

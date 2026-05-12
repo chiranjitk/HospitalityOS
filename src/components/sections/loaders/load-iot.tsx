@@ -1,6 +1,7 @@
 // Category loader: IoT
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'iot':
     case 'iot-devices':
       return import('@/components/iot/device-management');
     case 'iot-controls':

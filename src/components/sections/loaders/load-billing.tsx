@@ -1,6 +1,8 @@
 // Category loader: Billing
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'billing':
+    case 'saas':
     case 'billing-folios':
       return import('@/components/billing/folios');
     case 'billing-invoices':

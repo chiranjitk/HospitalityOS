@@ -1,6 +1,7 @@
 // Category loader: Webhooks
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'webhooks':
     case 'webhooks-events':
       return import('@/components/webhooks/events');
     case 'webhooks-delivery':

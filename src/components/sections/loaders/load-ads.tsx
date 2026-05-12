@@ -1,6 +1,7 @@
 // Category loader: Ads
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'ads':
     case 'ads-campaigns':
       return import('@/components/ads/ad-campaigns');
     case 'ads-google':

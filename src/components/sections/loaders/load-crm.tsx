@@ -1,6 +1,7 @@
 // Category loader: CRM
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'crm':
     case 'crm-segments':
       return import('@/components/crm/guest-segments');
     case 'crm-campaigns':

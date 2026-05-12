@@ -1,6 +1,7 @@
 // Category loader: Automation
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'automation':
     case 'automation-workflow':
     case 'automation-workflows':
       return import('@/components/automation/workflow-builder');

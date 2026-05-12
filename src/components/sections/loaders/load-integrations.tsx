@@ -1,6 +1,7 @@
 // Category loader: Integrations
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'integrations':
     case 'integrations-payment':
     case 'integrations-payments':
       return import('@/components/integrations/payment-gateways-page');

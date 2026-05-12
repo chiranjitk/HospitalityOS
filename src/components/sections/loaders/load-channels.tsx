@@ -1,6 +1,7 @@
 // Category loader: Channels
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'channel':
     case 'channel-analytics':
       return import('@/components/channels/channel-analytics');
     case 'channel-ota':

@@ -1,6 +1,7 @@
 // Category loader: Inventory
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'inventory':
     case 'inventory-stock':
       return import('@/components/inventory/stock-items');
     case 'inventory-consumption':

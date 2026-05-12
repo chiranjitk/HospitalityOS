@@ -1,6 +1,7 @@
 // Category loader: Guests
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'guests':
     case 'guests-list':
       return import('@/components/guests/guests-list');
     case 'guests-kyc':

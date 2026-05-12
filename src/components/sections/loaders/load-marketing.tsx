@@ -1,6 +1,7 @@
 // Category loader: Marketing
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'marketing':
     case 'marketing-reputation':
       return import('@/components/marketing/reputation-dashboard');
     case 'marketing-reviews':

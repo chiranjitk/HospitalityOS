@@ -1,6 +1,7 @@
 // Category loader: Reports
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'reports':
     case 'reports-revenue':
       return import('@/components/reports/revenue-reports');
     case 'reports-occupancy':

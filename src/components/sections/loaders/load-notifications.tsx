@@ -1,6 +1,7 @@
 // Category loader: Notifications
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'notifications':
     case 'notifications-templates':
       return import('@/components/notifications/templates');
     case 'notifications-logs':

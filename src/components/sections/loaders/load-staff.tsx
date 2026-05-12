@@ -1,6 +1,7 @@
 // Category loader: Staff
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'staff':
     case 'staff-shifts':
     case 'staff-management':
       return import('@/components/staff/shift-scheduling');

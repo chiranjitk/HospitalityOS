@@ -1,6 +1,7 @@
 // Category loader: Experience
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'experience':
     case 'experience-requests':
       return import('@/components/experience/service-requests');
     case 'experience-inbox':

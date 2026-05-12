@@ -1,6 +1,7 @@
 // Category loader: Bookings
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'bookings':
     case 'bookings-list':
       return import('@/components/bookings/bookings-list');
     case 'bookings-calendar':
