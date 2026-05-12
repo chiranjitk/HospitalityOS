@@ -352,6 +352,15 @@ prepare_runtime_dirs() {
     # Ensure binary is executable and owned appropriately
     chmod 0755 "$BIN_TARGET"
 
+    # Ensure config files are readable by the e2guardian user
+    chmod -R o+rX "$CONF_TARGET"
+    chmod -R o+rX "$SHARE_TARGET"
+    chmod o+X "$E2G_DIR"
+    chmod o+X "$E2G_DIR/etc"
+    chmod o+X "$E2G_DIR/sbin"
+    chmod o+X "$E2G_DIR/share"
+    chmod o+X "$E2G_DIR/var"
+
     info "Created and owned: $LOG_DIR"
     info "                    $RUN_DIR"
     info "                    $LIB_DIR"
@@ -382,9 +391,12 @@ LimitSTACK=infinity:infinity
 UMask=0027
 
 # Paths — production install under $INSTALL_PREFIX
-ExecStart=${BIN_TARGET}
-ExecReload=${BIN_TARGET} -r
-ExecStop=${BIN_TARGET} -q
+# IMPORTANT: -c flag is REQUIRED because the binary was compiled with
+# sandbox paths hardcoded (--prefix, --sysconfdir, etc.). Without -c,
+# e2guardian would look for config at the old compiled-in path.
+ExecStart=${BIN_TARGET} -c ${CONF_TARGET}/e2guardian/e2guardian.conf
+ExecReload=${BIN_TARGET} -r -c ${CONF_TARGET}/e2guardian/e2guardian.conf
+ExecStop=${BIN_TARGET} -q -c ${CONF_TARGET}/e2guardian/e2guardian.conf
 PIDFile=${RUN_DIR}/e2guardian.pid
 
 # Restart policy — restart on crash, not on clean stop
