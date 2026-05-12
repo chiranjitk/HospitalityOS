@@ -30,6 +30,30 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/channels/crs');
     case 'channel-gds':
       return import('@/components/channels/gds-connectivity');
+    case 'channel-rate-derivation':
+      return import('@/components/channels/rate-derivation');
+    case 'channel-content-sync':
+      return import('@/components/channels/content-sync');
+    case 'channel-meal-plan':
+      return import('@/components/channels/meal-plan-mapping');
+    case 'channel-tax-mapping':
+      return import('@/components/channels/tax-mapping');
+    case 'channel-currency':
+      return import('@/components/channels/currency-config');
+    case 'channel-virtual-inventory':
+      return import('@/components/channels/virtual-inventory');
+    case 'channel-cancellation-policy':
+      return import('@/components/channels/cancellation-policy');
+    case 'channel-promo-codes':
+      return import('@/components/channels/promo-codes');
+    case 'channel-booking-pace':
+      return import('@/components/channels/booking-pace');
+    case 'channel-inventory-pool':
+      return import('@/components/channels/inventory-pool');
+    case 'channel-priority':
+      return import('@/components/channels/channel-priority');
+    case 'channel-settlement':
+      return import('@/components/channels/settlement');
     default:
       throw new Error(`Unknown channel section: ${section}`);
   }

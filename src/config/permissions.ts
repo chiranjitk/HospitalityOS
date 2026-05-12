@@ -609,6 +609,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['channels.view', 'channels.*', '*'],
     description: 'Monitor channel health'
   },
+  'channel-booking-pace': {
+    permissions: ['channels.view', 'channels.manage', 'channels.*', '*'],
+    description: 'View booking pace / pick-up analysis'
+  },
   'channel-crs': {
     permissions: ['channels.manage', 'channels.*', '*'],
     description: 'Access CRS'

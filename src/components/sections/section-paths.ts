@@ -178,6 +178,8 @@ const sectionPaths: Record<string, string> = {
   'channel-logs': '@/components/channels/sync-logs',
   'channel-crs': '@/components/channels/crs',
   'channel-gds': '@/components/channels/gds-connectivity',
+  'channel-virtual-inventory': '@/components/channels/virtual-inventory',
+  'channel-promo-codes': '@/components/channels/promo-codes',
 
   // Reports
   'reports-revenue': '@/components/reports/revenue-reports',

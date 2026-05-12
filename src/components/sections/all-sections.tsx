@@ -257,6 +257,9 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'channel-logs': () => import('@/components/channels/sync-logs'),
   'channel-crs': () => import('@/components/channels/crs'),
   'channel-gds': () => import('@/components/channels/gds-connectivity'),
+  'channel-virtual-inventory': () => import('@/components/channels/virtual-inventory'),
+  'channel-settlement': () => import('@/components/channels/settlement'),
+  'channel-promo-codes': () => import('@/components/channels/promo-codes'),
 
   // ── settings (section-map-settings.tsx) ──
   'settings-general': () => import('@/components/settings/general'),

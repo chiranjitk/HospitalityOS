@@ -171,6 +171,10 @@ export const sectionSkeletonMap: Record<string, SkeletonLayout> = {
   'channel-health': 'dashboard',
   'channel-crs': 'table',
   'channel-gds': 'table',
+  'channel-currency': 'table',
+  'channel-virtual-inventory': 'dashboard',
+  'channel-booking-pace': 'dashboard',
+  'channel-promo-codes': 'table',
 
   // Experience
   'experience-requests': 'table',

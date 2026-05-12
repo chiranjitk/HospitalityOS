@@ -14,6 +14,9 @@ const CRS = lazy(() => import('@/components/channels/crs').then(m => ({ default:
 const ChannelHealth = lazy(() => import('@/components/channels/channel-health').then(m => ({ default: m.ChannelHealth })));
 const ChannelAllocations = lazy(() => import('@/components/channels/allocations').then(m => ({ default: m.ChannelAllocations })));
 const StopSellManager = lazy(() => import('@/components/channels/stop-sell').then(m => ({ default: m.StopSellManager })));
+const RateDerivationRules = lazy(() => import('@/components/channels/rate-derivation').then(m => ({ default: m.RateDerivationRules })));
+const VirtualInventory = lazy(() => import('@/components/channels/virtual-inventory').then(m => ({ default: m.VirtualInventory })));
+const BookingPaceAnalysis = lazy(() => import('@/components/channels/booking-pace').then(m => ({ default: m.BookingPaceAnalysis })));
 
 
 export const channelsSections: Record<string, React.LazyExoticComponent<any>> = {
@@ -30,4 +33,7 @@ export const channelsSections: Record<string, React.LazyExoticComponent<any>> = 
   SyncLogs,
   CRS,
   ChannelHealth,
+  RateDerivationRules,
+  VirtualInventory,
+  BookingPaceAnalysis,
 };

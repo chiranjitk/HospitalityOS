@@ -971,6 +971,314 @@ model ChannelSyncLog {
   @@index([createdAt])
 }
 
+model ChannelPriority {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String?  @db.Uuid
+  connectionId    String   @db.Uuid
+  channelCode     String
+  priority        Int      @default(5)
+  syncOrder       Int      @default(0)
+  preferredChannel Boolean @default(false)
+  inventoryWeight Float    @default(1)
+  rateWeight      Float    @default(1)
+  bookingWeight   Float    @default(1)
+  maxInventoryPercent Float @default(100)
+  notes           String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  @@unique([tenantId, connectionId])
+  @@index([tenantId, priority])
+}
+
+model RateDerivationRule {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String?  @db.Uuid
+  name            String
+  description     String?
+  connectionId    String?  @db.Uuid
+  sourceRatePlanId String  @db.Uuid
+  channelCode     String?
+  operation       String   @default("percentage")
+  adjustmentValue Float
+  roundingMethod  String   @default("nearest")
+  minRate         Float?
+  maxRate         Float?
+  floorRate       Float?
+  ceilingRate     Float?
+  appliesTo       String   @default("all")
+  specificDates   String?
+  priority        Int      @default(0)
+  isActive        Boolean  @default(true)
+  effectiveFrom   DateTime? @db.Timestamptz
+  effectiveTo     DateTime? @db.Timestamptz
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  @@index([tenantId, connectionId, isActive])
+  @@index([sourceRatePlanId])
+}
+
+model MealPlanMapping {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String?  @db.Uuid
+  connectionId    String?  @db.Uuid
+  internalMealPlanId String @db.Uuid
+  internalMealPlanName String
+  channelCode     String
+  channelMealPlanCode String
+  channelMealPlanName String?
+  mealPlanType    String   @default("bed_breakfast") // room_only, bed_breakfast, half_board, full_board, all_inclusive, breakfast_included, lunch_included, dinner_included, custom
+  includesBreakfast Boolean @default(false)
+  includesLunch   Boolean @default(false)
+  includesDinner  Boolean @default(false)
+  includesDrinks  Boolean @default(false)
+  supplementAmount Float?
+  supplementType  String?  @default("per_night") // per_night, per_stay, per_person_per_night, percentage
+  currency        String   @default("USD")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  @@unique([tenantId, connectionId, internalMealPlanId, channelCode])
+  @@index([tenantId, connectionId, channelCode])
+  @@index([internalMealPlanId])
+}
+
+model VirtualRoomType {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String?  @db.Uuid
+  name            String
+  description     String?
+  aggregationType String   @default("single") // single, grouped, derived, flexible
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  virtualMappings VirtualRoomMapping[]
+  @@index([tenantId, isActive])
+}
+
+model VirtualRoomMapping {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  virtualRoomTypeId String  @db.Uuid
+  physicalRoomTypeId String  @db.Uuid
+  connectionId     String?  @db.Uuid
+  channelCode      String?
+  externalRoomId   String?
+  externalRoomName String?
+  rateMultiplier   Float    @default(1)
+  priority         Int      @default(0)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now()) @db.Timestamptz
+  updatedAt        DateTime @updatedAt @db.Timestamptz
+  virtualRoomType  VirtualRoomType @relation(fields: [virtualRoomTypeId], references: [id])
+  @@unique([virtualRoomTypeId, physicalRoomTypeId, connectionId])
+  @@index([tenantId, virtualRoomTypeId])
+  @@index([physicalRoomTypeId])
+}
+
+model ChannelContentSync {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String?  @db.Uuid
+  connectionId    String?  @db.Uuid
+  contentType     String
+  syncType        String   @default("full")
+  status          String   @default("pending")
+  totalItems      Int      @default(0)
+  syncedItems     Int      @default(0)
+  failedItems     Int      @default(0)
+  lastSyncAt      DateTime? @db.Timestamptz
+  nextSyncAt      DateTime? @db.Timestamptz
+  errorMessage    String?
+  rawResponse     String?  @db.Text
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  @@index([tenantId, connectionId, contentType])
+  @@index([status])
+}
+
+model ChannelContentField {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String?  @db.Uuid
+  connectionId    String?  @db.Uuid
+  fieldType       String
+  sourceValue     String?  @db.Text
+  mappedValue     String?  @db.Text
+  syncEnabled     Boolean  @default(true)
+  lastSyncedAt    DateTime? @db.Timestamptz
+  syncStatus      String   @default("pending")
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  @@index([tenantId, connectionId, fieldType])
+  @@index([syncEnabled])
+}
+
+model ChannelTaxMapping {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String?  @db.Uuid
+  connectionId    String?  @db.Uuid
+  channelCode     String
+  internalTaxId   String?  @db.Uuid
+  internalTaxName String
+  taxType         String   @default("occupancy") // occupancy, vat, gst, service_charge, city_tax, tourism_tax, resort_fee, other
+  taxRate         Float    @default(0)
+  displayMode     String   @default("inclusive") // inclusive, exclusive, show_separately
+  channelTaxCode  String?
+  channelTaxName  String?
+  appliesTo       String   @default("room_rate") // room_rate, total_amount, extra_charges, specific_items
+  isIncludedInRate Boolean @default(true)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  @@unique([tenantId, connectionId, channelCode, internalTaxName])
+  @@index([tenantId, connectionId, channelCode])
+}
+
+model ChannelCurrencyConfig {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String?  @db.Uuid
+  connectionId    String   @db.Uuid
+  channelCode     String
+  sourceCurrency  String   @default("USD")
+  targetCurrency  String
+  conversionType  String   @default("manual") // manual, auto, fixed_rate
+  exchangeRate    Float    @default(1)
+  markupPercent   Float    @default(0)
+  roundingMethod  String   @default("nearest") // nearest, up, down, none
+  lastRateUpdate  DateTime? @db.Timestamptz
+  rateProvider    String?  // ecb, open_exchange, manual
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  @@unique([tenantId, connectionId, channelCode])
+  @@index([tenantId, connectionId])
+}
+
+model ChannelCurrencyHistory {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  configId        String   @db.Uuid
+  sourceCurrency  String
+  targetCurrency  String
+  exchangeRate    Float
+  effectiveFrom   DateTime @db.Timestamptz
+  effectiveTo     DateTime? @db.Timestamptz
+  changedBy       String?
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  @@index([tenantId, configId, effectiveFrom])
+}
+
+model ChannelCancellationPolicy {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @db.Uuid
+  propertyId        String?  @db.Uuid
+  connectionId      String?  @db.Uuid
+  channelCode       String
+  policyName        String
+  policyType        String   @default("free_cancellation") // free_cancellation, non_refundable, partial_refund, custom, flexible, moderate, strict, super_strict
+  freeCancelBefore  Int?     // hours before check-in
+  penaltyType       String   @default("percentage") // percentage, fixed_amount, nights
+  penaltyValue      Float    @default(0)
+  penaltyCurrency   String   @default("USD")
+  noShowPolicy      Boolean  @default(true)
+  noShowPenaltyType String   @default("nights") // nights, percentage, fixed_amount
+  noShowPenaltyValue Float   @default(1)
+  channelPolicyId   String?
+  channelPolicyCode String?
+  syncEnabled       Boolean  @default(true)
+  syncStatus        String   @default("pending") // pending, synced, failed
+  lastSyncedAt      DateTime? @db.Timestamptz
+  lastError         String?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now()) @db.Timestamptz
+  updatedAt         DateTime @updatedAt @db.Timestamptz
+  @@unique([tenantId, connectionId, channelCode, policyName])
+  @@index([tenantId, connectionId, channelCode])
+}
+
+model BookingPaceSnapshot {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String?  @db.Uuid
+  arrivalDate     DateTime @db.Timestamptz
+  snapshotDate    DateTime @db.Timestamptz
+  daysBeforeArrival Int
+  channelCode     String?
+  roomTypeId      String?  @db.Uuid
+  totalBookings   Int      @default(0)
+  totalRooms      Int      @default(0)
+  totalRevenue    Float    @default(0)
+  adr             Float    @default(0)
+  cancellations   Int      @default(0)
+  netBookings     Int      @default(0)
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  @@unique([tenantId, arrivalDate, snapshotDate, channelCode, roomTypeId])
+  @@index([tenantId, arrivalDate])
+  @@index([tenantId, channelCode, arrivalDate])
+}
+
+model BookingPaceConfig {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String?  @db.Uuid
+  comparisonPeriod String  @default("same_period_last_year") // same_period_last_year, same_period_last_month, rolling_30_days, custom
+  customPeriodFrom DateTime? @db.Timestamptz
+  customPeriodTo   DateTime? @db.Timestamptz
+  lookbackDays    Int      @default(90)
+  paceIntervalDays Int     @default(1)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  @@unique([tenantId])
+}
+
+model ChannelPromoCode {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String?  @db.Uuid
+  connectionId    String?  @db.Uuid
+  channelCode     String
+  promoCode       String
+  promoName       String
+  description     String?
+  discountType    String   @default("percentage") // percentage, fixed_amount, free_nights
+  discountValue   Float
+  currency        String   @default("USD")
+  freeNights      Int?
+  minStay         Int?
+  maxStay         Int?
+  applicableRoomTypes String? @db.Text // JSON array of room type IDs
+  applicableRatePlans String? @db.Text // JSON array of rate plan IDs
+  validFrom       DateTime @db.Timestamptz
+  validTo         DateTime @db.Timestamptz
+  bookingWindowFrom DateTime? @db.Timestamptz
+  bookingWindowTo   DateTime? @db.Timestamptz
+  stayDateFrom   DateTime? @db.Timestamptz
+  stayDateTo     DateTime? @db.Timestamptz
+  blackoutDates  String?  @db.Text // JSON array of date ranges
+  usageLimit     Int?
+  usageCount     Int      @default(0)
+  channelPromoId String?
+  channelPromoCode String?
+  syncStatus     String   @default("pending") // pending, synced, failed
+  lastSyncedAt   DateTime? @db.Timestamptz
+  lastError      String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.Timestamptz
+  updatedAt      DateTime @updatedAt @db.Timestamptz
+  @@unique([tenantId, connectionId, channelCode, promoCode])
+  @@index([tenantId, connectionId, channelCode])
+  @@index([validFrom, validTo])
+  @@index([isActive])
+}
+
 model ChatConversation {
   id            String        @id @default(uuid()) @db.Uuid
   tenantId      String        @db.Uuid
@@ -10020,4 +10328,124 @@ model HardwareWebhookLog {
   @@index([processingStatus])
   @@index([receivedAt])
   @@index([createdAt])
+}
+
+// ============================================================
+// INVENTORY POOL MODULE - Shared channel inventory pooling
+// ============================================================
+
+model InventoryPool {
+  id                String                @id @default(uuid()) @db.Uuid
+  tenantId          String                @db.Uuid
+  propertyId        String?               @db.Uuid
+  name              String
+  description       String?
+  roomTypeId        String?               @db.Uuid
+  totalRooms        Int                   @default(0)
+  bufferRooms       Int                   @default(0)
+  overbookingLimit  Int                   @default(0)
+  allocationStrategy String               @default("equal") // equal, priority, weighted, percentage
+  isActive          Boolean               @default(true)
+  createdAt         DateTime              @default(now()) @db.Timestamptz
+  updatedAt         DateTime              @updatedAt @db.Timestamptz
+  poolChannels      InventoryPoolChannel[] @relation("PoolChannels")
+  poolDaily         InventoryPoolDaily[]     @relation("PoolDaily")
+
+  @@index([tenantId, roomTypeId, isActive])
+}
+
+model InventoryPoolChannel {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  poolId        String   @db.Uuid
+  connectionId  String   @db.Uuid
+  channelCode   String
+  weight        Float    @default(1)
+  minAllocation Int      @default(0)
+  maxAllocation Int?
+  priority      Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  updatedAt     DateTime @updatedAt @db.Timestamptz
+
+  pool              InventoryPool          @relation("PoolChannels", fields: [poolId], references: [id], onDelete: Cascade)
+
+  @@unique([poolId, connectionId])
+  @@index([tenantId, poolId])
+}
+
+model InventoryPoolDaily {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  poolId          String   @db.Uuid
+  date            DateTime @db.Timestamptz
+  totalAvailable  Int      @default(0)
+  totalBooked     Int      @default(0)
+  bufferRooms     Int      @default(0)
+  allocations     String?  @db.Text // JSON: { channelId: allocated_count }
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+
+  pool              InventoryPool          @relation("PoolDaily", fields: [poolId], references: [id], onDelete: Cascade)
+
+  @@unique([poolId, date])
+  @@index([tenantId, poolId, date])
+}
+
+// ============================================================
+// SETTLEMENT RECONCILIATION MODULE - OTA settlement matching
+// ============================================================
+
+model ChannelSettlement {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String?  @db.Uuid
+  connectionId    String   @db.Uuid
+  channelCode     String
+  settlementRef   String
+  periodFrom      DateTime @db.Timestamptz
+  periodTo        DateTime @db.Timestamptz
+  totalBookings   Int      @default(0)
+  totalGross      Float    @default(0)
+  totalCommission Float    @default(0)
+  totalNet        Float    @default(0)
+  totalReceived   Float    @default(0)
+  currency        String   @default("USD")
+  settlementDate  DateTime? @db.Timestamptz
+  dueDate         DateTime? @db.Timestamptz
+  status          String   @default("pending") // pending, received, reconciled, disputed, partial
+  notes           String?
+  rawSettlement   String?  @db.Text
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  settlementItems ChannelSettlementItem[]
+
+  @@unique([tenantId, connectionId, settlementRef])
+  @@index([tenantId, connectionId, status])
+  @@index([periodFrom, periodTo])
+}
+
+model ChannelSettlementItem {
+  id               String     @id @default(uuid()) @db.Uuid
+  tenantId         String     @db.Uuid
+  settlementId     String     @db.Uuid
+  settlement       ChannelSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  bookingId        String?    @db.Uuid
+  channelBookingRef String?
+  guestName        String?
+  checkIn          DateTime?  @db.Timestamptz
+  checkOut         DateTime?  @db.Timestamptz
+  roomType         String?
+  grossAmount      Float      @default(0)
+  commissionAmount Float      @default(0)
+  netAmount        Float      @default(0)
+  receivedAmount   Float      @default(0)
+  discrepancy      Float      @default(0)
+  status           String     @default("matched") // matched, discrepancy, missing, overpaid
+  matchedAt        DateTime?  @db.Timestamptz
+  createdAt        DateTime   @default(now()) @db.Timestamptz
+
+  @@index([tenantId, settlementId])
+  @@index([bookingId])
+  @@index([status])
 }

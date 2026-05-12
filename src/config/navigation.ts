@@ -95,6 +95,11 @@ import {
   ShieldOff,
   BarChart3 as BarChart3Icon,
   PieChart,
+  Image as ImageIcon,
+  ArrowUpDown,
+  Landmark,
+  Tag,
+  Database,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -425,6 +430,18 @@ export const navigationConfig: NavSection[] = [
       { id: 'channel-health', title: 'Channel Health', href: '#channel-health', icon: HeartPulse },
       { id: 'channel-crs', title: 'CRS', href: '#channel-crs', icon: Building },
       { id: 'channel-gds', title: 'GDS Connectivity', href: '#channel-gds', icon: Radio },
+      { id: 'channel-rate-derivation', title: 'Rate Derivation', href: '#channel-rate-derivation', icon: Percent },
+      { id: 'channel-content-sync', title: 'Content Sync', href: '#channel-content-sync', icon: ImageIcon },
+      { id: 'channel-tax-mapping', title: 'Tax Mapping', href: '#channel-tax-mapping', icon: Receipt },
+      { id: 'channel-meal-plan', title: 'Meal Plan Mapping', href: '#channel-meal-plan', icon: UtensilsCrossed },
+      { id: 'channel-virtual-inventory', title: 'Virtual Inventory', href: '#channel-virtual-inventory', icon: Layers },
+      { id: 'channel-currency', title: 'Currency Config', href: '#channel-currency', icon: Globe },
+      { id: 'channel-cancellation-policy', title: 'Cancellation Policies', href: '#channel-cancellation-policy', icon: ShieldAlert },
+      { id: 'channel-settlement', title: 'Settlements', href: '#channel-settlement', icon: Landmark },
+      { id: 'channel-promo-codes', title: 'Promo Codes', href: '#channel-promo-codes', icon: Tag },
+      { id: 'channel-booking-pace', title: 'Booking Pace', href: '#channel-booking-pace', icon: TrendingUp },
+      { id: 'channel-priority', title: 'Channel Priority', href: '#channel-priority', icon: ArrowUpDown },
+      { id: 'channel-inventory-pool', title: 'Inventory Pooling', href: '#channel-inventory-pool', icon: Database },
     ],
   },
 
