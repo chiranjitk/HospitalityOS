@@ -247,6 +247,11 @@ install_configs() {
     sed -i 's/^nodaemon = on/nodaemon = off/' "$ETC_DIR/e2guardian.conf"
     info "Set nodaemon = off (systemd manages the process)"
 
+    # Set pidfilename to FHS system path
+    # The binary has --with-piddir compiled from sandbox; this overrides it
+    sed -i "s|^pidfilename = .*|pidfilename = '${RUN_DIR}/e2guardian.pid'|" "$ETC_DIR/e2guardian.conf"
+    info "Set pidfilename = '${RUN_DIR}/e2guardian.pid'"
+
     # Rewrite ALL sandbox paths → FHS system paths
     info "Rewriting sandbox paths → FHS system paths"
     local count
