@@ -391,7 +391,9 @@ LimitNPROC=infinity
 LimitSTACK=infinity:infinity
 UMask=0027
 
-# Clean up stale PID file from previous crashes
+# Ensure runtime directory exists with correct ownership before start
+ExecStartPre=/usr/bin/mkdir -p ${RUN_DIR}
+ExecStartPre=/usr/bin/chown -R ${SERVICE_NAME}:${SERVICE_NAME} ${RUN_DIR}
 ExecStartPre=-/usr/bin/rm -f ${RUN_DIR}/e2guardian.pid
 
 # IMPORTANT: -c flag is REQUIRED because the binary was compiled with
@@ -401,10 +403,6 @@ ExecStart=${BIN_TARGET} -c ${ETC_DIR}/e2guardian.conf
 ExecReload=${BIN_TARGET} -r -c ${ETC_DIR}/e2guardian.conf
 ExecStop=${BIN_TARGET} -q -c ${ETC_DIR}/e2guardian.conf
 PIDFile=${RUN_DIR}/e2guardian.pid
-
-# Runtime directory (auto-created by systemd with correct ownership)
-RuntimeDirectory=e2guardian
-RuntimeDirectoryMode=0755
 
 # Restart policy
 Restart=on-failure
