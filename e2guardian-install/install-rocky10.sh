@@ -8,32 +8,28 @@
 # artefact (binary, configs, blocklists, languages, man pages) is shipped
 # with the project.
 #
-# What this script does:
-#   1. Auto-detects the project directory from the script's own location
-#   2. Validates the target system (Rocky 10 / RHEL 10 / AlmaLinux 10)
-#   3. Installs runtime dependencies via dnf
-#   4. Creates the dedicated "e2guardian" system user
-#   5. Copies files to production paths under INSTALL_PREFIX (default /opt/staysuite):
-#        <PREFIX>/e2guardian-install/sbin/e2guardian      (binary)
-#        <PREFIX>/e2guardian-install/etc/e2guardian/       (configs & lists)
-#        <PREFIX>/e2guardian-install/share/e2guardian/     (languages, scripts, CGI)
-#        <PREFIX>/e2guardian-install/share/doc/e2guardian/ (documentation)
-#        <PREFIX>/e2guardian-install/share/man/man8/       (man page)
-#        <PREFIX>/e2guardian-install/var/log/e2guardian/   (access & stats logs)
-#        <PREFIX>/e2guardian-install/var/run/e2guardian/   (PID & flag files)
-#        <PREFIX>/e2guardian-install/var/lib/e2guardian/   (optional: generated certs)
-#   6. Rewrites all hardcoded sandbox paths in every config file to
-#      the detected production paths
-#   7. Installs a systemd service unit (e2guardian.service)
-#   8. Installs a logrotate config
-#   9. Enables and starts the service
+# Supports TWO install modes:
+#
+#   IN-PLACE (default when run from /opt/staysuite/e2guardian-install/):
+#     Files already exist at the target (via git clone). The script skips
+#     all copy operations and only performs:
+#       - Install runtime dependencies
+#       - Create system user
+#       - Fix file permissions & ownership
+#       - Rewrite sandbox paths in configs
+#       - Set daemonuser/nodaemon for production
+#       - Create missing runtime dirs (log, run, lib)
+#       - Install systemd service, logrotate, tmpfiles.d
+#       - Enable and start the service
+#
+#   COPY MODE (when source != target, e.g. running from a tarball /tmp):
+#     The script copies files from source to target, then does everything above.
 #
 # Usage:
-#   chmod +x install-rocky10.sh
-#   sudo ./install-rocky10.sh                           # full install + start
-#   sudo ./install-rocky10.sh --no-start                # install but don't start
-#   sudo INSTALL_PREFIX=/custom/path ./install-rocky10.sh  # custom install prefix
-#   sudo ./install-rocky10.sh --uninstall               # remove everything
+#   cd /opt/staysuite && sudo ./e2guardian-install/install-rocky10.sh
+#   sudo ./e2guardian-install/install-rocky10.sh --no-start
+#   sudo ./e2guardian-install/install-rocky10.sh --uninstall
+#   sudo INSTALL_PREFIX=/custom/path ./e2guardian-install/install-rocky10.sh
 #
 # After install, manage e2guardian with:
 #   sudo systemctl start e2guardian
@@ -50,26 +46,13 @@ set -euo pipefail
 # =============================================================================
 # AUTO-DETECT — Where is this script? Where is the project?
 # =============================================================================
-# Resolve the absolute path of this script, then derive the project root
-# (two levels up: <project>/e2guardian-install/install-rocky10.sh)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# BIN_SRC_DIR = directory containing this script (= e2guardian-install/)
 BIN_SRC_DIR="$SCRIPT_DIR"
-# PROJECT_DIR = parent of e2guardian-install/ (i.e. /opt/staysuite)
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # =============================================================================
 # CONFIGURABLE — Override via environment variable
 # =============================================================================
-# INSTALL_PREFIX: where the StaySuite project lives on the production server.
-# Defaults to the auto-detected PROJECT_DIR.
-# All e2guardian files are installed UNDER this prefix, preserving the
-# e2guardian-install/ directory structure so that FreeRADIUS, PostgreSQL,
-# and e2guardian all live side-by-side under /opt/staysuite/.
-#
-# Examples:
-#   INSTALL_PREFIX=/opt/staysuite  (default — auto-detected)
-#   INSTALL_PREFIX=/opt/hotel      (custom)
 INSTALL_PREFIX="${INSTALL_PREFIX:-$PROJECT_DIR}"
 
 # =============================================================================
@@ -90,16 +73,18 @@ readonly SERVICE_NAME="e2guardian"
 # =============================================================================
 # PATH REWRITING VARIABLES
 # =============================================================================
-# OLD_BASE is auto-detected from the source directory.
-# The sed rewrite rules replace OLD_BASE with E2G_DIR everywhere.
-OLD_BASE="$BIN_SRC_DIR"
+# Collect ALL possible old base paths that might exist in config files.
+# This handles: sandbox paths, other server paths, previous installs, etc.
+# OLD_BASE is set AFTER confirm_source so we know BIN_SRC_DIR is valid.
+OLD_BASE=""
 
 # Colors for output
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
 readonly YELLOW='\033[1;33m'
 readonly BLUE='\033[0;34m'
-readonly NC='\033[0m' # No Color
+readonly CYAN='\033[0;36m'
+readonly NC='\033[0m'
 
 # =============================================================================
 # HELPERS
@@ -152,40 +137,105 @@ confirm_source() {
     info "Target directory: $E2G_DIR"
 }
 
+# Check if source and target are the same directory (in-place install)
+is_inplace() {
+    [[ "$BIN_SRC_DIR" -ef "$E2G_DIR" ]] 2>/dev/null
+}
+
 # =============================================================================
-# PATH REWRITING — Replace any sandbox paths with the real production paths
+# PATH REWRITING — Replace any old paths with the real production paths
 # =============================================================================
-rewrite_path() {
-    # $1 = file to rewrite in-place
-    if [[ ! -f "$1" ]]; then return; fi
+# Scans ALL text config files for path-like patterns that point to e2guardian
+# and rewrites them to the correct production paths.
+# Uses the Define LISTDIR pattern as anchor, plus common path patterns.
+rewrite_paths() {
+    local dir="$1"
+    local count=0
+    local f
 
-    # Skip binary files — only rewrite text files
-    if ! file "$1" | grep -qiE "text|ASCII|empty"; then return; fi
+    while IFS= read -r -d '' f; do
+        # Skip binary files and empty files
+        if ! file "$f" | grep -qiE "text|ASCII|empty"; then continue; fi
+        # Skip this install script itself
+        if [[ "$f" == *"/install-rocky10.sh" ]]; then continue; fi
 
-    # Skip this install script itself
-    if [[ "$1" == *"/install-rocky10.sh" ]]; then return; fi
+        # Check if file contains any e2guardian paths that need rewriting
+        # Look for common patterns: paths containing /e2guardian-install/ or /e2guardian/
+        if ! rg -q "e2guardian" "$f" 2>/dev/null; then continue; fi
 
-    # Replace any occurrence of the OLD source base path with the production path
-    # Order matters: more specific paths first, then catch-all
-    sed -i \
-        -e "s|${OLD_BASE}/sbin/e2guardian|${BIN_TARGET}|g" \
-        -e "s|${OLD_BASE}/etc/e2guardian|${CONF_TARGET}|g" \
-        -e "s|${OLD_BASE}/share/e2guardian|${SHARE_TARGET}|g" \
-        -e "s|${OLD_BASE}/share/doc/e2guardian|${DOC_TARGET}|g" \
-        -e "s|${OLD_BASE}/share/man|${E2G_DIR}/share/man|g" \
-        -e "s|${OLD_BASE}/var/log/e2guardian|${LOG_DIR}|g" \
-        -e "s|${OLD_BASE}/var/run/e2guardian|${RUN_DIR}|g" \
-        -e "s|${OLD_BASE}/var/lib/e2guardian|${LIB_DIR}|g" \
-        -e "s|${OLD_BASE}/var|${E2G_DIR}/var|g" \
-        -e "s|${OLD_BASE}|${E2G_DIR}|g" \
-        "$1"
+        # Build sed commands to rewrite ALL discovered old paths
+        # Strategy: find all absolute path references to e2guardian-install
+        # in the file and replace them with the correct production path
+
+        # Pattern 1: .Define LISTDIR directives
+        sed -i \
+            -e "s|\.Define LISTDIR <[^>]*/e2guardian-install/etc/e2guardian|\.Define LISTDIR <${CONF_TARGET}|g" \
+            "$f"
+
+        # Pattern 2: Any absolute path to e2guardian-install/sbin/e2guardian
+        sed -i \
+            -e "s|/[^ \"'>]*/e2guardian-install/sbin/e2guardian|${BIN_TARGET}|g" \
+            "$f"
+
+        # Pattern 3: Any absolute path to .../e2guardian-install/etc/e2guardian/...
+        sed -i \
+            -e "s|/[^ \"'>]*/e2guardian-install/etc/e2guardian|${CONF_TARGET}|g" \
+            "$f"
+
+        # Pattern 4: Any absolute path to .../e2guardian-install/share/e2guardian/...
+        sed -i \
+            -e "s|/[^ \"'>]*/e2guardian-install/share/e2guardian|${SHARE_TARGET}|g" \
+            "$f"
+
+        # Pattern 5: Any absolute path to .../e2guardian-install/share/doc/e2guardian/...
+        sed -i \
+            -e "s|/[^ \"'>]*/e2guardian-install/share/doc/e2guardian|${DOC_TARGET}|g" \
+            "$f"
+
+        # Pattern 6: Any absolute path to .../e2guardian-install/share/man/...
+        sed -i \
+            -e "s|/[^ \"'>]*/e2guardian-install/share/man|${E2G_DIR}/share/man|g" \
+            "$f"
+
+        # Pattern 7: Any absolute path to .../e2guardian-install/var/log/e2guardian/...
+        sed -i \
+            -e "s|/[^ \"'>]*/e2guardian-install/var/log/e2guardian|${LOG_DIR}|g" \
+            "$f"
+
+        # Pattern 8: Any absolute path to .../e2guardian-install/var/run/e2guardian/...
+        sed -i \
+            -e "s|/[^ \"'>]*/e2guardian-install/var/run/e2guardian|${RUN_DIR}|g" \
+            "$f"
+
+        # Pattern 9: Any absolute path to .../e2guardian-install/var/lib/e2guardian/...
+        sed -i \
+            -e "s|/[^ \"'>]*/e2guardian-install/var/lib/e2guardian|${LIB_DIR}|g" \
+            "$f"
+
+        # Pattern 10: Catch-all — any remaining .../e2guardian-install/var/...
+        sed -i \
+            -e "s|/[^ \"'>]*/e2guardian-install/var|${E2G_DIR}/var|g" \
+            "$f"
+
+        # Pattern 11: Final catch-all — any remaining absolute path to e2guardian-install/
+        sed -i \
+            -e "s|/[^ \"'>]*/e2guardian-install|${E2G_DIR}|g" \
+            "$f"
+
+        # Pattern 12: storyboard / preauth paths that may not have e2guardian-install in them
+        # e.g. /home/z/my-project/e2guardian-install/etc/... -> already handled above
+
+        ((count++))
+    done < <(find "$dir" -type f -print0)
+
+    echo "$count"
 }
 
 # =============================================================================
 # INSTALLATION STEPS
 # =============================================================================
 install_deps() {
-    step "Step 1/8: Installing runtime dependencies"
+    step "Step 1/7: Installing runtime dependencies"
     dnf install -y \
         zlib-devel \
         openssl-libs \
@@ -200,7 +250,7 @@ install_deps() {
 }
 
 create_user() {
-    step "Step 2/8: Creating e2guardian system user"
+    step "Step 2/7: Creating e2guardian system user"
     if id "$SERVICE_NAME" &>/dev/null; then
         info "User '$SERVICE_NAME' already exists — skipping."
     else
@@ -209,18 +259,29 @@ create_user() {
     fi
 }
 
-install_binary() {
-    step "Step 3/8: Installing e2guardian binary"
-    mkdir -p "$(dirname "$BIN_TARGET")"
-    install -m 0755 "$BIN_SRC_DIR/sbin/e2guardian" "$BIN_TARGET"
-    info "Installed $BIN_TARGET ($(du -h "$BIN_TARGET" | cut -f1))"
+prepare_binary() {
+    step "Step 3/7: Preparing e2guardian binary"
+    if is_inplace; then
+        # In-place: just fix permissions
+        chmod 0755 "$BIN_TARGET"
+        info "Fixed permissions on $BIN_TARGET (in-place mode)"
+    else
+        # Copy mode: copy from source to target
+        mkdir -p "$(dirname "$BIN_TARGET")"
+        install -m 0755 "$BIN_SRC_DIR/sbin/e2guardian" "$BIN_TARGET"
+        info "Installed $BIN_TARGET ($(du -h "$BIN_TARGET" | cut -f1))"
+    fi
 }
 
-install_configs() {
-    step "Step 4/8: Installing configuration files"
-    # Copy entire etc/ tree
-    cp -a "$BIN_SRC_DIR/etc/e2guardian" "$CONF_TARGET"
-    info "Installed config tree to $CONF_TARGET"
+prepare_configs() {
+    step "Step 4/7: Preparing configuration files"
+    if is_inplace; then
+        info "Files already in place (in-place mode)"
+    else
+        mkdir -p "$(dirname "$CONF_TARGET")"
+        cp -a "$BIN_SRC_DIR/etc/e2guardian" "$CONF_TARGET"
+        info "Copied config tree to $CONF_TARGET"
+    fi
 
     # Fix daemonuser/daemongroup in main config
     sed -i \
@@ -233,59 +294,46 @@ install_configs() {
     sed -i 's/^nodaemon = on/nodaemon = off/' "$CONF_TARGET/e2guardian/e2guardian.conf"
     info "Set nodaemon = off (systemd manages the process)"
 
-    # Rewrite ALL paths from sandbox/old paths to production paths
-    info "Rewriting paths from '$OLD_BASE' to '$E2G_DIR'..."
-    local count=0
-    while IFS= read -r -d '' f; do
-        if rewrite_path "$f"; then
-            ((count++))
-        fi
-    done < <(find "$CONF_TARGET" -type f -print0)
-    info "Rewrote paths in $count config files"
+    # Rewrite ALL paths — this is the critical step
+    info "Rewriting all e2guardian paths to: $E2G_DIR"
+    local count
+    count=$(rewrite_paths "$CONF_TARGET")
+    info "Scanned and rewrote paths in $count config files"
 }
 
-install_share() {
-    step "Step 5/8: Installing shared data (languages, scripts, CGI)"
-    # Languages
-    mkdir -p "$SHARE_TARGET"
-    cp -a "$BIN_SRC_DIR/share/e2guardian/languages" "$SHARE_TARGET/languages"
-    # Perl CGI block page script
-    cp -a "$BIN_SRC_DIR/share/e2guardian/e2guardian.pl" "$SHARE_TARGET/e2guardian.pl"
-    # Static assets (blocked flash, transparent gif)
-    cp -a "$BIN_SRC_DIR/share/e2guardian/blockedflash.swf" "$SHARE_TARGET/"
-    cp -a "$BIN_SRC_DIR/share/e2guardian/transparent1x1.gif" "$SHARE_TARGET/"
-    # Scripts (logrotation etc.)
-    cp -a "$BIN_SRC_DIR/share/e2guardian/scripts" "$SHARE_TARGET/scripts"
+prepare_share() {
+    step "Step 5/7: Preparing shared data (languages, scripts, CGI)"
+    if is_inplace; then
+        info "Files already in place (in-place mode)"
+    else
+        mkdir -p "$SHARE_TARGET"
+        cp -a "$BIN_SRC_DIR/share/e2guardian/languages" "$SHARE_TARGET/languages"
+        cp -a "$BIN_SRC_DIR/share/e2guardian/e2guardian.pl" "$SHARE_TARGET/e2guardian.pl"
+        cp -a "$BIN_SRC_DIR/share/e2guardian/blockedflash.swf" "$SHARE_TARGET/"
+        cp -a "$BIN_SRC_DIR/share/e2guardian/transparent1x1.gif" "$SHARE_TARGET/"
+        cp -a "$BIN_SRC_DIR/share/e2guardian/scripts" "$SHARE_TARGET/scripts"
+        mkdir -p "$DOC_TARGET"
+        cp -a "$BIN_SRC_DIR/share/doc/e2guardian/"* "$DOC_TARGET/"
+        mkdir -p "$MAN_TARGET"
+        cp -a "$BIN_SRC_DIR/share/man/man8/e2guardian.8" "$MAN_TARGET/"
+        gzip -f "$MAN_TARGET/e2guardian.8"
+        info "Copied shared data, docs, and man page"
+    fi
 
-    # Rewrite paths in the scripts we just copied
-    while IFS= read -r -d '' f; do
-        if rewrite_path "$f"; then
-            :
-        fi
-    done < <(find "$SHARE_TARGET/scripts" -type f -print0 2>/dev/null || true)
-
-    info "Installed shared data to $SHARE_TARGET"
-
-    # Documentation
-    mkdir -p "$DOC_TARGET"
-    cp -a "$BIN_SRC_DIR/share/doc/e2guardian/"* "$DOC_TARGET/"
-    info "Installed documentation to $DOC_TARGET"
-
-    # Man page
-    mkdir -p "$MAN_TARGET"
-    cp -a "$BIN_SRC_DIR/share/man/man8/e2guardian.8" "$MAN_TARGET/"
-    gzip -f "$MAN_TARGET/e2guardian.8"
-    info "Installed man page"
+    # Rewrite paths in scripts
+    local count
+    count=$(rewrite_paths "$SHARE_TARGET")
+    info "Scanned and rewrote paths in $count shared files"
 }
 
-install_runtime_dirs() {
-    step "Step 6/8: Creating runtime directories"
+prepare_runtime_dirs() {
+    step "Step 6/7: Creating runtime directories & fixing ownership"
     mkdir -p "$LOG_DIR"
     mkdir -p "$RUN_DIR"
     mkdir -p "$LIB_DIR"
     mkdir -p "$CERT_DIR/generatedcerts"
 
-    # Set ownership
+    # Set ownership on runtime dirs
     chown -R "${SERVICE_NAME}:${SERVICE_NAME}" "$LOG_DIR"
     chown -R "${SERVICE_NAME}:${SERVICE_NAME}" "$RUN_DIR"
     chown -R "${SERVICE_NAME}:${SERVICE_NAME}" "$LIB_DIR"
@@ -293,7 +341,7 @@ install_runtime_dirs() {
     chmod 0750 "$CERT_DIR"
     chmod 0750 "$CERT_DIR/generatedcerts"
 
-    # PID file placeholder
+    # PID file
     touch "$RUN_DIR/e2guardian.pid"
     chown "${SERVICE_NAME}:${SERVICE_NAME}" "$RUN_DIR/e2guardian.pid"
 
@@ -301,22 +349,24 @@ install_runtime_dirs() {
     touch "$RUN_DIR/e2g_flag_running"
     chown "${SERVICE_NAME}:${SERVICE_NAME}" "$RUN_DIR/e2g_flag_running"
 
-    info "Created: $LOG_DIR"
-    info "         $RUN_DIR"
-    info "         $LIB_DIR"
-    info "         $CERT_DIR"
+    # Ensure binary is executable and owned appropriately
+    chmod 0755 "$BIN_TARGET"
+
+    info "Created and owned: $LOG_DIR"
+    info "                    $RUN_DIR"
+    info "                    $LIB_DIR"
+    info "                    $CERT_DIR"
 }
 
 install_systemd() {
-    step "Step 7/8: Installing systemd service & logrotate"
+    step "Step 7/7: Installing systemd service & logrotate"
 
     # --- systemd service unit ---
-    # NOTE: Using UNIT_EOF without quotes so variables expand
     cat > "/etc/systemd/system/${SERVICE_NAME}.service" << UNIT_EOF
 [Unit]
 Description=E2guardian Web Content Filter (StaySuite HospitalityOS)
 Documentation=man:e2guardian(8)
-After=network-online.target
+After=network-online.target postgresql.service
 Wants=network-online.target
 
 [Service]
@@ -394,7 +444,8 @@ TMPFILES_EOF
 }
 
 start_service() {
-    step "Step 8/8: Enabling and starting e2guardian"
+    echo ""
+    step "Enabling and starting e2guardian"
 
     # Enable on boot
     systemctl enable "$SERVICE_NAME"
@@ -497,7 +548,6 @@ main() {
     case "${1:-}" in
         --uninstall)
             check_root
-            # Still need to detect OS and paths for uninstall
             . /etc/os-release 2>/dev/null || true
             uninstall
             exit 0
@@ -531,21 +581,31 @@ main() {
     detect_os
     confirm_source
 
+    # Detect install mode
+    if is_inplace; then
+        info -e "${CYAN}Mode: IN-PLACE${NC} — files already at $E2G_DIR (skipping copies)"
+    else
+        warn "Mode: COPY — copying from $BIN_SRC_DIR to $E2G_DIR"
+    fi
+
+    echo ""
     info "Path mapping:"
     info "  Source:      $BIN_SRC_DIR"
     info "  Target:      $E2G_DIR"
     info "  Binary:      $BIN_TARGET"
     info "  Config:      $CONF_TARGET"
+    info "  Share:       $SHARE_TARGET"
     info "  Logs:        $LOG_DIR"
+    info "  Run/PID:     $RUN_DIR"
     echo ""
 
     # Run installation steps
     install_deps
     create_user
-    install_binary
-    install_configs
-    install_share
-    install_runtime_dirs
+    prepare_binary
+    prepare_configs
+    prepare_share
+    prepare_runtime_dirs
     install_systemd
     start_service "$@"
 }
