@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
-import { QuickStatsBar } from '@/components/dashboard/quick-stats-bar';
 import { useUIStore, useAuthStore } from '@/store';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
@@ -137,16 +136,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       
       {/* Header */}
       <Header onMenuClick={() => setMobileSidebarOpen(true)} />
-      
-      {/* Quick Stats Bar — visible below header when authenticated */}
-      {user && (
-        <div className={cn(
-          'relative z-10 transition-all duration-300 ml-0 lg:ml-[260px]',
-          sidebarCollapsed && 'lg:ml-[68px]'
-        )}>
-          <QuickStatsBar />
-        </div>
-      )}
 
       {/* Main Content */}
       <main className={cn(
