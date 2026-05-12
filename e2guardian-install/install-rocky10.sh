@@ -122,9 +122,12 @@ rewrite_paths() {
         # Rewrite all sandbox paths to FHS system paths
         # Order matters: more specific patterns first
 
-        # Pattern 1: .Define LISTDIR
+        # Pattern 1: .Define LISTDIR directives
+        # Use CONF_DIR (/etc/e2guardian) NOT ETC_DIR to avoid double /e2guardian
+        # Source: .../etc/e2guardian/e2guardian/lists/group1
+        # After:  /etc/e2guardian/e2guardian/lists/group1  (conf_dir + remaining path)
         sed -i \
-            -e "s|\.Define LISTDIR <[^>]*/e2guardian-install/etc/e2guardian|\.Define LISTDIR <${ETC_DIR}|g" \
+            -e "s|\.Define LISTDIR <[^>]*/e2guardian-install/etc/e2guardian|\.Define LISTDIR <${CONF_DIR}|g" \
             "$f"
 
         # Pattern 2: sbin/e2guardian
@@ -388,6 +391,9 @@ LimitNPROC=infinity
 LimitSTACK=infinity:infinity
 UMask=0027
 
+# Clean up stale PID file from previous crashes
+ExecStartPre=-/usr/bin/rm -f ${RUN_DIR}/e2guardian.pid
+
 # IMPORTANT: -c flag is REQUIRED because the binary was compiled with
 # sandbox paths hardcoded. Without -c, e2guardian looks for config at
 # the old build-time path instead of /etc/e2guardian/.
@@ -395,6 +401,10 @@ ExecStart=${BIN_TARGET} -c ${ETC_DIR}/e2guardian.conf
 ExecReload=${BIN_TARGET} -r -c ${ETC_DIR}/e2guardian.conf
 ExecStop=${BIN_TARGET} -q -c ${ETC_DIR}/e2guardian.conf
 PIDFile=${RUN_DIR}/e2guardian.pid
+
+# Runtime directory (auto-created by systemd with correct ownership)
+RuntimeDirectory=e2guardian
+RuntimeDirectoryMode=0755
 
 # Restart policy
 Restart=on-failure
