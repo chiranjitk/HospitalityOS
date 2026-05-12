@@ -177,7 +177,7 @@ rewrite_paths() {
             -e "s|/[^ \"'>]*/e2guardian-install|/opt/staysuite/e2guardian-install|g" \
             "$f"
 
-        ((count++))
+        count=$((count + 1))
     done < <(find "$dir" -type f -print0)
 
     echo "$count"
