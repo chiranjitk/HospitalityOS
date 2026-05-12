@@ -42,7 +42,7 @@ const SYSTEM_DNSMASQ = (() => {
 const DNSMASQ_BIN = SYSTEM_DNSMASQ ? '/usr/sbin/dnsmasq' : (process.env.DNSMASQ_BIN || '/usr/sbin/dnsmasq');
 const DNSMASQ_CONFIG_DIR = SYSTEM_DNSMASQ ? '/etc/dnsmasq.d' : path.join(PROJECT_ROOT, 'dns-local');
 const DNSMASQ_CONFIG = path.join(DNSMASQ_CONFIG_DIR, 'staysuite.conf');
-const DNSMASQ_PID_FILE = SYSTEM_DNSMASQ ? '/run/dnsmasq/dnsmasq.pid' : '/tmp/dnsmasq.pid';
+const DNSMASQ_PID_FILE = SYSTEM_DNSMASQ ? '/run/dnsmasq.pid' : '/tmp/dnsmasq.pid';
 const DNSMASQ_RESOLV = SYSTEM_DNSMASQ ? '/etc/resolv.conf' : path.join(PROJECT_ROOT, 'dns-local', 'resolv.conf');
 
 // Ensure config directory exists
@@ -423,6 +423,9 @@ async function syncConfigToDisk(): Promise<{ success: boolean; lines: number }> 
   // bind-dynamic alone listens on ALL available interfaces (no listen-address needed)
   config += `# Listen on all interfaces automatically
 bind-dynamic
+
+# PID file — must match systemd's PIDFile= for reliable start/stop
+pid-file=${DNSMASQ_PID_FILE}
 
 # DNS behavior
 domain-needed          # Don't forward bare hostnames (no dots) to upstream
