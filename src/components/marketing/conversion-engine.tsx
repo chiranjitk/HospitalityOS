@@ -24,6 +24,7 @@ import {
   ChevronRight, ChevronDown, Tag, BadgePercent, Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 import { toast } from 'sonner';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -963,8 +964,8 @@ export default function ConversionEngine() {
                 <Label className="text-xs text-muted-foreground mb-2 block">Booking Search Bar</Label>
                 <div className="border rounded-xl p-6 bg-background space-y-4">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">SS</span>
+                    <div className="w-8 h-8 rounded-full overflow-hidden">
+                      <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={32} height={32} className="object-contain w-full h-full" />
                     </div>
                     <span className="font-bold text-lg">StaySuite</span>
                   </div>

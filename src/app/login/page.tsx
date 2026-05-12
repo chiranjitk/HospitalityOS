@@ -34,6 +34,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 
 /* ─── Login keyframes are defined in globals.css ─── */
 
@@ -319,8 +320,8 @@ export default function LoginPage() {
           >
             {/* Logo */}
             <motion.div className="flex items-center gap-3" variants={headerVariants}>
-              <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-orange-500 via-amber-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange-500/30 transition-transform hover:scale-110 duration-300">
-                <Hotel className="h-5 w-5 text-white" />
+              <div className="h-11 w-11 rounded-xl overflow-hidden shadow-lg shadow-orange-500/30 transition-transform hover:scale-110 duration-300">
+                <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={44} height={44} className="object-contain w-full h-full" />
               </div>
               <div>
                 <h1 className="text-xl font-bold bg-gradient-to-r from-white via-teal-100 to-emerald-100 bg-clip-text text-transparent animate-[subtleShimmer_3s_ease-in-out_infinite]">
@@ -519,8 +520,8 @@ export default function LoginPage() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: 'spring', stiffness: 200, damping: 20 }}
               >
-                <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-orange-500 via-amber-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange-500/30 drop-shadow-[0_0_8px_rgba(251,146,60,0.35)]">
-                  <Hotel className="h-5 w-5 text-white" />
+                <div className="h-11 w-11 rounded-xl overflow-hidden shadow-lg shadow-orange-500/30 drop-shadow-[0_0_8px_rgba(251,146,60,0.35)]">
+                  <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={44} height={44} className="object-contain w-full h-full" />
                 </div>
                 <div>
                   <h1 className="text-lg font-bold bg-gradient-to-r from-teal-700 via-emerald-600 to-cyan-600 bg-clip-text text-transparent drop-shadow-sm">

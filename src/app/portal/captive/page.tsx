@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -338,13 +339,11 @@ function CaptivePortalContent() {
         >
           {/* Logo */}
           <motion.div
-            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-emerald-400 via-teal-500 to-emerald-600 flex items-center justify-center shadow-xl shadow-emerald-500/30 dark:shadow-primary/15"
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden shadow-xl shadow-emerald-500/30 dark:shadow-primary/15"
             whileHover={{ scale: 1.05, rotate: 3 }}
             transition={{ type: 'spring', stiffness: 400 }}
           >
-            <span className="text-2xl sm:text-3xl font-black text-white tracking-tighter">
-              SS
-            </span>
+            <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={80} height={80} className="object-contain w-full h-full" />
           </motion.div>
 
           <div className="text-center space-y-1.5">
@@ -674,9 +673,7 @@ function CaptivePortalContent() {
         custom={5}
       >
         <div className="flex items-center justify-center gap-2">
-          <div className="w-5 h-5 rounded-md bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
-            <span className="text-[8px] font-black text-white">SS</span>
-          </div>
+          <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={20} height={20} className="object-contain" />
           <span className="text-xs text-emerald-200/25 dark:text-muted-foreground/40 font-medium">
             Powered by{' '}
             <span className="text-emerald-300/40 dark:text-primary/60">StaySuite HospitalityOS</span>
@@ -697,8 +694,8 @@ export default function CaptivePortalPage() {
             animate={{ opacity: [0.3, 1, 0.3] }}
             transition={{ duration: 1.5, repeat: Infinity }}
           >
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 via-teal-500 to-emerald-600 flex items-center justify-center shadow-xl shadow-emerald-500/30">
-              <span className="text-2xl font-black text-white tracking-tighter">SS</span>
+            <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-xl shadow-emerald-500/30">
+              <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={64} height={64} className="object-contain w-full h-full" />
             </div>
           </motion.div>
         </div>

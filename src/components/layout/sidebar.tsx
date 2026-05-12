@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -694,8 +695,8 @@ function Logo({ showClose, onClose, collapsed }: LogoProps) {
     )}>
       <Link href="/" className={cn("group/logo", collapsed && "flex justify-center")} onClick={onClose}>
         <div className="flex items-center gap-3">
-          {/* Premium Logo Mark with gradient & glow */}
-          <motion.div 
+          {/* Premium Logo Mark */}
+          <motion.div
             className="relative"
             whileHover={{ scale: 1.08, rotate: 2 }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
@@ -703,13 +704,12 @@ function Logo({ showClose, onClose, collapsed }: LogoProps) {
             {/* Outer glow ring */}
             <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-sidebar-primary/30 to-sidebar-ring/20 blur-md opacity-0 group-hover/logo:opacity-100 transition-opacity duration-500" />
             <div className={cn(
-              "relative flex items-center justify-center rounded-xl transition-all duration-300",
-              "bg-gradient-to-br from-sidebar-primary to-sidebar-ring",
+              "relative flex items-center justify-center rounded-xl overflow-hidden transition-all duration-300",
               "shadow-lg shadow-sidebar-primary/25",
               "group-hover/logo:shadow-xl group-hover/logo:shadow-sidebar-primary/40",
-              "h-9 w-9 text-xs font-bold"
+              "h-9 w-9"
             )}>
-              <span className="text-white drop-shadow-sm font-extrabold">SS</span>
+              <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={36} height={36} className="object-contain" />
             </div>
             {/* Theme icon badge */}
             {!collapsed && (

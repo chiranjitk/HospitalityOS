@@ -34,6 +34,7 @@ import { generateFingerprint, getStorageToken, saveStorageToken, clearStorageTok
 
 import { useState, useEffect, Suspense, useCallback, Fragment, createContext, useContext } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 import {
   Wifi,
   Loader2,
@@ -1867,16 +1868,13 @@ function PortalLogo({ design, size }: { design: PortalDesignConfig; size?: 'larg
   }
 
   return (
-    <div
-      className={cn(
-        'inline-flex items-center justify-center mx-auto drop-shadow-md transition-transform duration-300 hover:scale-105',
-        containerClasses,
-        dark ? 'bg-white/15 backdrop-blur-sm' : 'bg-black/5',
-      )}
-      style={dark ? { border: '1px solid rgba(255,255,255,0.2)' } : {}}
-    >
-      <Wifi className={iconSize} style={{ color: dark ? '#ffffff' : design.accentColor }} />
-    </div>
+    <Image
+      src="/images/cryptsk-logo.png"
+      alt="Cryptsk"
+      width={40}
+      height={40}
+      className={cn('object-contain mx-auto drop-shadow-lg transition-transform duration-300 hover:scale-105', sizeClasses)}
+    />
   );
 }
 

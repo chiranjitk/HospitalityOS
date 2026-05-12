@@ -36,8 +36,8 @@ export const metadata: Metadata = {
   keywords: ["Hospitality", "Hotel Management", "PMS", "Booking", "SaaS", "Multi-tenant"],
   authors: [{ name: "StaySuite Team" }],
   icons: {
-    icon: "/icon.svg",
-    apple: "/icon.svg",
+    icon: "/images/cryptsk-logo.png",
+    apple: "/images/cryptsk-logo.png",
   },
   manifest: "/manifest.json",
   openGraph: {

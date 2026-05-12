@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 
 /* ─── Feature Name Mapping ─── */
 const FEATURE_NAMES: Record<string, string> = {
@@ -466,8 +467,8 @@ export default function RegistrationPage() {
           >
             {/* Logo */}
             <motion.div className="flex items-center gap-3" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 20 }}>
-              <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/30 transition-transform hover:scale-110 duration-300">
-                <Hotel className="h-5 w-5 text-white" />
+              <div className="h-11 w-11 rounded-xl overflow-hidden shadow-lg shadow-emerald-500/30 transition-transform hover:scale-110 duration-300">
+                <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={44} height={44} className="object-contain w-full h-full" />
               </div>
               <div>
                 <h1 className="text-xl font-bold bg-gradient-to-r from-white via-teal-100 to-emerald-100 bg-clip-text text-transparent">
@@ -600,8 +601,8 @@ export default function RegistrationPage() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: 'spring', stiffness: 200, damping: 20 }}
               >
-                <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                  <Hotel className="h-5 w-5 text-white" />
+                <div className="h-11 w-11 rounded-xl overflow-hidden shadow-lg shadow-emerald-500/30">
+                  <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={44} height={44} className="object-contain w-full h-full" />
                 </div>
                 <div>
                   <h1 className="text-lg font-bold bg-gradient-to-r from-teal-700 via-emerald-600 to-cyan-600 bg-clip-text text-transparent">
