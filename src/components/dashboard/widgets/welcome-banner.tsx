@@ -69,8 +69,9 @@ function getInitials(firstName: string, lastName: string): string {
 
 function getGreeting(): string {
   const h = new Date().getHours();
+  if (h >= 21 || h < 5) return 'Good night';
   if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
+  if (h < 17) return 'Good afternoon';
   return 'Good evening';
 }
 

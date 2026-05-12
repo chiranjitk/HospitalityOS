@@ -51,6 +51,8 @@ import {
   Settings,
   Filter,
   Search,
+  Zap,
+  FileDown,
 } from 'lucide-react';
 
 // ============================================================

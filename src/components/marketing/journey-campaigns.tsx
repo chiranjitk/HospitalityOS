@@ -31,6 +31,7 @@ import {
   GripVertical,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Clock,
   Zap,
   BarChart3,
