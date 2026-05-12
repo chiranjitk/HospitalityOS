@@ -178,8 +178,50 @@ export default function WiFiConsentManagement() {
   const [cookiePolicyUrl, setCookiePolicyUrl] = useState('https://hotel.com/privacy/cookies');
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
 
+  // Loading states
+  const [revoking, setRevoking] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+
   // Available properties
   const [properties, setProperties] = useState<{ id: string; name: string }[]>([]);
+
+  // ─── Fetch Settings on Mount ─────────────────────────────────────────────
+
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch('/api/wifi/consent-logs/settings');
+        const data = await res.json();
+
+        if (cancelled) return;
+
+        if (data.success) {
+          const s = data.data;
+          if (s.consentText !== undefined) setConsentText(s.consentText);
+          if (s.requiredTypes) {
+            setRequiredTypes({
+              wifi_access: (s.requiredTypes as string[]).includes('wifi_access'),
+              marketing: (s.requiredTypes as string[]).includes('marketing'),
+              data_processing: (s.requiredTypes as string[]).includes('data_processing'),
+            });
+          }
+          if (s.retentionDays !== undefined) setRetentionDays(String(s.retentionDays));
+          if (s.showMarketingOptIn !== undefined) setShowMarketingOptIn(s.showMarketingOptIn);
+          if (s.cookiePolicyUrl !== undefined) setCookiePolicyUrl(s.cookiePolicyUrl);
+        }
+      } catch {
+        /* use defaults */
+      } finally {
+        if (!cancelled) setSettingsLoaded(true);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
 
   // ─── Fetch Logs ─────────────────────────────────────────────────────────────
 
@@ -291,11 +333,58 @@ export default function WiFiConsentManagement() {
 
   const handleRevoke = async () => {
     if (!selectedLog) return;
-    // In a real implementation, this would call an API to revoke consent
-    toast({ title: 'Consent Revoked', description: `Consent for ${selectedLog.ipAddress} has been revoked and data marked for deletion.` });
-    setRevokeDialogOpen(false);
-    setSelectedLog(null);
-    refreshData();
+    try {
+      setRevoking(true);
+      const res = await fetch(`/api/wifi/consent-logs/${selectedLog.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'revoke' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Consent Revoked', description: 'The consent record has been revoked successfully.' });
+        setRevokeDialogOpen(false);
+        setSelectedLog(null);
+        refreshData();
+      } else {
+        toast({ title: 'Revoke Failed', description: data.error?.message || 'Failed to revoke consent', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to revoke consent', variant: 'destructive' });
+    } finally {
+      setRevoking(false);
+    }
+  };
+
+  // ─── Save Settings ────────────────────────────────────────────────────────
+
+  const handleSaveSettings = async () => {
+    try {
+      setSavingSettings(true);
+      const res = await fetch('/api/wifi/consent-logs/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          consentText,
+          requiredTypes: Object.entries(requiredTypes)
+            .filter(([, v]) => v)
+            .map(([k]) => k),
+          retentionDays: parseInt(retentionDays, 10),
+          showMarketingOptIn,
+          cookiePolicyUrl,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Settings Saved', description: 'Consent management settings updated.' });
+      } else {
+        toast({ title: 'Save Failed', description: data.error?.message || 'Failed to save settings', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to save settings', variant: 'destructive' });
+    } finally {
+      setSavingSettings(false);
+    }
   };
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -661,8 +750,10 @@ export default function WiFiConsentManagement() {
 
                 <Button
                   className="w-full"
-                  onClick={() => toast({ title: 'Settings Saved', description: 'Consent settings updated successfully' })}
+                  disabled={savingSettings}
+                  onClick={handleSaveSettings}
                 >
+                  {savingSettings && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Save Settings
                 </Button>
               </CardContent>
@@ -761,7 +852,12 @@ export default function WiFiConsentManagement() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRevoke} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogAction
+              onClick={handleRevoke}
+              disabled={revoking}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {revoking && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Revoke Consent
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -221,6 +221,9 @@ export default function WiFiSLAMonitoring() {
 
   // Create dialog
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createPropertyId, setCreatePropertyId] = useState('');
+  const [availableProperties, setAvailableProperties] = useState<PropertyRef[]>([]);
+  const [loadingProperties, setLoadingProperties] = useState(false);
 
   // Delete dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -338,7 +341,7 @@ export default function WiFiSLAMonitoring() {
     }
   };
 
-  const openCreate = () => {
+  const openCreate = async () => {
     setFormData({
       uptimeTarget: 99.9,
       speedTargetDown: 50,
@@ -348,7 +351,24 @@ export default function WiFiSLAMonitoring() {
       alertOnBreach: true,
       breachDuration: 15,
     });
+    setCreatePropertyId('');
     setCreateDialogOpen(true);
+    // Fetch available properties (those without a config)
+    setLoadingProperties(true);
+    try {
+      const res = await fetch('/api/wifi/sla/available-properties');
+      const data = await res.json();
+      if (data.success) {
+        setAvailableProperties(data.data);
+        if (data.data.length === 1) {
+          setCreatePropertyId(data.data[0].id);
+        }
+      }
+    } catch {
+      toast({ title: 'Warning', description: 'Could not load available properties', variant: 'destructive' });
+    } finally {
+      setLoadingProperties(false);
+    }
   };
 
   const handleCreate = async (propertyId: string) => {
@@ -910,10 +930,27 @@ export default function WiFiSLAMonitoring() {
             <DialogDescription>Set up service level targets for a property</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Property selection - simplified for this demo */}
-            <p className="text-xs text-muted-foreground">
-              SLA configs are linked to properties. The targets below will apply to the selected property.
-            </p>
+            <div className="space-y-2">
+              <Label>Property</Label>
+              {loadingProperties ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading properties...
+                </div>
+              ) : availableProperties.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No available properties found. All properties already have SLA configs.</p>
+              ) : (
+                <Select value={createPropertyId} onValueChange={setCreatePropertyId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a property" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableProperties.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Uptime Target (%)</Label>
@@ -965,7 +1002,7 @@ export default function WiFiSLAMonitoring() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => handleCreate('default-property')} disabled={saving}>
+            <Button onClick={() => { if (createPropertyId) handleCreate(createPropertyId); }} disabled={saving || !createPropertyId}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Create Config
             </Button>

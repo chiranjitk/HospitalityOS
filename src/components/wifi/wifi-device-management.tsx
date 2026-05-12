@@ -68,6 +68,7 @@ import {
   Trash2,
   Shield,
   Edit,
+  Save,
   RefreshCw,
   ChevronDown,
   ChevronRight,
@@ -223,7 +224,8 @@ export default function WiFiDeviceManagement() {
   // Settings state
   const [maxDevices, setMaxDevices] = useState(5);
   const [defaultAutoAuth, setDefaultAutoAuth] = useState(true);
-  const [autoCleanupDays, setAutoCleanupDays] = useState(90);
+  const [autoCleanupDays, setAutoCleanupDays] = useState(30);
+  const [savingDeviceSettings, setSavingDeviceSettings] = useState(false);
 
   // Form state
   const [registerForm, setRegisterForm] = useState({
@@ -245,6 +247,50 @@ export default function WiFiDeviceManagement() {
 
   // Available properties (deduplicated from device list)
   const [properties, setProperties] = useState<{ id: string; name: string }[]>([]);
+
+  // ─── Fetch Device Settings on Mount ──────────────────────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/wifi/devices/settings');
+        const data = await res.json();
+        if (data.success) {
+          const s = data.data;
+          if (s.maxDevicesPerGuest !== undefined) setMaxDevices(s.maxDevicesPerGuest);
+          if (s.defaultAutoAuth !== undefined) setDefaultAutoAuth(s.defaultAutoAuth);
+          if (s.autoCleanupDays !== undefined) setAutoCleanupDays(s.autoCleanupDays);
+        }
+      } catch {
+        // use defaults on failure
+      }
+    })();
+  }, []);
+
+  // ─── Save Device Settings ──────────────────────────────────────────────────
+  const handleSaveDeviceSettings = async () => {
+    try {
+      setSavingDeviceSettings(true);
+      const res = await fetch('/api/wifi/devices/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          maxDevicesPerGuest: maxDevices,
+          defaultAutoAuth,
+          autoCleanupDays,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Settings Saved', description: 'Device management settings updated.' });
+      } else {
+        toast({ title: 'Save Failed', description: data.error || 'Failed to save settings', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to save settings', variant: 'destructive' });
+    } finally {
+      setSavingDeviceSettings(false);
+    }
+  };
 
   // ─── Fetch Devices ──────────────────────────────────────────────────────────
 
@@ -1083,6 +1129,20 @@ export default function WiFiDeviceManagement() {
                   }).length} devices would be cleaned up with current threshold
                 </div>
               </div>
+
+              {/* Save Settings Button */}
+              <Button
+                className="w-full"
+                onClick={handleSaveDeviceSettings}
+                disabled={savingDeviceSettings}
+              >
+                {savingDeviceSettings ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                {savingDeviceSettings ? 'Saving...' : 'Save Settings'}
+              </Button>
             </CardContent>
           </Card>
 

@@ -24,7 +24,7 @@ import {
   ShieldCheck, ShieldAlert, FileCheck, Download, Search, Filter,
   Eye, DoorOpen, MessageSquare, Mail, CreditCard, Camera, Globe,
   AlertTriangle, CheckCircle2, XCircle, Clock, RefreshCw, Settings,
-  BarChart3, TrendingUp, Users, Activity, ChevronDown,
+  BarChart3, TrendingUp, Users, Activity, ChevronDown, Loader2,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, formatDistanceToNow, subDays } from 'date-fns';
@@ -218,6 +218,9 @@ export default function WiFiIdentityVerification() {
   const [showComplianceReport, setShowComplianceReport] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
+  // Settings saving state
+  const [savingSettings, setSavingSettings] = useState(false);
+
   // Settings state
   const [settings, setSettings] = useState({
     requiredMethods: {
@@ -331,6 +334,40 @@ export default function WiFiIdentityVerification() {
       }
     };
     loadStats();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Load settings on mount
+  useEffect(() => {
+    let cancelled = false;
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch('/api/wifi/identity-logs/settings');
+        const data = await res.json();
+        if (!cancelled && data.success) {
+          const s = data.data;
+          if (s.requiredMethods && Array.isArray(s.requiredMethods)) {
+            setSettings(prev => ({
+              ...prev,
+              requiredMethods: {
+                ...prev.requiredMethods,
+                room_number: s.requiredMethods.includes('room_number'),
+                otp_sms: s.requiredMethods.includes('otp_sms'),
+                otp_email: s.requiredMethods.includes('otp_email'),
+                government_id: s.requiredMethods.includes('government_id'),
+                selfie_verify: s.requiredMethods.includes('selfie_verify'),
+              },
+            }));
+          }
+          if (s.autoVerifyRoomNumber !== undefined) setSettings(prev => ({ ...prev, autoVerifyRoomNumber: s.autoVerifyRoomNumber }));
+          if (s.enableSmsOtp !== undefined) setSettings(prev => ({ ...prev, enableSmsOtp: s.enableSmsOtp }));
+          if (s.enableEmailOtp !== undefined) setSettings(prev => ({ ...prev, enableEmailOtp: s.enableEmailOtp }));
+          if (s.otpExpirySeconds !== undefined) setSettings(prev => ({ ...prev, otpExpirySeconds: s.otpExpirySeconds }));
+          if (s.otpMaxRetries !== undefined) setSettings(prev => ({ ...prev, otpMaxRetries: s.otpMaxRetries }));
+        }
+      } catch { /* use defaults */ }
+    };
+    fetchSettings();
     return () => { cancelled = true; };
   }, []);
 
@@ -466,6 +503,39 @@ export default function WiFiIdentityVerification() {
       }
     } catch {
       toast({ title: 'Error', description: 'Failed to create log', variant: 'destructive' });
+    }
+  };
+
+  // ── Settings persistence ─────────────────────────────────────
+
+  const handleSaveSettings = async () => {
+    try {
+      setSavingSettings(true);
+      const requiredMethodsList = Object.entries(settings.requiredMethods)
+        .filter(([, enabled]) => enabled)
+        .map(([method]) => method);
+      const res = await fetch('/api/wifi/identity-logs/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requiredMethods: requiredMethodsList,
+          autoVerifyRoomNumber: settings.autoVerifyRoomNumber,
+          enableSmsOtp: settings.enableSmsOtp,
+          enableEmailOtp: settings.enableEmailOtp,
+          otpExpirySeconds: settings.otpExpirySeconds,
+          otpMaxRetries: settings.otpMaxRetries,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Settings Saved', description: 'Identity verification settings updated.' });
+      } else {
+        toast({ title: 'Save Failed', description: data.error || 'Failed to save settings', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to save settings', variant: 'destructive' });
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -1054,8 +1124,9 @@ export default function WiFiIdentityVerification() {
 
           <Card>
             <CardContent className="pt-6">
-              <Button className="gap-2" onClick={() => toast({ title: 'Saved', description: 'Settings saved successfully' })}>
-                <ShieldCheck className="h-4 w-4" />Save Settings
+              <Button className="gap-2" disabled={savingSettings} onClick={handleSaveSettings}>
+                {savingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                {savingSettings ? 'Saving...' : 'Save Settings'}
               </Button>
             </CardContent>
           </Card>

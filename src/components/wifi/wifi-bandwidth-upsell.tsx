@@ -185,6 +185,7 @@ export default function WiFiBandwidthUpsell() {
   // Settings state
   const [upsellEnabled, setUpsellEnabled] = useState(true);
   const [chargeToRoom, setChargeToRoom] = useState(true);
+  const [defaultCurrency, setDefaultCurrency] = useState('INR');
   const [tiers, setTiers] = useState<UpgradeTier[]>([
     { fromPlan: 'Free', toPlan: 'Standard', price: 99, enabled: true },
     { fromPlan: 'Free', toPlan: 'Premium', price: 199, enabled: true },
@@ -193,6 +194,47 @@ export default function WiFiBandwidthUpsell() {
     { fromPlan: 'Standard', toPlan: 'Ultra', price: 349, enabled: true },
     { fromPlan: 'Premium', toPlan: 'Ultra', price: 249, enabled: false },
   ]);
+
+  // Loading states for async actions
+  const [refunding, setRefunding] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [savingTiers, setSavingTiers] = useState(false);
+
+  // ─── Fetch Settings on Mount ─────────────────────────────────────────────
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        const res = await fetch('/api/wifi/bandwidth-upgrade/settings', { signal: controller.signal });
+        const data = await res.json();
+
+        if (cancelled) return;
+        if (data.success && data.data) {
+          const s = data.data;
+          if (typeof s.upsellEnabled === 'boolean') setUpsellEnabled(s.upsellEnabled);
+          if (typeof s.chargeToRoom === 'boolean') setChargeToRoom(s.chargeToRoom);
+          if (typeof s.defaultCurrency === 'string' && s.defaultCurrency) setDefaultCurrency(s.defaultCurrency);
+          if (Array.isArray(s.tiers) && s.tiers.length > 0) {
+            setTiers(s.tiers.map((t: Record<string, unknown>) => ({
+              fromPlan: String(t.fromPlan || ''),
+              toPlan: String(t.toPlan || ''),
+              price: Number(t.price) || 0,
+              enabled: Boolean(t.enabled),
+            })));
+          }
+        }
+      } catch (error: unknown) {
+        if (cancelled) return;
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        console.error('Failed to fetch bandwidth upsell settings:', error);
+      }
+    })();
+
+    return () => { cancelled = true; controller.abort(); };
+  }, []);
 
   // ─── Fetch Upgrades ────────────────────────────────────────────────────────
 
@@ -281,15 +323,29 @@ export default function WiFiBandwidthUpsell() {
     setRefundDialogOpen(true);
   };
 
-  const handleRefund = () => {
+  const handleRefund = async () => {
     if (!selectedUpgrade) return;
-    toast({
-      title: 'Refund Initiated',
-      description: `Refund of ${selectedUpgrade.currency} ${selectedUpgrade.amount} for upgrade has been processed.`,
-    });
-    setRefundDialogOpen(false);
-    setSelectedUpgrade(null);
-    refreshData();
+    try {
+      setRefunding(true);
+      const res = await fetch(`/api/wifi/bandwidth-upgrade/${selectedUpgrade.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'refund' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Refund Processed', description: 'The bandwidth upgrade has been refunded.' });
+        setRefundDialogOpen(false);
+        setSelectedUpgrade(null);
+        refreshData();
+      } else {
+        toast({ title: 'Refund Failed', description: data.error || 'Failed to process refund', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to process refund', variant: 'destructive' });
+    } finally {
+      setRefunding(false);
+    }
   };
 
   // ─── Toggle Tier ────────────────────────────────────────────────────────────
@@ -627,7 +683,7 @@ export default function WiFiBandwidthUpsell() {
 
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Default Currency</Label>
-                  <Select defaultValue="INR">
+                  <Select value={defaultCurrency} onValueChange={setDefaultCurrency}>
                     <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
@@ -642,8 +698,29 @@ export default function WiFiBandwidthUpsell() {
 
                 <Button
                   className="w-full"
-                  onClick={() => toast({ title: 'Settings Saved', description: 'Upsell settings updated successfully' })}
+                  disabled={savingSettings}
+                  onClick={async () => {
+                    try {
+                      setSavingSettings(true);
+                      const res = await fetch('/api/wifi/bandwidth-upgrade/settings', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ upsellEnabled, chargeToRoom, defaultCurrency, tiers }),
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        toast({ title: 'Settings Saved', description: 'Upsell settings updated successfully' });
+                      } else {
+                        toast({ title: 'Save Failed', description: data.error || 'Failed to save settings', variant: 'destructive' });
+                      }
+                    } catch {
+                      toast({ title: 'Error', description: 'Failed to save settings', variant: 'destructive' });
+                    } finally {
+                      setSavingSettings(false);
+                    }
+                  }}
                 >
+                  {savingSettings && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Save Settings
                 </Button>
               </CardContent>
@@ -692,8 +769,29 @@ export default function WiFiBandwidthUpsell() {
 
                 <Button
                   className="w-full mt-4"
-                  onClick={() => toast({ title: 'Tiers Saved', description: 'Upgrade tier configuration updated' })}
+                  disabled={savingTiers}
+                  onClick={async () => {
+                    try {
+                      setSavingTiers(true);
+                      const res = await fetch('/api/wifi/bandwidth-upgrade/settings', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ upsellEnabled, chargeToRoom, defaultCurrency, tiers }),
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        toast({ title: 'Tiers Saved', description: 'Upgrade tier configuration updated' });
+                      } else {
+                        toast({ title: 'Save Failed', description: data.error || 'Failed to save tiers', variant: 'destructive' });
+                      }
+                    } catch {
+                      toast({ title: 'Error', description: 'Failed to save tiers', variant: 'destructive' });
+                    } finally {
+                      setSavingTiers(false);
+                    }
+                  }}
                 >
+                  {savingTiers && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Save Tiers
                 </Button>
               </CardContent>
@@ -795,7 +893,8 @@ export default function WiFiBandwidthUpsell() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRefund} className="bg-orange-600 hover:bg-orange-700">
+            <AlertDialogAction onClick={handleRefund} disabled={refunding} className="bg-orange-600 hover:bg-orange-700">
+              {refunding && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Process Refund
             </AlertDialogAction>
           </AlertDialogFooter>
