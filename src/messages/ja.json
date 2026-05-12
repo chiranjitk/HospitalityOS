@@ -509,7 +509,16 @@
     "channel-guest-rates": "Guest Rates",
     "channel-allotment-release": "Allotment Release",
     "channel-commission-config": "Commission Config",
-    "channel-derived-rates": "Derived Rate Plans"
+    "channel-derived-rates": "Derived Rate Plans",
+    "wifi-health-alerts": "ヘルスアラート",
+    "wifi-pre-arrival": "到着前配信",
+    "wifi-device-management": "マルチデバイス登録",
+    "wifi-identity-verification": "本人確認",
+    "wifi-consent-management": "GDPR同意管理",
+    "wifi-bandwidth-upsell": "帯域幅アップグレード",
+    "wifi-revenue-dashboard": "収益分析",
+    "wifi-satisfaction-surveys": "ゲストアンケート",
+    "wifi-sla-monitoring": "SLA監視"
   },
   "layout": {
     "searchNavigation": "ナビゲーションを検索...",

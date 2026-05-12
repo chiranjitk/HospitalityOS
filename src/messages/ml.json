@@ -509,7 +509,16 @@
     "channel-guest-rates": "Guest Rates",
     "channel-allotment-release": "Allotment Release",
     "channel-commission-config": "Commission Config",
-    "channel-derived-rates": "Derived Rate Plans"
+    "channel-derived-rates": "Derived Rate Plans",
+    "wifi-health-alerts": "ഹെൽത്ത് അലേർട്ടുകൾ",
+    "wifi-pre-arrival": "പ്രീ-അറിവൽ ഡെലിവറി",
+    "wifi-device-management": "മൾട്ടി-ഡിവൈസ് രജിസ്ട്രേഷൻ",
+    "wifi-identity-verification": "ഐഡന്റിറ്റി വെരിഫിക്കേഷൻ",
+    "wifi-consent-management": "GDPR സമ്മതി",
+    "wifi-bandwidth-upsell": "ബാൻഡ്‌വിഡ്ത് അപ്‌സെൽ",
+    "wifi-revenue-dashboard": "വരുമാന വിശകലനം",
+    "wifi-satisfaction-surveys": "അതിഥി സർവേകൾ",
+    "wifi-sla-monitoring": "SLA മോണിറ്ററിംഗ്"
   },
   "layout": {
     "searchNavigation": "നാവിഗേഷൻ തിരയുക...",

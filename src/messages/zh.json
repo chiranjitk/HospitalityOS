@@ -509,7 +509,16 @@
     "channel-guest-rates": "Guest Rates",
     "channel-allotment-release": "Allotment Release",
     "channel-commission-config": "Commission Config",
-    "channel-derived-rates": "Derived Rate Plans"
+    "channel-derived-rates": "Derived Rate Plans",
+    "wifi-health-alerts": "健康警报",
+    "wifi-pre-arrival": "预抵达通知",
+    "wifi-device-management": "多设备注册",
+    "wifi-identity-verification": "身份验证",
+    "wifi-consent-management": "GDPR同意管理",
+    "wifi-bandwidth-upsell": "带宽升级",
+    "wifi-revenue-dashboard": "收入分析",
+    "wifi-satisfaction-surveys": "宾客满意度调查",
+    "wifi-sla-monitoring": "SLA监控"
   },
   "layout": {
     "searchNavigation": "搜索导航...",

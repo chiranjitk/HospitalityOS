@@ -509,7 +509,16 @@
     "channel-guest-rates": "Guest Rates",
     "channel-allotment-release": "Allotment Release",
     "channel-commission-config": "Commission Config",
-    "channel-derived-rates": "Derived Rate Plans"
+    "channel-derived-rates": "Derived Rate Plans",
+    "wifi-health-alerts": "Alertes Santé",
+    "wifi-pre-arrival": "Livraison Pré-Arrivée",
+    "wifi-device-management": "Enregistrement Multi-Appareil",
+    "wifi-identity-verification": "Vérification d'Identité",
+    "wifi-consent-management": "Consentement RGPD",
+    "wifi-bandwidth-upsell": "Amélioration de Bande Passante",
+    "wifi-revenue-dashboard": "Analyse des Revenus",
+    "wifi-satisfaction-surveys": "Enquêtes de Satisfaction",
+    "wifi-sla-monitoring": "Surveillance SLA"
   },
   "layout": {
     "searchNavigation": "Rechercher dans la navigation...",

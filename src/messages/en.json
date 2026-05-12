@@ -510,7 +510,16 @@
     "integrations-terminals": "Payment Terminals",
     "marketing-upsell": "Upsell Engine",
     "pos-offline": "Offline Mode",
-    "resort": "Resort"
+    "resort": "Resort",
+    "wifi-health-alerts": "Health Alerts",
+    "wifi-pre-arrival": "Pre-Arrival Delivery",
+    "wifi-device-management": "Multi-Device Registration",
+    "wifi-identity-verification": "Identity Verification",
+    "wifi-consent-management": "GDPR Consent",
+    "wifi-bandwidth-upsell": "Bandwidth Upsell",
+    "wifi-revenue-dashboard": "Revenue Analytics",
+    "wifi-satisfaction-surveys": "Guest Surveys",
+    "wifi-sla-monitoring": "SLA Monitoring"
   },
   "layout": {
     "searchNavigation": "Search navigation...",

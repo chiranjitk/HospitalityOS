@@ -509,7 +509,16 @@
     "channel-guest-rates": "Guest Rates",
     "channel-allotment-release": "Allotment Release",
     "channel-commission-config": "Commission Config",
-    "channel-derived-rates": "Derived Rate Plans"
+    "channel-derived-rates": "Derived Rate Plans",
+    "wifi-health-alerts": "تنبيهات الصحة",
+    "wifi-pre-arrival": "تسليم قبل الوصول",
+    "wifi-device-management": "تسجيل متعدد الأجهزة",
+    "wifi-identity-verification": "التحقق من الهوية",
+    "wifi-consent-management": "موافقة GDPR",
+    "wifi-bandwidth-upsell": "ترقية النطاق الترددي",
+    "wifi-revenue-dashboard": "تحليل الإيرادات",
+    "wifi-satisfaction-surveys": "استطلاعات رضا الضيوف",
+    "wifi-sla-monitoring": "مراقبة SLA"
   },
   "layout": {
     "searchNavigation": "البحث في التنقل...",

@@ -509,7 +509,16 @@
     "channel-guest-rates": "Guest Rates",
     "channel-allotment-release": "Allotment Release",
     "channel-commission-config": "Commission Config",
-    "channel-derived-rates": "Derived Rate Plans"
+    "channel-derived-rates": "Derived Rate Plans",
+    "wifi-health-alerts": "హెల్త్ అలర్ట్‌లు",
+    "wifi-pre-arrival": "ప్రీ-ఆగమన డెలివరీ",
+    "wifi-device-management": "మల్టీ-డివైస్ రిజిస్ట్రేషన్",
+    "wifi-identity-verification": "గుర్తింపు ధృవీకరణ",
+    "wifi-consent-management": "GDPR సమ్మతి",
+    "wifi-bandwidth-upsell": "బ్యాండ్‌విడ్త్ అప్‌సెల్",
+    "wifi-revenue-dashboard": "ఆదాయ విశ్లేషణ",
+    "wifi-satisfaction-surveys": "అతిథి సర్వేలు",
+    "wifi-sla-monitoring": "SLA మానిటరింగ్"
   },
   "layout": {
     "searchNavigation": "నావిగేషన్ వెతకండి...",
