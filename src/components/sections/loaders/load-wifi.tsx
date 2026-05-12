@@ -1,6 +1,9 @@
 // Category loader: WiFi
 export default async function loadSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   switch (section) {
+    case 'wifi':
+      // Bare 'wifi' → redirect to first child section (WiFi Access)
+      return import('@/components/wifi/wifi-access-page');
     case 'wifi-sessions':
       return import('@/components/wifi/sessions');
     case 'wifi-vouchers':
