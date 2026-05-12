@@ -1098,17 +1098,27 @@ cp -r "${APP_DIR}/.next/server" "${APP_DIR}/.next/standalone/.next/server"
 cp -r "${APP_DIR}/.next/static" "${APP_DIR}/.next/standalone/.next/static"
 cp "${APP_DIR}/.next/BUILD_ID" "${APP_DIR}/.next/standalone/.next/BUILD_ID" 2>/dev/null || true
 
-# 2) next/dist/build/ — Next.js 16.2.x standalone file tracing bug
-# The standalone tracer prunes next/dist/build/ because it's only referenced
-# internally by next/dist/server/next.js (require("../build/output/log")),
-# not by user code. This causes MODULE_NOT_FOUND at startup.
-# Copy the entire build directory to fix it (safe — these are just build-time
-# utilities: log, format, store, webpack config, etc.)
-FR_BUILD_DIR="${APP_DIR}/.next/standalone/node_modules/next/dist/build"
-if [[ ! -d "$FR_BUILD_DIR" ]] || [[ -z "$(ls -A "$FR_BUILD_DIR" 2>/dev/null)" ]]; then
-  info "  Fixing Next.js 16.2.x standalone tracing bug (next/dist/build pruned)..."
-  rm -rf "$FR_BUILD_DIR" 2>/dev/null
-  cp -r "${APP_DIR}/node_modules/next/dist/build" "$FR_BUILD_DIR"
+# 2) next/dist/build/output/ — Next.js 16.2.x standalone file tracing bug
+# The standalone tracer partially includes next/dist/build/ but misses the
+# output/ subdirectory. next/dist/server/next.js requires "../build/output/log"
+# at startup, causing MODULE_NOT_FOUND. The build/ dir EXISTS but is incomplete,
+# so we must always overwrite it with the full source version.
+STANDALONE_NM_BUILD="${APP_DIR}/.next/standalone/node_modules/next/dist/build"
+SOURCE_NM_BUILD="${APP_DIR}/node_modules/next/dist/build"
+if [[ -d "$SOURCE_NM_BUILD" ]]; then
+  info "  Fixing Next.js 16.2.x standalone tracing bug (next/dist/build/output missing)..."
+  # Remove the partial standalone copy and replace with complete source
+  rm -rf "$STANDALONE_NM_BUILD"
+  cp -r "$SOURCE_NM_BUILD" "$STANDALONE_NM_BUILD"
+  # Verify the critical file is present
+  if [[ -f "${STANDALONE_NM_BUILD}/output/log.js" ]]; then
+    info "  ✓ Verified: next/dist/build/output/log.js present in standalone"
+  else
+    error "  ✗ CRITICAL: next/dist/build/output/log.js still missing after copy!"
+    error "  Source file check: $(ls -la "${SOURCE_NM_BUILD}/output/log.js" 2>&1)"
+  fi
+else
+  error "  Source next/dist/build/ not found — Next.js package may be corrupted"
 fi
 
 success "Standalone artifacts copied (server + static + BUILD_ID + next/dist/build)"
