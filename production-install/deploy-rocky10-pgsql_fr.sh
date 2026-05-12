@@ -1237,6 +1237,14 @@ module.exports = {
       env: { NODE_ENV: 'production', PORT: 8888 },
       max_restarts: 10, restart_delay: 3000,
     },
+    {
+      name: 'live-speed-service',
+      script: 'index.ts',
+      interpreter: BUN_PATH,
+      cwd: `${APP_DIR}/mini-services/live-speed-service`,
+      env: { NODE_ENV: 'production', PORT: 3018, DATABASE_URL: DB_URL },
+      max_restarts: 10, restart_delay: 3000,
+    },
     // IPDR Network Logging Pipeline (WiFi gateway analytics + TRAI compliance)
     {
       name: 'conntrack-bridge',
@@ -1617,7 +1625,7 @@ done
 echo ""
 
 echo -e "${BOLD}  PM2 SERVICES${NC}"
-for svc_name in staysuite-nextjs availability-service realtime-service freeradius-service dhcp-service dns-service nftables-service captive-redirect conntrack-bridge sni-parser; do
+for svc_name in staysuite-nextjs availability-service realtime-service freeradius-service live-speed-service dhcp-service dns-service nftables-service captive-redirect conntrack-bridge sni-parser; do
   SVC_PID=$(pm2 pid "$svc_name" 2>/dev/null)
   ICON="FAIL"; [[ -n "$SVC_PID" ]] && ICON=" OK "
   echo "    [${ICON}] ${svc_name}"
@@ -1632,6 +1640,7 @@ echo "    3010  FreeRADIUS Management Service"
 echo "    3011  DHCP Service (dnsmasq)"
 echo "    3012  DNS Service"
 echo "    3013  nftables Service"
+echo "    3018  Live Speed Service"
 echo "    8888  Captive Portal Redirect (HTTP 302)"
 echo "    3020  Conntrack Bridge (IPDR NAT logging)"
 echo "    3022  SNI Parser (IPDR TLS domain capture)"
@@ -1686,7 +1695,7 @@ pm2 save
 
 # Quick health check
 ALL_OK=true
-for svc_name in staysuite-nextjs availability-service realtime-service freeradius-service dhcp-service dns-service nftables-service captive-redirect conntrack-bridge sni-parser; do
+for svc_name in staysuite-nextjs availability-service realtime-service freeradius-service live-speed-service dhcp-service dns-service nftables-service captive-redirect conntrack-bridge sni-parser; do
   SVC_PID=$(pm2 pid "$svc_name" 2>/dev/null)
   if [[ -z "$SVC_PID" ]]; then
     warn "$svc_name — not running"
