@@ -4622,6 +4622,7 @@ model Property {
   wifiPreArrivalConfigs     WiFiPreArrivalConfig[]
   wifiSLAConfigs            WiFiSLAConfig[]
   wifiSLAMetrics            WiFiSLAMetric[]
+  wifiSettings              WiFiSettings[]
   portalAdCampaigns         PortalAdCampaign[]
 
   @@unique([tenantId, slug])
@@ -6385,6 +6386,7 @@ model Tenant {
   portalAdCampaigns         PortalAdCampaign[]
   wifiPartners              WiFiPartner[]
   wifiPartnerAuths          WiFiPartnerAuth[]
+  wifiSettings              WiFiSettings[]
   radiusNAS                 RadiusNAS[]
   radiusServerConfigs       RadiusServerConfig[]
   amenities                 Amenity[]
@@ -7782,6 +7784,23 @@ model WiFiPartnerAuth {
   @@index([partnerId])
   @@index([sessionId])
   @@index([createdAt])
+}
+
+/// WiFi Settings — Tenant-level feature configuration (device mgmt, consent, identity, bandwidth)
+model WiFiSettings {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  propertyId  String?   @db.Uuid
+  key         String
+  value       String    @default("{}") // JSON string
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property    Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, propertyId, key])
+  @@index([tenantId])
+  @@index([tenantId, key])
 }
 
 model WorkOrder {
