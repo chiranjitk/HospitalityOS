@@ -1,0 +1,1 @@
+/home/z/my-project/scripts/recreate-views.sql
