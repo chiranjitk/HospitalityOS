@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
-const TENANT_ID = 'tenant_01';
+const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
 
 // GET /api/wifi/bandwidth-upgrade — List upgrades
 export async function GET(request: NextRequest) {
@@ -40,10 +40,7 @@ export async function GET(request: NextRequest) {
       db.wiFiBandwidthUpgrade.findMany({
         where,
         include: {
-          guest: { select: { id: true, firstName: true, lastName: true, email: true } },
           property: { select: { id: true, name: true } },
-          fromPlan: { select: { id: true, name: true } },
-          toPlan: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
@@ -106,10 +103,7 @@ export async function POST(request: NextRequest) {
         activatedAt: new Date(),
       },
       include: {
-        guest: { select: { id: true, firstName: true, lastName: true, email: true } },
         property: { select: { id: true, name: true } },
-        fromPlan: { select: { id: true, name: true } },
-        toPlan: { select: { id: true, name: true } },
       },
     });
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 
-const TENANT_ID = 'tenant_01';
+const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
 
 // GET /api/wifi/pre-arrival/delivery-logs — List delivery logs
 export async function GET(request: NextRequest) {

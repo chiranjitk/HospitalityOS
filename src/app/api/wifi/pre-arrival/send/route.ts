@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { randomBytes } from 'crypto';
 
-const TENANT_ID = 'tenant_01';
+const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
 
 // Helper: generate a random password
 function generatePassword(length = 10): string {

@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-const TENANT_ID = 'tenant_01';
+const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
 
 export async function GET(request: NextRequest) {
   try {
@@ -56,10 +56,7 @@ export async function GET(request: NextRequest) {
       // Popular upgrade paths
       db.wiFiBandwidthUpgrade.findMany({
         where: completedWhere,
-        include: {
-          fromPlan: { select: { name: true } },
-          toPlan: { select: { name: true } },
-        },
+        include: {},
         orderBy: { createdAt: 'desc' },
       }),
       // All upgrades in period for trend and conversion
@@ -80,12 +77,15 @@ export async function GET(request: NextRequest) {
       // IdentityLog may not exist, use upgrades as fallback
     }
 
-    // Build upgrade path counts
+    // Build upgrade path counts (plan names looked up separately)
+    const planIds = [...new Set([...upgradePaths.map(u => u.fromPlanId), ...upgradePaths.map(u => u.toPlanId)])];
+    const plans = await db.wiFiPlan.findMany({ where: { id: { in: planIds } }, select: { id: true, name: true } });
+    const planMap = new Map(plans.map(p => [p.id, p.name]));
     const pathMap = new Map<string, { from: string; to: string; count: number; revenue: number }>();
     for (const u of upgradePaths) {
-      const key = `${u.fromPlan?.name || 'Unknown'} → ${u.toPlan?.name || 'Unknown'}`;
+      const key = `${planMap.get(u.fromPlanId) || 'Unknown'} → ${planMap.get(u.toPlanId) || 'Unknown'}`;
       if (!pathMap.has(key)) {
-        pathMap.set(key, { from: u.fromPlan?.name || 'Unknown', to: u.toPlan?.name || 'Unknown', count: 0, revenue: 0 });
+        pathMap.set(key, { from: planMap.get(u.fromPlanId) || 'Unknown', to: planMap.get(u.toPlanId) || 'Unknown', count: 0, revenue: 0 });
       }
       const entry = pathMap.get(key)!;
       entry.count++;

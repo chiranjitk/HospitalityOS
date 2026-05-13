@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
-const TENANT_ID = 'tenant_01';
+const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
 const DEFAULT_MAX_DEVICES = 5;
 
 // GET /api/wifi/devices — List registered devices

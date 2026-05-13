@@ -10,7 +10,7 @@ import { db } from '@/lib/db';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 import { createHash } from 'crypto';
 
-const TENANT_ID = 'tenant_01';
+const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
 
 // GET /api/wifi/consent-logs — List consent logs
 export async function GET(request: NextRequest) {
@@ -40,22 +40,35 @@ export async function GET(request: NextRequest) {
       where.createdAt = dateFilter;
     }
 
+    // If search includes a space, try to find matching guest IDs by name
+    let matchingGuestIds: string[] = [];
     if (search) {
-      where.OR = [
+      const guestsByName = await db.guest.findMany({
+        where: {
+          OR: [
+            { firstName: { contains: search, mode: 'insensitive' } },
+            { lastName: { contains: search, mode: 'insensitive' } },
+          ],
+        },
+        select: { id: true },
+        take: 100,
+      });
+      matchingGuestIds = guestsByName.map((g) => g.id);
+
+      const orConditions: Record<string, unknown>[] = [
         { ipAddress: { contains: search, mode: 'insensitive' } },
         { sessionId: { contains: search, mode: 'insensitive' } },
-        { guest: { OR: [
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
-        ] } },
       ];
+      if (matchingGuestIds.length > 0) {
+        orConditions.push({ guestId: { in: matchingGuestIds } });
+      }
+      where.OR = orConditions;
     }
 
     const [logs, total] = await Promise.all([
       db.wiFiConsentLog.findMany({
         where,
         include: {
-          guest: { select: { id: true, firstName: true, lastName: true, email: true } },
           property: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -77,9 +90,25 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
+    // Enrich with guest data (no relation in schema, lookup separately)
+    const guestIds = [...new Set(logs.map((l) => l.guestId).filter(Boolean))] as string[];
+    let guestMap: Record<string, { id: string; firstName: string | null; lastName: string | null; email: string | null }> = {};
+    if (guestIds.length > 0) {
+      const guests = await db.guest.findMany({
+        where: { id: { in: guestIds } },
+        select: { id: true, firstName: true, lastName: true, email: true },
+      });
+      guestMap = Object.fromEntries(guests.map((g) => [g.id, g]));
+    }
+
+    const enrichedLogs = logs.map((l) => ({
+      ...l,
+      guest: l.guestId ? (guestMap[l.guestId] ?? null) : null,
+    }));
+
     return NextResponse.json({
       success: true,
-      data: logs,
+      data: enrichedLogs,
       pagination: { page, limit, total, pages: Math.ceil(total / limit) },
       stats: {
         totalConsents,
@@ -135,12 +164,23 @@ export async function POST(request: NextRequest) {
         expiresAt,
       },
       include: {
-        guest: { select: { id: true, firstName: true, lastName: true, email: true } },
         property: { select: { id: true, name: true } },
       },
     });
 
-    return NextResponse.json({ success: true, data: log, message: 'Consent recorded successfully' }, { status: 201 });
+    // Enrich with guest data (no relation in schema, lookup separately)
+    const enrichedLog = { ...log, guest: null as unknown };
+    if (log.guestId) {
+      const guest = await db.guest.findUnique({
+        where: { id: log.guestId },
+        select: { id: true, firstName: true, lastName: true, email: true },
+      });
+      enrichedLog.guest = guest;
+    } else {
+      enrichedLog.guest = null;
+    }
+
+    return NextResponse.json({ success: true, data: enrichedLog, message: 'Consent recorded successfully' }, { status: 201 });
   } catch (error) {
     console.error('Error recording consent:', error);
     return NextResponse.json({ success: false, error: 'Failed to record consent' }, { status: 500 });

@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWifiSettings, setWifiSettings, type BandwidthUpsellSettings } from '@/lib/wifi-settings';
 
-const TENANT_ID = 'tenant_01';
+const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
 const SETTINGS_KEY = 'bandwidth_upsell';
 
 // GET /api/wifi/bandwidth-upgrade/settings

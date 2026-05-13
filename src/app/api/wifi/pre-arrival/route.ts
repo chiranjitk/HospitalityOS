@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-const TENANT_ID = 'tenant_01';
+const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
 
 // GET /api/wifi/pre-arrival — List all pre-arrival configs
 export async function GET(request: NextRequest) {
@@ -20,12 +20,25 @@ export async function GET(request: NextRequest) {
         property: {
           select: { id: true, name: true, logo: true },
         },
-        plan: {
-          select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true },
-        },
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // Enrich with plan data (no relation in schema, lookup separately)
+    const planIds = [...new Set(configs.map((c) => c.planId).filter(Boolean))] as string[];
+    let planMap: Record<string, { id: string; name: string; downloadSpeed: number; uploadSpeed: number }> = {};
+    if (planIds.length > 0) {
+      const plans = await db.wiFiPlan.findMany({
+        where: { id: { in: planIds } },
+        select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true },
+      });
+      planMap = Object.fromEntries(plans.map((p) => [p.id, p]));
+    }
+
+    const enrichedConfigs = configs.map((c) => ({
+      ...c,
+      plan: c.planId ? (planMap[c.planId] ?? null) : null,
+    }));
 
     // Count enabled properties for summary
     const enabledCount = configs.filter((c) => c.enabled).length;
@@ -33,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: configs,
+      data: enrichedConfigs,
       summary: {
         totalProperties,
         enabledProperties: enabledCount,
@@ -153,13 +166,22 @@ export async function POST(request: NextRequest) {
         property: {
           select: { id: true, name: true, logo: true },
         },
-        plan: {
-          select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true },
-        },
       },
     });
 
-    return NextResponse.json({ success: true, data: config }, { status: 201 });
+    // Enrich with plan data (no relation in schema, lookup separately)
+    const enrichedConfig = { ...config, plan: null as unknown };
+    if (config.planId) {
+      const plan = await db.wiFiPlan.findUnique({
+        where: { id: config.planId },
+        select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true },
+      });
+      enrichedConfig.plan = plan;
+    } else {
+      enrichedConfig.plan = null;
+    }
+
+    return NextResponse.json({ success: true, data: enrichedConfig }, { status: 201 });
   } catch (error) {
     console.error('[pre-arrival] Error creating/updating config:', error);
     return NextResponse.json(

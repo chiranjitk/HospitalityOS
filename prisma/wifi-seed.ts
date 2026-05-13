@@ -149,6 +149,19 @@ export async function seedWiFiData() {
     await prisma.radPostAuth.deleteMany({});
     await prisma.wiFiUser.deleteMany({});
     await prisma.wiFiPlan.deleteMany({});
+    // New feature tables (9 features)
+    await prisma.wiFiSLAMetric.deleteMany({});
+    await prisma.wiFiSLAConfig.deleteMany({});
+    await prisma.wiFiPreArrivalConfig.deleteMany({});
+    await prisma.wiFiSatisfactionSurvey.deleteMany({});
+    await prisma.wiFiBandwidthUpgrade.deleteMany({});
+    await prisma.wiFiIdentityLog.deleteMany({});
+    await prisma.wiFiConsentLog.deleteMany({});
+    await prisma.wiFiDevice.deleteMany({});
+    await prisma.wiFiAlert.deleteMany({});
+    await prisma.wiFiPartnerAuth.deleteMany({});
+    await prisma.wiFiPartner.deleteMany({});
+    await prisma.portalAdCampaign.deleteMany({});
     console.log('WiFi module data cleaned.');
   } catch (e: any) {
     console.log('WiFi cleanup note:', e.message);
@@ -2934,5 +2947,220 @@ export async function seedWiFiData() {
   // deprovision, suspend, resume, guest-wifi-link/unlink, update).
   // See: wifiUserService.logProvisioning() in wifi-user-service.ts
 
-  console.log('\n📡 WiFi module seed data completed! All 44 categories seeded.');
+  // ═══════════════════════════════════════════════════════════════
+  // 45. WiFi PARTNERS (2) — Sponsored WiFi access partners
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding WiFi Partners (2)...');
+  await prisma.wiFiPartner.createMany({
+    data: [
+      { id: uuid('wifipartner-1'), tenantId: TENANT_ID, name: 'Emirates Skywards', partnerType: 'airline', authMethod: 'promo_code', costPerAuth: 15, commission: 3, maxDailyAuths: 50, activeAuths: 12, totalAuths: 342, totalRevenue: 1026, status: 'active' },
+      { id: uuid('wifipartner-2'), tenantId: TENANT_ID, name: 'HDFC Diners Club', partnerType: 'credit_card', authMethod: 'auto_detect', costPerAuth: 10, commission: 5, maxDailyAuths: 100, activeAuths: 8, totalAuths: 156, totalRevenue: 780, status: 'active' },
+    ],
+  });
+  console.log('✓ 2 WiFi Partners seeded');
+
+  // ═══════════════════════════════════════════════════════════════
+  // 46. WiFi PARTNER AUTHS (6) — Individual sponsored sessions
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding WiFi Partner Auths (6)...');
+  await prisma.wiFiPartnerAuth.createMany({
+    data: [
+      { id: uuid('wifipartnerauth-1'), tenantId: TENANT_ID, partnerId: uuid('wifipartner-1'), guestId: uuid('guest-1'), username: 'guest.amit.mukherjee', partnerRef: 'EK-SKY-12345', partnerTier: 'Gold', costToPartner: 15, commission: 3, ipAddress: '192.168.10.105', createdAt: day(-1) },
+      { id: uuid('wifipartnerauth-2'), tenantId: TENANT_ID, partnerId: uuid('wifipartner-1'), guestId: uuid('guest-2'), username: 'guest.sneha.gupta', partnerRef: 'EK-SKY-67890', partnerTier: 'Silver', costToPartner: 15, commission: 3, ipAddress: '192.168.10.115', createdAt: day(-2) },
+      { id: uuid('wifipartnerauth-3'), tenantId: TENANT_ID, partnerId: uuid('wifipartner-1'), guestId: uuid('guest-3'), username: 'guest.rahul.banerjee', partnerRef: 'EK-SKY-11111', partnerTier: 'Platinum', costToPartner: 15, commission: 3, ipAddress: '192.168.10.110', createdAt: hour(-8) },
+      { id: uuid('wifipartnerauth-4'), tenantId: TENANT_ID, partnerId: uuid('wifipartner-2'), guestId: uuid('guest-4'), username: 'guest.dev.sharma', partnerRef: 'HDFC-DC-98765', partnerTier: 'Premium', costToPartner: 10, commission: 5, ipAddress: '192.168.10.130', createdAt: day(-1) },
+      { id: uuid('wifipartnerauth-5'), tenantId: TENANT_ID, partnerId: uuid('wifipartner-2'), guestId: uuid('guest-5'), username: 'guest.vikram.singh', partnerRef: 'HDFC-DC-43210', partnerTier: 'Standard', costToPartner: 10, commission: 5, ipAddress: '192.168.10.120', createdAt: hour(-3) },
+      { id: uuid('wifipartnerauth-6'), tenantId: TENANT_ID, partnerId: uuid('wifipartner-2'), guestId: null, username: 'guest.unknown.patel', partnerRef: 'HDFC-DC-55555', partnerTier: 'Standard', costToPartner: 10, commission: 5, ipAddress: '192.168.10.145', createdAt: hour(-1) },
+    ],
+  });
+  console.log('✓ 6 WiFi Partner Auths seeded');
+
+  // ═══════════════════════════════════════════════════════════════
+  // 47. PORTAL AD CAMPAIGNS (3) — Monetized WiFi portal ads
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding Portal Ad Campaigns (3)...');
+  await prisma.portalAdCampaign.createMany({
+    data: [
+      { id: uuid('adcamp-1'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, name: 'Spa Weekend Special', advertiser: 'Royal Stay Spa', creativeUrl: '/ads/spa-banner.jpg', creativeType: 'image', slot: 'banner', impressions: 15420, clicks: 312, revenue: 1560, status: 'active', startDate: day(-14), endDate: day(14), maxBudget: 5000, spentBudget: 1560 },
+      { id: uuid('adcamp-2'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, name: 'Restaurant Dinner Promo', advertiser: 'Royal Stay Restaurant', creativeUrl: '/ads/restaurant-promo.jpg', creativeType: 'image', slot: 'interstitial', impressions: 8930, clicks: 189, revenue: 945, status: 'active', startDate: day(-7), endDate: day(7), maxBudget: 3000, spentBudget: 945 },
+      { id: uuid('adcamp-3'), tenantId: TENANT_ID, name: 'Airport Transfer Service', advertiser: 'CityCab', creativeUrl: '/ads/cab-service.jpg', creativeType: 'image', slot: 'footer', impressions: 22100, clicks: 442, revenue: 2210, status: 'active', startDate: day(-30), endDate: day(30), maxBudget: 10000, spentBudget: 2210 },
+    ],
+  });
+  console.log('✓ 3 Portal Ad Campaigns seeded');
+
+  // ═══════════════════════════════════════════════════════════════
+  // 48. WiFi ALERTS (8) — Network monitoring alerts
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding WiFi Alerts (8)...');
+  await prisma.wiFiAlert.createMany({
+    data: [
+      { id: uuid('wifialert-1'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, type: 'ap_down', severity: 'critical', title: 'AP Lobby-01 Unreachable', message: 'Access point Lobby-01 has not responded to health check for 5 minutes.', source: 'AA:BB:CC:11:22:33', status: 'active', createdAt: hour(-1) },
+      { id: uuid('wifialert-2'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, type: 'latency', severity: 'warning', title: 'High Latency on 3rd Floor', message: 'Average latency on 3rd floor APs exceeded 50ms threshold (current: 78ms).', source: 'AA:BB:CC:44:55:66', status: 'acknowledged', acknowledgedAt: hour(-4), createdAt: hour(-6) },
+      { id: uuid('wifialert-3'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, type: 'capacity', severity: 'warning', title: 'Pool Area AP at 85% Capacity', message: 'Pool AP has 51 connected clients (recommended max: 60).', source: 'AA:BB:CC:77:88:99', status: 'active', createdAt: min(-30) },
+      { id: uuid('wifialert-4'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, type: 'radius_error', severity: 'critical', title: 'RADIUS Authentication Failures', message: '15 authentication failures in last 10 minutes from unknown sources.', status: 'resolved', resolvedAt: hour(-3), createdAt: hour(-5) },
+      { id: uuid('wifialert-5'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, type: 'bandwidth_exhaustion', severity: 'warning', title: 'Guest VLAN Bandwidth Near Limit', message: 'Guest VLAN using 920 Mbps of 1000 Mbps capacity (92%).', status: 'acknowledged', acknowledgedAt: hour(-2), createdAt: hour(-3) },
+      { id: uuid('wifialert-6'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, type: 'ap_down', severity: 'info', title: 'AP Conference-B1 Rebooted', message: 'Access point Conference-B1 restarted successfully after firmware update.', source: 'DD:EE:FF:11:22:33', status: 'resolved', resolvedAt: day(-1), createdAt: day(-1) },
+      { id: uuid('wifialert-7'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, type: 'auth_failure', severity: 'warning', title: 'Brute Force Detection', message: 'Multiple failed auth attempts from MAC 44:55:66:77:88:99 (5 attempts in 2 min).', status: 'resolved', resolvedAt: hour(-5), createdAt: hour(-6) },
+      { id: uuid('wifialert-8'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, type: 'nas_offline', severity: 'critical', title: 'NAS Gateway Primary Offline', message: 'Primary NAS gateway (10.0.1.1) is not responding. Traffic redirected to backup.', source: '10.0.1.1', status: 'active', createdAt: min(-15) },
+    ],
+  });
+  console.log('✓ 8 WiFi Alerts seeded');
+
+  // ═══════════════════════════════════════════════════════════════
+  // 49. WiFi DEVICES (10) — Multi-device registration for guests
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding WiFi Devices (10)...');
+  await prisma.wiFiDevice.createMany({
+    data: [
+      { id: uuid('wifidevice-1'), tenantId: TENANT_ID, guestId: uuid('guest-1'), propertyId: PROPERTY_ID, macAddress: 'AA:BB:CC:11:22:33', deviceName: 'Amit-iPhone-15', deviceType: 'phone', ipAddress: '192.168.10.105', isApproved: true, firstSeen: day(-2), lastSeen: min(-15), autoAuth: true },
+      { id: uuid('wifidevice-2'), tenantId: TENANT_ID, guestId: uuid('guest-1'), propertyId: PROPERTY_ID, macAddress: 'AA:BB:CC:11:22:34', deviceName: 'Amit-Surface-Pro', deviceType: 'laptop', ipAddress: '192.168.10.106', isApproved: true, firstSeen: day(-1), lastSeen: hour(-6), autoAuth: true },
+      { id: uuid('wifidevice-3'), tenantId: TENANT_ID, guestId: uuid('guest-2'), propertyId: PROPERTY_ID, macAddress: 'AA:BB:CC:77:88:99', deviceName: 'Sneha-Galaxy-S23', deviceType: 'phone', ipAddress: '192.168.10.115', isApproved: true, firstSeen: day(0), lastSeen: min(-30), autoAuth: true },
+      { id: uuid('wifidevice-4'), tenantId: TENANT_ID, guestId: uuid('guest-3'), propertyId: PROPERTY_ID, macAddress: 'AA:BB:CC:44:55:66', deviceName: 'Rahul-MacBook-Pro', deviceType: 'laptop', ipAddress: '192.168.10.110', isApproved: true, firstSeen: day(-1), lastSeen: min(-5), autoAuth: true },
+      { id: uuid('wifidevice-5'), tenantId: TENANT_ID, guestId: uuid('guest-3'), propertyId: PROPERTY_ID, macAddress: 'BB:CC:DD:44:55:66', deviceName: 'Rahul-iPad-Air', deviceType: 'tablet', ipAddress: '192.168.10.111', isApproved: true, firstSeen: day(-1), lastSeen: hour(-2), autoAuth: true },
+      { id: uuid('wifidevice-6'), tenantId: TENANT_ID, guestId: uuid('guest-5'), propertyId: PROPERTY_ID, macAddress: 'AA:BB:CC:AA:BB:CC', deviceName: 'Vikram-ThinkPad-X1', deviceType: 'laptop', ipAddress: '192.168.10.120', isApproved: true, firstSeen: day(0), lastSeen: min(-20), autoAuth: true },
+      { id: uuid('wifidevice-7'), tenantId: TENANT_ID, guestId: uuid('guest-5'), propertyId: PROPERTY_ID, macAddress: 'CC:DD:EE:AA:BB:CC', deviceName: 'Vikram-Apple-Watch', deviceType: 'watch', ipAddress: null, isApproved: true, firstSeen: day(0), lastSeen: hour(-1), autoAuth: true },
+      { id: uuid('wifidevice-8'), tenantId: TENANT_ID, guestId: uuid('guest-6'), propertyId: PROPERTY_ID, macAddress: 'AA:BB:CC:DD:EE:FF', deviceName: 'Rina-iPad-mini', deviceType: 'tablet', ipAddress: '192.168.10.125', isApproved: true, firstSeen: day(-3), lastSeen: day(-1), autoAuth: true },
+      { id: uuid('wifidevice-9'), tenantId: TENANT_ID, guestId: uuid('guest-6'), propertyId: PROPERTY_ID, macAddress: 'EE:FF:AA:BB:CC:DD', deviceName: 'Rina-Samsung-TV', deviceType: 'tv', ipAddress: '192.168.10.126', isApproved: true, firstSeen: day(-2), lastSeen: day(-1), autoAuth: true },
+      { id: uuid('wifidevice-10'), tenantId: TENANT_ID, guestId: uuid('guest-2'), propertyId: PROPERTY_ID, macAddress: 'DD:EE:FF:AA:BB:CC', deviceName: 'Sneha-Galaxy-Tab', deviceType: 'tablet', ipAddress: '192.168.10.116', isApproved: true, firstSeen: day(0), lastSeen: hour(-3), autoAuth: true },
+    ],
+  });
+  console.log('✓ 10 WiFi Devices seeded');
+
+  // ═══════════════════════════════════════════════════════════════
+  // 50. WiFi CONSENT LOGS (12) — GDPR/Privacy consent records
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding WiFi Consent Logs (12)...');
+  await prisma.wiFiConsentLog.createMany({
+    data: [
+      { id: uuid('wificonsent-1'), tenantId: TENANT_ID, guestId: uuid('guest-1'), propertyId: PROPERTY_ID, sessionId: 'rad-sess-001', consentType: 'wifi_access', consentTextHash: 'abc123hash456', ipAddress: '192.168.10.105', macAddress: 'AA:BB:CC:11:22:33', optInMarketing: true, dataRetentionDays: 90, expiresAt: day(90), createdAt: day(-2) },
+      { id: uuid('wificonsent-2'), tenantId: TENANT_ID, guestId: uuid('guest-1'), propertyId: PROPERTY_ID, sessionId: 'rad-sess-001', consentType: 'marketing', consentTextHash: 'abc123hash456', ipAddress: '192.168.10.105', macAddress: 'AA:BB:CC:11:22:33', optInMarketing: true, dataRetentionDays: 90, expiresAt: day(90), createdAt: day(-2) },
+      { id: uuid('wificonsent-3'), tenantId: TENANT_ID, guestId: uuid('guest-1'), propertyId: PROPERTY_ID, sessionId: 'rad-sess-001', consentType: 'data_processing', consentTextHash: 'abc123hash456', ipAddress: '192.168.10.105', macAddress: 'AA:BB:CC:11:22:33', optInMarketing: true, dataRetentionDays: 90, expiresAt: day(90), createdAt: day(-2) },
+      { id: uuid('wificonsent-4'), tenantId: TENANT_ID, guestId: uuid('guest-2'), propertyId: PROPERTY_ID, sessionId: 'rad-sess-002', consentType: 'wifi_access', consentTextHash: 'abc123hash456', ipAddress: '192.168.10.115', macAddress: 'AA:BB:CC:77:88:99', optInMarketing: false, dataRetentionDays: 90, expiresAt: day(90), createdAt: day(0) },
+      { id: uuid('wificonsent-5'), tenantId: TENANT_ID, guestId: uuid('guest-2'), propertyId: PROPERTY_ID, sessionId: 'rad-sess-002', consentType: 'data_processing', consentTextHash: 'abc123hash456', ipAddress: '192.168.10.115', macAddress: 'AA:BB:CC:77:88:99', optInMarketing: false, dataRetentionDays: 90, expiresAt: day(90), createdAt: day(0) },
+      { id: uuid('wificonsent-6'), tenantId: TENANT_ID, guestId: uuid('guest-3'), propertyId: PROPERTY_ID, sessionId: 'rad-sess-003', consentType: 'wifi_access', consentTextHash: 'abc123hash456', ipAddress: '192.168.10.110', macAddress: 'AA:BB:CC:44:55:66', optInMarketing: true, dataRetentionDays: 90, expiresAt: day(90), createdAt: day(-1) },
+      { id: uuid('wificonsent-7'), tenantId: TENANT_ID, guestId: uuid('guest-3'), propertyId: PROPERTY_ID, sessionId: 'rad-sess-003', consentType: 'marketing', consentTextHash: 'abc123hash456', ipAddress: '192.168.10.110', macAddress: 'AA:BB:CC:44:55:66', optInMarketing: true, dataRetentionDays: 90, expiresAt: day(90), createdAt: day(-1) },
+      { id: uuid('wificonsent-8'), tenantId: TENANT_ID, guestId: uuid('guest-5'), propertyId: PROPERTY_ID, sessionId: 'rad-sess-004', consentType: 'wifi_access', consentTextHash: 'abc123hash456', ipAddress: '192.168.10.120', macAddress: 'AA:BB:CC:AA:BB:CC', optInMarketing: false, dataRetentionDays: 90, expiresAt: day(90), createdAt: day(0) },
+      { id: uuid('wificonsent-9'), tenantId: TENANT_ID, guestId: uuid('guest-5'), propertyId: PROPERTY_ID, sessionId: 'rad-sess-004', consentType: 'data_processing', consentTextHash: 'abc123hash456', ipAddress: '192.168.10.120', macAddress: 'AA:BB:CC:AA:BB:CC', optInMarketing: false, dataRetentionDays: 90, expiresAt: day(90), createdAt: day(0) },
+      { id: uuid('wificonsent-10'), tenantId: TENANT_ID, guestId: uuid('guest-6'), propertyId: PROPERTY_ID, sessionId: 'rad-sess-005', consentType: 'wifi_access', consentTextHash: 'abc123hash456', ipAddress: '192.168.10.125', macAddress: 'AA:BB:CC:DD:EE:FF', optInMarketing: true, dataRetentionDays: 90, expiresAt: day(90), createdAt: day(-3) },
+      { id: uuid('wificonsent-11'), tenantId: TENANT_ID, guestId: uuid('guest-6'), propertyId: PROPERTY_ID, sessionId: 'rad-sess-005', consentType: 'marketing', consentTextHash: 'abc123hash456', ipAddress: '192.168.10.125', macAddress: 'AA:BB:CC:DD:EE:FF', optInMarketing: true, dataRetentionDays: 90, expiresAt: day(90), createdAt: day(-3) },
+      { id: uuid('wificonsent-12'), tenantId: TENANT_ID, guestId: null, propertyId: PROPERTY_ID, sessionId: 'rad-sess-006', consentType: 'wifi_access', consentTextHash: 'abc123hash456', ipAddress: '192.168.10.130', macAddress: '11:22:33:44:55:66', optInMarketing: false, dataRetentionDays: 90, expiresAt: day(90), createdAt: day(-7) },
+    ],
+  });
+  console.log('✓ 12 WiFi Consent Logs seeded');
+
+  // ═══════════════════════════════════════════════════════════════
+  // 51. WiFi IDENTITY LOGS (15) — KYC identity verification records
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding WiFi Identity Logs (15)...');
+  await prisma.wiFiIdentityLog.createMany({
+    data: [
+      { id: uuid('wifiidentity-1'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, sessionId: 'rad-sess-001', username: 'guest.amit.mukherjee', verificationMethod: 'room_number', verifiedIdentity: 'Room 501', verificationStatus: 'verified', ipAddress: '192.168.10.105', macAddress: 'AA:BB:CC:11:22:33', countryCode: 'IN', verifiedAt: day(-2), createdAt: day(-2) },
+      { id: uuid('wifiidentity-2'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, sessionId: 'rad-sess-002', username: 'guest.sneha.gupta', verificationMethod: 'otp_sms', verifiedIdentity: '+91-XXXX-XXXX-78', verificationStatus: 'verified', ipAddress: '192.168.10.115', macAddress: 'AA:BB:CC:77:88:99', countryCode: 'IN', verifiedAt: day(0), createdAt: day(0) },
+      { id: uuid('wifiidentity-3'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, sessionId: 'rad-sess-003', username: 'guest.rahul.banerjee', verificationMethod: 'government_id', verifiedIdentity: 'PP-XXXX5678', verificationStatus: 'verified', ipAddress: '192.168.10.110', macAddress: 'AA:BB:CC:44:55:66', countryCode: 'IN', idType: 'passport', verifiedAt: day(-1), createdAt: day(-1) },
+      { id: uuid('wifiidentity-4'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, sessionId: 'rad-sess-004', username: 'guest.vikram.singh', verificationMethod: 'room_number', verifiedIdentity: 'Room 312', verificationStatus: 'verified', ipAddress: '192.168.10.120', macAddress: 'AA:BB:CC:AA:BB:CC', countryCode: 'IN', verifiedAt: day(0), createdAt: day(0) },
+      { id: uuid('wifiidentity-5'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, sessionId: 'rad-sess-005', username: 'guest.rina.chatterjee', verificationMethod: 'otp_sms', verifiedIdentity: '+91-XXXX-XXXX-34', verificationStatus: 'verified', ipAddress: '192.168.10.125', macAddress: 'AA:BB:CC:DD:EE:FF', countryCode: 'IN', verifiedAt: day(-3), createdAt: day(-3) },
+      { id: uuid('wifiidentity-6'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, sessionId: null, username: 'guest.dev.sharma', verificationMethod: 'government_id', verifiedIdentity: 'DL-XXXX9012', verificationStatus: 'failed', failureReason: 'ID expired', ipAddress: '192.168.10.130', macAddress: '11:22:33:44:55:66', countryCode: 'IN', idType: 'driving_license', createdAt: day(-3) },
+      { id: uuid('wifiidentity-7'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, sessionId: null, username: 'unknown_user_1', verificationMethod: 'room_number', verifiedIdentity: 'Room 9999', verificationStatus: 'failed', failureReason: 'Room not found', ipAddress: '192.168.10.140', macAddress: '22:33:44:55:66:77', countryCode: null, createdAt: hour(-6) },
+      { id: uuid('wifiidentity-8'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, sessionId: null, username: 'guest.jane.doe', verificationMethod: 'otp_sms', verifiedIdentity: '+1-XXX-XXX-4567', verificationStatus: 'failed', failureReason: 'Invalid OTP', ipAddress: '192.168.10.142', macAddress: '33:44:55:66:77:88', countryCode: 'US', createdAt: day(-1) },
+      { id: uuid('wifiidentity-9'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, sessionId: null, username: 'guest.james.smith', verificationMethod: 'government_id', verifiedIdentity: 'GB-XXXX7890', verificationStatus: 'verified', ipAddress: '192.168.10.143', macAddress: '44:55:66:77:88:99', countryCode: 'GB', idType: 'passport', verifiedAt: day(-5), createdAt: day(-5) },
+      { id: uuid('wifiidentity-10'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, sessionId: null, username: 'guest.ahmed.ali', verificationMethod: 'selfie_verify', verifiedIdentity: 'selfie-match-ok', verificationStatus: 'verified', ipAddress: '192.168.10.144', macAddress: '55:66:77:88:99:AA', countryCode: 'AE', idType: 'national_id', verifiedAt: day(-4), createdAt: day(-4) },
+      { id: uuid('wifiidentity-11'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, sessionId: null, username: 'guest.hans.mueller', verificationMethod: 'government_id', verifiedIdentity: 'DE-XXXX3456', verificationStatus: 'verified', ipAddress: '192.168.10.146', macAddress: '66:77:88:99:AA:BB', countryCode: 'DE', idType: 'national_id', verifiedAt: day(-6), createdAt: day(-6) },
+      { id: uuid('wifiidentity-12'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, sessionId: null, username: 'guest.priya.nair', verificationMethod: 'aadhaar', verifiedIdentity: 'XXXX-XXXX-1234', verificationStatus: 'verified', ipAddress: '192.168.10.147', macAddress: '77:88:99:AA:BB:CC', countryCode: 'IN', idType: 'aadhaar', verifiedAt: day(-8), createdAt: day(-8) },
+      { id: uuid('wifiidentity-13'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, sessionId: null, username: 'guest.robert.chen', verificationMethod: 'otp_sms', verifiedIdentity: '+1-XXX-XXX-8901', verificationStatus: 'pending', ipAddress: '192.168.10.148', macAddress: '88:99:AA:BB:CC:DD', countryCode: 'US', createdAt: min(-10) },
+      { id: uuid('wifiidentity-14'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, sessionId: null, username: 'staff.priya.das', verificationMethod: 'none', verifiedIdentity: null, verificationStatus: 'skipped', ipAddress: '192.168.10.150', macAddress: 'AA:BB:CC:55:66:77', countryCode: null, createdAt: day(-10) },
+      { id: uuid('wifiidentity-15'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, sessionId: null, username: 'guest.ravi.kumar', verificationMethod: 'room_number', verifiedIdentity: 'Room 205', verificationStatus: 'verified', ipAddress: '192.168.10.149', macAddress: '99:AA:BB:CC:DD:EE', countryCode: 'IN', verifiedAt: day(-9), createdAt: day(-9) },
+    ],
+  });
+  console.log('✓ 15 WiFi Identity Logs seeded');
+
+  // ═══════════════════════════════════════════════════════════════
+  // 52. WiFi BANDWIDTH UPGRADES (8) — Guest upsell transactions
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding WiFi Bandwidth Upgrades (8)...');
+  await prisma.wiFiBandwidthUpgrade.createMany({
+    data: [
+      { id: uuid('wifiupgrade-1'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-1'), bookingId: uuid('booking-1'), sessionId: 'rad-sess-001', username: 'guest.amit.mukherjee', fromPlanId: PLAN_IDS.standard, toPlanId: PLAN_IDS.premium, amount: 299, currency: 'INR', paymentStatus: 'completed', coaStatus: 'applied', activatedAt: day(-2), expiresAt: day(1), createdAt: day(-2) },
+      { id: uuid('wifiupgrade-2'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-2'), bookingId: uuid('booking-3'), sessionId: 'rad-sess-002', username: 'guest.sneha.gupta', fromPlanId: PLAN_IDS.free, toPlanId: PLAN_IDS.standard, amount: 199, currency: 'INR', paymentStatus: 'completed', coaStatus: 'applied', activatedAt: day(0), expiresAt: day(4), createdAt: day(0) },
+      { id: uuid('wifiupgrade-3'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-3'), bookingId: uuid('booking-2'), sessionId: 'rad-sess-003', username: 'guest.rahul.banerjee', fromPlanId: PLAN_IDS.premium, toPlanId: PLAN_IDS.vip, amount: 399, currency: 'INR', paymentStatus: 'completed', coaStatus: 'applied', activatedAt: day(-1), expiresAt: day(3), createdAt: day(-1) },
+      { id: uuid('wifiupgrade-4'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-5'), bookingId: uuid('booking-4'), sessionId: 'rad-sess-004', username: 'guest.vikram.singh', fromPlanId: PLAN_IDS.standard, toPlanId: PLAN_IDS.vip, amount: 399, currency: 'INR', paymentStatus: 'completed', coaStatus: 'applied', activatedAt: day(0), expiresAt: day(2), createdAt: day(0) },
+      { id: uuid('wifiupgrade-5'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-6'), bookingId: uuid('booking-6'), sessionId: 'rad-sess-005', username: 'guest.rina.chatterjee', fromPlanId: PLAN_IDS.free, toPlanId: PLAN_IDS.basic, amount: 99, currency: 'INR', paymentStatus: 'completed', coaStatus: 'applied', activatedAt: day(-3), expiresAt: day(0), createdAt: day(-3) },
+      { id: uuid('wifiupgrade-6'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-1'), bookingId: uuid('booking-1'), sessionId: null, username: 'guest.amit.mukherjee', fromPlanId: PLAN_IDS.premium, toPlanId: PLAN_IDS.vip, amount: 399, currency: 'INR', paymentStatus: 'pending', coaStatus: null, activatedAt: null, expiresAt: null, createdAt: hour(-1) },
+      { id: uuid('wifiupgrade-7'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-2'), bookingId: uuid('booking-3'), sessionId: null, username: 'guest.sneha.gupta', fromPlanId: PLAN_IDS.standard, toPlanId: PLAN_IDS.premium, amount: 299, currency: 'INR', paymentStatus: 'refunded', coaStatus: null, activatedAt: null, expiresAt: null, createdAt: day(-5) },
+      { id: uuid('wifiupgrade-8'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-3'), bookingId: uuid('booking-2'), sessionId: null, username: 'guest.rahul.banerjee', fromPlanId: PLAN_IDS.vip, toPlanId: PLAN_IDS.conference, amount: 199, currency: 'INR', paymentStatus: 'failed', coaStatus: null, activatedAt: null, expiresAt: null, createdAt: day(-4) },
+    ],
+  });
+  console.log('✓ 8 WiFi Bandwidth Upgrades seeded');
+
+  // ═══════════════════════════════════════════════════════════════
+  // 53. WiFi SATISFACTION SURVEYS (15) — In-portal guest feedback
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding WiFi Satisfaction Surveys (15)...');
+  await prisma.wiFiSatisfactionSurvey.createMany({
+    data: [
+      { id: uuid('wisurvey-1'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-1'), sessionId: 'rad-sess-001', rating: 5, comment: 'Great speed! No issues at all.', categories: '{"speed":5,"coverage":5,"easeOfConnect":5}', deviceType: 'phone', roomNumber: '501', apName: 'AP-Lobby-01', ipAddress: '192.168.10.105', createdAt: day(-2) },
+      { id: uuid('wisurvey-2'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-1'), sessionId: null, rating: 4, comment: 'Good connection overall.', categories: '{"speed":4,"coverage":4,"easeOfConnect":5}', deviceType: 'laptop', roomNumber: '501', apName: 'AP-5F-01', ipAddress: '192.168.10.106', createdAt: day(-1) },
+      { id: uuid('wisurvey-3'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-2'), sessionId: 'rad-sess-002', rating: 3, comment: 'Slow in evening during peak hours.', categories: '{"speed":2,"coverage":4,"easeOfConnect":4}', deviceType: 'phone', roomNumber: '205', apName: 'AP-2F-01', ipAddress: '192.168.10.115', createdAt: day(0) },
+      { id: uuid('wisurvey-4'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-3'), sessionId: 'rad-sess-003', rating: 5, comment: 'Excellent for video calls.', categories: '{"speed":5,"coverage":5,"easeOfConnect":5}', deviceType: 'laptop', roomNumber: '312', apName: 'AP-3F-02', ipAddress: '192.168.10.110', createdAt: day(-1) },
+      { id: uuid('wisurvey-5'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-3'), sessionId: null, rating: 4, comment: 'Good coverage everywhere.', categories: '{"speed":4,"coverage":5,"easeOfConnect":4}', deviceType: 'tablet', roomNumber: '312', apName: 'AP-Pool-01', ipAddress: '192.168.10.111', createdAt: day(-1) },
+      { id: uuid('wisurvey-6'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-5'), sessionId: 'rad-sess-004', rating: 4, comment: null, categories: '{"speed":4,"coverage":4,"easeOfConnect":5}', deviceType: 'laptop', roomNumber: '312', apName: 'AP-3F-02', ipAddress: '192.168.10.120', createdAt: day(0) },
+      { id: uuid('wisurvey-7'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-6'), sessionId: 'rad-sess-005', rating: 2, comment: 'Connection keeps dropping.', categories: '{"speed":2,"coverage":1,"easeOfConnect":3}', deviceType: 'tablet', roomNumber: '101', apName: 'AP-1F-02', ipAddress: '192.168.10.125', createdAt: day(-3) },
+      { id: uuid('wisurvey-8'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: uuid('guest-6'), sessionId: null, rating: 3, comment: 'OK but could be faster.', categories: '{"speed":3,"coverage":3,"easeOfConnect":4}', deviceType: 'tv', roomNumber: '101', apName: 'AP-1F-02', ipAddress: '192.168.10.126', createdAt: day(-2) },
+      { id: uuid('wisurvey-9'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: null, sessionId: null, rating: 4, comment: 'Decent WiFi for the price.', categories: '{"speed":4,"coverage":4,"easeOfConnect":4}', deviceType: 'laptop', roomNumber: '401', apName: 'AP-4F-01', ipAddress: '192.168.10.130', createdAt: day(-5) },
+      { id: uuid('wisurvey-10'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: null, sessionId: null, rating: 1, comment: 'Terrible, could not connect at all.', categories: '{"speed":1,"coverage":1,"easeOfConnect":1}', deviceType: 'phone', roomNumber: '205', apName: 'AP-2F-02', ipAddress: '192.168.10.142', createdAt: day(-4) },
+      { id: uuid('wisurvey-11'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: null, sessionId: null, rating: 5, comment: 'Best hotel WiFi I have used!', categories: '{"speed":5,"coverage":5,"easeOfConnect":5}', deviceType: 'laptop', roomNumber: '501', apName: 'AP-Lobby-01', ipAddress: '192.168.10.143', createdAt: day(-6) },
+      { id: uuid('wisurvey-12'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: null, sessionId: null, rating: 3, comment: 'Average experience, nothing special.', categories: '{"speed":3,"coverage":3,"easeOfConnect":4}', deviceType: 'phone', roomNumber: '312', apName: 'AP-3F-01', ipAddress: '192.168.10.144', createdAt: day(-7) },
+      { id: uuid('wisurvey-13'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: null, sessionId: null, rating: 4, comment: 'Worked well for my conference call.', categories: '{"speed":4,"coverage":4,"easeOfConnect":5}', deviceType: 'laptop', roomNumber: '401', apName: 'AP-4F-02', ipAddress: '192.168.10.145', createdAt: day(-8) },
+      { id: uuid('wisurvey-14'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: null, sessionId: null, rating: 2, comment: 'Slow streaming, buffered constantly.', categories: '{"speed":1,"coverage":3,"easeOfConnect":3}', deviceType: 'tablet', roomNumber: '101', apName: 'AP-1F-01', ipAddress: '192.168.10.146', createdAt: day(-9) },
+      { id: uuid('wisurvey-15'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, guestId: null, sessionId: null, rating: 4, comment: 'Good speed near the pool area.', categories: '{"speed":5,"coverage":4,"easeOfConnect":4}', deviceType: 'phone', roomNumber: '205', apName: 'AP-Pool-01', ipAddress: '192.168.10.147', createdAt: day(-10) },
+    ],
+  });
+  console.log('✓ 15 WiFi Satisfaction Surveys seeded');
+
+  // ═══════════════════════════════════════════════════════════════
+  // 54. WiFi PRE-ARRIVAL CONFIG (1) — Pre-arrival WiFi credential settings
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding WiFi Pre-Arrival Config (1)...');
+  await prisma.wiFiPreArrivalConfig.createMany({
+    data: [
+      { id: uuid('prearr-1'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, enabled: true, hoursBeforeArrival: 24, sendEmail: true, sendSms: true, includeQrCode: true, autoGenerateCreds: true, planId: PLAN_IDS.free },
+    ],
+  });
+  console.log('✓ 1 WiFi Pre-Arrival Config seeded');
+
+  // ═══════════════════════════════════════════════════════════════
+  // 55. WiFi SLA CONFIG (1) — SLA targets and monitoring settings
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding WiFi SLA Config (1)...');
+  await prisma.wiFiSLAConfig.createMany({
+    data: [
+      { id: uuid('slaconfig-1'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, uptimeTarget: 99.9, speedTargetDown: 50, speedTargetUp: 10, latencyTarget: 20, measurementInterval: 5, alertOnBreach: true, breachDuration: 15 },
+    ],
+  });
+  console.log('✓ 1 WiFi SLA Config seeded');
+
+  // ═══════════════════════════════════════════════════════════════
+  // 56. WiFi SLA METRICS (14) — Daily SLA measurements for 14 days
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding WiFi SLA Metrics (14)...');
+  await prisma.wiFiSLAMetric.createMany({
+    data: [
+      { id: uuid('wifisla-1'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, slaConfigId: uuid('slaconfig-1'), periodStart: day(-14), periodEnd: day(-13), actualUptime: 99.8, avgSpeedDown: 42, avgSpeedUp: 8, avgLatency: 25, totalSessions: 32, totalBandwidth: 85, breached: true, breachTypes: '["uptime"]', createdAt: day(-13) },
+      { id: uuid('wifisla-2'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, slaConfigId: uuid('slaconfig-1'), periodStart: day(-13), periodEnd: day(-12), actualUptime: 100.0, avgSpeedDown: 48, avgSpeedUp: 10, avgLatency: 15, totalSessions: 28, totalBandwidth: 78, breached: false, breachTypes: '[]', createdAt: day(-12) },
+      { id: uuid('wifisla-3'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, slaConfigId: uuid('slaconfig-1'), periodStart: day(-12), periodEnd: day(-11), actualUptime: 99.9, avgSpeedDown: 52, avgSpeedUp: 11, avgLatency: 12, totalSessions: 35, totalBandwidth: 95, breached: false, breachTypes: '[]', createdAt: day(-11) },
+      { id: uuid('wifisla-4'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, slaConfigId: uuid('slaconfig-1'), periodStart: day(-11), periodEnd: day(-10), actualUptime: 99.7, avgSpeedDown: 38, avgSpeedUp: 9, avgLatency: 32, totalSessions: 42, totalBandwidth: 120, breached: true, breachTypes: '["uptime","speed"]', createdAt: day(-10) },
+      { id: uuid('wifisla-5'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, slaConfigId: uuid('slaconfig-1'), periodStart: day(-10), periodEnd: day(-9), actualUptime: 100.0, avgSpeedDown: 55, avgSpeedUp: 13, avgLatency: 10, totalSessions: 30, totalBandwidth: 88, breached: false, breachTypes: '[]', createdAt: day(-9) },
+      { id: uuid('wifisla-6'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, slaConfigId: uuid('slaconfig-1'), periodStart: day(-9), periodEnd: day(-8), actualUptime: 99.9, avgSpeedDown: 50, avgSpeedUp: 10, avgLatency: 14, totalSessions: 25, totalBandwidth: 72, breached: false, breachTypes: '[]', createdAt: day(-8) },
+      { id: uuid('wifisla-7'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, slaConfigId: uuid('slaconfig-1'), periodStart: day(-8), periodEnd: day(-7), actualUptime: 100.0, avgSpeedDown: 47, avgSpeedUp: 11, avgLatency: 16, totalSessions: 38, totalBandwidth: 105, breached: false, breachTypes: '[]', createdAt: day(-7) },
+      { id: uuid('wifisla-8'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, slaConfigId: uuid('slaconfig-1'), periodStart: day(-7), periodEnd: day(-6), actualUptime: 99.9, avgSpeedDown: 51, avgSpeedUp: 12, avgLatency: 13, totalSessions: 40, totalBandwidth: 110, breached: false, breachTypes: '[]', createdAt: day(-6) },
+      { id: uuid('wifisla-9'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, slaConfigId: uuid('slaconfig-1'), periodStart: day(-6), periodEnd: day(-5), actualUptime: 99.5, avgSpeedDown: 35, avgSpeedUp: 8, avgLatency: 35, totalSessions: 55, totalBandwidth: 160, breached: true, breachTypes: '["uptime","speed","latency"]', createdAt: day(-5) },
+      { id: uuid('wifisla-10'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, slaConfigId: uuid('slaconfig-1'), periodStart: day(-5), periodEnd: day(-4), actualUptime: 100.0, avgSpeedDown: 49, avgSpeedUp: 11, avgLatency: 18, totalSessions: 33, totalBandwidth: 92, breached: false, breachTypes: '[]', createdAt: day(-4) },
+      { id: uuid('wifisla-11'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, slaConfigId: uuid('slaconfig-1'), periodStart: day(-4), periodEnd: day(-3), actualUptime: 99.9, avgSpeedDown: 53, avgSpeedUp: 14, avgLatency: 11, totalSessions: 27, totalBandwidth: 76, breached: false, breachTypes: '[]', createdAt: day(-3) },
+      { id: uuid('wifisla-12'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, slaConfigId: uuid('slaconfig-1'), periodStart: day(-3), periodEnd: day(-2), actualUptime: 100.0, avgSpeedDown: 50, avgSpeedUp: 12, avgLatency: 15, totalSessions: 45, totalBandwidth: 130, breached: false, breachTypes: '[]', createdAt: day(-2) },
+      { id: uuid('wifisla-13'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, slaConfigId: uuid('slaconfig-1'), periodStart: day(-2), periodEnd: day(-1), actualUptime: 99.9, avgSpeedDown: 48, avgSpeedUp: 10, avgLatency: 17, totalSessions: 36, totalBandwidth: 98, breached: false, breachTypes: '[]', createdAt: day(-1) },
+      { id: uuid('wifisla-14'), tenantId: TENANT_ID, propertyId: PROPERTY_ID, slaConfigId: uuid('slaconfig-1'), periodStart: day(-1), periodEnd: day(0), actualUptime: 99.6, avgSpeedDown: 41, avgSpeedUp: 9, avgLatency: 28, totalSessions: 50, totalBandwidth: 145, breached: true, breachTypes: '["uptime"]', createdAt: day(0) },
+    ],
+  });
+  console.log('✓ 14 WiFi SLA Metrics seeded');
+
+  console.log('\n📡 WiFi module seed data completed! All 56 categories seeded.');
 }

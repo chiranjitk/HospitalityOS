@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getWifiSettings, setWifiSettings, type IdentityVerificationSettings } from '@/lib/wifi-settings';
 
-const TENANT_ID = 'tenant_01';
+const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
 
 export async function GET() {
   try {

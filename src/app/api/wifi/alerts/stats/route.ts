@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
 // ─── Hardcoded tenant for development ──────────────────────────────────────────
-const TENANT_ID = 'tenant_01';
+const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
 
 // ─── GET /api/wifi/alerts/stats ───────────────────────────────────────────────
 // Return alert statistics: counts by severity, by type, trend, active count, avg resolution time
