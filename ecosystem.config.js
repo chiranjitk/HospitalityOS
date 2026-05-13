@@ -211,22 +211,6 @@ module.exports = {
         PORT: 3025,
       },
     },
-    {
-      name: 'radius-server',
-      script: 'index.ts',
-      interpreter: BUN_PATH,
-      cwd: `${APP_DIR}/mini-services/radius-server`,
-      error_file: `${LOG_DIR}/radius-server-error.log`,
-      out_file: `${LOG_DIR}/radius-server-out.log`,
-      max_restarts: 10,
-      restart_delay: 3000,
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3012,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-      },
-    },
-
     // =========================================================================
     // IPDR Network Logging Pipeline (WiFi gateway analytics + TRAI compliance)
     // =========================================================================
