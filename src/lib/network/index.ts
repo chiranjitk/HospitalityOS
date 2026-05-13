@@ -1,19 +1,14 @@
 /**
- * Network Shell Script Library — Barrel Export
+ * Network Library — Barrel Export
  *
- * This module re-exports all network shell script wrappers.
- * All OS-level network operations should go through these typed wrappers.
+ * Re-exports all active network operation wrappers.
+ * OS-level network ops use either nmcli (primary) or shell scripts (multiwan, routes, aliases).
  *
  * Architecture:
- *   GUI → API Route → This Library → Shell Scripts → OS
- *                                   ↘ If success → Update DB
- *
- * Usage:
- *   import { createVlan, deleteVlan } from '@/lib/network';
- *   import { createBridge, listBridges } from '@/lib/network';
+ *   GUI → API Route → This Library → nmcli / Shell Scripts → OS
  */
 
-// Executor (core utility)
+// Executor (core utility for shell script wrappers)
 export {
   executeScript,
   sanitizeInput,
@@ -31,47 +26,7 @@ export {
   type ExecutorOptions,
 } from './executor';
 
-// VLAN operations
-export {
-  createVlan,
-  deleteVlan,
-  listVlans,
-  vlanExists,
-  type VlanCreateParams,
-  type VlanInfo,
-  type VlanListResult,
-  type VlanCreateResult,
-  type VlanDeleteResult,
-} from './vlan';
-
-// Bridge operations
-export {
-  createBridge,
-  deleteBridge,
-  addBridgeMember,
-  removeBridgeMember,
-  listBridges,
-  type BridgeCreateParams,
-  type BridgeInfo,
-  type BridgeListResult,
-  type BridgeCreateResult,
-  type BridgeDeleteResult,
-  type BridgeMemberResult,
-} from './bridge';
-
-// Bond operations
-export {
-  createBond,
-  deleteBond,
-  listBonds,
-  type BondCreateParams,
-  type BondInfo,
-  type BondListResult,
-  type BondCreateResult,
-  type BondDeleteResult,
-} from './bond';
-
-// IP Alias operations
+// IP Alias operations (used by wifi/network/aliases API)
 export {
   addAlias,
   removeAlias,
@@ -82,20 +37,7 @@ export {
   type AliasResult,
 } from './alias';
 
-// IP Configuration operations
-export {
-  setStaticIP,
-  setDHCP,
-  flushIPs,
-  setMTU,
-  interfaceUp,
-  interfaceDown,
-  type StaticIPParams,
-  type IPConfigResult,
-  type InterfaceStateResult,
-} from './ip-config';
-
-// Static Route operations
+// Static Route operations (used by wifi/network/routes API)
 export {
   addRoute,
   deleteRoute,
@@ -107,17 +49,7 @@ export {
   type RouteResult,
 } from './route';
 
-// Interface introspection
-export {
-  listInterfaces,
-  getInterfaceInfo,
-  getInterfaceStats,
-  type InterfaceStats,
-  type InterfaceInfo,
-  type InterfaceListResult,
-} from './interface';
-
-// Persistence to /etc/network/interfaces
+// Persistence to /etc/network/interfaces (used by wifi network APIs)
 export {
   persistBridge,
   removePersistedBridge,
@@ -136,7 +68,7 @@ export {
   type PersistResult,
 } from './persist';
 
-// Multi-WAN / DGD operations
+// Multi-WAN / DGD operations (used by network/os/multiwan API)
 export {
   applyDgdConfig,
   startDgd,
@@ -154,13 +86,3 @@ export {
   type MultiWanApplyResult,
   type MultiWanResetResult,
 } from './multiwan';
-
-// Interface Role operations
-export {
-  setRole,
-  removeRole,
-  listRoles,
-  type RoleInfo,
-  type RoleListResult,
-  type RoleResult,
-} from './role';
