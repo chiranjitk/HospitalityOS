@@ -22,8 +22,6 @@ pkill -f "bun.*dhcp-service/index" 2>/dev/null
 pkill -f "bun.*dns-service/index" 2>/dev/null
 pkill -f "bun.*conntrack-bridge/index" 2>/dev/null
 pkill -f "bun.*sni-parser/index" 2>/dev/null
-# dns-parser no longer started by default (unreliable for IPDR)
-pkill -f "bun.*dns-parser/index" 2>/dev/null
 pkill -f "bun.*live-speed-service/index" 2>/dev/null
 sleep 1
 
@@ -62,14 +60,6 @@ SNI_LOG_FILE="${SNI_LOG_FILE:-/var/log/ulogd2/sni.json}" \
 nohup bun index.ts >> /tmp/sni-parser.log 2>&1 &
 SNI_PARSER_PID=$!
 echo "sni-parser Service started (PID: $SNI_PARSER_PID, Port: 3022)"
-
-# ── dns-parser: DISABLED by default ─────────────────────────────
-# If you still want dnsmasq DNS logs for debugging/analytics (NOT for IPDR):
-# cd "$PROJECT_ROOT/mini-services/dns-parser"
-# CLICKHOUSE_URL="${CLICKHOUSE_URL:-http://127.0.0.1:8123}" \
-# DNS_LOG_FILE="${DNS_LOG_FILE:-/var/log/dns-queries.log}" \
-# nohup bun index.ts >> /tmp/dns-parser.log 2>&1 &
-# echo "dns-parser Service started (Port: 3021) — DEBUG ONLY, not for IPDR"
 
 # Start live-speed-service (port 3018)
 # Polls nftables counters + MikroTik REST API every 3s for real-time per-IP speed
@@ -132,4 +122,3 @@ echo ""
 echo "IPDR Data Sources:"
 echo "  ✓ conntrack-bridge (3020) → ipdr.nat_log (bytes/packets, 13-month retention)"
 echo "  ✓ sni-parser (3022) → ipdr.sni_log (TLS SNI domains, 13-month retention)"
-echo "  ✗ dns-parser (3021) → DISABLED (dnsmasq logs are unreliable for IPDR)"
