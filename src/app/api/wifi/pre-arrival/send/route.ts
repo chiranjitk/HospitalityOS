@@ -83,12 +83,16 @@ export async function POST(request: NextRequest) {
           propertyId,
         },
       },
-      include: {
-        plan: {
-          select: { id: true, name: true, validityMinutes: true },
-        },
-      },
     });
+
+    // Manual enrichment for plan (planId has no Prisma relation)
+    let plan: { id: string; name: string; validityMinutes: number } | null = null;
+    if (config?.planId) {
+      plan = await db.wiFiPlan.findUnique({
+        where: { id: config.planId },
+        select: { id: true, name: true, validityMinutes: true },
+      }) as any;
+    }
 
     if (!config) {
       return NextResponse.json(
@@ -133,7 +137,7 @@ export async function POST(request: NextRequest) {
         validUntil.setDate(validUntil.getDate() + 1);
       }
 
-      const planValidityMinutes = config.plan?.validityMinutes;
+      const planValidityMinutes = plan?.validityMinutes;
       if (planValidityMinutes) {
         validUntil.setTime(validFrom.getTime() + planValidityMinutes * 60 * 1000);
       }
@@ -165,7 +169,7 @@ export async function POST(request: NextRequest) {
       ssid: `${booking.property.name.replace(/[^a-zA-Z0-9]/g, '')}_Guest`,
       check_in: new Date(booking.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       check_out: new Date(booking.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      plan_name: config.plan?.name || 'Standard',
+      plan_name: plan?.name || 'Standard',
       confirmation_code: booking.confirmationCode,
     };
 

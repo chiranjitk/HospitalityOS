@@ -49,9 +49,32 @@ export async function GET(request: NextRequest) {
       db.wiFiBandwidthUpgrade.count({ where }),
     ]);
 
+    // Manual enrichment for guest, fromPlan, toPlan (no Prisma relations on model)
+    const enrichedUpgrades = await Promise.all(
+      upgrades.map(async (upgrade) => {
+        const [guest, fromPlan, toPlan] = await Promise.all([
+          upgrade.guestId
+            ? db.guest.findUnique({
+                where: { id: upgrade.guestId },
+                select: { id: true, firstName: true, lastName: true, email: true },
+              })
+            : Promise.resolve(null),
+          db.wiFiPlan.findUnique({
+            where: { id: upgrade.fromPlanId },
+            select: { id: true, name: true },
+          }),
+          db.wiFiPlan.findUnique({
+            where: { id: upgrade.toPlanId },
+            select: { id: true, name: true },
+          }),
+        ]);
+        return { ...upgrade, guest, fromPlan, toPlan };
+      }),
+    );
+
     return NextResponse.json({
       success: true,
-      data: upgrades,
+      data: enrichedUpgrades,
       pagination: { page, limit, total, pages: Math.ceil(total / limit) },
     });
   } catch (error) {
@@ -92,7 +115,7 @@ export async function POST(request: NextRequest) {
         propertyId: (data.propertyId as string) || null,
         bookingId: (bookingId as string) || null,
         sessionId: (sessionId as string) || null,
-        username: (username as string) || null,
+        username: username || `user_${Date.now()}`,
         fromPlanId: fromPlanId as string,
         toPlanId: toPlanId as string,
         amount: (amount as number) || 0,
@@ -107,7 +130,29 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, data: upgrade, message: 'Bandwidth upgrade completed' }, { status: 201 });
+    // Manual enrichment for guest, fromPlan, toPlan
+    const [guest, fromPlan, toPlan] = await Promise.all([
+      upgrade.guestId
+        ? db.guest.findUnique({
+            where: { id: upgrade.guestId },
+            select: { id: true, firstName: true, lastName: true, email: true },
+          })
+        : Promise.resolve(null),
+      db.wiFiPlan.findUnique({
+        where: { id: upgrade.fromPlanId },
+        select: { id: true, name: true },
+      }),
+      db.wiFiPlan.findUnique({
+        where: { id: upgrade.toPlanId },
+        select: { id: true, name: true },
+      }),
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      data: { ...upgrade, guest, fromPlan, toPlan },
+      message: 'Bandwidth upgrade completed',
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating bandwidth upgrade:', error);
     return NextResponse.json({ success: false, error: 'Failed to create bandwidth upgrade' }, { status: 500 });

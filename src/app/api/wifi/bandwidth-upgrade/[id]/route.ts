@@ -72,14 +72,20 @@ export async function PATCH(
         coaStatus: 'failed',
       },
       include: {
-        guest: { select: { id: true, firstName: true, lastName: true, email: true } },
         property: { select: { id: true, name: true } },
-        fromPlan: { select: { id: true, name: true } },
-        toPlan: { select: { id: true, name: true } },
       },
     });
 
-    return NextResponse.json({ success: true, data: updated });
+    // Manual enrichment for guest, fromPlan, toPlan (no Prisma relations)
+    const [guest, fromPlan, toPlan] = await Promise.all([
+      updated.guestId
+        ? db.guest.findUnique({ where: { id: updated.guestId }, select: { id: true, firstName: true, lastName: true, email: true } })
+        : Promise.resolve(null),
+      db.wiFiPlan.findUnique({ where: { id: updated.fromPlanId }, select: { id: true, name: true } }),
+      db.wiFiPlan.findUnique({ where: { id: updated.toPlanId }, select: { id: true, name: true } }),
+    ]);
+
+    return NextResponse.json({ success: true, data: { ...updated, guest, fromPlan, toPlan } });
   } catch (error) {
     console.error('Error processing refund:', error);
     return NextResponse.json(

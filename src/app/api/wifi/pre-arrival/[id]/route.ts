@@ -17,9 +17,6 @@ export async function GET(
         property: {
           select: { id: true, name: true, logo: true, city: true, country: true },
         },
-        plan: {
-          select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, price: true },
-        },
       },
     });
 
@@ -38,7 +35,16 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ success: true, data: config });
+    // Manual enrichment for plan (planId has no Prisma relation)
+    let plan: { id: string; name: string; downloadSpeed: number; uploadSpeed: number; price: number } | null = null;
+    if (config.planId) {
+      plan = await db.wiFiPlan.findUnique({
+        where: { id: config.planId },
+        select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, price: true },
+      });
+    }
+
+    return NextResponse.json({ success: true, data: { ...config, plan } });
   } catch (error) {
     console.error('[pre-arrival] Error fetching config:', error);
     return NextResponse.json(
@@ -124,13 +130,19 @@ export async function PATCH(
         property: {
           select: { id: true, name: true, logo: true },
         },
-        plan: {
-          select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true },
-        },
       },
     });
 
-    return NextResponse.json({ success: true, data: config });
+    // Manual enrichment for plan (planId has no Prisma relation)
+    let plan: { id: string; name: string; downloadSpeed: number; uploadSpeed: number } | null = null;
+    if (config.planId) {
+      plan = await db.wiFiPlan.findUnique({
+        where: { id: config.planId },
+        select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true },
+      });
+    }
+
+    return NextResponse.json({ success: true, data: { ...config, plan } });
   } catch (error) {
     console.error('[pre-arrival] Error updating config:', error);
     return NextResponse.json(

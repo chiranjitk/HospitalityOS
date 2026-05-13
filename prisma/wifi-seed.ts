@@ -162,6 +162,8 @@ export async function seedWiFiData() {
     await prisma.wiFiPartnerAuth.deleteMany({});
     await prisma.wiFiPartner.deleteMany({});
     await prisma.portalAdCampaign.deleteMany({});
+    await prisma.wiFiSettings.deleteMany({});
+    await prisma.notificationLog.deleteMany({});
     console.log('WiFi module data cleaned.');
   } catch (e: any) {
     console.log('WiFi cleanup note:', e.message);
@@ -3162,5 +3164,187 @@ export async function seedWiFiData() {
   });
   console.log('✓ 14 WiFi SLA Metrics seeded');
 
-  console.log('\n📡 WiFi module seed data completed! All 56 categories seeded.');
+  // ═══════════════════════════════════════════════════════════════
+  // 57. WiFi SETTINGS (6 feature keys)
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding WiFi Settings (6 feature keys)...');
+  await prisma.wiFiSettings.createMany({
+    data: [
+      {
+        id: uuid('wifisetting-device-mgmt'),
+        tenantId: TENANT_ID,
+        propertyId: PROPERTY_ID,
+        key: 'device_management',
+        value: JSON.stringify({
+          maxDevicesPerGuest: 5,
+          defaultAutoAuth: true,
+          autoCleanupDays: 30,
+        }),
+      },
+      {
+        id: uuid('wifisetting-identity'),
+        tenantId: TENANT_ID,
+        propertyId: PROPERTY_ID,
+        key: 'identity_verification',
+        value: JSON.stringify({
+          requiredMethods: ['room_number'],
+          autoVerifyRoomNumber: true,
+          enableSmsOtp: false,
+          enableEmailOtp: false,
+          otpExpirySeconds: 300,
+          otpMaxRetries: 3,
+        }),
+      },
+      {
+        id: uuid('wifisetting-consent'),
+        tenantId: TENANT_ID,
+        propertyId: PROPERTY_ID,
+        key: 'consent_management',
+        value: JSON.stringify({
+          consentTypes: ['wifi_access', 'marketing', 'data_processing'],
+          requireExplicitConsent: true,
+          defaultRetentionDays: 90,
+          version: '1.0',
+        }),
+      },
+      {
+        id: uuid('wifisetting-upsell'),
+        tenantId: TENANT_ID,
+        propertyId: PROPERTY_ID,
+        key: 'bandwidth_upsell',
+        value: JSON.stringify({
+          upsellEnabled: true,
+          chargeToRoom: true,
+          defaultCurrency: 'INR',
+          tiers: [
+            { name: 'Speed Boost', fromPlan: 'free', toPlan: 'standard', price: 99, speedMbps: 10 },
+            { name: 'Premium Upgrade', fromPlan: 'standard', toPlan: 'premium', price: 299, speedMbps: 50 },
+          ],
+        }),
+      },
+      {
+        id: uuid('wifisetting-sla'),
+        tenantId: TENANT_ID,
+        propertyId: PROPERTY_ID,
+        key: 'sla_monitoring',
+        value: JSON.stringify({
+          checkIntervalMinutes: 5,
+          retentionDays: 90,
+          alertOnBreach: true,
+          autoRemediation: false,
+        }),
+      },
+      {
+        id: uuid('wifisetting-health-alerts'),
+        tenantId: TENANT_ID,
+        propertyId: PROPERTY_ID,
+        key: 'health_alerts',
+        value: JSON.stringify({
+          enabledAlertTypes: ['ap_down', 'radius_error', 'bandwidth_exhaustion', 'nas_offline'],
+          severityThreshold: 'warning',
+          autoAcknowledgeInfo: true,
+          escalationMinutes: 30,
+        }),
+      },
+    ],
+  });
+  console.log('✓ 6 WiFi Settings seeded');
+
+  // ═══════════════════════════════════════════════════════════════
+  // 58. NOTIFICATION LOGS — WiFi Pre-Arrival delivery logs (5)
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Seeding Notification Logs (5 Pre-Arrival)...');
+  await prisma.notificationLog.createMany({
+    data: [
+      // Sent email — Amit Mukherjee (guest-1)
+      {
+        id: uuid('notiflog-1'),
+        tenantId: TENANT_ID,
+        templateId: uuid('notif-tpl-prearrival'),
+        recipientType: 'guest',
+        recipientId: uuid('guest-1'),
+        recipientEmail: 'amit.mukherjee@example.com',
+        channel: 'email',
+        subject: '[WiFi Pre-Arrival] Welcome — Your WiFi credentials are ready',
+        body: 'Dear Amit, your WiFi access will be automatically provisioned upon check-in. Room: 301, Plan: Premium (50 Mbps). No action needed.',
+        status: 'sent',
+        sentAt: day(-1),
+        deliveredAt: day(-1),
+        retryCount: 0,
+        createdAt: day(-1),
+      },
+      // Sent SMS — Rahul Banerjee (guest-3)
+      {
+        id: uuid('notiflog-2'),
+        tenantId: TENANT_ID,
+        templateId: uuid('notif-tpl-prearrival'),
+        recipientType: 'guest',
+        recipientId: uuid('guest-3'),
+        recipientPhone: '+919876543210',
+        channel: 'sms',
+        subject: '[WiFi Pre-Arrival] WiFi access will be ready at check-in',
+        body: 'Hello Rahul! Your WiFi at StaySuite Hotel is pre-configured. Plan: VIP Suite (100 Mbps). Enjoy seamless connectivity.',
+        status: 'sent',
+        sentAt: hour(-4),
+        deliveredAt: hour(-4),
+        retryCount: 0,
+        createdAt: hour(-4),
+      },
+      // Sent email — Sneha Gupta (guest-2)
+      {
+        id: uuid('notiflog-3'),
+        tenantId: TENANT_ID,
+        templateId: uuid('notif-tpl-prearrival'),
+        recipientType: 'guest',
+        recipientId: uuid('guest-2'),
+        recipientEmail: 'sneha.gupta@example.com',
+        channel: 'email',
+        subject: '[WiFi Pre-Arrival] Your WiFi credentials for upcoming stay',
+        body: 'Dear Sneha, your WiFi plan (Standard — 25 Mbps) will be active from check-in. Connect instantly with room number authentication.',
+        status: 'sent',
+        sentAt: hour(-6),
+        deliveredAt: hour(-6),
+        retryCount: 0,
+        createdAt: hour(-6),
+      },
+      // Failed email — Vikram Singh (guest-5)
+      {
+        id: uuid('notiflog-4'),
+        tenantId: TENANT_ID,
+        templateId: uuid('notif-tpl-prearrival'),
+        recipientType: 'guest',
+        recipientId: uuid('guest-5'),
+        recipientEmail: 'vikram.singh@example.com',
+        channel: 'email',
+        subject: '[WiFi Pre-Arrival] WiFi setup for your stay',
+        body: 'Dear Vikram, your VIP Suite WiFi will be available upon arrival. Plan: VIP (100 Mbps).',
+        status: 'failed',
+        errorMessage: 'SMTP connection timed out — recipient mail server unreachable after 30s',
+        retryCount: 3,
+        sentAt: null,
+        deliveredAt: null,
+        createdAt: hour(-2),
+      },
+      // Pending SMS — Rina Chatterjee (guest-6)
+      {
+        id: uuid('notiflog-5'),
+        tenantId: TENANT_ID,
+        templateId: uuid('notif-tpl-prearrival'),
+        recipientType: 'guest',
+        recipientId: uuid('guest-6'),
+        recipientPhone: '+919998887776',
+        channel: 'sms',
+        subject: '[WiFi Pre-Arrival] Your WiFi access details',
+        body: 'Hi Rina! Your Basic WiFi plan (10 Mbps) will be ready at check-in. Connect using your room number.',
+        status: 'pending',
+        sentAt: null,
+        deliveredAt: null,
+        retryCount: 0,
+        createdAt: min(-10),
+      },
+    ],
+  });
+  console.log('✓ 5 Notification Logs seeded (Pre-Arrival: 3 sent, 1 failed, 1 pending)');
+
+  console.log('\n📡 WiFi module seed data completed! All 58 categories seeded.');
 }
