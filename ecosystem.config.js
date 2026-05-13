@@ -246,20 +246,5 @@ module.exports = {
         SNI_LOG_FILE: '/var/log/ulogd2/sni.json',
       },
     },
-    {
-      name: 'dns-parser',
-      script: 'index.ts',
-      interpreter: BUN_PATH,
-      cwd: `${APP_DIR}/mini-services/dns-parser`,
-      error_file: `${LOG_DIR}/dns-parser-error.log`,
-      out_file: `${LOG_DIR}/dns-parser-out.log`,
-      max_restarts: 10,
-      restart_delay: 3000,
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3021,
-        CLICKHOUSE_URL: 'http://127.0.0.1:8123',
-      },
-    },
   ],
 };
