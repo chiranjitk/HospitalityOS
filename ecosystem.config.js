@@ -182,6 +182,51 @@ module.exports = {
       },
     },
 
+    {
+      name: 'notification-ws',
+      script: 'index.ts',
+      interpreter: BUN_PATH,
+      cwd: `${APP_DIR}/mini-services/notification-ws`,
+      error_file: `${LOG_DIR}/notification-ws-error.log`,
+      out_file: `${LOG_DIR}/notification-ws-out.log`,
+      max_restarts: 10,
+      restart_delay: 3000,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3003,
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+      },
+    },
+    {
+      name: 'shell-console',
+      script: 'index.ts',
+      interpreter: BUN_PATH,
+      cwd: `${APP_DIR}/mini-services/shell-console`,
+      error_file: `${LOG_DIR}/shell-console-error.log`,
+      out_file: `${LOG_DIR}/shell-console-out.log`,
+      max_restarts: 10,
+      restart_delay: 3000,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3025,
+      },
+    },
+    {
+      name: 'radius-server',
+      script: 'index.ts',
+      interpreter: BUN_PATH,
+      cwd: `${APP_DIR}/mini-services/radius-server`,
+      error_file: `${LOG_DIR}/radius-server-error.log`,
+      out_file: `${LOG_DIR}/radius-server-out.log`,
+      max_restarts: 10,
+      restart_delay: 3000,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3012,
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+      },
+    },
+
     // =========================================================================
     // IPDR Network Logging Pipeline (WiFi gateway analytics + TRAI compliance)
     // =========================================================================
@@ -215,6 +260,21 @@ module.exports = {
         PORT: 3022,
         CLICKHOUSE_URL: 'http://127.0.0.1:8123',
         SNI_LOG_FILE: '/var/log/ulogd2/sni.json',
+      },
+    },
+    {
+      name: 'dns-parser',
+      script: 'index.ts',
+      interpreter: BUN_PATH,
+      cwd: `${APP_DIR}/mini-services/dns-parser`,
+      error_file: `${LOG_DIR}/dns-parser-error.log`,
+      out_file: `${LOG_DIR}/dns-parser-out.log`,
+      max_restarts: 10,
+      restart_delay: 3000,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3021,
+        CLICKHOUSE_URL: 'http://127.0.0.1:8123',
       },
     },
   ],
