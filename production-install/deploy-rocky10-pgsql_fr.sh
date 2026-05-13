@@ -37,6 +37,7 @@
 #   --mikrotik-ip IP      MikroTik NAS IP (default: 192.168.88.1)
 #   --cryptsk-ip IP       Cryptsk gateway IP for multimode (default: 127.0.0.1)
 #   --shared-secret KEY   RADIUS shared secret (default: localkey)
+#   --app-url URL         Public application URL (default: auto-detect from primary IP)
 #   --app-dir DIR         Install directory (default: /opt/staysuite)
 #   --skip-mikrotik       Skip MikroTik NAS client config
 #   --skip-cryptsk        Skip Cryptsk VSA + NAS client config
@@ -137,6 +138,7 @@ CRYPTSK_IP=""
 SHARED_SECRET=""
 DB_PASSWORD=""
 APP_DIR="/opt/staysuite"
+APP_URL=""
 SKIP_MIKROTIK=false
 SKIP_CRYPTSK=false
 AUTO_YES=false
@@ -148,6 +150,7 @@ while [[ $# -gt 0 ]]; do
     --cryptsk-ip)     CRYPTSK_IP="$2"; shift 2 ;;
     --shared-secret)  SHARED_SECRET="$2"; shift 2 ;;
     --app-dir)        APP_DIR="$2"; shift 2 ;;
+    --app-url)        APP_URL="$2"; shift 2 ;;
     --skip-mikrotik)  SKIP_MIKROTIK=true; shift ;;
     --skip-cryptsk)   SKIP_CRYPTSK=true; shift ;;
     --yes|-y)         AUTO_YES=true; shift ;;
@@ -935,23 +938,67 @@ success "Project ready at ${APP_DIR}"
 # ════════════════════════════════════════════════════════════════════════════════
 # STEP 8: Configure .env
 # ════════════════════════════════════════════════════════════════════════════════
-step 8 "Environment" "Creating .env configuration"
+step 8 "Environment" "Creating .env from .env.production template"
 
-APP_SECRET="${APP_SECRET:-$(head -c 32 /dev/urandom | xxd -p | tr -d '\n' | head -c 64)}"
+# ── 8a: Generate secrets ──────────────────────────────────────────────────
+NEXTAUTH_SECRET_VAL="${NEXTAUTH_SECRET_VAL:-$(head -c 32 /dev/urandom | xxd -p | tr -d '\n' | head -c 64)}"
+CRON_SECRET_VAL="${CRON_SECRET_VAL:-$(head -c 24 /dev/urandom | xxd -p | tr -d '\n' | head -c 48)}"
+ENCRYPTION_KEY_VAL="${ENCRYPTION_KEY_VAL:-$(head -c 48 /dev/urandom | base64 | tr -d '\n' | head -c 64)}"
+SERVICE_SECRET_VAL="${SERVICE_SECRET_VAL:-$(head -c 24 /dev/urandom | xxd -p | tr -d '\n' | head -c 48)}"
 
-cat > "${APP_DIR}/.env" <<EOENV
-# StaySuite HospitalityOS — Production Environment
-# Generated: $(date -Iseconds)
+info "Generated NEXTAUTH_SECRET, CRON_SECRET, ENCRYPTION_KEY, SERVICE_AUTH_SECRET"
 
-DATABASE_URL=postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10&pool_timeout=120
-# RADIUS_DB_URL not needed — FreeRADIUS SQL module uses 'staysuite' user directly
+# ── 8b: Auto-detect APP_URL if not provided ───────────────────────────────
+if [[ -z "$APP_URL" ]]; then
+  # Try to get the first non-loopback IPv4 address
+  DETECTED_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+  if [[ -z "$DETECTED_IP" || "$DETECTED_IP" == "127.0.0.1" ]]; then
+    DETECTED_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '/src/ {print $7; exit}')
+  fi
+  if [[ -z "$DETECTED_IP" || "$DETECTED_IP" == "127.0.0.1" ]]; then
+    warn "Could not auto-detect server IP. Using localhost."
+    warn "Use --app-url http://YOUR_IP:3000 to set it manually."
+    DETECTED_IP="localhost"
+  fi
+  APP_URL="http://${DETECTED_IP}:3000"
+fi
+info "Application URL: ${APP_URL}"
+
+# ── 8c: Copy template and substitute placeholders ────────────────────────
+if [[ -f "${APP_DIR}/.env.production" ]]; then
+  cp "${APP_DIR}/.env.production" "${APP_DIR}/.env"
+  info "Copied .env.production template"
+else
+  warn ".env.production not found in repo — creating minimal .env"
+  cat > "${APP_DIR}/.env" <<MINENV
 NODE_ENV=production
 PORT=3000
-NEXTAUTH_SECRET=${APP_SECRET}
-NEXTAUTH_URL=\${NEXTAUTH_URL:-http://localhost}
-EOENV
-chmod 600 "${APP_DIR}/.env"
-success ".env created"
+DATABASE_URL=postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite
+NEXTAUTH_SECRET=${NEXTAUTH_SECRET_VAL}
+NEXTAUTH_URL=${APP_URL}
+APP_URL=${APP_URL}
+NEXT_PUBLIC_APP_URL=${APP_URL}
+CRON_SECRET=${CRON_SECRET_VAL}
+ENCRYPTION_KEY=${ENCRYPTION_KEY_VAL}
+NEXT_PUBLIC_DEMO_MODE=false
+MINENV
+  chmod 600 "${APP_DIR}/.env"
+  success "Minimal .env created (template missing)"
+fi
+
+# ── 8d: Replace all __PLACEHOLDER__ markers with real values ──────────────
+if [[ -f "${APP_DIR}/.env" ]]; then
+  sed -i "s|__DBPASS__|${DB_PASSWORD}|g"           "${APP_DIR}/.env"
+  sed -i "s|__APP_URL__|${APP_URL}|g"             "${APP_DIR}/.env"
+  sed -i "s|__APP_DIR__|${APP_DIR}|g"             "${APP_DIR}/.env"
+  sed -i "s|__NEXTAUTH_SECRET__|${NEXTAUTH_SECRET_VAL}|g" "${APP_DIR}/.env"
+  sed -i "s|__CRON_SECRET__|${CRON_SECRET_VAL}|g" "${APP_DIR}/.env"
+  sed -i "s|__ENCRYPTION_KEY__|${ENCRYPTION_KEY_VAL}|g" "${APP_DIR}/.env"
+  sed -i "s|__SERVICE_SECRET__|${SERVICE_SECRET_VAL}|g"  "${APP_DIR}/.env"
+  sed -i "s|__PG_MAJOR__|${PG_MAJOR}|g"           "${APP_DIR}/.env"
+  chmod 600 "${APP_DIR}/.env"
+  success ".env configured with all secrets and paths"
+fi
 
 # ════════════════════════════════════════════════════════════════════════════════
 # STEP 9: Install Dependencies
