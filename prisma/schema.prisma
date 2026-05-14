@@ -3000,7 +3000,7 @@ model Integration {
   updatedAt  DateTime  @updatedAt @db.Timestamptz
   tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@unique([tenantId, type, provider])
+  @@unique([tenantId, type, provider, name])
   @@index([tenantId])
 }
 

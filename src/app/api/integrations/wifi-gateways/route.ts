@@ -829,13 +829,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // SSRF prevention on create
-    if (isPrivateIp(ipAddress)) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Internal/private IP addresses are not allowed' } },
-        { status: 400 },
-      );
-    }
+    // Note: SSRF IP check is NOT applied on gateway creation because WiFi gateways
+    // (MikroTik, Cisco, etc.) are typically on private/local networks. The SSRF check
+    // is applied on outbound requests (test-connection, sync, push-config) instead.
+    // if (isPrivateIp(ipAddress)) {
+    //   return NextResponse.json(
+    //     { success: false, error: { code: 'VALIDATION_ERROR', message: 'Internal/private IP addresses are not allowed' } },
+    //     { status: 400 },
+    //   );
+    // }
 
     // Encrypt sensitive data
     const encryptedApiKey = apiKey ? encrypt(apiKey) : null;
