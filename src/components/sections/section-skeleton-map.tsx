@@ -126,6 +126,7 @@ export const sectionSkeletonMap: Record<string, SkeletonLayout> = {
   'settings-tax': 'settings',
   'settings-localization': 'settings',
   'settings-features': 'settings',
+  'settings-license': 'settings',
   'settings-license-keys': 'settings',
   'settings-gdpr': 'settings',
   'settings-security': 'settings',

@@ -701,6 +701,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'settings-tax', title: 'Tax & Currency', href: '#settings-tax', icon: DollarSign },
       { id: 'settings-localization', title: 'Localization', href: '#settings-localization', icon: Globe },
       { id: 'settings-features', title: 'Feature Flags', href: '#settings-features', icon: Zap },
+      { id: 'settings-license', title: 'License Management', href: '#settings-license', icon: Shield },
       { id: 'settings-license-keys', title: 'License Keys', href: '#settings-license-keys', icon: Key },
       { id: 'settings-gdpr', title: 'GDPR Compliance', href: '#settings-gdpr', icon: Shield },
       { id: 'settings-security', title: 'Security Settings', href: '#settings-security', icon: Shield },

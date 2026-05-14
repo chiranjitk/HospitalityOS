@@ -10,6 +10,8 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/settings/localization');
     case 'settings-features':
       return import('@/components/settings/feature-flags');
+    case 'settings-license':
+      return import('@/components/settings/license-management');
     case 'settings-license-keys':
       return import('@/components/settings/license-keys');
     case 'settings-security':

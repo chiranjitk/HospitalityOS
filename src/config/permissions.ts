@@ -957,6 +957,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['settings.manage', 'admin.*', '*'],
     description: 'Configure system integrations (SMTP, SMS, S3, etc.)'
   },
+  'settings-license': {
+    permissions: ['settings.manage', 'admin.*', '*'],
+    description: 'View and manage license module entitlements and usage'
+  },
   'settings-license-keys': {
     permissions: ['settings.manage', 'admin.*', '*'],
     description: 'Manage license keys for subscription plans'
