@@ -1,9 +1,78 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+/**
+ * Auto-seed RegistrationPlan from SubscriptionPlan if empty.
+ * This keeps both plan tables in sync without requiring a separate seed step.
+ */
+async function ensureRegistrationPlansSeeded() {
+  const count = await db.registrationPlan.count();
+  if (count > 0) return;
+
+  const subscriptionPlans = await db.subscriptionPlan.findMany({
+    where: { isActive: true },
+    orderBy: { sortOrder: 'asc' },
+  });
+
+  if (subscriptionPlans.length === 0) return;
+
+  for (const sp of subscriptionPlans) {
+    // Parse features from SubscriptionPlan format to RegistrationPlan format
+    let features = '[]';
+    try {
+      const parsed = JSON.parse(sp.features || '[]');
+      // SubscriptionPlan stores [{ name, included }], convert to feature flag IDs
+      features = JSON.stringify(
+        parsed
+          .filter((f: { included?: boolean }) => f.included !== false)
+          .map((f: { name: string }) => f.name.toLowerCase().replace(/\s+/g, '_'))
+      );
+    } catch {
+      features = '[]';
+    }
+
+    await db.registrationPlan.upsert({
+      where: { name: sp.name },
+      create: {
+        name: sp.name,
+        displayName: sp.displayName,
+        description: sp.description || `The ${sp.displayName} plan for StaySuite`,
+        price: sp.monthlyPrice,
+        currency: sp.currency || 'USD',
+        maxProperties: sp.maxProperties,
+        maxRoomsPerProperty: sp.maxRooms,
+        maxUsers: sp.maxUsers,
+        maxStaff: Math.max(1, Math.floor(sp.maxUsers * 0.8)),
+        features,
+        sortOrder: sp.sortOrder,
+        isActive: true,
+        highlighted: sp.isPopular || false,
+        trialDays: sp.name === 'trial' ? 14 : null,
+      },
+      update: {
+        displayName: sp.displayName,
+        description: sp.description,
+        price: sp.monthlyPrice,
+        currency: sp.currency,
+        maxProperties: sp.maxProperties,
+        maxRoomsPerProperty: sp.maxRooms,
+        maxUsers: sp.maxUsers,
+        maxStaff: Math.max(1, Math.floor(sp.maxUsers * 0.8)),
+        features,
+        highlighted: sp.isPopular || false,
+      },
+    });
+  }
+
+  console.log(`[RegistrationPlans] Auto-seeded ${subscriptionPlans.length} plans from SubscriptionPlan`);
+}
+
 // GET /api/registration/plans (PUBLIC)
 export async function GET() {
   try {
+    // Auto-seed from SubscriptionPlan if RegistrationPlan is empty
+    await ensureRegistrationPlansSeeded();
+
     const plans = await db.registrationPlan.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: 'asc' },
