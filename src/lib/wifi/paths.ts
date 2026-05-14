@@ -79,7 +79,9 @@ export const FREERADIUS_HOME = FREERADIUS_PREFIX;
 export const RADDB_PATH = process.env.RADDB_PATH ||
   (FREERADIUS_PREFIX === '/usr/local'
     ? '/usr/local/etc/raddb'
-    : '/etc/raddb');
+    : FREERADIUS_PREFIX === '/home/z/my-project/freeradius-install'
+      ? '/home/z/my-project/freeradius-install/etc/raddb'
+      : '/etc/raddb');
 
 /** FreeRADIUS binary name */
 export const RADIUSD_BIN = process.env.RADIUSD_BIN || 'radiusd';
@@ -92,13 +94,17 @@ export const RADIUSD_EXECUTABLE = process.env.RADIUSD_EXECUTABLE ||
 export const RADIUSD_PID_FILE = process.env.RADIUSD_PID_FILE ||
   (isProduction
     ? '/run/radiusd/radiusd.pid'     // Rocky 10 systemd
-    : `${FREERADIUS_PREFIX}/var/run/radiusd/radiusd.pid`);
+    : FREERADIUS_PREFIX === '/home/z/my-project/freeradius-install'
+      ? '/home/z/my-project/freeradius-install/var/run/radiusd/radiusd.pid'
+      : `${FREERADIUS_PREFIX}/var/run/radiusd/radiusd.pid`);
 
 /** FreeRADIUS log directory */
 export const RADIUSD_LOG_DIR = process.env.RADIUSD_LOG_DIR ||
   (FREERADIUS_PREFIX === '/usr/local'
     ? '/usr/local/var/log/radiusd'
-    : '/var/log/radiusd');
+    : FREERADIUS_PREFIX === '/home/z/my-project/freeradius-install'
+      ? '/home/z/my-project/freeradius-install/var/log/radiusd'
+      : '/var/log/radiusd');
 
 /** FreeRADIUS main config file */
 export const RADIUSD_CONF = `${RADDB_PATH}/radiusd.conf`;
@@ -118,13 +124,17 @@ export const SITES_DIR = `${RADDB_PATH}/sites-enabled`;
 export const RADIUS_DICT_DIR = process.env.RADIUS_DICT_DIR ||
   (FREERADIUS_PREFIX === '/usr/local'
     ? '/usr/local/share/freeradius'
-    : '/usr/share/freeradius');
+    : FREERADIUS_PREFIX === '/home/z/my-project/freeradius-install'
+      ? '/home/z/my-project/freeradius-install/share/freeradius'
+      : '/usr/share/freeradius');
 
 /** FreeRADIUS library directory (for LD_LIBRARY_PATH) */
 export const RADIUS_LIB_DIR = process.env.RADIUS_LIB_DIR ||
   (FREERADIUS_PREFIX === '/usr/local'
     ? '/usr/local/lib/freeradius'
-    : '/usr/lib64/freeradius');
+    : FREERADIUS_PREFIX === '/home/z/my-project/freeradius-install'
+      ? '/home/z/my-project/freeradius-install/lib/freeradius'
+      : '/usr/lib64/freeradius');
 
 // ── PostgreSQL Paths ──────────────────────────────────────────────
 
