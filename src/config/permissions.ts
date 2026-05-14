@@ -997,6 +997,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['integrations.manage', 'integrations.*', '*'],
     description: 'Configure payment gateways'
   },
+  'integrations-sms': {
+    permissions: ['integrations.manage', 'integrations.*', '*'],
+    description: 'Configure SMS gateway integrations'
+  },
   'integrations-wifi': {
     permissions: ['integrations.manage', 'integrations.*', '*'],
     description: 'Configure WiFi gateways'

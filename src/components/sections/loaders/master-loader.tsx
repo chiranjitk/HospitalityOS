@@ -34,6 +34,7 @@ export default async function masterLoader(section: string): Promise<{ default: 
     // Guest: guests, experience, crm, marketing, events (5 imports)
     case 'guests':
     case 'experience':
+    case 'experiences':
     case 'crm':
     case 'marketing':
     case 'events':
