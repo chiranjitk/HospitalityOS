@@ -965,9 +965,14 @@ fi
 info "Application URL: ${APP_URL}"
 
 # ── 8c: Copy template and substitute placeholders ────────────────────────
+# Look for .env.production first, fall back to .env.production.template
+# (from a previous deployment where step 8e renamed it).
 if [[ -f "${APP_DIR}/.env.production" ]]; then
   cp "${APP_DIR}/.env.production" "${APP_DIR}/.env"
   info "Copied .env.production template"
+elif [[ -f "${APP_DIR}/.env.production.template" ]]; then
+  cp "${APP_DIR}/.env.production.template" "${APP_DIR}/.env"
+  info "Copied .env.production.template (from previous deploy)"
 else
   warn ".env.production not found in repo — creating minimal .env"
   cat > "${APP_DIR}/.env" <<MINENV
@@ -1000,6 +1005,21 @@ if [[ -f "${APP_DIR}/.env" ]]; then
   success ".env configured with all secrets and paths"
 fi
 
+# ── 8e: Neutralize .env.production so Next.js doesn't load it ──────────────
+# CRITICAL: Next.js loads env files in this order (first found wins):
+#   .env.production.local > .env.local > .env.production > .env
+# After step 8d, .env has real substituted values BUT .env.production still
+# has __PLACEHOLDER__ markers (e.g. __DBPASS__). Since .env.production has
+# HIGHER priority than .env, Next.js picks up the broken placeholders and
+# ignores the real values in .env → DATABASE_URL becomes invalid → Prisma crash.
+#
+# Fix: Rename .env.production → .env.production.template so Next.js ignores it
+# but the template is preserved for reference / future redeployments.
+if [[ -f "${APP_DIR}/.env.production" ]]; then
+  mv "${APP_DIR}/.env.production" "${APP_DIR}/.env.production.template"
+  success "Renamed .env.production → .env.production.template (prevents Next.js override)"
+fi
+
 # ════════════════════════════════════════════════════════════════════════════════
 # STEP 9: Install Dependencies
 # ════════════════════════════════════════════════════════════════════════════════
@@ -1023,7 +1043,7 @@ success "All dependencies installed"
 step 10 "Prisma" "Pushing schema (~231 PMS tables)"
 
 cd "$APP_DIR"
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10&pool_timeout=120"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10"
 
 # Ensure pg_hba.conf is trust (something may have changed it since Step 4)
 cat > "${PG_DATA}/pg_hba.conf" <<'EOF'
@@ -1100,7 +1120,7 @@ success "All permissions re-granted"
 step 12 "Seed" "Inserting demo data"
 
 cd "$APP_DIR"
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10&pool_timeout=120"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10"
 
 if [[ -f "prisma/seed.ts" ]]; then
   info "Running seed script..."
@@ -1120,7 +1140,7 @@ step 13 "Build" "Building Next.js application (standalone)"
 
 cd "$APP_DIR"
 export NODE_OPTIONS='--max-old-space-size=8192'
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10&pool_timeout=120"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10"
 
 info "Building Next.js (this may take a few minutes)..."
 bun run build 2>&1 | tail -10
@@ -1208,7 +1228,7 @@ cp "${APP_DIR}/ecosystem.config.js" "${APP_DIR}/ecosystem.config.js.bak"
 
 # Replace DATABASE_URL with production credentials
 # The repo file uses: postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite
-PROD_DB_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10&pool_timeout=120"
+PROD_DB_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10"
 TMP_FILE=$(cat "${APP_DIR}/ecosystem.config.js")
 TMP_FILE="${TMP_FILE//postgresql:\/\/staysuite:Staysuite2025@127.0.0.1:5432\/staysuite/${PROD_DB_URL}}"
 echo "$TMP_FILE" > "${APP_DIR}/ecosystem.config.js"
