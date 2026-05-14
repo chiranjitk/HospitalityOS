@@ -12,6 +12,8 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/settings/feature-flags');
     case 'settings-license':
       return import('@/components/settings/license-management');
+    case 'settings-subscription':
+      return import('@/components/settings/my-subscription');
     case 'settings-license-keys':
       return import('@/components/settings/license-keys');
     case 'settings-security':

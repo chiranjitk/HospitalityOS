@@ -118,10 +118,10 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Permission check - only admins can modify feature flags
-    if (user.roleName !== 'admin' && !user.permissions.includes('*')) {
+    // Platform admin only
+    if (!user.isPlatformAdmin) {
       return NextResponse.json(
-        { success: false, error: 'Only administrators can modify feature flags' },
+        { success: false, error: { code: 'FORBIDDEN', message: 'Platform admin access required' } },
         { status: 403 }
       );
     }

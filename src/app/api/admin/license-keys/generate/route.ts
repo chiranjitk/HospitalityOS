@@ -35,6 +35,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Platform admin only
+    if (!session.user.isPlatformAdmin) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Platform admin access required' } },
+        { status: 403 }
+      );
+    }
+
     const { planId, count = 1, note, generatedFor, expiresInDays } = await request.json();
 
     if (!planId) {

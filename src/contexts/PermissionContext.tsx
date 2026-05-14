@@ -78,9 +78,13 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
       if (!user) return false;
       // Platform admin has access to everything
       if (user.isPlatformAdmin) return true;
-      // SaaS menus are exclusive to platform admin
+      // Platform-exclusive menus: only platform admin can access these
       if (menuItemId.startsWith('saas-')) return false;
-      // Admin role or wildcard permission has access to everything
+      if (menuItemId.startsWith('admin-')) return false;
+      if (['settings-features', 'settings-license', 'settings-license-keys'].includes(menuItemId)) return false;
+      // "My Subscription" is tenant-admin only (platform admin uses License Management instead)
+      // Still allow it for all non-platform authenticated users
+      // Admin role or wildcard permission has access to everything else
       if (isAdmin || permissions.includes('*')) return true;
       return hasMenuAccess(permissions, menuItemId);
     },
@@ -89,13 +93,17 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
 
   const getAccessibleMenus = useCallback((): string[] => {
     if (!user) return [];
-    // Platform admin has access to all menus
-    if (user.isPlatformAdmin) return Object.keys(menuPermissions);
-    // SaaS menus are exclusive to platform admin
+    // Platform admin has access to all menus (except "My Subscription" — they use License Management)
+    if (user.isPlatformAdmin) return Object.keys(menuPermissions).filter(id => id !== 'settings-subscription');
+    // SaaS, admin, and platform-only license menus are exclusive to platform admin
+    const platformOnlyIds = ['settings-features', 'settings-license', 'settings-license-keys'];
     if (isAdmin || permissions.includes('*')) {
-      return Object.keys(menuPermissions).filter(id => !id.startsWith('saas-'));
+      return Object.keys(menuPermissions).filter(id => 
+        !id.startsWith('saas-') && !id.startsWith('admin-') && !platformOnlyIds.includes(id)
+      );
     }
     return Object.keys(menuPermissions).filter(menuId =>
+      !menuId.startsWith('saas-') && !menuId.startsWith('admin-') && !platformOnlyIds.includes(menuId) &&
       hasMenuAccess(permissions, menuId)
     );
   }, [user, permissions, isAdmin]);

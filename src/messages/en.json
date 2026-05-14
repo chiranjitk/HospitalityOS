@@ -460,6 +460,7 @@
     "settings-features": "Feature Flags",
     "settings-gdpr": "GDPR Compliance",
     "settings-security": "Security Settings",
+    "settings-subscription": "My Subscription",
     "settings-license": "License Management",
     "settings-license-keys": "License Keys",
     "settings-integrations": "System Integrations",

@@ -14,9 +14,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (user.roleName !== 'admin' && !user.isPlatformAdmin) {
+    // Platform admin only
+    if (!user.isPlatformAdmin) {
       return NextResponse.json(
-        { success: false, error: 'Only administrators can refresh usage counters' },
+        { success: false, error: { code: 'FORBIDDEN', message: 'Platform admin access required' } },
         { status: 403 }
       );
     }

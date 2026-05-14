@@ -21,6 +21,14 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Platform admin only
+    if (!session.user.isPlatformAdmin) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Platform admin access required' } },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
 
     // Find the license key

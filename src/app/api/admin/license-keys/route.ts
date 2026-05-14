@@ -18,6 +18,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Platform admin only
+    if (!session.user.isPlatformAdmin) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Platform admin access required' } },
+        { status: 403 }
+      );
+    }
+
     // Parse query params
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || undefined;

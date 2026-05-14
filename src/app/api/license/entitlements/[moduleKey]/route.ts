@@ -63,9 +63,10 @@ export async function PUT(
       );
     }
 
-    if (user.roleName !== 'admin' && !user.isPlatformAdmin) {
+    // Platform admin only
+    if (!user.isPlatformAdmin) {
       return NextResponse.json(
-        { success: false, error: 'Only administrators can update entitlements' },
+        { success: false, error: { code: 'FORBIDDEN', message: 'Platform admin access required' } },
         { status: 403 }
       );
     }
