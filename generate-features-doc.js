@@ -1005,9 +1005,84 @@ async function main() {
 
   // ── SECTION 3: BODY (Arabic page numbers starting at 1) ──
   const bodyChildren = [];
+
+  // ── EXECUTIVE SUMMARY ──
+  bodyChildren.push(
+    new Paragraph({ heading: HeadingLevel.HEADING_1, spacing: { before: 360, after: 200, line: LINE_SPACING }, children: [new TextRun({ text: "Executive Summary", bold: true, size: H1_SIZE, color: PRIMARY_DARK, font: FONT })] })
+  );
+  bodyChildren.push(
+    new Paragraph({ spacing: { before: 80, after: 120, line: LINE_SPACING }, indent: { firstLine: 480 }, children: [new TextRun({ text: "StaySuite HospitalityOS is a comprehensive, cloud-native Property Management System (PMS) designed to serve the full spectrum of hospitality operations. From boutique hotels and serviced apartments to large-scale resorts and hotel chains, StaySuite provides an integrated platform that unifies front desk operations, revenue management, guest experience, food & beverage, and back-office functions into a single, intuitive interface.", size: BODY_SIZE, color: BODY_COLOR, font: FONT })] })
+  );
+  bodyChildren.push(
+    new Paragraph({ spacing: { before: 80, after: 120, line: LINE_SPACING }, indent: { firstLine: 480 }, children: [new TextRun({ text: "The platform is organized into 25 functional modules encompassing 272 individual features, supported by over 450 RESTful API endpoints. Each module is designed to operate both independently and as part of the integrated ecosystem, enabling properties to adopt features incrementally based on their operational needs and licensing tier.", size: BODY_SIZE, color: BODY_COLOR, font: FONT })] })
+  );
+  bodyChildren.push(
+    new Paragraph({ spacing: { before: 80, after: 200, line: LINE_SPACING }, indent: { firstLine: 480 }, children: [new TextRun({ text: "Built on a modern technology stack featuring Next.js 16, React 19, TypeScript 5, and Prisma ORM, StaySuite delivers enterprise-grade performance with the flexibility of a SaaS architecture. The multi-tenant design supports platform operators managing multiple hotel properties from a single dashboard, while role-based access control ensures data isolation and security compliance across organizational boundaries.", size: BODY_SIZE, color: BODY_COLOR, font: FONT })] })
+  );
+
+  // Product stats table
+  const totalFeatures = sections.reduce((s, sec) => s + sec.items.length, 0);
+  const totalApis = sections.reduce((s, sec) => s + sec.items.reduce((si, it) => si + it.apis.length, 0), 0);
+  const statsTable = new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, layout: TableLayoutType.FIXED, rows: [
+    new TableRow({ tableHeader: true, cantSplit: true, children: [makeCell("Metric", { bold: true, bg: T.headerBg, width: 50 }), makeCell("Detail", { bold: true, bg: T.headerBg, width: 50 })] }),
+    new TableRow({ cantSplit: true, children: [makeCell("Product Name", { width: 50 }), makeCell("StaySuite HospitalityOS", { bold: true, width: 50 })] }),
+    new TableRow({ cantSplit: true, children: [makeCell("Version", { bg: T.surface, width: 50 }), makeCell("2.0", { bg: T.surface, width: 50 })] }),
+    new TableRow({ cantSplit: true, children: [makeCell("Total Modules", { width: 50 }), makeCell("25", { width: 50 })] }),
+    new TableRow({ cantSplit: true, children: [makeCell("Total Features / Pages", { bg: T.surface, width: 50 }), makeCell(`${totalFeatures}`, { bg: T.surface, width: 50 })] }),
+    new TableRow({ cantSplit: true, children: [makeCell("Total API Endpoints", { width: 50 }), makeCell(`${totalApis}`, { width: 50 })] }),
+    new TableRow({ cantSplit: true, children: [makeCell("Architecture", { bg: T.surface, width: 50 }), makeCell("Multi-tenant SaaS", { bg: T.surface, width: 50 })] }),
+    new TableRow({ cantSplit: true, children: [makeCell("Deployment", { width: 50 }), makeCell("Cloud / Self-hosted", { width: 50 })] }),
+  ] });
+  bodyChildren.push(statsTable);
+  bodyChildren.push(new Paragraph({ spacing: { before: 100, after: 100 } }));
+  bodyChildren.push(new Paragraph({ spacing: { before: 80, after: 60, line: LINE_SPACING }, children: [new TextRun({ text: "Target Audience", bold: true, size: BODY_SIZE, color: PRIMARY_DARK, font: FONT })] }));
+  bodyChildren.push(...makeBulletList(["Independent Hotels and Boutique Properties", "Resorts and Convention Hotels", "Serviced Apartments and Extended Stay", "Hotel Chains and Multi-Property Groups", "Hostels and Budget Accommodations", "Platform Operators managing multiple properties"], 720));
+
+  // ── MODULE SECTIONS ──
   for (const section of sections) {
     bodyChildren.push(...makeSectionBody(section));
   }
+
+  // ── APPENDIX A: TECHNOLOGY STACK ──
+  bodyChildren.push(
+    new Paragraph({ heading: HeadingLevel.HEADING_1, spacing: { before: 600, after: 200, line: LINE_SPACING }, children: [new TextRun({ text: "Appendix A: Technology Stack", bold: true, size: H1_SIZE, color: PRIMARY_DARK, font: FONT })] })
+  );
+  bodyChildren.push(
+    new Paragraph({ spacing: { before: 80, after: 200, line: LINE_SPACING }, indent: { firstLine: 480 }, children: [new TextRun({ text: "StaySuite is built on a modern, production-proven technology stack optimized for developer productivity, runtime performance, and long-term maintainability.", size: BODY_SIZE, color: BODY_COLOR, font: FONT })] })
+  );
+  bodyChildren.push(new Paragraph({ spacing: { before: 120, after: 60, line: LINE_SPACING }, children: [new TextRun({ text: "Frontend", bold: true, size: BODY_SIZE, color: PRIMARY_DARK, font: FONT })] }));
+  bodyChildren.push(...makeBulletList(["Next.js 16 (App Router) - Full-stack React framework with server components", "React 19 - Component library with hooks and concurrent features", "TypeScript 5 - Type-safe development across the entire codebase", "Tailwind CSS 4 - Utility-first styling with dark mode support", "shadcn/ui (New York style) - Accessible component library built on Radix UI", "Lucide React - Consistent icon system with 1000+ icons", "Recharts - Declarative charting library for data visualization", "Framer Motion - Animation library for page transitions and micro-interactions", "Zustand - Lightweight state management for client-side state", "TanStack Query - Server state management with caching and synchronization"], 720));
+  bodyChildren.push(new Paragraph({ spacing: { before: 120, after: 60, line: LINE_SPACING }, children: [new TextRun({ text: "Backend", bold: true, size: BODY_SIZE, color: PRIMARY_DARK, font: FONT })] }));
+  bodyChildren.push(...makeBulletList(["Next.js API Routes - Serverless API endpoints with middleware support", "Prisma ORM - Type-safe database client with migration management", "SQLite (development) / PostgreSQL (production) - Database engine", "NextAuth.js v4 - Authentication with JWT sessions and provider support", "Bun Runtime - Fast JavaScript runtime for development and production", "Socket.io - Real-time bidirectional communication for live features"], 720));
+  bodyChildren.push(new Paragraph({ spacing: { before: 120, after: 60, line: LINE_SPACING }, children: [new TextRun({ text: "Integrations", bold: true, size: BODY_SIZE, color: PRIMARY_DARK, font: FONT })] }));
+  bodyChildren.push(...makeBulletList(["Razorpay / Stripe - Payment gateway integration for online and POS payments", "Google OAuth - Social authentication for staff and guest portals", "SAML / OIDC / LDAP - Enterprise SSO for corporate clients", "RADIUS - WiFi authentication for hotel guest network access", "Smart Lock Providers - Digital key management for room access", "OTA Channels - Booking.com, Expedia, Airbnb, Agoda, GDS connectivity", "POS Systems - Restaurant point-of-sale integration", "SMS Gateways - Multi-provider SMS notification delivery"], 720));
+
+  // ── APPENDIX B: API ARCHITECTURE ──
+  bodyChildren.push(
+    new Paragraph({ heading: HeadingLevel.HEADING_1, spacing: { before: 600, after: 200, line: LINE_SPACING }, children: [new TextRun({ text: "Appendix B: API Architecture", bold: true, size: H1_SIZE, color: PRIMARY_DARK, font: FONT })] })
+  );
+  bodyChildren.push(
+    new Paragraph({ spacing: { before: 80, after: 200, line: LINE_SPACING }, indent: { firstLine: 480 }, children: [new TextRun({ text: "StaySuite exposes a comprehensive RESTful API with over 450 endpoints organized by functional domain. All APIs follow RESTful conventions with JSON request/response bodies, standard HTTP status codes, and consistent error handling.", size: BODY_SIZE, color: BODY_COLOR, font: FONT })] })
+  );
+  bodyChildren.push(new Paragraph({ spacing: { before: 120, after: 60, line: LINE_SPACING }, children: [new TextRun({ text: "Authentication & Authorization", bold: true, size: BODY_SIZE, color: PRIMARY_DARK, font: FONT })] }));
+  bodyChildren.push(...makeBulletList(["NextAuth.js v4 with JWT-based session management", "Role-based access control: Platform Admin, Tenant Admin, Staff", "Feature-flag-based module access for granular permission management", "API route protection via middleware with session validation", "2FA support with TOTP for enhanced security"], 720));
+  bodyChildren.push(new Paragraph({ spacing: { before: 120, after: 60, line: LINE_SPACING }, children: [new TextRun({ text: "API Structure", bold: true, size: BODY_SIZE, color: PRIMARY_DARK, font: FONT })] }));
+  bodyChildren.push(...makeBulletList(["Domain-organized routes: /api/bookings, /api/rooms, /api/folios, etc.", "Resource-based patterns: GET (list), GET /:id (detail), POST (create), PUT/PATCH (update), DELETE", "Dynamic route parameters for resource identification", "Webhook endpoints for third-party integration (Razorpay, Stripe, OTA)", "Cron job endpoints for scheduled automation tasks", "Public API (v1) with API key authentication for external integrations"], 720));
+  bodyChildren.push(new Paragraph({ spacing: { before: 120, after: 60, line: LINE_SPACING }, children: [new TextRun({ text: "Multi-Tenancy", bold: true, size: BODY_SIZE, color: PRIMARY_DARK, font: FONT })] }));
+  bodyChildren.push(...makeBulletList(["Tenant isolation via database-level filtering", "Platform admin dashboard for cross-tenant management", "Tenant lifecycle management (provision, suspend, terminate)", "Usage-based billing and resource quota enforcement", "Feature flag propagation per tenant"], 720));
+
+  // ── END MATTER ──
+  bodyChildren.push(new Paragraph({ spacing: { before: 600 } }));
+  bodyChildren.push(
+    new Paragraph({ spacing: { before: 200, after: 120, line: LINE_SPACING }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: T.accentLine, space: 12 } }, children: [new TextRun({ text: "End of Document", bold: true, size: 28, color: PRIMARY_DARK, font: FONT })] })
+  );
+  bodyChildren.push(
+    new Paragraph({ spacing: { before: 80, after: 120, line: LINE_SPACING }, children: [new TextRun({ text: "This document provides a comprehensive feature reference for StaySuite HospitalityOS. All features, API endpoints, and module descriptions are based on the production codebase and reflect the current state of the application. For the latest updates, refer to the product documentation portal or contact the product team.", size: 22, italics: true, color: SECONDARY_GRAY, font: FONT })] })
+  );
+  bodyChildren.push(
+    new Paragraph({ spacing: { before: 120, after: 80, line: LINE_SPACING }, children: [new TextRun({ text: "Document generated from source code. Version 2.0.", size: 20, color: MUTED, font: FONT })] })
+  );
+
 
   const doc = new Document({
     styles: {
