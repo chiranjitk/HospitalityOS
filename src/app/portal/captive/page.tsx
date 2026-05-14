@@ -194,26 +194,49 @@ function CaptivePortalContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bodyPayload),
       })
-      const data = await res.json()
-      if (!res.ok) {
-        // Demo mode: still show success
-        console.warn('Auth API returned:', data)
-      }
-    } catch (err) {
-      // Demo mode: still show success
-      console.warn('Auth API unavailable (demo mode):', err)
-    }
 
-    // Simulate connection delay
-    setTimeout(() => {
+      let data: Record<string, unknown> | null = null
+      try {
+        data = await res.json()
+      } catch {
+        // Response is not JSON — treat as server error
+      }
+
+      if (!res.ok) {
+        const errorMessage = (data?.error as string) || (data?.message as string) || 'Authentication failed. Please try again.'
+        setErrorMsg(errorMessage)
+        setAuthState('error')
+        return
+      }
+
+      // Also check for error fields in the response body even on 200 OK
+      // Some APIs return { success: false, error: "..." } with HTTP 200
+      if (data && (data.error || data.success === false)) {
+        const errorMessage = (data.error as string) || 'Authentication failed. Please try again.'
+        setErrorMsg(errorMessage)
+        setAuthState('error')
+        return
+      }
+
+      // Genuine success — show connected state
       setAuthState('success')
-    }, 2000)
+    } catch (err) {
+      console.error('[CaptivePortal] Auth API error:', err)
+      setErrorMsg('Unable to connect to the authentication service. Please check your connection and try again.')
+      setAuthState('error')
+    }
   }, [authTab, voucherCode, roomNumber, lastName, clientMac])
 
+  const handleRetry = useCallback(() => {
+    setErrorMsg('')
+    setAuthState('idle')
+  }, [])
+
   const canConnect =
-    authTab === 'voucher'
+    authState === 'idle' &&
+    (authTab === 'voucher'
       ? voucherCode.trim().length >= 4
-      : roomNumber.trim().length >= 1 && lastName.trim().length >= 1
+      : roomNumber.trim().length >= 1 && lastName.trim().length >= 1)
 
   // ── Success View ────────────────────────────────────
   if (authState === 'success') {
@@ -603,9 +626,9 @@ function CaptivePortalContent() {
                 </div>
               )}
 
-              {/* Error Message */}
+              {/* Error Message with Retry */}
               <AnimatePresence>
-                {errorMsg && (
+                {(authState === 'error' || errorMsg) && (
                   <motion.div
                     initial={{ opacity: 0, y: -8, height: 0 }}
                     animate={{ opacity: 1, y: 0, height: 'auto' }}
@@ -613,6 +636,13 @@ function CaptivePortalContent() {
                     className="mt-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 dark:bg-red-500/5 dark:border-red-500/15"
                   >
                     <p className="text-sm text-red-400 dark:text-red-400">{errorMsg}</p>
+                    <button
+                      type="button"
+                      onClick={handleRetry}
+                      className="mt-2 text-xs font-medium text-red-300 hover:text-red-200 dark:text-red-300 dark:hover:text-red-200 underline underline-offset-2 transition-colors"
+                    >
+                      Try again
+                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>

@@ -11,6 +11,7 @@
 
 import { db } from '@/lib/db';
 import crypto from 'crypto';
+import { discoverJWKS, verifyJwtWithJWKS } from '@/lib/auth/jwks';
 
 // OIDC Configuration types
 export interface OIDCConfig {
@@ -444,7 +445,13 @@ export class OIDCService {
   }
 
   /**
-   * Validate ID token
+   * Validate ID token with real JWT signature verification using JWKS.
+   *
+   * Flow:
+   * 1. Fetch OIDC discovery document to get issuer and jwks_uri
+   * 2. Fetch JWKS keys (cached with 1-hour TTL)
+   * 3. Verify JWT signature using RSA public keys from JWKS
+   * 4. Verify standard claims: iss, aud, exp, iat
    */
   static async validateIdToken(
     idToken: string,
@@ -463,24 +470,58 @@ export class OIDCService {
         return { valid: false, error: 'Connection not found' };
       }
 
-      // Decode JWT without verification (for now)
-      const [headerB64, payloadB64] = idToken.split('.');
-      const payload = JSON.parse(Buffer.from(payloadB64, 'base64').toString());
-
-      // Validate claims
-      if (payload.iss !== connection.oidcDiscoveryUrl?.replace('/.well-known/openid-configuration', '')) {
-        return { valid: false, error: 'Invalid issuer' };
+      if (!connection.oidcClientId) {
+        return { valid: false, error: 'OIDC client ID not configured' };
       }
 
-      if (payload.aud !== connection.oidcClientId) {
-        return { valid: false, error: 'Invalid audience' };
+      // Step 1: Determine JWKS URI
+      let jwksUri: string | undefined;
+      let expectedIssuer: string | undefined;
+
+      // Check if explicit JWKS URL is configured
+      if (connection.oidcJwksUrl) {
+        jwksUri = connection.oidcJwksUrl;
       }
 
-      if (payload.exp && payload.exp < Date.now() / 1000) {
-        return { valid: false, error: 'Token expired' };
+      // Try discovery document to get both jwks_uri and issuer
+      if (connection.oidcDiscoveryUrl) {
+        try {
+          const discovery = await discoverJWKS(connection.oidcDiscoveryUrl);
+          jwksUri = jwksUri || discovery.jwksUri;
+          expectedIssuer = discovery.issuer;
+        } catch (err) {
+          console.error('[OIDC] JWKS discovery failed:', err);
+          // Fall back to deriving issuer from discovery URL
+          expectedIssuer = connection.oidcDiscoveryUrl
+            .replace('/.well-known/openid-configuration', '')
+            .replace(/\/$/, '');
+        }
       }
 
-      return { valid: true, payload };
+      if (!jwksUri) {
+        return { valid: false, error: 'JWKS URI not available — configure discovery URL or explicit JWKS URL' };
+      }
+
+      if (!expectedIssuer) {
+        expectedIssuer = connection.oidcDiscoveryUrl
+          ? connection.oidcDiscoveryUrl.replace('/.well-known/openid-configuration', '').replace(/\/$/, '')
+          : '';
+      }
+
+      // Step 2: Verify JWT signature and claims
+      const result = await verifyJwtWithJWKS(
+        idToken,
+        jwksUri,
+        expectedIssuer,
+        connection.oidcClientId,
+        60 // 60 seconds clock tolerance
+      );
+
+      if (!result.valid) {
+        return { valid: false, error: result.error || 'Token validation failed' };
+      }
+
+      return { valid: true, payload: result.payload as Record<string, unknown> };
     } catch (error) {
       return {
         valid: false,

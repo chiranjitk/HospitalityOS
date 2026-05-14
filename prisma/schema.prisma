@@ -571,6 +571,7 @@ model Booking {
   laundryOrders            LaundryOrder[]
   minibarConsumptions      MinibarConsumption[]
   depositSchedules         DepositSchedule[]
+  earlyCheckoutRequests    EarlyCheckoutRequest[]
 
   checkInDate              DateTime?            @db.Timestamptz
   checkOutDate             DateTime?            @db.Timestamptz
@@ -585,6 +586,28 @@ model Booking {
   @@index([tenantId, propertyId, status])
   @@index([tenantId, checkIn])
   @@index([tenantId, checkOut])
+}
+
+/// EarlyCheckoutRequest - Tracks guest requests for early checkout
+model EarlyCheckoutRequest {
+  id                String    @id @default(uuid()) @db.Uuid
+  bookingId         String    @db.Uuid
+  tenantId          String    @db.Uuid
+  propertyId        String    @db.Uuid
+  guestId           String    @db.Uuid
+  requestedDate     DateTime  @db.Timestamptz
+  originalCheckOut  DateTime  @db.Timestamptz
+  reason            String?
+  status            String    @default("pending") // pending, approved, rejected, completed
+  reviewedBy        String?   @db.Uuid
+  reviewedAt        DateTime? @db.Timestamptz
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+  booking           Booking   @relation(fields: [bookingId], references: [id])
+
+  @@index([bookingId])
+  @@index([tenantId, status])
+  @@index([guestId])
 }
 
 model BookingAuditLog {
@@ -3243,6 +3266,46 @@ model IoTReading {
   @@index([timestamp])
 }
 
+// ============================================================
+// OCCUPANCY SENSORS MODULE - IoT-based room occupancy detection
+// ============================================================
+
+model OccupancySensor {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  propertyId   String   @db.Uuid
+  roomId       String?  @db.Uuid
+  name         String
+  sensorType   String   // motion, co2, door, infrared, pressure
+  protocol     String   // mqtt, zigbee, z-wave, ble
+  deviceId     String
+  status       String   @default("active") // active, inactive, low_battery, offline
+  batteryLevel Int?
+  lastReading  DateTime? @db.Timestamptz
+  config       String?  // JSON
+  createdAt    DateTime @default(now()) @db.Timestamptz
+  updatedAt    DateTime @updatedAt @db.Timestamptz
+  room         Room?    @relation(fields: [roomId], references: [id])
+  readings     OccupancyReading[]
+
+  @@index([tenantId, propertyId])
+  @@index([roomId])
+}
+
+model OccupancyReading {
+  id         String           @id @default(uuid()) @db.Uuid
+  sensorId   String           @db.Uuid
+  tenantId   String           @db.Uuid
+  value      Float            // 0.0 - 1.0 (0 = empty, 1 = occupied)
+  rawValue   Int?
+  confidence Float?
+  timestamp  DateTime         @db.Timestamptz
+  sensor     OccupancySensor @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+
+  @@index([sensorId, timestamp])
+  @@index([tenantId])
+}
+
 /// ============================================================================
 /// Accsium-Inspired Models — Enterprise AAA Enhancements
 /// Based on analysis of 24online AAA database schema (400+ tables)
@@ -4093,6 +4156,7 @@ model Payment {
   updatedAt       DateTime  @updatedAt @db.Timestamptz
   guest           Guest?    @relation(fields: [guestId], references: [id])
   folio           Folio     @relation(fields: [folioId], references: [id], onDelete: Cascade)
+  fraudAlerts     FraudAlert[]
 
   @@index([tenantId])
   @@index([folioId])
@@ -4127,6 +4191,52 @@ model PaymentGateway {
   @@unique([tenantId, provider])
   @@index([tenantId])
   @@index([status])
+}
+
+/// FraudDetectionRule - Configurable fraud detection rules per tenant
+model FraudDetectionRule {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  name        String
+  description String?
+  isEnabled   Boolean  @default(true)
+  ruleType    String   // velocity, amount, geolocation, pattern, device_fingerprint
+  conditions  String   // JSON - rule conditions
+  action      String   @default("flag") // flag, block, review, mfa_required
+  severity    String   @default("medium") // low, medium, high, critical
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  alerts      FraudAlert[]
+
+  @@index([tenantId, isEnabled])
+}
+
+/// FraudAlert - Alert generated when fraud is detected
+model FraudAlert {
+  id            String     @id @default(uuid()) @db.Uuid
+  tenantId      String     @db.Uuid
+  paymentId     String?    @db.Uuid
+  userId        String?    @db.Uuid
+  ruleId        String?    @db.Uuid
+  alertType     String     // velocity_exceeded, amount_anomaly, pattern_match, etc.
+  severity      String     // low, medium, high, critical
+  status        String     @default("open") // open, reviewed, dismissed, confirmed_fraud
+  riskScore     Int        // 0-100
+  details       String     // JSON - alert details
+  reviewedBy    String?    @db.Uuid
+  reviewedAt    DateTime?  @db.Timestamptz
+  resolution    String?
+  createdAt     DateTime   @default(now()) @db.Timestamptz
+  updatedAt     DateTime   @updatedAt @db.Timestamptz
+  payment       Payment?              @relation(fields: [paymentId], references: [id])
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rule          FraudDetectionRule?   @relation(fields: [ruleId], references: [id])
+  reviewer      User?                 @relation("FraudAlertReviewer", fields: [reviewedBy], references: [id])
+
+  @@index([tenantId, status])
+  @@index([paymentId])
+  @@index([createdAt])
 }
 
 /// PaymentSchedule - Payment plans and installments
@@ -5329,6 +5439,7 @@ model Room {
   bookings           Booking[]
   inventoryLocks     InventoryLock[]
   iotDevices         IoTDevice[]
+  occupancySensors   OccupancySensor[]
   floorPlanRooms     FloorPlanRoom[]
   roomType           RoomType           @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
   property           Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
@@ -6468,6 +6579,10 @@ model Tenant {
   systemHealth              SystemNetworkHealth[]
   interfaceAliases          InterfaceAlias[]
   staticRoutes              StaticRoute[]
+  storageQuota              StorageQuota?
+  databaseBackups           DatabaseBackup[]
+  deadLetterQueues          DeadLetterQueue[]
+  pluginInstallations       PluginInstallation[]
   multiWanConfigs           MultiWanConfig[]
   gateways                  Gateway[]
   gatewayHealthRules        GatewayHealthRule[]
@@ -6592,6 +6707,8 @@ model Tenant {
   hardwareWebhookLogs       HardwareWebhookLog[]
   licenseEntitlements       LicenseModuleEntitlement[]
   ipWhitelistRules          IpWhitelistRule[]
+  fraudDetectionRules       FraudDetectionRule[]
+  fraudAlerts               FraudAlert[]
 }
 
 model Experience {
@@ -6865,6 +6982,7 @@ model User {
   collectedLaundryOrders  LaundryOrder[]       @relation("LaundryCollectedBy")
   deliveredLaundryOrders  LaundryOrder[]       @relation("LaundryDeliveredBy")
   ipWhitelistRules        IpWhitelistRule[]
+  reviewedFraudAlerts     FraudAlert[]             @relation("FraudAlertReviewer")
   role                    Role?                    @relation(fields: [roleId], references: [id])
   tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -11145,3 +11263,112 @@ model IpWhitelistRule {
   @@index([tenantId, isEnabled])
   @@index([ipAddress])
 }
+
+
+// ============================================================
+// RATE LIMITING - Centralized DB-persisted rate limiting
+// ============================================================
+
+model RateLimitEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique  // e.g., "login:user@example.com" or "api:tenantId:endpoint"
+  count     Int      @default(1)
+  resetAt   DateTime @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+  @@index([key, resetAt])
+}
+
+// ============================================================
+// INFRASTRUCTURE MODELS (Task 4)
+// ============================================================
+
+model StorageQuota {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @unique @db.Uuid
+  maxStorageMb    Int      @default(5120)
+  usedStorageMb   Int      @default(0)
+  documentCount   Int      @default(0)
+  lastCalculatedAt DateTime @default(now()) @db.Timestamptz
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model DatabaseBackup {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @db.Uuid
+  type             String
+  status           String
+  fileSize         Int?
+  storageLocation  String?
+  startedAt        DateTime  @default(now()) @db.Timestamptz
+  completedAt      DateTime? @db.Timestamptz
+  expiresAt        DateTime? @db.Timestamptz
+  createdBy        String?   @db.Uuid
+  notes            String?
+  createdAt        DateTime  @default(now()) @db.Timestamptz
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([expiresAt])
+}
+
+model DeadLetterQueue {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @db.Uuid
+  source        String
+  entityType    String
+  entityId      String?
+  payload       String
+  error         String
+  retryCount    Int       @default(0)
+  maxRetries    Int       @default(3)
+  nextRetryAt   DateTime? @db.Timestamptz
+  status        String    @default("pending")
+  resolvedAt    DateTime? @db.Timestamptz
+  resolvedBy    String?   @db.Uuid
+  resolution    String?
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @db.Timestamptz
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, source, status])
+  @@index([nextRetryAt])
+}
+
+model Plugin {
+  id            String              @id @default(uuid()) @db.Uuid
+  name          String
+  slug          String              @unique
+  description   String?
+  version       String              @default("1.0.0")
+  author        String?
+  icon          String?
+  category      String
+  status        String              @default("active")
+  configSchema  String?
+  hooks         String?
+  permissions   String?
+  isOfficial    Boolean             @default(false)
+  installedAt   DateTime?           @db.Timestamptz
+  createdAt     DateTime            @default(now()) @db.Timestamptz
+  updatedAt     DateTime            @updatedAt @db.Timestamptz
+  installations PluginInstallation[]
+}
+
+model PluginInstallation {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  pluginId    String   @db.Uuid
+  isEnabled   Boolean  @default(true)
+  config      String?
+  installedBy String?  @db.Uuid
+  installedAt DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plugin      Plugin   @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, pluginId])
+  @@index([tenantId])
+}
+

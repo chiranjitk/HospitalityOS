@@ -43,13 +43,24 @@ export async function GET(
       callbackUrl
     );
 
-    // Get connection for attribute mapping
+    // Get connection for attribute mapping and ID token verification
     const connection = await db.sSOConnection.findUnique({
       where: { id: connId },
     });
 
     if (!connection) {
       throw new Error('Connection not found');
+    }
+
+    // Verify ID token signature using JWKS (if an id_token was returned)
+    if (tokens.id_token) {
+      const validation = await OIDCService.validateIdToken(tokens.id_token, connId);
+      if (!validation.valid) {
+        console.error('[OIDC] ID token verification failed:', validation.error);
+        const loginUrl = new URL('/login', request.url);
+        loginUrl.searchParams.set('error', `ID token verification failed: ${validation.error}`);
+        return NextResponse.redirect(loginUrl);
+      }
     }
 
     // Map OIDC user info to application attributes

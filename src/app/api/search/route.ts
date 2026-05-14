@@ -1,262 +1,218 @@
+/**
+ * Global Search API (Feature #23)
+ *
+ * Search across multiple models (Guests, Bookings, Rooms, Folios, Invoices, Properties).
+ * Returns results grouped by type with match highlights.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { requirePermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
+import { getUserFromRequest } from '@/lib/auth-helpers';
+import { logger } from '@/lib/logger';
+
+const MAX_PER_TYPE = 5;
+const MAX_TOTAL = 25;
 
 interface SearchResult {
-  bookings: Array<{
-    id: string;
-    confirmationCode: string;
-    guestName: string;
-    status: string;
-    checkIn: string;
-    checkOut: string;
-    roomNumber?: string;
-    propertyId: string;
-    propertyName: string;
-  }>;
-  guests: Array<{
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string | null;
-    phone: string | null;
-    loyaltyTier: string;
-    isVip: boolean;
-    totalStays: number;
-  }>;
-  rooms: Array<{
-    id: string;
-    number: string;
-    name: string | null;
-    floor: number;
-    status: string;
-    roomTypeName: string;
-    propertyId: string;
-    propertyName: string;
-  }>;
-  properties: Array<{
-    id: string;
-    name: string;
-    type: string;
-    city: string;
-    country: string;
-    status: string;
-    totalRooms: number;
-  }>;
-  users: Array<{
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    jobTitle: string | null;
-    department: string | null;
-    status: string;
-  }>;
+  id: string;
+  type: string;
+  title: string;
+  subtitle?: string;
+  highlights?: string[];
 }
-
-const MAX_LIMIT = 50;
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await requirePermission(request, 'dashboard.view');
-    if (session instanceof NextResponse) return session;
-
-    const tenantId = session.tenantId;
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const { searchParams } = new URL(request.url);
-    const query = searchParams.get('q') || '';
-    const page = parseInt(searchParams.get('page') || '1');
-    const limitParam = parseInt(searchParams.get('limit') || '10');
-    const limit = Math.min(limitParam, MAX_LIMIT);
-    const skip = (page - 1) * limit;
+    const q = searchParams.get('q') || '';
+    const types = searchParams.get('types')?.split(',').filter(Boolean);
 
-    if (!query.trim()) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          bookings: [],
-          guests: [],
-          rooms: [],
-          properties: [],
-          users: [],
-        },
-      });
+    if (q.length < 2) {
+      return NextResponse.json({ error: 'Query must be at least 2 characters' }, { status: 400 });
     }
 
-    const searchTerm = query.toLowerCase().trim();
-
-    const result: SearchResult = {
-      bookings: [],
-      guests: [],
-      rooms: [],
-      properties: [],
-      users: [],
-    };
-
-    // Search Bookings
-    const bookings = await db.booking.findMany({
-      where: {
-        tenantId,
-        OR: [
-          { confirmationCode: { contains: searchTerm } },
-          { externalRef: { contains: searchTerm } },
-          { primaryGuest: { firstName: { contains: searchTerm } } },
-          { primaryGuest: { lastName: { contains: searchTerm } } },
-          { primaryGuest: { email: { contains: searchTerm } } },
-        ],
-      },
-      take: limit,
-      skip,
-      include: {
-        primaryGuest: true,
-        room: true,
-        roomType: {
-          include: {
-            property: true,
-          },
-        },
-      },
-    });
-
-    result.bookings = bookings.map((booking) => ({
-      id: booking.id,
-      confirmationCode: booking.confirmationCode,
-      guestName: `${booking.primaryGuest.firstName} ${booking.primaryGuest.lastName}`,
-      status: booking.status,
-      checkIn: booking.checkIn.toISOString(),
-      checkOut: booking.checkOut.toISOString(),
-      roomNumber: booking.room?.number,
-      propertyId: booking.roomType?.propertyId || '',
-      propertyName: booking.roomType?.property?.name || '',
-    }));
-
-    // Search Guests
-    const guests = await db.guest.findMany({
-      where: {
-        tenantId,
-        OR: [
-          { firstName: { contains: searchTerm } },
-          { lastName: { contains: searchTerm } },
-          { email: { contains: searchTerm } },
-          { phone: { contains: searchTerm } },
-          { alternatePhone: { contains: searchTerm } },
-        ],
-      },
-      take: limit,
-      skip,
-    });
-
-    result.guests = guests.map((guest) => ({
-      id: guest.id,
-      firstName: guest.firstName,
-      lastName: guest.lastName,
-      email: guest.email,
-      phone: guest.phone,
-      loyaltyTier: guest.loyaltyTier,
-      isVip: guest.isVip,
-      totalStays: guest.totalStays,
-    }));
-
-    // Search Rooms - need to get tenantId from property
-    const properties = await db.property.findMany({
-      where: { tenantId },
-      select: { id: true },
-    });
-    const propertyIds = properties.map((p) => p.id);
-
-    const rooms = await db.room.findMany({
-      where: {
-        roomType: { propertyId: { in: propertyIds } },
-        OR: [
-          { number: { contains: searchTerm } },
-          { name: { contains: searchTerm } },
-        ],
-      },
-      take: limit,
-      skip,
-      include: {
-        roomType: {
-          include: {
-            property: true,
-          },
-        },
-      },
-    });
-
-    result.rooms = rooms.map((room) => ({
-      id: room.id,
-      number: room.number,
-      name: room.name,
-      floor: room.floor,
-      status: room.status,
-      roomTypeName: room.roomType?.name || '',
-      propertyId: room.roomType?.propertyId || '',
-      propertyName: room.roomType?.property?.name || '',
-    }));
-
-    // Search Properties
-    const propertiesResult = await db.property.findMany({
-      where: {
-        tenantId,
-        OR: [
-          { name: { contains: searchTerm } },
-          { city: { contains: searchTerm } },
-          { country: { contains: searchTerm } },
-          { address: { contains: searchTerm } },
-        ],
-      },
-      take: limit,
-      skip,
-    });
-
-    result.properties = propertiesResult.map((property) => ({
-      id: property.id,
-      name: property.name,
-      type: property.type,
-      city: property.city,
-      country: property.country,
-      status: property.status,
-      totalRooms: property.totalRooms,
-    }));
-
-    // Search Users (only if user has permission)
-    const hasUserPermission = session.permissions?.includes('users:read') || 
-                              session.permissions?.includes('users:all');
-    
-    if (hasUserPermission) {
-      const users = await db.user.findMany({
-        where: {
-          tenantId,
-          OR: [
-            { firstName: { contains: searchTerm } },
-            { lastName: { contains: searchTerm } },
-            { email: { contains: searchTerm } },
-          ],
-        },
-        take: limit,
-        skip,
-      });
-
-      result.users = users.map((user) => ({
-        id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        jobTitle: user.jobTitle,
-        department: user.department,
-        status: user.status,
-      }));
+    const tenantId = user.tenantId;
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
-    return NextResponse.json({
-      success: true,
-      data: result,
-    });
+    const query = `%${q}%`;
+    const results: Record<string, SearchResult[]> = {};
+    let total = 0;
+
+    const searchTypes = types?.length ? types : ['guests', 'bookings', 'rooms', 'folios', 'invoices', 'properties'];
+
+    for (const type of searchTypes) {
+      if (total >= MAX_TOTAL) break;
+
+      const limit = Math.min(MAX_PER_TYPE, MAX_TOTAL - total);
+      let items: SearchResult[] = [];
+
+      switch (type) {
+        case 'guests': {
+          const guests = await db.guest.findMany({
+            where: {
+              tenantId,
+              OR: [
+                { firstName: { contains: q, mode: 'insensitive' } },
+                { lastName: { contains: q, mode: 'insensitive' } },
+                { email: { contains: q, mode: 'insensitive' } },
+                { phone: { contains: q } },
+              ],
+            },
+            take: limit,
+            select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+          });
+          items = guests.map((g) => ({
+            id: g.id,
+            type: 'guest',
+            title: `${g.firstName} ${g.lastName}`,
+            subtitle: g.email || g.phone || undefined,
+            highlights: [],
+          }));
+          break;
+        }
+
+        case 'bookings': {
+          const bookings = await db.booking.findMany({
+            where: {
+              tenantId,
+              deletedAt: null,
+              OR: [
+                { confirmationCode: { contains: q, mode: 'insensitive' } },
+                { primaryGuest: { firstName: { contains: q, mode: 'insensitive' } } },
+                { primaryGuest: { lastName: { contains: q, mode: 'insensitive' } } },
+              ],
+            },
+            take: limit,
+            select: {
+              id: true,
+              confirmationCode: true,
+              status: true,
+              primaryGuest: { select: { firstName: true, lastName: true } },
+            },
+          });
+          items = bookings.map((b) => ({
+            id: b.id,
+            type: 'booking',
+            title: `Booking #${b.confirmationCode}`,
+            subtitle: `${b.primaryGuest.firstName} ${b.primaryGuest.lastName} (${b.status})`,
+            highlights: [],
+          }));
+          break;
+        }
+
+        case 'rooms': {
+          const rooms = await db.room.findMany({
+            where: {
+              property: { tenantId },
+              OR: [
+                { number: { contains: q, mode: 'insensitive' } },
+                { name: { contains: q, mode: 'insensitive' } },
+                { roomType: { name: { contains: q, mode: 'insensitive' } } },
+              ],
+            },
+            take: limit,
+            select: {
+              id: true,
+              number: true,
+              name: true,
+              floor: true,
+              roomType: { select: { name: true } },
+              property: { select: { name: true } },
+            },
+          });
+          items = rooms.map((r) => ({
+            id: r.id,
+            type: 'room',
+            title: `Room ${r.number}${r.name ? ` - ${r.name}` : ''}`,
+            subtitle: `${r.roomType.name} · Floor ${r.floor} · ${r.property.name}`,
+            highlights: [],
+          }));
+          break;
+        }
+
+        case 'folios': {
+          const folios = await db.folio.findMany({
+            where: {
+              tenantId,
+              OR: [
+                { folioNumber: { contains: q, mode: 'insensitive' } },
+              ],
+            },
+            take: limit,
+            select: { id: true, folioNumber: true, status: true, totalAmount: true },
+          });
+          items = folios.map((f) => ({
+            id: f.id,
+            type: 'folio',
+            title: `Folio #${f.folioNumber}`,
+            subtitle: `${f.status} · $${(f.totalAmount || 0).toFixed(2)}`,
+            highlights: [],
+          }));
+          break;
+        }
+
+        case 'invoices': {
+          const invoices = await db.invoice.findMany({
+            where: {
+              tenantId,
+              OR: [
+                { invoiceNumber: { contains: q, mode: 'insensitive' } },
+                { customerName: { contains: q, mode: 'insensitive' } },
+              ],
+            },
+            take: limit,
+            select: { id: true, invoiceNumber: true, customerName: true, totalAmount: true, status: true },
+          });
+          items = invoices.map((inv) => ({
+            id: inv.id,
+            type: 'invoice',
+            title: `Invoice #${inv.invoiceNumber}`,
+            subtitle: `${inv.customerName} · ${inv.status} · $${(inv.totalAmount || 0).toFixed(2)}`,
+            highlights: [],
+          }));
+          break;
+        }
+
+        case 'properties': {
+          const properties = await db.property.findMany({
+            where: {
+              tenantId,
+              OR: [
+                { name: { contains: q, mode: 'insensitive' } },
+              ],
+            },
+            take: limit,
+            select: { id: true, name: true, city: true, country: true },
+          });
+          items = properties.map((p) => ({
+            id: p.id,
+            type: 'property',
+            title: p.name,
+            subtitle: [p.city, p.country].filter(Boolean).join(', '),
+            highlights: [],
+          }));
+          break;
+        }
+      }
+
+      if (items.length > 0) {
+        results[type] = items;
+        total += items.length;
+      }
+    }
+
+    logger.info('Global search completed', { query: q, resultCount: total, tenantId, types: searchTypes });
+
+    return NextResponse.json({ results, total });
   } catch (error) {
-    console.error('Search error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to perform search' } },
-      { status: 500 }
-    );
+    logger.error('Global search failed', error instanceof Error ? error : new Error(String(error)));
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

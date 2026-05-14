@@ -15,7 +15,15 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   FileText,
   Download,
@@ -28,6 +36,10 @@ import {
   ChevronRight,
   ArrowRight,
   Loader2,
+  Wallet,
+  Building2,
+  Smartphone,
+  XCircle,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -66,6 +78,17 @@ interface FolioData {
   }>;
 }
 
+interface PaymentGateway {
+  id: string;
+  name: string;
+  provider: string;
+  mode: string;
+  feePercentage: number;
+  feeFixed: number;
+}
+
+type PaymentStatus = 'idle' | 'fetching_config' | 'ready' | 'processing' | 'success' | 'failed';
+
 const categoryIcons: Record<string, string> = {
   room: '🛏️',
   food_beverage: '🍽️',
@@ -76,6 +99,13 @@ const categoryIcons: Record<string, string> = {
   other: '📦',
 };
 
+const gatewayIcons: Record<string, React.ElementType> = {
+  stripe: Building2,
+  razorpay: Smartphone,
+  paypal: Wallet,
+  manual: CreditCard,
+};
+
 export default function BillPage() {
   const router = useRouter();
   const { data: guestData, isLoading: guestLoading } = useGuestApp();
@@ -84,7 +114,16 @@ export default function BillPage() {
   const [folio, setFolio] = useState<FolioData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [selectedGateway, setSelectedGateway] = useState<string>('manual');
+  const [gateways, setGateways] = useState<PaymentGateway[]>([]);
+  const [folioId, setFolioId] = useState<string | null>(null);
+  const [lastPayment, setLastPayment] = useState<{
+    transactionId: string;
+    amount: number;
+    method: string;
+  } | null>(null);
 
   // Fetch detailed folio data
   useEffect(() => {
@@ -93,15 +132,14 @@ export default function BillPage() {
 
       setIsLoading(true);
       try {
-        // Get folio from booking
-        const token = window.location.pathname.split('/')[2];
         const response = await fetch(`/api/folios?bookingId=${guestData.booking.id}`);
         const result = await response.json();
 
         if (result.success && result.data.length > 0) {
-          // Get detailed folio with line items
-          const folioId = result.data[0].id;
-          const detailResponse = await fetch(`/api/folios/${folioId}`);
+          const fid = result.data[0].id;
+          setFolioId(fid);
+
+          const detailResponse = await fetch(`/api/folios/${fid}`);
           const detailResult = await detailResponse.json();
 
           if (detailResult.success) {
@@ -118,27 +156,99 @@ export default function BillPage() {
     fetchFolio();
   }, [guestData]);
 
+  // Fetch payment gateways when dialog opens
+  const handleOpenPaymentDialog = async () => {
+    setIsPaymentDialogOpen(true);
+    setPaymentStatus('fetching_config');
+    setPaymentError(null);
+
+    try {
+      const token = window.location.pathname.split('/')[2];
+      const response = await fetch(`/api/guest-app/pay?token=${token}`);
+      const result = await response.json();
+
+      if (result.success) {
+        setGateways(result.data.gateways || []);
+        setSelectedGateway(
+          result.data.gateways?.find((g: PaymentGateway) => g.provider !== 'manual')?.provider || 'manual'
+        );
+        setPaymentStatus('ready');
+      } else {
+        setPaymentError(result.error?.message || 'Failed to load payment options');
+        setPaymentStatus('failed');
+      }
+    } catch (error) {
+      console.error('Error fetching payment config:', error);
+      setPaymentError('Could not connect to payment service');
+      setPaymentStatus('failed');
+    }
+  };
+
   // Handle payment
   const handlePayment = async () => {
-    setIsProcessingPayment(true);
-    try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+    if (!folioId) return;
 
-      toast({
-        title: 'Payment Successful',
-        description: 'Your payment has been processed',
+    setPaymentStatus('processing');
+    setPaymentError(null);
+
+    try {
+      const token = window.location.pathname.split('/')[2];
+      const isCardPayment = selectedGateway !== 'manual';
+
+      const response = await fetch('/api/guest-app/pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          folioId,
+          amount: folio?.balance || 0,
+          method: isCardPayment ? 'card' : 'cash',
+          gateway: selectedGateway,
+        }),
       });
-      setIsPaymentDialogOpen(false);
+
+      const result = await response.json();
+
+      if (result.success) {
+        setPaymentStatus('success');
+        setLastPayment({
+          transactionId: result.data.transactionId,
+          amount: result.data.amount,
+          method: result.data.method,
+        });
+
+        // Refresh folio data after a short delay
+        setTimeout(async () => {
+          try {
+            const detailResponse = await fetch(`/api/folios/${folioId}`);
+            const detailResult = await detailResponse.json();
+            if (detailResult.success) {
+              setFolio(detailResult.data);
+            }
+          } catch (e) {
+            console.error('Error refreshing folio:', e);
+          }
+          // Also refresh the guest app data to update balance
+          const guestAppResponse = await fetch(`/api/guest-app?token=${token}`);
+          await guestAppResponse.json();
+        }, 1500);
+      } else {
+        setPaymentStatus('failed');
+        setPaymentError(result.error?.message || 'Payment processing failed');
+      }
     } catch (error) {
-      toast({
-        title: 'Payment Failed',
-        description: 'Please try again or contact the front desk',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsProcessingPayment(false);
+      console.error('Error processing payment:', error);
+      setPaymentStatus('failed');
+      setPaymentError('Network error. Please try again.');
     }
+  };
+
+  const resetPaymentDialog = () => {
+    setIsPaymentDialogOpen(false);
+    setPaymentStatus('idle');
+    setPaymentError(null);
+    setSelectedGateway('manual');
+    setLastPayment(null);
   };
 
   // Loading state
@@ -231,7 +341,7 @@ export default function BillPage() {
       {bill.balanceDue > 0 && (
         <Button
           className="w-full bg-gradient-to-r from-sky-500 to-indigo-600"
-          onClick={() => setIsPaymentDialogOpen(true)}
+          onClick={handleOpenPaymentDialog}
         >
           <CreditCard className="h-4 w-4 mr-2" />
           Pay Now - {bill.currency} {bill.balanceDue.toFixed(2)}
@@ -394,12 +504,15 @@ export default function BillPage() {
       </Card>
 
       {/* Payment Dialog */}
-      <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+      <Dialog open={isPaymentDialogOpen} onOpenChange={(open) => { if (!open) resetPaymentDialog(); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Make Payment</DialogTitle>
+            <DialogDescription>Choose a payment method to settle your balance</DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4">
+            {/* Amount */}
             <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg text-center">
               <p className="text-sm text-muted-foreground">Amount to Pay</p>
               <p className="text-2xl font-bold mt-1">
@@ -407,42 +520,159 @@ export default function BillPage() {
               </p>
             </div>
 
-            <div className="space-y-3">
-              <Button
-                variant="outline"
-                className="w-full justify-between"
-                disabled
-              >
-                <span>Credit Card</span>
-                <span className="text-muted-foreground">Unavailable</span>
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-between"
-                disabled
-              >
-                <span>Apple Pay</span>
-                <span className="text-muted-foreground">Unavailable</span>
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-between"
-                disabled
-              >
-                <span>Google Pay</span>
-                <span className="text-muted-foreground">Unavailable</span>
-              </Button>
-            </div>
+            {/* Success State */}
+            {paymentStatus === 'success' && lastPayment && (
+              <div className="space-y-4">
+                <div className="flex flex-col items-center py-4">
+                  <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-3">
+                    <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <p className="font-semibold text-lg">Payment Successful</p>
+                  <p className="text-sm text-muted-foreground">
+                    TXN: {lastPayment.transactionId}
+                  </p>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={resetPaymentDialog}
+                >
+                  Done
+                </Button>
+              </div>
+            )}
 
-            <p className="text-xs text-muted-foreground text-center">
-              For now, please visit the front desk to make a payment or charge to your room.
-            </p>
+            {/* Processing State */}
+            {paymentStatus === 'processing' && (
+              <div className="flex flex-col items-center py-8 space-y-4">
+                <Loader2 className="h-10 w-10 animate-spin text-sky-500" />
+                <div className="text-center">
+                  <p className="font-medium">Processing Payment</p>
+                  <p className="text-sm text-muted-foreground">
+                    Please do not close this window...
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Failed State */}
+            {paymentStatus === 'failed' && (
+              <div className="space-y-4">
+                <div className="flex flex-col items-center py-4">
+                  <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-3">
+                    <XCircle className="h-8 w-8 text-red-500" />
+                  </div>
+                  <p className="font-medium text-lg">Payment Failed</p>
+                  <p className="text-sm text-red-600 dark:text-red-400 text-center">
+                    {paymentError || 'An error occurred. Please try again.'}
+                  </p>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    setPaymentStatus('ready');
+                    setPaymentError(null);
+                  }}
+                >
+                  Try Again
+                </Button>
+              </div>
+            )}
+
+            {/* Loading Gateways */}
+            {paymentStatus === 'fetching_config' && (
+              <div className="flex flex-col items-center py-8 space-y-4">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Loading payment options...</p>
+              </div>
+            )}
+
+            {/* Gateway Selection (Ready State) */}
+            {paymentStatus === 'ready' && (
+              <>
+                <div className="space-y-3">
+                  {/* Pay at Front Desk */}
+                  <button
+                    onClick={() => setSelectedGateway('manual')}
+                    className={cn(
+                      'w-full p-3 rounded-lg border-2 flex items-center justify-between transition-colors',
+                      selectedGateway === 'manual'
+                        ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/20'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <CreditCard className="h-5 w-5 text-muted-foreground" />
+                      <div className="text-left">
+                        <p className="text-sm font-medium">Pay at Front Desk</p>
+                        <p className="text-xs text-muted-foreground">Cash, card, or other method</p>
+                      </div>
+                    </div>
+                    {selectedGateway === 'manual' && (
+                      <CheckCircle2 className="h-5 w-5 text-sky-500" />
+                    )}
+                  </button>
+
+                  {/* Card Payment Gateways */}
+                  {gateways.filter(g => g.provider !== 'manual').map((gw) => {
+                    const GatewayIcon = gatewayIcons[gw.provider] || CreditCard;
+                    return (
+                      <button
+                        key={gw.id}
+                        onClick={() => setSelectedGateway(gw.provider)}
+                        className={cn(
+                          'w-full p-3 rounded-lg border-2 flex items-center justify-between transition-colors',
+                          selectedGateway === gw.provider
+                            ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/20'
+                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <GatewayIcon className="h-5 w-5 text-muted-foreground" />
+                          <div className="text-left">
+                            <p className="text-sm font-medium">{gw.name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs text-muted-foreground capitalize">
+                                {gw.provider}
+                              </p>
+                              {gw.mode === 'test' && (
+                                <Badge variant="outline" className="text-[10px] py-0">
+                                  Test
+                                </Badge>
+                              )}
+                              {gw.feePercentage > 0 && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  +{gw.feePercentage}% fee
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {selectedGateway === gw.provider && (
+                          <CheckCircle2 className="h-5 w-5 text-sky-500" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {paymentError && (
+                  <div className="p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
+                    <p className="text-sm text-red-600 dark:text-red-400">{paymentError}</p>
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={resetPaymentDialog}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handlePayment}>
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Pay {bill.currency} {bill.balanceDue.toFixed(2)}
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
