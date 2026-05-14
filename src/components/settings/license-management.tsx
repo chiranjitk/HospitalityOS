@@ -59,6 +59,8 @@ import {
 } from '@/components/ui/chart';
 import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { ADDON_SUBCATEGORIES, FEATURES } from '@/lib/feature-flags';
 import {
   Shield,
   ShieldCheck,
@@ -78,6 +80,8 @@ import {
   Loader2,
   X,
   Check,
+  Lock,
+  Info,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -146,6 +150,23 @@ const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
   iot: Settings,
 };
 
+// ─── Subcategory Icons (for tenant view) ─────────────────────────────
+const SUB_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  'Guest Experience': Activity,
+  'Facility Management': Settings,
+  'Connectivity': Wifi,
+  'Revenue & Channels': Activity,
+  'Marketing & CRM': Users,
+  'Analytics': Activity,
+  'Events': Activity,
+  'Resort & Leisure': Crown,
+  'Staff Management': Users,
+  'Security': Shield,
+  'Integrations & Automation': Settings,
+  'Enterprise': Crown,
+  'System': Settings,
+};
+
 // ─── Color Helpers ───────────────────────────────────────────────────
 function getProgressClass(percent: number, isExceeded: boolean) {
   if (isExceeded || percent >= 95)
@@ -205,6 +226,13 @@ function getPlanBadge(plan: string) {
         {plan.charAt(0).toUpperCase() + plan.slice(1)}
       </Badge>
     );
+  if (p === 'professional')
+    return (
+      <Badge variant="outline" className="gap-1 border-teal-500/20 bg-teal-500/5 text-teal-700 dark:text-teal-400">
+        <ShieldCheck className="h-3 w-3" />
+        {plan.charAt(0).toUpperCase() + plan.slice(1)}
+      </Badge>
+    );
   if (p === 'trial')
     return (
       <Badge variant="outline" className="gap-1 border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-400">
@@ -222,20 +250,23 @@ function getPlanBadge(plan: string) {
 
 // ─── Component ───────────────────────────────────────────────────────
 export default function LicenseManagement() {
+  const { isPlatformAdmin } = useAuth();
+
   // ── State ──────────────────────────────────────────────────────────
   const [overview, setOverview] = useState<LicenseOverview | null>(null);
   const [entitlements, setEntitlements] = useState<EntitlementRow[]>([]);
+  const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-  // Usage history chart
+  // Usage history chart (platform admin only)
   const [historyModule, setHistoryModule] = useState<string>('');
   const [historyDays, setHistoryDays] = useState<string>('30');
   const [historyData, setHistoryData] = useState<UsageHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  // Edit dialog
+  // Edit dialog (platform admin only)
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingEnt, setEditingEnt] = useState<EntitlementRow | null>(null);
   const [editLimit, setEditLimit] = useState('');
@@ -258,7 +289,6 @@ export default function LicenseManagement() {
       const data = await res.json();
       if (data.success && data.data) {
         setOverview(data.data);
-        // Set first addon entitlement as default chart module
         if (!historyModule && data.data.entitlements.length > 0) {
           setHistoryModule(data.data.entitlements[0].moduleKey);
         }
@@ -291,18 +321,41 @@ export default function LicenseManagement() {
     }
   }, []);
 
+  const fetchFeatureFlags = useCallback(async () => {
+    try {
+      const res = await fetch('/api/settings/feature-flags');
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => 'Unknown error')}`);
+      }
+      const data = await res.json();
+      if (data.success && data.data) {
+        setEnabledFeatures(data.data.enabledFeatures || []);
+      }
+    } catch {
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch feature flags.',
+        variant: 'destructive',
+      });
+    }
+  }, []);
+
   const fetchAllData = useCallback(async () => {
     setLoading(true);
-    await Promise.all([fetchOverview(), fetchEntitlements()]);
+    if (isPlatformAdmin) {
+      await Promise.all([fetchOverview(), fetchEntitlements()]);
+    } else {
+      await Promise.all([fetchOverview(), fetchEntitlements(), fetchFeatureFlags()]);
+    }
     setLoading(false);
-  }, [fetchOverview, fetchEntitlements]);
+  }, [fetchOverview, fetchEntitlements, fetchFeatureFlags, isPlatformAdmin]);
 
   useEffect(() => {
     const id = setTimeout(() => { fetchAllData(); }, 0);
     return () => clearTimeout(id);
   }, [fetchAllData]);
 
-  // Fetch usage history when module or days change
+  // Fetch usage history when module or days change (platform admin)
   const fetchHistory = useCallback(async () => {
     if (!historyModule) return;
     setHistoryLoading(true);
@@ -325,43 +378,51 @@ export default function LicenseManagement() {
   }, [historyModule, historyDays]);
 
   useEffect(() => {
-    const id = setTimeout(() => { fetchHistory(); }, 0);
-    return () => clearTimeout(id);
-  }, [fetchHistory]);
+    if (isPlatformAdmin) {
+      const id = setTimeout(() => { fetchHistory(); }, 0);
+      return () => clearTimeout(id);
+    }
+  }, [fetchHistory, isPlatformAdmin]);
 
   // ── Refresh Usage ──────────────────────────────────────────────────
-  const handleRefreshUsage = async () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      const res = await fetch('/api/license/usage/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => 'Unknown error')}`);
-      }
-      const data = await res.json();
-      if (data.success) {
-        setLastRefresh(new Date());
-        toast({
-          title: 'Usage Refreshed',
-          description: `Usage counters refreshed for ${data.data?.count ?? 0} modules.`,
+      if (isPlatformAdmin) {
+        // Platform admin: POST to refresh usage counters
+        const res = await fetch('/api/license/usage/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
         });
-        // Reload data
-        await fetchAllData();
-        await fetchHistory();
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => 'Unknown error')}`);
+        }
+        const data = await res.json();
+        if (data.success) {
+          setLastRefresh(new Date());
+          toast({
+            title: 'Usage Refreshed',
+            description: `Usage counters refreshed for ${data.data?.count ?? 0} modules.`,
+          });
+        } else {
+          toast({
+            title: 'Refresh Failed',
+            description: data.error || 'Failed to refresh usage.',
+            variant: 'destructive',
+          });
+        }
       } else {
-        toast({
-          title: 'Refresh Failed',
-          description: data.error || 'Failed to refresh usage.',
-          variant: 'destructive',
-        });
+        // Tenant admin: simple data reload
+        await fetchAllData();
+        toast({ title: 'Refreshed', description: 'Subscription data reloaded.' });
       }
     } catch {
       toast({
         title: 'Error',
-        description: 'Failed to refresh usage counters.',
+        description: isPlatformAdmin
+          ? 'Failed to refresh usage counters.'
+          : 'Failed to reload subscription data.',
         variant: 'destructive',
       });
     } finally {
@@ -369,7 +430,7 @@ export default function LicenseManagement() {
     }
   };
 
-  // ── Edit Entitlement ───────────────────────────────────────────────
+  // ── Edit Entitlement (Platform Admin) ──────────────────────────────
   const openEditDialog = (ent: EntitlementRow) => {
     setEditingEnt(ent);
     setEditLimit(ent.limitValue.toString());
@@ -405,7 +466,6 @@ export default function LicenseManagement() {
         });
         setEditDialogOpen(false);
         setEditingEnt(null);
-        // Reload data
         await fetchAllData();
         await fetchHistory();
       } else {
@@ -467,6 +527,21 @@ export default function LicenseManagement() {
     await executeSaveEntitlement(pendingLimitSave.limit, pendingLimitSave.threshold);
   };
 
+  // ── Derived Data (Tenant Admin) ────────────────────────────────────
+  const enabledAddons = Object.values(FEATURES).filter(
+    (f) => f.category === 'addons' && enabledFeatures.includes(f.id)
+  );
+  const groupedAddons = Object.entries(ADDON_SUBCATEGORIES)
+    .map(([key, info]) => ({
+      key,
+      name: info.name,
+      description: info.description,
+      features: enabledAddons.filter((f) => f.subcategory === key),
+    }))
+    .filter((g) => g.features.length > 0);
+  const getEntitlementFor = (moduleKey: string) =>
+    entitlements.find((e) => e.moduleKey === moduleKey);
+
   // ── Render Helpers ─────────────────────────────────────────────────
   const renderLimitCard = (
     title: string,
@@ -498,7 +573,7 @@ export default function LicenseManagement() {
           <div className="space-y-2">
             <div className="flex items-baseline justify-between">
               <span className="text-2xl font-bold tracking-tight">
-                {result.isUnlimited ? '∞' : result.current.toLocaleString()}
+                {result.isUnlimited ? '\u221E' : result.current.toLocaleString()}
               </span>
               <span className="text-sm text-muted-foreground">
                 {result.isUnlimited ? 'unlimited' : `/ ${result.limit.toLocaleString()}`}
@@ -511,8 +586,8 @@ export default function LicenseManagement() {
             {!result.isUnlimited && (
               <p className="text-xs text-muted-foreground">
                 {Math.round(result.percent)}% utilized
-                {result.percent >= 80 && result.percent < 95 && ' — approaching limit'}
-                {result.percent >= 95 && ' — critically high'}
+                {result.percent >= 80 && result.percent < 95 && ' \u2014 approaching limit'}
+                {result.percent >= 95 && ' \u2014 critically high'}
               </p>
             )}
           </div>
@@ -524,6 +599,28 @@ export default function LicenseManagement() {
   const renderOverviewSkeleton = () => (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 3 }).map((_, i) => (
+        <Card key={i} className="border-0 shadow-sm rounded-2xl">
+          <CardContent className="p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 rounded-xl" />
+              <div className="space-y-1.5">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-7 w-20" />
+              <Skeleton className="h-2 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+
+  const renderSkeleton = (count: number) => (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: count }).map((_, i) => (
         <Card key={i} className="border-0 shadow-sm rounded-2xl">
           <CardContent className="p-5 space-y-4">
             <div className="flex items-center gap-3">
@@ -585,11 +682,13 @@ export default function LicenseManagement() {
               <Shield className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-foreground via-foreground/90 to-foreground/70 bg-clip-text">
-              License &amp; Module Management
+              Licensing &amp; Subscription
             </h2>
           </div>
           <p className="text-muted-foreground mt-1 ml-[2.875rem]">
-            Monitor usage, manage module entitlements, and review license limits.
+            {isPlatformAdmin
+              ? 'Monitor usage, manage module entitlements, and review license limits.'
+              : 'View your current plan, usage, and enabled modules.'}
           </p>
           {overview?.plan && (
             <div className="ml-[2.875rem] mt-2 flex items-center gap-2">
@@ -599,14 +698,21 @@ export default function LicenseManagement() {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {lastRefresh && (
+          {!isPlatformAdmin && overview?.plan && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Lock className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Read-only &middot; Tenant ID: {overview.tenantId.slice(0, 8)}&hellip;</span>
+            </div>
+          )}
+          {isPlatformAdmin && lastRefresh && (
             <span className="text-xs text-muted-foreground hidden sm:inline">
               Last refresh: {lastRefresh.toLocaleTimeString()}
             </span>
           )}
           <Button
-            onClick={handleRefreshUsage}
+            onClick={handleRefresh}
             disabled={refreshing}
+            variant={isPlatformAdmin ? 'default' : 'outline'}
             className="shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200"
           >
             {refreshing ? (
@@ -614,7 +720,11 @@ export default function LicenseManagement() {
             ) : (
               <RefreshCw className="h-4 w-4 mr-2" />
             )}
-            {refreshing ? 'Refreshing...' : 'Refresh Usage'}
+            {refreshing
+              ? 'Refreshing...'
+              : isPlatformAdmin
+                ? 'Refresh Usage'
+                : 'Refresh'}
           </Button>
         </div>
       </div>
@@ -622,13 +732,15 @@ export default function LicenseManagement() {
       {/* Gradient section divider */}
       <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
 
-      {/* ── Section A: License Overview Cards ─────────────────────── */}
+      {/* ── Section A: Base Module Usage (ALWAYS VISIBLE) ──────────── */}
       <div>
         <div className="flex items-center gap-2 mb-4">
           <div className="rounded-lg bg-gradient-to-br from-slate-500/10 to-slate-500/5 p-1.5">
             <ShieldCheck className="h-4 w-4 text-slate-600 dark:text-slate-400" />
           </div>
-          <h3 className="text-lg font-semibold">Base Module (PMS)</h3>
+          <h3 className="text-lg font-semibold">
+            Base Module {isPlatformAdmin ? '(PMS)' : 'Usage'}
+          </h3>
         </div>
         {loading ? (
           renderOverviewSkeleton()
@@ -659,10 +771,18 @@ export default function LicenseManagement() {
               'text-orange-600 dark:text-orange-400'
             )}
           </div>
-        ) : null}
+        ) : (
+          <Card className="border-0 shadow-sm rounded-2xl">
+            <CardContent className="py-12 flex flex-col items-center text-muted-foreground">
+              <Shield className="h-10 w-10 opacity-30 mb-2" />
+              <p className="font-medium">No subscription data available</p>
+              <p className="text-xs mt-1">Contact your administrator for more details.</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      {/* ── Warning Banner ───────────────────────────────────────── */}
+      {/* ── Section B: Warning Banner (ALWAYS VISIBLE) ────────────── */}
       {overview && (overview.exceeded.length > 0 || overview.warnings.length > 0) && (
         <div
           className={`rounded-2xl border px-5 py-4 transition-all duration-300 ${
@@ -688,7 +808,13 @@ export default function LicenseManagement() {
               />
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className={`text-sm font-semibold ${overview.exceeded.length > 0 ? 'text-red-700 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'}`}>
+              <h4
+                className={`text-sm font-semibold ${
+                  overview.exceeded.length > 0
+                    ? 'text-red-700 dark:text-red-400'
+                    : 'text-amber-700 dark:text-amber-400'
+                }`}
+              >
                 {overview.exceeded.length > 0
                   ? `${overview.exceeded.length} limit(s) exceeded`
                   : `${overview.warnings.length} module(s) approaching limits`}
@@ -697,10 +823,15 @@ export default function LicenseManagement() {
                 {[...overview.exceeded, ...overview.warnings]
                   .map(
                     (w) =>
-                      `${w.moduleName}: ${w.current}/${w.limit} (${Math.round(w.percent)}%)`
+                      `${w.moduleName}: ${w.current}/${w.limit === 0 ? '\u221E' : w.limit} (${Math.round(w.percent)}%)`
                   )
-                  .join(' · ')}
+                  .join(' \u00B7 ')}
               </p>
+              {!isPlatformAdmin && (
+                <p className="text-xs mt-2 text-muted-foreground italic">
+                  Contact your administrator to request a limit increase or plan upgrade.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -709,473 +840,595 @@ export default function LicenseManagement() {
       {/* Gradient section divider */}
       <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
 
-      {/* ── Section B: Add-on Module Entitlements Table ───────────── */}
-      <Card className="border-0 shadow-sm rounded-2xl">
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 p-2">
-                <Settings className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
-              </div>
-              <div>
-                <CardTitle>Add-on Module Entitlements</CardTitle>
-                <CardDescription>
-                  {loading
-                    ? 'Loading...'
-                    : `${entitlements.length} module${entitlements.length !== 1 ? 's' : ''} configured`}
-                </CardDescription>
+      {/* ── Section C: Add-on Module Entitlements Table (PLATFORM ADMIN ONLY) ── */}
+      {isPlatformAdmin && (
+        <Card className="border-0 shadow-sm rounded-2xl">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 p-2">
+                  <Settings className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+                </div>
+                <div>
+                  <CardTitle>Add-on Module Entitlements</CardTitle>
+                  <CardDescription>
+                    {loading
+                      ? 'Loading...'
+                      : `${entitlements.length} module${entitlements.length !== 1 ? 's' : ''} configured`}
+                  </CardDescription>
+                </div>
               </div>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border bg-background/50 overflow-hidden">
-            <div className="max-h-[420px] overflow-y-auto custom-scrollbar">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider">Module</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider">Limit Type</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider">Usage</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider hidden md:table-cell">Peak</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider hidden lg:table-cell">Hard Limit</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider hidden lg:table-cell">Warning At</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider">Status</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    renderTableSkeleton()
-                  ) : entitlements.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-12">
-                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                          <Shield className="h-10 w-10 opacity-30" />
-                          <p className="font-medium">No add-on modules configured</p>
-                          <p className="text-xs">
-                            Enable module feature flags to create entitlements
-                          </p>
-                        </div>
-                      </TableCell>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-lg border bg-background/50 overflow-hidden">
+              <div className="max-h-[420px] overflow-y-auto custom-scrollbar">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead className="text-xs font-semibold uppercase tracking-wider">Module</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wider">Limit Type</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wider">Usage</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wider hidden md:table-cell">Peak</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wider hidden lg:table-cell">Hard Limit</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wider hidden lg:table-cell">Warning At</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wider">Status</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Actions</TableHead>
                     </TableRow>
-                  ) : (
-                    entitlements.map((ent) => {
-                      const percent =
-                        ent.limitValue === 0
-                          ? 0
-                          : (ent.currentUsage / ent.limitValue) * 100;
-                      const isExceeded =
-                        ent.limitValue > 0 && ent.currentUsage > ent.limitValue;
-                      const isWarning =
-                        ent.limitValue > 0 &&
-                        !isExceeded &&
-                        percent >= ent.warningThreshold * 100;
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      renderTableSkeleton()
+                    ) : entitlements.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-12">
+                          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                            <Shield className="h-10 w-10 opacity-30" />
+                            <p className="font-medium">No add-on modules configured</p>
+                            <p className="text-xs">
+                              Enable module feature flags to create entitlements
+                            </p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      entitlements.map((ent) => {
+                        const percent =
+                          ent.limitValue === 0
+                            ? 0
+                            : (ent.currentUsage / ent.limitValue) * 100;
+                        const isExceeded =
+                          ent.limitValue > 0 && ent.currentUsage > ent.limitValue;
 
-                      const ModuleIcon =
-                        MODULE_ICONS[ent.moduleKey] || Settings;
+                        const ModuleIcon =
+                          MODULE_ICONS[ent.moduleKey] || Settings;
 
-                      return (
-                        <TableRow key={ent.id} className="group">
-                          {/* Module Name + Icon */}
-                          <TableCell>
-                            <div className="flex items-center gap-2.5">
-                              <div className="rounded-lg bg-gradient-to-br from-primary/5 to-primary/10 p-1.5 shrink-0">
-                                <ModuleIcon className="h-4 w-4 text-primary" />
+                        return (
+                          <TableRow key={ent.id} className="group">
+                            {/* Module Name + Icon */}
+                            <TableCell>
+                              <div className="flex items-center gap-2.5">
+                                <div className="rounded-lg bg-gradient-to-br from-primary/5 to-primary/10 p-1.5 shrink-0">
+                                  <ModuleIcon className="h-4 w-4 text-primary" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium truncate">
+                                    {ent.moduleName}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground font-mono">
+                                    {ent.moduleKey}
+                                  </p>
+                                </div>
                               </div>
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium truncate">
-                                  {ent.moduleName}
-                                </p>
-                                <p className="text-[10px] text-muted-foreground font-mono">
-                                  {ent.moduleKey}
-                                </p>
+                            </TableCell>
+
+                            {/* Limit Type */}
+                            <TableCell>
+                              <span className="text-xs text-muted-foreground capitalize">
+                                {ent.limitType.replace(/_/g, ' ')}
+                              </span>
+                            </TableCell>
+
+                            {/* Usage */}
+                            <TableCell>
+                              <div className="space-y-1 min-w-[120px]">
+                                <div className="flex items-baseline gap-1">
+                                  <span className="text-sm font-semibold">
+                                    {ent.currentUsage.toLocaleString()}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {ent.limitValue === 0
+                                      ? '(unlimited)'
+                                      : `/ ${ent.limitValue.toLocaleString()}`}
+                                  </span>
+                                </div>
+                                <Progress
+                                  value={
+                                    ent.limitValue === 0
+                                      ? 0
+                                      : Math.min(percent, 100)
+                                  }
+                                  className={`h-1.5 ${getProgressClass(percent, isExceeded)}`}
+                                />
                               </div>
-                            </div>
-                          </TableCell>
+                            </TableCell>
 
-                          {/* Limit Type */}
-                          <TableCell>
-                            <span className="text-xs text-muted-foreground capitalize">
-                              {ent.limitType.replace(/_/g, ' ')}
-                            </span>
-                          </TableCell>
-
-                          {/* Usage */}
-                          <TableCell>
-                            <div className="space-y-1 min-w-[120px]">
-                              <div className="flex items-baseline gap-1">
-                                <span className="text-sm font-semibold">
-                                  {ent.currentUsage.toLocaleString()}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {ent.limitValue === 0
-                                    ? '(unlimited)'
-                                    : `/ ${ent.limitValue.toLocaleString()}`}
-                                </span>
+                            {/* Peak */}
+                            <TableCell className="hidden md:table-cell">
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <TrendingUp className="h-3 w-3" />
+                                {ent.peakUsage.toLocaleString()}
                               </div>
-                              <Progress
-                                value={
-                                  ent.limitValue === 0
-                                    ? 0
-                                    : Math.min(percent, 100)
-                                }
-                                className={`h-1.5 ${getProgressClass(percent, isExceeded)}`}
-                              />
-                            </div>
-                          </TableCell>
+                            </TableCell>
 
-                          {/* Peak */}
-                          <TableCell className="hidden md:table-cell">
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <TrendingUp className="h-3 w-3" />
-                              {ent.peakUsage.toLocaleString()}
-                            </div>
-                          </TableCell>
+                            {/* Hard Limit Toggle */}
+                            <TableCell className="hidden lg:table-cell">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[10px] ${
+                                      ent.hardLimit
+                                        ? 'border-red-500/20 bg-red-500/5 text-red-700 dark:text-red-400'
+                                        : 'border-muted-foreground/20 bg-muted/30 text-muted-foreground'
+                                    }`}
+                                  >
+                                    {ent.hardLimit ? 'Enforced' : 'Soft'}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {ent.hardLimit
+                                    ? 'Access is blocked when limit is exceeded'
+                                    : 'Usage continues but a warning is shown'}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TableCell>
 
-                          {/* Hard Limit Toggle */}
-                          <TableCell className="hidden lg:table-cell">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Badge
-                                  variant="outline"
-                                  className={`text-[10px] ${
-                                    ent.hardLimit
-                                      ? 'border-red-500/20 bg-red-500/5 text-red-700 dark:text-red-400'
-                                      : 'border-muted-foreground/20 bg-muted/30 text-muted-foreground'
-                                  }`}
-                                >
-                                  {ent.hardLimit ? 'Enforced' : 'Soft'}
-                                </Badge>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {ent.hardLimit
-                                  ? 'Access is blocked when limit is exceeded'
-                                  : 'Usage continues but a warning is shown'}
-                              </TooltipContent>
-                            </Tooltip>
-                          </TableCell>
+                            {/* Warning Threshold */}
+                            <TableCell className="hidden lg:table-cell">
+                              <span className="text-xs font-medium text-muted-foreground">
+                                {Math.round(ent.warningThreshold * 100)}%
+                              </span>
+                            </TableCell>
 
-                          {/* Warning Threshold */}
-                          <TableCell className="hidden lg:table-cell">
-                            <span className="text-xs font-medium text-muted-foreground">
-                              {Math.round(ent.warningThreshold * 100)}%
-                            </span>
-                          </TableCell>
+                            {/* Status */}
+                            <TableCell>
+                              {getStatusBadge(percent, isExceeded, ent.limitValue === 0)}
+                            </TableCell>
 
-                          {/* Status */}
-                          <TableCell>
-                            {getStatusBadge(percent, isExceeded, ent.limitValue === 0)}
-                          </TableCell>
-
-                          {/* Edit */}
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openEditDialog(ent)}
-                              className="h-7 w-7 p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                              title={`Edit ${ent.moduleName}`}
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
+                            {/* Edit */}
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditDialog(ent)}
+                                className="h-7 w-7 p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                                title={`Edit ${ent.moduleName}`}
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Section D: Enabled Modules (TENANT ADMIN ONLY) ────────── */}
+      {!isPlatformAdmin && (
+        <div>
+          <div className="flex items-center gap-2 mb-4">
+            <div className="rounded-lg bg-gradient-to-br from-violet-500/10 to-violet-500/5 p-1.5">
+              <Settings className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+            </div>
+            <h3 className="text-lg font-semibold">Enabled Modules</h3>
+            {!loading && (
+              <Badge variant="outline" className="ml-2 text-xs font-normal">
+                {enabledAddons.length} addon{enabledAddons.length !== 1 ? 's' : ''} active
+              </Badge>
+            )}
           </div>
-        </CardContent>
-      </Card>
+          {loading ? (
+            renderSkeleton(6)
+          ) : groupedAddons.length === 0 ? (
+            <Card className="border-0 shadow-sm rounded-2xl">
+              <CardContent className="py-12 flex flex-col items-center text-muted-foreground">
+                <Shield className="h-10 w-10 opacity-30 mb-2" />
+                <p className="font-medium">No addon modules enabled</p>
+                <p className="text-xs mt-1">Ask your administrator to enable modules for your plan.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {groupedAddons.map((group) => {
+                const GroupIcon = SUB_ICONS[group.key] || Settings;
+                return (
+                  <div key={group.key}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <GroupIcon className="h-4 w-4 text-muted-foreground" />
+                      <h4 className="text-sm font-semibold">{group.name}</h4>
+                      <span className="text-xs text-muted-foreground">
+                        {group.features.length} module{group.features.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {group.features.map((feature) => {
+                        const ent = getEntitlementFor(feature.id);
+                        const pct =
+                          ent && ent.limitValue > 0
+                            ? (ent.currentUsage / ent.limitValue) * 100
+                            : 0;
+                        const exceeded =
+                          !!ent && ent.limitValue > 0 && ent.currentUsage > ent.limitValue;
+                        const unlimited = !ent || ent.limitValue === 0;
+                        return (
+                          <Card
+                            key={feature.id}
+                            className="border-0 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-2xl"
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="rounded-lg bg-gradient-to-br from-violet-500/10 to-violet-500/5 p-1.5 shrink-0">
+                                    <GroupIcon className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                                  </div>
+                                  <p className="text-sm font-medium truncate">{feature.name}</p>
+                                </div>
+                                {getStatusBadge(pct, exceeded, unlimited)}
+                              </div>
+                              {ent ? (
+                                <div className="space-y-1.5">
+                                  <div className="flex items-baseline gap-1">
+                                    <span className="text-lg font-bold">
+                                      {unlimited ? '\u221E' : ent.currentUsage.toLocaleString()}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {unlimited
+                                        ? 'unlimited'
+                                        : `/ ${ent.limitValue.toLocaleString()}`}
+                                    </span>
+                                  </div>
+                                  {!unlimited && (
+                                    <Progress
+                                      value={Math.min(pct, 100)}
+                                      className={`h-1.5 ${getProgressClass(pct, exceeded)}`}
+                                    />
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-muted-foreground">No usage limits configured</p>
+                              )}
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Gradient section divider */}
       <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
 
-      {/* ── Section C: Usage History Chart ───────────────────────── */}
-      <Card className="border-0 shadow-sm rounded-2xl">
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/5 p-2">
-                <BarChart3 className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+      {/* ── Section E: Usage History Chart (PLATFORM ADMIN ONLY) ──── */}
+      {isPlatformAdmin && (
+        <Card className="border-0 shadow-sm rounded-2xl">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/5 p-2">
+                  <BarChart3 className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <CardTitle>Usage History</CardTitle>
+                  <CardDescription>
+                    Track module usage trends over time
+                  </CardDescription>
+                </div>
               </div>
-              <div>
-                <CardTitle>Usage History</CardTitle>
-                <CardDescription>
-                  Track module usage trends over time
-                </CardDescription>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={historyModule}
+                  onValueChange={setHistoryModule}
+                >
+                  <SelectTrigger className="w-[180px] rounded-xl">
+                    <SelectValue placeholder="Select module" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableModules.map((m) => (
+                      <SelectItem key={m.key} value={m.key}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={historyDays} onValueChange={setHistoryDays}>
+                  <SelectTrigger className="w-[110px] rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="7">Last 7 days</SelectItem>
+                    <SelectItem value="30">Last 30 days</SelectItem>
+                    <SelectItem value="90">Last 90 days</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Select
-                value={historyModule}
-                onValueChange={setHistoryModule}
-              >
-                <SelectTrigger className="w-[180px] rounded-xl">
-                  <SelectValue placeholder="Select module" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableModules.map((m) => (
-                    <SelectItem key={m.key} value={m.key}>
-                      {m.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={historyDays} onValueChange={setHistoryDays}>
-                <SelectTrigger className="w-[110px] rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7">Last 7 days</SelectItem>
-                  <SelectItem value="30">Last 30 days</SelectItem>
-                  <SelectItem value="90">Last 90 days</SelectItem>
-                </SelectContent>
-              </Select>
+          </CardHeader>
+          <CardContent>
+            {historyLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-[280px] w-full rounded-xl" />
+              </div>
+            ) : historyData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <BarChart3 className="h-10 w-10 opacity-30 mb-2" />
+                <p className="font-medium">No usage history available</p>
+                <p className="text-xs mt-1">
+                  Usage data will appear here after the first refresh cycle
+                </p>
+              </div>
+            ) : (
+              <ChartContainer config={chartConfig} className="h-[280px] w-full">
+                <BarChart data={historyData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="sampledAt"
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(val: string) => {
+                      try {
+                        const d = new Date(val);
+                        return `${d.getMonth() + 1}/${d.getDate()}`;
+                      } catch {
+                        return val;
+                      }
+                    }}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 11 }}
+                    width={40}
+                  />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        labelFormatter={(label: string) => {
+                          try {
+                            return new Date(label).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            });
+                          } catch {
+                            return label;
+                          }
+                        }}
+                        formatter={(value: number) => [value.toLocaleString(), 'Usage']}
+                      />
+                    }
+                  />
+                  <Bar
+                    dataKey="usageValue"
+                    fill="var(--color-usageValue)"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={32}
+                  />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Section F: Contact Admin Footer (TENANT ADMIN ONLY) ───── */}
+      {!isPlatformAdmin && (
+        <div className="rounded-2xl border border-muted bg-muted/30 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <div className="shrink-0 rounded-lg bg-primary/10 p-2">
+              <Info className="h-5 w-5 text-primary" />
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {historyLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-[280px] w-full rounded-xl" />
-            </div>
-          ) : historyData.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <BarChart3 className="h-10 w-10 opacity-30 mb-2" />
-              <p className="font-medium">No usage history available</p>
-              <p className="text-xs mt-1">
-                Usage data will appear here after the first refresh cycle
+            <div>
+              <h4 className="text-sm font-semibold">Need to upgrade or modify?</h4>
+              <p className="text-xs text-muted-foreground mt-1">
+                Contact your administrator to upgrade your plan, enable additional modules, or
+                request changes to your subscription limits.
               </p>
             </div>
-          ) : (
-            <ChartContainer config={chartConfig} className="h-[280px] w-full">
-              <BarChart data={historyData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  dataKey="sampledAt"
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(val: string) => {
-                    try {
-                      const d = new Date(val);
-                      return `${d.getMonth() + 1}/${d.getDate()}`;
-                    } catch {
-                      return val;
-                    }
-                  }}
-                  tick={{ fontSize: 11 }}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 11 }}
-                  width={40}
-                />
-                <ChartTooltip
-                  content={
-                    <ChartTooltipContent
-                      labelFormatter={(label: string) => {
-                        try {
-                          return new Date(label).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          });
-                        } catch {
-                          return label;
-                        }
-                      }}
-                      formatter={(value: number) => [value.toLocaleString(), 'Usage']}
-                    />
-                  }
-                />
-                <Bar
-                  dataKey="usageValue"
-                  fill="var(--color-usageValue)"
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={32}
-                />
-              </BarChart>
-            </ChartContainer>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      )}
 
-      {/* ── Edit Entitlement Dialog ──────────────────────────────── */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <div className="flex items-center gap-3">
-              <div className="rounded-full bg-primary/10 p-2">
-                <Edit2 className="h-5 w-5 text-primary" />
-              </div>
-              <DialogTitle>Edit Entitlement</DialogTitle>
-            </div>
-            <DialogDescription className="pt-2">
-              {editingEnt
-                ? `Configure limits for ${editingEnt.moduleName}`
-                : 'Configure module limits'}
-            </DialogDescription>
-          </DialogHeader>
-
-          {editingEnt && (
-            <div className="space-y-4 pt-2">
-              {/* Module info */}
-              <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Module
-                </p>
-                <p className="text-sm font-medium">{editingEnt.moduleName}</p>
-                <p className="text-xs text-muted-foreground font-mono">
-                  {editingEnt.moduleKey} · {editingEnt.limitType.replace(/_/g, ' ')}
-                </p>
-              </div>
-
-              {/* Current usage summary */}
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-lg border bg-muted/20 p-2">
-                  <p className="text-lg font-bold">
-                    {editingEnt.currentUsage.toLocaleString()}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">Current</p>
+      {/* ── Edit Entitlement Dialog (PLATFORM ADMIN ONLY) ─────────── */}
+      {isPlatformAdmin && (
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-primary/10 p-2">
+                  <Edit2 className="h-5 w-5 text-primary" />
                 </div>
-                <div className="rounded-lg border bg-muted/20 p-2">
-                  <p className="text-lg font-bold">
-                    {editingEnt.limitValue.toLocaleString()}
+                <DialogTitle>Edit Entitlement</DialogTitle>
+              </div>
+              <DialogDescription className="pt-2">
+                {editingEnt
+                  ? `Configure limits for ${editingEnt.moduleName}`
+                  : 'Configure module limits'}
+              </DialogDescription>
+            </DialogHeader>
+
+            {editingEnt && (
+              <div className="space-y-4 pt-2">
+                {/* Module info */}
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Module
                   </p>
-                  <p className="text-[10px] text-muted-foreground">Limit</p>
-                </div>
-                <div className="rounded-lg border bg-muted/20 p-2">
-                  <p className="text-lg font-bold">
-                    {editingEnt.peakUsage.toLocaleString()}
+                  <p className="text-sm font-medium">{editingEnt.moduleName}</p>
+                  <p className="text-xs text-muted-foreground font-mono">
+                    {editingEnt.moduleKey} &middot; {editingEnt.limitType.replace(/_/g, ' ')}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">Peak</p>
                 </div>
-              </div>
 
-              {/* Limit Value */}
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  Limit Value
-                </Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={editLimit}
-                  onChange={(e) => setEditLimit(e.target.value)}
-                  className="rounded-xl transition-all duration-300 focus:ring-2 focus:ring-primary/10 hover:border-primary/30"
-                  placeholder="0 = unlimited"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Set to 0 for unlimited usage
-                </p>
-              </div>
+                {/* Current usage summary */}
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg border bg-muted/20 p-2">
+                    <p className="text-lg font-bold">
+                      {editingEnt.currentUsage.toLocaleString()}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">Current</p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/20 p-2">
+                    <p className="text-lg font-bold">
+                      {editingEnt.limitValue.toLocaleString()}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">Limit</p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/20 p-2">
+                    <p className="text-lg font-bold">
+                      {editingEnt.peakUsage.toLocaleString()}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">Peak</p>
+                  </div>
+                </div>
 
-              {/* Warning Threshold */}
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  Warning Threshold (%)
-                </Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={100}
-                  step={1}
-                  value={editThreshold}
-                  onChange={(e) => setEditThreshold(e.target.value)}
-                  className="rounded-xl transition-all duration-300 focus:ring-2 focus:ring-primary/10 hover:border-primary/30"
-                  placeholder="80"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Show warning when usage reaches this percentage of the limit
-                </p>
-              </div>
-
-              {/* Hard Limit Toggle */}
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Hard Limit</Label>
+                {/* Limit Value */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    Limit Value
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={editLimit}
+                    onChange={(e) => setEditLimit(e.target.value)}
+                    className="rounded-xl transition-all duration-300 focus:ring-2 focus:ring-primary/10 hover:border-primary/30"
+                    placeholder="0 = unlimited"
+                  />
                   <p className="text-xs text-muted-foreground">
-                    Block access when the limit is exceeded
+                    Set to 0 for unlimited usage
                   </p>
                 </div>
-                <Switch
-                  checked={editHardLimit}
-                  onCheckedChange={setEditHardLimit}
-                />
-              </div>
-            </div>
-          )}
 
-          <DialogFooter className="gap-2 sm:gap-0 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setEditDialogOpen(false);
-                setEditingEnt(null);
-              }}
-              disabled={saving}
-              className="transition-all duration-200"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveEntitlement}
-              disabled={saving}
-              className="shadow-md hover:shadow-lg transition-all duration-200"
-            >
-              {saving ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Check className="h-4 w-4 mr-2" />
-              )}
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                {/* Warning Threshold */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    Warning Threshold (%)
+                  </Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100}
+                    step={1}
+                    value={editThreshold}
+                    onChange={(e) => setEditThreshold(e.target.value)}
+                    className="rounded-xl transition-all duration-300 focus:ring-2 focus:ring-primary/10 hover:border-primary/30"
+                    placeholder="80"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Show warning when usage reaches this percentage of the limit
+                  </p>
+                </div>
 
-      {/* ── Confirm Lower Limit AlertDialog ─────────────────────── */}
-      <AlertDialog open={confirmDialogOpen} onOpenChange={(open) => {
-        setConfirmDialogOpen(open);
-        if (!open) setPendingLimitSave(null);
-      }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <div className="flex items-center gap-3">
-              <div className="rounded-full bg-amber-500/10 p-2">
-                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                {/* Hard Limit Toggle */}
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Hard Limit</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Block access when the limit is exceeded
+                    </p>
+                  </div>
+                  <Switch
+                    checked={editHardLimit}
+                    onCheckedChange={setEditHardLimit}
+                  />
+                </div>
               </div>
-              <AlertDialogTitle>Lower Limit Below Current Usage</AlertDialogTitle>
-            </div>
-            <AlertDialogDescription className="pt-2">
-              {editingEnt && pendingLimitSave
-                ? `Current usage (${editingEnt.currentUsage.toLocaleString()}) exceeds the new limit (${pendingLimitSave.limit.toLocaleString()}). Some features may become unavailable.`
-                : 'Current usage exceeds the new limit. Some features may become unavailable.'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
-            <Button
-              variant="destructive"
-              onClick={handleConfirmLowerLimit}
-              disabled={saving}
-            >
-              {saving ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Check className="h-4 w-4 mr-2" />
-              )}
-              {saving ? 'Saving...' : 'Confirm & Save'}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            )}
+
+            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditDialogOpen(false);
+                  setEditingEnt(null);
+                }}
+                disabled={saving}
+                className="transition-all duration-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveEntitlement}
+                disabled={saving}
+                className="shadow-md hover:shadow-lg transition-all duration-200"
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4 mr-2" />
+                )}
+                {saving ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── Confirm Lower Limit AlertDialog (PLATFORM ADMIN ONLY) ── */}
+      {isPlatformAdmin && (
+        <AlertDialog
+          open={confirmDialogOpen}
+          onOpenChange={(open) => {
+            setConfirmDialogOpen(open);
+            if (!open) setPendingLimitSave(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-amber-500/10 p-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <AlertDialogTitle>Lower Limit Below Current Usage</AlertDialogTitle>
+              </div>
+              <AlertDialogDescription className="pt-2">
+                {editingEnt && pendingLimitSave
+                  ? `Current usage (${editingEnt.currentUsage.toLocaleString()}) exceeds the new limit (${pendingLimitSave.limit.toLocaleString()}). Some features may become unavailable.`
+                  : 'Current usage exceeds the new limit. Some features may become unavailable.'}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
+              <Button
+                variant="destructive"
+                onClick={handleConfirmLowerLimit}
+                disabled={saving}
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4 mr-2" />
+                )}
+                {saving ? 'Saving...' : 'Confirm & Save'}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }

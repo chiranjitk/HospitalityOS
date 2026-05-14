@@ -82,8 +82,6 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
       if (menuItemId.startsWith('saas-')) return false;
       if (menuItemId.startsWith('admin-')) return false;
       if (['settings-features', 'settings-license', 'settings-license-keys'].includes(menuItemId)) return false;
-      // "My Subscription" is tenant-admin only (platform admin uses License Management instead)
-      // Still allow it for all non-platform authenticated users
       // Admin role or wildcard permission has access to everything else
       if (isAdmin || permissions.includes('*')) return true;
       return hasMenuAccess(permissions, menuItemId);
@@ -93,8 +91,7 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
 
   const getAccessibleMenus = useCallback((): string[] => {
     if (!user) return [];
-    // Platform admin has access to all menus (except "My Subscription" — they use License Management)
-    if (user.isPlatformAdmin) return Object.keys(menuPermissions).filter(id => id !== 'settings-subscription');
+    if (user.isPlatformAdmin) return Object.keys(menuPermissions);
     // SaaS, admin, and platform-only license menus are exclusive to platform admin
     const platformOnlyIds = ['settings-features', 'settings-license', 'settings-license-keys'];
     if (isAdmin || permissions.includes('*')) {

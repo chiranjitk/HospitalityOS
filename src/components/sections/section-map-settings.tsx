@@ -7,7 +7,6 @@ const sectionMap: Record<string, () => Promise<{ default: React.ComponentType<an
   'settings-integrations': () => import('@/components/settings/system-integrations'),
   'settings-gdpr': () => import('@/components/gdpr/gdpr-manager'),
   'settings-license': () => import('@/components/settings/license-management'),
-  'settings-subscription': () => import('@/components/settings/my-subscription'),
   'settings-license-keys': () => import('@/components/settings/license-keys'),
 };
 

@@ -2,13 +2,10 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
 /**
- * Auto-seed RegistrationPlan from SubscriptionPlan if empty.
- * This keeps both plan tables in sync without requiring a separate seed step.
+ * Always sync RegistrationPlan from SubscriptionPlan (idempotent upsert).
+ * This keeps both plan tables in sync on every request.
  */
 async function ensureRegistrationPlansSeeded() {
-  const count = await db.registrationPlan.count();
-  if (count > 0) return;
-
   const subscriptionPlans = await db.subscriptionPlan.findMany({
     where: { isActive: true },
     orderBy: { sortOrder: 'asc' },
@@ -70,7 +67,7 @@ async function ensureRegistrationPlansSeeded() {
 // GET /api/registration/plans (PUBLIC)
 export async function GET() {
   try {
-    // Auto-seed from SubscriptionPlan if RegistrationPlan is empty
+    // Sync from SubscriptionPlan (idempotent)
     await ensureRegistrationPlansSeeded();
 
     const plans = await db.registrationPlan.findMany({
