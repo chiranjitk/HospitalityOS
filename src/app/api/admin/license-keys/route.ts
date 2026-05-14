@@ -52,9 +52,22 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // Fetch total count
+    // Fetch total count (may be filtered)
     const total = await db.licenseKey.count({ where });
     const totalPages = Math.ceil(total / limit);
+
+    // Stats: count by status across ALL keys (not filtered by current status filter)
+    const baseWhere: Record<string, unknown> = {};
+    if (planId) baseWhere.planId = planId;
+    if (search) {
+      baseWhere.OR = where.OR;
+    }
+    const [statsActive, statsActivated, statsExpired, statsRevoked] = await Promise.all([
+      db.licenseKey.count({ where: { ...baseWhere, status: 'active' } }),
+      db.licenseKey.count({ where: { ...baseWhere, status: 'activated' } }),
+      db.licenseKey.count({ where: { ...baseWhere, status: 'expired' } }),
+      db.licenseKey.count({ where: { ...baseWhere, status: 'revoked' } }),
+    ]);
 
     // Fetch paginated keys with plan
     const keys = await db.licenseKey.findMany({
@@ -124,6 +137,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       keys: formattedKeys,
+      stats: {
+        total: statsActive + statsActivated + statsExpired + statsRevoked,
+        active: statsActive,
+        activated: statsActivated,
+        expired: statsExpired,
+        revoked: statsRevoked,
+      },
+      totalPages,
       pagination: {
         page,
         limit,

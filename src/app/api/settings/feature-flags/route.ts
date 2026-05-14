@@ -9,6 +9,7 @@ import {
 } from '@/lib/feature-flags';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { seedEntitlements } from '@/lib/license-enforcement';
+import cache from '@/lib/cache';
 
 // GET - Get feature flags for tenant
 export async function GET(request: NextRequest) {
@@ -206,9 +207,13 @@ export async function PUT(request: NextRequest) {
 
     // Auto-seed license entitlements for newly enabled addon modules
     const newlyEnabledKeys: string[] = [];
+    const newlyDisabledKeys: string[] = [];
     for (const key of changedKeys) {
       if (featuresMap[key] === true && existingFeatures[key] !== true) {
         newlyEnabledKeys.push(key);
+      }
+      if (featuresMap[key] === false && existingFeatures[key] !== false) {
+        newlyDisabledKeys.push(key);
       }
     }
     if (newlyEnabledKeys.length > 0) {
@@ -220,6 +225,30 @@ export async function PUT(request: NextRequest) {
       } catch (seedError) {
         console.error('[Feature Flags] Failed to seed entitlements:', seedError);
         // Don't block feature flag update for entitlement seeding failure
+      }
+    }
+
+    // Revoke entitlements for newly disabled features
+    if (newlyDisabledKeys.length > 0) {
+      try {
+        const updateResult = await db.licenseModuleEntitlement.updateMany({
+          where: {
+            tenantId,
+            moduleKey: { in: newlyDisabledKeys },
+            isValid: true,
+          },
+          data: { isValid: false },
+        });
+        if (updateResult.count > 0) {
+          console.log(`[Feature Flags] Revoked entitlements for ${updateResult.count} disabled module(s): ${newlyDisabledKeys.join(', ')}`);
+          // Invalidate cache for revoked modules
+          for (const key of newlyDisabledKeys) {
+            cache.delete(`license:entitlement:${tenantId}:${key}`);
+          }
+        }
+      } catch (revokeError) {
+        console.error('[Feature Flags] Failed to revoke entitlements:', revokeError);
+        // Don't block feature flag update for entitlement revocation failure
       }
     }
 

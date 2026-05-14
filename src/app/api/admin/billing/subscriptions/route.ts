@@ -164,51 +164,56 @@ export async function POST(request: NextRequest) {
       periodEnd.setMonth(periodEnd.getMonth() + 1);
     }
 
-    // Create subscription
-    const subscription = await db.subscription.create({
-      data: {
-        tenantId,
-        planId: plan.id,
-        planName: plan.name,
-        billingCycle: cycle,
-        amount,
-        currency: plan.currency,
-        status: 'active',
-        currentPeriodStart: now,
-        currentPeriodEnd: periodEnd,
-      },
-    });
-
-    // Also update tenant plan and subscription dates
-    await db.tenant.update({
-      where: { id: tenantId },
-      data: {
-        plan: planName,
-        status: 'active',
-        maxProperties: plan.maxProperties,
-        maxUsers: plan.maxUsers,
-        maxRooms: plan.maxRooms,
-        storageLimitMb: plan.storageLimitMb,
-        subscriptionStartsAt: now,
-        subscriptionEndsAt: periodEnd,
-      },
-    });
-
     // Auto-generate first invoice
     const invoiceNumber = `INV-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
     const dueDate = new Date(now);
     dueDate.setDate(dueDate.getDate() + 30);
 
-    await db.subscriptionInvoice.create({
-      data: {
-        subscriptionId: subscription.id,
-        invoiceNumber,
-        amount,
-        currency: plan.currency,
-        status: 'issued',
-        issuedAt: now,
-        dueAt: dueDate,
-      },
+    // Create subscription, update tenant, and generate first invoice atomically
+    const subscription = await db.$transaction(async (tx) => {
+      const sub = await tx.subscription.create({
+        data: {
+          tenantId,
+          planId: plan.id,
+          planName: plan.name,
+          billingCycle: cycle,
+          amount,
+          currency: plan.currency,
+          status: 'active',
+          currentPeriodStart: now,
+          currentPeriodEnd: periodEnd,
+        },
+      });
+
+      // Also update tenant plan and subscription dates
+      await tx.tenant.update({
+        where: { id: tenantId },
+        data: {
+          plan: planName,
+          status: 'active',
+          maxProperties: plan.maxProperties,
+          maxUsers: plan.maxUsers,
+          maxRooms: plan.maxRooms,
+          storageLimitMb: plan.storageLimitMb,
+          subscriptionStartsAt: now,
+          subscriptionEndsAt: periodEnd,
+        },
+      });
+
+      // Auto-generate first invoice
+      await tx.subscriptionInvoice.create({
+        data: {
+          subscriptionId: sub.id,
+          invoiceNumber,
+          amount,
+          currency: plan.currency,
+          status: 'issued',
+          issuedAt: now,
+          dueAt: dueDate,
+        },
+      });
+
+      return sub;
     });
 
     return NextResponse.json({

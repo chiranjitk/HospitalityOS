@@ -162,9 +162,9 @@ export async function DELETE(
       );
     }
 
-    if (user.roleName !== 'admin' && !user.isPlatformAdmin) {
+    if (!user.isPlatformAdmin) {
       return NextResponse.json(
-        { success: false, error: 'Only administrators can delete entitlements' },
+        { success: false, error: { code: 'FORBIDDEN', message: 'Platform admin access required' } },
         { status: 403 }
       );
     }

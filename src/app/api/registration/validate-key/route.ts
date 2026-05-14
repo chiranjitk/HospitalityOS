@@ -7,8 +7,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+// In-memory rate limiting (10 requests per IP per 15 minutes)
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(identifier: string, maxAttempts: number, windowMs: number): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(identifier);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(identifier, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  if (entry.count >= maxAttempts) return false;
+  entry.count++;
+  return true;
+}
+
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit check (10 requests per IP per 15 minutes)
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+                     request.headers.get('x-real-ip') || 'unknown';
+    if (!checkRateLimit(clientIp, 10, 15 * 60 * 1000)) {
+      return NextResponse.json(
+        { success: false, error: 'Too many requests. Please try again later.' },
+        { status: 429 },
+      );
+    }
+
     const body = await request.json();
     const { key } = body;
 

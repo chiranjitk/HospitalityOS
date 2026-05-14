@@ -780,7 +780,7 @@ export default function LicenseKeysManagement() {
                                 <Copy className="h-3.5 w-3.5" />
                               )}
                             </Button>
-                            {key.status === 'active' && (
+                            {(key.status === 'active' || key.status === 'activated') && (
                               <Button
                                 variant="ghost"
                                 size="sm"

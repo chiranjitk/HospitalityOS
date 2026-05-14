@@ -136,84 +136,100 @@ export async function POST(request: NextRequest) {
       suffix++;
     }
 
-    // Create the Tenant
-    const tenant = await db.tenant.create({
-      data: {
-        name: organizationName.trim(),
-        slug,
-        plan: licenseKey.plan.name, // 'trial', 'starter', 'professional', 'enterprise'
-        status: 'active',
-        email: email.trim().toLowerCase(),
-        phone: phone?.trim() || null,
-        maxProperties: licenseKey.plan.maxProperties,
-        maxUsers: licenseKey.plan.maxUsers,
-        maxRooms: licenseKey.plan.maxRoomsPerProperty,
-        trialEndsAt: licenseKey.plan.trialDays
-          ? new Date(Date.now() + licenseKey.plan.trialDays * 24 * 60 * 60 * 1000)
-          : null,
-        features: licenseKey.plan.features,
-        settings: JSON.stringify({
-          registeredVia: 'license_key',
-          licenseKeyId: licenseKey.id,
-          activatedAt: new Date().toISOString(),
-        }),
-      },
-    });
-
-    // Create admin Role for the tenant
-    const role = await db.role.create({
-      data: {
-        tenantId: tenant.id,
-        name: 'admin',
-        displayName: 'Administrator',
-        description: 'Full access administrator',
-        permissions: '["*"]',
-        isSystem: false,
-      },
-    });
-
-    // Create the admin User
-    const user = await db.user.create({
-      data: {
-        email: email.trim().toLowerCase(),
-        passwordHash: hashedPassword,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        phone: phone?.trim() || null,
-        tenantId: tenant.id,
-        roleId: role.id,
-        isVerified: true,
-        isPlatformAdmin: false,
-        status: 'active',
-        passwordChangedAt: new Date(),
-      },
-    });
-
-    // Mark the license key as activated
-    await db.licenseKey.update({
-      where: { id: licenseKey.id },
-      data: {
-        status: 'activated',
-        activatedBy: user.id,
-        activatedAt: new Date(),
-        tenantId: tenant.id,
-      },
-    });
-
-    // Create session (same pattern as login route)
+    // Create session token outside transaction (crypto is independent)
     const sessionToken = crypto.randomBytes(32).toString('hex');
+    const refreshToken = crypto.randomBytes(32).toString('hex');
     const maxAge = 24 * 60 * 60; // 24 hours
     const expiresAt = new Date(Date.now() + maxAge * 1000);
 
-    await db.session.create({
-      data: {
-        userId: user.id,
-        token: sessionToken,
-        refreshToken: crypto.randomBytes(32).toString('hex'),
-        expiresAt,
-        userAgent: request.headers.get('user-agent') || null,
-        ipAddress: clientIp,
-      },
+    // Execute all DB operations in a single transaction to prevent race conditions
+    const result = await db.$transaction(async (tx) => {
+      // Pessimistic check: re-verify license key is still active inside the transaction
+      const freshLicenseKey = await tx.licenseKey.findUnique({
+        where: { key: key.trim().toUpperCase() },
+      });
+
+      if (!freshLicenseKey || freshLicenseKey.status !== 'active') {
+        throw new Error('LICENSE_KEY_ALREADY_ACTIVATED');
+      }
+
+      // Create the Tenant
+      const tenant = await tx.tenant.create({
+        data: {
+          name: organizationName.trim(),
+          slug,
+          plan: licenseKey.plan.name, // 'trial', 'starter', 'professional', 'enterprise'
+          status: 'active',
+          email: email.trim().toLowerCase(),
+          phone: phone?.trim() || null,
+          maxProperties: licenseKey.plan.maxProperties,
+          maxUsers: licenseKey.plan.maxUsers,
+          maxRooms: licenseKey.plan.maxRoomsPerProperty,
+          trialEndsAt: licenseKey.plan.trialDays
+            ? new Date(Date.now() + licenseKey.plan.trialDays * 24 * 60 * 60 * 1000)
+            : null,
+          features: licenseKey.plan.features,
+          settings: JSON.stringify({
+            registeredVia: 'license_key',
+            licenseKeyId: licenseKey.id,
+            activatedAt: new Date().toISOString(),
+          }),
+        },
+      });
+
+      // Create admin Role for the tenant
+      const role = await tx.role.create({
+        data: {
+          tenantId: tenant.id,
+          name: 'admin',
+          displayName: 'Administrator',
+          description: 'Full access administrator',
+          permissions: '["*"]',
+          isSystem: false,
+        },
+      });
+
+      // Create the admin User
+      const user = await tx.user.create({
+        data: {
+          email: email.trim().toLowerCase(),
+          passwordHash: hashedPassword,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          phone: phone?.trim() || null,
+          tenantId: tenant.id,
+          roleId: role.id,
+          isVerified: true,
+          isPlatformAdmin: false,
+          status: 'active',
+          passwordChangedAt: new Date(),
+        },
+      });
+
+      // Mark the license key as activated
+      await tx.licenseKey.update({
+        where: { id: freshLicenseKey.id },
+        data: {
+          status: 'activated',
+          activatedBy: user.id,
+          activatedAt: new Date(),
+          tenantId: tenant.id,
+        },
+      });
+
+      // Create session
+      await tx.session.create({
+        data: {
+          userId: user.id,
+          token: sessionToken,
+          refreshToken,
+          expiresAt,
+          userAgent: request.headers.get('user-agent') || null,
+          ipAddress: clientIp,
+        },
+      });
+
+      return { tenant, role, user };
     });
 
     // Build response with user data (same format as login)
@@ -221,27 +237,27 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Account created successfully',
       user: {
-        id: user.id,
-        email: user.email,
-        name: `${user.firstName} ${user.lastName}`,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        avatar: user.avatar,
-        phone: user.phone,
-        jobTitle: user.jobTitle,
-        department: user.department,
-        twoFactorEnabled: user.twoFactorEnabled,
-        roleId: user.roleId,
+        id: result.user.id,
+        email: result.user.email,
+        name: `${result.user.firstName} ${result.user.lastName}`,
+        firstName: result.user.firstName,
+        lastName: result.user.lastName,
+        avatar: result.user.avatar,
+        phone: result.user.phone,
+        jobTitle: result.user.jobTitle,
+        department: result.user.department,
+        twoFactorEnabled: result.user.twoFactorEnabled,
+        roleId: result.user.roleId,
         roleName: 'admin',
         permissions: ['*'],
-        tenantId: user.tenantId,
+        tenantId: result.user.tenantId,
         isPlatformAdmin: false,
         tenant: {
-          id: tenant.id,
-          name: tenant.name,
-          slug: tenant.slug,
-          plan: tenant.plan,
-          status: tenant.status,
+          id: result.tenant.id,
+          name: result.tenant.name,
+          slug: result.tenant.slug,
+          plan: result.tenant.plan,
+          status: result.tenant.status,
         },
       },
     });
@@ -257,13 +273,20 @@ export async function POST(request: NextRequest) {
       path: '/',
     });
 
-    console.log(`[REGISTRATION] New tenant registered: ${tenant.name} (${tenant.plan}) by ${user.email}`);
+    console.log(`[REGISTRATION] New tenant registered: ${result.tenant.name} (${result.tenant.plan}) by ${result.user.email}`);
 
     return response;
   } catch (error) {
     console.error('[Registration] Error:', error);
 
     const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage === 'LICENSE_KEY_ALREADY_ACTIVATED') {
+      return NextResponse.json(
+        { success: false, error: 'This license key has already been activated by another request' },
+        { status: 409 }
+      );
+    }
 
     if (errorMessage.includes('Unique constraint') || errorMessage.includes('duplicate')) {
       return NextResponse.json(

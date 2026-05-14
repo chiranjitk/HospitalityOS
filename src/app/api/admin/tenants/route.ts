@@ -369,6 +369,14 @@ export async function PUT(request: NextRequest) {
       data: updateData,
     });
 
+    // BUG 14: Sync the active subscription record when plan changes
+    if (updates.plan) {
+      await db.subscription.updateMany({
+        where: { tenantId: id, status: 'active' },
+        data: { planName: updates.plan },
+      });
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -428,7 +436,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Soft delete tenant and cascade to users/sessions
+    // Soft delete tenant and cascade to users/sessions/subscriptions/invoices
     await db.$transaction([
       db.tenant.update({
         where: { id },
@@ -443,6 +451,16 @@ export async function DELETE(request: NextRequest) {
       }),
       db.session.deleteMany({
         where: { user: { tenantId: id } },
+      }),
+      // BUG 15: Cancel all subscriptions for this tenant
+      db.subscription.updateMany({
+        where: { tenantId: id },
+        data: { status: 'cancelled', cancelledAt: new Date() },
+      }),
+      // BUG 15: Void outstanding draft/issued invoices
+      db.subscriptionInvoice.updateMany({
+        where: { subscription: { tenantId: id }, status: { in: ['draft', 'issued'] } },
+        data: { status: 'void' },
       }),
     ]);
 

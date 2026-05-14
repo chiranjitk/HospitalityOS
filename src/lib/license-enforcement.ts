@@ -109,18 +109,92 @@ export async function checkModuleLimit(
   });
 
   if (!entitlement || !entitlement.isValid) {
-    // No entitlement = unlimited (not enforced)
+    // If entitlement exists but is disabled, deny access
+    if (entitlement && !entitlement.isValid) {
+      const result: LicenseCheckResult = {
+        allowed: false,
+        current: entitlement.currentUsage,
+        limit: entitlement.limitValue,
+        percent: 0,
+        isUnlimited: false,
+        isWarning: false,
+        isExceeded: true,
+        moduleKey,
+        moduleName: entitlement.moduleName,
+        hardLimit: true,
+        entitlementId: entitlement.id,
+      };
+      setCachedEntitlement(tenantId, moduleKey, result);
+      return result;
+    }
+
+    // No entitlement exists — check if the feature is enabled in tenant feature flags
+    const tenant = await db.tenant.findUnique({
+      where: { id: tenantId, deletedAt: null },
+      select: { features: true },
+    });
+
+    let featureEnabled = false;
+    if (tenant?.features) {
+      try {
+        const parsed = JSON.parse(tenant.features);
+        featureEnabled = parsed[moduleKey] === true;
+      } catch {
+        featureEnabled = false;
+      }
+    }
+
+    // If feature is enabled in tenant flags but no entitlement, allow as unlimited (backward compat)
+    // If feature is not enabled, deny access
     const result: LicenseCheckResult = {
-      allowed: true,
+      allowed: featureEnabled,
       current: 0,
       limit: 0,
       percent: 0,
-      isUnlimited: true,
+      isUnlimited: featureEnabled,
       isWarning: false,
-      isExceeded: false,
+      isExceeded: !featureEnabled,
       moduleKey,
       moduleName: FEATURES[moduleKey as keyof typeof FEATURES]?.name || moduleKey,
       hardLimit: true,
+    };
+    setCachedEntitlement(tenantId, moduleKey, result);
+    return result;
+  }
+
+  // Check effectiveFrom/effectiveTo date bounds
+  const now = new Date();
+  if (entitlement.effectiveFrom && now < entitlement.effectiveFrom) {
+    const result: LicenseCheckResult = {
+      allowed: false,
+      current: entitlement.currentUsage,
+      limit: entitlement.limitValue,
+      percent: 0,
+      isUnlimited: false,
+      isWarning: false,
+      isExceeded: true,
+      moduleKey,
+      moduleName: entitlement.moduleName,
+      hardLimit: true,
+      entitlementId: entitlement.id,
+    };
+    setCachedEntitlement(tenantId, moduleKey, result);
+    return result;
+  }
+
+  if (entitlement.effectiveTo && now > entitlement.effectiveTo) {
+    const result: LicenseCheckResult = {
+      allowed: false,
+      current: entitlement.currentUsage,
+      limit: entitlement.limitValue,
+      percent: 0,
+      isUnlimited: false,
+      isWarning: false,
+      isExceeded: true,
+      moduleKey,
+      moduleName: entitlement.moduleName,
+      hardLimit: true,
+      entitlementId: entitlement.id,
     };
     setCachedEntitlement(tenantId, moduleKey, result);
     return result;
@@ -280,13 +354,14 @@ export async function incrementUsage(
 
   if (!entitlement) return;
 
-  await db.licenseModuleEntitlement.update({
-    where: { id: entitlement.id },
-    data: {
-      currentUsage: { increment: amount },
-      peakUsage: Math.max(entitlement.peakUsage, entitlement.currentUsage + amount),
-    },
-  });
+  // Use raw SQL to atomically update currentUsage and peakUsage in one statement,
+  // ensuring peakUsage references the already-incremented currentUsage (not stale data).
+  await db.$executeRaw`
+    UPDATE "LicenseModuleEntitlement" 
+    SET "currentUsage" = "currentUsage" + ${amount},
+        "peakUsage" = GREATEST("peakUsage", "currentUsage" + ${amount})
+    WHERE id = ${entitlement.id}
+  `;
 
   invalidateCache(tenantId, moduleKey);
 }
@@ -305,12 +380,12 @@ export async function decrementUsage(
 
   if (!entitlement) return;
 
-  const newUsage = Math.max(0, entitlement.currentUsage - amount);
-
-  await db.licenseModuleEntitlement.update({
-    where: { id: entitlement.id },
-    data: { currentUsage: newUsage },
-  });
+  // Use raw SQL for atomic decrement with GREATEST clamp to prevent negative values
+  await db.$executeRaw`
+    UPDATE "LicenseModuleEntitlement" 
+    SET "currentUsage" = GREATEST(0, "currentUsage" - ${amount})
+    WHERE id = ${entitlement.id}
+  `;
 
   invalidateCache(tenantId, moduleKey);
 }
