@@ -9,6 +9,7 @@ import {
   lookupBandwidthPool,
   type LoginScriptParams,
 } from '@/lib/network/script-runner';
+import { getExternalGatewayConfig, buildGatewayAuthResponse, type ExternalGatewayConfig } from '@/lib/wifi/utils/external-gateway';
 
 // ────────────────────────────────────────────────────────────
 // IP Pool Validation Helpers (shared with wifi/auth)
@@ -588,10 +589,25 @@ export async function POST(request: NextRequest) {
     // ── Resolve bandwidth from RADIUS radReply or WiFi plan ──
     const autoAuthBw = await resolvePlanBandwidthKbps(wifiUser.planId, wifiUser.username);
 
+    // ── Check for External MikroTik Gateway ──
+    // When externalPortalMode=true on a MikroTik gateway, the guest device
+    // must redirect to the MikroTik login URL with RADIUS creds so MikroTik
+    // can open its own firewall. In this case, skip nftables activation —
+    // MikroTik handles bandwidth/firewall enforcement via RADIUS attributes.
+    let externalGateway: ExternalGatewayConfig | null = null;
+    try {
+      externalGateway = await getExternalGatewayConfig(wifiUser.propertyId, wifiUser.tenantId);
+      if (externalGateway) {
+        console.log(`[AutoAuth] External MikroTik gateway detected: ${externalGateway.mikrotikIp} → ${externalGateway.portalCallbackUrl}`);
+      }
+    } catch (err) {
+      console.warn('[AutoAuth] External gateway lookup failed (non-critical):', err);
+    }
+
     // ── Activate nftables + TC bandwidth shaping (staysuite_login.sh) ──
-    // Only activate firewall when client IP is in a managed IP pool.
-    // On WAN/sandbox, skipFirewall=true and this is safely skipped.
-    if (!skipFirewall) {
+    // Only activate firewall when client IP is in a managed IP pool AND
+    // there is no external gateway (external gateway handles its own firewall).
+    if (!skipFirewall && !externalGateway) {
       const firewallIp = autoAuthClientIp || normalizeIp(clientIp);
       if (firewallIp && firewallIp !== '0.0.0.0') {
         await activateUserFirewall({
@@ -617,7 +633,7 @@ export async function POST(request: NextRequest) {
         addUserCounter(counterIp);
       }
     } else {
-      console.log(`[AutoAuth] Skipping firewall + counter activation (WAN/sandbox/non-pool IP)`);
+      console.log(`[AutoAuth] Skipping firewall + counter activation (${skipFirewall ? 'WAN/sandbox/non-pool IP' : 'external gateway mode'})`);
     }
 
     // ── Calculate remaining validity (NEVER reset validUntil on reauth) ──
@@ -646,6 +662,12 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Success! Silent re-auth complete ──
+    const gatewayFields = buildGatewayAuthResponse(
+      externalGateway,
+      wifiUser.username,
+      wifiUser.password,
+    );
+
     return NextResponse.json({
       success: true,
       data: {
@@ -659,8 +681,9 @@ export async function POST(request: NextRequest) {
         bandwidthDown: wifiUser.plan?.downloadSpeed || null,
         bandwidthUp: wifiUser.plan?.uploadSpeed || null,
         remainingMinutes: planValidityMin,
-        message: 'Welcome back! Connected automatically.',
+        message: externalGateway ? 'Welcome back! Connecting to gateway...' : 'Welcome back! Connected automatically.',
         deviceProfileId: deviceProfile.id,
+        ...gatewayFields,
       },
     });
   } catch (error) {

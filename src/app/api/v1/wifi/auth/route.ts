@@ -12,6 +12,7 @@ import {
   lookupBandwidthPool,
   type LoginScriptParams,
 } from '@/lib/network/script-runner';
+import { getExternalGatewayConfig, buildGatewayAuthResponse, type ExternalGatewayConfig } from '@/lib/wifi/utils/external-gateway';
 
 // ────────────────────────────────────────────────────────────
 // Device Info Helpers
@@ -766,6 +767,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── External Gateway Check (MikroTik External Portal Mode) ──
+    // Resolve once per request — if the property has a MikroTik gateway
+    // configured with externalPortalMode=true, the portal will redirect
+    // to the MikroTik login URL with RADIUS creds after auth.
+    // When null (internal NAS), nftables firewall activates as normal.
+    let externalGateway: ExternalGatewayConfig | null = null;
+    if (portal?.propertyId) {
+      try {
+        externalGateway = await getExternalGatewayConfig(portal.propertyId, portal.tenantId);
+        if (externalGateway) {
+          console.log(`[Auth] External MikroTik gateway detected: ${externalGateway.mikrotikIp} → ${externalGateway.portalCallbackUrl}`);
+        }
+      } catch (err) {
+        console.warn('[Auth] External gateway lookup failed (non-critical):', err);
+      }
+    }
+
     // Portal defaults (sessionTimeout is stored in SECONDS in DB, convert to minutes for display)
     const portalSessionTimeoutMin = portal?.sessionTimeout
       ? Math.round(portal.sessionTimeout / 60)
@@ -876,26 +894,28 @@ export async function POST(request: NextRequest) {
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
         const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool);
 
-        // Activate nftables + TC bandwidth shaping — use PLAN speed in kbps, not portal defaults
-        const voucherBw = await resolvePlanBandwidthKbps(
-          voucher.planId, wifiUsername,
-          portal?.maxBandwidthDown, portal?.maxBandwidthUp,
-        );
-        await activateUserFirewall({
-          username: wifiUsername, clientIp: getClientIpString(request),
-          propertyId: resolvedPropertyId, sessionId,
-          macAddress: effectiveMac,
-          dnKbps: voucherBw.dn,
-          upKbps: voucherBw.up,
-          dnCeilKbps: voucherBw.dnCeil,
-          upCeilKbps: voucherBw.upCeil,
-          subnet: pool.subnet,
-        });
+        // Activate firewall (internal NAS) or skip (external gateway handles firewall)
+        if (!externalGateway) {
+          const voucherBw = await resolvePlanBandwidthKbps(
+            voucher.planId, wifiUsername,
+            portal?.maxBandwidthDown, portal?.maxBandwidthUp,
+          );
+          await activateUserFirewall({
+            username: wifiUsername, clientIp: getClientIpString(request),
+            propertyId: resolvedPropertyId, sessionId,
+            macAddress: effectiveMac,
+            dnKbps: voucherBw.dn,
+            upKbps: voucherBw.up,
+            dnCeilKbps: voucherBw.dnCeil,
+            upCeilKbps: voucherBw.upCeil,
+            subnet: pool.subnet,
+          });
 
-        // Add per-IP byte counter rules for session engine tracking
-        const voucherCounterIp = normalizeIp(getClientIpString(request));
-        if (voucherCounterIp && voucherCounterIp !== '0.0.0.0') {
-          addUserCounter(voucherCounterIp);
+          // Add per-IP byte counter rules for session engine tracking
+          const voucherCounterIp = normalizeIp(getClientIpString(request));
+          if (voucherCounterIp && voucherCounterIp !== '0.0.0.0') {
+            addUserCounter(voucherCounterIp);
+          }
         }
 
         // ── Save device profile with real browser fingerprint ──
@@ -914,11 +934,14 @@ export async function POST(request: NextRequest) {
           }
         } catch { /* best effort */ }
 
-        return successResponse({
-          authenticated: true, method: 'voucher', username: wifiUsername,
-          sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
-          poolName: pool.poolName, message: 'Connected successfully!',
-        });
+        return successResponse(
+          {
+            authenticated: true, method: 'voucher', username: wifiUsername,
+            sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
+            poolName: pool.poolName, message: 'Connected successfully!',
+          },
+          { username: wifiUsername, password: voucher.code }
+        );
       }
 
       // ─── Room Number ──────────────────────────────────────
@@ -1077,25 +1100,27 @@ export async function POST(request: NextRequest) {
           await logAuthAttempt(pmsUser.username, 'Access-Accept', request, `pool:${pool.poolName} reuse:pms plan:${pmsUser.plan?.name || 'none'}`);
           const sessionId = await createAccountingSession(pmsUser.username, request, 'portal', effectiveMac, pool);
 
-          // Activate firewall — resolve from plan in kbps
-          const pmsBw = await resolvePlanBandwidthKbps(
-            pmsUser.planId, pmsUser.username,
-            portal?.maxBandwidthDown, portal?.maxBandwidthUp,
-          );
-          await activateUserFirewall({
-            username: pmsUser.username, clientIp: getClientIpString(request),
-            propertyId: match.propertyId, sessionId,
-            macAddress: effectiveMac, userId: pmsUser.id,
-            dnKbps: pmsBw.dn,
-            upKbps: pmsBw.up,
-            dnCeilKbps: pmsBw.dnCeil,
-            upCeilKbps: pmsBw.upCeil,
-            subnet: pool.subnet,
-          });
+          // Activate firewall (internal NAS) or skip (external gateway handles firewall)
+          if (!externalGateway) {
+            const pmsBw = await resolvePlanBandwidthKbps(
+              pmsUser.planId, pmsUser.username,
+              portal?.maxBandwidthDown, portal?.maxBandwidthUp,
+            );
+            await activateUserFirewall({
+              username: pmsUser.username, clientIp: getClientIpString(request),
+              propertyId: match.propertyId, sessionId,
+              macAddress: effectiveMac, userId: pmsUser.id,
+              dnKbps: pmsBw.dn,
+              upKbps: pmsBw.up,
+              dnCeilKbps: pmsBw.dnCeil,
+              upCeilKbps: pmsBw.upCeil,
+              subnet: pool.subnet,
+            });
 
-          const pmsCounterIp = normalizeIp(getClientIpString(request));
-          if (pmsCounterIp && pmsCounterIp !== '0.0.0.0') {
-            addUserCounter(pmsCounterIp);
+            const pmsCounterIp = normalizeIp(getClientIpString(request));
+            if (pmsCounterIp && pmsCounterIp !== '0.0.0.0') {
+              addUserCounter(pmsCounterIp);
+            }
           }
 
           // ── Save device profile with real browser fingerprint ──
@@ -1115,13 +1140,16 @@ export async function POST(request: NextRequest) {
             marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
           }).catch(() => {});
 
-          return successResponse({
-            authenticated: true, method: 'room_number', username: pmsUser.username,
-            sessionTimeout: planValidityMin, remainingMinutes,
-            bandwidthDown: pmsBwDown, bandwidthUp: pmsBwUp,
-            poolName: pool.poolName, planName: pmsUser.plan?.name || null,
-            message: 'Connected successfully!',
-          });
+          return successResponse(
+            {
+              authenticated: true, method: 'room_number', username: pmsUser.username,
+              sessionTimeout: planValidityMin, remainingMinutes,
+              bandwidthDown: pmsBwDown, bandwidthUp: pmsBwUp,
+              poolName: pool.poolName, planName: pmsUser.plan?.name || null,
+              message: 'Connected successfully!',
+            },
+            { username: pmsUser.username, password: pmsUser.password }
+          );
         }
 
         // ── No PMS user found — fallback: create room-{number} user ──
@@ -1190,19 +1218,22 @@ export async function POST(request: NextRequest) {
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName} fallback:room_user`);
         const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool);
 
-        await activateUserFirewall({
-          username: wifiUsername, clientIp: getClientIpString(request),
-          propertyId: match.propertyId, sessionId,
-          macAddress: effectiveMac,
-          dnKbps: roomPlanDnKbps,
-          upKbps: roomPlanUpKbps,
-          subnet: pool.subnet,
-        });
+        // Activate firewall (internal NAS) or skip (external gateway handles firewall)
+        if (!externalGateway) {
+          await activateUserFirewall({
+            username: wifiUsername, clientIp: getClientIpString(request),
+            propertyId: match.propertyId, sessionId,
+            macAddress: effectiveMac,
+            dnKbps: roomPlanDnKbps,
+            upKbps: roomPlanUpKbps,
+            subnet: pool.subnet,
+          });
 
-        // Add per-IP byte counter rules for session engine tracking
-        const roomCounterIp = normalizeIp(getClientIpString(request));
-        if (roomCounterIp && roomCounterIp !== '0.0.0.0') {
-          addUserCounter(roomCounterIp);
+          // Add per-IP byte counter rules for session engine tracking
+          const roomCounterIp = normalizeIp(getClientIpString(request));
+          if (roomCounterIp && roomCounterIp !== '0.0.0.0') {
+            addUserCounter(roomCounterIp);
+          }
         }
 
         // ── Save device profile with real browser fingerprint ──
@@ -1221,11 +1252,14 @@ export async function POST(request: NextRequest) {
           }
         } catch { /* best effort */ }
 
-        return successResponse({
-          authenticated: true, method: 'room_number', username: wifiUsername,
-          sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
-          poolName: pool.poolName, message: 'Connected successfully!',
-        });
+        return successResponse(
+          {
+            authenticated: true, method: 'room_number', username: wifiUsername,
+            sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
+            poolName: pool.poolName, message: 'Connected successfully!',
+          },
+          { username: wifiUsername, password: userPassword }
+        );
       }
 
       // ─── PMS Credentials ──────────────────────────────────
@@ -1353,19 +1387,22 @@ export async function POST(request: NextRequest) {
         const userBwDown = bwDownBps ? Math.round(Number(bwDownBps) / 1000000) : bwDown;
         const userBwUp = bwUpBps ? Math.round(Number(bwUpBps) / 1000000) : bwUp;
 
-        await activateUserFirewall({
-          username: username.trim(), clientIp: getClientIpString(request),
-          propertyId: wifiUser.propertyId, sessionId,
-          macAddress: effectiveMac, userId: wifiUser.id,
-          dnKbps: bwDownBps ? Math.round(Number(bwDownBps) / 1000) : (wifiUser.plan?.downloadSpeed || bwDown) * 1000,
-          upKbps: bwUpBps ? Math.round(Number(bwUpBps) / 1000) : (wifiUser.plan?.uploadSpeed || bwUp) * 1000,
-          subnet: pool.subnet,
-        });
+        // Activate firewall (internal NAS) or skip (external gateway handles firewall)
+        if (!externalGateway) {
+          await activateUserFirewall({
+            username: username.trim(), clientIp: getClientIpString(request),
+            propertyId: wifiUser.propertyId, sessionId,
+            macAddress: effectiveMac, userId: wifiUser.id,
+            dnKbps: bwDownBps ? Math.round(Number(bwDownBps) / 1000) : (wifiUser.plan?.downloadSpeed || bwDown) * 1000,
+            upKbps: bwUpBps ? Math.round(Number(bwUpBps) / 1000) : (wifiUser.plan?.uploadSpeed || bwUp) * 1000,
+            subnet: pool.subnet,
+          });
 
-        // Add per-IP byte counter rules for session engine tracking
-        const pmsCounterIp = normalizeIp(getClientIpString(request));
-        if (pmsCounterIp && pmsCounterIp !== '0.0.0.0') {
-          addUserCounter(pmsCounterIp);
+          // Add per-IP byte counter rules for session engine tracking
+          const pmsCounterIp = normalizeIp(getClientIpString(request));
+          if (pmsCounterIp && pmsCounterIp !== '0.0.0.0') {
+            addUserCounter(pmsCounterIp);
+          }
         }
 
         // ── Save device profile with real browser fingerprint ──
@@ -1390,11 +1427,14 @@ export async function POST(request: NextRequest) {
             marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
           }).catch(() => {});
 
-        return successResponse({
-          authenticated: true, method: 'pms_credentials', username: wifiUser.username,
-          sessionTimeout: planValidityMin, remainingMinutes, bandwidthDown: userBwDown, bandwidthUp: userBwUp,
-          poolName: pool.poolName, message: 'Connected successfully!',
-        });
+        return successResponse(
+          {
+            authenticated: true, method: 'pms_credentials', username: wifiUser.username,
+            sessionTimeout: planValidityMin, remainingMinutes, bandwidthDown: userBwDown, bandwidthUp: userBwUp,
+            poolName: pool.poolName, message: 'Connected successfully!',
+          },
+          { username: wifiUser.username, password: wifiUser.password }
+        );
       }
 
       // ─── SMS OTP ──────────────────────────────────────────
@@ -1445,6 +1485,8 @@ export async function POST(request: NextRequest) {
             return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
           }
 
+          // Capture OTP code before deleting from store (used for RADIUS password)
+          const smsOtpPassword = stored.code;
           otpStore.delete(normalizedPhone);
 
           const now = new Date();
@@ -1493,7 +1535,7 @@ export async function POST(request: NextRequest) {
               tenantId: portal?.tenantId || '',
               propertyId: fallbackPropertyId,
               username: wifiUsername,
-              password: stored.code,
+              password: smsOtpPassword,
               planId: smsPlanId ?? undefined,
               downloadSpeed: smsPlanDnKbps * 1000,  // kbps → bits/sec for RADIUS
               uploadSpeed: smsPlanUpKbps * 1000,
@@ -1509,7 +1551,7 @@ export async function POST(request: NextRequest) {
               return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
             }
 
-            const radiusResult = await radiusAuth(wifiUsername, stored.code);
+            const radiusResult = await radiusAuth(wifiUsername, smsOtpPassword);
             if (!radiusResult.accepted) {
               await logAuthAttempt(wifiUsername, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
               return errorResponse(radiusResult.rejectReason || 'AUTH_FAILED', getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED'));
@@ -1518,19 +1560,22 @@ export async function POST(request: NextRequest) {
             await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${smsPool.poolName}${smsPlanId ? ' plan:aaa' : ''}`);
             const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, smsPool);
 
-            await activateUserFirewall({
-              username: wifiUsername, clientIp: getClientIpString(request),
-              propertyId: fallbackPropertyId, sessionId,
-              macAddress: effectiveMac,
-              dnKbps: smsPlanDnKbps,
-              upKbps: smsPlanUpKbps,
-              subnet: smsPool.subnet,
-            });
+            // Activate firewall (internal NAS) or skip (external gateway handles firewall)
+            if (!externalGateway) {
+              await activateUserFirewall({
+                username: wifiUsername, clientIp: getClientIpString(request),
+                propertyId: fallbackPropertyId, sessionId,
+                macAddress: effectiveMac,
+                dnKbps: smsPlanDnKbps,
+                upKbps: smsPlanUpKbps,
+                subnet: smsPool.subnet,
+              });
 
-            // Add per-IP byte counter rules for session engine tracking
-            const smsCounterIp = normalizeIp(getClientIpString(request));
-            if (smsCounterIp && smsCounterIp !== '0.0.0.0') {
-              addUserCounter(smsCounterIp);
+              // Add per-IP byte counter rules for session engine tracking
+              const smsCounterIp = normalizeIp(getClientIpString(request));
+              if (smsCounterIp && smsCounterIp !== '0.0.0.0') {
+                addUserCounter(smsCounterIp);
+              }
             }
 
             // ── Save device profile for auto-reauth ──
@@ -1557,11 +1602,14 @@ export async function POST(request: NextRequest) {
             } catch { /* best effort */ }
           }
 
-          return successResponse({
-            authenticated: true, method: 'sms_otp', username: wifiUsername,
-            sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
-            poolName: smsPool.poolName, message: 'Connected successfully!',
-          });
+          return successResponse(
+            {
+              authenticated: true, method: 'sms_otp', username: wifiUsername,
+              sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
+              poolName: smsPool.poolName, message: 'Connected successfully!',
+            },
+            { username: wifiUsername, password: smsOtpPassword }
+          );
         } else {
           // ── Step 1: Send OTP ──
           if (!phoneNumber?.trim()) {
@@ -1657,11 +1705,12 @@ export async function POST(request: NextRequest) {
         const now = new Date();
         const validUntil = new Date(now.getTime() + portalSessionTimeoutMin * 60 * 1000);
         let wifiUsername: string | null = null;
+        let openPassword: string | null = null;
 
         if (portal) {
           const openTimestamp = Date.now();
           wifiUsername = `open-${openTimestamp}`;
-          const openPassword = `open-${openTimestamp}`;
+          openPassword = `open-${openTimestamp}`;
 
           try {
             const resolvedPropertyId = portal.propertyId
@@ -1715,19 +1764,22 @@ export async function POST(request: NextRequest) {
               await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
               const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool);
 
-              await activateUserFirewall({
-                username: wifiUsername, clientIp: getClientIpString(request),
-                propertyId: resolvedPropertyId, sessionId,
-                macAddress: effectiveMac,
-                dnKbps: openPlanDnKbps,
-                upKbps: openPlanUpKbps,
-                subnet: pool.subnet,
-              });
+              // Activate firewall (internal NAS) or skip (external gateway handles firewall)
+              if (!externalGateway) {
+                await activateUserFirewall({
+                  username: wifiUsername, clientIp: getClientIpString(request),
+                  propertyId: resolvedPropertyId, sessionId,
+                  macAddress: effectiveMac,
+                  dnKbps: openPlanDnKbps,
+                  upKbps: openPlanUpKbps,
+                  subnet: pool.subnet,
+                });
 
-              // Add per-IP byte counter rules for session engine tracking
-              const openCounterIp = normalizeIp(getClientIpString(request));
-              if (openCounterIp && openCounterIp !== '0.0.0.0') {
-                addUserCounter(openCounterIp);
+                // Add per-IP byte counter rules for session engine tracking
+                const openCounterIp = normalizeIp(getClientIpString(request));
+                if (openCounterIp && openCounterIp !== '0.0.0.0') {
+                  addUserCounter(openCounterIp);
+                }
               }
             }
           } catch {
@@ -1743,11 +1795,14 @@ export async function POST(request: NextRequest) {
           }).catch(() => {});
         }
 
-        return successResponse({
-          authenticated: true, method: 'open_access', username: wifiUsername,
-          sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
-          poolName: pool.poolName, message: 'Connected successfully!',
-        });
+        return successResponse(
+          {
+            authenticated: true, method: 'open_access', username: wifiUsername,
+            sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
+            poolName: pool.poolName, message: 'Connected successfully!',
+          },
+          wifiUsername && openPassword ? { username: wifiUsername, password: openPassword } : undefined
+        );
       }
 
       default: {
@@ -1764,8 +1819,15 @@ export async function POST(request: NextRequest) {
 // Helpers
 // ────────────────────────────────────────────────────────────
 
-function successResponse(data: Record<string, unknown>) {
-  return NextResponse.json({ success: true, data });
+function successResponse(
+  data: Record<string, unknown>,
+  gatewayCreds?: { username: string; password: string }
+) {
+  // If external gateway mode is active, inject gateway redirect fields
+  const gatewayFields = gatewayCreds
+    ? buildGatewayAuthResponse(externalGateway, gatewayCreds.username, gatewayCreds.password)
+    : {};
+  return NextResponse.json({ success: true, data: { ...data, ...gatewayFields } });
 }
 
 function errorResponse(code: string, message: string, status = 400) {

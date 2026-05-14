@@ -59,6 +59,10 @@ import {
   Gauge,
   Repeat,
   Upload,
+  ExternalLink,
+  X,
+  Copy,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -113,6 +117,9 @@ interface WiFiGateway {
     splashPage?: string;
     sessionTimeout: number;
     idleTimeout: number;
+    externalPortalMode?: boolean;
+    portalCallbackUrl?: string;
+    staySuiteServerIp?: string;
   };
 }
 
@@ -177,6 +184,11 @@ export default function GatewayIntegration() {
   const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
   const [filterStatus, setFilterStatus] = useState<'all' | 'connected' | 'disconnected' | 'error'>('all');
   const autoSyncTimerRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const [walledGardenIps, setWalledGardenIps] = useState<string[]>([]);
+  const [newWalledIp, setNewWalledIp] = useState('');
+  const [showMikrotikScript, setShowMikrotikScript] = useState(false);
+  const [mikrotikScript, setMikrotikScript] = useState('');
+  const [externalPortalMode, setExternalPortalMode] = useState(false);
 
   // Form state for new/edit gateway
   const [formData, setFormData] = useState<Partial<WiFiGateway>>({
@@ -273,10 +285,21 @@ export default function GatewayIntegration() {
     setIsSaving(true);
     try {
       const isEdit = formData.id && formData.id !== '';
+      // Merge walledGardenIps into config_wifi for save
+      const savePayload = {
+        ...formData,
+        config: {
+          ...(formData.config || {}),
+          ...(externalPortalMode ? {
+            externalPortalMode: true,
+            walledGardenIps,
+          } : { externalPortalMode: false }),
+        },
+      };
       const response = await fetch('/api/integrations/wifi-gateways', {
         method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(savePayload),
       });
 
       const result = await response.json();
@@ -502,13 +525,19 @@ export default function GatewayIntegration() {
       },
     });
     setSelectedGateway(null);
+    setWalledGardenIps([]);
+    setNewWalledIp('');
+    setExternalPortalMode(false);
+    setShowMikrotikScript(false);
+    setMikrotikScript('');
   };
 
   const openEditDialog = (gateway: WiFiGateway) => {
     setSelectedGateway(gateway);
+    const wifiConfig = (gateway.config || {}) as Record<string, unknown>;
     setFormData({
       ...gateway,
-      config: gateway.config || {
+      config: wifiConfig.ssid ? wifiConfig as WiFiGateway['config'] : {
         ssid: '',
         captivePortal: false,
         sessionTimeout: 3600,
@@ -519,6 +548,15 @@ export default function GatewayIntegration() {
       coaPort: (gateway as any).coaPort || 3799,
       coaSecret: (gateway as any).coaSecret || '',
     });
+    // Load MikroTik external portal state
+    setExternalPortalMode(wifiConfig.externalPortalMode === true);
+    setWalledGardenIps(
+      Array.isArray(wifiConfig.walledGardenIps)
+        ? (wifiConfig.walledGardenIps as string[])
+        : []
+    );
+    setShowMikrotikScript(false);
+    setMikrotikScript('');
     setIsConfigOpen(true);
   };
 
@@ -536,6 +574,35 @@ export default function GatewayIntegration() {
     } catch (error) {
       toast({ title: 'Push Failed', description: 'Failed to push configuration', variant: 'destructive' });
     }
+  };
+
+  // ── MikroTik External Portal: Generate RouterOS setup script ──
+  const handleGenerateMikrotikScript = async () => {
+    if (!formData.id) return;
+    try {
+      const res = await fetch(`/api/integrations/wifi-gateways?action=generate-mikrotik-script&id=${formData.id}`);
+      const result = await res.json();
+      if (result.success && result.data?.script) {
+        setMikrotikScript(result.data.script);
+        setShowMikrotikScript(true);
+      } else {
+        toast({ title: 'Error', description: result.error?.message || 'Failed to generate script', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to generate MikroTik script', variant: 'destructive' });
+    }
+  };
+
+  const handleAddWalledIp = () => {
+    const ip = newWalledIp.trim();
+    if (ip && !walledGardenIps.includes(ip)) {
+      setWalledGardenIps([...walledGardenIps, ip]);
+      setNewWalledIp('');
+    }
+  };
+
+  const handleRemoveWalledIp = (ip: string) => {
+    setWalledGardenIps(walledGardenIps.filter(i => i !== ip));
   };
 
   const filteredGateways = gateways.filter((gw) => {
@@ -726,6 +793,12 @@ export default function GatewayIntegration() {
                                   <Badge variant="outline" className="capitalize text-xs">
                                     {gatewayTypes.find(t => t.value === gateway.type)?.label}
                                   </Badge>
+                                  {gateway.config?.externalPortalMode && (
+                                    <Badge variant="default" className="bg-orange-500/10 text-orange-600 border-orange-200">
+                                      <ExternalLink className="w-3 h-3 mr-1" />
+                                      External Portal
+                                    </Badge>
+                                  )}
                                   {gateway.location && (
                                     <Badge variant="secondary" className="text-xs">
                                       {gateway.location}
@@ -1148,6 +1221,162 @@ export default function GatewayIntegration() {
                 />
                 <Label htmlFor="captivePortal">Enable Captive Portal</Label>
               </div>
+
+              {/* MikroTik External Portal — only shown when MikroTik + Captive Portal enabled */}
+              {formData.type === 'mikrotik' && formData.config?.captivePortal && (
+                <>
+                  <Separator className="my-4" />
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Server className="w-4 h-4 text-orange-500" />
+                      <h4 className="font-medium text-sm">MikroTik External Portal</h4>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Use StaySuite as the captive portal instead of MikroTik&apos;s built-in portal.
+                      Guests will see the StaySuite login page, then get redirected to MikroTik for authentication.
+                    </p>
+
+                    {/* Portal Mode Selection */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Portal Mode</Label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="portalMode"
+                            checked={externalPortalMode}
+                            onChange={() => setExternalPortalMode(true)}
+                            className="accent-primary"
+                          />
+                          <span className="text-sm">StaySuite Captive Portal</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="portalMode"
+                            checked={!externalPortalMode}
+                            onChange={() => setExternalPortalMode(false)}
+                            className="accent-primary"
+                          />
+                          <span className="text-sm">MikroTik Built-in Portal</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* External Portal Fields */}
+                    {externalPortalMode && (
+                      <>
+                        <div className="grid grid-cols-1 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="portalCallbackUrl" className="text-xs">MikroTik Hotspot Login URL *</Label>
+                            <Input
+                              id="portalCallbackUrl"
+                              type="text"
+                              value={(formData.config?.portalCallbackUrl as string) || ''}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                config: { ...formData.config!, portalCallbackUrl: e.target.value, externalPortalMode: true }
+                              })}
+                              placeholder="http://192.168.1.1/login"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              The MikroTik hotspot login endpoint. After StaySuite auth, guests redirect here with RADIUS credentials.
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="staySuiteServerIp" className="text-xs">StaySuite Server IP</Label>
+                            <Input
+                              id="staySuiteServerIp"
+                              type="text"
+                              value={(formData.config?.staySuiteServerIp as string) || ''}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                config: { ...formData.config!, staySuiteServerIp: e.target.value }
+                              })}
+                              placeholder="192.168.1.100"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Auto-added to MikroTik walled garden so guests can reach the StaySuite portal.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Walled Garden IPs */}
+                        <div className="space-y-2">
+                          <Label className="text-xs font-medium">Additional Walled Garden IPs</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              type="text"
+                              value={newWalledIp}
+                              onChange={(e) => setNewWalledIp(e.target.value)}
+                              placeholder="8.8.8.8"
+                              className="flex-1"
+                              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddWalledIp())}
+                            />
+                            <Button type="button" variant="outline" size="sm" onClick={handleAddWalledIp}>
+                              <Plus className="w-3 h-3 mr-1" /> Add
+                            </Button>
+                          </div>
+                          {walledGardenIps.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {walledGardenIps.map((ip) => (
+                                <Badge key={ip} variant="secondary" className="gap-1">
+                                  {ip}
+                                  <X
+                                    className="w-3 h-3 cursor-pointer hover:text-destructive"
+                                    onClick={() => handleRemoveWalledIp(ip)}
+                                  />
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Generate Script Button */}
+                        {formData.id && (
+                          <div className="space-y-3 pt-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={handleGenerateMikrotikScript}
+                            >
+                              <FileText className="w-4 h-4 mr-2" />
+                              Generate MikroTik Setup Script
+                            </Button>
+
+                            {/* Script Preview */}
+                            {showMikrotikScript && mikrotikScript && (
+                              <div className="space-y-2">
+                                <div className="relative">
+                                  <pre className="bg-muted rounded-lg p-4 text-xs overflow-x-auto max-h-64 overflow-y-auto font-mono">
+                                    {mikrotikScript}
+                                  </pre>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="absolute top-2 right-2"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(mikrotikScript);
+                                      toast({ title: 'Copied', description: 'Script copied to clipboard' });
+                                    }}
+                                  >
+                                    <Copy className="w-3 h-3 mr-1" /> Copy
+                                  </Button>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Paste this script into MikroTik Terminal (SSH or WinBox). This configures hotspot, walled garden, and RADIUS client settings.
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

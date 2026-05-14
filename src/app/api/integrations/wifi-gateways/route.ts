@@ -588,6 +588,103 @@ export async function GET(request: NextRequest) {
     }
 
     // ==================================================================
+    // ACTION: generate-mikrotik-script
+    // ==================================================================
+    if (action === 'generate-mikrotik-script') {
+      const id = searchParams.get('id');
+      if (!id) {
+        return NextResponse.json({ success: false, error: { code: 'MISSING_ID', message: 'Gateway ID is required' } }, { status: 400 });
+      }
+
+      // Fetch the gateway integration
+      const gateway = await db.integration.findUnique({
+        where: { id },
+        select: { config: true, tenantId: true },
+      });
+
+      if (!gateway || gateway.type !== 'wifi_gateway') {
+        return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Gateway not found' } }, { status: 404 });
+      }
+
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = typeof gateway.config === 'string'
+          ? JSON.parse(gateway.config)
+          : gateway.config as Record<string, unknown>;
+      } catch {
+        return NextResponse.json({ success: false, error: { code: 'PARSE_ERROR', message: 'Invalid gateway config' } }, { status: 500 });
+      }
+
+      const wifiConfig = (parsed.config_wifi || {}) as Record<string, unknown>;
+      const mikrotikIp = (parsed.ipAddress as string) || '192.168.1.1';
+      const portalCallbackUrl = (wifiConfig.portalCallbackUrl as string) || '';
+      const staySuiteIp = (wifiConfig.staySuiteServerIp as string) || '';
+      const walledGardenIps = Array.isArray(wifiConfig.walledGardenIps)
+        ? (wifiConfig.walledGardenIps as string[])
+        : [];
+
+      // Fetch the RADIUS secret from the NAS client for this gateway
+      let radiusSecret = '<SHARED_SECRET>';
+      try {
+        const nasClient = await db.radiusNAS.findFirst({
+          where: {
+            ipAddress: mikrotikIp,
+            status: 'active',
+          },
+          select: { secret: true },
+        });
+        if (nasClient?.secret) {
+          radiusSecret = nasClient.secret;
+        }
+      } catch { /* non-critical */ }
+
+      // Build the RouterOS script
+      const lines: string[] = [];
+      lines.push(`# ═══════════════════════════════════════════════════════════════`);
+      lines.push(`# StaySuite External Portal — MikroTik RouterOS Configuration`);
+      lines.push(`# Generated: ${new Date().toISOString()}`);
+      lines.push(`# MikroTik IP: ${mikrotikIp}`);
+      lines.push(`# StaySuite IP: ${staySuiteIp || '(auto-detect from your network)'}`);
+      lines.push(`# ═══════════════════════════════════════════════════════════════`);
+      lines.push('');
+      lines.push('# 1. Hotspot profile — disable built-in portal, use StaySuite');
+      lines.push('/ip hotspot profile set numbers=1 \\');
+      lines.push('  html-directory=none \\');
+      lines.push(`  login-url=http://${staySuiteIp || '<STAYSUITE_IP>'}/connect?mac=$mac&identity=$identity \\`);
+      lines.push('  use-radius=yes');
+      lines.push('');
+      lines.push('# 2. Walled garden — allow access to StaySuite server');
+      if (staySuiteIp) {
+        lines.push(`/ip hotspot walled-garden add dst-host=${staySuiteIp} comment="StaySuite Portal"`);
+        lines.push(`/ip hotspot walled-garden add dst-host=${staySuiteIp} dst-port=3000 comment="StaySuite HTTP"`);
+      }
+      lines.push(`/ip hotspot walled-garden add dst-host=${staySuiteIp || '<STAYSUITE_IP>'} dst-port=1812 comment="StaySuite RADIUS Auth"`);
+      lines.push(`/ip hotspot walled-garden add dst-host=${staySuiteIp || '<STAYSUITE_IP>'} dst-port=1813 comment="StaySuite RADIUS Acct"`);
+
+      if (walledGardenIps.length > 0) {
+        lines.push('');
+        lines.push('# 3. Additional walled garden IPs');
+        for (const ip of walledGardenIps) {
+          lines.push(`/ip hotspot walled-garden add dst-host=${ip} comment="Whitelisted"`);
+        }
+      }
+
+      lines.push('');
+      lines.push('# RADIUS client — points to StaySuite FreeRADIUS');
+      lines.push(`/radius add address=${staySuiteIp || '<STAYSUITE_IP>'} secret=${radiusSecret} service=hotspot`);
+      lines.push('');
+      lines.push('# CoA port (for disconnect/bandwidth changes from StaySuite)');
+      lines.push('/radius outgoing-port 3799');
+      lines.push('');
+      lines.push('# Enable accounting for session tracking');
+      lines.push('/ip hotspot profile set numbers=1 accounting=yes');
+
+      const script = lines.join('\n');
+
+      return NextResponse.json({ success: true, data: { script } });
+    }
+
+    // ==================================================================
     // DEFAULT: List gateways
     // ==================================================================
     const status = searchParams.get('status');

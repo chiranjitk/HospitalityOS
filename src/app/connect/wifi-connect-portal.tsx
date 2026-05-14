@@ -149,6 +149,12 @@ interface AuthResult {
   bandwidthDown: number;
   bandwidthUp: number;
   message: string;
+  // External gateway fields (MikroTik, etc.)
+  needGatewayLogin?: boolean;
+  gatewayCallbackUrl?: string;
+  gatewayType?: string;
+  radiusUsername?: string;
+  radiusPassword?: string;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -1591,6 +1597,26 @@ function SuccessScreen({
     return () => clearInterval(timer);
   }, []);
 
+  // ── External Gateway Redirect ──
+  // When the property uses an external MikroTik gateway (externalPortalMode=true),
+  // the auth API returns needGatewayLogin=true with the MikroTik login URL and
+  // RADIUS credentials. The portal must redirect the guest to that URL so MikroTik
+  // can open its own firewall via RADIUS auth.
+  useEffect(() => {
+    if (authResult.needGatewayLogin && authResult.gatewayCallbackUrl && authResult.radiusUsername && authResult.radiusPassword) {
+      const redirectUrl = new URL(authResult.gatewayCallbackUrl);
+      redirectUrl.searchParams.set('username', authResult.radiusUsername);
+      redirectUrl.searchParams.set('password', authResult.radiusPassword);
+
+      const timer = setTimeout(() => {
+        console.log(`[Portal] Redirecting to external gateway: ${authResult.gatewayCallbackUrl}`);
+        window.location.href = redirectUrl.toString();
+      }, 2000); // 2 second delay to show "Connected" message
+
+      return () => clearTimeout(timer);
+    }
+  }, [authResult.needGatewayLogin, authResult.gatewayCallbackUrl, authResult.radiusUsername, authResult.radiusPassword]);
+
   return (
     <div className="text-center space-y-5 py-4">
       <div
@@ -1610,6 +1636,15 @@ function SuccessScreen({
           <p className="text-sm mt-2 italic" style={{ color: accent }}>
             {getLocalizedText(design, 'welcomeMessage', lang)}
           </p>
+        )}
+        {/* External gateway redirect notice */}
+        {authResult.needGatewayLogin && (
+          <div className="flex items-center justify-center gap-2 mt-3">
+            <Loader2 className="w-4 h-4 animate-spin" style={{ color: accent }} />
+            <p className="text-sm" style={{ color: mutedColor }}>
+              Redirecting to gateway...
+            </p>
+          </div>
         )}
       </div>
 
