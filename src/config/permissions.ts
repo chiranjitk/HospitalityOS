@@ -235,6 +235,18 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['housekeeping.automation', 'automation.manage', 'housekeeping.*', '*'],
     description: 'Manage housekeeping automation rules'
   },
+  'housekeeping-lost-found': {
+    permissions: ['housekeeping.view', 'housekeeping.manage', 'housekeeping.*', '*'],
+    description: 'Manage lost and found items'
+  },
+  'housekeeping-minibar': {
+    permissions: ['housekeeping.view', 'housekeeping.manage', 'housekeeping.*', '*'],
+    description: 'Manage minibar inventory and consumption'
+  },
+  'housekeeping-laundry': {
+    permissions: ['housekeeping.view', 'housekeeping.manage', 'housekeeping.*', '*'],
+    description: 'Manage laundry services and tracking'
+  },
 
   // ---- Billing ----
   'billing-folios': {
@@ -296,6 +308,50 @@ export const menuPermissions: PermissionConfig = {
   'billing-cancellation-policies': {
     permissions: ['bookings.view', 'bookings.manage', 'admin.*', '*'],
     description: 'Manage cancellation policies'
+  },
+  'billing-night-audit': {
+    permissions: ['billing.night_audit', 'billing.manage', 'billing.*', '*'],
+    description: 'Run night audit procedures'
+  },
+  'billing-city-ledger': {
+    permissions: ['billing.city_ledger', 'billing.manage', 'billing.*', '*'],
+    description: 'Manage city ledger accounts'
+  },
+  'billing-commissions': {
+    permissions: ['billing.commissions', 'billing.manage', 'billing.*', '*'],
+    description: 'Manage commission rules and payments'
+  },
+  'billing-posting-rules': {
+    permissions: ['billing.posting_rules', 'billing.manage', 'billing.*', '*'],
+    description: 'Manage automatic posting rules'
+  },
+  'billing-scheduled-charges': {
+    permissions: ['billing.scheduled_charges', 'billing.manage', 'billing.*', '*'],
+    description: 'Manage scheduled/recurring charges'
+  },
+  'billing-tax-settings': {
+    permissions: ['billing.tax', 'settings.manage', 'billing.*', '*'],
+    description: 'Manage tax configuration'
+  },
+  'billing-gst-invoicing': {
+    permissions: ['billing.gst', 'billing.manage', 'billing.*', '*'],
+    description: 'Manage GST e-invoicing'
+  },
+  'billing-gst-returns': {
+    permissions: ['billing.gst', 'billing.manage', 'billing.*', '*'],
+    description: 'Manage GST return filing'
+  },
+  'billing-tcs-tds': {
+    permissions: ['billing.tcs_tds', 'billing.manage', 'billing.*', '*'],
+    description: 'Manage TCS/TDS settings and compliance'
+  },
+  'billing-ap-workflow': {
+    permissions: ['billing.ap', 'billing.manage', 'billing.*', '*'],
+    description: 'Manage accounts payable workflow'
+  },
+  'pms-package-plans': {
+    permissions: ['pricing.view', 'pricing.manage', 'pms.*', '*'],
+    description: 'Manage package plans and bundles'
   },
 
   // ---- Experience ----
@@ -425,6 +481,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['pos.manage', 'pos.view', 'pos.*', '*'],
     description: 'Manage digital menu boards and displays'
   },
+  'pos-offline': {
+    permissions: ['pos.manage', 'pos.view', 'pos.*', '*'],
+    description: 'Manage offline mode settings and data sync'
+  },
 
   // ---- Inventory ----
   'inventory-stock': {
@@ -537,6 +597,74 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['wifi.manage', 'wifi.*', '*'],
     description: 'Manage content filtering rules (e2guardian)'
   },
+  'wifi-network': {
+    permissions: ['wifi.manage', 'wifi.*', '*'],
+    description: 'Configure network settings and VLANs'
+  },
+  'wifi-dhcp': {
+    permissions: ['wifi.manage', 'wifi.*', '*'],
+    description: 'Configure DHCP server settings'
+  },
+  'wifi-dns': {
+    permissions: ['wifi.manage', 'wifi.*', '*'],
+    description: 'Configure DNS server settings'
+  },
+  'wifi-portal': {
+    permissions: ['wifi.manage', 'wifi.*', '*'],
+    description: 'Configure captive portal settings'
+  },
+  'wifi-firewall': {
+    permissions: ['wifi.manage', 'wifi.*', '*'],
+    description: 'Configure firewall rules and bandwidth limits'
+  },
+  'wifi-diagnostics': {
+    permissions: ['wifi.manage', 'wifi.*', '*'],
+    description: 'Run gateway diagnostics and connectivity tests'
+  },
+  'wifi-reports': {
+    permissions: ['wifi.view', 'wifi.*', '*'],
+    description: 'View WiFi usage and performance reports'
+  },
+  'wifi-health-alerts': {
+    permissions: ['wifi.view', 'wifi.*', '*'],
+    description: 'View WiFi system health alerts'
+  },
+  'wifi-pre-arrival': {
+    permissions: ['wifi.manage', 'wifi.*', '*'],
+    description: 'Configure pre-arrival WiFi credential delivery'
+  },
+  'wifi-device-management': {
+    permissions: ['wifi.manage', 'wifi.*', '*'],
+    description: 'Manage multi-device guest registration'
+  },
+  'wifi-identity-verification': {
+    permissions: ['wifi.manage', 'wifi.*', '*'],
+    description: 'Configure guest identity verification for WiFi'
+  },
+  'wifi-consent-management': {
+    permissions: ['wifi.manage', 'wifi.*', '*'],
+    description: 'Manage GDPR consent for WiFi access'
+  },
+  'wifi-bandwidth-upsell': {
+    permissions: ['wifi.manage', 'wifi.*', '*'],
+    description: 'Configure bandwidth upsell tiers and pricing'
+  },
+  'wifi-revenue-dashboard': {
+    permissions: ['wifi.view', 'wifi.*', '*'],
+    description: 'View WiFi revenue analytics'
+  },
+  'wifi-satisfaction-surveys': {
+    permissions: ['wifi.view', 'wifi.manage', 'wifi.*', '*'],
+    description: 'View and manage guest satisfaction surveys'
+  },
+  'wifi-sla-monitoring': {
+    permissions: ['wifi.view', 'wifi.*', '*'],
+    description: 'Monitor WiFi service level agreements'
+  },
+  'wifi-room-vlans': {
+    permissions: ['wifi.manage', 'wifi.*', '*'],
+    description: 'Configure room-per-VLAN isolation settings'
+  },
 
   // ---- Revenue Management ----
   'revenue-pricing': {
@@ -616,6 +744,82 @@ export const menuPermissions: PermissionConfig = {
   'channel-crs': {
     permissions: ['channels.manage', 'channels.*', '*'],
     description: 'Access CRS'
+  },
+  'channel-gds': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Manage GDS connectivity'
+  },
+  'channel-booking-modifications': {
+    permissions: ['channels.view', 'channels.manage', 'channels.*', '*'],
+    description: 'Manage booking modifications from channels'
+  },
+  'channel-rate-derivation': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Manage derived rate rules for channels'
+  },
+  'channel-rate-overrides': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Manage rate overrides per channel'
+  },
+  'channel-content-sync': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Sync content (photos, descriptions) to channels'
+  },
+  'channel-tax-mapping': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Map tax codes per channel'
+  },
+  'channel-meal-plan': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Map meal plans per channel'
+  },
+  'channel-virtual-inventory': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Manage virtual inventory pools'
+  },
+  'channel-currency': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Configure per-channel currency conversion'
+  },
+  'channel-cancellation-policy': {
+    permissions: ['channels.manage', 'bookings.manage', 'channels.*', '*'],
+    description: 'Configure channel-specific cancellation policies',
+  },
+  'channel-settlement': {
+    permissions: ['channels.manage', 'billing.manage', 'channels.*', '*'],
+    description: 'Manage channel settlement and reconciliation'
+  },
+  'channel-allotment-release': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Manage allotment release schedules'
+  },
+  'channel-promo-codes': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Manage promotional codes for channels'
+  },
+  'channel-priority': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Set channel priority and preferred channels'
+  },
+  'channel-inventory-pool': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Manage pooled inventory across channels'
+  },
+  'channel-derived-rates': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Manage derived rate plans for channels'
+  },
+  'channel-commission-config': {
+    permissions: ['channels.manage', 'billing.commissions', 'channels.*', '*'],
+    description: 'Configure OTA commission rates'
+  },
+  'channel-guest-rates': {
+    permissions: ['channels.view', 'channels.manage', 'channels.*', '*'],
+    description: 'View and manage guest-specific rate plans'
+  },
+  'channel-booking-limits': {
+    permissions: ['channels.manage', 'channels.*', '*'],
+    description: 'Configure booking limits per channel'
   },
 
   // ---- CRM & Marketing ----
@@ -808,6 +1012,22 @@ export const menuPermissions: PermissionConfig = {
   'integrations-apis': {
     permissions: ['integrations.manage', 'integrations.*', '*'],
     description: 'Configure third-party APIs'
+  },
+  'integrations-smart-locks': {
+    permissions: ['integrations.manage', 'integrations.*', '*'],
+    description: 'Configure smart lock integrations'
+  },
+  'integrations-terminals': {
+    permissions: ['integrations.manage', 'integrations.*', '*'],
+    description: 'Configure payment terminal integrations'
+  },
+  'integrations-mobile-app': {
+    permissions: ['integrations.manage', 'integrations.*', '*'],
+    description: 'Configure mobile app settings and integrations'
+  },
+  'integrations-hardware-adapters': {
+    permissions: ['integrations.manage', 'integrations.*', '*'],
+    description: 'Configure hardware adapters (PMS, printers, etc.)'
   },
 
   // ---- Automation ----

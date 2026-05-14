@@ -118,7 +118,7 @@ export const FEATURES: Record<string, FeatureConfig> = {
     alwaysEnabled: true,
     menuItems: [
       'settings-general', 'settings-tax', 'settings-localization', 'settings-features', 'settings-gdpr',
-      'settings-license-keys', 'settings-security', 'settings-integrations',
+      'settings-license', 'settings-license-keys', 'settings-security', 'settings-integrations',
     ],
     apiRoutes: ['/api/settings'],
   },
@@ -221,7 +221,7 @@ export const FEATURES: Record<string, FeatureConfig> = {
       'wifi-portal', 'wifi-firewall', 'wifi-content-filter', 'wifi-diagnostics', 'wifi-reports',
       'wifi-health-alerts', 'wifi-pre-arrival', 'wifi-device-management', 'wifi-identity-verification',
       'wifi-consent-management', 'wifi-bandwidth-upsell', 'wifi-revenue-dashboard',
-      'wifi-satisfaction-surveys', 'wifi-sla-monitoring',
+      'wifi-satisfaction-surveys', 'wifi-sla-monitoring', 'wifi-room-vlans',
     ],
     apiRoutes: ['/api/wifi', '/api/wifi/sessions', '/api/wifi/vouchers'],
   },
@@ -259,7 +259,8 @@ export const FEATURES: Record<string, FeatureConfig> = {
       'channel-booking-modifications', 'channel-restrictions', 'channel-stop-sell', 'channel-allocations',
       'channel-mapping', 'channel-parity', 'channel-logs', 'channel-health', 'channel-crs', 'channel-gds',
       'channel-rate-derivation', 'channel-rate-overrides', 'channel-content-sync', 'channel-tax-mapping',
-      'channel-meal-plan', 'channel-virtual-inventory', 'channel-currency', 'channel-cancellation-policy',
+      'channel-meal-plan', 'channel-virtual-inventory', 'channel-currency',
+      // channel-cancellation-policy removed — duplicate of billing-cancellation-policies (same DB model)
       'channel-settlement', 'channel-allotment-release', 'channel-promo-codes', 'channel-booking-pace',
       'channel-priority', 'channel-inventory-pool', 'channel-derived-rates', 'channel-commission-config',
       'channel-guest-rates', 'channel-booking-limits',

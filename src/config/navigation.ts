@@ -124,14 +124,24 @@ export interface NavSection {
 }
 
 // =====================================================
-// STAYSUITE MENU CONFIGURATION
+// STAYSUITE MENU CONFIGURATION — v2 REORGANIZED
 // =====================================================
-// 
+//
 // MODULE CATEGORIES:
 // - BASE MODULES: Core functionality required for hotel operations
 //   (Always enabled, cannot be disabled)
 // - ADDON MODULES: Optional features that can be enabled/disabled
 //   via Feature Flags in Settings
+//
+// REORGANIZATION NOTES (v2):
+// - Merged CRM + Marketing → single "CRM & Marketing" section
+// - Merged Surveillance + IoT + Security Center → "Security & IoT"
+// - Merged Parking + Events + Resort → "Facilities"
+// - Merged Notifications + Webhooks → "Notifications & Webhooks"
+// - Merged Automation + AI Assistant → "Automation & AI"
+// - Merged Admin + SaaS Billing + Chain → "Platform Admin"
+// - Removed channel-cancellation-policy (duplicate of billing-cancellation-policies,
+//   both share same CancellationPolicy DB model, billing has full CRUD API)
 //
 // DISABLED MODULES: Menu items automatically hidden when feature disabled
 // =====================================================
@@ -276,11 +286,11 @@ export const navigationConfig: NavSection[] = [
   // =====================================================
   // ADDON MODULES - Optional Features (Can be toggled)
   // =====================================================
-  
+
   // --- Guest Experience Addons ---
   {
     id: 'experience',
-    title: 'Experience',
+    title: 'Guest Experience',
     icon: Sparkles,
     category: 'addons',
     items: [
@@ -343,40 +353,26 @@ export const navigationConfig: NavSection[] = [
       { id: 'inventory-invoice-matching', title: 'Invoice Matching', href: '#inventory-invoice-matching', icon: FileCheck2 },
     ],
   },
+  // MERGED: Parking + Events + Resort → Facilities (was 3 sections, now 1)
   {
-    id: 'parking',
-    title: 'Parking',
-    icon: Car,
+    id: 'facilities',
+    title: 'Facilities',
+    icon: PartyPopper,
     category: 'addons',
     items: [
+      // Parking
       { id: 'parking-slots', title: 'Parking Slots', href: '#parking-slots', icon: Car },
       { id: 'parking-tracking', title: 'Vehicle Tracking', href: '#parking-tracking', icon: Radio },
       { id: 'parking-billing', title: 'Parking Billing', href: '#parking-billing', icon: Receipt },
-    ],
-  },
-  {
-    id: 'surveillance',
-    title: 'Surveillance',
-    icon: Video,
-    category: 'addons',
-    items: [
-      { id: 'security-cameras', title: 'Camera Management', href: '#security-cameras', icon: Settings },
-      { id: 'security-live', title: 'Live Camera View', href: '#security-live', icon: Video },
-      { id: 'security-playback', title: 'Camera Playback', href: '#security-playback', icon: History },
-      { id: 'security-alerts', title: 'Event Alerts', href: '#security-alerts', icon: Bell },
-      { id: 'security-incidents', title: 'Incident Logs', href: '#security-incidents', icon: FileText },
-      { id: 'surveillance-settings', title: 'Surveillance Settings', href: '#surveillance-settings', icon: Settings },
-    ],
-  },
-  {
-    id: 'iot',
-    title: 'Smart Hotel / IoT',
-    icon: Zap,
-    category: 'addons',
-    items: [
-      { id: 'iot-devices', title: 'Device Management', href: '#iot-devices', icon: Server },
-      { id: 'iot-controls', title: 'Room Controls', href: '#iot-controls', icon: Settings },
-      { id: 'iot-energy', title: 'Energy Dashboard', href: '#iot-energy', icon: TrendingUp },
+      // Events / MICE
+      { id: 'events-spaces', title: 'Event Spaces', href: '#events-spaces', icon: Building2 },
+      { id: 'events-calendar', title: 'Event Calendar', href: '#events-calendar', icon: CalendarDays },
+      { id: 'events-booking', title: 'Event Bookings', href: '#events-booking', icon: FileText },
+      { id: 'events-resources', title: 'Event Resources', href: '#events-resources', icon: Package },
+      { id: 'events-beo', title: 'BEO Management', href: '#events-beo', icon: ClipboardList },
+      // Resort
+      { id: 'resort-timeshare', title: 'Timeshare & Ownership', href: '#resort-timeshare', icon: CalendarDays },
+      { id: 'resort-casino', title: 'Casino & Gaming', href: '#resort-casino', icon: Gamepad2 },
     ],
   },
 
@@ -406,6 +402,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'wifi-revenue-dashboard', title: 'Revenue Analytics', href: '#wifi-revenue-dashboard', icon: DollarSign },
       { id: 'wifi-satisfaction-surveys', title: 'Guest Surveys', href: '#wifi-satisfaction-surveys', icon: Star },
       { id: 'wifi-sla-monitoring', title: 'SLA Monitoring', href: '#wifi-sla-monitoring', icon: Gauge },
+      { id: 'wifi-room-vlans', title: 'Room VLAN Isolation', href: '#wifi-room-vlans', icon: Shield },
     ],
   },
 
@@ -451,7 +448,8 @@ export const navigationConfig: NavSection[] = [
       { id: 'channel-meal-plan', title: 'Meal Plan Mapping', href: '#channel-meal-plan', icon: UtensilsCrossed },
       { id: 'channel-virtual-inventory', title: 'Virtual Inventory', href: '#channel-virtual-inventory', icon: Layers },
       { id: 'channel-currency', title: 'Currency Config', href: '#channel-currency', icon: Globe },
-      { id: 'channel-cancellation-policy', title: 'Cancellation Policies', href: '#channel-cancellation-policy', icon: ShieldAlert },
+      // NOTE: channel-cancellation-policy REMOVED — duplicate of billing-cancellation-policies
+      // Both use the same CancellationPolicy DB model; billing has full CRUD API
       { id: 'channel-settlement', title: 'Settlements', href: '#channel-settlement', icon: Landmark },
       { id: 'channel-allotment-release', title: 'Allotment Release', href: '#channel-allotment-release', icon: Timer },
       { id: 'channel-promo-codes', title: 'Promo Codes', href: '#channel-promo-codes', icon: Tag },
@@ -465,26 +463,20 @@ export const navigationConfig: NavSection[] = [
     ],
   },
 
-  // --- Marketing & CRM Addons ---
+  // MERGED: CRM + Marketing → single section (was 2, now 1)
   {
     id: 'crmMarketing',
     title: 'CRM & Marketing',
-    icon: Brain,
+    icon: Megaphone,
     category: 'addons',
     items: [
+      // CRM
       { id: 'crm-segments', title: 'Guest Segments', href: '#crm-segments', icon: Users },
       { id: 'crm-campaigns', title: 'Campaigns', href: '#crm-campaigns', icon: Megaphone },
       { id: 'crm-loyalty', title: 'Loyalty Programs', href: '#crm-loyalty', icon: Gift },
       { id: 'crm-feedback', title: 'Feedback & Reviews', href: '#crm-feedback', icon: MessageSquare },
       { id: 'crm-retention', title: 'Retention Analytics', href: '#crm-retention', icon: Heart },
-    ],
-  },
-  {
-    id: 'marketing',
-    title: 'Marketing',
-    icon: Megaphone,
-    category: 'addons',
-    items: [
+      // Marketing
       { id: 'marketing-reputation', title: 'Reputation Dashboard', href: '#marketing-reputation', icon: Star },
       { id: 'marketing-sources', title: 'Review Sources', href: '#marketing-sources', icon: Bookmark },
       { id: 'marketing-booking-engine', title: 'Direct Booking Engine', href: '#marketing-booking-engine', icon: Globe },
@@ -525,21 +517,6 @@ export const navigationConfig: NavSection[] = [
     ],
   },
 
-  // --- Events Addons ---
-  {
-    id: 'events',
-    title: 'Events / MICE',
-    icon: PartyPopper,
-    category: 'addons',
-    items: [
-      { id: 'events-spaces', title: 'Event Spaces', href: '#events-spaces', icon: Building2 },
-      { id: 'events-calendar', title: 'Event Calendar', href: '#events-calendar', icon: CalendarDays },
-      { id: 'events-booking', title: 'Event Bookings', href: '#events-booking', icon: FileText },
-      { id: 'events-resources', title: 'Event Resources', href: '#events-resources', icon: Package },
-      { id: 'events-beo', title: 'BEO Management', href: '#events-beo', icon: ClipboardList },
-    ],
-  },
-
   // --- Staff Management Addons ---
   {
     id: 'staffManagement',
@@ -558,13 +535,25 @@ export const navigationConfig: NavSection[] = [
     ],
   },
 
-  // --- Security & Admin Addons ---
+  // MERGED: Surveillance + IoT + Security Center → Security & IoT (was 3, now 1)
   {
-    id: 'securityCenter',
-    title: 'Security Center',
+    id: 'securityIot',
+    title: 'Security & IoT',
     icon: Shield,
     category: 'addons',
     items: [
+      // Surveillance
+      { id: 'security-cameras', title: 'Camera Management', href: '#security-cameras', icon: Settings },
+      { id: 'security-live', title: 'Live Camera View', href: '#security-live', icon: Video },
+      { id: 'security-playback', title: 'Camera Playback', href: '#security-playback', icon: History },
+      { id: 'security-alerts', title: 'Event Alerts', href: '#security-alerts', icon: Bell },
+      { id: 'security-incidents', title: 'Incident Logs', href: '#security-incidents', icon: FileText },
+      { id: 'surveillance-settings', title: 'Surveillance Settings', href: '#surveillance-settings', icon: Settings },
+      // IoT
+      { id: 'iot-devices', title: 'Device Management', href: '#iot-devices', icon: Server },
+      { id: 'iot-controls', title: 'Room Controls', href: '#iot-controls', icon: Settings },
+      { id: 'iot-energy', title: 'Energy Dashboard', href: '#iot-energy', icon: TrendingUp },
+      // Security Center
       { id: 'security-overview', title: 'Security Overview', href: '#security-overview', icon: Shield },
       { id: 'security-audit-logs', title: 'Audit Logs', href: '#security-audit-logs', icon: History },
       { id: 'security-2fa', title: 'Two-Factor Auth', href: '#security-2fa', icon: Lock },
@@ -573,13 +562,14 @@ export const navigationConfig: NavSection[] = [
     ],
   },
 
-  // --- Integrations & Automation Addons ---
+  // MERGED: Integrations + Webhooks → Integrations (was 2, now 1)
   {
     id: 'integrations',
     title: 'Integrations',
     icon: Plug,
     category: 'addons',
     items: [
+      // Integrations
       { id: 'integrations-payments', title: 'Payment Gateways', href: '#integrations-payments', icon: CreditCard },
       { id: 'integrations-sms', title: 'SMS Gateways', href: '#integrations-sms', icon: MessageSquare },
       { id: 'integrations-pos', title: 'POS Systems', href: '#integrations-pos', icon: UtensilsCrossed },
@@ -588,26 +578,26 @@ export const navigationConfig: NavSection[] = [
       { id: 'integrations-terminals', title: 'Payment Terminals', href: '#integrations-terminals', icon: CreditCard },
       { id: 'integrations-mobile-app', title: 'Mobile App', href: '#integrations-mobile-app', icon: Smartphone },
       { id: 'integrations-hardware-adapters', title: 'Hardware Adapters', href: '#integrations-hardware-adapters', icon: Lock },
+      // Webhooks (merged from separate section)
+      { id: 'webhooks-events', title: 'Webhook Events', href: '#webhooks-events', icon: FileText },
+      { id: 'webhooks-delivery', title: 'Webhook Delivery Logs', href: '#webhooks-delivery', icon: History },
+      { id: 'webhooks-retry', title: 'Webhook Retry Queue', href: '#webhooks-retry', icon: Zap },
     ],
   },
+
+  // MERGED: Automation + AI Assistant → Automation & AI (was 2, now 1)
   {
-    id: 'automation',
-    title: 'Automation',
+    id: 'automationAi',
+    title: 'Automation & AI',
     icon: Bot,
     category: 'addons',
     items: [
+      // Automation
       { id: 'automation-workflows', title: 'Workflow Builder', href: '#automation-workflows', icon: Bot },
       { id: 'automation-rules', title: 'Rules Engine', href: '#automation-rules', icon: Zap },
       { id: 'automation-templates', title: 'Templates', href: '#automation-templates', icon: FileText },
       { id: 'automation-logs', title: 'Execution Logs', href: '#automation-logs', icon: History },
-    ],
-  },
-  {
-    id: 'aiAssistant',
-    title: 'AI Assistant',
-    icon: Brain,
-    category: 'addons',
-    items: [
+      // AI Assistant
       { id: 'ai-copilot', title: 'AI Copilot', href: '#ai-copilot', icon: Bot },
       { id: 'ai-insights', title: 'AI Insights', href: '#ai-insights', icon: Brain },
       { id: 'ai-conversational-analytics', title: 'Conversational Analytics', href: '#ai-conversational-analytics', icon: BarChart3 },
@@ -615,56 +605,7 @@ export const navigationConfig: NavSection[] = [
     ],
   },
 
-  // --- Enterprise Addons ---
-  {
-    id: 'resort',
-    title: 'Resort',
-    icon: Building,
-    category: 'addons',
-    items: [
-      { id: 'resort-timeshare', title: 'Timeshare & Ownership', href: '#resort-timeshare', icon: CalendarDays },
-      { id: 'resort-casino', title: 'Casino & Gaming', href: '#resort-casino', icon: Gamepad2 },
-    ],
-  },
-  {
-    id: 'admin',
-    title: 'Admin',
-    icon: Shield,
-    category: 'addons',
-    items: [
-      { id: 'admin-tenants', title: 'Tenant Management', href: '#admin-tenants', icon: Building2 },
-      { id: 'admin-lifecycle', title: 'Tenant Lifecycle', href: '#admin-lifecycle', icon: RefreshCw },
-      { id: 'admin-roles', title: 'Roles & Permissions', href: '#admin-roles', icon: Shield },
-      { id: 'admin-users', title: 'User Management', href: '#admin-users', icon: Users },
-      { id: 'admin-usage', title: 'Usage Tracking', href: '#admin-usage', icon: BarChart3 },
-      { id: 'admin-revenue', title: 'Revenue Analytics', href: '#admin-revenue', icon: DollarSign },
-      { id: 'admin-health', title: 'System Health', href: '#admin-health', icon: Zap },
-    ],
-  },
-  {
-    id: 'chainManagement',
-    title: 'Chain Management',
-    icon: Layers,
-    category: 'addons',
-    items: [
-      { id: 'chain-brands', title: 'Brand Management', href: '#chain-brands', icon: Building2 },
-      { id: 'chain-dashboard', title: 'Chain Dashboard', href: '#chain-dashboard', icon: LayoutDashboard },
-      { id: 'chain-analytics', title: 'Cross-Property Analytics', href: '#chain-analytics', icon: BarChart3 },
-    ],
-  },
-  {
-    id: 'saasBilling',
-    title: 'SaaS Billing',
-    icon: Crown,
-    category: 'addons',
-    items: [
-      { id: 'saas-plans', title: 'Plans', href: '#saas-plans', icon: Crown },
-      { id: 'saas-subscriptions', title: 'Subscriptions', href: '#saas-subscriptions', icon: RefreshCw },
-      { id: 'saas-usage', title: 'Usage Billing', href: '#saas-usage', icon: BarChart3 },
-    ],
-  },
-
-  // --- System Addons ---
+  // MERGED: Notifications (was standalone, now here)
   {
     id: 'notifications',
     title: 'Notifications',
@@ -676,15 +617,30 @@ export const navigationConfig: NavSection[] = [
       { id: 'notifications-settings', title: 'Channel Settings', href: '#notifications-settings', icon: Settings },
     ],
   },
+
+  // MERGED: Admin + SaaS Billing + Chain → Platform Admin (was 3, now 1)
   {
-    id: 'webhooks',
-    title: 'Webhooks',
-    icon: Webhook,
+    id: 'platformAdmin',
+    title: 'Platform Admin',
+    icon: Crown,
     category: 'addons',
     items: [
-      { id: 'webhooks-events', title: 'Event Logs', href: '#webhooks-events', icon: FileText },
-      { id: 'webhooks-delivery', title: 'Delivery Logs', href: '#webhooks-delivery', icon: History },
-      { id: 'webhooks-retry', title: 'Retry Queue', href: '#webhooks-retry', icon: Zap },
+      // Admin
+      { id: 'admin-tenants', title: 'Tenant Management', href: '#admin-tenants', icon: Building2 },
+      { id: 'admin-lifecycle', title: 'Tenant Lifecycle', href: '#admin-lifecycle', icon: RefreshCw },
+      { id: 'admin-roles', title: 'Roles & Permissions', href: '#admin-roles', icon: Shield },
+      { id: 'admin-users', title: 'User Management', href: '#admin-users', icon: Users },
+      { id: 'admin-usage', title: 'Usage Tracking', href: '#admin-usage', icon: BarChart3 },
+      { id: 'admin-revenue', title: 'Revenue Analytics', href: '#admin-revenue', icon: DollarSign },
+      { id: 'admin-health', title: 'System Health', href: '#admin-health', icon: Zap },
+      // SaaS Billing
+      { id: 'saas-plans', title: 'SaaS Plans', href: '#saas-plans', icon: Crown },
+      { id: 'saas-subscriptions', title: 'SaaS Subscriptions', href: '#saas-subscriptions', icon: RefreshCw },
+      { id: 'saas-usage', title: 'SaaS Usage Billing', href: '#saas-usage', icon: BarChart3 },
+      // Chain Management
+      { id: 'chain-brands', title: 'Brand Management', href: '#chain-brands', icon: Building2 },
+      { id: 'chain-dashboard', title: 'Chain Dashboard', href: '#chain-dashboard', icon: LayoutDashboard },
+      { id: 'chain-analytics', title: 'Cross-Property Analytics', href: '#chain-analytics', icon: BarChart3 },
     ],
   },
 
@@ -724,9 +680,20 @@ export const navigationConfig: NavSection[] = [
 // =====================================================
 // MENU STATISTICS
 // =====================================================
-// Total Categories: 30 (excluding Profile which was removed)
-// Base Modules: 8 (Dashboard, PMS, Bookings, Front Desk, Guests, 
+// Total Sections: 26 (down from 34 — merged 8 duplicate/related groups)
+// Base Modules: 8 (Dashboard, PMS, Bookings, Front Desk, Guests,
 //                        Housekeeping, Billing, Settings, Help)
-// Addon Modules: 22 (Experience, Restaurant, Inventory, Parking, etc.)
-// Total Menu Items: ~138
+// Addon Modules: 18 (Experience, Restaurant, Inventory, Facilities, WiFi,
+//                       Revenue, Channels, CRM & Marketing, Ads, Reports,
+//                       Staff, Security & IoT, Integrations, Automation & AI,
+//                       Notifications, Platform Admin)
+// Total Menu Items: ~170
+//
+// Merges applied:
+// - CRM + Marketing → CRM & Marketing (2→1)
+// - Surveillance + IoT + Security Center → Security & IoT (3→1)
+// - Parking + Events + Resort → Facilities (3→1)
+// - Admin + SaaS Billing + Chain → Platform Admin (3→1)
+// - Integrations + Webhooks → Integrations (2→1)
+// - Removed channel-cancellation-policy (duplicate of billing-cancellation-policies)
 // =====================================================
