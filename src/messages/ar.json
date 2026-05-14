@@ -481,7 +481,6 @@
     "resort-casino": "الكازينو والألعاب",
     "resort-timeshare": "الملكية المشتركة",
     "revenue-rate-shopping": "مقارنة الأسعار",
-    "settings-subscription": "اشتراكي",
     "settings-license": "إدارة التراخيص",
     "settings-license-keys": "مفاتيح الترخيص",
     "staff-payroll": "الرواتب",
@@ -497,7 +496,6 @@
     "channel-content-sync": "Content Sync",
     "channel-meal-plan": "Meal Plan Mapping",
     "channel-tax-mapping": "Tax Mapping",
-    "channel-cancellation-policy": "Cancellation Policies",
     "channel-currency": "Currency Config",
     "channel-virtual-inventory": "Virtual Inventory",
     "channel-promo-codes": "Promo Codes",
@@ -520,7 +518,11 @@
     "wifi-bandwidth-upsell": "ترقية النطاق الترددي",
     "wifi-revenue-dashboard": "تحليل الإيرادات",
     "wifi-satisfaction-surveys": "استطلاعات رضا الضيوف",
-    "wifi-sla-monitoring": "مراقبة SLA"
+    "wifi-sla-monitoring": "مراقبة SLA",
+    "facilities": "المرافق",
+    "securityIot": "الأمان وإنترنت الأشياء",
+    "automationAi": "الأتمتة والذكاء الاصطناعي",
+    "platformAdmin": "مدير المنصة"
   },
   "layout": {
     "searchNavigation": "البحث في التنقل...",

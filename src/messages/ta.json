@@ -481,7 +481,6 @@
     "resort-casino": "கேசினோ & கேமிங்",
     "resort-timeshare": "டைம்ஷேர் & உரிமை",
     "revenue-rate-shopping": "விலை ஷாப்பிங்",
-    "settings-subscription": "எனது சந்தா",
     "settings-license": "உரிம மேலாண்மை",
     "settings-license-keys": "உரிம விசைகள்",
     "staff-payroll": "சம்பளம்",
@@ -497,7 +496,6 @@
     "channel-content-sync": "Content Sync",
     "channel-meal-plan": "Meal Plan Mapping",
     "channel-tax-mapping": "Tax Mapping",
-    "channel-cancellation-policy": "Cancellation Policies",
     "channel-currency": "Currency Config",
     "channel-virtual-inventory": "Virtual Inventory",
     "channel-promo-codes": "Promo Codes",
@@ -520,7 +518,11 @@
     "wifi-bandwidth-upsell": "பேண்ட்விட்த் அப்செல்",
     "wifi-revenue-dashboard": "வருவாய் பகுப்பாய்வு",
     "wifi-satisfaction-surveys": "விருந்தினர் கணக்கெடுப்பு",
-    "wifi-sla-monitoring": "SLA கண்காணிப்பு"
+    "wifi-sla-monitoring": "SLA கண்காணிப்பு",
+    "facilities": "வசதிகள்",
+    "securityIot": "பாதுகாப்பு மற்றும் IoT",
+    "automationAi": "ஆட்டோமேஷன் மற்றும் AI",
+    "platformAdmin": "தள நிர்வாகி"
   },
   "layout": {
     "searchNavigation": "வழிசெலுத்தலைத் தேடு...",

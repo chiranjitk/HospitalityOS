@@ -481,7 +481,6 @@
     "resort-casino": "ক্যাসিনো এবং গেমিং",
     "resort-timeshare": "টাইমশেয়ার এবং মালিকানা",
     "revenue-rate-shopping": "রেট শপিং",
-    "settings-subscription": "আমার সাবস্ক্রিপশন",
     "settings-license": "লাইসেন্স ব্যবস্থাপনা",
     "settings-license-keys": "লাইসেন্স কী",
     "staff-payroll": "বেতন",
@@ -497,7 +496,6 @@
     "channel-content-sync": "Content Sync",
     "channel-meal-plan": "Meal Plan Mapping",
     "channel-tax-mapping": "Tax Mapping",
-    "channel-cancellation-policy": "Cancellation Policies",
     "channel-currency": "Currency Config",
     "channel-virtual-inventory": "Virtual Inventory",
     "channel-promo-codes": "Promo Codes",
@@ -520,7 +518,11 @@
     "wifi-bandwidth-upsell": "ব্যান্ডউইথ আপসেল",
     "wifi-revenue-dashboard": "রাজস্ব বিশ্লেষণ",
     "wifi-satisfaction-surveys": "অতিথি সমীক্ষা",
-    "wifi-sla-monitoring": "SLA মনিটরিং"
+    "wifi-sla-monitoring": "SLA মনিটরিং",
+    "facilities": "সুবিধা",
+    "securityIot": "নিরাপত্তা ও IoT",
+    "automationAi": "অটোমেশন ও AI",
+    "platformAdmin": "প্ল্যাটফর্ম অ্যাডমিন"
   },
   "layout": {
     "searchNavigation": "নেভিগেশন খুঁজুন...",

@@ -481,7 +481,6 @@
     "resort-casino": "カジノ＆ゲーミング",
     "resort-timeshare": "タイムシェア＆所有権",
     "revenue-rate-shopping": "レートショッピング",
-    "settings-subscription": "マイサブスクリプション",
     "settings-license": "ライセンス管理",
     "settings-license-keys": "ライセンスキー",
     "staff-payroll": "給与",
@@ -497,7 +496,6 @@
     "channel-content-sync": "Content Sync",
     "channel-meal-plan": "Meal Plan Mapping",
     "channel-tax-mapping": "Tax Mapping",
-    "channel-cancellation-policy": "Cancellation Policies",
     "channel-currency": "Currency Config",
     "channel-virtual-inventory": "Virtual Inventory",
     "channel-promo-codes": "Promo Codes",
@@ -520,7 +518,11 @@
     "wifi-bandwidth-upsell": "帯域幅アップグレード",
     "wifi-revenue-dashboard": "収益分析",
     "wifi-satisfaction-surveys": "ゲストアンケート",
-    "wifi-sla-monitoring": "SLA監視"
+    "wifi-sla-monitoring": "SLA監視",
+    "facilities": "施設",
+    "securityIot": "セキュリティ＆IoT",
+    "automationAi": "自動化＆AI",
+    "platformAdmin": "プラットフォーム管理"
   },
   "layout": {
     "searchNavigation": "ナビゲーションを検索...",

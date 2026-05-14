@@ -481,7 +481,6 @@
     "resort-casino": "കാസിനോ & ഗെയിമിംഗ്",
     "resort-timeshare": "ടൈംഷെയർ & ഉടമസ്ഥത",
     "revenue-rate-shopping": "റേറ്റ് ഷോപ്പിംഗ്",
-    "settings-subscription": "എന്റെ സബ്സ്ക്രിപ്ഷൻ",
     "settings-license": "ലൈസൻസ് മാനേജ്‌മെന്റ്",
     "settings-license-keys": "ലൈസൻസ് കീകൾ",
     "staff-payroll": "ശമ്പളം",
@@ -497,7 +496,6 @@
     "channel-content-sync": "Content Sync",
     "channel-meal-plan": "Meal Plan Mapping",
     "channel-tax-mapping": "Tax Mapping",
-    "channel-cancellation-policy": "Cancellation Policies",
     "channel-currency": "Currency Config",
     "channel-virtual-inventory": "Virtual Inventory",
     "channel-promo-codes": "Promo Codes",
@@ -520,7 +518,11 @@
     "wifi-bandwidth-upsell": "ബാൻഡ്‌വിഡ്ത് അപ്‌സെൽ",
     "wifi-revenue-dashboard": "വരുമാന വിശകലനം",
     "wifi-satisfaction-surveys": "അതിഥി സർവേകൾ",
-    "wifi-sla-monitoring": "SLA മോണിറ്ററിംഗ്"
+    "wifi-sla-monitoring": "SLA മോണിറ്ററിംഗ്",
+    "facilities": "സൗകര്യങ്ങൾ",
+    "securityIot": "സുരക്ഷയും IoT-യും",
+    "automationAi": "ഓട്ടോമേഷനും AI-യും",
+    "platformAdmin": "പ്ലാറ്റ്ഫോം അഡ്മിൻ"
   },
   "layout": {
     "searchNavigation": "നാവിഗേഷൻ തിരയുക...",

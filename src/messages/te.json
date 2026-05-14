@@ -481,7 +481,6 @@
     "resort-casino": "క్యాసినో & గేమింగ్",
     "resort-timeshare": "టైమ్‌షేర్ & యాజమాన్యం",
     "revenue-rate-shopping": "రేట్ షాపింగ్",
-    "settings-subscription": "నా సబ్‌స్క్రిప్షన్",
     "settings-license": "లైసెన్స్ నిర్వహణ",
     "settings-license-keys": "లైసెన్స్ కీలు",
     "staff-payroll": "జీతభత్యాలు",
@@ -497,7 +496,6 @@
     "channel-content-sync": "Content Sync",
     "channel-meal-plan": "Meal Plan Mapping",
     "channel-tax-mapping": "Tax Mapping",
-    "channel-cancellation-policy": "Cancellation Policies",
     "channel-currency": "Currency Config",
     "channel-virtual-inventory": "Virtual Inventory",
     "channel-promo-codes": "Promo Codes",
@@ -520,7 +518,11 @@
     "wifi-bandwidth-upsell": "బ్యాండ్‌విడ్త్ అప్‌సెల్",
     "wifi-revenue-dashboard": "ఆదాయ విశ్లేషణ",
     "wifi-satisfaction-surveys": "అతిథి సర్వేలు",
-    "wifi-sla-monitoring": "SLA మానిటరింగ్"
+    "wifi-sla-monitoring": "SLA మానిటరింగ్",
+    "facilities": "సౌకర్యాలు",
+    "securityIot": "సెక్యూరిటీ & IoT",
+    "automationAi": "ఆటోమేషన్ & AI",
+    "platformAdmin": "ప్లాట్‌ఫాం అడ్మిన్"
   },
   "layout": {
     "searchNavigation": "నావిగేషన్ వెతకండి...",

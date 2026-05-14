@@ -481,7 +481,6 @@
     "resort-casino": "Cassino e Jogos",
     "resort-timeshare": "Timeshare e Propriedade",
     "revenue-rate-shopping": "Comparação de Tarifas",
-    "settings-subscription": "Minha assinatura",
     "settings-license": "Gerenciamento de licenças",
     "settings-license-keys": "Chaves de Licença",
     "staff-payroll": "Folha de Pagamento",
@@ -497,7 +496,6 @@
     "channel-content-sync": "Content Sync",
     "channel-meal-plan": "Meal Plan Mapping",
     "channel-tax-mapping": "Tax Mapping",
-    "channel-cancellation-policy": "Cancellation Policies",
     "channel-currency": "Currency Config",
     "channel-virtual-inventory": "Virtual Inventory",
     "channel-promo-codes": "Promo Codes",
@@ -520,7 +518,11 @@
     "wifi-bandwidth-upsell": "Upgrade de Banda Larga",
     "wifi-revenue-dashboard": "Análise de Receita",
     "wifi-satisfaction-surveys": "Pesquisas de Satisfação",
-    "wifi-sla-monitoring": "Monitoramento SLA"
+    "wifi-sla-monitoring": "Monitoramento SLA",
+    "facilities": "Instalações",
+    "securityIot": "Segurança e IoT",
+    "automationAi": "Automação e IA",
+    "platformAdmin": "Administrador da plataforma"
   },
   "layout": {
     "searchNavigation": "Pesquisar navegação...",

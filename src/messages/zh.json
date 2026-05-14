@@ -481,7 +481,6 @@
     "resort-casino": "赌场与游戏",
     "resort-timeshare": "分时度假与产权",
     "revenue-rate-shopping": "价格比较",
-    "settings-subscription": "我的订阅",
     "settings-license": "许可证管理",
     "settings-license-keys": "许可证密钥",
     "staff-payroll": "薪资",
@@ -497,7 +496,6 @@
     "channel-content-sync": "Content Sync",
     "channel-meal-plan": "Meal Plan Mapping",
     "channel-tax-mapping": "Tax Mapping",
-    "channel-cancellation-policy": "Cancellation Policies",
     "channel-currency": "Currency Config",
     "channel-virtual-inventory": "Virtual Inventory",
     "channel-promo-codes": "Promo Codes",
@@ -520,7 +518,11 @@
     "wifi-bandwidth-upsell": "带宽升级",
     "wifi-revenue-dashboard": "收入分析",
     "wifi-satisfaction-surveys": "宾客满意度调查",
-    "wifi-sla-monitoring": "SLA监控"
+    "wifi-sla-monitoring": "SLA监控",
+    "facilities": "设施",
+    "securityIot": "安全与物联网",
+    "automationAi": "自动化与AI",
+    "platformAdmin": "平台管理"
   },
   "layout": {
     "searchNavigation": "搜索导航...",
