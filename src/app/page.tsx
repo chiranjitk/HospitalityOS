@@ -48,9 +48,11 @@ function getErrorConfig(error: string) {
 function SectionLoadError({
   error,
   onGoToDashboard,
+  onRetry,
 }: {
   error: string;
   onGoToDashboard: () => void;
+  onRetry?: () => void;
 }) {
   const tDash = useTranslations('dashboard');
   const { title, description } = getErrorConfig(error);
@@ -82,6 +84,14 @@ function SectionLoadError({
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:justify-center pt-1">
             <Button
+              onClick={() => onRetry?.()}
+              variant="outline"
+              className="gap-2 border-border/60 hover:border-border w-full sm:w-auto"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </Button>
+            <Button
               onClick={onGoToDashboard}
               className="gap-2 bg-teal-600 hover:bg-teal-700 text-white shadow-md shadow-teal-600/20 dark:bg-teal-500 dark:hover:bg-teal-600 dark:shadow-teal-500/10 w-full sm:w-auto"
             >
@@ -103,9 +113,21 @@ function SectionLoadError({
   );
 }
 
+function isChunkLoadError(err: any): boolean {
+  const msg = err?.message || '';
+  return (
+    msg.includes('Loading chunk') ||
+    msg.includes('Failed to fetch dynamically imported module') ||
+    msg.includes('Importing a module script failed') ||
+    msg.includes('NetworkError') ||
+    msg.includes('Load failed')
+  );
+}
+
 function SectionContent({ section }: { section: string }) {
   const [Comp, setComp] = useState<React.ComponentType<any> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
   const tCommon = useTranslations('common');
   const tDash = useTranslations('dashboard');
 
@@ -114,47 +136,73 @@ function SectionContent({ section }: { section: string }) {
     setError(null);
     setComp(null);
 
+    const MAX_RETRIES = 2;
+    let attempt = 0;
+
     const timeout = setTimeout(() => {
       if (!cancelled) setError(`Loading timed out for: ${section}`);
     }, 30000);
 
-    import('@/components/sections/loaders/master-loader')
-      .then(async (masterModule) => {
-        if (cancelled) return;
-        try {
-          const mod = await masterModule.default(section);
+    function loadWithRetry(): void {
+      import('@/components/sections/loaders/master-loader')
+        .then(async (masterModule) => {
           if (cancelled) return;
-          clearTimeout(timeout);
-          const Component = mod?.default || Object.values(mod || {}).find(
-            (v: any) => typeof v === 'function' && v.toString().length > 0
-          ) as React.ComponentType<any>;
-          if (Component) {
-            setComp(() => Component);
-          } else {
-            setError(`No component found for: ${section}`);
+          try {
+            const mod = await masterModule.default(section);
+            if (cancelled) return;
+            clearTimeout(timeout);
+            const Component = mod?.default || Object.values(mod || {}).find(
+              (v: any) => typeof v === 'function' && v.toString().length > 0
+            ) as React.ComponentType<any>;
+            if (Component) {
+              setComp(() => Component);
+            } else {
+              setError(`No component found for: ${section}`);
+            }
+          } catch (err: any) {
+            if (cancelled) return;
+            if (isChunkLoadError(err) && attempt < MAX_RETRIES) {
+              attempt++;
+              const delay = attempt * 1500;
+              console.warn(`Chunk load failed for ${section}, retry ${attempt}/${MAX_RETRIES} in ${delay}ms...`);
+              setTimeout(loadWithRetry, delay);
+            } else {
+              clearTimeout(timeout);
+              setError(`Failed to load ${section}: ${err?.message || 'Unknown error'}`);
+            }
           }
-        } catch (err: any) {
+        })
+        .catch((err: any) => {
           if (cancelled) return;
-          clearTimeout(timeout);
-          setError(`Failed to load ${section}: ${err?.message || 'Unknown error'}`);
-        }
-      })
-      .catch((err: any) => {
-        if (cancelled) return;
-        clearTimeout(timeout);
-        setError(`Failed to load section loader: ${err?.message || 'Unknown error'}`);
-        console.error('SectionContent failed:', section, err);
-      });
+          if (isChunkLoadError(err) && attempt < MAX_RETRIES) {
+            attempt++;
+            const delay = attempt * 1500;
+            console.warn(`Loader chunk failed for ${section}, retry ${attempt}/${MAX_RETRIES} in ${delay}ms...`);
+            setTimeout(loadWithRetry, delay);
+          } else {
+            clearTimeout(timeout);
+            setError(`Failed to load section loader: ${err?.message || 'Unknown error'}`);
+            console.error('SectionContent failed:', section, err);
+          }
+        });
+    }
 
+    loadWithRetry();
     return () => { cancelled = true; clearTimeout(timeout); };
-  }, [section]);
+  }, [section, retryKey]);
 
   const handleGoToDashboard = () => {
     useUIStore.getState().setActiveSection('overview');
   };
 
   if (error) {
-    return <SectionLoadError error={error} onGoToDashboard={handleGoToDashboard} />;
+    return (
+      <SectionLoadError
+        error={error}
+        onGoToDashboard={handleGoToDashboard}
+        onRetry={() => setRetryKey((k) => k + 1)}
+      />
+    );
   }
 
   if (!Comp) {
