@@ -29,7 +29,6 @@ import {
   HardDrive,
   Bell,
   Chrome,
-  Wifi,
   Sparkles,
   MessageCircle,
   Shield,
@@ -56,7 +55,6 @@ type IntegrationType =
   | 's3_storage'
   | 'fcm'
   | 'google_oauth'
-  | 'radius'
   | 'ai'
   | 'whatsapp';
 
@@ -135,15 +133,6 @@ const INTEGRATION_META: IntegrationMeta[] = [
     hoverBorder: 'hover:border-teal-300',
   },
   {
-    type: 'radius',
-    label: 'RADIUS / WiFi',
-    sublabel: 'WiFi auth',
-    icon: Wifi,
-    color: 'text-violet-600 dark:text-violet-400',
-    bgColor: 'bg-violet-50 dark:bg-violet-950/40',
-    hoverBorder: 'hover:border-violet-300',
-  },
-  {
     type: 'ai',
     label: 'AI Provider',
     sublabel: 'AI services',
@@ -206,18 +195,6 @@ const INTEGRATION_SCHEMAS: Record<IntegrationType, IntegrationSchema> = {
       { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'GOCSPX-xxxxxxxx', required: true },
       { key: 'redirectUri', label: 'Redirect URI', type: 'url', placeholder: 'https://yourhotel.com/api/auth/google/callback' },
       { key: 'allowedDomains', label: 'Allowed Domains', type: 'text', placeholder: 'hotelgroup.com (comma-separated)' },
-    ],
-  },
-  radius: {
-    description:
-      'Configure RADIUS server for WiFi authentication. Guests receive auto-generated credentials upon check-in.',
-    fields: [
-      { key: 'serverIp', label: 'RADIUS Server IP', type: 'text', placeholder: '192.168.1.100', required: true },
-      { key: 'sharedSecret', label: 'Shared Secret', type: 'password', placeholder: 'Enter RADIUS shared secret', required: true },
-      { key: 'authPort', label: 'Auth Port', type: 'number', placeholder: '1812' },
-      { key: 'acctPort', label: 'Accounting Port', type: 'number', placeholder: '1813' },
-      { key: 'nasIdentifier', label: 'NAS Identifier', type: 'text', placeholder: 'staysuite-gateway' },
-      { key: 'coaEnabled', label: 'Change of Authorization', type: 'boolean', description: 'Enable CoA for disconnecting sessions' },
     ],
   },
   ai: {
@@ -495,7 +472,7 @@ export default function SystemIntegrations() {
           <Skeleton className="h-4 w-96 max-w-full" />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {Array.from({ length: 7 }).map((_, i) => (
+          {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-36 rounded-xl" />
           ))}
         </div>
