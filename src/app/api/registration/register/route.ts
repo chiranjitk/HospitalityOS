@@ -199,6 +199,39 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Create default module entitlements based on plan limits
+      await tx.licenseModuleEntitlement.createMany({
+        data: [
+          {
+            tenantId: tenant.id,
+            moduleKey: 'pms',
+            moduleName: 'Property Management',
+            limitType: 'properties',
+            limitValue: licenseKey.plan.maxProperties,
+            isValid: true,
+            hardLimit: true,
+          },
+          {
+            tenantId: tenant.id,
+            moduleKey: 'admin',
+            moduleName: 'Admin / Users',
+            limitType: 'users',
+            limitValue: licenseKey.plan.maxUsers,
+            isValid: true,
+            hardLimit: true,
+          },
+          {
+            tenantId: tenant.id,
+            moduleKey: 'properties',
+            moduleName: 'Properties',
+            limitType: 'rooms',
+            limitValue: licenseKey.plan.maxRoomsPerProperty,
+            isValid: true,
+            hardLimit: true,
+          },
+        ],
+      });
+
       // Create admin Role for the tenant
       const role = await tx.role.create({
         data: {
