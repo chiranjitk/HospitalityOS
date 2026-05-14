@@ -640,11 +640,15 @@ export const navigationConfig: NavSection[] = [
       { id: 'chain-brands', title: 'Brand Management', href: '#chain-brands', icon: Building2 },
       { id: 'chain-dashboard', title: 'Chain Dashboard', href: '#chain-dashboard', icon: LayoutDashboard },
       { id: 'chain-analytics', title: 'Cross-Property Analytics', href: '#chain-analytics', icon: BarChart3 },
+      // Platform-Exclusive Settings
+      { id: 'settings-features', title: 'Feature Flags', href: '#settings-features', icon: Zap },
+      { id: 'settings-license', title: 'License Management', href: '#settings-license', icon: Shield },
+      { id: 'settings-license-keys', title: 'License Keys', href: '#settings-license-keys', icon: Key },
     ],
   },
 
   // =====================================================
-  // SYSTEM - Always visible (includes Feature Flags settings)
+  // SYSTEM - Always visible
   // =====================================================
   {
     id: 'settings',
@@ -655,9 +659,6 @@ export const navigationConfig: NavSection[] = [
       { id: 'settings-general', title: 'General Settings', href: '#settings-general', icon: Settings },
       { id: 'settings-tax', title: 'Tax & Currency', href: '#settings-tax', icon: DollarSign },
       { id: 'settings-localization', title: 'Localization', href: '#settings-localization', icon: Globe },
-      { id: 'settings-features', title: 'Feature Flags', href: '#settings-features', icon: Zap },
-      { id: 'settings-license', title: 'Licensing & Subscription', href: '#settings-license', icon: Shield },
-      { id: 'settings-license-keys', title: 'License Keys', href: '#settings-license-keys', icon: Key },
       { id: 'settings-gdpr', title: 'GDPR Compliance', href: '#settings-gdpr', icon: Shield },
       { id: 'settings-security', title: 'Security Settings', href: '#settings-security', icon: Shield },
       { id: 'settings-integrations', title: 'System Integrations', href: '#settings-integrations', icon: Plug },
@@ -692,7 +693,7 @@ export const navigationConfig: NavSection[] = [
 // - CRM + Marketing → CRM & Marketing (2→1)
 // - Surveillance + IoT + Security Center → Security & IoT (3→1)
 // - Parking + Events + Resort → Facilities (3→1)
-// - Admin + SaaS Billing + Chain → Platform Admin (3→1)
+// - Admin + SaaS Billing + Chain + Feature Flags + License → Platform Admin (3→1)
 // - Integrations + Webhooks → Integrations (2→1)
 // - Removed channel-cancellation-policy (duplicate of billing-cancellation-policies)
 // =====================================================
