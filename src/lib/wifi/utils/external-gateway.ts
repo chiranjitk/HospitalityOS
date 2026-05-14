@@ -32,12 +32,15 @@ export async function getExternalGatewayConfig(
   tenantId?: string | null
 ): Promise<ExternalGatewayConfig | null> {
   try {
-    // Query all active MikroTik wifi_gateway integrations
+    // Query all active or error-status MikroTik wifi_gateway integrations.
+    // We include 'error' status because the auto-sync job marks unreachable devices
+    // as 'error', but the external portal config should still work (guests can still
+    // be redirected to the MikroTik login page even if the device is temporarily offline).
     const integrations = await db.integration.findMany({
       where: {
         type: 'wifi_gateway',
         provider: 'mikrotik',
-        status: 'active',
+        status: { in: ['active', 'error'] },
       },
       select: {
         tenantId: true,

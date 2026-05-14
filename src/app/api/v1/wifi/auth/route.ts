@@ -940,7 +940,8 @@ export async function POST(request: NextRequest) {
             sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
             poolName: pool.poolName, message: 'Connected successfully!',
           },
-          { username: wifiUsername, password: voucher.code }
+          { username: wifiUsername, password: voucher.code },
+          externalGateway
         );
       }
 
@@ -1148,7 +1149,8 @@ export async function POST(request: NextRequest) {
               poolName: pool.poolName, planName: pmsUser.plan?.name || null,
               message: 'Connected successfully!',
             },
-            { username: pmsUser.username, password: pmsUser.password }
+            { username: pmsUser.username, password: pmsUser.password },
+            externalGateway
           );
         }
 
@@ -1258,7 +1260,8 @@ export async function POST(request: NextRequest) {
             sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
             poolName: pool.poolName, message: 'Connected successfully!',
           },
-          { username: wifiUsername, password: userPassword }
+          { username: wifiUsername, password: userPassword },
+          externalGateway
         );
       }
 
@@ -1433,7 +1436,8 @@ export async function POST(request: NextRequest) {
             sessionTimeout: planValidityMin, remainingMinutes, bandwidthDown: userBwDown, bandwidthUp: userBwUp,
             poolName: pool.poolName, message: 'Connected successfully!',
           },
-          { username: wifiUser.username, password: wifiUser.password }
+          { username: wifiUser.username, password: wifiUser.password },
+          externalGateway
         );
       }
 
@@ -1608,7 +1612,8 @@ export async function POST(request: NextRequest) {
               sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
               poolName: smsPool.poolName, message: 'Connected successfully!',
             },
-            { username: wifiUsername, password: smsOtpPassword }
+            { username: wifiUsername, password: smsOtpPassword },
+            externalGateway
           );
         } else {
           // ── Step 1: Send OTP ──
@@ -1711,9 +1716,10 @@ export async function POST(request: NextRequest) {
           const openTimestamp = Date.now();
           wifiUsername = `open-${openTimestamp}`;
           openPassword = `open-${openTimestamp}`;
+          let resolvedPropertyId: string | undefined;
 
           try {
-            const resolvedPropertyId = portal.propertyId
+            resolvedPropertyId = portal.propertyId
               || await db.property.findFirst({ where: { tenantId: portal.tenantId }, select: { id: true } }).then(p => p?.id);
 
             if (resolvedPropertyId) {
@@ -1801,7 +1807,8 @@ export async function POST(request: NextRequest) {
             sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
             poolName: pool.poolName, message: 'Connected successfully!',
           },
-          wifiUsername && openPassword ? { username: wifiUsername, password: openPassword } : undefined
+          wifiUsername && openPassword ? { username: wifiUsername, password: openPassword } : undefined,
+          externalGateway
         );
       }
 
@@ -1821,11 +1828,12 @@ export async function POST(request: NextRequest) {
 
 function successResponse(
   data: Record<string, unknown>,
-  gatewayCreds?: { username: string; password: string }
+  gatewayCreds?: { username: string; password: string },
+  gateway?: ExternalGatewayConfig | null
 ) {
   // If external gateway mode is active, inject gateway redirect fields
-  const gatewayFields = gatewayCreds
-    ? buildGatewayAuthResponse(externalGateway, gatewayCreds.username, gatewayCreds.password)
+  const gatewayFields = gatewayCreds && gateway
+    ? buildGatewayAuthResponse(gateway, gatewayCreds.username, gatewayCreds.password)
     : {};
   return NextResponse.json({ success: true, data: { ...data, ...gatewayFields } });
 }
