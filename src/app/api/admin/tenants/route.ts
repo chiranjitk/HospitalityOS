@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
         subscriptionStart: tenant.subscriptionStartsAt?.toISOString() || tenant.createdAt.toISOString(),
         subscriptionEnd: tenant.subscriptionEndsAt?.toISOString() || undefined,
         trialEndsAt: tenant.trialEndsAt?.toISOString() || undefined,
-        monthlyRevenue: calculateMonthlyRevenue(tenant.plan),
+        monthlyRevenue: await calculateMonthlyRevenue(tenant.plan, tenant.id),
         usage,
         limits: {
           properties: tenant.maxProperties,
@@ -163,14 +163,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Helper function to estimate monthly revenue based on plan
-function calculateMonthlyRevenue(plan: string): number {
-  const revenueMap: Record<string, number> = {
-    trial: 0,
-    starter: 99,
-    professional: 499,
-    enterprise: 1999,
-  };
+// Helper function to calculate monthly revenue from subscription data
+async function calculateMonthlyRevenue(plan: string, tenantId: string): Promise<number> {
+  try {
+    const sub = await db.subscription.findFirst({
+      where: { tenantId, status: 'active' },
+    });
+    if (sub) {
+      return sub.billingCycle === 'yearly' ? Math.round(sub.amount / 12 * 100) / 100 : sub.amount;
+    }
+  } catch { /* fallback */ }
+  // Fallback to hardcoded values
+  const revenueMap: Record<string, number> = { trial: 0, starter: 99, professional: 499, enterprise: 1999 };
   return revenueMap[plan] || 0;
 }
 
@@ -208,6 +212,13 @@ export async function POST(request: NextRequest) {
         }
 
         // Create tenant in database
+        // Look up trial days from RegistrationPlan (default 14)
+        let trialDays = 14;
+        try {
+          const registrationPlan = await tx.registrationPlan.findFirst({ where: { name: plan || 'starter' } });
+          if (registrationPlan?.trialDays) trialDays = registrationPlan.trialDays;
+        } catch { /* fallback to 14 */ }
+
         const newTenant = await tx.tenant.create({
           data: {
             name,
@@ -220,7 +231,7 @@ export async function POST(request: NextRequest) {
             maxUsers: limits?.users || 5,
             maxRooms: limits?.rooms || 50,
             storageLimitMb: limits?.storage || 1000,
-            trialEndsAt: status === 'trial' ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) : null,
+            trialEndsAt: status === 'trial' ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : null,
           },
         });
 
@@ -347,6 +358,28 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Status validation whitelist
+    const VALID_TENANT_STATUSES = ['trial', 'active', 'suspended', 'cancelled'];
+    if (updates.status && !VALID_TENANT_STATUSES.includes(updates.status)) {
+      return NextResponse.json({ success: false, error: `Invalid status. Must be one of: ${VALID_TENANT_STATUSES.join(', ')}` }, { status: 400 });
+    }
+
+    // Plan validation
+    if (updates.plan) {
+      const planExists = await db.subscriptionPlan.findFirst({ where: { name: updates.plan, isActive: true } });
+      if (!planExists) {
+        return NextResponse.json({ success: false, error: `Plan "${updates.plan}" not found` }, { status: 400 });
+      }
+    }
+
+    // Slug uniqueness pre-check
+    if (updates.slug && updates.slug !== existingTenant.slug) {
+      const slugExists = await db.tenant.findFirst({ where: { slug: updates.slug, id: { not: id } } });
+      if (slugExists) {
+        return NextResponse.json({ success: false, error: 'Slug already in use by another tenant' }, { status: 400 });
+      }
+    }
+
     // Prepare update data
     const updateData: Record<string, unknown> = {};
     
@@ -371,10 +404,17 @@ export async function PUT(request: NextRequest) {
 
     // BUG 14: Sync the active subscription record when plan changes
     if (updates.plan) {
-      await db.subscription.updateMany({
-        where: { tenantId: id, status: 'active' },
-        data: { planName: updates.plan },
-      });
+      const planRecord = await db.subscriptionPlan.findFirst({ where: { name: updates.plan, isActive: true } });
+      if (planRecord) {
+        await db.subscription.updateMany({
+          where: { tenantId: id, status: 'active' },
+          data: { 
+            planName: updates.plan,
+            planId: planRecord.id,
+            amount: planRecord.monthlyPrice,
+          },
+        });
+      }
     }
 
     return NextResponse.json({
@@ -461,6 +501,11 @@ export async function DELETE(request: NextRequest) {
       db.subscriptionInvoice.updateMany({
         where: { subscription: { tenantId: id }, status: { in: ['draft', 'issued'] } },
         data: { status: 'void' },
+      }),
+      // Invalidate all module entitlements for this tenant
+      db.licenseModuleEntitlement.updateMany({
+        where: { tenantId: id },
+        data: { isValid: false },
       }),
     ]);
 

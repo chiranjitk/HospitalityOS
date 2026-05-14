@@ -85,7 +85,7 @@ function setCachedEntitlement(tenantId: string, moduleKey: string, result: Licen
   cache.set(cacheKey(tenantId, moduleKey), result, CACHE_TTL_SECONDS);
 }
 
-function invalidateCache(tenantId: string, moduleKey: string) {
+export function invalidateCache(tenantId: string, moduleKey: string) {
   cache.delete(cacheKey(tenantId, moduleKey));
 }
 
@@ -100,6 +100,22 @@ export async function checkModuleLimit(
   tenantId: string,
   moduleKey: string
 ): Promise<LicenseCheckResult> {
+  // Basic moduleKey sanitization
+  if (!moduleKey || typeof moduleKey !== 'string' || moduleKey.length > 100) {
+    return {
+      allowed: false,
+      current: 0,
+      limit: 0,
+      percent: 0,
+      isUnlimited: false,
+      isWarning: false,
+      isExceeded: true,
+      moduleKey: moduleKey || '(invalid)',
+      moduleName: 'Invalid Module',
+      hardLimit: true,
+    };
+  }
+
   // Check cache first
   const cached = getCachedEntitlement(tenantId, moduleKey);
   if (cached) return cached;
@@ -202,6 +218,7 @@ export async function checkModuleLimit(
 
   const isUnlimited = entitlement.limitValue === 0;
   const percent = isUnlimited ? 0 : (entitlement.currentUsage / entitlement.limitValue) * 100;
+  // warningThreshold is stored as a 0-1 fraction (e.g. 0.8 = 80%). Multiply by 100 to compare with percent.
   const isWarning = !isUnlimited && percent >= entitlement.warningThreshold * 100;
   const isExceeded = !isUnlimited && entitlement.currentUsage > entitlement.limitValue;
   const allowed = isUnlimited || !isExceeded || !entitlement.hardLimit;
@@ -248,6 +265,7 @@ export async function checkRoomLimit(tenantId: string): Promise<LicenseCheckResu
 
   const isUnlimited = limit === 0;
   const percent = isUnlimited ? 0 : (current / limit) * 100;
+  // Default 80% warning threshold for PMS base module (configurable via entitlement warningThreshold)
   const isWarning = !isUnlimited && percent >= 80;
   const isExceeded = !isUnlimited && current > limit;
 
@@ -307,20 +325,52 @@ export async function checkConcurrentUsers(tenantId: string): Promise<LicenseChe
     return result;
   }
 
+  // Check effectiveFrom/effectiveTo date bounds
+  const now = new Date();
+  if (entitlement.effectiveFrom && now < entitlement.effectiveFrom) {
+    const result: LicenseCheckResult = {
+      allowed: false,
+      current,
+      limit: entitlement.limitValue,
+      percent: 0,
+      isUnlimited: false,
+      isWarning: false,
+      isExceeded: true,
+      moduleKey: 'wifi',
+      moduleName: entitlement.moduleName,
+      hardLimit: true,
+      entitlementId: entitlement.id,
+    };
+    setCachedEntitlement(tenantId, 'wifi', result);
+    return result;
+  }
+
+  if (entitlement.effectiveTo && now > entitlement.effectiveTo) {
+    const result: LicenseCheckResult = {
+      allowed: false,
+      current,
+      limit: entitlement.limitValue,
+      percent: 0,
+      isUnlimited: false,
+      isWarning: false,
+      isExceeded: true,
+      moduleKey: 'wifi',
+      moduleName: entitlement.moduleName,
+      hardLimit: true,
+      entitlementId: entitlement.id,
+    };
+    setCachedEntitlement(tenantId, 'wifi', result);
+    return result;
+  }
+
   const isUnlimited = entitlement.limitValue === 0;
   const percent = isUnlimited ? 0 : (current / entitlement.limitValue) * 100;
   const isWarning = !isUnlimited && percent >= entitlement.warningThreshold * 100;
   const isExceeded = !isUnlimited && current > entitlement.limitValue;
   const allowed = isUnlimited || !isExceeded || !entitlement.hardLimit;
 
-  // Update current usage in real time
-  await db.licenseModuleEntitlement.update({
-    where: { id: entitlement.id },
-    data: {
-      currentUsage: current,
-      peakUsage: Math.max(entitlement.peakUsage, current),
-    },
-  });
+  // Update current usage in real time using atomic SQL to prevent peakUsage race condition
+  await db.$executeRaw`UPDATE "LicenseModuleEntitlement" SET "currentUsage" = ${current}, "peakUsage" = GREATEST("peakUsage", ${current}) WHERE id = ${entitlement.id}`;
 
   const result: LicenseCheckResult = {
     allowed,
@@ -418,15 +468,9 @@ export async function refreshUsage(
     });
   }
 
-  const newPeak = Math.max(entitlement.peakUsage, currentUsage);
-
-  await db.licenseModuleEntitlement.update({
-    where: { id: entitlement.id },
-    data: {
-      currentUsage,
-      peakUsage: newPeak,
-    },
-  });
+  // Atomic update: set currentUsage and peakUsage in a single SQL statement
+  // to prevent race conditions between the read of peakUsage and the write.
+  await db.$executeRaw`UPDATE "LicenseModuleEntitlement" SET "currentUsage" = ${currentUsage}, "peakUsage" = GREATEST("peakUsage", ${currentUsage}) WHERE id = ${entitlement.id}`;
 
   // Log usage snapshot
   const isUnlimited = entitlement.limitValue === 0;

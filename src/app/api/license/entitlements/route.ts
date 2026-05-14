@@ -54,8 +54,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const tenantId = user.tenantId;
     const body = await request.json();
+    const tenantId = (user.isPlatformAdmin && body.tenantId) ? body.tenantId : user.tenantId;
     const {
       moduleKey,
       moduleName,
@@ -77,6 +77,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate limitType whitelist
+    const VALID_LIMIT_TYPES = ['concurrent_users', 'users', 'properties', 'devices', 'bookings', 'staff'];
+    if (!VALID_LIMIT_TYPES.includes(limitType)) {
+      return NextResponse.json(
+        { success: false, error: `Invalid limitType. Must be one of: ${VALID_LIMIT_TYPES.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    // Validate limitValue is non-negative
+    if (limitValue !== undefined && Number(limitValue) < 0) {
+      return NextResponse.json(
+        { success: false, error: 'limitValue must be non-negative' },
+        { status: 400 }
+      );
+    }
+
+    // Validate warningThreshold is 0-1
+    const wt = Number(warningThreshold);
+    if (warningThreshold !== undefined && (isNaN(wt) || wt < 0 || wt > 1)) {
+      return NextResponse.json(
+        { success: false, error: 'warningThreshold must be between 0 and 1' },
+        { status: 400 }
+      );
+    }
+
+    // Validate effectiveFrom/effectiveTo date range
+    if (effectiveFrom && effectiveTo) {
+      const from = new Date(effectiveFrom);
+      const to = new Date(effectiveTo);
+      if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid date format' },
+          { status: 400 }
+        );
+      }
+      if (from >= to) {
+        return NextResponse.json(
+          { success: false, error: 'effectiveFrom must be before effectiveTo' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Upsert entitlement
     const entitlement = await db.licenseModuleEntitlement.upsert({
       where: { tenantId_moduleKey: { tenantId, moduleKey } },
@@ -84,7 +128,7 @@ export async function POST(request: NextRequest) {
         moduleName: moduleName ?? undefined,
         limitType: limitType ?? undefined,
         limitValue: limitValue !== undefined ? Number(limitValue) : undefined,
-        warningThreshold: warningThreshold !== undefined ? Number(warningThreshold) : undefined,
+        warningThreshold: warningThreshold !== undefined ? wt : undefined,
         hardLimit: hardLimit !== undefined ? Boolean(hardLimit) : undefined,
         billingDimension: billingDimension ?? undefined,
         pricePerUnit: pricePerUnit !== undefined ? Number(pricePerUnit) : undefined,
@@ -98,7 +142,7 @@ export async function POST(request: NextRequest) {
         moduleName,
         limitType,
         limitValue: Number(limitValue) || 0,
-        warningThreshold: Number(warningThreshold) || 0.8,
+        warningThreshold: isNaN(wt) ? 0.8 : wt,
         hardLimit: hardLimit !== undefined ? Boolean(hardLimit) : true,
         billingDimension: billingDimension || null,
         pricePerUnit: pricePerUnit ? Number(pricePerUnit) : null,

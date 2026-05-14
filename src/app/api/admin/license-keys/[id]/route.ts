@@ -58,6 +58,18 @@ export async function PATCH(
     const updateData: Record<string, unknown> = {};
 
     if (note !== undefined) {
+      if (typeof note !== 'string') {
+        return NextResponse.json(
+          { success: false, error: 'Note must be a string' },
+          { status: 400 }
+        );
+      }
+      if (note.length > 500) {
+        return NextResponse.json(
+          { success: false, error: 'Note must be at most 500 characters' },
+          { status: 400 }
+        );
+      }
       updateData.note = note;
     }
 
@@ -122,6 +134,30 @@ export async function PATCH(
       });
       if (tenant) {
         tenantName = tenant.name;
+      }
+    }
+
+    // Audit logging for key status changes
+    if (updateData.status && licenseKey.status !== updatedKey.status) {
+      try {
+        await db.auditLog.create({
+          data: {
+            userId: session.user.id,
+            tenantId: session.user.tenantId,
+            action: 'license_key_revoke',
+            entity: 'LicenseKey',
+            entityId: id,
+            details: JSON.stringify({
+              licenseKey: updatedKey.key,
+              previousStatus: licenseKey.status,
+              newStatus: updatedKey.status,
+              performedBy: session.user.email,
+            }),
+            ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown',
+          },
+        });
+      } catch {
+        // Audit log table may not exist — don't block the operation
       }
     }
 

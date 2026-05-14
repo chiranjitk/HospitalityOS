@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -38,6 +38,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Tooltip,
   TooltipContent,
@@ -138,13 +147,6 @@ const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
 };
 
 // ─── Color Helpers ───────────────────────────────────────────────────
-function getUsageColor(percent: number, isExceeded: boolean) {
-  if (isExceeded) return 'red';
-  if (percent >= 95) return 'red';
-  if (percent >= 80) return 'amber';
-  return 'emerald';
-}
-
 function getProgressClass(percent: number, isExceeded: boolean) {
   if (isExceeded || percent >= 95)
     return '[&>[data-slot=progress-indicator]]:bg-red-500';
@@ -241,10 +243,18 @@ export default function LicenseManagement() {
   const [editHardLimit, setEditHardLimit] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Confirmation dialog for lowering limits below current usage
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingLimitSave, setPendingLimitSave] = useState<{ limit: number; threshold: number } | null>(null);
+  const pendingSaveRef = useRef(false);
+
   // ── Data Fetching ──────────────────────────────────────────────────
   const fetchOverview = useCallback(async () => {
     try {
       const res = await fetch('/api/license/overview');
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => 'Unknown error')}`);
+      }
       const data = await res.json();
       if (data.success && data.data) {
         setOverview(data.data);
@@ -265,6 +275,9 @@ export default function LicenseManagement() {
   const fetchEntitlements = useCallback(async () => {
     try {
       const res = await fetch('/api/license/entitlements');
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => 'Unknown error')}`);
+      }
       const data = await res.json();
       if (data.success && data.data) {
         setEntitlements(data.data.entitlements || []);
@@ -297,6 +310,9 @@ export default function LicenseManagement() {
       const res = await fetch(
         `/api/license/usage/history?moduleKey=${encodeURIComponent(historyModule)}&days=${historyDays}`
       );
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => 'Unknown error')}`);
+      }
       const data = await res.json();
       if (data.success && data.data) {
         setHistoryData(data.data.history || []);
@@ -322,6 +338,9 @@ export default function LicenseManagement() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => 'Unknown error')}`);
+      }
       const data = await res.json();
       if (data.success) {
         setLastRefresh(new Date());
@@ -359,29 +378,8 @@ export default function LicenseManagement() {
     setEditDialogOpen(true);
   };
 
-  const handleSaveEntitlement = async () => {
+  const executeSaveEntitlement = async (newLimit: number, newThreshold: number) => {
     if (!editingEnt) return;
-
-    const newLimit = parseInt(editLimit, 10);
-    const newThreshold = parseInt(editThreshold, 10);
-
-    if (isNaN(newLimit) || newLimit < 0) {
-      toast({
-        title: 'Invalid Limit',
-        description: 'Limit value must be 0 or greater (0 = unlimited).',
-        variant: 'destructive',
-      });
-      return;
-    }
-    if (isNaN(newThreshold) || newThreshold < 1 || newThreshold > 100) {
-      toast({
-        title: 'Invalid Threshold',
-        description: 'Warning threshold must be between 1 and 100.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     setSaving(true);
     try {
       const res = await fetch(
@@ -396,6 +394,9 @@ export default function LicenseManagement() {
           }),
         }
       );
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => 'Unknown error')}`);
+      }
       const data = await res.json();
       if (data.success) {
         toast({
@@ -422,7 +423,48 @@ export default function LicenseManagement() {
       });
     } finally {
       setSaving(false);
+      setPendingLimitSave(null);
+      pendingSaveRef.current = false;
     }
+  };
+
+  const handleSaveEntitlement = async () => {
+    if (!editingEnt) return;
+
+    const newLimit = parseInt(editLimit, 10);
+    const newThreshold = parseInt(editThreshold, 10);
+
+    if (isNaN(newLimit) || newLimit < 0) {
+      toast({
+        title: 'Invalid Limit',
+        description: 'Limit value must be 0 or greater (0 = unlimited).',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (isNaN(newThreshold) || newThreshold < 1 || newThreshold > 100) {
+      toast({
+        title: 'Invalid Threshold',
+        description: 'Warning threshold must be between 1 and 100.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Check if new limit is lower than current usage
+    if (newLimit > 0 && newLimit < editingEnt.currentUsage) {
+      setPendingLimitSave({ limit: newLimit, threshold: newThreshold });
+      setConfirmDialogOpen(true);
+      return;
+    }
+
+    await executeSaveEntitlement(newLimit, newThreshold);
+  };
+
+  const handleConfirmLowerLimit = async () => {
+    if (!pendingLimitSave) return;
+    setConfirmDialogOpen(false);
+    await executeSaveEntitlement(pendingLimitSave.limit, pendingLimitSave.threshold);
   };
 
   // ── Render Helpers ─────────────────────────────────────────────────
@@ -621,7 +663,7 @@ export default function LicenseManagement() {
       </div>
 
       {/* ── Warning Banner ───────────────────────────────────────── */}
-      {overview && overview.warnings.length > 0 && (
+      {overview && (overview.exceeded.length > 0 || overview.warnings.length > 0) && (
         <div
           className={`rounded-2xl border px-5 py-4 transition-all duration-300 ${
             overview.exceeded.length > 0
@@ -652,7 +694,7 @@ export default function LicenseManagement() {
                   : `${overview.warnings.length} module(s) approaching limits`}
               </h4>
               <p className="text-xs text-muted-foreground mt-1">
-                {overview.warnings
+                {[...overview.exceeded, ...overview.warnings]
                   .map(
                     (w) =>
                       `${w.moduleName}: ${w.current}/${w.limit} (${Math.round(w.percent)}%)`
@@ -832,7 +874,7 @@ export default function LicenseManagement() {
                               variant="ghost"
                               size="sm"
                               onClick={() => openEditDialog(ent)}
-                              className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="h-7 w-7 p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                               title={`Edit ${ent.moduleName}`}
                             >
                               <Edit2 className="h-3.5 w-3.5" />
@@ -1023,6 +1065,7 @@ export default function LicenseManagement() {
                 <Input
                   type="number"
                   min={0}
+                  step={1}
                   value={editLimit}
                   onChange={(e) => setEditLimit(e.target.value)}
                   className="rounded-xl transition-all duration-300 focus:ring-2 focus:ring-primary/10 hover:border-primary/30"
@@ -1042,6 +1085,7 @@ export default function LicenseManagement() {
                   type="number"
                   min={1}
                   max={100}
+                  step={1}
                   value={editThreshold}
                   onChange={(e) => setEditThreshold(e.target.value)}
                   className="rounded-xl transition-all duration-300 focus:ring-2 focus:ring-primary/10 hover:border-primary/30"
@@ -1095,6 +1139,43 @@ export default function LicenseManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Confirm Lower Limit AlertDialog ─────────────────────── */}
+      <AlertDialog open={confirmDialogOpen} onOpenChange={(open) => {
+        setConfirmDialogOpen(open);
+        if (!open) setPendingLimitSave(null);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-amber-500/10 p-2">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <AlertDialogTitle>Lower Limit Below Current Usage</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="pt-2">
+              {editingEnt && pendingLimitSave
+                ? `Current usage (${editingEnt.currentUsage.toLocaleString()}) exceeds the new limit (${pendingLimitSave.limit.toLocaleString()}). Some features may become unavailable.`
+                : 'Current usage exceeds the new limit. Some features may become unavailable.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmLowerLimit}
+              disabled={saving}
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4 mr-2" />
+              )}
+              {saving ? 'Saving...' : 'Confirm & Save'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

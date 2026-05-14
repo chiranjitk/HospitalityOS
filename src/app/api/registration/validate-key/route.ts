@@ -107,12 +107,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Return plan details
+    // Return plan details (only public fields — no internal IDs)
     return NextResponse.json({
       success: true,
-      licenseKeyId: licenseKey.id,
       plan: {
-        id: licenseKey.plan.id,
         name: licenseKey.plan.name,
         displayName: licenseKey.plan.displayName,
         description: licenseKey.plan.description,

@@ -45,6 +45,13 @@ export async function POST(request: NextRequest) {
 
     const { planId, count = 1, note, generatedFor, expiresInDays } = await request.json();
 
+    // Sanitize generatedFor input
+    const sanitizedGeneratedFor = generatedFor
+      ? typeof generatedFor === 'string'
+        ? generatedFor.trim().replace(/[<>&"']/g, '')
+        : generatedFor
+      : generatedFor;
+
     if (!planId) {
       return NextResponse.json(
         { success: false, error: 'Plan ID is required' },
@@ -77,14 +84,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate generatedFor: if provided, must be a string with max length 200
-    if (generatedFor !== undefined && generatedFor !== null) {
-      if (typeof generatedFor !== 'string') {
+    if (sanitizedGeneratedFor !== undefined && sanitizedGeneratedFor !== null) {
+      if (typeof sanitizedGeneratedFor !== 'string') {
         return NextResponse.json(
           { success: false, error: 'generatedFor must be a string' },
           { status: 400 }
         );
       }
-      if (generatedFor.length > 200) {
+      if (sanitizedGeneratedFor.length > 200) {
         return NextResponse.json(
           { success: false, error: 'generatedFor must be at most 200 characters' },
           { status: 400 }
@@ -151,7 +158,7 @@ export async function POST(request: NextRequest) {
                 planId,
                 status: 'active',
                 generatedBy: session.user.id,
-                generatedFor: generatedFor || null,
+                generatedFor: sanitizedGeneratedFor || null,
                 note: note || null,
                 batchId,
                 expiresAt,

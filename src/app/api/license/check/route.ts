@@ -24,6 +24,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate moduleKey: alphanumeric + underscore, max 100 chars
+    if (typeof moduleKey !== 'string' || !/^[a-zA-Z0-9_]+$/.test(moduleKey) || moduleKey.length > 100) {
+      return NextResponse.json(
+        { success: false, error: 'moduleKey must be alphanumeric (with underscores) and max 100 characters' },
+        { status: 400 }
+      );
+    }
+
     let result;
 
     if (moduleKey === 'wifi') {

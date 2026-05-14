@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePlatformAdmin } from '@/lib/auth/tenant-context';
 
-// Plan-based pricing lookup (aligned with SubscriptionPlan table)
+// Plan-based pricing lookup (fallback if DB lookup fails)
 const planPricing: Record<string, { monthly: number; yearly: number }> = {
   trial: { monthly: 0, yearly: 0 },
   starter: { monthly: 99, yearly: 990 },
@@ -43,7 +43,15 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const tenantId = body.tenantId || authResult.tenantId;
-    const billingPeriod: 'monthly' | 'yearly' = body.billingPeriod || 'monthly';
+    const billingPeriod = body.billingPeriod || 'monthly';
+
+    // Fix K: billingPeriod validation
+    if (body.billingPeriod && !['monthly', 'yearly'].includes(body.billingPeriod)) {
+      return NextResponse.json(
+        { success: false, error: 'billingPeriod must be "monthly" or "yearly"' },
+        { status: 400 }
+      );
+    }
 
     // Fetch tenant data
     const tenant = await db.tenant.findUnique({
@@ -81,16 +89,44 @@ export async function POST(request: NextRequest) {
 
     // Get plan limits
     const plan = tenant.plan || 'trial';
-    const apiCallsLimit = plan === 'enterprise' ? 500000 :
-                          plan === 'professional' ? 100000 :
-                          plan === 'starter' ? 25000 : 5000;
-    const messagesLimit = plan === 'enterprise' ? 100000 :
-                          plan === 'professional' ? 50000 :
-                          plan === 'starter' ? 10000 : 2000;
 
-    // Base price from plan (standardized to USD)
-    const pricing = planPricing[plan] || planPricing.trial;
-    const basePrice = billingPeriod === 'yearly' ? pricing.yearly / 12 : pricing.monthly;
+    // Fix J: Replace hardcoded pricing and limits with DB lookup
+    let basePrice: number;
+    let apiCallsLimit: number;
+    let messagesLimit: number;
+
+    try {
+      const planRecord = await db.subscriptionPlan.findFirst({
+        where: { name: plan, isActive: true },
+      });
+
+      if (planRecord) {
+        basePrice = billingPeriod === 'yearly' ? planRecord.yearlyPrice / 12 : planRecord.monthlyPrice;
+        // Use plan limits from DB for API calls and messages; fallback to tenant limits
+        apiCallsLimit = planRecord.maxUsers > 0 ? planRecord.maxUsers * 10000 : tenant.maxUsers * 10000;
+        messagesLimit = planRecord.maxUsers > 0 ? planRecord.maxUsers * 2000 : tenant.maxUsers * 2000;
+      } else {
+        // Fallback to hardcoded values if plan not found in DB
+        const pricing = planPricing[plan] || planPricing.trial;
+        basePrice = billingPeriod === 'yearly' ? pricing.yearly / 12 : pricing.monthly;
+        apiCallsLimit = plan === 'enterprise' ? 500000 :
+                        plan === 'professional' ? 100000 :
+                        plan === 'starter' ? 25000 : 5000;
+        messagesLimit = plan === 'enterprise' ? 100000 :
+                        plan === 'professional' ? 50000 :
+                        plan === 'starter' ? 10000 : 2000;
+      }
+    } catch {
+      // DB lookup failed, fallback to hardcoded values
+      const pricing = planPricing[plan] || planPricing.trial;
+      basePrice = billingPeriod === 'yearly' ? pricing.yearly / 12 : pricing.monthly;
+      apiCallsLimit = plan === 'enterprise' ? 500000 :
+                      plan === 'professional' ? 100000 :
+                      plan === 'starter' ? 25000 : 5000;
+      messagesLimit = plan === 'enterprise' ? 100000 :
+                      plan === 'professional' ? 50000 :
+                      plan === 'starter' ? 10000 : 2000;
+    }
 
     // Usage charges (within limit)
     const usageCharges = {

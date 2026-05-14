@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -8,7 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { toast } from '@/hooks/use-toast';
 import {
   Shield, ShieldCheck, ShieldAlert, Hotel, Users, Activity,
-  AlertTriangle, Crown, Settings, Wifi, Lock, Info,
+  AlertTriangle, Crown, Settings, Wifi, Lock, Info, RefreshCw, Loader2,
 } from 'lucide-react';
 import { ADDON_SUBCATEGORIES, FEATURES } from '@/lib/feature-flags';
 
@@ -77,11 +78,15 @@ export default function MySubscription() {
   const [entitlements, setEntitlements] = useState<EntitlementRow[]>([]);
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // ── Data Fetching ──────────────────────────────────────────────────
   const fetchOverview = useCallback(async () => {
     try {
       const res = await fetch('/api/license/overview');
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => 'Unknown error')}`);
+      }
       const data = await res.json();
       if (data.success && data.data) setOverview(data.data);
     } catch { toast({ title: 'Error', description: 'Failed to fetch subscription overview.', variant: 'destructive' }); }
@@ -90,6 +95,9 @@ export default function MySubscription() {
   const fetchEntitlements = useCallback(async () => {
     try {
       const res = await fetch('/api/license/entitlements');
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => 'Unknown error')}`);
+      }
       const data = await res.json();
       if (data.success && data.data) setEntitlements(data.data.entitlements || []);
     } catch { toast({ title: 'Error', description: 'Failed to fetch entitlements.', variant: 'destructive' }); }
@@ -98,6 +106,9 @@ export default function MySubscription() {
   const fetchFeatureFlags = useCallback(async () => {
     try {
       const res = await fetch('/api/settings/feature-flags');
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => 'Unknown error')}`);
+      }
       const data = await res.json();
       if (data.success && data.data) setEnabledFeatures(data.data.enabledFeatures || []);
     } catch { toast({ title: 'Error', description: 'Failed to fetch feature flags.', variant: 'destructive' }); }
@@ -108,6 +119,13 @@ export default function MySubscription() {
     await Promise.all([fetchOverview(), fetchEntitlements(), fetchFeatureFlags()]);
     setLoading(false);
   }, [fetchOverview, fetchEntitlements, fetchFeatureFlags]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchAllData();
+    setRefreshing(false);
+    toast({ title: 'Refreshed', description: 'Subscription data reloaded.' });
+  };
 
   useEffect(() => {
     const id = setTimeout(() => { fetchAllData(); }, 0);
@@ -207,6 +225,19 @@ export default function MySubscription() {
             <span>Read-only · Tenant ID: {overview.tenantId.slice(0, 8)}…</span>
           </div>
         )}
+        <Button
+          onClick={handleRefresh}
+          disabled={refreshing || loading}
+          variant="outline"
+          className="shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 shrink-0"
+        >
+          {refreshing || loading ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4 mr-2" />
+          )}
+          {refreshing ? 'Refreshing...' : 'Refresh'}
+        </Button>
       </div>
 
       <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
@@ -254,7 +285,7 @@ export default function MySubscription() {
                   : `${overview.warnings.length} module(s) approaching limits`}
               </h4>
               <p className="text-xs text-muted-foreground mt-1">
-                {overview.warnings.map((w) => `${w.moduleName}: ${w.current}/${w.limit === 0 ? '∞' : w.limit} (${Math.round(w.percent)}%)`).join(' · ')}
+                {[...overview.exceeded, ...overview.warnings].map((w) => `${w.moduleName}: ${w.current}/${w.limit === 0 ? '∞' : w.limit} (${Math.round(w.percent)}%)`).join(' · ')}
               </p>
               <p className="text-xs mt-2 text-muted-foreground italic">Contact your administrator to request a limit increase or plan upgrade.</p>
             </div>

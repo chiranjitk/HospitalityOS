@@ -66,6 +66,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Name length validation
+    if (firstName && (firstName.length > 100 || firstName.trim().length === 0)) {
+      return NextResponse.json(
+        { success: false, error: 'First name must be 1-100 characters' },
+        { status: 400 }
+      );
+    }
+    if (lastName && (lastName.length > 100 || lastName.trim().length === 0)) {
+      return NextResponse.json(
+        { success: false, error: 'Last name must be 1-100 characters' },
+        { status: 400 }
+      );
+    }
+
+    // Organization name length validation
+    if (organizationName.length < 2 || organizationName.length > 200) {
+      return NextResponse.json(
+        { success: false, error: 'Organization name must be 2-200 characters' },
+        { status: 400 }
+      );
+    }
+
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json(
         { success: false, error: 'Invalid email format' },

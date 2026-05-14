@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -184,15 +184,47 @@ export default function LicenseKeysManagement() {
   };
 
   // ── Data Fetching ──────────────────────────────────────────────────
+  // Debounce ref for search input
+  const debounceRef = useRef<NodeJS.Timeout>();
+
+  const handleSearchChange = (val: string) => {
+    const query = val;
+    // Immediate clear
+    if (!query) {
+      setSearchQuery('');
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setSearchQuery(query), 300);
+  };
+
+  // Clean up debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  const [plansError, setPlansError] = useState(false);
+
   const fetchPlans = useCallback(async () => {
     try {
       const res = await fetch('/api/registration/plans');
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => 'Unknown error')}`);
+      }
       const data = await res.json();
       if (data.success && data.plans) {
         setPlans(data.plans);
+        setPlansError(false);
       }
     } catch {
-      // Plans not available — generate will show empty select
+      setPlansError(true);
+      toast({
+        title: 'Error',
+        description: 'Failed to load registration plans. Key generation may be unavailable.',
+        variant: 'destructive',
+      });
     } finally {
       setPlansLoading(false);
     }
@@ -209,6 +241,9 @@ export default function LicenseKeysManagement() {
       if (searchQuery.trim()) params.set('search', searchQuery.trim());
 
       const res = await fetch(`/api/admin/license-keys?${params}`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => 'Unknown error')}`);
+      }
       const data: KeysResponse = await res.json();
 
       if (data.success) {
@@ -271,6 +306,9 @@ export default function LicenseKeysManagement() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => 'Unknown error')}`);
+      }
       const data = await res.json();
 
       if (data.success && data.keys) {
@@ -315,6 +353,9 @@ export default function LicenseKeysManagement() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'revoked' }),
       });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => 'Unknown error')}`);
+      }
       const data = await res.json();
 
       if (data.success) {
@@ -481,7 +522,21 @@ export default function LicenseKeysManagement() {
                 <TableBody>
                   {recentlyGenerated.map((key) => (
                     <TableRow key={key.id}>
-                      <TableCell className="font-mono text-xs">{key.key}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        <button
+                          type="button"
+                          className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                          onClick={() => copyToClipboard(key.key, `recent-${key.id}`)}
+                          title="Click to copy full key"
+                        >
+                          <span>{key.key.substring(0, 4)}-{key.key.substring(key.key.length - 4)}</span>
+                          {copiedKeyId === `recent-${key.id}` ? (
+                            <Check className="h-3 w-3 text-emerald-600" />
+                          ) : (
+                            <Copy className="h-3 w-3 text-muted-foreground" />
+                          )}
+                        </button>
+                      </TableCell>
                       <TableCell>{renderStatusBadge(key.status)}</TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -489,6 +544,7 @@ export default function LicenseKeysManagement() {
                           size="sm"
                           onClick={() => copyToClipboard(key.key, `recent-${key.id}`)}
                           className="h-7 w-7 p-0"
+                          title="Copy full key"
                         >
                           {copiedKeyId === `recent-${key.id}` ? (
                             <Check className="h-3.5 w-3.5 text-emerald-600" />
@@ -528,6 +584,13 @@ export default function LicenseKeysManagement() {
               </Label>
               {plansLoading ? (
                 <Skeleton className="h-9 w-full rounded-xl" />
+              ) : plansError ? (
+                <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+                  <p className="text-xs text-red-700 dark:text-red-400 font-medium flex items-center gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    Failed to load plans. Key generation is unavailable.
+                  </p>
+                </div>
               ) : (
                 <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
                   <SelectTrigger className="w-full rounded-xl transition-all duration-300 hover:border-primary/30 focus:ring-2 focus:ring-primary/10 hover:shadow-sm focus:shadow-md focus:shadow-primary/5">
@@ -591,6 +654,7 @@ export default function LicenseKeysManagement() {
               <Input
                 type="number"
                 min={1}
+                step={1}
                 value={genExpiryDays}
                 onChange={(e) => setGenExpiryDays(e.target.value)}
                 className="rounded-xl transition-all duration-300 focus:ring-2 focus:ring-primary/10 hover:border-primary/30 hover:shadow-sm focus:shadow-md focus:shadow-primary/5"
@@ -616,7 +680,7 @@ export default function LicenseKeysManagement() {
           <div className="mt-4 flex items-center gap-3">
             <Button
               onClick={handleGenerate}
-              disabled={generating || !selectedPlanId}
+              disabled={generating || !selectedPlanId || plansError}
               className="shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200"
             >
               {generating ? (
@@ -661,7 +725,7 @@ export default function LicenseKeysManagement() {
               <Input
                 placeholder="Search by key or recipient..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9 rounded-xl transition-all duration-300 hover:border-primary/30 focus:ring-2 focus:ring-primary/10 hover:shadow-sm focus:shadow-md focus:shadow-primary/5"
               />
             </div>

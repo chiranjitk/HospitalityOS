@@ -25,9 +25,30 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const tenantId = searchParams.get('tenantId');
 
+    // Fix I: Pagination support
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100);
+    const skip = (page - 1) * limit;
+
+    if (isNaN(page) || page < 1) {
+      return NextResponse.json(
+        { success: false, error: 'page must be a positive integer' },
+        { status: 400 }
+      );
+    }
+    if (isNaN(limit) || limit < 1) {
+      return NextResponse.json(
+        { success: false, error: 'limit must be a positive integer (max 100)' },
+        { status: 400 }
+      );
+    }
+
     const where: Record<string, unknown> = {};
     if (status) where.status = status;
     if (tenantId) where.tenantId = tenantId;
+
+    // Get total count for pagination metadata
+    const total = await db.subscription.count({ where });
 
     const subscriptions = await db.subscription.findMany({
       where,
@@ -38,6 +59,8 @@ export async function GET(request: NextRequest) {
         },
       },
       orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
     });
 
     // Enrich with tenant name
@@ -76,13 +99,17 @@ export async function GET(request: NextRequest) {
       })),
     }));
 
-    // Stats
+    // Stats (computed across all subscriptions, not just the current page)
+    const allSubscriptions = await db.subscription.findMany({
+      where,
+      select: { status: true, billingCycle: true, amount: true },
+    });
     const stats = {
-      total: enriched.length,
-      active: enriched.filter(s => s.status === 'active').length,
-      cancelled: enriched.filter(s => s.status === 'cancelled').length,
-      pastDue: enriched.filter(s => s.status === 'past_due').length,
-      totalMrr: enriched
+      total,
+      active: allSubscriptions.filter(s => s.status === 'active').length,
+      cancelled: allSubscriptions.filter(s => s.status === 'cancelled').length,
+      pastDue: allSubscriptions.filter(s => s.status === 'past_due').length,
+      totalMrr: allSubscriptions
         .filter(s => s.status === 'active')
         .reduce((sum, s) => sum + (s.billingCycle === 'yearly' ? s.amount / 12 : s.amount), 0),
     };
@@ -92,6 +119,12 @@ export async function GET(request: NextRequest) {
       data: {
         subscriptions: enriched,
         stats,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
       },
     });
   } catch (error) {
@@ -117,6 +150,14 @@ export async function POST(request: NextRequest) {
     if (!tenantId || !planName) {
       return NextResponse.json(
         { success: false, error: 'tenantId and planName are required' },
+        { status: 400 }
+      );
+    }
+
+    // Fix G: billingCycle validation
+    if (billingCycle && !['monthly', 'yearly'].includes(billingCycle)) {
+      return NextResponse.json(
+        { success: false, error: 'billingCycle must be "monthly" or "yearly"' },
         { status: 400 }
       );
     }
@@ -212,6 +253,25 @@ export async function POST(request: NextRequest) {
           dueAt: dueDate,
         },
       });
+
+      // Fix H: Audit logging for subscription creation
+      try {
+        await tx.auditLog.create({
+          data: {
+            tenantId,
+            userId: authResult.userId,
+            module: 'billing',
+            action: 'SUBSCRIPTION_CREATED',
+            entityType: 'Subscription',
+            entityId: sub.id,
+            newValue: JSON.stringify({ planName, billingCycle: cycle, amount }),
+            ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || '',
+            userAgent: request.headers.get('user-agent') || '',
+          },
+        });
+      } catch (auditError) {
+        console.error('[Billing] Failed to create audit log for subscription creation:', auditError);
+      }
 
       return sub;
     });

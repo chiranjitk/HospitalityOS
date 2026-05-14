@@ -200,59 +200,164 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const updated = await db.subscriptionPlan.update({
-      where: { id: existing.id },
-      data: {
-        ...(displayName !== undefined && { displayName }),
-        ...(description !== undefined && { description }),
-        ...(monthlyPrice !== undefined && { monthlyPrice: parseFloat(monthlyPrice) }),
-        ...(yearlyPrice !== undefined && { yearlyPrice: parseFloat(yearlyPrice) }),
-        ...(maxProperties !== undefined && { maxProperties: parseInt(maxProperties) }),
-        ...(maxUsers !== undefined && { maxUsers: parseInt(maxUsers) }),
-        ...(maxRooms !== undefined && { maxRooms: parseInt(maxRooms) }),
-        ...(storageLimitMb !== undefined && { storageLimitMb: parseInt(storageLimitMb) }),
-        ...(features !== undefined && { features: JSON.stringify(features) }),
-        updatedAt: new Date(),
-      },
-    });
+    // Fix M: parseFloat/parseInt NaN checks
+    if (monthlyPrice !== undefined) {
+      const parsedMonthly = parseFloat(monthlyPrice);
+      if (isNaN(parsedMonthly)) {
+        return NextResponse.json(
+          { success: false, error: 'monthlyPrice must be a valid number' },
+          { status: 400 }
+        );
+      }
+    }
+    if (yearlyPrice !== undefined) {
+      const parsedYearly = parseFloat(yearlyPrice);
+      if (isNaN(parsedYearly)) {
+        return NextResponse.json(
+          { success: false, error: 'yearlyPrice must be a valid number' },
+          { status: 400 }
+        );
+      }
+    }
+    if (maxProperties !== undefined) {
+      const parsedProp = parseInt(maxProperties);
+      if (isNaN(parsedProp) || parsedProp < 0) {
+        return NextResponse.json(
+          { success: false, error: 'maxProperties must be a valid non-negative integer' },
+          { status: 400 }
+        );
+      }
+    }
+    if (maxUsers !== undefined) {
+      const parsedUsers = parseInt(maxUsers);
+      if (isNaN(parsedUsers) || parsedUsers < 0) {
+        return NextResponse.json(
+          { success: false, error: 'maxUsers must be a valid non-negative integer' },
+          { status: 400 }
+        );
+      }
+    }
+    if (maxRooms !== undefined) {
+      const parsedRooms = parseInt(maxRooms);
+      if (isNaN(parsedRooms) || parsedRooms < 0) {
+        return NextResponse.json(
+          { success: false, error: 'maxRooms must be a valid non-negative integer' },
+          { status: 400 }
+        );
+      }
+    }
+    if (storageLimitMb !== undefined) {
+      const parsedStorage = parseInt(storageLimitMb);
+      if (isNaN(parsedStorage) || parsedStorage < 0) {
+        return NextResponse.json(
+          { success: false, error: 'storageLimitMb must be a valid non-negative integer' },
+          { status: 400 }
+        );
+      }
+    }
 
-    // Also update all tenants on this plan with new limits
-    const tenantsOnPlan = await db.tenant.findMany({
-      where: { plan: name, deletedAt: null },
-      select: { id: true },
-    });
+    // Capture old values for audit logging
+    const oldValues = {
+      displayName: existing.displayName,
+      description: existing.description,
+      monthlyPrice: existing.monthlyPrice,
+      yearlyPrice: existing.yearlyPrice,
+      maxProperties: existing.maxProperties,
+      maxUsers: existing.maxUsers,
+      maxRooms: existing.maxRooms,
+      storageLimitMb: existing.storageLimitMb,
+    };
 
-    if (tenantsOnPlan.length > 0 && (maxProperties || maxUsers || maxRooms || storageLimitMb)) {
-      await db.tenant.updateMany({
-        where: { plan: name, deletedAt: null },
+    // Fix L: Plan update + tenant cascade in a transaction
+    const result = await db.$transaction(async (tx) => {
+      const updated = await tx.subscriptionPlan.update({
+        where: { id: existing.id },
         data: {
+          ...(displayName !== undefined && { displayName }),
+          ...(description !== undefined && { description }),
+          ...(monthlyPrice !== undefined && { monthlyPrice: parseFloat(monthlyPrice) }),
+          ...(yearlyPrice !== undefined && { yearlyPrice: parseFloat(yearlyPrice) }),
           ...(maxProperties !== undefined && { maxProperties: parseInt(maxProperties) }),
           ...(maxUsers !== undefined && { maxUsers: parseInt(maxUsers) }),
           ...(maxRooms !== undefined && { maxRooms: parseInt(maxRooms) }),
           ...(storageLimitMb !== undefined && { storageLimitMb: parseInt(storageLimitMb) }),
+          ...(features !== undefined && { features: JSON.stringify(features) }),
+          updatedAt: new Date(),
         },
       });
+
+      // Also update all tenants on this plan with new limits
+      const tenantsOnPlan = await tx.tenant.findMany({
+        where: { plan: name, deletedAt: null },
+        select: { id: true },
+      });
+
+      if (tenantsOnPlan.length > 0 && (maxProperties !== undefined || maxUsers !== undefined || maxRooms !== undefined || storageLimitMb !== undefined)) {
+        await tx.tenant.updateMany({
+          where: { plan: name, deletedAt: null },
+          data: {
+            ...(maxProperties !== undefined && { maxProperties: parseInt(maxProperties) }),
+            ...(maxUsers !== undefined && { maxUsers: parseInt(maxUsers) }),
+            ...(maxRooms !== undefined && { maxRooms: parseInt(maxRooms) }),
+            ...(storageLimitMb !== undefined && { storageLimitMb: parseInt(storageLimitMb) }),
+          },
+        });
+      }
+
+      return { updated, tenantCount: tenantsOnPlan.length };
+    });
+
+    // Fix N: Audit logging with old and new values
+    const newValues = {
+      ...(displayName !== undefined && { displayName }),
+      ...(description !== undefined && { description }),
+      ...(monthlyPrice !== undefined && { monthlyPrice: parseFloat(monthlyPrice) }),
+      ...(yearlyPrice !== undefined && { yearlyPrice: parseFloat(yearlyPrice) }),
+      ...(maxProperties !== undefined && { maxProperties: parseInt(maxProperties) }),
+      ...(maxUsers !== undefined && { maxUsers: parseInt(maxUsers) }),
+      ...(maxRooms !== undefined && { maxRooms: parseInt(maxRooms) }),
+      ...(storageLimitMb !== undefined && { storageLimitMb: parseInt(storageLimitMb) }),
+      ...(features !== undefined && { features: 'updated' }),
+    };
+
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId: authResult.tenantId,
+          userId: authResult.userId,
+          module: 'billing',
+          action: 'PLAN_UPDATED',
+          entityType: 'SubscriptionPlan',
+          entityId: existing.id,
+          oldValue: JSON.stringify(oldValues),
+          newValue: JSON.stringify(newValues),
+          ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || '',
+          userAgent: request.headers.get('user-agent') || '',
+        },
+      });
+    } catch (auditError) {
+      console.error('[Billing] Failed to create audit log for plan update:', auditError);
     }
 
     return NextResponse.json({
       success: true,
       data: {
-        id: updated.name,
-        name: updated.name,
-        displayName: updated.displayName,
-        description: updated.description,
-        monthlyPrice: updated.monthlyPrice,
-        yearlyPrice: updated.yearlyPrice,
-        currency: updated.currency,
-        maxProperties: updated.maxProperties,
-        maxUsers: updated.maxUsers,
-        maxRooms: updated.maxRooms,
-        storageLimitMb: updated.storageLimitMb,
-        features: JSON.parse(updated.features || '[]'),
-        isPopular: updated.isPopular,
-        subscriberCount: tenantsOnPlan.length,
+        id: result.updated.name,
+        name: result.updated.name,
+        displayName: result.updated.displayName,
+        description: result.updated.description,
+        monthlyPrice: result.updated.monthlyPrice,
+        yearlyPrice: result.updated.yearlyPrice,
+        currency: result.updated.currency,
+        maxProperties: result.updated.maxProperties,
+        maxUsers: result.updated.maxUsers,
+        maxRooms: result.updated.maxRooms,
+        storageLimitMb: result.updated.storageLimitMb,
+        features: JSON.parse(result.updated.features || '[]'),
+        isPopular: result.updated.isPopular,
+        subscriberCount: result.tenantCount,
       },
-      message: `Plan updated. ${tenantsOnPlan.length} tenant(s) updated with new limits.`,
+      message: `Plan updated. ${result.tenantCount} tenant(s) updated with new limits.`,
     });
   } catch (error) {
     console.error('Error updating billing plan:', error);

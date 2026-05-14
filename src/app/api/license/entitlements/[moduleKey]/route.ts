@@ -72,8 +72,8 @@ export async function PUT(
     }
 
     const { moduleKey } = await params;
-    const tenantId = user.tenantId;
     const body = await request.json();
+    const tenantId = (user.isPlatformAdmin && body.tenantId) ? body.tenantId : user.tenantId;
 
     const existing = await db.licenseModuleEntitlement.findUnique({
       where: { tenantId_moduleKey: { tenantId, moduleKey } },
@@ -93,6 +93,54 @@ export async function PUT(
       isValid: existing.isValid,
     });
 
+    // Validate warningThreshold is 0-1
+    if (body.warningThreshold !== undefined) {
+      const wt = Number(body.warningThreshold);
+      if (isNaN(wt) || wt < 0 || wt > 1) {
+        return NextResponse.json(
+          { success: false, error: 'warningThreshold must be between 0 and 1' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate limitValue is non-negative
+    if (body.limitValue !== undefined && Number(body.limitValue) < 0) {
+      return NextResponse.json(
+        { success: false, error: 'limitValue must be non-negative' },
+        { status: 400 }
+      );
+    }
+
+    // Validate limitType whitelist
+    if (body.limitType) {
+      const VALID_LIMIT_TYPES = ['concurrent_users', 'users', 'properties', 'devices', 'bookings', 'staff'];
+      if (!VALID_LIMIT_TYPES.includes(body.limitType)) {
+        return NextResponse.json(
+          { success: false, error: `Invalid limitType. Must be one of: ${VALID_LIMIT_TYPES.join(', ')}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate effectiveFrom/effectiveTo date range
+    if (body.effectiveFrom && body.effectiveTo) {
+      const from = new Date(body.effectiveFrom);
+      const to = new Date(body.effectiveTo);
+      if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid date format' },
+          { status: 400 }
+        );
+      }
+      if (from >= to) {
+        return NextResponse.json(
+          { success: false, error: 'effectiveFrom must be before effectiveTo' },
+          { status: 400 }
+        );
+      }
+    }
+
     const updated = await db.licenseModuleEntitlement.update({
       where: { id: existing.id },
       data: {
@@ -108,6 +156,10 @@ export async function PUT(
         ...(body.effectiveTo !== undefined && { effectiveTo: body.effectiveTo ? new Date(body.effectiveTo) : null }),
       },
     });
+
+    // Invalidate cache so next check picks up new values
+    const { invalidateCache } = await import('@/lib/license-enforcement');
+    invalidateCache(tenantId, moduleKey);
 
     // Audit log
     try {
@@ -170,7 +222,8 @@ export async function DELETE(
     }
 
     const { moduleKey } = await params;
-    const tenantId = user.tenantId;
+    const body = await request.json();
+    const tenantId = (user.isPlatformAdmin && body.tenantId) ? body.tenantId : user.tenantId;
 
     const existing = await db.licenseModuleEntitlement.findUnique({
       where: { tenantId_moduleKey: { tenantId, moduleKey } },
@@ -183,6 +236,8 @@ export async function DELETE(
       );
     }
 
+    // Clean up orphaned usage logs before deleting entitlement
+    await db.licenseUsageLog.deleteMany({ where: { entitlementId: existing.id } });
     await db.licenseModuleEntitlement.delete({
       where: { id: existing.id },
     });

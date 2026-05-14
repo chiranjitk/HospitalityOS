@@ -23,6 +23,16 @@ interface UseLicenseCheckReturn extends LicenseCheckState {
 // ─── Module-level cache to deduplicate concurrent checks ─────────────
 const checkCache = new Map<string, Promise<unknown>>();
 const checkResultCache = new Map<string, LicenseCheckState>();
+const MAX_CACHE_SIZE = 100;
+
+function evictOldestCacheEntry() {
+  if (checkResultCache.size > MAX_CACHE_SIZE) {
+    const firstKey = checkResultCache.keys().next().value;
+    if (firstKey !== undefined) {
+      checkResultCache.delete(firstKey);
+    }
+  }
+}
 
 // ─── Hook ────────────────────────────────────────────────────────────
 /**
@@ -119,12 +129,29 @@ export function useLicenseCheck(
 
           if (mountedRef.current) {
             checkResultCache.set(moduleKey, newState);
+            evictOldestCacheEntry();
             stateRef.current = newState;
             notify();
           }
         }
       } catch {
-        // Silently fail — don't break the UI
+        // Don't break the UI, but ensure loading state is cleared
+        if (mountedRef.current) {
+          const errorState: LicenseCheckState = {
+            isAllowed: false,
+            isLoading: false,
+            usage: 0,
+            limit: 0,
+            percent: 0,
+            isWarning: false,
+            isExceeded: false,
+            isUnlimited: true,
+            moduleName: moduleKey,
+            moduleKey,
+          };
+          stateRef.current = errorState;
+          notify();
+        }
       }
     })();
 
@@ -150,11 +177,33 @@ export function useLicenseCheck(
     // Polling
     if (pollIntervalMs > 0) {
       intervalRef.current = setInterval(() => {
-        if (versionRef.current === version) {
+        if (versionRef.current === version && !document.hidden) {
           checkLicense();
         }
       }, pollIntervalMs);
     }
+
+    // Pause polling when tab is hidden, restart when visible
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Tab hidden — clear polling interval
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      } else {
+        // Tab visible — restart polling and do an immediate check
+        if (versionRef.current === version && pollIntervalMs > 0 && !intervalRef.current) {
+          checkLicense();
+          intervalRef.current = setInterval(() => {
+            if (versionRef.current === version && !document.hidden) {
+              checkLicense();
+            }
+          }, pollIntervalMs);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       mountedRef.current = false;
@@ -162,6 +211,7 @@ export function useLicenseCheck(
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [checkLicense, moduleKey, pollIntervalMs]);
 
