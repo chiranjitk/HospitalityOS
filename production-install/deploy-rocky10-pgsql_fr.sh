@@ -1043,7 +1043,7 @@ success "All dependencies installed"
 step 10 "Prisma" "Pushing schema (~231 PMS tables)"
 
 cd "$APP_DIR"
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
 
 # Ensure pg_hba.conf is trust (something may have changed it since Step 4)
 cat > "${PG_DATA}/pg_hba.conf" <<'EOF'
@@ -1120,7 +1120,7 @@ success "All permissions re-granted"
 step 12 "Seed" "Inserting demo data"
 
 cd "$APP_DIR"
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
 
 if [[ -f "prisma/seed.ts" ]]; then
   info "Running seed script..."
@@ -1140,7 +1140,7 @@ step 13 "Build" "Building Next.js application (standalone)"
 
 cd "$APP_DIR"
 export NODE_OPTIONS='--max-old-space-size=8192'
-export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10"
+export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
 
 info "Building Next.js (this may take a few minutes)..."
 bun run build 2>&1 | tail -10
@@ -1228,10 +1228,21 @@ cp "${APP_DIR}/ecosystem.config.js" "${APP_DIR}/ecosystem.config.js.bak"
 
 # Replace DATABASE_URL with production credentials
 # The repo file uses: postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite
-PROD_DB_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite?connect_timeout=60&connection_limit=10"
-TMP_FILE=$(cat "${APP_DIR}/ecosystem.config.js")
-TMP_FILE="${TMP_FILE//postgresql:\/\/staysuite:Staysuite2025@127.0.0.1:5432\/staysuite/${PROD_DB_URL}}"
-echo "$TMP_FILE" > "${APP_DIR}/ecosystem.config.js"
+# NOTE: Prisma 6.x only supports these PostgreSQL URL params: sslmode, sslcert,
+# sslkey, sslrootcert, connection_limit, schema, pgbouncer.
+# connect_timeout and pool_timeout are NOT supported and cause Prisma crash.
+# The repo's ecosystem.config.js already has a clean DATABASE_URL — we only
+# replace the password if it differs from the default.
+info "Injecting production DB password into ecosystem.config.js..."
+if [[ "${DB_PASSWORD}" != "Staysuite2025" ]]; then
+  PROD_DB_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
+  TMP_FILE=$(cat "${APP_DIR}/ecosystem.config.js")
+  TMP_FILE="${TMP_FILE//postgresql:\/\/staysuite:Staysuite2025@127.0.0.1:5432\/staysuite/${PROD_DB_URL}}"
+  echo "$TMP_FILE" > "${APP_DIR}/ecosystem.config.js"
+  info "Database password replaced in ecosystem.config.js"
+else
+  info "Using default DATABASE_URL from repo (no modification needed)"
+fi
 
 # Stop old processes and start fresh
 pm2 delete all 2>/dev/null || true
