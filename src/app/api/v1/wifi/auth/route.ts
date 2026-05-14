@@ -772,10 +772,18 @@ export async function POST(request: NextRequest) {
     // configured with externalPortalMode=true, the portal will redirect
     // to the MikroTik login URL with RADIUS creds after auth.
     // When null (internal NAS), nftables firewall activates as normal.
+    //
+    // Multi-gateway support: Passes the guest's client IP so the system
+    // can route to the correct MikroTik based on managed subnet CIDR.
     let externalGateway: ExternalGatewayConfig | null = null;
     if (portal?.propertyId) {
       try {
-        externalGateway = await getExternalGatewayConfig(portal.propertyId, portal.tenantId);
+        const guestClientIp = normalizeIp(getClientIpString(request));
+        externalGateway = await getExternalGatewayConfig(
+          portal.propertyId,
+          portal.tenantId,
+          guestClientIp && guestClientIp !== '0.0.0.0' ? guestClientIp : null,
+        );
         if (externalGateway) {
           console.log(`[Auth] External MikroTik gateway detected: ${externalGateway.mikrotikIp} → ${externalGateway.portalCallbackUrl}`);
         }

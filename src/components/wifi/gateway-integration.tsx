@@ -120,6 +120,7 @@ interface WiFiGateway {
     externalPortalMode?: boolean;
     portalCallbackUrl?: string;
     staySuiteServerIp?: string;
+    subnet?: string;
   };
 }
 
@@ -1297,6 +1298,25 @@ export default function GatewayIntegration() {
                             />
                             <p className="text-xs text-muted-foreground">
                               Auto-added to MikroTik walled garden so guests can reach the StaySuite portal.
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="managedSubnet" className="text-xs">
+                              Managed Subnet (CIDR)
+                              <span className="text-muted-foreground ml-1 font-normal">— for multi-gateway routing</span>
+                            </Label>
+                            <Input
+                              id="managedSubnet"
+                              type="text"
+                              value={(formData.config?.subnet as string) || ''}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                config: { ...formData.config!, subnet: e.target.value }
+                              })}
+                              placeholder="10.10.10.0/24"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              The subnet this MikroTik manages. Guest IPs in this range will be routed to this gateway for external captive portal auth. Leave empty for single-gateway deployments.
                             </p>
                           </div>
                         </div>

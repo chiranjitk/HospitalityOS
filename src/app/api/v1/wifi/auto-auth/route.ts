@@ -594,9 +594,15 @@ export async function POST(request: NextRequest) {
     // must redirect to the MikroTik login URL with RADIUS creds so MikroTik
     // can open its own firewall. In this case, skip nftables activation —
     // MikroTik handles bandwidth/firewall enforcement via RADIUS attributes.
+    // Pass client IP for subnet-based multi-gateway routing.
     let externalGateway: ExternalGatewayConfig | null = null;
     try {
-      externalGateway = await getExternalGatewayConfig(wifiUser.propertyId, wifiUser.tenantId);
+      const gatewayClientIp = autoAuthClientIp || normalizeIp(clientIp);
+      externalGateway = await getExternalGatewayConfig(
+        wifiUser.propertyId,
+        wifiUser.tenantId,
+        gatewayClientIp && gatewayClientIp !== '0.0.0.0' ? gatewayClientIp : null,
+      );
       if (externalGateway) {
         console.log(`[AutoAuth] External MikroTik gateway detected: ${externalGateway.mikrotikIp} → ${externalGateway.portalCallbackUrl}`);
       }
