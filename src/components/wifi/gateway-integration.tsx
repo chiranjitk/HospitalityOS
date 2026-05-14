@@ -214,36 +214,9 @@ export default function GatewayIntegration() {
     },
   });
 
-  useEffect(() => {
-    fetchGateways();
-    return () => {
-      // Clean up auto-sync timers on unmount
-      autoSyncTimerRef.current.forEach((timer) => clearTimeout(timer));
-      autoSyncTimerRef.current.clear();
-    };
-  }, []);
-
-  // Manage auto-sync timers
-  useEffect(() => {
-    // Clear existing timers
-    autoSyncTimerRef.current.forEach((timer) => clearTimeout(timer));
-    autoSyncTimerRef.current.clear();
-
-    // Set up new timers for gateways with auto-sync enabled
-    gateways.forEach((gateway) => {
-      if (gateway.autoSync && gateway.status === 'connected') {
-        const intervalMs = (gateway.syncInterval || 5) * 60 * 1000;
-        const timer = setTimeout(() => {
-          handleSync(gateway);
-        }, intervalMs);
-        autoSyncTimerRef.current.set(gateway.id, timer);
-      }
-    });
-
-    return () => {
-      // Cleanup handled in main unmount above
-    };
-  }, [gateways]);
+  // ── Callbacks ──────────────────────────────────────────────
+  // Declared BEFORE useEffect to satisfy react-hooks/exhaustive-deps
+  // and react-hooks/immutability rules (variable must exist before use).
 
   const fetchGateways = useCallback(async () => {
     setIsLoading(true);
@@ -272,6 +245,133 @@ export default function GatewayIntegration() {
       setIsLoading(false);
     }
   }, [toast]);
+
+  const handleSync = async (gateway: WiFiGateway) => {
+    // Mark this gateway as syncing
+    setSyncingIds((prev) => new Set(prev).add(gateway.id));
+
+    toast({
+      title: 'Sync Started',
+      description: `Syncing ${gateway.name}...`,
+    });
+
+    try {
+      const response = await fetch(`/api/integrations/wifi-gateways?action=sync&id=${gateway.id}`);
+      const result = await response.json();
+
+      if (result.success) {
+        const syncData: SyncResultData = result.data || {};
+        const bw = syncData.bandwidthMbps ?? 0;
+        const latency = syncData.latency;
+        const aps = syncData.totalAPs ?? gateway.totalAPs;
+        const sessions = syncData.activeSessions ?? gateway.activeSessions;
+
+        toast({
+          title: 'Sync Complete',
+          description: `Synced: ${aps} APs, ${sessions} sessions, ${bw} Mbps${latency != null ? ` (${latency}ms latency)` : ''}`,
+        });
+
+        // Update gateway with proper values
+        setGateways((prev) =>
+          prev.map((g) =>
+            g.id === gateway.id
+              ? {
+                  ...g,
+                  lastSync: new Date().toISOString(),
+                  totalAPs: aps,
+                  activeSessions: sessions,
+                  bandwidth: {
+                    download: Math.round(bw * 0.65),
+                    upload: Math.round(bw * 0.35),
+                  },
+                  ...(latency != null ? { lastSyncLatency: latency } : {}),
+                }
+              : g
+          )
+        );
+
+        fetchGateways();
+      } else {
+        toast({
+          title: 'Sync Failed',
+          description: result.error?.message || 'Failed to sync gateway',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Sync Failed',
+        description: 'Failed to sync gateway',
+        variant: 'destructive',
+      });
+    } finally {
+      setSyncingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(gateway.id);
+        return next;
+      });
+    }
+  };
+
+  // ── Effects ────────────────────────────────────────────────
+
+  // Initial data fetch on mount
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch('/api/integrations/wifi-gateways');
+        const result = await response.json();
+        if (cancelled) return;
+        if (result.success) {
+          setGateways(result.data.gateways || []);
+          setStats(result.data.stats || {
+            total: 0,
+            connected: 0,
+            totalAPs: 0,
+            activeSessions: 0,
+            totalBandwidth: 0,
+          });
+        }
+      } catch (error) {
+        if (cancelled) return;
+        console.error('Error fetching gateways:', error);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    load();
+
+    return () => {
+      cancelled = true;
+      // Clean up auto-sync timers on unmount
+      autoSyncTimerRef.current.forEach((timer) => clearTimeout(timer));
+      autoSyncTimerRef.current.clear();
+    };
+  }, []);
+
+  // Manage auto-sync timers
+  useEffect(() => {
+    // Clear existing timers
+    autoSyncTimerRef.current.forEach((timer) => clearTimeout(timer));
+    autoSyncTimerRef.current.clear();
+
+    // Set up new timers for gateways with auto-sync enabled
+    gateways.forEach((gateway) => {
+      if (gateway.autoSync && gateway.status === 'connected') {
+        const intervalMs = (gateway.syncInterval || 5) * 60 * 1000;
+        const timer = setTimeout(() => {
+          handleSync(gateway);
+        }, intervalMs);
+        autoSyncTimerRef.current.set(gateway.id, timer);
+      }
+    });
+
+    return () => {
+      // Cleanup handled in main unmount above
+    };
+  }, [gateways, handleSync]);
 
   const handleSaveGateway = async () => {
     if (!formData.name || !formData.ipAddress) {
@@ -399,73 +499,6 @@ export default function GatewayIntegration() {
         title: 'Error',
         description: 'Failed to update auto-sync setting',
         variant: 'destructive',
-      });
-    }
-  };
-
-  const handleSync = async (gateway: WiFiGateway) => {
-    // Mark this gateway as syncing
-    setSyncingIds((prev) => new Set(prev).add(gateway.id));
-
-    toast({
-      title: 'Sync Started',
-      description: `Syncing ${gateway.name}...`,
-    });
-
-    try {
-      const response = await fetch(`/api/integrations/wifi-gateways?action=sync&id=${gateway.id}`);
-      const result = await response.json();
-
-      if (result.success) {
-        const syncData: SyncResultData = result.data || {};
-        const bw = syncData.bandwidthMbps ?? 0;
-        const latency = syncData.latency;
-        const aps = syncData.totalAPs ?? gateway.totalAPs;
-        const sessions = syncData.activeSessions ?? gateway.activeSessions;
-
-        toast({
-          title: 'Sync Complete',
-          description: `Synced: ${aps} APs, ${sessions} sessions, ${bw} Mbps${latency != null ? ` (${latency}ms latency)` : ''}`,
-        });
-
-        // Update gateway with proper values
-        setGateways((prev) =>
-          prev.map((g) =>
-            g.id === gateway.id
-              ? {
-                  ...g,
-                  lastSync: new Date().toISOString(),
-                  totalAPs: aps,
-                  activeSessions: sessions,
-                  bandwidth: {
-                    download: Math.round(bw * 0.65),
-                    upload: Math.round(bw * 0.35),
-                  },
-                  ...(latency != null ? { lastSyncLatency: latency } : {}),
-                }
-              : g
-          )
-        );
-
-        fetchGateways();
-      } else {
-        toast({
-          title: 'Sync Failed',
-          description: result.error?.message || 'Failed to sync gateway',
-          variant: 'destructive',
-        });
-      }
-    } catch (error) {
-      toast({
-        title: 'Sync Failed',
-        description: 'Failed to sync gateway',
-        variant: 'destructive',
-      });
-    } finally {
-      setSyncingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(gateway.id);
-        return next;
       });
     }
   };
