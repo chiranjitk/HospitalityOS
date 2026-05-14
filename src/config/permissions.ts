@@ -661,10 +661,6 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['wifi.view', 'wifi.*', '*'],
     description: 'Monitor WiFi service level agreements'
   },
-  'wifi-room-vlans': {
-    permissions: ['wifi.manage', 'wifi.*', '*'],
-    description: 'Configure room-per-VLAN isolation settings'
-  },
 
   // ---- Revenue Management ----
   'revenue-pricing': {

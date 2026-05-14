@@ -221,7 +221,7 @@ export const FEATURES: Record<string, FeatureConfig> = {
       'wifi-portal', 'wifi-firewall', 'wifi-content-filter', 'wifi-diagnostics', 'wifi-reports',
       'wifi-health-alerts', 'wifi-pre-arrival', 'wifi-device-management', 'wifi-identity-verification',
       'wifi-consent-management', 'wifi-bandwidth-upsell', 'wifi-revenue-dashboard',
-      'wifi-satisfaction-surveys', 'wifi-sla-monitoring', 'wifi-room-vlans',
+      'wifi-satisfaction-surveys', 'wifi-sla-monitoring',
     ],
     apiRoutes: ['/api/wifi', '/api/wifi/sessions', '/api/wifi/vouchers'],
   },
