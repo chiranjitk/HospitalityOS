@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   FEATURES, 
   FEATURE_CATEGORIES, 
@@ -45,40 +45,50 @@ export function FeatureFlagsProvider({ children }: { children: React.ReactNode }
   const [enabledFeatures, setEnabledFeaturesState] = useState<string[]>([]);
   const [tenantPlan, setTenantPlan] = useState<string>('trial');
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Fetch features on mount
-  const fetchFeatures = useCallback(async () => {
-    try {
-      const response = await fetch('/api/settings/feature-flags');
-      const data = await response.json();
-      
-      if (data.success && data.data?.enabledFeatures) {
-        // Use the enabledFeatures directly from API response
-        const featureIds = data.data.enabledFeatures || [];
-        
-        setEnabledFeaturesState(featureIds);
-        setTenantPlan(data.data.plan || 'trial');
-      } else {
-        // API returned success: false (e.g., 401/403) - use enterprise defaults (all features)
-        console.log('Feature flags API returned unsuccessful, using enterprise defaults');
-        const defaults = getDefaultFeaturesForPlan('enterprise');
-        setEnabledFeaturesState(defaults);
-        setTenantPlan('enterprise');
-      }
-    } catch (error) {
-      console.error('Failed to fetch feature flags:', error);
-      // Use plan defaults on error - use enterprise (all features) for better UX
-      const defaults = getDefaultFeaturesForPlan('enterprise');
-      setEnabledFeaturesState(defaults);
-      setTenantPlan('enterprise');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
+  // Initial load and refresh via trigger
   useEffect(() => {
-    fetchFeatures();
-  }, [fetchFeatures]);
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const response = await fetch('/api/settings/feature-flags');
+        if (cancelled) return;
+        const data = await response.json();
+        
+        if (data.success && data.data?.enabledFeatures) {
+          // Use the enabledFeatures directly from API response
+          const featureIds = data.data.enabledFeatures || [];
+          setEnabledFeaturesState(featureIds);
+          setTenantPlan(data.data.plan || 'trial');
+        } else {
+          // Security: use trial defaults (most restrictive plan) on API failure
+          // Never fall back to enterprise to prevent feature leakage
+          console.warn('Feature flags API returned unsuccessful, using trial defaults');
+          const defaults = getDefaultFeaturesForPlan('trial');
+          setEnabledFeaturesState(defaults);
+          setTenantPlan('trial');
+        }
+      } catch (error) {
+        if (cancelled) return;
+        console.error('Failed to fetch feature flags:', error);
+        // Security: use trial defaults on error (most restrictive plan)
+        const defaults = getDefaultFeaturesForPlan('trial');
+        setEnabledFeaturesState(defaults);
+        setTenantPlan('trial');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [refreshTrigger]);
+
+  // Refresh function for manual re-fetch
+  const refresh = useCallback(async () => {
+    setIsLoading(true);
+    setRefreshTrigger(prev => prev + 1);
+  }, []);
 
   // Save features to backend
   const saveFeatures = useCallback(async (features: string[]) => {
@@ -215,7 +225,7 @@ export function FeatureFlagsProvider({ children }: { children: React.ReactNode }
     getAllFeatures,
     getFeaturesByCategory: getFeaturesByCategoryFn,
     getDisabledMenuItems: getDisabledMenuItemsFn,
-    refresh: fetchFeatures,
+    refresh,
   }), [
     enabledFeatures,
     tenantPlan,
@@ -231,7 +241,7 @@ export function FeatureFlagsProvider({ children }: { children: React.ReactNode }
     getAllFeatures,
     getFeaturesByCategoryFn,
     getDisabledMenuItemsFn,
-    fetchFeatures,
+    refresh,
   ]);
 
   return (

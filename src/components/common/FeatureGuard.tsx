@@ -1,10 +1,10 @@
 'use client';
 
 import { useFeatureFlags } from '@/contexts/FeatureFlagsContext';
+import { FEATURES } from '@/lib/feature-flags';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Lock, Sparkles, ArrowUpRight } from 'lucide-react';
-import { useTranslations } from 'next-intl';
 
 interface FeatureGuardProps {
   featureId: string;
@@ -13,39 +13,6 @@ interface FeatureGuardProps {
   showUpgrade?: boolean;
   onUpgrade?: () => void;
 }
-
-// Feature-friendly names for display
-const FEATURE_NAMES: Record<string, string> = {
-  dashboard: 'Dashboard',
-  pms: 'Property Management',
-  bookings: 'Bookings',
-  guests: 'Guest Management',
-  frontdesk: 'Front Desk',
-  billing: 'Billing',
-  housekeeping: 'Housekeeping',
-  settings: 'Settings',
-  inventory: 'Inventory Management',
-  channel_manager: 'Channel Manager',
-  parking: 'Parking Management',
-  security: 'Security & Surveillance',
-  reports: 'Reports & Analytics',
-  crm: 'CRM & Marketing',
-  notifications: 'Notifications',
-  wifi: 'WiFi Management',
-  room_vlan_isolation: 'Room-per-VLAN Isolation',
-  ai_features: 'AI Features',
-  automation: 'Automation & Workflows',
-  webhooks: 'Webhooks',
-  integrations: 'Third-party Integrations',
-  revenue_management: 'Revenue Management',
-  pos: 'Restaurant / POS',
-  guest_experience: 'Guest Experience',
-  dynamic_pricing: 'Dynamic Pricing',
-  refunds_discounts: 'Refunds & Discounts',
-  admin: 'Admin Panel',
-  multi_property: 'Multi-Property',
-  saas_billing: 'SaaS Billing',
-};
 
 export function FeatureGuard({ 
   featureId, 
@@ -75,6 +42,7 @@ export function FeatureGuard({
 
   // Default upgrade prompt
   if (showUpgrade) {
+    const featureName = FEATURES[featureId]?.name || featureId;
     return (
       <div className="flex items-center justify-center min-h-[400px] p-6">
         <Card className="w-full max-w-md border-dashed">
@@ -83,7 +51,7 @@ export function FeatureGuard({
               <Lock className="h-8 w-8 text-muted-foreground" />
             </div>
             <CardTitle className="text-xl">
-              {FEATURE_NAMES[featureId] || featureId} - Premium Feature
+              {featureName} — Premium Feature
             </CardTitle>
           </CardHeader>
           <CardContent className="text-center space-y-4">
@@ -95,7 +63,7 @@ export function FeatureGuard({
               <Button variant="outline" onClick={() => window.history.back()}>
                 Go Back
               </Button>
-              <Button onClick={onUpgrade || (() => window.location.href = '#billing-saas-plans')}>
+              <Button onClick={onUpgrade || (() => window.location.href = '#settings-features')}>
                 <Sparkles className="h-4 w-4 mr-2" />
                 Upgrade Plan
                 <ArrowUpRight className="h-4 w-4 ml-1" />
@@ -113,7 +81,6 @@ export function FeatureGuard({
 
 // Compact version for inline use
 export function FeatureBadge({ featureId }: { featureId: string }) {
-  const t = useTranslations('common');
   const { isFeatureEnabled } = useFeatureFlags();
 
   if (isFeatureEnabled(featureId)) {

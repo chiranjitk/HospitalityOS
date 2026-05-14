@@ -4,6 +4,8 @@ import {
   FEATURES,
   PLAN_FEATURES,
   FEATURE_CATEGORIES,
+  isBaseFeature,
+  getDependentFeatures,
 } from '@/lib/feature-flags';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
@@ -65,7 +67,8 @@ export async function GET(request: NextRequest) {
         description: config?.description || '',
         enabled: tenantOverride !== undefined ? tenantOverride : isDefaultEnabled,
         category: config?.category || 'standard',
-        isCore: config?.category === 'addons',
+        isAddon: config?.category === 'addons',
+        alwaysEnabled: config?.alwaysEnabled || false,
       };
     });
 
@@ -140,11 +143,43 @@ export async function PUT(request: NextRequest) {
 
     // Build features map from the request
     const featuresMap: Record<string, boolean> = {};
+    const rejectedKeys: string[] = [];
     
     if (Array.isArray(features)) {
-      features.forEach((f: { key: string; enabled: boolean }) => {
-        featuresMap[f.key] = f.enabled;
-      });
+      for (const f of features) {
+        const key = f.key;
+        const enabled = f.enabled;
+
+        // Validate: reject unknown feature keys
+        if (!FEATURES[key]) {
+          console.warn(`[Feature Flags] Rejecting unknown feature key: ${key}`);
+          rejectedKeys.push(key);
+          continue;
+        }
+
+        // Protect base features from being disabled
+        if (isBaseFeature(key) && !enabled) {
+          console.warn(`[Feature Flags] Rejecting disable of base feature: ${key} (user: ${user.id})`);
+          rejectedKeys.push(key);
+          continue;
+        }
+
+        featuresMap[key] = enabled;
+      }
+    }
+
+    // Check dependency chains - prevent disabling a feature that others depend on
+    const changedKeys = Object.keys(featuresMap);
+    for (const key of changedKeys) {
+      if (featuresMap[key] === false) {
+        const dependents = getDependentFeatures(key);
+        for (const depId of dependents) {
+          if (featuresMap[depId] === true) {
+            console.warn(`[Feature Flags] ${depId} depends on ${key} which is being disabled`);
+            rejectedKeys.push(depId);
+          }
+        }
+      }
     }
 
     // Get existing features and merge
@@ -157,7 +192,7 @@ export async function PUT(request: NextRequest) {
       existingFeatures = {};
     }
 
-    // Merge with new values
+    // Merge with new values (only non-rejected)
     const updatedFeatures = { ...existingFeatures, ...featuresMap };
 
     // Update tenant features
@@ -167,6 +202,27 @@ export async function PUT(request: NextRequest) {
         features: JSON.stringify(updatedFeatures),
       },
     });
+
+    // Audit log
+    try {
+      await db.auditLog.create({
+        data: {
+          module: 'settings',
+          action: 'FEATURE_FLAGS_UPDATED',
+          entityType: 'Tenant',
+          entityId: tenantId,
+          userId: user.id,
+          tenantId,
+          oldValue: JSON.stringify(existingFeatures),
+          newValue: JSON.stringify(updatedFeatures),
+          ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || '',
+          userAgent: request.headers.get('user-agent') || '',
+        },
+      });
+    } catch (auditError) {
+      // Audit log failure should not block the feature flag update
+      console.error('[Feature Flags] Failed to create audit log:', auditError);
+    }
 
     // Get plan defaults
     const planKey = tenant.plan || 'trial';
@@ -186,8 +242,11 @@ export async function PUT(request: NextRequest) {
         tenantId, 
         features: Array.isArray(features) ? features : [],
         enabledFeatures,
+        rejectedKeys: rejectedKeys.length > 0 ? rejectedKeys : undefined,
       },
-      message: 'Feature flags updated successfully',
+      message: rejectedKeys.length > 0
+        ? 'Feature flags updated with some rejected changes'
+        : 'Feature flags updated successfully',
     });
   } catch (error) {
     console.error('Error updating feature flags:', error);

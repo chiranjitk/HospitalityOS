@@ -38,16 +38,20 @@ export const FEATURES: Record<string, FeatureConfig> = {
   pms: {
     id: 'pms',
     name: 'Property Management',
-    description: 'Properties, rooms, room types, inventory calendar, rate plans, and pricing',
+    description: 'Properties, rooms, room types, inventory calendar, rate plans, pricing, floor plans, and package management',
     category: 'base',
     alwaysEnabled: true,
-    menuItems: ['pms-properties', 'pms-room-types', 'pms-rooms', 'pms-inventory-calendar', 'pms-availability', 'pms-locking', 'pms-rate-plans-pricing', 'pms-overbooking', 'pms-floor-plans'],
+    menuItems: [
+      'pms-properties', 'pms-room-types', 'pms-rooms', 'pms-inventory-calendar',
+      'pms-availability', 'pms-locking', 'pms-rate-plans-pricing', 'pms-overbooking', 'pms-floor-plans',
+      'room-rate-calendar', 'room-out-of-order', 'pms-package-plans', 'pms-room-type-change',
+    ],
     apiRoutes: ['/api/properties', '/api/rooms', '/api/room-types', '/api/inventory-locks', '/api/rate-plans', '/api/price-overrides'],
   },
   bookings: {
     id: 'bookings',
     name: 'Bookings Management',
-    description: 'Booking calendar, list, groups, waitlist, conflicts, and audit logs',
+    description: 'Booking calendar, list, groups, waitlist, conflicts, no-show automation, and audit logs',
     category: 'base',
     alwaysEnabled: true,
     menuItems: ['bookings-calendar', 'bookings-groups', 'bookings-waitlist', 'bookings-conflicts', 'bookings-no-show', 'bookings-audit'],
@@ -56,46 +60,66 @@ export const FEATURES: Record<string, FeatureConfig> = {
   frontdesk: {
     id: 'frontdesk',
     name: 'Front Desk Operations',
-    description: 'Check-in, check-out, walk-ins, room grid, and room assignment',
+    description: 'Check-in, check-out, walk-ins, room grid, room assignment, registration card, express kiosk, and room move',
     category: 'base',
     alwaysEnabled: true,
-    menuItems: ['frontdesk-checkin', 'frontdesk-checkout', 'frontdesk-walkin', 'frontdesk-room-grid', 'frontdesk-assignment'],
+    menuItems: [
+      'frontdesk-checkin', 'frontdesk-checkout', 'frontdesk-walkin', 'frontdesk-room-grid', 'frontdesk-assignment',
+      'registration-card', 'express-kiosk', 'kiosk-settings', 'room-move',
+    ],
     apiRoutes: ['/api/check-in', '/api/check-out', '/api/walk-in'],
   },
   guests: {
     id: 'guests',
     name: 'Guest Management',
-    description: 'Guest profiles, KYC documents, preferences, stay history, and loyalty points',
+    description: 'Guest profiles, KYC documents, preferences, stay history, loyalty points, journey map, and VIP recognition',
     category: 'base',
     alwaysEnabled: true,
-    menuItems: ['guests-list', 'guests-kyc', 'guests-preferences', 'guests-history', 'guests-loyalty'],
+    menuItems: [
+      'guests-list', 'guests-kyc', 'guests-preferences', 'guests-history', 'guests-loyalty',
+      'guests-profile', 'guests-journey', 'guests-vip-alerts',
+    ],
     apiRoutes: ['/api/guests', '/api/guest-preferences', '/api/kyc'],
   },
   housekeeping: {
     id: 'housekeeping',
     name: 'Housekeeping',
-    description: 'Tasks, kanban board, room status, maintenance requests, and asset management',
+    description: 'Tasks, kanban board, room status, maintenance requests, asset management, inspections, automation, lost & found, minibar, and laundry',
     category: 'base',
     alwaysEnabled: true,
-    menuItems: ['housekeeping-tasks', 'housekeeping-kanban', 'housekeeping-status', 'housekeeping-maintenance', 'housekeeping-preventive', 'housekeeping-assets', 'housekeeping-inspections', 'housekeeping-automation'],
+    menuItems: [
+      'housekeeping-tasks', 'housekeeping-kanban', 'housekeeping-status', 'housekeeping-maintenance',
+      'housekeeping-preventive', 'housekeeping-assets', 'housekeeping-inspections', 'housekeeping-automation',
+      'housekeeping-lost-found', 'housekeeping-minibar', 'housekeeping-laundry',
+    ],
     apiRoutes: ['/api/tasks', '/api/assets', '/api/preventive-maintenance'],
   },
   billing: {
     id: 'billing',
     name: 'Billing & Invoicing',
-    description: 'Folios, invoices, payments, refunds, and discounts',
+    description: 'Folios, invoices, payments, refunds, discounts, night audit, city ledger, GST, cash flow, budget, and more',
     category: 'base',
     alwaysEnabled: true,
-    menuItems: ['billing-folios', 'billing-invoices', 'billing-payments', 'billing-refunds', 'billing-discounts'],
+    menuItems: [
+      'billing-folios', 'billing-invoices', 'billing-payments', 'billing-refunds', 'billing-discounts',
+      'billing-cancellation-policies', 'folio-transfer', 'payment-plans', 'credit-notes', 'multi-currency',
+      'billing-night-audit', 'billing-city-ledger', 'billing-commissions', 'billing-posting-rules',
+      'billing-scheduled-charges', 'billing-tax-settings', 'billing-gst-invoicing', 'billing-gst-returns',
+      'billing-tcs-tds', 'billing-ap-workflow', 'billing-profit-loss', 'billing-cash-flow',
+      'billing-budget', 'billing-deposits', 'billing-financing',
+    ],
     apiRoutes: ['/api/folios', '/api/payments', '/api/invoices', '/api/refunds', '/api/discounts'],
   },
   settings: {
     id: 'settings',
     name: 'Settings',
-    description: 'General settings, tax & currency, localization, and feature flags',
+    description: 'General settings, tax & currency, localization, feature flags, GDPR, security, license keys, and system integrations',
     category: 'base',
     alwaysEnabled: true,
-    menuItems: ['settings-general', 'settings-tax', 'settings-localization', 'settings-features', 'settings-gdpr'],
+    menuItems: [
+      'settings-general', 'settings-tax', 'settings-localization', 'settings-features', 'settings-gdpr',
+      'settings-license-keys', 'settings-security', 'settings-integrations',
+    ],
     apiRoutes: ['/api/settings'],
   },
   help: {
@@ -114,19 +138,29 @@ export const FEATURES: Record<string, FeatureConfig> = {
   guest_experience: {
     id: 'guest_experience',
     name: 'Guest Experience',
-    description: 'Service requests, unified inbox, guest chat, in-room portal, digital keys, and app controls',
+    description: 'Service requests, unified inbox, guest chat, in-room portal, digital keys, experience catalog, spa, golf, and more',
     category: 'addons',
     subcategory: 'Guest Experience',
-    menuItems: ['experience-requests', 'experience-inbox', 'experience-chat', 'experience-portal', 'experience-keys', 'experience-app-controls'],
+    menuItems: [
+      'experience-requests', 'experience-inbox', 'experience-chat', 'experience-portal',
+      'experience-keys', 'experience-app-controls', 'experiences', 'experience-bookings',
+      'experience-pricing', 'experience-vendors', 'experience-revenue', 'experience-calendar',
+      'experience-feedback', 'experience-spa', 'experience-golf',
+    ],
     apiRoutes: ['/api/service-requests', '/api/chat-conversations', '/api/digital-keys', '/api/inbox'],
   },
   pos: {
     id: 'pos',
     name: 'Restaurant & POS',
-    description: 'Orders, tables, kitchen display system (KDS), menu management, and POS billing',
+    description: 'Orders, tables, kitchen display system (KDS), menu management, room service, recipes, table layout, reservations, and POS billing',
     category: 'addons',
     subcategory: 'Guest Experience',
-    menuItems: ['pos-orders', 'pos-tables', 'pos-kitchen', 'pos-menu', 'pos-billing'],
+    menuItems: [
+      'pos-orders', 'pos-tables', 'pos-kitchen', 'pos-menu', 'pos-billing',
+      'pos-room-service', 'pos-restaurant-reports', 'pos-recipes', 'pos-staff-assignment',
+      'pos-receipt-templates', 'pos-inventory', 'pos-modifiers', 'pos-variants',
+      'pos-table-layout', 'pos-reservations', 'pos-offline', 'pos-menu-boards',
+    ],
     apiRoutes: ['/api/orders', '/api/tables', '/api/menu-items', '/api/menu-categories', '/api/kds'],
   },
 
@@ -136,10 +170,13 @@ export const FEATURES: Record<string, FeatureConfig> = {
   inventory: {
     id: 'inventory',
     name: 'Inventory Management',
-    description: 'Stock items, consumption logs, low stock alerts, vendors, and purchase orders',
+    description: 'Stock items, consumption logs, low stock alerts, vendors, purchase orders, requisitions, and invoice matching',
     category: 'addons',
     subcategory: 'Facility Management',
-    menuItems: ['inventory-stock', 'inventory-consumption', 'inventory-alerts', 'inventory-vendors', 'inventory-po'],
+    menuItems: [
+      'inventory-stock', 'inventory-consumption', 'inventory-alerts', 'inventory-vendors',
+      'inventory-po', 'inventory-purchase-requisition', 'inventory-invoice-matching',
+    ],
     apiRoutes: ['/api/inventory', '/api/inventory/stock', '/api/inventory/consumption', '/api/inventory/vendors', '/api/inventory/purchase-orders'],
   },
   parking: {
@@ -154,10 +191,10 @@ export const FEATURES: Record<string, FeatureConfig> = {
   surveillance: {
     id: 'surveillance',
     name: 'Surveillance',
-    description: 'Live camera view, playback, event alerts, and incident logs',
+    description: 'Camera management, live camera view, playback, event alerts, incident logs, and surveillance settings',
     category: 'addons',
     subcategory: 'Facility Management',
-    menuItems: ['security-live', 'security-playback', 'security-alerts', 'security-incidents'],
+    menuItems: ['security-cameras', 'security-live', 'security-playback', 'security-alerts', 'security-incidents', 'surveillance-settings'],
     apiRoutes: ['/api/security/cameras', '/api/security/incidents'],
   },
   iot: {
@@ -176,10 +213,16 @@ export const FEATURES: Record<string, FeatureConfig> = {
   wifi: {
     id: 'wifi',
     name: 'WiFi & Network',
-    description: 'Sessions, vouchers, plans, gateway, AAA config, network management, DHCP, DNS, captive portal, firewall, bandwidth, and reports',
+    description: 'WiFi access, RADIUS & gateway, network management, DHCP, DNS, captive portal, firewall, content filter, diagnostics, health alerts, pre-arrival, device management, identity verification, GDPR consent, bandwidth upsell, revenue analytics, surveys, and SLA monitoring',
     category: 'addons',
     subcategory: 'Connectivity',
-    menuItems: ['wifi-access', 'wifi-sessions', 'wifi-vouchers', 'wifi-plans', 'wifi-logs', 'wifi-gateway-radius', 'wifi-gateway', 'wifi-aaa', 'wifi-network', 'wifi-dhcp', 'wifi-dns', 'wifi-portal', 'wifi-firewall', 'wifi-content-filter', 'wifi-reports'],
+    menuItems: [
+      'wifi-access', 'wifi-gateway-radius', 'wifi-network', 'wifi-dhcp', 'wifi-dns',
+      'wifi-portal', 'wifi-firewall', 'wifi-content-filter', 'wifi-diagnostics', 'wifi-reports',
+      'wifi-health-alerts', 'wifi-pre-arrival', 'wifi-device-management', 'wifi-identity-verification',
+      'wifi-consent-management', 'wifi-bandwidth-upsell', 'wifi-revenue-dashboard',
+      'wifi-satisfaction-surveys', 'wifi-sla-monitoring',
+    ],
     apiRoutes: ['/api/wifi', '/api/wifi/sessions', '/api/wifi/vouchers'],
   },
   room_vlan_isolation: {
@@ -199,19 +242,28 @@ export const FEATURES: Record<string, FeatureConfig> = {
   revenue_management: {
     id: 'revenue_management',
     name: 'Revenue Management',
-    description: 'Pricing rules, demand forecasting, competitor pricing, and AI suggestions',
+    description: 'Dynamic pricing rules, demand forecasting, competitor pricing, rate shopping, and AI suggestions',
     category: 'addons',
     subcategory: 'Revenue & Channels',
-    menuItems: ['revenue-pricing', 'revenue-forecasting', 'revenue-competitor', 'revenue-ai'],
+    menuItems: ['revenue-pricing', 'revenue-forecasting', 'revenue-competitor', 'revenue-ai', 'revenue-rate-shopping'],
     apiRoutes: ['/api/revenue', '/api/revenue/pricing', '/api/revenue/forecasting'],
   },
   channel_manager: {
     id: 'channel_manager',
     name: 'Channel Manager',
-    description: 'OTA connections, inventory sync, rate sync, booking sync, restrictions, channel mapping, sync logs, and CRS',
+    description: 'OTA connections, inventory sync, rate sync, booking sync, restrictions, mapping, logs, CRS, GDS, rate derivation, parity, and more',
     category: 'addons',
     subcategory: 'Revenue & Channels',
-    menuItems: ['channel-ota', 'channel-inventory', 'channel-rate', 'channel-booking', 'channel-restrictions', 'channel-mapping', 'channel-logs', 'channel-crs'],
+    menuItems: [
+      'channel-analytics', 'channel-ota', 'channel-inventory', 'channel-rate', 'channel-booking',
+      'channel-booking-modifications', 'channel-restrictions', 'channel-stop-sell', 'channel-allocations',
+      'channel-mapping', 'channel-parity', 'channel-logs', 'channel-health', 'channel-crs', 'channel-gds',
+      'channel-rate-derivation', 'channel-rate-overrides', 'channel-content-sync', 'channel-tax-mapping',
+      'channel-meal-plan', 'channel-virtual-inventory', 'channel-currency', 'channel-cancellation-policy',
+      'channel-settlement', 'channel-allotment-release', 'channel-promo-codes', 'channel-booking-pace',
+      'channel-priority', 'channel-inventory-pool', 'channel-derived-rates', 'channel-commission-config',
+      'channel-guest-rates', 'channel-booking-limits',
+    ],
     apiRoutes: ['/api/channels', '/api/channels/sync', '/api/crs'],
   },
 
@@ -230,11 +282,27 @@ export const FEATURES: Record<string, FeatureConfig> = {
   marketing: {
     id: 'marketing',
     name: 'Marketing',
-    description: 'Reputation dashboard, review sources, direct booking engine, and promotions',
+    description: 'Reputation dashboard, review sources, direct booking engine, promotions, upsell engine, journey campaigns, and abandoned bookings recovery',
     category: 'addons',
     subcategory: 'Marketing & CRM',
-    menuItems: ['marketing-reputation', 'marketing-sources', 'marketing-booking-engine', 'marketing-promotions'],
+    menuItems: [
+      'marketing-reputation', 'marketing-sources', 'marketing-booking-engine', 'marketing-promotions',
+      'marketing-upsell', 'marketing-journey-campaigns', 'marketing-abandoned-bookings',
+    ],
     apiRoutes: ['/api/marketing', '/api/reputation', '/api/booking-engine'],
+  },
+
+  // =====================================================
+  // ADDON MODULES - Digital Advertising
+  // =====================================================
+  ads: {
+    id: 'ads',
+    name: 'Digital Advertising',
+    description: 'Ad campaigns, Google Hotel Ads, performance tracking, and ROI analytics',
+    category: 'addons',
+    subcategory: 'Marketing & CRM',
+    menuItems: ['ads-campaigns', 'ads-google', 'ads-performance', 'ads-roi'],
+    apiRoutes: ['/api/ads'],
   },
 
   // =====================================================
@@ -256,11 +324,24 @@ export const FEATURES: Record<string, FeatureConfig> = {
   events: {
     id: 'events',
     name: 'Events / MICE',
-    description: 'Event spaces, event calendar, event bookings, and event resources',
+    description: 'Event spaces, event calendar, event bookings, event resources, and BEO management',
     category: 'addons',
     subcategory: 'Events',
-    menuItems: ['events-spaces', 'events-calendar', 'events-booking', 'events-resources'],
+    menuItems: ['events-spaces', 'events-calendar', 'events-booking', 'events-resources', 'events-beo'],
     apiRoutes: ['/api/events', '/api/event-spaces'],
+  },
+
+  // =====================================================
+  // ADDON MODULES - Resort & Leisure
+  // =====================================================
+  resort: {
+    id: 'resort',
+    name: 'Resort & Leisure',
+    description: 'Timeshare & ownership management, and casino & gaming operations',
+    category: 'addons',
+    subcategory: 'Resort & Leisure',
+    menuItems: ['resort-timeshare', 'resort-casino'],
+    apiRoutes: ['/api/resort'],
   },
 
   // =====================================================
@@ -269,10 +350,13 @@ export const FEATURES: Record<string, FeatureConfig> = {
   staff_management: {
     id: 'staff_management',
     name: 'Staff Management',
-    description: 'Shift scheduling, attendance tracking, task assignment, internal communication, and performance metrics',
+    description: 'Shift scheduling, attendance tracking, leave management, task assignment, internal communication, performance metrics, skills, and payroll',
     category: 'addons',
     subcategory: 'Staff Management',
-    menuItems: ['staff-shifts', 'staff-attendance', 'staff-tasks', 'staff-communication', 'staff-performance', 'staff-skills'],
+    menuItems: [
+      'staff-shifts', 'staff-attendance', 'staff-leave', 'staff-tasks',
+      'staff-communication', 'staff-performance', 'staff-skills', 'staff-payroll',
+    ],
     apiRoutes: ['/api/staff', '/api/shifts', '/api/attendance'],
   },
 
@@ -295,10 +379,13 @@ export const FEATURES: Record<string, FeatureConfig> = {
   integrations: {
     id: 'integrations',
     name: 'Third-party Integrations',
-    description: 'Payment gateways, SMS gateways, WiFi gateways, POS systems, and third-party APIs',
+    description: 'Payment gateways, SMS gateways, POS systems, smart locks, payment terminals, mobile app, hardware adapters, and third-party APIs',
     category: 'addons',
     subcategory: 'Integrations & Automation',
-    menuItems: ['integrations-payments', 'integrations-sms', 'integrations-wifi', 'integrations-pos', 'integrations-apis'],
+    menuItems: [
+      'integrations-payments', 'integrations-sms', 'integrations-pos', 'integrations-apis',
+      'integrations-smart-locks', 'integrations-terminals', 'integrations-mobile-app', 'integrations-hardware-adapters',
+    ],
     apiRoutes: ['/api/integrations'],
   },
   automation: {
@@ -313,10 +400,10 @@ export const FEATURES: Record<string, FeatureConfig> = {
   ai_features: {
     id: 'ai_features',
     name: 'AI Assistant',
-    description: 'AI Copilot, AI insights, and provider settings',
+    description: 'AI Copilot, AI insights, conversational analytics, and provider settings',
     category: 'addons',
     subcategory: 'Integrations & Automation',
-    menuItems: ['ai-copilot', 'ai-insights', 'ai-settings'],
+    menuItems: ['ai-copilot', 'ai-insights', 'ai-conversational-analytics', 'ai-settings'],
     apiRoutes: ['/api/ai'],
   },
 
@@ -401,8 +488,8 @@ export const PLAN_FEATURES: Record<string, string[]> = {
     'dashboard', 'pms', 'bookings', 'guests', 'frontdesk', 'billing', 'housekeeping', 'settings', 'help',
     'inventory', 'reports', 'notifications',
     'guest_experience', 'pos', 'parking', 'surveillance', 'iot', 'wifi',
-    'revenue_management', 'channel_manager', 'crm', 'marketing',
-    'events', 'staff_management', 'security_center',
+    'revenue_management', 'channel_manager', 'crm', 'marketing', 'ads',
+    'events', 'resort', 'staff_management', 'security_center',
     'integrations', 'automation', 'ai_features',
     'admin', 'chain_management', 'saas_billing', 'webhooks',
   ],
@@ -529,12 +616,35 @@ export const ADDON_SUBCATEGORIES = {
   'Facility Management': { name: 'Facility Management', description: 'Manage physical assets and facilities', icon: 'building' },
   'Connectivity': { name: 'Connectivity', description: 'Network and connectivity services', icon: 'wifi' },
   'Revenue & Channels': { name: 'Revenue & Channels', description: 'Revenue optimization and channel management', icon: 'trending-up' },
-  'Marketing & CRM': { name: 'Marketing & CRM', description: 'Customer relationship and marketing tools', icon: 'megaphone' },
+  'Marketing & CRM': { name: 'Marketing & CRM', description: 'Customer relationship, marketing, and advertising', icon: 'megaphone' },
   'Analytics': { name: 'Analytics', description: 'Reporting and business intelligence', icon: 'bar-chart' },
   'Events': { name: 'Events', description: 'Event and MICE management', icon: 'calendar' },
+  'Resort & Leisure': { name: 'Resort & Leisure', description: 'Resort and leisure operations', icon: 'building' },
   'Staff Management': { name: 'Staff Management', description: 'Employee and shift management', icon: 'users' },
   'Security': { name: 'Security', description: 'Security and access control', icon: 'shield' },
   'Integrations & Automation': { name: 'Integrations & Automation', description: 'Third-party integrations and automation', icon: 'plug' },
   'Enterprise': { name: 'Enterprise', description: 'Enterprise-level features', icon: 'crown' },
   'System': { name: 'System', description: 'System configuration and webhooks', icon: 'settings' },
 };
+
+/**
+ * Check if a feature is a base (always-enabled) feature.
+ * Used for server-side protection to prevent disabling base features.
+ */
+export function isBaseFeature(featureId: string): boolean {
+  return FEATURES[featureId]?.alwaysEnabled === true;
+}
+
+/**
+ * Get the feature IDs that depend on a given feature.
+ * Used for cascading dependency checks.
+ */
+export function getDependentFeatures(featureId: string): string[] {
+  const dependents: string[] = [];
+  for (const [id, config] of Object.entries(FEATURES)) {
+    if (config.dependencies?.includes(featureId)) {
+      dependents.push(id);
+    }
+  }
+  return dependents;
+}

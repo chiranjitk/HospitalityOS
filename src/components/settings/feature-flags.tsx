@@ -18,6 +18,17 @@ import {
 } from '@/components/ui/accordion';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { 
   Loader2, 
   Save,  
@@ -40,6 +51,9 @@ import {
   Crown,
   Settings,
   Zap,
+  Volume2,
+  Gamepad2,
+  AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { 
@@ -52,7 +66,6 @@ import {
 } from '@/lib/feature-flags';
 import { navigationConfig } from '@/config/navigation';
 import { SectionGuard } from '@/components/common/section-guard';
-import { useTranslations } from 'next-intl';
 
 interface FeatureData {
   id: string;
@@ -75,6 +88,7 @@ const subcategoryIcons: Record<string, React.ReactNode> = {
   'Marketing & CRM': <Megaphone className="h-4 w-4" />,
   'Analytics': <BarChart3 className="h-4 w-4" />,
   'Events': <Calendar className="h-4 w-4" />,
+  'Resort & Leisure': <Gamepad2 className="h-4 w-4" />,
   'Staff Management': <Users className="h-4 w-4" />,
   'Security': <Shield className="h-4 w-4" />,
   'Integrations & Automation': <Plug className="h-4 w-4" />,
@@ -83,17 +97,12 @@ const subcategoryIcons: Record<string, React.ReactNode> = {
 };
 
 export default function FeatureFlags() {
-  const t = useTranslations('settings');
   const [features, setFeatures] = useState<FeatureData[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
-
-  useEffect(() => {
-    fetchFeatureFlags();
-  }, []);
 
   const fetchFeatureFlags = async () => {
     try {
@@ -105,17 +114,20 @@ export default function FeatureFlags() {
         const featureMap = new Map(storedFeatures.map((f: { key: string }) => [f.key, f]));
         
         // Build complete features list from FEATURES config
-        const completeFeatures: FeatureData[] = Object.values(FEATURES).map(config => ({
-          id: config.id,
-          name: config.name,
-          key: config.id,
-          enabled: featureMap.has(config.id) ? (featureMap.get(config.id) as { enabled: boolean }).enabled : config.alwaysEnabled || false,
-          description: config.description,
-          category: config.category,
-          subcategory: config.subcategory,
-          menuItems: config.menuItems,
-          alwaysEnabled: config.alwaysEnabled,
-        }));
+        const completeFeatures: FeatureData[] = Object.values(FEATURES).map(config => {
+          const stored = featureMap.get(config.id);
+          return {
+            id: config.id,
+            name: config.name,
+            key: config.id,
+            enabled: stored ? (stored as { enabled: boolean }).enabled : config.alwaysEnabled || false,
+            description: config.description,
+            category: config.category,
+            subcategory: config.subcategory,
+            menuItems: config.menuItems,
+            alwaysEnabled: config.alwaysEnabled,
+          };
+        });
         
         setFeatures(completeFeatures);
       }
@@ -139,6 +151,15 @@ export default function FeatureFlags() {
     }
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      await fetchFeatureFlags();
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -150,12 +171,14 @@ export default function FeatureFlags() {
         }),
       });
 
+      const result = await response.json();
+
       if (response.ok) {
-        toast.success('Feature flags saved successfully');
+        toast.success(result.message || 'Feature flags saved successfully');
         // Refresh to get latest state
         fetchFeatureFlags();
       } else {
-        throw new Error('Failed to save');
+        throw new Error(result.error || 'Failed to save');
       }
     } catch {
       toast.error('Failed to save feature flags');
@@ -185,12 +208,14 @@ export default function FeatureFlags() {
     setFeatures(prev => prev.map(f => 
       f.category === 'addons' ? { ...f, enabled: true } : f
     ));
+    toast.success('All addon modules enabled');
   };
 
   const disableAllAddons = () => {
     setFeatures(prev => prev.map(f => 
       f.category === 'addons' ? { ...f, enabled: false } : f
     ));
+    toast.warning('All addon modules disabled. Save to apply changes.');
   };
 
   const enableAllInSubcategory = (subcategory: string) => {
@@ -218,7 +243,8 @@ export default function FeatureFlags() {
   const filteredFeatures = features.filter(f => {
     const matchesSearch = searchQuery === '' || 
       f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.description.toLowerCase().includes(searchQuery.toLowerCase());
+      f.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      f.subcategory?.toLowerCase().includes(searchQuery.toLowerCase());
     
     if (activeTab === 'all') return matchesSearch;
     if (activeTab === 'enabled') return f.enabled && matchesSearch;
@@ -379,9 +405,29 @@ export default function FeatureFlags() {
                   <Button variant="outline" size="sm" onClick={enableAllAddons}>
                     Enable All
                   </Button>
-                  <Button variant="outline" size="sm" onClick={disableAllAddons}>
-                    Disable All
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                        <AlertTriangle className="h-3.5 w-3.5 mr-1" />
+                        Disable All
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Disable all addon modules?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will disable all {addonCount} addon modules. Base modules (Dashboard, PMS, Bookings, etc.) will remain active.
+                          Menu items for disabled modules will be hidden from the sidebar.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={disableAllAddons} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                          Yes, Disable All
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
 
@@ -469,6 +515,48 @@ export default function FeatureFlags() {
                                 </div>
                               )}
                               
+                              {/* API Routes */}
+                              {feature.apiRoutes && feature.apiRoutes.length > 0 && (
+                                <div className="space-y-2">
+                                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                                    <Shield className="h-3 w-3" />
+                                    Protected API Routes:
+                                  </p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {feature.apiRoutes.map(route => (
+                                      <Badge 
+                                        key={route} 
+                                        variant="outline" 
+                                        className="text-xs font-mono"
+                                      >
+                                        {route}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Dependencies */}
+                              {feature.dependencies && feature.dependencies.length > 0 && (
+                                <div className="space-y-2">
+                                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                                    <Plug className="h-3 w-3" />
+                                    Dependencies:
+                                  </p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {feature.dependencies.map(dep => (
+                                      <Badge 
+                                        key={dep} 
+                                        variant="secondary" 
+                                        className="text-xs"
+                                      >
+                                        {FEATURES[dep]?.name || dep}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
                               <Separator className="my-2" />
                               
                               <div className="flex items-center gap-2">
