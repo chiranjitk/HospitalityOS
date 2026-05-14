@@ -147,7 +147,7 @@ function makeSectionBody(section) {
       spacing: { before: 360, after: 200, line: LINE_SPACING },
       children: [
         new TextRun({
-          text: `${section.icon ? section.icon + "  " : ""}${section.title}`,
+          text: section.title,
           bold: true,
           size: H1_SIZE,
           color: PRIMARY_DARK,
