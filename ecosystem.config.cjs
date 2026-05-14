@@ -20,6 +20,7 @@ module.exports = {
       autorestart: true,
       env: {
         LD_LIBRARY_PATH: '/home/z/my-project/freeradius-install/lib:/home/z/my-project/freeradius-install/lib/freeradius:/home/z/my-project/pgsql-runtime/lib',
+        PORT: '1812/1813',  // FreeRADIUS auth/acct ports (cosmetic for pm2 display)
       },
     },
     {
@@ -31,10 +32,8 @@ module.exports = {
       autorestart: true,
       env: {
         PORT: 3000,
-        // Sandbox database — PostgreSQL running on this container
         DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
         LD_LIBRARY_PATH: '/home/z/my-project/freeradius-install/lib:/home/z/my-project/freeradius-install/lib/freeradius:/home/z/my-project/pgsql-runtime/lib',
-        // Sandbox RRD paths (project-relative, NOT /opt/staysuite)
         RRD_BIN_PATH: `${APP_DIR}/rrdtool/bin/rrdtool`,
         RRD_LIB_PATH: `${APP_DIR}/rrdtool/lib`,
         RRD_DATA_PATH: `${APP_DIR}/data/rrd`,
