@@ -94,6 +94,7 @@ export async function GET(request: NextRequest) {
       accessControl: {
         ipWhitelist: (tenantSettings.ipWhitelist as string[]) || [],
         ipBlacklist: (tenantSettings.ipBlacklist as string[]) || [],
+        ipWhitelistEnabled: ((tenantSettings.ipWhitelistEnabled as boolean) ?? false),
         allowedCountries: (tenantSettings.allowedCountries as string[]) || [],
         vpnDetection: ((tenantSettings.vpnDetection as boolean) ?? true),
       },
@@ -311,6 +312,7 @@ export async function PUT(request: NextRequest) {
       // Access Control
       ipWhitelist: accessControl?.ipWhitelist,
       ipBlacklist: accessControl?.ipBlacklist,
+      ipWhitelistEnabled: accessControl?.ipWhitelistEnabled,
       allowedCountries: accessControl?.allowedCountries,
       vpnDetection: accessControl?.vpnDetection,
       // Data Protection

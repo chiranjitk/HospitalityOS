@@ -6591,6 +6591,7 @@ model Tenant {
   hardwareOperationLogs     HardwareOperationLog[]
   hardwareWebhookLogs       HardwareWebhookLog[]
   licenseEntitlements       LicenseModuleEntitlement[]
+  ipWhitelistRules          IpWhitelistRule[]
 }
 
 model Experience {
@@ -6863,6 +6864,7 @@ model User {
   completedNightAudits    NightAudit[]         @relation("NightAuditCompletedBy")
   collectedLaundryOrders  LaundryOrder[]       @relation("LaundryCollectedBy")
   deliveredLaundryOrders  LaundryOrder[]       @relation("LaundryDeliveredBy")
+  ipWhitelistRules        IpWhitelistRule[]
   role                    Role?                    @relation(fields: [roleId], references: [id])
   tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -11123,3 +11125,23 @@ model LicenseUsageLog {
   @@index([sampledAt])
 }
 
+
+/// IpWhitelistRule - IP whitelist/blacklist rules for tenant access control
+model IpWhitelistRule {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  type        String   @default("whitelist") // whitelist, blacklist
+  ipAddress   String   // Single IP or CIDR range (e.g., "192.168.1.0/24", "10.0.0.5")
+  description String?
+  isEnabled   Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  createdBy   String?  @db.Uuid
+  creator     User?    @relation(fields: [createdBy], references: [id])
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, type])
+  @@index([tenantId, isEnabled])
+  @@index([ipAddress])
+}

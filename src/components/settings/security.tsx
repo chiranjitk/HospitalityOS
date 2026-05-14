@@ -12,6 +12,7 @@ import { Loader2, Shield, Key, Lock, Save, Activity } from 'lucide-react';
 import { toast } from 'sonner';
 import { SectionGuard } from '@/components/common/section-guard';
 import { useTranslations } from 'next-intl';
+import IpAccessControlCard from './ip-access-control';
 
 interface SecuritySettings {
   authentication: {
@@ -34,6 +35,7 @@ interface SecuritySettings {
   accessControl: {
     ipWhitelist: string[];
     ipBlacklist: string[];
+    ipWhitelistEnabled?: boolean;
     allowedCountries: string[];
     vpnDetection: boolean;
   };
@@ -102,6 +104,17 @@ export default function SecuritySettings() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleToggleIpWhitelistEnabled = (enabled: boolean) => {
+    if (!settings) return;
+    setSettings({
+      ...settings,
+      accessControl: {
+        ...settings.accessControl,
+        ipWhitelistEnabled: enabled,
+      },
+    });
   };
 
   if (loading || !settings) {
@@ -219,6 +232,12 @@ export default function SecuritySettings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* IP Access Control */}
+      <IpAccessControlCard
+        ipWhitelistEnabled={settings.accessControl.ipWhitelistEnabled ?? false}
+        onToggleEnforcement={handleToggleIpWhitelistEnabled}
+      />
 
       {/* Data Protection */}
       <Card>
