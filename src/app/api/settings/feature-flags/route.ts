@@ -8,6 +8,7 @@ import {
   getDependentFeatures,
 } from '@/lib/feature-flags';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { seedEntitlements } from '@/lib/license-enforcement';
 
 // GET - Get feature flags for tenant
 export async function GET(request: NextRequest) {
@@ -202,6 +203,25 @@ export async function PUT(request: NextRequest) {
         features: JSON.stringify(updatedFeatures),
       },
     });
+
+    // Auto-seed license entitlements for newly enabled addon modules
+    const newlyEnabledKeys: string[] = [];
+    for (const key of changedKeys) {
+      if (featuresMap[key] === true && existingFeatures[key] !== true) {
+        newlyEnabledKeys.push(key);
+      }
+    }
+    if (newlyEnabledKeys.length > 0) {
+      try {
+        const seedResult = await seedEntitlements(tenantId, newlyEnabledKeys);
+        if (seedResult.seeded.length > 0) {
+          console.log(`[Feature Flags] Auto-seeded entitlements for: ${seedResult.seeded.join(', ')}`);
+        }
+      } catch (seedError) {
+        console.error('[Feature Flags] Failed to seed entitlements:', seedError);
+        // Don't block feature flag update for entitlement seeding failure
+      }
+    }
 
     // Audit log
     try {

@@ -6590,6 +6590,7 @@ model Tenant {
   hardwareAdapters          HardwareAdapter[]
   hardwareOperationLogs     HardwareOperationLog[]
   hardwareWebhookLogs       HardwareWebhookLog[]
+  licenseEntitlements       LicenseModuleEntitlement[]
 }
 
 model Experience {
@@ -11067,5 +11068,58 @@ model AllotmentReleaseLog {
   createdAt       DateTime @default(now()) @db.Timestamptz
   @@index([tenantId, ruleId, date])
   @@index([connectionId])
+}
+
+// ============================================================
+// LICENSING MODULE - Per-module entitlements & usage tracking
+// ============================================================
+
+/// LicenseModuleEntitlement - Per-addon module limits per tenant
+/// Each add-on module (gateway, pos, crm, etc.) has its own limit dimension.
+/// The base PMS module uses Tenant.maxRooms (room count).
+/// The gateway module uses concurrentActiveUsers (enforced at auth time).
+model LicenseModuleEntitlement {
+  id                   String    @id @default(uuid()) @db.Uuid
+  tenantId             String    @db.Uuid
+  moduleKey            String                            // Feature flag key: wifi, pos, crm, etc.
+  moduleName           String                            // Display name: "WiFi & Network", "Restaurant & POS"
+  limitType            String                            // concurrent_users, rooms, users, properties, staff, devices, bookings, data_mb
+  limitValue           Int       @default(0)              // 0 = unlimited
+  currentUsage         Int       @default(0)              // Real-time usage (updated by enforcement)
+  peakUsage            Int       @default(0)              // Peak usage (all-time high for this billing period)
+  warningThreshold     Float     @default(0.8)            // Warning at 80% usage by default
+  hardLimit            Boolean   @default(true)           // true = block when exceeded, false = warn only
+  billingDimension     String?                            // e.g., "per_room", "per_user", "flat" for pricing
+  pricePerUnit         Float?                             // Price per unit above base (if overage applies)
+  isValid              Boolean   @default(true)           // false when license revoked/expired
+  effectiveFrom        DateTime  @default(now()) @db.Timestamptz
+  effectiveTo          DateTime? @db.Timestamptz
+  createdAt            DateTime  @default(now()) @db.Timestamptz
+  updatedAt            DateTime  @updatedAt @db.Timestamptz
+  tenant               Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usageLogs            LicenseUsageLog[]
+
+  @@unique([tenantId, moduleKey])
+  @@index([tenantId])
+  @@index([moduleKey])
+  @@index([isValid])
+}
+
+/// LicenseUsageLog - Periodic usage snapshots for trend analysis & billing
+model LicenseUsageLog {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  entitlementId   String    @db.Uuid
+  moduleKey       String
+  usageValue      Int       @default(0)
+  limitValue      Int       @default(0)
+  usagePercent    Float     @default(0)           // usageValue/limitValue * 100
+  sampledAt       DateTime  @default(now()) @db.Timestamptz
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  entitlement     LicenseModuleEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, moduleKey])
+  @@index([entitlementId])
+  @@index([sampledAt])
 }
 
