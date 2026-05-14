@@ -45,8 +45,6 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/channels/currency-config');
     case 'channel-virtual-inventory':
       return import('@/components/channels/virtual-inventory');
-    case 'channel-cancellation-policy':
-      return import('@/components/channels/cancellation-policy');
     case 'channel-promo-codes':
       return import('@/components/channels/promo-codes');
     case 'channel-booking-pace':

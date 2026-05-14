@@ -777,10 +777,6 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['channels.manage', 'channels.*', '*'],
     description: 'Configure per-channel currency conversion'
   },
-  'channel-cancellation-policy': {
-    permissions: ['channels.manage', 'bookings.manage', 'channels.*', '*'],
-    description: 'Configure channel-specific cancellation policies',
-  },
   'channel-settlement': {
     permissions: ['channels.manage', 'billing.manage', 'channels.*', '*'],
     description: 'Manage channel settlement and reconciliation'
