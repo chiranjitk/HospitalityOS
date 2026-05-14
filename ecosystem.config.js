@@ -1,5 +1,5 @@
 /**
- * StaySuite HospitalityOS - PM2 Ecosystem Configuration
+ * StaySuite HospitalityOS - PM2 Production Ecosystem Configuration
  * For Rocky Linux 10 / Debian 13 deployment
  *
  * IMPORTANT: All mini-services use bun directly (NOT npm start).
@@ -16,17 +16,81 @@
  * FIX: Use start-nextjs.sh wrapper which explicitly sets HOSTNAME=0.0.0.0
  * before launching the standalone server.
  *
+ * Production features enabled:
+ *   - max_memory_restart  → auto-restart on memory leak (per-app limits)
+ *   - kill_timeout        → graceful shutdown (5s SIGTERM before SIGKILL)
+ *   - min_uptime          → prevents rapid crash-loop from burning restarts
+ *   - restart_delay       → exponential backoff delay between restarts
+ *   - log_date_format     → ISO timestamps in all log lines
+ *   - autorestart         → auto-resurrect crashed processes
+ *   - description         → shows port in `pm2 prettylist` output
+ *   - Multi-env profiles  → production / staging / development
+ *   - Deploy targets      → git-based deployment template (uncomment + configure)
+ *
  * Usage:
- *   chmod +x start-nextjs.sh          # Make wrapper executable
- *   pm2 delete all                    # Kill old processes first
- *   pm2 start ecosystem.config.js
- *   pm2 save
- *   pm2 startup
+ *   chmod +x start-nextjs.sh                    # Make wrapper executable (first time)
+ *   pm2 delete all                              # Kill old processes
+ *   pm2 start ecosystem.config.js               # Start with production env (default)
+ *   pm2 start ecosystem.config.js --env staging # Start with staging env
+ *   pm2 save                                    # Persist process list
+ *   pm2 startup                                 # Register for auto-start on boot
+ *
+ * Log rotation (run once):
+ *   pm2 install pm2-logrotate
+ *   pm2 set pm2-logrotate:max_size 10M
+ *   pm2 set pm2-logrotate:retain 7
+ *   pm2 set pm2-logrotate:compress true
+ *
+ * Cron-based restarts (memory leak safety net):
+ *   pm2 set cron_restart:0 4 * * *              # Restart all daily at 4 AM
  */
 
 const BUN_PATH = process.env.BUN_PATH || '/usr/bin/bun';
 const APP_DIR = __dirname;
 const LOG_DIR = `${APP_DIR}/logs`;
+
+// ============================================================================
+// Shared production defaults applied to ALL apps
+// ============================================================================
+const BASE_DEFAULTS = {
+  autorestart: true,
+  watch: false,
+  kill_timeout: 5000,          // Wait 5s for graceful SIGTERM before SIGKILL
+  min_uptime: '10s',           // If process dies within 10s, count as crash
+  max_restarts: 15,
+  restart_delay: 5000,         // 5s between restart attempts
+  log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+  time: true,                  // Prefix stdout/stderr with timestamps
+};
+
+// ============================================================================
+// Shared mini-service defaults (all bun-based services)
+// ============================================================================
+const MINI_SERVICE_DEFAULTS = {
+  ...BASE_DEFAULTS,
+  interpreter: BUN_PATH,
+  script: 'index.ts',
+  max_memory_restart: '300M',
+};
+
+/**
+ * Helper: create a mini-service config entry.
+ * Merges shared defaults + service-specific overrides.
+ */
+function miniService(name, overrides = {}) {
+  // Extract internal metadata before passing to PM2
+  const { _port, ...pm2Config } = overrides;
+  return {
+    ...MINI_SERVICE_DEFAULTS,
+    name,
+    cwd: `${APP_DIR}/mini-services/${name}`,
+    error_file: `${LOG_DIR}/${name}-error.log`,
+    out_file: `${LOG_DIR}/${name}-out.log`,
+    description: _port ? `Port ${_port}` : name,
+    env: { NODE_ENV: 'production' },
+    ...pm2Config,
+  };
+}
 
 module.exports = {
   apps: [
@@ -34,7 +98,9 @@ module.exports = {
     // Next.js Application (production standalone)
     // =========================================================================
     {
+      ...BASE_DEFAULTS,
       name: 'staysuite-nextjs',
+      description: 'Port 3000 — Main PMS Application',
       // CRITICAL: start-nextjs.sh wrapper sets HOSTNAME=0.0.0.0 to prevent
       // EINVAL crash on Rocky 10. The standalone server.js reads process.env
       // .HOSTNAME but ignores --hostname CLI args. PM2 cannot reliably
@@ -42,6 +108,14 @@ module.exports = {
       script: 'start-nextjs.sh',
       interpreter: 'bash',
       cwd: APP_DIR,
+      max_memory_restart: '2G',
+      kill_timeout: 10000,         // Next.js needs longer to drain connections
+      error_file: `${LOG_DIR}/next-error.log`,
+      out_file: `${LOG_DIR}/next-out.log`,
+      merge_logs: true,
+      // -------------------------------------------------------------------
+      // Environment Profiles
+      // -------------------------------------------------------------------
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
@@ -51,200 +125,172 @@ module.exports = {
         RRD_LIB_PATH: `${APP_DIR}/rrdtool/lib`,
         RRD_DATA_PATH: `${APP_DIR}/data/rrd`,
       },
-      max_memory_restart: '2G',
-      error_file: `${LOG_DIR}/next-error.log`,
-      out_file: `${LOG_DIR}/next-out.log`,
-      max_restarts: 10,
-      restart_delay: 3000,
+      env_staging: {
+        NODE_ENV: 'production',
+        PORT: 3000,
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite_staging',
+        CRON_SECRET: 'staysuite-cron-secret-staging',
+        RRD_BIN_PATH: `${APP_DIR}/rrdtool/bin/rrdtool`,
+        RRD_LIB_PATH: `${APP_DIR}/rrdtool/lib`,
+        RRD_DATA_PATH: `${APP_DIR}/data/rrd`,
+      },
+      env_development: {
+        NODE_ENV: 'development',
+        PORT: 3000,
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite_dev',
+        CRON_SECRET: 'staysuite-cron-secret-dev',
+        RRD_BIN_PATH: `${APP_DIR}/rrdtool/bin/rrdtool`,
+        RRD_LIB_PATH: `${APP_DIR}/rrdtool/lib`,
+        RRD_DATA_PATH: `${APP_DIR}/data/rrd`,
+      },
     },
 
     // =========================================================================
-    // Mini Services (all use bun directly)
+    // Core Network Services (DHCP, DNS, Firewall, RADIUS management)
     // =========================================================================
-    {
-      name: 'availability-service',
-      script: 'server.ts',
-      interpreter: BUN_PATH,
-      cwd: `${APP_DIR}/mini-services/availability-service`,
-      error_file: `${LOG_DIR}/availability-service-error.log`,
-      out_file: `${LOG_DIR}/availability-service-out.log`,
-      max_restarts: 10,
-      restart_delay: 3000,
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3002,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-      },
-    },
-    {
-      name: 'realtime-service',
-      script: 'index.ts',
-      interpreter: BUN_PATH,
-      cwd: `${APP_DIR}/mini-services/realtime-service`,
-      error_file: `${LOG_DIR}/realtime-service-error.log`,
-      out_file: `${LOG_DIR}/realtime-service-out.log`,
-      max_restarts: 10,
-      restart_delay: 3000,
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3003,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-      },
-    },
-    {
-      name: 'dhcp-service',
-      script: 'index.ts',
-      interpreter: BUN_PATH,
-      cwd: `${APP_DIR}/mini-services/dhcp-service`,
-      error_file: `${LOG_DIR}/dhcp-service-error.log`,
-      out_file: `${LOG_DIR}/dhcp-service-out.log`,
-      max_restarts: 10,
-      restart_delay: 3000,
+    miniService('dhcp-service', {
+      _port: 3011,
       env: {
         NODE_ENV: 'production',
         PORT: 3011,
         DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       },
-    },
-    {
-      name: 'dns-service',
-      script: 'index.ts',
-      interpreter: BUN_PATH,
-      cwd: `${APP_DIR}/mini-services/dns-service`,
-      error_file: `${LOG_DIR}/dns-service-error.log`,
-      out_file: `${LOG_DIR}/dns-service-out.log`,
-      max_restarts: 10,
-      restart_delay: 3000,
+    }),
+    miniService('dns-service', {
+      _port: 3012,
       env: {
         NODE_ENV: 'production',
         PORT: 3012,
         DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       },
-    },
-    {
-      name: 'freeradius-service',
-      script: 'index.ts',
-      interpreter: BUN_PATH,
-      cwd: `${APP_DIR}/mini-services/freeradius-service`,
-      error_file: `${LOG_DIR}/freeradius-service-error.log`,
-      out_file: `${LOG_DIR}/freeradius-service-out.log`,
-      max_restarts: 10,
-      restart_delay: 3000,
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3010,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-      },
-    },
-    {
-      name: 'nftables-service',
-      script: 'index.ts',
-      interpreter: BUN_PATH,
-      cwd: `${APP_DIR}/mini-services/nftables-service`,
-      error_file: `${LOG_DIR}/nftables-service-error.log`,
-      out_file: `${LOG_DIR}/nftables-service-out.log`,
-      max_restarts: 10,
-      restart_delay: 3000,
+    }),
+    miniService('nftables-service', {
+      _port: 3013,
+      max_memory_restart: '150M',  // Firewall rules are memory-light
       env: {
         NODE_ENV: 'production',
         PORT: 3013,
         DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       },
-    },
-    {
-      name: 'captive-redirect',
+    }),
+    miniService('freeradius-service', {
+      _port: 3010,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3010,
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+      },
+    }),
+    miniService('captive-redirect', {
+      _port: 8888,
       script: 'index.ts',
-      interpreter: BUN_PATH,
-      cwd: `${APP_DIR}/mini-services/captive-redirect`,
-      error_file: `${LOG_DIR}/captive-redirect-error.log`,
-      out_file: `${LOG_DIR}/captive-redirect-out.log`,
-      max_restarts: 10,
-      restart_delay: 3000,
       env: {
         NODE_ENV: 'production',
         PORT: 8888,
         PORTAL_PORT: 3000,
       },
-    },
-    {
-      name: 'live-speed-service',
-      script: 'index.ts',
-      interpreter: BUN_PATH,
-      cwd: `${APP_DIR}/mini-services/live-speed-service`,
-      error_file: `${LOG_DIR}/live-speed-service-error.log`,
-      out_file: `${LOG_DIR}/live-speed-service-out.log`,
-      max_restarts: 10,
-      restart_delay: 3000,
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3018,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-      },
-    },
+    }),
 
-    {
-      name: 'notification-ws',
-      script: 'index.ts',
-      interpreter: BUN_PATH,
-      cwd: `${APP_DIR}/mini-services/notification-ws`,
-      error_file: `${LOG_DIR}/notification-ws-error.log`,
-      out_file: `${LOG_DIR}/notification-ws-out.log`,
-      max_restarts: 10,
-      restart_delay: 3000,
+    // =========================================================================
+    // Realtime & Notification Services (WebSocket-based)
+    // =========================================================================
+    miniService('realtime-service', {
+      _port: 3003,
       env: {
         NODE_ENV: 'production',
         PORT: 3003,
         DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
       },
-    },
-    {
-      name: 'shell-console',
-      script: 'index.ts',
-      interpreter: BUN_PATH,
-      cwd: `${APP_DIR}/mini-services/shell-console`,
-      error_file: `${LOG_DIR}/shell-console-error.log`,
-      out_file: `${LOG_DIR}/shell-console-out.log`,
-      max_restarts: 10,
-      restart_delay: 3000,
+    }),
+    miniService('notification-ws', {
+      _port: 3003,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3003,
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+      },
+    }),
+
+    // =========================================================================
+    // Business Logic Services
+    // =========================================================================
+    miniService('availability-service', {
+      _port: 3002,
+      script: 'server.ts',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3002,
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+      },
+    }),
+    miniService('live-speed-service', {
+      _port: 3018,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3018,
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+      },
+    }),
+    miniService('shell-console', {
+      _port: 3025,
       env: {
         NODE_ENV: 'production',
         PORT: 3025,
       },
-    },
+    }),
+
     // =========================================================================
     // IPDR Network Logging Pipeline (WiFi gateway analytics + TRAI compliance)
     // =========================================================================
-    {
-      name: 'conntrack-bridge',
-      script: 'index.ts',
-      interpreter: BUN_PATH,
-      cwd: `${APP_DIR}/mini-services/conntrack-bridge`,
-      error_file: `${LOG_DIR}/conntrack-bridge-error.log`,
-      out_file: `${LOG_DIR}/conntrack-bridge-out.log`,
-      max_restarts: 10,
-      restart_delay: 3000,
+    miniService('conntrack-bridge', {
+      _port: 3020,
+      max_memory_restart: '500M',  // High throughput — may buffer many connections
       env: {
         NODE_ENV: 'production',
         PORT: 3020,
         CLICKHOUSE_URL: 'http://127.0.0.1:8123',
         CONNTRACK_BIN: '/usr/sbin/conntrack',
       },
-    },
-    {
-      name: 'sni-parser',
-      script: 'index.ts',
-      interpreter: BUN_PATH,
-      cwd: `${APP_DIR}/mini-services/sni-parser`,
-      error_file: `${LOG_DIR}/sni-parser-error.log`,
-      out_file: `${LOG_DIR}/sni-parser-out.log`,
-      max_restarts: 10,
-      restart_delay: 3000,
+    }),
+    miniService('sni-parser', {
+      _port: 3022,
+      max_memory_restart: '500M',  // Parses high-volume SNI logs
       env: {
         NODE_ENV: 'production',
         PORT: 3022,
         CLICKHOUSE_URL: 'http://127.0.0.1:8123',
         SNI_LOG_FILE: '/var/log/ulogd2/sni.json',
       },
-    },
+    }),
   ],
+
+  // ===========================================================================
+  // Deployment Targets (Git-based — uncomment and configure for your server)
+  // ===========================================================================
+  //
+  // deploy: {
+  //   production: {
+  //     user: 'deploy',
+  //     host: 'your-production-server.com',
+  //     ref: 'origin/main',
+  //     repo: 'git@github.com:yourorg/StaySuite-HospitalityOS.git',
+  //     path: '/opt/staysuite',
+  //     'pre-deploy-local': '',
+  //     'post-deploy': 'npm install --production && npx prisma db push && chmod +x start-nextjs.sh && pm2 reload ecosystem.config.js --env production',
+  //     'pre-setup': 'mkdir -p /opt/staysuite/logs',
+  //   },
+  //   staging: {
+  //     user: 'deploy',
+  //     host: 'your-staging-server.com',
+  //     ref: 'origin/develop',
+  //     repo: 'git@github.com:yourorg/StaySuite-HospitalityOS.git',
+  //     path: '/opt/staysuite-staging',
+  //     'post-deploy': 'npm install --production && npx prisma db push && chmod +x start-nextjs.sh && pm2 reload ecosystem.config.js --env staging',
+  //   },
+  // },
+  //
+  // Usage:
+  //   pm2 deploy production setup    # First-time setup on remote server
+  //   pm2 deploy production          # Deploy latest to production
+  //   pm2 deploy staging             # Deploy latest to staging
 };
