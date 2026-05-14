@@ -11,9 +11,9 @@
 | Status | Count | Percentage |
 |--------|-------|-----------|
 | ✅ E2E Ready | 128 | 56% |
-| ⚠️ Partial | 48 | 21% |
+| ⚠️ Partial | 49 | 22% |
 | 🚫 Stub | 23 | 10% |
-| ❌ Missing | 28 | 12% |
+| ❌ Missing | 27 | 12% |
 | **Total Features** | **227** | **100%** |
 
 ---
@@ -30,7 +30,7 @@
 | 4 | Device sessions | ✅ | `Session` model in Prisma, `src/app/api/auth/sessions/route.ts`, concurrent session limit (3) |
 | 5 | Audit logs | ✅ | `AuditLog` model, `src/app/api/audit-logs/route.ts`, audit logging across API routes |
 | 6 | Encryption (AES-256-GCM) | ✅ | `src/lib/encryption.ts` — AES-256-GCM encryption for sensitive data |
-| 7 | IP whitelist | ❌ | No IP whitelist implementation found anywhere in codebase |
+| 7 | IP whitelist | ⚠️ | Full CRUD API + UI + Prisma model + middleware logic exist (`src/app/api/settings/ip-whitelist/route.ts`, `src/lib/ip-whitelist/middleware.ts`, `src/components/settings/ip-access-control.tsx`). Supports IPv4, CIDR, whitelist/blacklist, per-tenant rules, audit logging. **BUT enforcement is NOT wired in**: `withIpWhitelist()` is never called from any API route, login page doesn't call `/api/security/ip-check`, and login route reads from `tenant.settings.ipWhitelist` JSON blob instead of the `IpWhitelistRule` model |
 | 8 | SSO — Google OAuth | ✅ | `src/app/api/auth/google/route.ts` + callback |
 | 9 | SSO — SAML | ✅ | `src/app/api/auth/sso/saml/[connectionId]/` — ACS endpoint, SP-initiated |
 | 10 | SSO — LDAP | 🚫 | `src/lib/auth/ldap-service.ts` exists but is a **simulation** — accepts ANY password ≥ 4 chars |
