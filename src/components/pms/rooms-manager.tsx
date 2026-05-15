@@ -419,15 +419,22 @@ export default function RoomsManager() {
   // CSV Download Template
   const downloadTemplate = () => {
     const headers = ['number', 'roomTypeCode', 'floor', 'name', 'isAccessible', 'isSmoking', 'hasBalcony', 'hasSeaView', 'hasMountainView', 'status'];
-    const sampleData = [
-      ['101', 'STD', '1', 'Standard Room 101', 'false', 'false', 'false', 'false', 'false', 'available'],
-      ['102', 'STD', '1', 'Standard Room 102', 'false', 'false', 'false', 'false', 'false', 'available'],
-      ['201', 'DLX', '2', 'Deluxe Room 201', 'false', 'false', 'true', 'true', 'false', 'available'],
-    ];
+    const roomRows = filteredRooms.map(room => [
+      room.number,
+      room.roomType.code,
+      String(room.floor),
+      room.name || '',
+      String(room.isAccessible),
+      String(room.isSmoking),
+      String(room.hasBalcony),
+      String(room.hasSeaView),
+      String(room.hasMountainView),
+      room.status,
+    ]);
     
     const csvContent = [
       headers.join(','),
-      ...sampleData.map(row => row.join(','))
+      ...roomRows.map(row => row.join(','))
     ].join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
