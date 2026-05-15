@@ -5,6 +5,16 @@
  * Uses bun dev server (not production standalone).
  *
  * Production config: ecosystem.config.js
+ *
+ * FIX (L-4): Cron jobs are handled via the Next.js API routes:
+ *   - Scheduled Charges: POST /api/scheduled-charges/cron (CRON_SECRET auth)
+ *   - Night Audit: POST /api/night-audit/cron (CRON_SECRET auth)
+ *   - In production, use system crontab or pm2-cron-module:
+ *     */5 * * * * curl -s -X POST http://localhost:3000/api/scheduled-charges/cron -H "x-cron-secret: $CRON_SECRET"
+ *     0 2 * * * curl -s -X POST http://localhost:3000/api/night-audit/cron -H "x-cron-secret: $CRON_SECRET"
+ *   For PM2, install pm2-cron: pm2 install pm2-cron-module
+ *     pm2 set pm2-cron-module:staysuite-scheduled-charges "*/5 * * * *"
+ *     pm2 set pm2-cron-module:staysuite-scheduled-charges_cmd "curl -s -X POST http://localhost:3000/api/scheduled-charges/cron"
  */
 const APP_DIR = __dirname;
 

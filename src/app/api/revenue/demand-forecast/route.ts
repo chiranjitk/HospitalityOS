@@ -263,15 +263,30 @@ export async function GET(request: NextRequest) {    const user = await getUserF
       { season: 'Monsoon (Jul-Sep)', avgOccupancy: Math.round((dayOfWeekFactors.reduce((a,b)=>a+b,0)/7) * 0.75), trend: -8, peak: 'Aug 15', low: 'Jul 25' },
     ];
 
-    // Generate event impacts from nearby events in the forecast period
-    const eventImpacts = [
-      { id: 'evt-1', name: 'Durga Puja Festival', type: 'festival', date: format(addDays(new Date(), 45), 'yyyy-MM-dd'), expectedImpact: 25, confidence: 90, radius: 10 },
-      { id: 'evt-2', name: 'Kolkata International Film Festival', type: 'festival', date: format(addDays(new Date(), 20), 'yyyy-MM-dd'), expectedImpact: 15, confidence: 80, radius: 5 },
-      { id: 'evt-3', name: 'Corporate Annual Meet', type: 'conference', date: format(addDays(new Date(), 12), 'yyyy-MM-dd'), expectedImpact: 10, confidence: 70, radius: 3 },
-    ].filter(e => {
-      const eventDate = parseISO(e.date);
-      return eventDate >= startDate && eventDate <= endDate;
+    // FIX (L-3): Replaced hardcoded Kolkata events with property-configurable events from DB.
+    // Events are fetched from the Event model filtered by tenantId and forecast period.
+    // Property admins can manage events via the Events module (events-spaces, events-calendar).
+    const dbEvents = await db.event.findMany({
+      where: {
+        tenantId,
+        startDate: { lte: endDate },
+        endDate: { gte: startDate },
+        status: { in: ['confirmed', 'active'] },
+      },
+      select: { id: true, name: true, type: true, startDate: true, expectedAttendees: true },
     });
+
+    const eventImpacts = dbEvents
+      .map(e => ({
+        id: e.id,
+        name: e.name,
+        type: e.type || 'event',
+        date: format(new Date(e.startDate), 'yyyy-MM-dd'),
+        expectedImpact: Math.min(30, Math.round((e.expectedAttendees || 50) / totalRooms * 2)),
+        confidence: 85,
+        radius: Math.ceil((e.expectedAttendees || 50) / totalRooms * 2),
+      }))
+      .sort((a, b) => a.expectedImpact - b.expectedImpact);
 
     const avgPredictedOccupancy = Math.round(forecastData.reduce((sum, d) => sum + d.predicted, 0) / forecastData.length);
 

@@ -136,25 +136,12 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Strategy 3: If only livemode is available, filter by livemode in config
-      if (!gatewayConfig && stripeLivemode !== undefined) {
-        const allStripeGateways = await db.paymentGateway.findMany({
-          where: { provider: 'stripe', status: 'active' },
-          select: { id: true, apiKey: true, webhookSecret: true, tenantId: true, config: true },
-        });
-
-        for (const gw of allStripeGateways) {
-          try {
-            const gwConfig = JSON.parse(gw.config as string) as Record<string, unknown>;
-            if (gwConfig.livemode === stripeLivemode) {
-              gatewayConfig = gw;
-              break;
-            }
-          } catch {
-            // Skip gateways with invalid config JSON
-          }
-        }
-      }
+      // FIX (L-5): Removed livemode-based first-match fallback (Strategy 3).
+      // livemode alone is insufficient for tenant isolation — multiple tenants
+      // may share the same livemode value. Previously this caused a first-match-wins
+      // race condition that could assign events to wrong tenants.
+      // If livemode is the only identifier, we now skip to Strategy 4 which
+      // only succeeds when exactly ONE active Stripe gateway exists.
     }
 
     // Strategy 4: Last resort — if only one active Stripe gateway exists, use it

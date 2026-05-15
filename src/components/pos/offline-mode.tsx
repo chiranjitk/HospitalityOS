@@ -207,21 +207,123 @@ export default function OfflinePOSMode() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // FIX (M-6): Added API integration replacing empty shell
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [queueItems, setQueueItems] = useState<SyncQueueItem[]>([]);
+  const [queueStatus, setQueueStatus] = useState<any>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline' | 'syncing' | 'error'>(() =>
+    typeof navigator !== 'undefined' && navigator.onLine ? 'online' : 'offline'
+  );
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  // Fetch pending offline orders and queue status
+  const fetchOfflineData = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
+    setError(null);
+    try {
+      const [ordersRes, queueRes] = await Promise.allSettled([
+        fetch('/api/restaurant/orders?status=pending_sync'),
+        fetch('/api/pos/offline-queue'),
+      ]);
+
+      // Process orders response
+      if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
+        const ordersData = await ordersRes.value.json();
+        const ordersList = ordersData?.orders ?? ordersData?.data ?? ordersData ?? [];
+        setOrders(Array.isArray(ordersList) ? ordersList : []);
+      } else {
+        setOrders([]);
+      }
+
+      // Process queue status response
+      if (queueRes.status === 'fulfilled' && queueRes.value.ok) {
+        const queueData = await queueRes.value.json();
+        setQueueStatus(queueData);
+        const items = queueData?.items ?? queueData?.queue ?? [];
+        setQueueItems(Array.isArray(items) ? items : []);
+      } else {
+        setQueueItems([]);
+        setQueueStatus(null);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load offline data');
+      setConnectionStatus('error');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const [ordersRes, queueRes] = await Promise.allSettled([
+          fetch('/api/restaurant/orders?status=pending_sync'),
+          fetch('/api/pos/offline-queue'),
+        ]);
+        if (cancelled) return;
+
+        if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
+          const ordersData = await ordersRes.value.json();
+          const ordersList = ordersData?.orders ?? ordersData?.data ?? ordersData ?? [];
+          setOrders(Array.isArray(ordersList) ? ordersList : []);
+        } else {
+          setOrders([]);
+        }
+
+        if (queueRes.status === 'fulfilled' && queueRes.value.ok) {
+          const queueData = await queueRes.value.json();
+          setQueueStatus(queueData);
+          const items = queueData?.items ?? queueData?.queue ?? [];
+          setQueueItems(Array.isArray(items) ? items : []);
+        } else {
+          setQueueItems([]);
+          setQueueStatus(null);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.message || 'Failed to load offline data');
+          setConnectionStatus('error');
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Monitor online/offline status
+  useEffect(() => {
+    const handleOnline = () => setConnectionStatus('online');
+    const handleOffline = () => setConnectionStatus('offline');
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const dashboard: SyncDashboardData = {
     syncStatus: connectionStatus,
-    connectionQuality: 'good',
-    dataCompleteness: orders.length > 0 ? 100 : 0,
-    lastSuccessfulSync: new Date().toISOString(),
-    pendingUpload: 0,
-    pendingDownload: 0,
-    totalQueued: 0,
-    syncProgress: 100,
-    avgSyncTime: '-',
-    failedToday: orders.filter((o: any) => o.status === 'cancelled').length,
-    syncedToday: orders.length,
-    dbSize: '-',
-    serverVersion: '-',
-    localVersion: '-',
+    connectionQuality: queueStatus?.connectionQuality ?? (connectionStatus === 'online' ? 'good' : 'none'),
+    dataCompleteness: queueStatus?.dataCompleteness ?? (orders.length > 0 ? 100 : 0),
+    lastSuccessfulSync: queueStatus?.lastSuccessfulSync ?? new Date().toISOString(),
+    pendingUpload: queueStatus?.pendingUpload ?? orders.length,
+    pendingDownload: queueStatus?.pendingDownload ?? 0,
+    totalQueued: queueStatus?.totalQueued ?? queueItems.length,
+    syncProgress: queueStatus?.syncProgress ?? (connectionStatus === 'online' ? 100 : 0),
+    avgSyncTime: queueStatus?.avgSyncTime ?? '-',
+    failedToday: queueStatus?.failedToday ?? orders.filter((o: any) => o.status === 'cancelled' || o.status === 'failed').length,
+    syncedToday: queueStatus?.syncedToday ?? orders.filter((o: any) => o.status === 'synced').length,
+    dbSize: queueStatus?.dbSize ?? '-',
+    serverVersion: queueStatus?.serverVersion ?? '-',
+    localVersion: queueStatus?.localVersion ?? '-',
   };
   const syncConfig = SYNC_STATUS_CONFIG[dashboard.syncStatus];
   const connQuality = CONNECTION_QUALITY[dashboard.connectionQuality];
@@ -229,20 +331,46 @@ export default function OfflinePOSMode() {
   // ── Computed ─────────────────────────────────────────────────────
 
   const filteredQueue = useMemo(() => {
-    return [];
-  }, [searchQuery, queueFilter]);
+    let items = queueItems;
+    if (queueFilter !== 'all') {
+      items = items.filter(item => item.status === queueFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      items = items.filter(item =>
+        item.orderId.toLowerCase().includes(q)
+      );
+    }
+    return items;
+  }, [queueItems, searchQuery, queueFilter]);
 
-  const unresolvedConflicts = useMemo(() => [], []);
-  const resolvedConflicts = useMemo(() => [], []);
+  const unresolvedConflicts = useMemo(() =>
+    (queueStatus?.conflicts ?? []).filter((c: SyncConflict) => !c.resolution),
+    [queueStatus]
+  );
+  const resolvedConflicts = useMemo(() =>
+    (queueStatus?.conflicts ?? []).filter((c: SyncConflict) => !!c.resolution),
+    [queueStatus]
+  );
 
   // ── Handlers ─────────────────────────────────────────────────────
 
-  const handleForceSync = () => {
+  const handleForceSync = async () => {
     setIsSyncing(true);
-    setTimeout(() => {
-      setIsSyncing(false);
+    try {
+      const res = await fetch('/api/pos/offline-queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'force_sync' }),
+      });
+      if (!res.ok) throw new Error('Sync request failed');
       toast({ title: 'Sync Complete', description: 'All pending orders synced successfully' });
-    }, 2000);
+      await fetchOfflineData();
+    } catch (err: any) {
+      toast({ title: 'Sync Failed', description: err?.message || 'Could not trigger sync', variant: 'destructive' });
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleResolveConflict = (conflictId: string, resolution: 'keep_local' | 'keep_server' | 'merged') => {
@@ -262,9 +390,22 @@ export default function OfflinePOSMode() {
     toast({ title: 'Retrying Failed', description: 'Re-queuing all failed orders for sync' });
   };
 
-  const handleSaveSettings = () => {
-    setIsSettingsOpen(false);
-    toast({ title: 'Settings Saved', description: 'Offline mode settings updated successfully' });
+  const handleSaveSettings = async () => {
+    setIsSavingSettings(true);
+    try {
+      const res = await fetch('/api/pos/offline-queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update_settings', settings }),
+      });
+      if (!res.ok) throw new Error('Failed to save settings');
+      setIsSettingsOpen(false);
+      toast({ title: 'Settings Saved', description: 'Offline mode settings updated successfully' });
+    } catch (err: any) {
+      toast({ title: 'Save Failed', description: err?.message || 'Could not save settings', variant: 'destructive' });
+    } finally {
+      setIsSavingSettings(false);
+    }
   };
 
   // ── Helper: format currency without useCurrency (POS specific) ───
@@ -579,6 +720,17 @@ export default function OfflinePOSMode() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {filteredQueue.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="h-32 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+                        <p className="text-sm text-muted-foreground">No pending orders in queue</p>
+                        <p className="text-xs text-muted-foreground/60">All orders have been synced successfully</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
                 {filteredQueue.map(item => {
                   const statusCfg = QUEUE_STATUS[item.status];
                   return (
@@ -656,7 +808,7 @@ export default function OfflinePOSMode() {
       </Card>
 
       {/* Error details for failed items */}
-      {false && (
+      {filteredQueue.some(item => item.status === 'failed') && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-red-600">
@@ -665,7 +817,7 @@ export default function OfflinePOSMode() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {orders.filter((o: any) => o.status === 'cancelled').map((item: any) => (
+            {filteredQueue.filter(item => item.status === 'failed').map((item) => (
               <div key={item.id} className="p-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/10">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-mono text-sm font-medium">{item.orderId}</span>
@@ -740,7 +892,7 @@ export default function OfflinePOSMode() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {([] as SyncConflict[]).map(conflict => {
+                {unresolvedConflicts.map(conflict => {
                   const sevCfg = SEVERITY_CONFIG[conflict.severity];
                   return (
                     <TableRow
@@ -1040,9 +1192,9 @@ export default function OfflinePOSMode() {
       </Card>
 
       <div className="flex gap-3">
-        <Button onClick={handleSaveSettings}>
-          <Settings className="h-4 w-4 mr-2" />
-          Save Settings
+        <Button onClick={handleSaveSettings} disabled={isSavingSettings}>
+          {isSavingSettings ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Settings className="h-4 w-4 mr-2" />}
+          {isSavingSettings ? 'Saving...' : 'Save Settings'}
         </Button>
         <Button variant="outline" onClick={() => setSettings(DEFAULT_SETTINGS)}>
           Reset to Defaults
@@ -1052,6 +1204,46 @@ export default function OfflinePOSMode() {
   );
 
   // ── Main render ──────────────────────────────────────────────────
+
+  // ── Loading / Error states ─────────────────────────────────────
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <span className="ml-3 text-muted-foreground">Loading offline data...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <CloudOff className="h-5 w-5 text-amber-500" />
+              Offline POS Mode
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Manage offline operations, sync queue, and conflict resolution
+            </p>
+          </div>
+        </div>
+        <Card className="border-red-200 dark:border-red-800">
+          <CardContent className="flex flex-col items-center py-8 gap-3">
+            <AlertTriangle className="h-10 w-10 text-red-500" />
+            <p className="text-sm font-medium text-red-600">Failed to load offline data</p>
+            <p className="text-xs text-muted-foreground">{error}</p>
+            <Button variant="outline" size="sm" onClick={fetchOfflineData}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -1070,6 +1262,10 @@ export default function OfflinePOSMode() {
           <Button variant="outline" size="sm" onClick={handleForceSync} disabled={isSyncing}>
             {isSyncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Sync Now
+          </Button>
+          <Button variant="outline" size="sm" onClick={fetchOfflineData}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
           </Button>
           <Button variant="outline" size="sm" onClick={() => setIsSettingsOpen(true)}>
             <Settings className="h-4 w-4 mr-2" />
