@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { z } from 'zod';
+import { encrypt, decrypt, isEncrypted } from '@/lib/encryption';
 
 const createSettingsSchema = z.object({
   propertyId: z.string().optional(),
@@ -53,7 +54,16 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json({ success: true, data: settings });
+    // SECURITY FIX (H-5): Decrypt Aadhaar numbers before returning to client.
+    // Aadhaar is stored encrypted (AES-256-GCM) in the database.
+    const decryptedSettings = settings.map(s => ({
+      ...s,
+      aadhaarNumber: s.aadhaarNumber && isEncrypted(s.aadhaarNumber)
+        ? decrypt(s.aadhaarNumber)
+        : s.aadhaarNumber,
+    }));
+
+    return NextResponse.json({ success: true, data: decryptedSettings });
   } catch (error) {
     console.error('[TaxSettings GET] Error:', error);
     return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch tax settings' } }, { status: 500 });
@@ -102,7 +112,10 @@ export async function POST(request: NextRequest) {
         tds194hRate: data.tds194hRate,
         tds194jRate: data.tds194jRate,
         panNumber: data.panNumber,
-        aadhaarNumber: data.aadhaarNumber,
+        // SECURITY FIX (H-5): Encrypt Aadhaar number before storing.
+        // Aadhaar is a sensitive PII identifier (Indian UIDAI). AES-256-GCM encryption
+        // via lib/encryption.ts ensures compliance with data protection requirements.
+        aadhaarNumber: data.aadhaarNumber ? encrypt(data.aadhaarNumber) : null,
         isActive: data.isActive,
       },
       include: { property: { select: { id: true, name: true } } },

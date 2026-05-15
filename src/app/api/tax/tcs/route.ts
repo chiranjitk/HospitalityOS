@@ -90,6 +90,26 @@ export async function POST(request: NextRequest) {
 
     const data = parsed.data;
 
+    // SECURITY FIX (H-6): Cross-validate TCS amount ≈ bookingAmount × tcsRate.
+    // Prevents data integrity issues where amount and rate don't match,
+    // which could indicate manual errors or tampering.
+    if (data.bookingAmount > 0 && data.tcsRate > 0) {
+      const expectedAmount = Math.round(data.bookingAmount * data.tcsRate * 100) / 100;
+      const tolerance = 1.00; // ₹1 tolerance for rounding differences
+      if (data.tcsAmount > 0 && Math.abs(data.tcsAmount - expectedAmount) > tolerance) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: `TCS amount (${data.tcsAmount}) does not match expected amount (${expectedAmount}) based on booking amount (${data.bookingAmount}) × TCS rate (${data.tcsRate}). Difference: ${Math.abs(data.tcsAmount - expectedAmount).toFixed(2)} exceeds tolerance of ₹${tolerance.toFixed(2)}.`,
+            },
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const record = await db.tcsRecord.create({
       data: {
         tenantId: user.tenantId,

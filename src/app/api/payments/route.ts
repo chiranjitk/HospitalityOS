@@ -8,6 +8,7 @@ import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { notifyPaymentReceived, notifyPaymentFailed } from '@/lib/notify';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 import { evaluateTransaction } from '@/lib/fraud-detection';
+import { fireTrigger } from '@/lib/automation/trigger-engine';
 
 // Helper function to generate transaction ID
 function generateTransactionId(): string {
@@ -542,6 +543,27 @@ export async function POST(request: NextRequest) {
       confirmationCode: folio?.booking?.confirmationCode,
       folioNumber: folio?.folioNumber,
     });
+
+    // SECURITY FIX (H-3): Wire automation trigger engine to payment received event.
+    try {
+      fireTrigger({
+        eventType: 'payment.received',
+        tenantId: payment.tenantId,
+        entityId: payment.id,
+        data: {
+          paymentId: payment.id,
+          folioId,
+          amount: payment.amount,
+          currency: payment.currency,
+          method: payment.method,
+          gateway: payment.gateway,
+          transactionId: payment.transactionId,
+          status: payment.status,
+        },
+      });
+    } catch (triggerError) {
+      console.error('[Payment Created] Failed to fire automation trigger:', triggerError);
+    }
 
     return NextResponse.json({ 
       success: true, 

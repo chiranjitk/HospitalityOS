@@ -6,6 +6,8 @@ import { OTAClientFactory } from '@/lib/ota/client-factory';
 import { OTAInventoryUpdate } from '@/lib/ota/types';
 
 // Helper: build inventory update payloads for a given property and its room types
+// SECURITY FIX (H-1): Uses booking overlap check instead of just room status.
+// Prevents overselling on OTAs when rooms are occupied by active bookings.
 async function buildInventoryUpdates(
   tenantId: string,
   propertyId: string
@@ -20,25 +22,75 @@ async function buildInventoryUpdates(
     },
   });
 
-  // Build availability for the next 30 days
+  // Build date range: next 30 days
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const rangeEnd = new Date(today);
+  rangeEnd.setDate(rangeEnd.getDate() + 30);
+
+  // Fetch ALL active bookings that overlap with the 30-day window
+  // (single query — far more efficient than per-date queries)
+  const activeBookings = await db.booking.findMany({
+    where: {
+      propertyId,
+      status: { in: ['confirmed', 'checked_in'] },
+      deletedAt: null,
+      roomId: { not: null },
+      AND: [
+        { checkIn: { lt: rangeEnd } },
+        { checkOut: { gt: today } },
+      ],
+    },
+    select: {
+      roomId: true,
+      checkIn: true,
+      checkOut: true,
+    },
+  });
+
+  // Build a map: roomId -> array of [checkIn, checkOut] for quick overlap checks
+  const bookingMap = new Map<string, [Date, Date][]>();
+  for (const b of activeBookings) {
+    if (!b.roomId) continue;
+    const existing = bookingMap.get(b.roomId) || [];
+    existing.push([b.checkIn, b.checkOut]);
+    bookingMap.set(b.roomId, existing);
+  }
+
   const updates: OTAInventoryUpdate[] = [];
 
   for (const roomType of roomTypes) {
     const totalRooms = roomType.rooms.length;
-    const availableRooms = roomType.rooms.filter(r => r.status === 'available').length;
+    // Exclude maintenance/out-of-service rooms from total available
+    const serviceableRooms = roomType.rooms.filter(r => r.status !== 'out_of_service' && r.status !== 'maintenance');
+    const serviceableCount = serviceableRooms.length;
 
     for (let d = 0; d < 30; d++) {
       const date = new Date(today);
       date.setDate(date.getDate() + d);
+      const nextDate = new Date(date);
+      nextDate.setDate(nextDate.getDate() + 1);
       const dateStr = date.toISOString().split('T')[0];
+
+      // Count rooms booked on this specific date using booking overlap
+      let bookedCount = 0;
+      for (const room of serviceableRooms) {
+        const bookings = bookingMap.get(room.id);
+        if (!bookings) continue;
+        const isBooked = bookings.some(([checkIn, checkOut]) =>
+          checkIn < nextDate && checkOut > date
+        );
+        if (isBooked) bookedCount++;
+      }
+
+      const availableRooms = Math.max(0, serviceableCount - bookedCount);
 
       updates.push({
         roomTypeId: roomType.id,
         externalRoomId: '', // will be mapped by the sync service using channel mappings
         date: dateStr,
         availableRooms,
-        totalRooms,
+        totalRooms: serviceableCount,
       });
     }
   }

@@ -406,6 +406,11 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // SECURITY FIX (H-2): Track OTA push outcome and log truthfully.
+      // Previously this always logged 'success' even when OTA push failed.
+      let otaPushSuccess = false;
+      let otaPushError: string | null = null;
+
       // Attempt to sync the single price update via OTA client
       try {
         const ratePlan = await db.ratePlan.findFirst({
@@ -425,21 +430,32 @@ export async function POST(request: NextRequest) {
           };
 
           await OTASyncService.syncRatesToChannel(connection.id, [update]);
+          otaPushSuccess = true;
+        } else {
+          otaPushSuccess = false;
+          otaPushError = 'Rate plan not found';
         }
       } catch (error) {
         console.error(`Rate push failed for connection ${connectionId}:`, error);
-        // Don't fail the entire request - still log locally
+        otaPushSuccess = false;
+        otaPushError = error instanceof Error ? error.message : 'Unknown OTA push error';
       }
 
-      // Create a sync log entry for the rate update
+      // Create a sync log entry for the rate update — accurately reflects OTA push result
       await db.channelSyncLog.create({
         data: {
           connectionId,
           syncType: 'rates',
           direction: 'outbound',
-          status: 'success',
+          status: otaPushSuccess ? 'success' : 'failed',
           requestPayload: JSON.stringify({ ratePlanId, channelPrice }),
-          responsePayload: JSON.stringify({ channelPrice, syncedAt: new Date().toISOString() }),
+          responsePayload: JSON.stringify({
+            channelPrice,
+            syncedAt: new Date().toISOString(),
+            otaPushSuccess,
+            ...(otaPushError ? { error: otaPushError } : {}),
+          }),
+          ...(otaPushError ? { errorMessage: otaPushError } : {}),
         },
       });
 

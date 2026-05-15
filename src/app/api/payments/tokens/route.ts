@@ -111,16 +111,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // SECURITY FIX (H-4): PCI-DSS compliance — reject raw card numbers.
+    // Full PAN must NEVER traverse application memory. Only gateway tokens
+    // (Stripe Elements, Razorpay tokens, etc.) and pre-extracted last4 are accepted.
+    if (body.cardNumber) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'PCI_VIOLATION',
+            message: 'Raw card numbers are not accepted. Use gateway tokenization (e.g., Stripe Elements) to create a payment token on the client side, then submit the token here.',
+          },
+        },
+        { status: 400 }
+      );
+    }
+
     // Try to get token info from gateway (metadata from client should be passed)
     let finalCardLast4 = normalizeLast4(cardLast4);
     let finalCardBrand = cardBrand || 'unknown';
     let finalExpMonth = expiryMonth || 0;
     let finalExpYear = expiryYear || 0;
-
-    // If we have the full card number, extract last4
-    if (body.cardNumber && body.cardNumber.length > 4) {
-      finalCardLast4 = normalizeLast4(body.cardNumber);
-    }
 
     // If no brand provided and we have last4, try to infer
     if (!cardBrand && cardLast4) {
