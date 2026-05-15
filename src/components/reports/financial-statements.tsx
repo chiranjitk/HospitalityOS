@@ -1139,6 +1139,7 @@ export default function FinancialStatements() {
             </Card>
           )}
         </TabsContent>
-      </div>
+      </Tabs>
+    </div>
     );
 }

@@ -160,8 +160,6 @@ const SUPPLEMENT_TYPE_LABELS: Record<string, string> = {
   percentage: 'Percentage',
 };
 
-const 'current' = '00000000-0000-0000-0000-000000000001';
-
 // ============================================
 // COMPONENT
 // ============================================

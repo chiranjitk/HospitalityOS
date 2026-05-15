@@ -868,7 +868,7 @@ export default function JourneyAutomation() {
                         ))}
                       </div>
                     </div>
-                  ))}
+                  )) : null}
                 </div>
               </ScrollArea>
             </CardContent>
@@ -915,6 +915,7 @@ export default function JourneyAutomation() {
                 <p className="font-semibold">Build Custom Journey</p>
                 <p className="text-sm text-muted-foreground mt-1">Create a journey from scratch</p>
               </CardContent>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>

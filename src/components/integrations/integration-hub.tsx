@@ -184,7 +184,8 @@ const dataVolumeDataInitial = [
   { day: 'Sun', volume: 0 },
 ];
 
-const availableEvents = [
+// Integration catalog (used for reference/display, not webhook events)
+const _integrationCatalog = [
   { id: 'int-1', name: 'Stripe', description: 'Online payment processing platform', category: 'Payment', status: 'connected', lastSync: '2 min ago', syncInterval: 'Real-time', recordsSynced: 12500, uptime: 99.9, avgLatency: 120, errorRate: 0.1, logoColor: 'bg-violet-600', icon: <CreditCard className="h-5 w-5" /> },
   { id: 'int-2', name: 'PayPal', description: 'Global payment gateway', category: 'Payment', status: 'connected', lastSync: '5 min ago', syncInterval: 'Real-time', recordsSynced: 8900, uptime: 99.8, avgLatency: 150, errorRate: 0.2, logoColor: 'bg-blue-600', icon: <CreditCard className="h-5 w-5" /> },
   { id: 'int-3', name: 'Razorpay', description: 'India-focused payment gateway', category: 'Payment', status: 'connected', lastSync: '1 min ago', syncInterval: 'Real-time', recordsSynced: 5200, uptime: 99.7, avgLatency: 180, errorRate: 0.3, logoColor: 'bg-cyan-600', icon: <CreditCard className="h-5 w-5" /> },
@@ -378,7 +379,7 @@ export default function IntegrationHub() {
           lastDelivery: ep.lastTriggered ? formatRelativeTime(ep.lastTriggered) : 'N/A',
           successRate: ep.successRate || 0,
           deliveries: ep.totalTriggers || 0,
-        }));
+        })));
       }
 
       // Process sync logs
@@ -395,7 +396,7 @@ export default function IntegrationHub() {
           timestamp: log.createdAt ? formatRelativeTime(log.createdAt) : '',
           duration: '',
           errorMessage: log.errorMessage || undefined,
-        }));
+        })));
       }
     } catch (err) {
       console.error('Failed to fetch integration data:', err);
